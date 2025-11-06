@@ -340,8 +340,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const existing = await storage.getDueDiligence(prospectId);
-      const mergedData = existing 
-        ? { ...existing.data, ...req.body }
+      const mergedData = (existing && existing.data) 
+        ? { ...(existing.data as object), ...req.body }
         : req.body;
       const dueDiligence = await storage.upsertDueDiligence(prospectId, mergedData);
       res.json(dueDiligence);

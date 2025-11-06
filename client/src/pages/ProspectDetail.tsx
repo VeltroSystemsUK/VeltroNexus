@@ -16,7 +16,7 @@ import { queryClient } from "@/lib/queryClient";
 import { 
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
-  Mail, Phone, User, Plus, Trash2, Edit2, Save, X
+  Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect } from "react";
@@ -29,6 +29,8 @@ import {
   FinancialRatiosCalculatorTool,
   CharacterAssessmentTool,
 } from "@/components/DueDiligenceTools";
+import { CompanyInformation } from "@/components/CompanyInformation";
+import type { CompanyProfile } from "@shared/companiesHouseTypes";
 
 const STAGES = [
   { value: "lead", label: "Lead" },
@@ -149,8 +151,9 @@ export default function ProspectDetail() {
 
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
-          <TabsList className="grid w-full grid-cols-5 mb-8">
+          <TabsList className="grid w-full grid-cols-6 mb-8">
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
+            <TabsTrigger value="company" data-testid="tab-company">Company Info</TabsTrigger>
             <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
             <TabsTrigger value="activity" data-testid="tab-activity">Sales Activity</TabsTrigger>
             <TabsTrigger value="diligence" data-testid="tab-diligence">Due Diligence</TabsTrigger>
@@ -159,6 +162,10 @@ export default function ProspectDetail() {
 
           <TabsContent value="contacts">
             <ContactsTab prospectId={prospectId} contacts={contacts} />
+          </TabsContent>
+
+          <TabsContent value="company">
+            <CompanyInformationTab companyNumber={prospect.company.companyNumber} />
           </TabsContent>
 
           <TabsContent value="loan">
@@ -1124,4 +1131,60 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
       </Card>
     </div>
   );
+}
+
+function CompanyInformationTab({ companyNumber }: { companyNumber: string }) {
+  const { data: companyProfile, isLoading, error } = useQuery<CompanyProfile>({
+    queryKey: [`/api/companies-house/company/${companyNumber}`],
+    enabled: !!companyNumber,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-8">
+          <div className="flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-sm text-muted-foreground">Loading company information...</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-8">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <h3 className="font-semibold mb-2">Failed to Load Company Information</h3>
+            <p className="text-sm text-muted-foreground">
+              {(error as Error).message || "An error occurred while fetching company data from Companies House"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!companyProfile) {
+    return (
+      <Card>
+        <CardContent className="p-8">
+          <div className="text-center">
+            <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="font-semibold mb-2">No Company Data Available</h3>
+            <p className="text-sm text-muted-foreground">
+              Company information could not be found for company number: {companyNumber}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return <CompanyInformation companyProfile={companyProfile} />;
 }
