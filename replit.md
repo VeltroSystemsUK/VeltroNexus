@@ -30,6 +30,13 @@ A comprehensive design system dictates typography (Inter, JetBrains Mono), a HSL
 
 A full integration with the UK Companies House API allows for searching companies (`/api/companies-house/search`) and fetching complete company profiles (`/api/companies-house/company/:companyNumber`). This enables auto-population of company data during prospect creation and detailed company information display within the prospect's details. The integration requires a `COMPANIES_HOUSE_API_KEY` and handles various company data fields, including financial, address, and status information.
 
+The integration includes four additional API endpoints to display detailed company information:
+- `/api/companies-house/company/:companyNumber/officers` - Fetches company officers (directors and secretaries) with their roles, appointment dates, and contact details
+- `/api/companies-house/company/:companyNumber/persons-with-significant-control` - Retrieves PSC data showing individuals or entities with significant influence
+- `/api/companies-house/company/:companyNumber/charges` - Lists all charges registered against the company including secured details and status
+
+All data is displayed inline on the Company Info tab with loading states, error handling, and properly formatted information including officer roles, PSC control percentages, and charge details.
+
 ### Due Diligence Tools
 
 The platform includes six interactive due diligence tools, with data stored in a JSONB column in the `due_diligence` table. These tools are accessible via dedicated API routes and include:
