@@ -55,7 +55,7 @@ export default function ProspectCard({
 
   return (
     <Card
-      className={`cursor-pointer transition-shadow hover-elevate ${
+      className={`cursor-pointer transition-all hover-elevate active-elevate-2 ${
         isDragging ? "shadow-lg rotate-2" : ""
       }`}
       onClick={onClick}

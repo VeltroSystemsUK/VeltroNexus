@@ -125,14 +125,19 @@ export default function Pipeline() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">LP</span>
             </div>
             <h1 className="text-xl font-bold" data-testid="text-app-title">Lending Pipeline</h1>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <Button onClick={() => navigate("/search")} data-testid="button-add-prospect">
+              Add Prospect
+            </Button>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
