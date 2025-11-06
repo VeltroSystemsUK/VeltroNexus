@@ -24,6 +24,9 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   subscriptionTier: varchar("subscription_tier").notNull().default("free"),
   prospectLimit: integer("prospect_limit").notNull().default(10),
+  gocardlessCustomerId: varchar("gocardless_customer_id"),
+  gocardlessMandateId: varchar("gocardless_mandate_id"),
+  gocardlessSubscriptionId: varchar("gocardless_subscription_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
