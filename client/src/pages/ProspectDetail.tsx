@@ -84,7 +84,7 @@ export default function ProspectDetail() {
   });
 
   const deleteProspectMutation = useMutation({
-    mutationFn: () => apiRequest("DELETE", `/api/prospects/${prospectId}`),
+    mutationFn: () => apiRequest(`/api/prospects/${prospectId}`, "DELETE"),
     onSuccess: () => {
       toast.success("Prospect deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
@@ -345,7 +345,7 @@ function PriorityCard({ prospect }: { prospect: ProspectWithCompany }) {
 
   const updatePriorityMutation = useMutation({
     mutationFn: (newPriority: string) =>
-      apiRequest("PATCH", `/api/prospects/${prospect.id}`, { priority: newPriority }),
+      apiRequest(`/api/prospects/${prospect.id}`, "PATCH", { priority: newPriority }),
     onSuccess: () => {
       toast.success("Priority updated");
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });

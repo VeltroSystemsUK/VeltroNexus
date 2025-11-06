@@ -92,7 +92,7 @@ export default function Pricing() {
 
   const handleSelectPlan = (tier: string) => {
     if (!user) {
-      setLocation("/auth/login");
+      setLocation("/");
       return;
     }
 
