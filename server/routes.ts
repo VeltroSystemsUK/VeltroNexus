@@ -204,6 +204,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Companies House Officers API - Protected route
+  app.get("/api/companies-house/company/:companyNumber/officers", isAuthenticated, async (req, res) => {
+    try {
+      const companyNumber = req.params.companyNumber;
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+
+      const trimmedApiKey = apiKey.trim();
+      const authString = `${trimmedApiKey}:`;
+      const base64Auth = Buffer.from(authString).toString('base64');
+      
+      console.log(`Fetching officers for: "${companyNumber}"`);
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
+        {
+          headers: {
+            'Authorization': `Basic ${base64Auth}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return res.status(404).json({ error: "Officers not found" });
+        }
+        const errorText = await response.text();
+        console.error("Companies House API error:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
+        });
+      }
+
+      const data = await response.json();
+      console.log(`Retrieved ${data.items?.length || 0} officers for ${companyNumber}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error fetching officers:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Companies House PSC API - Protected route
+  app.get("/api/companies-house/company/:companyNumber/persons-with-significant-control", isAuthenticated, async (req, res) => {
+    try {
+      const companyNumber = req.params.companyNumber;
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+
+      const trimmedApiKey = apiKey.trim();
+      const authString = `${trimmedApiKey}:`;
+      const base64Auth = Buffer.from(authString).toString('base64');
+      
+      console.log(`Fetching PSC for: "${companyNumber}"`);
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
+        {
+          headers: {
+            'Authorization': `Basic ${base64Auth}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return res.status(404).json({ error: "PSC data not found" });
+        }
+        const errorText = await response.text();
+        console.error("Companies House API error:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
+        });
+      }
+
+      const data = await response.json();
+      console.log(`Retrieved ${data.items?.length || 0} PSCs for ${companyNumber}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error fetching PSC:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Companies House Charges API - Protected route
+  app.get("/api/companies-house/company/:companyNumber/charges", isAuthenticated, async (req, res) => {
+    try {
+      const companyNumber = req.params.companyNumber;
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+
+      const trimmedApiKey = apiKey.trim();
+      const authString = `${trimmedApiKey}:`;
+      const base64Auth = Buffer.from(authString).toString('base64');
+      
+      console.log(`Fetching charges for: "${companyNumber}"`);
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
+        {
+          headers: {
+            'Authorization': `Basic ${base64Auth}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          // 404 means no charges, return empty data
+          return res.json({ total_count: 0, items: [] });
+        }
+        const errorText = await response.text();
+        console.error("Companies House API error:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
+        });
+      }
+
+      const data = await response.json();
+      console.log(`Retrieved ${data.total_count || 0} charges for ${companyNumber}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error fetching charges:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Companies API - Protected routes
   app.get("/api/companies/:number", isAuthenticated, async (req, res) => {
     try {

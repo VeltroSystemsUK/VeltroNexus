@@ -1,12 +1,18 @@
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { 
   Building2, Calendar, MapPin, FileText, Users, 
-  ExternalLink, AlertCircle, CheckCircle2, XCircle,
-  TrendingUp, Shield, Link as LinkIcon
+  AlertCircle, CheckCircle2, XCircle,
+  TrendingUp, Shield
 } from "lucide-react";
-import type { CompanyProfile } from "@shared/companiesHouseTypes";
+import type { 
+  CompanyProfile, 
+  OfficersResponse, 
+  PSCResponse, 
+  ChargesResponse 
+} from "@shared/companiesHouseTypes";
 import { format } from "date-fns";
 
 interface CompanyInformationProps {
@@ -14,6 +20,26 @@ interface CompanyInformationProps {
 }
 
 export function CompanyInformation({ companyProfile }: CompanyInformationProps) {
+  const companyNumber = companyProfile.company_number;
+
+  // Fetch Officers
+  const { data: officers } = useQuery<OfficersResponse>({
+    queryKey: [`/api/companies-house/company/${companyNumber}/officers`],
+    enabled: !!companyNumber,
+  });
+
+  // Fetch PSC
+  const { data: psc } = useQuery<PSCResponse>({
+    queryKey: [`/api/companies-house/company/${companyNumber}/persons-with-significant-control`],
+    enabled: !!companyNumber,
+  });
+
+  // Fetch Charges
+  const { data: charges } = useQuery<ChargesResponse>({
+    queryKey: [`/api/companies-house/company/${companyNumber}/charges`],
+    enabled: !!companyNumber,
+  });
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
     try {
@@ -49,6 +75,12 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
     if (lowercaseStatus === "active") return <CheckCircle2 className="w-4 h-4" />;
     if (lowercaseStatus.includes("dissolved") || lowercaseStatus.includes("liquidation")) return <XCircle className="w-4 h-4" />;
     return <AlertCircle className="w-4 h-4" />;
+  };
+
+  const formatNatureOfControl = (nature: string) => {
+    return nature
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   return (
@@ -121,6 +153,218 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
           )}
         </CardContent>
       </Card>
+
+      {/* Officers */}
+      {officers && officers.total_results > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="w-4 h-4" />
+              Officers ({officers.active_count || 0} active, {officers.resigned_count || 0} resigned)
+            </CardTitle>
+            <CardDescription>Directors and company secretaries</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {officers.items.map((officer, idx) => (
+                <div key={idx} className="border-b pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h4 className="font-semibold" data-testid={`officer-name-${idx}`}>{officer.name}</h4>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {officer.officer_role?.replace(/-/g, " ")}
+                      </p>
+                    </div>
+                    <Badge variant={officer.resigned_on ? "secondary" : "default"}>
+                      {officer.resigned_on ? "Resigned" : "Active"}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Appointed: </span>
+                      <span>{formatDate(officer.appointed_on)}</span>
+                    </div>
+                    {officer.resigned_on && (
+                      <div>
+                        <span className="text-muted-foreground">Resigned: </span>
+                        <span>{formatDate(officer.resigned_on)}</span>
+                      </div>
+                    )}
+                    {officer.nationality && (
+                      <div>
+                        <span className="text-muted-foreground">Nationality: </span>
+                        <span>{officer.nationality}</span>
+                      </div>
+                    )}
+                    {officer.occupation && (
+                      <div>
+                        <span className="text-muted-foreground">Occupation: </span>
+                        <span>{officer.occupation}</span>
+                      </div>
+                    )}
+                  </div>
+                  {officer.address && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {formatAddress(officer.address)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PSC */}
+      {psc && psc.total_results > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="w-4 h-4" />
+              Persons with Significant Control ({psc.active_count || 0} active)
+            </CardTitle>
+            <CardDescription>Individuals or entities with significant influence over the company</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {psc.items.map((person, idx) => (
+                <div key={idx} className="border-b pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h4 className="font-semibold" data-testid={`psc-name-${idx}`}>
+                        {person.name || "Unknown"}
+                      </h4>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {person.kind?.replace(/-/g, " ")}
+                      </p>
+                    </div>
+                    <Badge variant={person.ceased_on ? "secondary" : "default"}>
+                      {person.ceased_on ? "Ceased" : "Active"}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Notified: </span>
+                      <span>{formatDate(person.notified_on)}</span>
+                    </div>
+                    {person.ceased_on && (
+                      <div>
+                        <span className="text-muted-foreground">Ceased: </span>
+                        <span>{formatDate(person.ceased_on)}</span>
+                      </div>
+                    )}
+                    {person.nationality && (
+                      <div>
+                        <span className="text-muted-foreground">Nationality: </span>
+                        <span>{person.nationality}</span>
+                      </div>
+                    )}
+                    {person.natures_of_control && person.natures_of_control.length > 0 && (
+                      <div>
+                        <span className="text-muted-foreground block mb-1">Nature of Control:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {person.natures_of_control.map((nature, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {formatNatureOfControl(nature)}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {person.address && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {formatAddress(person.address)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Charges */}
+      {charges && charges.total_count > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Shield className="w-4 h-4" />
+              Charges ({charges.total_count})
+            </CardTitle>
+            <CardDescription>
+              {charges.satisfied_count || 0} satisfied, {(charges.total_count - (charges.satisfied_count || 0))} outstanding
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {charges.items.map((charge, idx) => (
+                <div key={idx} className="border-b pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold" data-testid={`charge-number-${idx}`}>
+                          Charge #{charge.charge_number || idx + 1}
+                        </h4>
+                        <Badge 
+                          variant={
+                            charge.status?.toLowerCase().includes("satisfied") 
+                              ? "outline" 
+                              : "destructive"
+                          }
+                        >
+                          {charge.status || "Unknown"}
+                        </Badge>
+                      </div>
+                      {charge.classification?.description && (
+                        <p className="text-sm text-muted-foreground">
+                          {charge.classification.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                    {charge.created_on && (
+                      <div>
+                        <span className="text-muted-foreground">Created: </span>
+                        <span>{formatDate(charge.created_on)}</span>
+                      </div>
+                    )}
+                    {charge.satisfied_on && (
+                      <div>
+                        <span className="text-muted-foreground">Satisfied: </span>
+                        <span>{formatDate(charge.satisfied_on)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {charge.persons_entitled && charge.persons_entitled.length > 0 && (
+                    <div className="text-sm mb-2">
+                      <span className="text-muted-foreground">Entitled to: </span>
+                      <span>{charge.persons_entitled.map(p => p.name).join(", ")}</span>
+                    </div>
+                  )}
+
+                  {charge.particulars && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {charge.particulars.contains_fixed_charge && (
+                        <Badge variant="outline" className="text-xs">Fixed Charge</Badge>
+                      )}
+                      {charge.particulars.contains_floating_charge && (
+                        <Badge variant="outline" className="text-xs">Floating Charge</Badge>
+                      )}
+                      {charge.particulars.contains_negative_pledge && (
+                        <Badge variant="outline" className="text-xs">Negative Pledge</Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* SIC Codes */}
       {companyProfile.sic_codes && companyProfile.sic_codes.length > 0 && (
@@ -296,75 +540,6 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                   </span>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Quick Links */}
-      {companyProfile.links && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <LinkIcon className="w-4 h-4" />
-              Companies House Links
-            </CardTitle>
-            <CardDescription>View additional information on Companies House website</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2">
-              {companyProfile.links.officers && (
-                <a
-                  href={`https://find-and-update.company-information.service.gov.uk${companyProfile.links.officers}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-primary hover:underline"
-                  data-testid="link-officers"
-                >
-                  <Users className="w-3 h-3" />
-                  View Officers
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-              {companyProfile.links.persons_with_significant_control && (
-                <a
-                  href={`https://find-and-update.company-information.service.gov.uk${companyProfile.links.persons_with_significant_control}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-primary hover:underline"
-                  data-testid="link-psc"
-                >
-                  <Users className="w-3 h-3" />
-                  View PSC
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-              {companyProfile.links.filing_history && (
-                <a
-                  href={`https://find-and-update.company-information.service.gov.uk${companyProfile.links.filing_history}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-primary hover:underline"
-                  data-testid="link-filing-history"
-                >
-                  <FileText className="w-3 h-3" />
-                  View Filing History
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-              {companyProfile.links.charges && (
-                <a
-                  href={`https://find-and-update.company-information.service.gov.uk${companyProfile.links.charges}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-primary hover:underline"
-                  data-testid="link-charges"
-                >
-                  <Shield className="w-3 h-3" />
-                  View Charges
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
             </div>
           </CardContent>
         </Card>
