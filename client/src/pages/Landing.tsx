@@ -25,8 +25,11 @@ export default function Landing() {
                 Pricing
               </Button>
             </Link>
-            <Button onClick={handleLogin} data-testid="button-sign-in">
-              Sign in
+            <Button variant="ghost" onClick={handleLogin} data-testid="button-sign-in">
+              Sign In
+            </Button>
+            <Button onClick={handleLogin} data-testid="button-sign-up">
+              Sign Up Free
             </Button>
             <ThemeToggle />
           </div>
@@ -42,9 +45,14 @@ export default function Landing() {
             <p className="text-xl text-muted-foreground mb-8" data-testid="text-hero-description">
               Streamline your commercial lending pipeline with visual workflow management, company tracking, and real-time deal progression.
             </p>
-            <Button size="lg" onClick={handleLogin} data-testid="button-get-started">
-              Get Started
-            </Button>
+            <div className="flex items-center justify-center gap-4">
+              <Button size="lg" onClick={handleLogin} data-testid="button-get-started">
+                Sign Up Free
+              </Button>
+              <Button size="lg" variant="outline" onClick={handleLogin} data-testid="button-sign-in-hero">
+                Sign In
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -110,8 +118,9 @@ export default function Landing() {
 
         <section className="container mx-auto px-4 py-20 text-center">
           <h3 className="text-3xl font-bold mb-6">Ready to streamline your lending pipeline?</h3>
-          <Button size="lg" onClick={handleLogin} data-testid="button-sign-in-cta">
-            Sign in to continue
+          <p className="text-muted-foreground mb-6">Start with 10 free prospects. No credit card required.</p>
+          <Button size="lg" onClick={handleLogin} data-testid="button-sign-up-cta">
+            Sign Up Free
           </Button>
         </section>
       </main>
