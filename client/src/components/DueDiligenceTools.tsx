@@ -180,9 +180,9 @@ export function LoanCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
   const handleSave = () => {
     onSave({
       loanCalculator: {
-        loanAmount: loanAmount ? parseFloat(loanAmount) : undefined,
-        interestRate: interestRate ? parseFloat(interestRate) : undefined,
-        term: term ? parseInt(term) : undefined,
+        loanAmount: loanAmount ? parseFloat(loanAmount) : null,
+        interestRate: interestRate ? parseFloat(interestRate) : null,
+        term: term ? parseInt(term) : null,
       },
     });
   };
@@ -281,9 +281,9 @@ export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
   const handleSave = () => {
     onSave({
       dscr: {
-        annualNetOperatingIncome: noi ? parseFloat(noi) : undefined,
-        annualDebtService: debtService ? parseFloat(debtService) : undefined,
-        sensitivityRevenue: sensitivity ? parseFloat(sensitivity) : undefined,
+        annualNetOperatingIncome: noi ? parseFloat(noi) : null,
+        annualDebtService: debtService ? parseFloat(debtService) : null,
+        sensitivityRevenue: sensitivity ? parseFloat(sensitivity) : null,
       },
     });
   };
@@ -411,9 +411,9 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
   const handleSave = () => {
     onSave({
       affordability: {
-        personalIncome: income ? parseFloat(income) : undefined,
-        monthlyCommitments: commitments ? parseFloat(commitments) : undefined,
-        loanPayment: loanPayment ? parseFloat(loanPayment) : undefined,
+        personalIncome: income ? parseFloat(income) : null,
+        monthlyCommitments: commitments ? parseFloat(commitments) : null,
+        loanPayment: loanPayment ? parseFloat(loanPayment) : null,
       },
     });
   };
@@ -435,7 +435,7 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
                 value={income}
                 onChange={(e) => setIncome(e.target.value)}
                 placeholder="10000"
-                data-testid="input-personal-income"
+                data-testid="input-income"
               />
             </div>
             <div>
@@ -446,7 +446,7 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
                 value={commitments}
                 onChange={(e) => setCommitments(e.target.value)}
                 placeholder="3000"
-                data-testid="input-monthly-commitments"
+                data-testid="input-commitments"
               />
             </div>
             <div>
@@ -536,13 +536,13 @@ export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<D
   const handleSave = () => {
     onSave({
       financialRatios: {
-        revenue: revenue ? parseFloat(revenue) : undefined,
-        costs: costs ? parseFloat(costs) : undefined,
-        currentAssets: currentAssets ? parseFloat(currentAssets) : undefined,
-        currentLiabilities: currentLiabilities ? parseFloat(currentLiabilities) : undefined,
-        totalAssets: totalAssets ? parseFloat(totalAssets) : undefined,
-        totalLiabilities: totalLiabilities ? parseFloat(totalLiabilities) : undefined,
-        equity: equity ? parseFloat(equity) : undefined,
+        revenue: revenue ? parseFloat(revenue) : null,
+        costs: costs ? parseFloat(costs) : null,
+        currentAssets: currentAssets ? parseFloat(currentAssets) : null,
+        currentLiabilities: currentLiabilities ? parseFloat(currentLiabilities) : null,
+        totalAssets: totalAssets ? parseFloat(totalAssets) : null,
+        totalLiabilities: totalLiabilities ? parseFloat(totalLiabilities) : null,
+        equity: equity ? parseFloat(equity) : null,
       },
     });
   };
