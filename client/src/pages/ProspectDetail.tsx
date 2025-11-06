@@ -19,7 +19,7 @@ import {
   Mail, Phone, User, Plus, Trash2, Edit2, Save, X
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
 import {
   DueDiligenceChecklist,
@@ -547,6 +547,21 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
   const [collateral, setCollateral] = useState(!!prospect.collateral);
   const [crossCompanyGuarantee, setCrossCompanyGuarantee] = useState(!!prospect.crossCompanyGuarantee);
   const [notes, setNotes] = useState(prospect.loanRequirementNotes || "");
+
+  useEffect(() => {
+    setLoanAmount(prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "");
+    setTerm(prospect.term?.toString() || "");
+    setInterestRate(prospect.interestRate || "");
+    setDirectorsGuarantee(!!prospect.directorsGuarantee);
+    setCommercialProperty(!!prospect.commercialProperty);
+    setHomeEquity(!!prospect.homeEquity);
+    setPropertyOther(!!prospect.propertyOther);
+    setDebenture(!!prospect.debenture);
+    setParentCompanyGuarantee(!!prospect.parentCompanyGuarantee);
+    setCollateral(!!prospect.collateral);
+    setCrossCompanyGuarantee(!!prospect.crossCompanyGuarantee);
+    setNotes(prospect.loanRequirementNotes || "");
+  }, [prospect]);
 
   const saveLoanRequirementMutation = useMutation({
     mutationFn: (updates: any) =>
