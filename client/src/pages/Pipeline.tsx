@@ -1,12 +1,22 @@
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineColumn from "@/components/PipelineColumn";
 import ProspectCard, { type ProspectCardData } from "@/components/ProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
@@ -31,10 +41,12 @@ const FINAL_STAGES = STAGES.slice(6);
 
 export default function Pipeline() {
   const [, navigate] = useLocation();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   
   const { data: prospects = [], isLoading, error } = useQuery<ProspectWithCompany[]>({
     queryKey: ["/api/prospects"],
     queryFn: () => api.prospects.list(),
+    enabled: isAuthenticated,
   });
 
   const updateStageMutation = useMutation({
@@ -128,15 +140,44 @@ export default function Pipeline() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">LP</span>
+              <TrendingUp className="h-5 w-5 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold" data-testid="text-app-title">Lending Pipeline</h1>
+            <h1 className="text-xl font-bold" data-testid="text-app-title">LoanFlow</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => navigate("/search")} data-testid="button-add-prospect">
               Add Prospect
             </Button>
             <ThemeToggle />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" data-testid="button-user-menu">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage 
+                      src={user?.profileImageUrl || undefined} 
+                      alt={user?.firstName || "User"}
+                      style={{ objectFit: "cover" }}
+                    />
+                    <AvatarFallback>
+                      {user?.firstName?.[0] || user?.email?.[0] || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <div className="px-2 py-1.5 text-sm">
+                  <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-muted-foreground text-xs">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => window.location.href = "/api/logout"}
+                  data-testid="menu-item-logout"
+                >
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>

@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Building2 } from "lucide-react";
+import { ArrowLeft, Building2, TrendingUp } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function CompanySearch() {
@@ -99,9 +99,9 @@ export default function CompanySearch() {
             </Button>
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">LP</span>
+                <TrendingUp className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-bold">Add Prospect</h1>
+              <h1 className="text-xl font-bold">LoanFlow - Add Prospect</h1>
             </div>
           </div>
           <ThemeToggle />

@@ -1,8 +1,8 @@
-# Lending Pipeline Management System
+# LoanFlow - Commercial Lending Workflow Management Platform
 
 ## Overview
 
-A web-based lending pipeline management system that enables users to track and manage company loan prospects through various stages from initial lead to final approval/rejection. The application features a visual drag-and-drop Kanban board interface for moving prospects through pipeline stages, detailed company and prospect management, and a modern SaaS dashboard design.
+LoanFlow is a secure, multi-user commercial lending pipeline management system that enables lending teams to track and manage company loan prospects through various stages from initial lead to final approval/rejection. The application features user authentication, user-specific data isolation, a visual drag-and-drop Kanban board interface for moving prospects through pipeline stages, detailed company and prospect management, and a modern SaaS dashboard design.
 
 ## User Preferences
 
@@ -27,10 +27,15 @@ Preferred communication style: Simple, everyday language.
 - Dark mode support with theme toggle functionality
 
 **Core Features**:
-- Drag-and-drop pipeline management using `@hello-pangea/dnd`
-- Form validation with `react-hook-form` and `zod`
-- Toast notifications using Sonner
-- Visual pipeline stages: Lead → Contacted → Qualified → Proposal → Due Diligence → Approval → (Approved/Declined/Withdrawn)
+- **User Authentication**: Secure authentication using Replit Auth with support for Google, GitHub, X (Twitter), Apple, and email/password login
+- **Landing Page**: Professional landing page for non-authenticated users with product features and CTA
+- **User Profile**: Avatar-based user menu with sign-out functionality
+- **Data Isolation**: Each user sees only their own prospects with userId-based filtering
+- **Drag-and-drop Pipeline**: Visual Kanban board using `@hello-pangea/dnd`
+- **Form Validation**: Client and server-side validation with `react-hook-form` and `zod`
+- **Toast Notifications**: User feedback using Sonner
+- **Visual Pipeline Stages**: Lead → Contacted → Qualified → Proposal → Due Diligence → Approval → (Approved/Declined/Withdrawn)
+- **Professional Branding**: "LoanFlow" branding with TrendingUp icon and consistent design
 
 ### Backend Architecture
 
@@ -46,12 +51,18 @@ Preferred communication style: Simple, everyday language.
 - Schema validation using Zod before database operations
 - Error handling with appropriate HTTP status codes
 
-**API Endpoints**:
-- `GET /api/prospects` - List all prospects with company details
-- `GET /api/prospects/:id` - Get specific prospect
-- `POST /api/prospects` - Create new prospect
-- `PATCH /api/prospects/:id/stage` - Update prospect stage
-- `PATCH /api/prospects/:id` - Update prospect details
+**Authentication Endpoints**:
+- `GET /api/login` - Initiate OpenID Connect login flow
+- `GET /api/callback` - OAuth callback handler
+- `GET /api/logout` - Sign out and clear session
+- `GET /api/auth/user` - Get current authenticated user (protected)
+
+**API Endpoints** (All Protected):
+- `GET /api/prospects` - List user's prospects with company details
+- `GET /api/prospects/:id` - Get specific prospect (user-scoped)
+- `POST /api/prospects` - Create new prospect for current user
+- `PATCH /api/prospects/:id/stage` - Update prospect stage (user-scoped)
+- `PATCH /api/prospects/:id` - Update prospect details (user-scoped)
 - `GET /api/companies/:number` - Get company by number
 - `POST /api/companies` - Create new company
 
@@ -63,6 +74,16 @@ Preferred communication style: Simple, everyday language.
 
 **Schema Design**:
 
+**Users Table** (Required for Replit Auth):
+- `id` (varchar primary key with UUID default)
+- `email` (unique), `firstName`, `lastName`, `profileImageUrl`
+- `createdAt`, `updatedAt` timestamps
+
+**Sessions Table** (Required for Replit Auth):
+- `sid` (varchar primary key)
+- `sess` (jsonb session data)
+- `expire` (timestamp with index)
+
 **Companies Table**:
 - `id` (auto-increment primary key)
 - `companyName`, `companyNumber` (unique), `registeredAddress`
@@ -71,15 +92,17 @@ Preferred communication style: Simple, everyday language.
 
 **Prospects Table**:
 - `id` (auto-increment primary key)
-- `companyId` (foreign key to companies)
+- `userId` (varchar foreign key to users - for data isolation)
+- `companyId` (integer foreign key to companies)
 - `stage` (pipeline stage: lead, contacted, qualified, etc.)
 - `loanAmount`, `priority`, `notes`
 - `createdAt`, `updatedAt` timestamps
 
 **Relationships**:
+- One-to-many relationship between users and prospects (user data isolation)
 - One-to-many relationship between companies and prospects
-- Prospects are linked to companies via `companyId` foreign key
-- Join queries return `ProspectWithCompany` type combining both tables
+- Prospects belong to both a user and a company
+- Join queries return `ProspectWithCompany` type combining prospects and companies
 
 **Key Design Decisions**:
 - Normalized design with separate companies and prospects tables to avoid data duplication
@@ -121,6 +144,13 @@ Preferred communication style: Simple, everyday language.
 - **drizzle-orm**: TypeScript ORM with type-safe queries
 - **drizzle-kit**: Schema migration and management tool
 - **ws**: WebSocket library for Neon serverless connections
+
+### Authentication & Security
+- **openid-client**: OpenID Connect client for Replit Auth
+- **passport**: Authentication middleware for Express
+- **express-session**: Session management with PostgreSQL storage
+- **connect-pg-simple**: PostgreSQL session store adapter
+- **memoizee**: Function memoization for OIDC config caching
 
 ### Development Tools
 - **@tanstack/react-query**: Server state management and caching
