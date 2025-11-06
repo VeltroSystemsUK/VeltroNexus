@@ -1,24 +1,25 @@
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Building2, PoundSterling, Calendar, FileText, TrendingUp } from "lucide-react";
+import { 
+  ArrowLeft, Building2, PoundSterling, Calendar, Target,
+  Users, FileText, TrendingUp, CheckSquare, Calculator,
+  Mail, Phone, User, Plus, Trash2, Edit2, Save, X
+} from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState } from "react";
+import type { Prospect, ProspectWithCompany, Contact, Activity } from "@shared/schema";
 
 const STAGES = [
   { value: "lead", label: "Lead" },
@@ -32,10 +33,10 @@ const STAGES = [
   { value: "withdrawn", label: "Withdrawn" },
 ];
 
-const priorityColors = {
-  high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  low: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+const priorityConfig = {
+  high: { badge: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", dot: "bg-red-500" },
+  medium: { badge: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", dot: "bg-amber-500" },
+  low: { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", dot: "bg-blue-500" },
 };
 
 export default function ProspectDetail() {
@@ -43,42 +44,19 @@ export default function ProspectDetail() {
   const [, navigate] = useLocation();
   const prospectId = params.id ? parseInt(params.id) : 0;
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [loanAmount, setLoanAmount] = useState("");
-  const [priority, setPriority] = useState("");
-  const [notes, setNotes] = useState("");
-
-  const { data: prospect, isLoading, error } = useQuery({
-    queryKey: ["/api/prospects", prospectId],
-    queryFn: () => api.prospects.get(prospectId),
+  const { data: prospect, isLoading } = useQuery<ProspectWithCompany>({
+    queryKey: [`/api/prospects/${prospectId}`],
     enabled: prospectId > 0,
   });
 
-  const updateStageMutation = useMutation({
-    mutationFn: ({ stage }: { stage: string }) =>
-      api.prospects.updateStage(prospectId, stage),
-    onSuccess: () => {
-      toast.success("Stage updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/prospects", prospectId] });
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to update stage: ${error.message}`);
-    },
+  const { data: contacts = [] } = useQuery<Contact[]>({
+    queryKey: [`/api/prospects/${prospectId}/contacts`],
+    enabled: prospectId > 0,
   });
 
-  const updateProspectMutation = useMutation({
-    mutationFn: (updates: { loanAmount?: number | null; priority?: string | null; notes?: string | null }) =>
-      api.prospects.update(prospectId, updates),
-    onSuccess: () => {
-      toast.success("Prospect updated successfully");
-      setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/prospects", prospectId] });
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to update prospect: ${error.message}`);
-    },
+  const { data: activities = [] } = useQuery<Activity[]>({
+    queryKey: [`/api/prospects/${prospectId}/activities`],
+    enabled: prospectId > 0,
   });
 
   const formatCurrency = (amount: number) => {
@@ -90,7 +68,7 @@ export default function ProspectDetail() {
     }).format(amount / 100);
   };
 
-  const formatDate = (date: string) => {
+  const formatDate = (date: string | Date) => {
     return new Date(date).toLocaleDateString("en-GB", {
       day: "numeric",
       month: "long",
@@ -98,31 +76,7 @@ export default function ProspectDetail() {
     });
   };
 
-  const handleEdit = () => {
-    if (prospect) {
-      setLoanAmount(prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "");
-      setPriority(prospect.priority || "");
-      setNotes(prospect.notes || "");
-      setIsEditing(true);
-    }
-  };
-
-  const handleSave = () => {
-    updateProspectMutation.mutate({
-      loanAmount: loanAmount ? parseInt(loanAmount) * 100 : null,
-      priority: priority || null,
-      notes: notes || null,
-    });
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setLoanAmount("");
-    setPriority("");
-    setNotes("");
-  };
-
-  if (isLoading) {
+  if (isLoading || !prospect) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -133,241 +87,974 @@ export default function ProspectDetail() {
     );
   }
 
-  if (error || !prospect) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="text-center py-12">
-            <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-destructive font-semibold mb-2">
-              {error ? "Failed to load prospect" : "Prospect not found"}
-            </p>
-            {error && (
-              <p className="text-muted-foreground text-sm mb-4">
-                {error instanceof Error ? error.message : "An unexpected error occurred"}
-              </p>
-            )}
-            <Button onClick={() => navigate("/")}>Back to Pipeline</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-background sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/")}
-              data-testid="button-back"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-primary-foreground" />
+      {/* Header */}
+      <header className="border-b bg-card sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/")}
+                data-testid="button-back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-primary rounded-md flex items-center justify-center">
+                  <Building2 className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold" data-testid="text-company-name">
+                    {prospect.company.companyName}
+                  </h1>
+                  <p className="text-sm text-muted-foreground font-mono" data-testid="text-company-number">
+                    {prospect.company.companyNumber}
+                  </p>
+                </div>
               </div>
-              <h1 className="text-xl font-bold" data-testid="text-company-name">
-                {prospect.company.companyName}
-              </h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={() => navigate("/")} data-testid="link-view-directory">
+                View in Directory
+              </Button>
+              <ThemeToggle />
             </div>
           </div>
-          <ThemeToggle />
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="grid gap-6">
-          {/* Company Information */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <Building2 className="h-6 w-6 text-primary" />
-                    <CardTitle>Company Information</CardTitle>
-                  </div>
-                  <CardDescription>Basic company details</CardDescription>
-                </div>
-                {prospect.priority && (
-                  <Badge className={priorityColors[prospect.priority as keyof typeof priorityColors]}>
-                    {prospect.priority.charAt(0).toUpperCase() + prospect.priority.slice(1)} Priority
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="text-muted-foreground">Company Number</Label>
-                <p className="font-mono text-sm" data-testid="text-company-number">
-                  {prospect.company.companyNumber}
-                </p>
-              </div>
-              {prospect.company.registeredAddress && (
-                <div>
-                  <Label className="text-muted-foreground">Registered Address</Label>
-                  <p className="text-sm" data-testid="text-address">
-                    {prospect.company.registeredAddress}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      <main className="container mx-auto px-6 py-8">
+        {/* Key Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <StageCard prospect={prospect} />
+          <LoanAmountCard prospect={prospect} />
+          <DateAddedCard prospect={prospect} />
+          <PriorityCard prospect={prospect} />
+        </div>
 
-          {/* Pipeline Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Pipeline Status</CardTitle>
-              <CardDescription>Current stage in the lending pipeline</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {/* Company Overview */}
+        <CompanyOverview prospect={prospect} />
+
+        {/* Tabbed Content */}
+        <Tabs defaultValue="contacts" className="mt-8">
+          <TabsList className="grid w-full grid-cols-5 mb-8">
+            <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
+            <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
+            <TabsTrigger value="activity" data-testid="tab-activity">Sales Activity</TabsTrigger>
+            <TabsTrigger value="diligence" data-testid="tab-diligence">Due Diligence</TabsTrigger>
+            <TabsTrigger value="summary" data-testid="tab-summary">Summary</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="contacts">
+            <ContactsTab prospectId={prospectId} contacts={contacts} />
+          </TabsContent>
+
+          <TabsContent value="loan">
+            <LoanRequirementTab prospect={prospect} />
+          </TabsContent>
+
+          <TabsContent value="activity">
+            <SalesActivityTab prospectId={prospectId} activities={activities} />
+          </TabsContent>
+
+          <TabsContent value="diligence">
+            <DueDiligenceTab prospect={prospect} />
+          </TabsContent>
+
+          <TabsContent value="summary">
+            <SummaryTab prospect={prospect} contacts={contacts} activities={activities} />
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}
+
+function StageCard({ prospect }: { prospect: ProspectWithCompany }) {
+  const updateStageMutation = useMutation({
+    mutationFn: ({ stage }: { stage: string }) =>
+      fetch(`/api/prospects/${prospect.id}/stage`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ stage }),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      toast.success("Stage updated");
+    },
+  });
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-muted-foreground text-sm">Stage</Label>
+          <Target className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <Select
+          value={prospect.stage}
+          onValueChange={(stage) => updateStageMutation.mutate({ stage })}
+          data-testid="select-stage"
+        >
+          <SelectTrigger className="border-0 p-0 h-auto focus:ring-0">
+            <SelectValue className="text-base font-semibold" />
+          </SelectTrigger>
+          <SelectContent>
+            {STAGES.map((stage) => (
+              <SelectItem key={stage.value} value={stage.value}>
+                {stage.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoanAmountCard({ prospect }: { prospect: ProspectWithCompany }) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: "GBP",
+      minimumFractionDigits: 0,
+    }).format(amount / 100);
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-muted-foreground text-sm">Loan Amount</Label>
+          <PoundSterling className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <p className="text-base font-semibold" data-testid="text-loan-amount">
+          {prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "Not set"}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DateAddedCard({ prospect }: { prospect: ProspectWithCompany }) {
+  const formatDate = (date: string | Date) => {
+    return new Date(date).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-muted-foreground text-sm">Date Added</Label>
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <p className="text-base font-semibold" data-testid="text-date-added">
+          {formatDate(prospect.createdAt)}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PriorityCard({ prospect }: { prospect: ProspectWithCompany }) {
+  const priority = prospect.priority || "medium";
+  const config = priorityConfig[priority as keyof typeof priorityConfig];
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-muted-foreground text-sm">Priority</Label>
+          <div className={`h-2 w-2 rounded-full ${config.dot}`} />
+        </div>
+        <Badge className={config.badge} data-testid="badge-priority">
+          {priority.charAt(0).toUpperCase() + priority.slice(1)} Priority
+        </Badge>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompanyOverview({ prospect }: { prospect: ProspectWithCompany }) {
+  const formatDate = (date: string | Date | null | undefined) => {
+    if (!date) return "N/A";
+    return new Date(date).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Company Overview</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div>
+              <Label className="text-muted-foreground">Company Status</Label>
+              <p className="text-sm font-medium" data-testid="text-company-status">
+                {prospect.company.companyStatus || "ACTIVE"}
+              </p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Incorporation Date</Label>
+              <p className="text-sm" data-testid="text-incorporation-date">
+                {formatDate(prospect.company.incorporationDate)}
+              </p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Company Type</Label>
+              <p className="text-sm" data-testid="text-company-type">
+                {prospect.company.companyType || "ltd"}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-muted-foreground">Registered Address</Label>
+              <p className="text-sm" data-testid="text-registered-address">
+                {prospect.company.registeredAddress || "N/A"}
+              </p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Last Updated</Label>
+              <p className="text-sm" data-testid="text-last-updated">
+                {formatDate(prospect.updatedAt)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ContactsTab({ prospectId, contacts }: { prospectId: number; contacts: Contact[] }) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("");
+
+  const addContactMutation = useMutation({
+    mutationFn: (contact: { name: string; email?: string; phone?: string; role?: string }) =>
+      fetch(`/api/prospects/${prospectId}/contacts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(contact),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
+      toast.success("Contact added");
+      setIsAdding(false);
+      setName("");
+      setEmail("");
+      setPhone("");
+      setRole("");
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: (contactId: number) =>
+      fetch(`/api/contacts/${contactId}`, {
+        method: "DELETE",
+        credentials: "include",
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
+      toast.success("Contact deleted");
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Contacts</CardTitle>
+            <CardDescription>Manage contacts at this company</CardDescription>
+          </div>
+          <Button onClick={() => setIsAdding(true)} data-testid="button-add-contact">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Contact
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isAdding && (
+          <Card className="mb-4">
+            <CardContent className="pt-6 space-y-4">
               <div className="space-y-2">
-                <Label>Current Stage</Label>
-                <Select
-                  value={prospect.stage}
-                  onValueChange={(stage) => updateStageMutation.mutate({ stage })}
-                  disabled={updateStageMutation.isPending}
-                >
-                  <SelectTrigger data-testid="select-stage">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STAGES.map((stage) => (
-                      <SelectItem key={stage.value} value={stage.value}>
-                        {stage.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="contact-name">Name *</Label>
+                <Input
+                  id="contact-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Smith"
+                  data-testid="input-contact-name"
+                />
               </div>
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Created
-                  </Label>
-                  <p className="text-sm" data-testid="text-created-date">
-                    {formatDate(prospect.createdAt)}
-                  </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="contact-email">Email</Label>
+                  <Input
+                    id="contact-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="john@example.com"
+                    data-testid="input-contact-email"
+                  />
                 </div>
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Last Updated
-                  </Label>
-                  <p className="text-sm" data-testid="text-updated-date">
-                    {formatDate(prospect.updatedAt)}
-                  </p>
+                <div className="space-y-2">
+                  <Label htmlFor="contact-phone">Phone</Label>
+                  <Input
+                    id="contact-phone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+44 20 1234 5678"
+                    data-testid="input-contact-phone"
+                  />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact-role">Role</Label>
+                <Input
+                  id="contact-role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  placeholder="Finance Director"
+                  data-testid="input-contact-role"
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => addContactMutation.mutate({ name, email: email || undefined, phone: phone || undefined, role: role || undefined })}
+                  disabled={!name || addContactMutation.isPending}
+                  data-testid="button-save-contact"
+                >
+                  Save Contact
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAdding(false)}
+                  data-testid="button-cancel-contact"
+                >
+                  Cancel
+                </Button>
               </div>
             </CardContent>
           </Card>
+        )}
 
-          {/* Prospect Details */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Prospect Details</CardTitle>
-                  <CardDescription>Loan information and notes</CardDescription>
-                </div>
-                {!isEditing && (
-                  <Button variant="outline" size="sm" onClick={handleEdit} data-testid="button-edit">
-                    Edit
-                  </Button>
-                )}
+        {contacts.length === 0 ? (
+          <div className="text-center py-12">
+            <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No contacts yet</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => setIsAdding(true)}
+              data-testid="button-add-first-contact"
+            >
+              Add First Contact
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {contacts.map((contact) => (
+              <Card key={contact.id}>
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex gap-4">
+                      <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-semibold" data-testid={`text-contact-name-${contact.id}`}>
+                          {contact.name}
+                        </p>
+                        {contact.role && (
+                          <p className="text-sm text-muted-foreground">{contact.role}</p>
+                        )}
+                        <div className="flex gap-4 mt-2">
+                          {contact.email && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span>{contact.email}</span>
+                            </div>
+                          )}
+                          {contact.phone && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              <span>{contact.phone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteContactMutation.mutate(contact.id)}
+                      data-testid={`button-delete-contact-${contact.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
+  const [loanAmount, setLoanAmount] = useState(prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "");
+  const [term, setTerm] = useState(prospect.term?.toString() || "");
+  const [interestRate, setInterestRate] = useState(prospect.interestRate || "");
+  const [directorsGuarantee, setDirectorsGuarantee] = useState(!!prospect.directorsGuarantee);
+  const [commercialProperty, setCommercialProperty] = useState(!!prospect.commercialProperty);
+  const [homeEquity, setHomeEquity] = useState(!!prospect.homeEquity);
+  const [propertyOther, setPropertyOther] = useState(!!prospect.propertyOther);
+  const [debenture, setDebenture] = useState(!!prospect.debenture);
+  const [parentCompanyGuarantee, setParentCompanyGuarantee] = useState(!!prospect.parentCompanyGuarantee);
+  const [collateral, setCollateral] = useState(!!prospect.collateral);
+  const [crossCompanyGuarantee, setCrossCompanyGuarantee] = useState(!!prospect.crossCompanyGuarantee);
+  const [notes, setNotes] = useState(prospect.loanRequirementNotes || "");
+
+  const saveLoanRequirementMutation = useMutation({
+    mutationFn: (updates: any) =>
+      fetch(`/api/prospects/${prospect.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      toast.success("Loan requirements saved");
+    },
+  });
+
+  const handleSave = () => {
+    saveLoanRequirementMutation.mutate({
+      loanAmount: loanAmount ? parseInt(loanAmount) * 100 : null,
+      term: term ? parseInt(term) : null,
+      interestRate: interestRate || null,
+      directorsGuarantee: directorsGuarantee ? 1 : 0,
+      commercialProperty: commercialProperty ? 1 : 0,
+      homeEquity: homeEquity ? 1 : 0,
+      propertyOther: propertyOther ? 1 : 0,
+      debenture: debenture ? 1 : 0,
+      parentCompanyGuarantee: parentCompanyGuarantee ? 1 : 0,
+      collateral: collateral ? 1 : 0,
+      crossCompanyGuarantee: crossCompanyGuarantee ? 1 : 0,
+      loanRequirementNotes: notes,
+    });
+  };
+
+  const calculateMonthlyPayment = () => {
+    if (!loanAmount || !term || !interestRate) return 0;
+    const principal = parseFloat(loanAmount);
+    const monthlyRate = parseFloat(interestRate) / 100 / 12;
+    const numPayments = parseInt(term);
+    if (monthlyRate === 0) return principal / numPayments;
+    const payment = (principal * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+                    (Math.pow(1 + monthlyRate, numPayments) - 1);
+    return Math.round(payment * 100) / 100;
+  };
+
+  const calculateFacilityFee = () => {
+    if (!loanAmount) return 0;
+    return parseFloat(loanAmount) * 0.035;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Loan Requirement</CardTitle>
+        <CardDescription>Specify the loan details for this prospect</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="loan-amount">Loan Amount (£)</Label>
+            <Input
+              id="loan-amount"
+              type="number"
+              value={loanAmount}
+              onChange={(e) => setLoanAmount(e.target.value)}
+              placeholder="150000"
+              data-testid="input-loan-amount"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="term">Term (Months)</Label>
+            <Input
+              id="term"
+              type="number"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder="60"
+              data-testid="input-term"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="interest-rate">Interest Rate (APR %)</Label>
+            <Input
+              id="interest-rate"
+              type="number"
+              step="0.1"
+              value={interestRate}
+              onChange={(e) => setInterestRate(e.target.value)}
+              placeholder="17"
+              data-testid="input-interest-rate"
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label className="mb-3 block">Security</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="directors-guarantee"
+                checked={directorsGuarantee}
+                onCheckedChange={(checked) => setDirectorsGuarantee(!!checked)}
+                data-testid="checkbox-directors-guarantee"
+              />
+              <label htmlFor="directors-guarantee" className="text-sm cursor-pointer">
+                Director's Guarantee
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="debenture"
+                checked={debenture}
+                onCheckedChange={(checked) => setDebenture(!!checked)}
+                data-testid="checkbox-debenture"
+              />
+              <label htmlFor="debenture" className="text-sm cursor-pointer">
+                Debenture
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="commercial-property"
+                checked={commercialProperty}
+                onCheckedChange={(checked) => setCommercialProperty(!!checked)}
+                data-testid="checkbox-commercial-property"
+              />
+              <label htmlFor="commercial-property" className="text-sm cursor-pointer">
+                Commercial Property
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="parent-company-guarantee"
+                checked={parentCompanyGuarantee}
+                onCheckedChange={(checked) => setParentCompanyGuarantee(!!checked)}
+                data-testid="checkbox-parent-company-guarantee"
+              />
+              <label htmlFor="parent-company-guarantee" className="text-sm cursor-pointer">
+                Parent Company Guarantee
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="home-equity"
+                checked={homeEquity}
+                onCheckedChange={(checked) => setHomeEquity(!!checked)}
+                data-testid="checkbox-home-equity"
+              />
+              <label htmlFor="home-equity" className="text-sm cursor-pointer">
+                Home Equity
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="collateral"
+                checked={collateral}
+                onCheckedChange={(checked) => setCollateral(!!checked)}
+                data-testid="checkbox-collateral"
+              />
+              <label htmlFor="collateral" className="text-sm cursor-pointer">
+                Collateral
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="property-other"
+                checked={propertyOther}
+                onCheckedChange={(checked) => setPropertyOther(!!checked)}
+                data-testid="checkbox-property-other"
+              />
+              <label htmlFor="property-other" className="text-sm cursor-pointer">
+                Property (Other)
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="cross-company-guarantee"
+                checked={crossCompanyGuarantee}
+                onCheckedChange={(checked) => setCrossCompanyGuarantee(!!checked)}
+                data-testid="checkbox-cross-company-guarantee"
+              />
+              <label htmlFor="cross-company-guarantee" className="text-sm cursor-pointer">
+                Cross Company Guarantee
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="loan-notes">Notes</Label>
+          <Textarea
+            id="loan-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g., Looking to Refinance £120,000 with GOT Capital & Capify"
+            rows={4}
+            data-testid="textarea-loan-notes"
+          />
+        </div>
+
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Calculated Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Facility Fee (3.5%):</span>
+              <span className="font-semibold" data-testid="text-facility-fee">
+                £{calculateFacilityFee().toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Estimated Monthly Payment:</span>
+              <span className="font-semibold" data-testid="text-monthly-payment">
+                £{calculateMonthlyPayment().toFixed(2)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Button onClick={handleSave} disabled={saveLoanRequirementMutation.isPending} data-testid="button-save-loan-requirements">
+          {saveLoanRequirementMutation.isPending ? "Saving..." : "Save Loan Requirements"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SalesActivityTab({ prospectId, activities }: { prospectId: number; activities: Activity[] }) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const addActivityMutation = useMutation({
+    mutationFn: (activity: { title: string; description?: string }) =>
+      fetch(`/api/prospects/${prospectId}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(activity),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
+      toast.success("Task added");
+      setIsAdding(false);
+      setTitle("");
+      setDescription("");
+    },
+  });
+
+  const toggleActivityMutation = useMutation({
+    mutationFn: ({ id, completed }: { id: number; completed: number }) =>
+      fetch(`/api/activities/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ completed }),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Sales Activity</CardTitle>
+            <CardDescription>Track sales tasks and activities</CardDescription>
+          </div>
+          <Button onClick={() => setIsAdding(true)} data-testid="button-new-task">
+            <Plus className="h-4 w-4 mr-2" />
+            New Task
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isAdding && (
+          <Card className="mb-4">
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="activity-title">Title *</Label>
+                <Input
+                  id="activity-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Follow up call"
+                  data-testid="input-activity-title"
+                />
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {isEditing ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="loanAmount">Loan Amount (£)</Label>
-                    <Input
-                      id="loanAmount"
-                      type="number"
-                      value={loanAmount}
-                      onChange={(e) => setLoanAmount(e.target.value)}
-                      placeholder="e.g., 250000"
-                      min="0"
-                      step="1000"
-                      data-testid="input-edit-loan-amount"
+              <div className="space-y-2">
+                <Label htmlFor="activity-description">Description</Label>
+                <Textarea
+                  id="activity-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Discuss loan terms..."
+                  rows={3}
+                  data-testid="textarea-activity-description"
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => addActivityMutation.mutate({ title, description: description || undefined })}
+                  disabled={!title || addActivityMutation.isPending}
+                  data-testid="button-save-activity"
+                >
+                  Save Task
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAdding(false)}
+                  data-testid="button-cancel-activity"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activities.length === 0 ? (
+          <div className="text-center py-12">
+            <CheckSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No activities yet</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => setIsAdding(true)}
+              data-testid="button-add-first-task"
+            >
+              Add First Task
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {activities.map((activity) => (
+              <Card key={activity.id}>
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-4">
+                    <Checkbox
+                      checked={!!activity.completed}
+                      onCheckedChange={(checked) =>
+                        toggleActivityMutation.mutate({ id: activity.id, completed: checked ? 1 : 0 })
+                      }
+                      data-testid={`checkbox-activity-${activity.id}`}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Priority</Label>
-                    <Select value={priority} onValueChange={setPriority}>
-                      <SelectTrigger id="priority" data-testid="select-edit-priority">
-                        <SelectValue placeholder="Select priority level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low Priority</SelectItem>
-                        <SelectItem value="medium">Medium Priority</SelectItem>
-                        <SelectItem value="high">High Priority</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Notes</Label>
-                    <Textarea
-                      id="notes"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Add any relevant notes"
-                      rows={4}
-                      data-testid="input-edit-notes"
-                    />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <Button
-                      onClick={handleSave}
-                      disabled={updateProspectMutation.isPending}
-                      data-testid="button-save"
-                    >
-                      {updateProspectMutation.isPending ? "Saving..." : "Save Changes"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleCancel}
-                      disabled={updateProspectMutation.isPending}
-                      data-testid="button-cancel-edit"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <Label className="text-muted-foreground flex items-center gap-2">
-                      <PoundSterling className="h-4 w-4" />
-                      Loan Amount
-                    </Label>
-                    <p className="text-lg font-semibold" data-testid="text-loan-amount">
-                      {prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "Not specified"}
-                    </p>
-                  </div>
-                  {prospect.notes && (
-                    <div>
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        Notes
-                      </Label>
-                      <p className="text-sm whitespace-pre-wrap" data-testid="text-notes">
-                        {prospect.notes}
+                    <div className="flex-1">
+                      <p className={`font-semibold ${activity.completed ? "line-through text-muted-foreground" : ""}`} data-testid={`text-activity-title-${activity.id}`}>
+                        {activity.title}
+                      </p>
+                      {activity.description && (
+                        <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {new Date(activity.createdAt).toLocaleDateString("en-GB")}
                       </p>
                     </div>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DueDiligenceTab({ prospect }: { prospect: ProspectWithCompany }) {
+  const tools = [
+    {
+      icon: CheckSquare,
+      title: "Due Diligence Checklist",
+      description: "56-item comprehensive checklist",
+    },
+    {
+      icon: Calculator,
+      title: "DSCR Calculator",
+      description: "Debt Service Coverage Ratio",
+    },
+    {
+      icon: Calculator,
+      title: "Loan Calculator",
+      description: "Payment calculations",
+    },
+    {
+      icon: TrendingUp,
+      title: "Affordability Estimator",
+      description: "Assess repayment capacity",
+    },
+    {
+      icon: TrendingUp,
+      title: "Financial Ratios",
+      description: "Key financial metrics",
+    },
+    {
+      icon: Users,
+      title: "Character Assessor",
+      description: "Evaluate borrower character",
+    },
+    {
+      icon: FileText,
+      title: "Loan Purpose Assessment",
+      description: "Analyze loan purpose",
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Due Diligence Tools</CardTitle>
+        <CardDescription>
+          Access all due diligence tools and assessments for {prospect.company.companyName}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {tools.map((tool, index) => (
+            <Card key={index} className="hover-elevate cursor-pointer" data-testid={`card-tool-${index}`}>
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="h-10 w-10 bg-primary/10 rounded-md flex items-center justify-center flex-shrink-0">
+                    <tool.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">{tool.title}</p>
+                    <p className="text-sm text-muted-foreground">{tool.description}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </main>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWithCompany; contacts: Contact[]; activities: Activity[] }) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: "GBP",
+      minimumFractionDigits: 0,
+    }).format(amount / 100);
+  };
+
+  const completedActivities = activities.filter(a => a.completed).length;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Summary</CardTitle>
+          <CardDescription>Overview of all prospect information</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <h3 className="font-semibold mb-3">Prospect Details</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Stage:</span>
+                  <span className="font-medium">{STAGES.find(s => s.value === prospect.stage)?.label}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Loan Amount:</span>
+                  <span className="font-medium">{prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "Not set"}</span>
+                </div>
+                {prospect.term && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Term:</span>
+                    <span className="font-medium">{prospect.term} months</span>
+                  </div>
+                )}
+                {prospect.interestRate && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Interest Rate:</span>
+                    <span className="font-medium">{prospect.interestRate}% APR</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-3">Activity</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Contacts:</span>
+                  <span className="font-medium">{contacts.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Tasks:</span>
+                  <span className="font-medium">{activities.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Completed Tasks:</span>
+                  <span className="font-medium">{completedActivities}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {prospect.notes && (
+            <div>
+              <h3 className="font-semibold mb-2">General Notes</h3>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{prospect.notes}</p>
+            </div>
+          )}
+
+          {prospect.loanRequirementNotes && (
+            <div>
+              <h3 className="font-semibold mb-2">Loan Requirement Notes</h3>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{prospect.loanRequirementNotes}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

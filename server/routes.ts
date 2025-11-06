@@ -6,6 +6,8 @@ import {
   insertCompanySchema,
   insertProspectSchema,
   updateProspectStageSchema,
+  insertContactSchema,
+  insertActivitySchema,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 
@@ -90,19 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
       
-      // Validate updates using a partial schema
-      const updateSchema = insertProspectSchema.pick({
-        loanAmount: true,
-        priority: true,
-        notes: true,
-      }).partial();
-      
-      const result = updateSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json({ error: fromZodError(result.error).toString() });
-      }
-      
-      const prospect = await storage.updateProspect(id, userId, result.data);
+      const prospect = await storage.updateProspect(id, userId, req.body);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
@@ -183,6 +173,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const company = await storage.createCompany(result.data);
       res.json(company);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Contacts API - Protected routes
+  app.get("/api/prospects/:prospectId/contacts", isAuthenticated, async (req, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const contacts = await storage.listContacts(prospectId);
+      res.json(contacts);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/prospects/:prospectId/contacts", isAuthenticated, async (req, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const result = insertContactSchema.safeParse({ ...req.body, prospectId });
+      if (!result.success) {
+        return res.status(400).json({ error: fromZodError(result.error).toString() });
+      }
+      const contact = await storage.createContact(result.data);
+      res.json(contact);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/contacts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const contact = await storage.updateContact(id, req.body);
+      if (!contact) {
+        return res.status(404).json({ error: "Contact not found" });
+      }
+      res.json(contact);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/contacts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteContact(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Activities API - Protected routes
+  app.get("/api/prospects/:prospectId/activities", isAuthenticated, async (req, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const activities = await storage.listActivities(prospectId);
+      res.json(activities);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/prospects/:prospectId/activities", isAuthenticated, async (req, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const result = insertActivitySchema.safeParse({ ...req.body, prospectId });
+      if (!result.success) {
+        return res.status(400).json({ error: fromZodError(result.error).toString() });
+      }
+      const activity = await storage.createActivity(result.data);
+      res.json(activity);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/activities/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const activity = await storage.updateActivity(id, req.body);
+      if (!activity) {
+        return res.status(404).json({ error: "Activity not found" });
+      }
+      res.json(activity);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/activities/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteActivity(id);
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -2,6 +2,8 @@ import {
   companies,
   prospects,
   users,
+  contacts,
+  activities,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -9,6 +11,10 @@ import {
   type ProspectWithCompany,
   type User,
   type UpsertUser,
+  type Contact,
+  type InsertContact,
+  type Activity,
+  type InsertActivity,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -28,6 +34,18 @@ export interface IStorage {
   createProspect(prospect: InsertProspect, userId: string): Promise<Prospect>;
   updateProspectStage(prospectId: number, userId: string, stage: string): Promise<Prospect | undefined>;
   updateProspect(id: number, userId: string, updates: Partial<InsertProspect>): Promise<Prospect | undefined>;
+
+  // Contacts
+  listContacts(prospectId: number): Promise<Contact[]>;
+  createContact(contact: InsertContact): Promise<Contact>;
+  updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined>;
+  deleteContact(id: number): Promise<void>;
+
+  // Activities
+  listActivities(prospectId: number): Promise<Activity[]>;
+  createActivity(activity: InsertActivity): Promise<Activity>;
+  updateActivity(id: number, updates: Partial<InsertActivity>): Promise<Activity | undefined>;
+  deleteActivity(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -123,6 +141,64 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(prospects.id, id), eq(prospects.userId, userId)))
       .returning();
     return prospect || undefined;
+  }
+
+  async listContacts(prospectId: number): Promise<Contact[]> {
+    return await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.prospectId, prospectId))
+      .orderBy(contacts.createdAt);
+  }
+
+  async createContact(insertContact: InsertContact): Promise<Contact> {
+    const [contact] = await db
+      .insert(contacts)
+      .values(insertContact)
+      .returning();
+    return contact;
+  }
+
+  async updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined> {
+    const [contact] = await db
+      .update(contacts)
+      .set(updates)
+      .where(eq(contacts.id, id))
+      .returning();
+    return contact || undefined;
+  }
+
+  async deleteContact(id: number): Promise<void> {
+    await db.delete(contacts).where(eq(contacts.id, id));
+  }
+
+  async listActivities(prospectId: number): Promise<Activity[]> {
+    return await db
+      .select()
+      .from(activities)
+      .where(eq(activities.prospectId, prospectId))
+      .orderBy(activities.createdAt);
+  }
+
+  async createActivity(insertActivity: InsertActivity): Promise<Activity> {
+    const [activity] = await db
+      .insert(activities)
+      .values(insertActivity)
+      .returning();
+    return activity;
+  }
+
+  async updateActivity(id: number, updates: Partial<InsertActivity>): Promise<Activity | undefined> {
+    const [activity] = await db
+      .update(activities)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(activities.id, id))
+      .returning();
+    return activity || undefined;
+  }
+
+  async deleteActivity(id: number): Promise<void> {
+    await db.delete(activities).where(eq(activities.id, id));
   }
 }
 
