@@ -82,6 +82,14 @@ export const activities = pgTable("activities", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const dueDiligence = pgTable("due_diligence", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  prospectId: integer("prospect_id").notNull().unique().references(() => prospects.id, { onDelete: "cascade" }),
+  data: jsonb("data").notNull().default('{}'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const prospectsRelations = relations(prospects, ({ one, many }) => ({
   user: one(users, {
     fields: [prospects.userId],
@@ -93,6 +101,10 @@ export const prospectsRelations = relations(prospects, ({ one, many }) => ({
   }),
   contacts: many(contacts),
   activities: many(activities),
+  dueDiligence: one(dueDiligence, {
+    fields: [prospects.id],
+    references: [dueDiligence.prospectId],
+  }),
 }));
 
 export const contactsRelations = relations(contacts, ({ one }) => ({
@@ -105,6 +117,13 @@ export const contactsRelations = relations(contacts, ({ one }) => ({
 export const activitiesRelations = relations(activities, ({ one }) => ({
   prospect: one(prospects, {
     fields: [activities.prospectId],
+    references: [prospects.id],
+  }),
+}));
+
+export const dueDiligenceRelations = relations(dueDiligence, ({ one }) => ({
+  prospect: one(prospects, {
+    fields: [dueDiligence.prospectId],
     references: [prospects.id],
   }),
 }));
@@ -187,3 +206,62 @@ export type InsertContact = z.infer<typeof insertContactSchema>;
 export type Contact = typeof contacts.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
+
+export const checklistItemSchema = z.object({
+  sectionId: z.string(),
+  itemId: z.string(),
+  description: z.string(),
+  completed: z.boolean().default(false),
+  notes: z.string().default(""),
+});
+
+export const dueDiligenceDataSchema = z.object({
+  checklist: z.array(checklistItemSchema).default([]),
+  loanCalculator: z.object({
+    loanAmount: z.number().optional(),
+    interestRate: z.number().optional(),
+    term: z.number().optional(),
+  }).optional(),
+  dscr: z.object({
+    annualNetOperatingIncome: z.number().optional(),
+    annualDebtService: z.number().optional(),
+    sensitivityRevenue: z.number().optional(),
+  }).optional(),
+  affordability: z.object({
+    personalIncome: z.number().optional(),
+    monthlyCommitments: z.number().optional(),
+    loanPayment: z.number().optional(),
+  }).optional(),
+  financialRatios: z.object({
+    revenue: z.number().optional(),
+    costs: z.number().optional(),
+    currentAssets: z.number().optional(),
+    currentLiabilities: z.number().optional(),
+    totalAssets: z.number().optional(),
+    totalLiabilities: z.number().optional(),
+    equity: z.number().optional(),
+  }).optional(),
+  character: z.object({
+    managementExperience: z.number().min(1).max(5).optional(),
+    creditHistory: z.number().min(1).max(5).optional(),
+    bankConduct: z.number().min(1).max(5).optional(),
+    contracts: z.number().min(1).max(5).optional(),
+    notes: z.string().optional(),
+  }).optional(),
+});
+
+export const insertDueDiligenceSchema = createInsertSchema(dueDiligence).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateDueDiligenceSchema = z.object({
+  data: dueDiligenceDataSchema.partial(),
+});
+
+export type ChecklistItem = z.infer<typeof checklistItemSchema>;
+export type DueDiligenceData = z.infer<typeof dueDiligenceDataSchema>;
+export type DueDiligence = typeof dueDiligence.$inferSelect;
+export type InsertDueDiligence = z.infer<typeof insertDueDiligenceSchema>;
+export type UpdateDueDiligence = z.infer<typeof updateDueDiligenceSchema>;

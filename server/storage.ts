@@ -4,6 +4,7 @@ import {
   users,
   contacts,
   activities,
+  dueDiligence,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -15,6 +16,8 @@ import {
   type InsertContact,
   type Activity,
   type InsertActivity,
+  type DueDiligence,
+  type DueDiligenceData,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -46,6 +49,10 @@ export interface IStorage {
   createActivity(activity: InsertActivity): Promise<Activity>;
   updateActivity(id: number, updates: Partial<InsertActivity>): Promise<Activity | undefined>;
   deleteActivity(id: number): Promise<void>;
+
+  // Due Diligence
+  getDueDiligence(prospectId: number): Promise<DueDiligence | undefined>;
+  upsertDueDiligence(prospectId: number, data: DueDiligenceData): Promise<DueDiligence>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -199,6 +206,32 @@ export class DatabaseStorage implements IStorage {
 
   async deleteActivity(id: number): Promise<void> {
     await db.delete(activities).where(eq(activities.id, id));
+  }
+
+  async getDueDiligence(prospectId: number): Promise<DueDiligence | undefined> {
+    const [result] = await db
+      .select()
+      .from(dueDiligence)
+      .where(eq(dueDiligence.prospectId, prospectId));
+    return result || undefined;
+  }
+
+  async upsertDueDiligence(prospectId: number, data: DueDiligenceData): Promise<DueDiligence> {
+    const [result] = await db
+      .insert(dueDiligence)
+      .values({
+        prospectId,
+        data: data as any,
+      })
+      .onConflictDoUpdate({
+        target: dueDiligence.prospectId,
+        set: {
+          data: data as any,
+          updatedAt: sql`now()`,
+        },
+      })
+      .returning();
+    return result;
   }
 }
 

@@ -274,6 +274,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const dueDiligence = await storage.getDueDiligence(prospectId);
+      res.json(dueDiligence || { prospectId, data: {} });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const existing = await storage.getDueDiligence(prospectId);
+      const mergedData = existing 
+        ? { ...existing.data, ...req.body }
+        : req.body;
+      const dueDiligence = await storage.upsertDueDiligence(prospectId, mergedData);
+      res.json(dueDiligence);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
