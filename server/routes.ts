@@ -119,6 +119,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      
+      await storage.deleteProspect(id, userId);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Companies House Search API - Protected route
   app.get("/api/companies-house/search", isAuthenticated, async (req, res) => {
     try {

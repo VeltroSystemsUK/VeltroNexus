@@ -37,6 +37,7 @@ export interface IStorage {
   createProspect(prospect: InsertProspect, userId: string): Promise<Prospect>;
   updateProspectStage(prospectId: number, userId: string, stage: string): Promise<Prospect | undefined>;
   updateProspect(id: number, userId: string, updates: Partial<InsertProspect>): Promise<Prospect | undefined>;
+  deleteProspect(id: number, userId: string): Promise<void>;
 
   // Contacts
   listContacts(prospectId: number): Promise<Contact[]>;
@@ -148,6 +149,12 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(prospects.id, id), eq(prospects.userId, userId)))
       .returning();
     return prospect || undefined;
+  }
+
+  async deleteProspect(id: number, userId: string): Promise<void> {
+    await db
+      .delete(prospects)
+      .where(and(eq(prospects.id, id), eq(prospects.userId, userId)));
   }
 
   async listContacts(prospectId: number): Promise<Contact[]> {
