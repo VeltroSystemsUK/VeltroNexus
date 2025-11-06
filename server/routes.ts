@@ -10,6 +10,10 @@ import {
   insertActivitySchema,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const gocardless = require("gocardless-nodejs");
+const { Environments } = require("gocardless-nodejs/constants");
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication - Required for Replit Auth
@@ -508,6 +512,225 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dueDiligence = await storage.upsertDueDiligence(prospectId, mergedData);
       res.json(dueDiligence);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GoCardless Integration Routes
+  const gcClient = gocardless(
+    process.env.GOCARDLESS_ACCESS_TOKEN!,
+    process.env.GOCARDLESS_ENVIRONMENT === 'live' ? Environments.Live : Environments.Sandbox
+  );
+
+  // Create billing request flow for subscription setup
+  app.post("/api/gocardless/create-billing-request", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { tier } = req.body;
+      if (!tier || !['standard', 'premium'].includes(tier)) {
+        return res.status(400).json({ error: "Invalid subscription tier" });
+      }
+
+      // Create billing request
+      const billingRequest = await gcClient.billingRequests.create({
+        mandate_request: {
+          currency: 'GBP',
+          scheme: 'bacs',
+        },
+        metadata: {
+          user_id: userId,
+          tier: tier,
+        }
+      });
+
+      // Create billing request flow to get authorization URL
+      const flow = await gcClient.billingRequestFlows.create({
+        redirect_uri: `${process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}/subscription/complete`,
+        exit_uri: `${process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}/pricing`,
+        links: {
+          billing_request: billingRequest.id
+        }
+      });
+
+      res.json({
+        billingRequestId: billingRequest.id,
+        authorisationUrl: flow.authorisation_url
+      });
+    } catch (error: any) {
+      console.error("GoCardless billing request error:", error);
+      res.status(500).json({ error: error.message || "Failed to create billing request" });
+    }
+  });
+
+  // Complete subscription after billing request
+  app.post("/api/gocardless/complete-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { billingRequestFlowId } = req.body;
+
+      if (!billingRequestFlowId) {
+        return res.status(400).json({ error: "Missing billing request flow ID" });
+      }
+
+      // Complete the billing request flow
+      const completedFlow = await gcClient.billingRequestFlows.complete(billingRequestFlowId);
+      
+      if (!completedFlow.links?.billing_request) {
+        return res.status(400).json({ error: "Billing request flow not completed" });
+      }
+
+      // Get the billing request to retrieve mandate and customer
+      const billingRequest = await gcClient.billingRequests.find(completedFlow.links.billing_request);
+      
+      // Validate that the billing request belongs to the authenticated user
+      if (billingRequest.metadata?.user_id !== userId) {
+        return res.status(403).json({ error: "Unauthorized: Billing request does not belong to this user" });
+      }
+
+      // Get the tier from the billing request metadata (server-authoritative)
+      const tier = billingRequest.metadata?.tier;
+      if (!tier || !['standard', 'premium'].includes(tier)) {
+        return res.status(400).json({ error: "Invalid or missing tier in billing request" });
+      }
+      
+      if (!billingRequest.links?.mandate_request) {
+        return res.status(400).json({ error: "Billing request not completed" });
+      }
+
+      // Get the mandate request to retrieve the mandate ID
+      const mandateRequest = await gcClient.mandateRequests.find(billingRequest.links.mandate_request);
+      
+      if (!mandateRequest.links?.mandate) {
+        return res.status(400).json({ error: "Mandate not found" });
+      }
+
+      const mandateId = mandateRequest.links.mandate;
+      const customerId = billingRequest.links.customer;
+
+      if (!mandateId || !customerId) {
+        return res.status(400).json({ error: "Missing mandate or customer ID" });
+      }
+
+      // Determine subscription amount based on validated tier from metadata
+      const amounts: Record<string, number> = {
+        standard: 2900, // £29 in pence
+        premium: 4900,  // £49 in pence
+      };
+
+      const amount = amounts[tier];
+      if (!amount) {
+        return res.status(400).json({ error: "Invalid tier" });
+      }
+
+      // Create subscription
+      const subscription = await gcClient.subscriptions.create({
+        amount: amount.toString(),
+        currency: 'GBP',
+        name: `LoanFlow ${tier.charAt(0).toUpperCase() + tier.slice(1)} Plan`,
+        interval_unit: 'monthly',
+        links: {
+          mandate: mandateId
+        },
+        metadata: {
+          user_id: userId,
+          tier: tier
+        }
+      });
+
+      // Update user with GoCardless IDs and new tier
+      const prospectLimits: Record<string, number> = {
+        standard: 100,
+        premium: 500,
+      };
+
+      await storage.updateUser(userId, {
+        gocardlessCustomerId: customerId,
+        gocardlessMandateId: mandateId,
+        gocardlessSubscriptionId: subscription.id,
+        subscriptionTier: tier,
+        prospectLimit: prospectLimits[tier]
+      });
+
+      res.json({ 
+        success: true,
+        subscription: {
+          id: subscription.id,
+          status: subscription.status,
+          tier: tier
+        }
+      });
+    } catch (error: any) {
+      console.error("GoCardless subscription completion error:", error);
+      res.status(500).json({ error: error.message || "Failed to complete subscription" });
+    }
+  });
+
+  // Cancel subscription
+  app.post("/api/gocardless/cancel-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.gocardlessSubscriptionId) {
+        return res.status(400).json({ error: "No active subscription found" });
+      }
+
+      // Cancel the subscription
+      await gcClient.subscriptions.cancel(user.gocardlessSubscriptionId);
+
+      // Update user back to free tier
+      await storage.updateUser(userId, {
+        gocardlessSubscriptionId: null,
+        subscriptionTier: 'free',
+        prospectLimit: 10
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("GoCardless cancellation error:", error);
+      res.status(500).json({ error: error.message || "Failed to cancel subscription" });
+    }
+  });
+
+  // Webhook endpoint for GoCardless events
+  app.post("/api/gocardless/webhook", async (req, res) => {
+    try {
+      const events = req.body.events;
+
+      for (const event of events) {
+        console.log(`GoCardless webhook event: ${event.action} for ${event.resource_type}`);
+
+        // Handle subscription cancellation
+        if (event.resource_type === 'subscriptions' && event.action === 'cancelled') {
+          const subscriptionId = event.links.subscription;
+          
+          // Find user with this subscription and downgrade them
+          const allUsers = await storage.getAllUsers();
+          const user = allUsers.find((u: any) => u.gocardlessSubscriptionId === subscriptionId);
+          
+          if (user) {
+            await storage.updateUser(user.id, {
+              gocardlessSubscriptionId: null,
+              subscriptionTier: 'free',
+              prospectLimit: 10
+            });
+          }
+        }
+
+        // Handle payment failures
+        if (event.resource_type === 'payments' && event.action === 'failed') {
+          console.warn(`Payment failed for payment ${event.links.payment}`);
+        }
+      }
+
+      res.status(200).json({ received: true });
+    } catch (error: any) {
+      console.error("GoCardless webhook error:", error);
       res.status(500).json({ error: error.message });
     }
   });

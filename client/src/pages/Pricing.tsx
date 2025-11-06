@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const pricingTiers = [
   {
@@ -61,13 +64,42 @@ const pricingTiers = [
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  const { data: user } = useQuery({
+    queryKey: ['/api/auth/user'],
+    retry: false,
+  });
+
+  const createBillingRequestMutation = useMutation({
+    mutationFn: async (tier: string) => {
+      sessionStorage.setItem('subscription_tier', tier);
+      const result = await apiRequest('/api/gocardless/create-billing-request', 'POST', { tier });
+      return result;
+    },
+    onSuccess: (data: any) => {
+      window.location.href = data.authorisationUrl;
+    },
+    onError: (error: any) => {
+      sessionStorage.removeItem('subscription_tier');
+      toast({
+        title: "Subscription Error",
+        description: error.message || "Failed to initiate subscription. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSelectPlan = (tier: string) => {
-    if (tier === "free") {
+    if (!user) {
       setLocation("/auth/login");
+      return;
+    }
+
+    if (tier === "free") {
+      setLocation("/pipeline");
     } else {
-      // For paid plans, redirect to signup with selected tier
-      setLocation(`/auth/login?tier=${tier}`);
+      createBillingRequestMutation.mutate(tier);
     }
   };
 
@@ -123,9 +155,12 @@ export default function Pricing() {
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
                   onClick={() => handleSelectPlan(plan.tier)}
+                  disabled={createBillingRequestMutation.isPending}
                   data-testid={`button-select-${plan.tier}`}
                 >
-                  {plan.tier === "free" ? "Get Started Free" : "Start Free Trial"}
+                  {createBillingRequestMutation.isPending ? "Processing..." : 
+                   plan.tier === "free" ? (user ? "Current Plan" : "Get Started Free") : 
+                   user ? "Subscribe" : "Sign Up & Subscribe"}
                 </Button>
               </CardFooter>
             </Card>

@@ -83,6 +83,43 @@ The platform implements a tiered subscription model that limits the number of pr
 -   Backend endpoint (`DELETE /api/prospects/:id`) enforces user authorization to ensure users can only delete their own prospects
 -   After successful deletion, user is redirected to the pipeline view
 
+### GoCardless Payment Integration
+
+The platform integrates with GoCardless for secure Direct Debit subscription payments. The implementation uses GoCardless's Billing Request Flow for scheme compliance.
+
+**Technical Implementation:**
+-   Uses `gocardless-nodejs` SDK (v6.0.0) with environment-based initialization (Sandbox/Live)
+-   Requires `GOCARDLESS_ACCESS_TOKEN` and `GOCARDLESS_ENVIRONMENT` secrets
+-   User schema includes `gocardlessCustomerId`, `gocardlessMandateId`, and `gocardlessSubscriptionId` fields
+-   Storage layer includes `updateUser()` and `getAllUsers()` methods for subscription management
+
+**Subscription Flow:**
+1.  User clicks "Subscribe" on the Pricing page for Standard or Premium tier
+2.  Frontend stores tier in sessionStorage and calls `/api/gocardless/create-billing-request`
+3.  Backend creates GoCardless billing request and billing request flow
+4.  User is redirected to GoCardless-hosted payment pages to authorize Direct Debit mandate
+5.  After authorization, GoCardless redirects to `/subscription/complete` with `billing_request_flow_id` query param
+6.  Frontend calls `/api/gocardless/complete-subscription` with flow ID and tier from sessionStorage
+7.  Backend completes the billing request flow, retrieves mandate/customer IDs, creates monthly subscription
+8.  User record is updated with GoCardless IDs, new subscription tier, and increased prospect limit
+9.  Success page displays and redirects to pipeline
+
+**API Endpoints:**
+-   `POST /api/gocardless/create-billing-request`: Initiates billing request flow (requires tier)
+-   `POST /api/gocardless/complete-subscription`: Completes flow and creates subscription (requires billingRequestFlowId, tier)
+-   `POST /api/gocardless/cancel-subscription`: Cancels active subscription and downgrades to Free tier
+-   `POST /api/gocardless/webhook`: Handles GoCardless events (subscription cancellations, payment failures)
+
+**Webhook Handling:**
+-   Listens for subscription cancellation events to downgrade users to Free tier
+-   Logs payment failures for monitoring
+-   Uses webhook signature validation for security (production)
+
+**Pricing:**
+-   Standard: £29/month (2900 pence) - monthly recurring payment
+-   Premium: £49/month (4900 pence) - monthly recurring payment
+-   Payments processed via BACS Direct Debit (UK)
+
 ## External Dependencies
 
 ### UI Libraries
