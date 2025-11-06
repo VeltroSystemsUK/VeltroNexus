@@ -6,11 +6,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as SonnerToaster } from "sonner";
 import NotFound from "@/pages/not-found";
 import Pipeline from "@/pages/Pipeline";
+import CompanySearch from "@/pages/CompanySearch";
+import ProspectDetail from "@/pages/ProspectDetail";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Pipeline} />
+      <Route path="/search" component={CompanySearch} />
+      <Route path="/prospect/:id" component={ProspectDetail} />
       <Route component={NotFound} />
     </Switch>
   );

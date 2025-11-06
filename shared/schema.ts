@@ -1,18 +1,81 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+export const companies = pgTable("companies", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  companyName: text("company_name").notNull(),
+  companyNumber: varchar("company_number", { length: 20 }).notNull().unique(),
+  registeredAddress: text("registered_address"),
+  incorporationDate: text("incorporation_date"),
+  companyStatus: text("company_status"),
+  companyType: text("company_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const prospects = pgTable("prospects", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  stage: text("stage").notNull().default("lead"),
+  loanAmount: integer("loan_amount"),
+  priority: text("priority"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export const prospectsRelations = relations(prospects, ({ one }) => ({
+  company: one(companies, {
+    fields: [prospects.companyId],
+    references: [companies.id],
+  }),
+}));
+
+export const companiesRelations = relations(companies, ({ many }) => ({
+  prospects: many(prospects),
+}));
+
+export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertProspectSchema = createInsertSchema(prospects, {
+  companyId: z.union([
+    z.number().int().positive(),
+    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+  ]),
+  loanAmount: z.union([
+    z.number().int().min(0),
+    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+    z.null(),
+  ]).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateProspectStageSchema = z.object({
+  prospectId: z.number(),
+  stage: z.enum([
+    "lead",
+    "contacted",
+    "qualified",
+    "proposal",
+    "due-diligence",
+    "approval",
+    "approved",
+    "declined",
+    "withdrawn",
+  ]),
+});
+
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companies.$inferSelect;
+export type InsertProspect = z.infer<typeof insertProspectSchema>;
+export type Prospect = typeof prospects.$inferSelect;
+export type ProspectWithCompany = Prospect & { company: Company };
+export type UpdateProspectStage = z.infer<typeof updateProspectStageSchema>;

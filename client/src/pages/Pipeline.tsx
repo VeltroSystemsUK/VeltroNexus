@@ -1,11 +1,16 @@
-import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineColumn from "@/components/PipelineColumn";
 import ProspectCard, { type ProspectCardData } from "@/components/ProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
 import ThemeToggle from "@/components/ThemeToggle";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { useLocation } from "wouter";
+import type { ProspectWithCompany } from "@shared/schema";
 
 type Stage = "lead" | "contacted" | "qualified" | "proposal" | "due-diligence" | "approval" | "approved" | "declined" | "withdrawn";
 
@@ -24,73 +29,25 @@ const STAGES: { value: Stage; label: string }[] = [
 const ACTIVE_STAGES = STAGES.slice(0, 6);
 const FINAL_STAGES = STAGES.slice(6);
 
-interface Prospect extends ProspectCardData {
-  stage: Stage;
-}
-
 export default function Pipeline() {
-  const [prospects, setProspects] = useState<Prospect[]>([
-    {
-      id: 1,
-      companyName: "Tech Innovations Ltd",
-      companyNumber: "12345678",
-      loanAmount: 25000000,
-      priority: "high",
-      stage: "lead",
+  const [, navigate] = useLocation();
+  
+  const { data: prospects = [], isLoading, error } = useQuery<ProspectWithCompany[]>({
+    queryKey: ["/api/prospects"],
+    queryFn: () => api.prospects.list(),
+  });
+
+  const updateStageMutation = useMutation({
+    mutationFn: ({ prospectId, stage }: { prospectId: number; stage: string }) =>
+      api.prospects.updateStage(prospectId, stage),
+    onSuccess: () => {
+      toast.success("Stage updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
     },
-    {
-      id: 2,
-      companyName: "Global Manufacturing Co",
-      companyNumber: "87654321",
-      loanAmount: 50000000,
-      priority: "medium",
-      stage: "contacted",
+    onError: (error: Error) => {
+      toast.error(`Failed to update stage: ${error.message}`);
     },
-    {
-      id: 3,
-      companyName: "Digital Solutions Group",
-      companyNumber: "11223344",
-      loanAmount: 15000000,
-      stage: "qualified",
-    },
-    {
-      id: 4,
-      companyName: "Sustainable Energy Ltd",
-      companyNumber: "99887766",
-      loanAmount: 75000000,
-      priority: "high",
-      stage: "proposal",
-    },
-    {
-      id: 5,
-      companyName: "Healthcare Systems Inc",
-      companyNumber: "55667788",
-      loanAmount: 30000000,
-      stage: "due-diligence",
-    },
-    {
-      id: 6,
-      companyName: "Retail Ventures PLC",
-      companyNumber: "44332211",
-      loanAmount: 20000000,
-      priority: "low",
-      stage: "approval",
-    },
-    {
-      id: 7,
-      companyName: "Construction Group Ltd",
-      companyNumber: "66778899",
-      loanAmount: 40000000,
-      stage: "approved",
-    },
-    {
-      id: 8,
-      companyName: "Finance Partners Ltd",
-      companyNumber: "33445566",
-      loanAmount: 10000000,
-      stage: "declined",
-    },
-  ]);
+  });
 
   const onDragEnd = (result: DropResult) => {
     const { destination, draggableId } = result;
@@ -106,18 +63,11 @@ export default function Pipeline() {
     const prospectId = parseInt(draggableId.replace("prospect-", ""));
     const newStage = destination.droppableId as Stage;
 
-    setProspects((prev) =>
-      prev.map((p) => (p.id === prospectId ? { ...p, stage: newStage } : p))
-    );
-
-    toast.success("Stage updated successfully");
+    updateStageMutation.mutate({ prospectId, stage: newStage });
   };
 
   const handleStageChange = (prospectId: number, newStage: Stage) => {
-    setProspects((prev) =>
-      prev.map((p) => (p.id === prospectId ? { ...p, stage: newStage } : p))
-    );
-    toast.success("Stage updated successfully");
+    updateStageMutation.mutate({ prospectId, stage: newStage });
   };
 
   const formatCurrency = (amount: number) => {
@@ -144,6 +94,33 @@ export default function Pipeline() {
     (p) => !["approved", "declined", "withdrawn"].includes(p.stage)
   ).length;
   const approvedCount = prospects.filter((p) => p.stage === "approved").length;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading pipeline...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-destructive font-semibold mb-2">Failed to load pipeline</p>
+          <p className="text-muted-foreground text-sm mb-4">
+            {error instanceof Error ? error.message : "An unexpected error occurred"}
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Reload Page
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -177,7 +154,7 @@ export default function Pipeline() {
         </div>
 
         {prospects.length === 0 ? (
-          <EmptyPipeline onAddProspect={() => toast.info("Company search coming soon")} />
+          <EmptyPipeline onAddProspect={() => navigate("/search")} />
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="mb-8">
@@ -199,32 +176,42 @@ export default function Pipeline() {
                             totalValue={totalValue}
                             isDraggingOver={snapshot.isDraggingOver}
                           >
-                            {stageProspects.map((prospect, index) => (
-                              <Draggable
-                                key={prospect.id}
-                                draggableId={`prospect-${prospect.id}`}
-                                index={index}
-                              >
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                  >
-                                    <ProspectCard
-                                      prospect={prospect}
-                                      dragHandleProps={provided.dragHandleProps}
-                                      isDragging={snapshot.isDragging}
-                                      currentStage={stage.value}
-                                      availableStages={STAGES}
-                                      onClick={() => toast.info(`Viewing ${prospect.companyName}`)}
-                                      onMove={(newStage) =>
-                                        handleStageChange(prospect.id, newStage as Stage)
-                                      }
-                                    />
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))}
+                            {stageProspects.map((prospect, index) => {
+                              const cardData: ProspectCardData = {
+                                id: prospect.id,
+                                companyName: prospect.company.companyName,
+                                companyNumber: prospect.company.companyNumber,
+                                loanAmount: prospect.loanAmount ?? undefined,
+                                priority: prospect.priority as any,
+                              };
+
+                              return (
+                                <Draggable
+                                  key={prospect.id}
+                                  draggableId={`prospect-${prospect.id}`}
+                                  index={index}
+                                >
+                                  {(provided, snapshot) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                    >
+                                      <ProspectCard
+                                        prospect={cardData}
+                                        dragHandleProps={provided.dragHandleProps}
+                                        isDragging={snapshot.isDragging}
+                                        currentStage={stage.value}
+                                        availableStages={STAGES}
+                                        onClick={() => navigate(`/prospect/${prospect.id}`)}
+                                        onMove={(newStage) =>
+                                          handleStageChange(prospect.id, newStage as Stage)
+                                        }
+                                      />
+                                    </div>
+                                  )}
+                                </Draggable>
+                              );
+                            })}
                             {provided.placeholder}
                           </PipelineColumn>
                         </div>
@@ -254,32 +241,42 @@ export default function Pipeline() {
                             totalValue={totalValue}
                             isDraggingOver={snapshot.isDraggingOver}
                           >
-                            {stageProspects.map((prospect, index) => (
-                              <Draggable
-                                key={prospect.id}
-                                draggableId={`prospect-${prospect.id}`}
-                                index={index}
-                              >
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                  >
-                                    <ProspectCard
-                                      prospect={prospect}
-                                      dragHandleProps={provided.dragHandleProps}
-                                      isDragging={snapshot.isDragging}
-                                      currentStage={stage.value}
-                                      availableStages={STAGES}
-                                      onClick={() => toast.info(`Viewing ${prospect.companyName}`)}
-                                      onMove={(newStage) =>
-                                        handleStageChange(prospect.id, newStage as Stage)
-                                      }
-                                    />
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))}
+                            {stageProspects.map((prospect, index) => {
+                              const cardData: ProspectCardData = {
+                                id: prospect.id,
+                                companyName: prospect.company.companyName,
+                                companyNumber: prospect.company.companyNumber,
+                                loanAmount: prospect.loanAmount ?? undefined,
+                                priority: prospect.priority as any,
+                              };
+
+                              return (
+                                <Draggable
+                                  key={prospect.id}
+                                  draggableId={`prospect-${prospect.id}`}
+                                  index={index}
+                                >
+                                  {(provided, snapshot) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                    >
+                                      <ProspectCard
+                                        prospect={cardData}
+                                        dragHandleProps={provided.dragHandleProps}
+                                        isDragging={snapshot.isDragging}
+                                        currentStage={stage.value}
+                                        availableStages={STAGES}
+                                        onClick={() => navigate(`/prospect/${prospect.id}`)}
+                                        onMove={(newStage) =>
+                                          handleStageChange(prospect.id, newStage as Stage)
+                                        }
+                                      />
+                                    </div>
+                                  )}
+                                </Draggable>
+                              );
+                            })}
                             {provided.placeholder}
                           </PipelineColumn>
                         </div>
