@@ -23,19 +23,19 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
   const companyNumber = companyProfile.company_number;
 
   // Fetch Officers
-  const { data: officers } = useQuery<OfficersResponse>({
+  const { data: officers, isLoading: officersLoading, error: officersError } = useQuery<OfficersResponse>({
     queryKey: [`/api/companies-house/company/${companyNumber}/officers`],
     enabled: !!companyNumber,
   });
 
   // Fetch PSC
-  const { data: psc } = useQuery<PSCResponse>({
+  const { data: psc, isLoading: pscLoading, error: pscError } = useQuery<PSCResponse>({
     queryKey: [`/api/companies-house/company/${companyNumber}/persons-with-significant-control`],
     enabled: !!companyNumber,
   });
 
   // Fetch Charges
-  const { data: charges } = useQuery<ChargesResponse>({
+  const { data: charges, isLoading: chargesLoading, error: chargesError } = useQuery<ChargesResponse>({
     queryKey: [`/api/companies-house/company/${companyNumber}/charges`],
     enabled: !!companyNumber,
   });
@@ -155,16 +155,23 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
       </Card>
 
       {/* Officers */}
-      {officers && officers.total_results > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="w-4 h-4" />
-              Officers ({officers.active_count || 0} active, {officers.resigned_count || 0} resigned)
-            </CardTitle>
-            <CardDescription>Directors and company secretaries</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="w-4 h-4" />
+            Officers
+            {officers && ` (${officers.active_count || 0} active, ${officers.resigned_count || 0} resigned)`}
+          </CardTitle>
+          <CardDescription>Directors and company secretaries</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {officersLoading && (
+            <p className="text-sm text-muted-foreground">Loading officers data...</p>
+          )}
+          {officersError && (
+            <p className="text-sm text-muted-foreground">No officers data available</p>
+          )}
+          {officers && officers.total_results > 0 && (
             <div className="space-y-4">
               {officers.items.map((officer, idx) => (
                 <div key={idx} className="border-b pb-4 last:border-0 last:pb-0">
@@ -211,21 +218,28 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* PSC */}
-      {psc && psc.total_results > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="w-4 h-4" />
-              Persons with Significant Control ({psc.active_count || 0} active)
-            </CardTitle>
-            <CardDescription>Individuals or entities with significant influence over the company</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="w-4 h-4" />
+            Persons with Significant Control
+            {psc && ` (${psc.active_count || 0} active)`}
+          </CardTitle>
+          <CardDescription>Individuals or entities with significant influence over the company</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {pscLoading && (
+            <p className="text-sm text-muted-foreground">Loading PSC data...</p>
+          )}
+          {pscError && (
+            <p className="text-sm text-muted-foreground">No PSC data available</p>
+          )}
+          {psc && psc.total_results > 0 && (
             <div className="space-y-4">
               {psc.items.map((person, idx) => (
                 <div key={idx} className="border-b pb-4 last:border-0 last:pb-0">
@@ -280,23 +294,30 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Charges */}
-      {charges && charges.total_count > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Shield className="w-4 h-4" />
-              Charges ({charges.total_count})
-            </CardTitle>
-            <CardDescription>
-              {charges.satisfied_count || 0} satisfied, {(charges.total_count - (charges.satisfied_count || 0))} outstanding
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="w-4 h-4" />
+            Charges
+            {charges && ` (${charges.total_count})`}
+          </CardTitle>
+          <CardDescription>
+            {charges && `${charges.satisfied_count || 0} satisfied, ${(charges.total_count - (charges.satisfied_count || 0))} outstanding`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {chargesLoading && (
+            <p className="text-sm text-muted-foreground">Loading charges data...</p>
+          )}
+          {chargesError && (
+            <p className="text-sm text-muted-foreground">No charges data available</p>
+          )}
+          {charges && charges.total_count > 0 && (
             <div className="space-y-4">
               {charges.items.map((charge, idx) => (
                 <div key={idx} className="border-b pb-4 last:border-0 last:pb-0">
@@ -362,9 +383,9 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* SIC Codes */}
       {companyProfile.sic_codes && companyProfile.sic_codes.length > 0 && (
