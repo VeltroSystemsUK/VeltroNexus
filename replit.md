@@ -129,6 +129,33 @@ Preferred communication style: Simple, everyday language.
 - Responsive grid layouts for stats and Kanban columns
 - Card-based component design with subtle shadows and borders
 
+## Companies House Integration
+
+**Purpose**: Integration with UK Companies House API to search and auto-populate company information
+
+**Implementation**:
+- Backend route: `GET /api/companies-house/search?q=QUERY`
+- Uses Companies House Public Data API: `https://api.company-information.service.gov.uk/search/companies`
+- Authentication: Basic Auth with API key as username, empty password
+- Returns company search results with name, number, address, status
+
+**Frontend Features**:
+- Search box on `/search` page to query Companies House
+- Results displayed as clickable cards
+- Clicking a company auto-populates: company name, company number, and registered address
+- User can then add loan details and create prospect
+
+**Configuration**:
+- Requires `COMPANIES_HOUSE_API_KEY` environment variable
+- API key should be UUID format (e.g., `c84dd740-b31f-495b-8b28-a16980bcb1f6`)
+- Get free API key from: https://developer.company-information.service.gov.uk/
+
+**Technical Details**:
+- Frontend uses React Query with custom queryFn to handle search
+- Backend validates query parameter and returns formatted results
+- Error handling for API failures with user-friendly messages
+- Auto-population extracts address from `address` object or `address_snippet`
+
 ## External Dependencies
 
 ### Third-Party UI Libraries
