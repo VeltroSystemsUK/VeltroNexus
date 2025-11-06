@@ -152,6 +152,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Companies House Company Profile API - Protected route
+  app.get("/api/companies-house/company/:companyNumber", isAuthenticated, async (req, res) => {
+    try {
+      const companyNumber = req.params.companyNumber;
+      if (!companyNumber || companyNumber.trim().length === 0) {
+        return res.status(400).json({ error: "Company number is required" });
+      }
+
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        console.error("COMPANIES_HOUSE_API_KEY environment variable not set");
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+
+      // Trim any whitespace from API key
+      const trimmedApiKey = apiKey.trim();
+      
+      // API key is used as username with empty password in Basic Auth
+      const authString = `${trimmedApiKey}:`;
+      const base64Auth = Buffer.from(authString).toString('base64');
+      
+      console.log(`Fetching company profile for: "${companyNumber}"`);
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}`,
+        {
+          headers: {
+            'Authorization': `Basic ${base64Auth}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Companies House API error:", response.status, errorText);
+        if (response.status === 404) {
+          return res.status(404).json({ error: "Company not found" });
+        }
+        return res.status(response.status).json({ 
+          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
+        });
+      }
+
+      const data = await response.json();
+      console.log(`Retrieved company profile for ${companyNumber}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error fetching company profile:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Companies API - Protected routes
   app.get("/api/companies/:number", isAuthenticated, async (req, res) => {
     try {
