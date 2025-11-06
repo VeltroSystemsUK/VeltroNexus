@@ -170,6 +170,14 @@ export default function Pipeline() {
                   <p className="text-muted-foreground text-xs">{user?.email}</p>
                 </div>
                 <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-sm">
+                  <p className="text-xs text-muted-foreground mb-1">Subscription</p>
+                  <p className="font-semibold capitalize">{user?.subscriptionTier || "Free"} Plan</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {prospects.length} / {user?.prospectLimit || 10} prospects used
+                  </p>
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => window.location.href = "/api/logout"}
                   data-testid="menu-item-logout"

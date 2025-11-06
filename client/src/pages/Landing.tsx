@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, Building2, Users, CheckCircle } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { Link } from "wouter";
 
 export default function Landing() {
   const handleLogin = () => {
@@ -19,6 +20,11 @@ export default function Landing() {
             <h1 className="text-2xl font-bold" data-testid="text-app-title">LoanFlow</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/pricing">
+              <Button variant="ghost" data-testid="button-pricing">
+                Pricing
+              </Button>
+            </Link>
             <Button onClick={handleLogin} data-testid="button-sign-in">
               Sign in
             </Button>

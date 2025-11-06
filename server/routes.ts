@@ -55,6 +55,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/prospects", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      
+      // Check prospect limit based on subscription tier
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const currentProspects = await storage.listProspects(userId);
+      if (currentProspects.length >= user.prospectLimit) {
+        return res.status(403).json({ 
+          error: `Prospect limit reached. You have ${currentProspects.length} prospects and your ${user.subscriptionTier} plan allows ${user.prospectLimit}. Please upgrade your subscription to add more prospects.`,
+          prospectCount: currentProspects.length,
+          prospectLimit: user.prospectLimit,
+          subscriptionTier: user.subscriptionTier
+        });
+      }
+      
       const result = insertProspectSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
