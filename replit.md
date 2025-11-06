@@ -63,6 +63,8 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/prospects` - Create new prospect for current user
 - `PATCH /api/prospects/:id/stage` - Update prospect stage (user-scoped)
 - `PATCH /api/prospects/:id` - Update prospect details (user-scoped)
+- `GET /api/prospects/:id/due-diligence` - Get due diligence assessment data
+- `PATCH /api/prospects/:id/due-diligence` - Update due diligence data (partial merge)
 - `GET /api/companies/:number` - Get company by number
 - `POST /api/companies` - Create new company
 
@@ -98,9 +100,16 @@ Preferred communication style: Simple, everyday language.
 - `loanAmount`, `priority`, `notes`
 - `createdAt`, `updatedAt` timestamps
 
+**Due Diligence Table**:
+- `id` (auto-increment primary key)
+- `prospectId` (integer foreign key to prospects, unique constraint)
+- `data` (jsonb column storing all assessment tool data)
+- Stores: checklist items, loan calculations, DSCR analysis, affordability estimates, financial ratios, character assessments
+
 **Relationships**:
 - One-to-many relationship between users and prospects (user data isolation)
 - One-to-many relationship between companies and prospects
+- One-to-one relationship between prospects and due diligence assessments
 - Prospects belong to both a user and a company
 - Join queries return `ProspectWithCompany` type combining prospects and companies
 
@@ -155,6 +164,64 @@ Preferred communication style: Simple, everyday language.
 - Backend validates query parameter and returns formatted results
 - Error handling for API failures with user-friendly messages
 - Auto-population extracts address from `address` object or `address_snippet`
+
+## Due Diligence Tools
+
+**Purpose**: Comprehensive assessment toolkit for evaluating loan prospects with 6 interactive tools for structured analysis
+
+**Implementation**:
+- Database: JSONB column in `due_diligence` table for flexible tool data storage
+- API Routes: `GET /PATCH /api/prospects/:id/due-diligence` with partial update merge
+- Calculation Utilities: Shared functions in `client/src/lib/calculators.ts` for loan amortization, DSCR, ratios, and affordability
+- UI: Accordion layout in Due Diligence tab with collapsible sections for each tool
+
+**Interactive Tools**:
+
+1. **Due Diligence Checklist** (37 items across 10 sections)
+   - Sections: Application Validation, Documentation & KYC, Financial Review, Credit & Governance, Capacity & Contracts, Loan Structure & Security, Repayment & Affordability, Insurance & Compliance, Bank Statement Log, Recommendation Integrity
+   - Features: Per-item completion checkboxes, notes fields, section progress bars, overall completion percentage
+   - Data source: Checklist metadata constant created from Excel spreadsheet
+
+2. **Loan Calculator**
+   - Inputs: Loan amount (£), interest rate (%), term (months)
+   - Calculations: Monthly payment, total interest, facility fee (3.5%)
+   - Formula: Standard amortization with annual rate converted to monthly
+
+3. **DSCR Calculator** (Debt Service Coverage Ratio)
+   - Inputs: Annual Net Operating Income (£), Annual Debt Service (£), Sensitivity Revenue (%)
+   - Calculations: DSCR ratio, sensitivity analysis (-20% revenue scenario)
+   - Indicators: Pass (≥1.5×), Warning (1.25×-1.5×), Fail (<1.25×)
+   - Visual feedback: Color-coded badges with pass/warning/fail icons
+
+4. **Affordability Estimator**
+   - Inputs: Monthly personal income (£), monthly commitments (£), proposed loan payment (£)
+   - Calculations: Affordability ratio (income vs. total commitments)
+   - Pass criteria: Ratio ≥ 1.25× (income covers commitments + loan by 125%)
+   - Breakdown: Disposable income display with income, existing, loan, and total
+
+5. **Financial Ratios Calculator**
+   - Inputs: Revenue, costs, current assets/liabilities, total assets/liabilities, equity (all in £)
+   - Calculated metrics:
+     * Profit Margin: (Revenue - Costs) / Revenue × 100
+     * Current Ratio: Current Assets / Current Liabilities
+     * Debt-to-Equity: Total Liabilities / Equity
+     * Return on Equity (ROE): Net Profit / Equity × 100
+     * Asset Turnover: Revenue / Total Assets
+   - Benchmarks displayed for each ratio
+
+6. **Character Assessment Tool**
+   - Rating categories (1-5 scale): Management Experience, Credit History, Bank Conduct, Contracts Quality
+   - Features: Slider inputs for each category, overall score calculation, recommendation text
+   - Output: Total score / max score, percentage, Pass (≥60%) / Fail indicator
+   - Notes field for additional qualitative assessment
+
+**Technical Features**:
+- **Data Hydration**: All tools use `useEffect` to sync local state with API data on load
+- **Save/Load**: Individual save buttons per tool with toast notifications
+- **Persistence**: Data stored in JSONB with partial merge on PATCH (null values clear fields)
+- **Calculations**: Real-time calculations displayed as user enters data
+- **Validation**: Client-side input validation, graceful handling of missing data
+- **Type Safety**: Full TypeScript types and Zod schemas for all tool data structures
 
 ## External Dependencies
 
