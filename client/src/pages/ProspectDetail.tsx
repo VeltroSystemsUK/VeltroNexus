@@ -32,6 +32,7 @@ import {
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect } from "react";
 import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 import {
   DueDiligenceChecklist,
   LoanCalculatorTool,
@@ -65,6 +66,7 @@ export default function ProspectDetail() {
   const params = useParams();
   const [, navigate] = useLocation();
   const prospectId = params.id ? parseInt(params.id) : 0;
+  const { user } = useAuth();
 
   const { data: prospect, isLoading } = useQuery<ProspectWithCompany>({
     queryKey: [`/api/prospects/${prospectId}`],
@@ -203,12 +205,14 @@ export default function ProspectDetail() {
 
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
-          <TabsList className="grid w-full grid-cols-6 mb-8">
+          <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-5" : "grid-cols-6"} mb-8`}>
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
             <TabsTrigger value="company" data-testid="tab-company">Company Info</TabsTrigger>
             <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
             <TabsTrigger value="activity" data-testid="tab-activity">Sales Activity</TabsTrigger>
-            <TabsTrigger value="diligence" data-testid="tab-diligence">Due Diligence</TabsTrigger>
+            {user?.subscriptionTier !== "free" && (
+              <TabsTrigger value="diligence" data-testid="tab-diligence">Due Diligence</TabsTrigger>
+            )}
             <TabsTrigger value="summary" data-testid="tab-summary">Summary</TabsTrigger>
           </TabsList>
 
@@ -228,9 +232,11 @@ export default function ProspectDetail() {
             <SalesActivityTab prospectId={prospectId} activities={activities} />
           </TabsContent>
 
-          <TabsContent value="diligence">
-            <DueDiligenceTab prospect={prospect} />
-          </TabsContent>
+          {user?.subscriptionTier !== "free" && (
+            <TabsContent value="diligence">
+              <DueDiligenceTab prospect={prospect} />
+            </TabsContent>
+          )}
 
           <TabsContent value="summary">
             <SummaryTab prospect={prospect} contacts={contacts} activities={activities} />
