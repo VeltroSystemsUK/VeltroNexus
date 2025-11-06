@@ -25,6 +25,7 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Pipeline} />
+          <Route path="/pipeline" component={Pipeline} />
           <Route path="/search" component={CompanySearch} />
           <Route path="/prospect/:id" component={ProspectDetail} />
         </>

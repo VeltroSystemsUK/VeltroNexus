@@ -48,6 +48,22 @@ The platform includes six interactive due diligence tools, with data stored in a
 6.  **Character Assessment Tool**: Provides a qualitative assessment using a 1-5 rating scale across categories like Management Experience and Credit History.
 All tools feature real-time calculations, data persistence, and client-side validation.
 
+### Subscription System
+
+The platform implements a tiered subscription model that limits the number of prospects each user can manage. The system includes three subscription tiers displayed on a dedicated pricing page (`/pricing`) accessible before signup:
+
+**Subscription Tiers:**
+1.  **Free Plan**: 10 prospects included, £3 per additional prospect
+2.  **Standard Plan**: £29/month for 100 prospects, £2 per additional prospect
+3.  **Premium Plan**: £49/month for 500 prospects, £1 per additional prospect
+
+**Technical Implementation:**
+-   The `users` table includes `subscriptionTier` (enum: 'free', 'standard', 'premium') and `prospectLimit` (integer) fields with default values ('free', 10)
+-   Prospect creation endpoint (`POST /api/prospects`) enforces limits server-side by checking current prospect count against the user's limit
+-   Returns 403 status with detailed error message when quota is exceeded
+-   The Pipeline page displays subscription status in the user menu dropdown, showing current tier and prospect usage (e.g., "5 / 10 prospects used")
+-   Pricing page is accessible from the landing page before authentication to allow users to review plans before signing up
+
 ## External Dependencies
 
 ### UI Libraries
