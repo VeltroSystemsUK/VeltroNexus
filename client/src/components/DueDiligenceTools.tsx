@@ -31,10 +31,12 @@ interface DueDiligenceToolsProps {
 }
 
 export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(data.checklist || []);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
 
   useEffect(() => {
-    if (!data.checklist || data.checklist.length === 0) {
+    if (data.checklist && data.checklist.length > 0) {
+      setChecklist(data.checklist);
+    } else {
       const initialChecklist: ChecklistItem[] = [];
       CHECKLIST_SECTIONS.forEach((section) => {
         section.items.forEach((item) => {
@@ -161,9 +163,15 @@ export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDilige
 }
 
 export function LoanCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [loanAmount, setLoanAmount] = useState(data.loanCalculator?.loanAmount?.toString() || "");
-  const [interestRate, setInterestRate] = useState(data.loanCalculator?.interestRate?.toString() || "");
-  const [term, setTerm] = useState(data.loanCalculator?.term?.toString() || "");
+  const [loanAmount, setLoanAmount] = useState("");
+  const [interestRate, setInterestRate] = useState("");
+  const [term, setTerm] = useState("");
+
+  useEffect(() => {
+    setLoanAmount(data.loanCalculator?.loanAmount?.toString() || "");
+    setInterestRate(data.loanCalculator?.interestRate?.toString() || "");
+    setTerm(data.loanCalculator?.term?.toString() || "");
+  }, [data.loanCalculator]);
 
   const calculation = loanAmount && interestRate && term
     ? calculateLoan(parseFloat(loanAmount), parseFloat(interestRate), parseInt(term))
@@ -256,9 +264,15 @@ export function LoanCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
 }
 
 export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [noi, setNoi] = useState(data.dscr?.annualNetOperatingIncome?.toString() || "");
-  const [debtService, setDebtService] = useState(data.dscr?.annualDebtService?.toString() || "");
-  const [sensitivity, setSensitivity] = useState(data.dscr?.sensitivityRevenue?.toString() || "-20");
+  const [noi, setNoi] = useState("");
+  const [debtService, setDebtService] = useState("");
+  const [sensitivity, setSensitivity] = useState("-20");
+
+  useEffect(() => {
+    setNoi(data.dscr?.annualNetOperatingIncome?.toString() || "");
+    setDebtService(data.dscr?.annualDebtService?.toString() || "");
+    setSensitivity(data.dscr?.sensitivityRevenue?.toString() || "-20");
+  }, [data.dscr]);
 
   const calculation = noi && debtService
     ? calculateDSCR(parseFloat(noi), parseFloat(debtService), parseFloat(sensitivity))
@@ -380,9 +394,15 @@ export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
 }
 
 export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [income, setIncome] = useState(data.affordability?.personalIncome?.toString() || "");
-  const [commitments, setCommitments] = useState(data.affordability?.monthlyCommitments?.toString() || "");
-  const [loanPayment, setLoanPayment] = useState(data.affordability?.loanPayment?.toString() || "");
+  const [income, setIncome] = useState("");
+  const [commitments, setCommitments] = useState("");
+  const [loanPayment, setLoanPayment] = useState("");
+
+  useEffect(() => {
+    setIncome(data.affordability?.personalIncome?.toString() || "");
+    setCommitments(data.affordability?.monthlyCommitments?.toString() || "");
+    setLoanPayment(data.affordability?.loanPayment?.toString() || "");
+  }, [data.affordability]);
 
   const calculation = income && commitments && loanPayment
     ? calculateAffordability(parseFloat(income), parseFloat(commitments), parseFloat(loanPayment))
@@ -485,13 +505,23 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
 }
 
 export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [revenue, setRevenue] = useState(data.financialRatios?.revenue?.toString() || "");
-  const [costs, setCosts] = useState(data.financialRatios?.costs?.toString() || "");
-  const [currentAssets, setCurrentAssets] = useState(data.financialRatios?.currentAssets?.toString() || "");
-  const [currentLiabilities, setCurrentLiabilities] = useState(data.financialRatios?.currentLiabilities?.toString() || "");
-  const [totalAssets, setTotalAssets] = useState(data.financialRatios?.totalAssets?.toString() || "");
-  const [totalLiabilities, setTotalLiabilities] = useState(data.financialRatios?.totalLiabilities?.toString() || "");
-  const [equity, setEquity] = useState(data.financialRatios?.equity?.toString() || "");
+  const [revenue, setRevenue] = useState("");
+  const [costs, setCosts] = useState("");
+  const [currentAssets, setCurrentAssets] = useState("");
+  const [currentLiabilities, setCurrentLiabilities] = useState("");
+  const [totalAssets, setTotalAssets] = useState("");
+  const [totalLiabilities, setTotalLiabilities] = useState("");
+  const [equity, setEquity] = useState("");
+
+  useEffect(() => {
+    setRevenue(data.financialRatios?.revenue?.toString() || "");
+    setCosts(data.financialRatios?.costs?.toString() || "");
+    setCurrentAssets(data.financialRatios?.currentAssets?.toString() || "");
+    setCurrentLiabilities(data.financialRatios?.currentLiabilities?.toString() || "");
+    setTotalAssets(data.financialRatios?.totalAssets?.toString() || "");
+    setTotalLiabilities(data.financialRatios?.totalLiabilities?.toString() || "");
+    setEquity(data.financialRatios?.equity?.toString() || "");
+  }, [data.financialRatios]);
 
   const ratios = calculateFinancialRatios({
     revenue: revenue ? parseFloat(revenue) : undefined,
@@ -603,11 +633,19 @@ export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<D
 }
 
 export function CharacterAssessmentTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [managementExp, setManagementExp] = useState(data.character?.managementExperience || 3);
-  const [creditHistory, setCreditHistory] = useState(data.character?.creditHistory || 3);
-  const [bankConduct, setBankConduct] = useState(data.character?.bankConduct || 3);
-  const [contracts, setContracts] = useState(data.character?.contracts || 3);
-  const [notes, setNotes] = useState(data.character?.notes || "");
+  const [managementExp, setManagementExp] = useState(3);
+  const [creditHistory, setCreditHistory] = useState(3);
+  const [bankConduct, setBankConduct] = useState(3);
+  const [contracts, setContracts] = useState(3);
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    setManagementExp(data.character?.managementExperience || 3);
+    setCreditHistory(data.character?.creditHistory || 3);
+    setBankConduct(data.character?.bankConduct || 3);
+    setContracts(data.character?.contracts || 3);
+    setNotes(data.character?.notes || "");
+  }, [data.character]);
 
   const score = calculateCharacterScore({
     managementExperience: managementExp,

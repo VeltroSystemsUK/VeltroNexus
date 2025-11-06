@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
@@ -19,7 +20,15 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState } from "react";
-import type { Prospect, ProspectWithCompany, Contact, Activity } from "@shared/schema";
+import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
+import {
+  DueDiligenceChecklist,
+  LoanCalculatorTool,
+  DSCRCalculatorTool,
+  AffordabilityEstimatorTool,
+  FinancialRatiosCalculatorTool,
+  CharacterAssessmentTool,
+} from "@/components/DueDiligenceTools";
 
 const STAGES = [
   { value: "lead", label: "Lead" },
@@ -907,72 +916,115 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
 }
 
 function DueDiligenceTab({ prospect }: { prospect: ProspectWithCompany }) {
-  const tools = [
-    {
-      icon: CheckSquare,
-      title: "Due Diligence Checklist",
-      description: "56-item comprehensive checklist",
+  const { data: dueDiligence } = useQuery<DueDiligence>({
+    queryKey: [`/api/prospects/${prospect.id}/due-diligence`],
+  });
+
+  const saveDueDiligenceMutation = useMutation({
+    mutationFn: (updates: Partial<DueDiligenceData>) =>
+      fetch(`/api/prospects/${prospect.id}/due-diligence`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
+      toast.success("Assessment saved");
     },
-    {
-      icon: Calculator,
-      title: "DSCR Calculator",
-      description: "Debt Service Coverage Ratio",
+    onError: () => {
+      toast.error("Failed to save assessment");
     },
-    {
-      icon: Calculator,
-      title: "Loan Calculator",
-      description: "Payment calculations",
-    },
-    {
-      icon: TrendingUp,
-      title: "Affordability Estimator",
-      description: "Assess repayment capacity",
-    },
-    {
-      icon: TrendingUp,
-      title: "Financial Ratios",
-      description: "Key financial metrics",
-    },
-    {
-      icon: Users,
-      title: "Character Assessor",
-      description: "Evaluate borrower character",
-    },
-    {
-      icon: FileText,
-      title: "Loan Purpose Assessment",
-      description: "Analyze loan purpose",
-    },
-  ];
+  });
+
+  const dueDiligenceData: DueDiligenceData = (dueDiligence?.data as DueDiligenceData) || {};
+
+  const handleSave = (updates: Partial<DueDiligenceData>) => {
+    saveDueDiligenceMutation.mutate(updates);
+  };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Due Diligence Tools</CardTitle>
-        <CardDescription>
-          Access all due diligence tools and assessments for {prospect.company.companyName}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tools.map((tool, index) => (
-            <Card key={index} className="hover-elevate cursor-pointer" data-testid={`card-tool-${index}`}>
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 bg-primary/10 rounded-md flex items-center justify-center flex-shrink-0">
-                    <tool.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{tool.title}</p>
-                    <p className="text-sm text-muted-foreground">{tool.description}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <Accordion type="multiple" defaultValue={["checklist"]} className="space-y-4">
+        <AccordionItem value="checklist" className="border rounded-lg" data-testid="accordion-checklist">
+          <AccordionTrigger className="px-6 hover:no-underline">
+            <span className="text-lg font-semibold">Due Diligence Checklist</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pb-6">
+            <DueDiligenceChecklist
+              data={dueDiligenceData}
+              onSave={handleSave}
+              isSaving={saveDueDiligenceMutation.isPending}
+            />
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="loan-calc" className="border rounded-lg" data-testid="accordion-loan-calc">
+          <AccordionTrigger className="px-6 hover:no-underline">
+            <span className="text-lg font-semibold">Loan Calculator</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pb-6">
+            <LoanCalculatorTool
+              data={dueDiligenceData}
+              onSave={handleSave}
+              isSaving={saveDueDiligenceMutation.isPending}
+            />
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="dscr" className="border rounded-lg" data-testid="accordion-dscr">
+          <AccordionTrigger className="px-6 hover:no-underline">
+            <span className="text-lg font-semibold">DSCR Calculator</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pb-6">
+            <DSCRCalculatorTool
+              data={dueDiligenceData}
+              onSave={handleSave}
+              isSaving={saveDueDiligenceMutation.isPending}
+            />
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="affordability" className="border rounded-lg" data-testid="accordion-affordability">
+          <AccordionTrigger className="px-6 hover:no-underline">
+            <span className="text-lg font-semibold">Affordability Estimator</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pb-6">
+            <AffordabilityEstimatorTool
+              data={dueDiligenceData}
+              onSave={handleSave}
+              isSaving={saveDueDiligenceMutation.isPending}
+            />
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="ratios" className="border rounded-lg" data-testid="accordion-ratios">
+          <AccordionTrigger className="px-6 hover:no-underline">
+            <span className="text-lg font-semibold">Financial Ratios Calculator</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pb-6">
+            <FinancialRatiosCalculatorTool
+              data={dueDiligenceData}
+              onSave={handleSave}
+              isSaving={saveDueDiligenceMutation.isPending}
+            />
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="character" className="border rounded-lg" data-testid="accordion-character">
+          <AccordionTrigger className="px-6 hover:no-underline">
+            <span className="text-lg font-semibold">Character Assessment</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pb-6">
+            <CharacterAssessmentTool
+              data={dueDiligenceData}
+              onSave={handleSave}
+              isSaving={saveDueDiligenceMutation.isPending}
+            />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
   );
 }
 
