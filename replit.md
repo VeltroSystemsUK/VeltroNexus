@@ -64,6 +64,25 @@ The platform implements a tiered subscription model that limits the number of pr
 -   The Pipeline page displays subscription status in the user menu dropdown, showing current tier and prospect usage (e.g., "5 / 10 prospects used")
 -   Pricing page is accessible from the landing page before authentication to allow users to review plans before signing up
 
+**Feature Access by Tier:**
+-   **Free Tier**: Due Diligence tools are hidden and not accessible
+-   **Standard & Premium Tiers**: Full access to all Due Diligence tools and features
+
+### Prospect Management Features
+
+**Priority System:**
+-   Each prospect has an editable priority field (high, medium, low) displayed on the prospect detail page
+-   Priority is shown with color-coded indicators (red for high, amber for medium, blue for low)
+-   Users can change priority using a dropdown selector that updates in real-time
+-   Priority updates use optimistic UI updates with cache invalidation
+
+**Delete Functionality:**
+-   Users can delete prospects from the prospect detail page
+-   Delete action requires confirmation via an AlertDialog to prevent accidental deletions
+-   Deletion is cascading: removes the prospect along with all associated contacts, activities, and due diligence data
+-   Backend endpoint (`DELETE /api/prospects/:id`) enforces user authorization to ensure users can only delete their own prospects
+-   After successful deletion, user is redirected to the pipeline view
+
 ## External Dependencies
 
 ### UI Libraries
