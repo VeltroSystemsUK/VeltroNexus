@@ -10,9 +10,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
@@ -68,6 +79,18 @@ export default function ProspectDetail() {
   const { data: activities = [] } = useQuery<Activity[]>({
     queryKey: [`/api/prospects/${prospectId}/activities`],
     enabled: prospectId > 0,
+  });
+
+  const deleteProspectMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/prospects/${prospectId}`),
+    onSuccess: () => {
+      toast.success("Prospect deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      navigate("/");
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete prospect: ${error.message}`);
+    },
   });
 
   const formatCurrency = (amount: number) => {
@@ -131,6 +154,35 @@ export default function ProspectDetail() {
               <Button variant="outline" onClick={() => navigate("/")} data-testid="link-view-directory">
                 View in Directory
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" data-testid="button-delete-prospect">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Prospect?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this prospect for {prospect.company.companyName}? 
+                      This action cannot be undone and will permanently remove all associated contacts, 
+                      activities, and due diligence data.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteProspectMutation.mutate()}
+                      disabled={deleteProspectMutation.isPending}
+                      data-testid="button-confirm-delete"
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {deleteProspectMutation.isPending ? "Deleting..." : "Delete Prospect"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <ThemeToggle />
             </div>
           </div>
@@ -285,6 +337,19 @@ function PriorityCard({ prospect }: { prospect: ProspectWithCompany }) {
   const priority = prospect.priority || "medium";
   const config = priorityConfig[priority as keyof typeof priorityConfig];
 
+  const updatePriorityMutation = useMutation({
+    mutationFn: (newPriority: string) =>
+      apiRequest("PATCH", `/api/prospects/${prospect.id}`, { priority: newPriority }),
+    onSuccess: () => {
+      toast.success("Priority updated");
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update priority: ${error.message}`);
+    },
+  });
+
   return (
     <Card>
       <CardContent className="pt-6">
@@ -292,9 +357,35 @@ function PriorityCard({ prospect }: { prospect: ProspectWithCompany }) {
           <Label className="text-muted-foreground text-sm">Priority</Label>
           <div className={`h-2 w-2 rounded-full ${config.dot}`} />
         </div>
-        <Badge className={config.badge} data-testid="badge-priority">
-          {priority.charAt(0).toUpperCase() + priority.slice(1)} Priority
-        </Badge>
+        <Select
+          value={priority}
+          onValueChange={(value) => updatePriorityMutation.mutate(value)}
+          disabled={updatePriorityMutation.isPending}
+        >
+          <SelectTrigger className="w-full" data-testid="select-priority">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="high" data-testid="priority-high">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-red-500" />
+                High Priority
+              </div>
+            </SelectItem>
+            <SelectItem value="medium" data-testid="priority-medium">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-amber-500" />
+                Medium Priority
+              </div>
+            </SelectItem>
+            <SelectItem value="low" data-testid="priority-low">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-blue-500" />
+                Low Priority
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </CardContent>
     </Card>
   );
