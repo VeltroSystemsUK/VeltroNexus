@@ -470,6 +470,236 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Associated companies search - Premium feature
+  app.get("/api/prospects/:prospectId/associated-companies", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Check user subscription - Premium only
+      const user = await storage.getUser(userId);
+      if (!user || user.subscriptionTier !== 'premium') {
+        return res.status(403).json({ error: "This feature is only available for Premium users" });
+      }
+      
+      // Get prospect and company info
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const companyNumber = prospect.company.companyNumber;
+      if (!companyNumber) {
+        return res.json({ officers: [], psc: [], sameAddress: [] });
+      }
+      
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+      
+      const trimmedApiKey = apiKey.trim();
+      const authString = `${trimmedApiKey}:`;
+      const base64Auth = Buffer.from(authString).toString('base64');
+      
+      // Fetch officers and PSC for the company
+      const [officersRes, pscRes] = await Promise.all([
+        fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, {
+          headers: { 'Authorization': `Basic ${base64Auth}` }
+        }).catch(() => null),
+        fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, {
+          headers: { 'Authorization': `Basic ${base64Auth}` }
+        }).catch(() => null)
+      ]);
+      
+      const officers = officersRes && officersRes.ok ? await officersRes.json() : { items: [] };
+      const psc = pscRes && pscRes.ok ? await pscRes.json() : { items: [] };
+      
+      // Find companies with common officers
+      const officerNames = officers.items?.filter((o: any) => !o.resigned_on).map((o: any) => o.name) || [];
+      const companiesViaOfficers: any[] = [];
+      
+      for (const officerName of officerNames.slice(0, 5)) { // Limit to prevent too many API calls
+        try {
+          const searchRes = await fetch(
+            `https://api.company-information.service.gov.uk/search/officers?q=${encodeURIComponent(officerName)}&items_per_page=5`,
+            { headers: { 'Authorization': `Basic ${base64Auth}` } }
+          );
+          
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            for (const item of searchData.items || []) {
+              if (item.links?.officer?.appointments) {
+                const appointmentsRes = await fetch(
+                  `https://api.company-information.service.gov.uk${item.links.officer.appointments}`,
+                  { headers: { 'Authorization': `Basic ${base64Auth}` } }
+                );
+                
+                if (appointmentsRes.ok) {
+                  const appointments = await appointmentsRes.json();
+                  for (const appointment of appointments.items || []) {
+                    if (appointment.appointed_to?.company_number !== companyNumber && !appointment.resigned_on) {
+                      companiesViaOfficers.push({
+                        company_number: appointment.appointed_to?.company_number,
+                        company_name: appointment.appointed_to?.company_name,
+                        company_status: appointment.appointed_to?.company_status,
+                        officer_name: officerName,
+                        officer_role: appointment.officer_role,
+                        appointed_on: appointment.appointed_on
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Error searching for officer ${officerName}:`, err);
+        }
+      }
+      
+      // Find companies with common PSC
+      const pscNames = psc.items?.filter((p: any) => !p.ceased_on).map((p: any) => p.name) || [];
+      const companiesViaPSC: any[] = [];
+      
+      for (const pscName of pscNames.slice(0, 3)) {
+        try {
+          const searchRes = await fetch(
+            `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(pscName)}&items_per_page=10`,
+            { headers: { 'Authorization': `Basic ${base64Auth}` } }
+          );
+          
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            for (const company of searchData.items || []) {
+              if (company.company_number !== companyNumber) {
+                companiesViaPSC.push({
+                  company_number: company.company_number,
+                  company_name: company.title,
+                  company_status: company.company_status,
+                  psc_name: pscName,
+                  address_snippet: company.address_snippet
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Error searching for PSC ${pscName}:`, err);
+        }
+      }
+      
+      // Find companies at same registered address
+      const companiesSameAddress: any[] = [];
+      const address = prospect.company.registeredAddress;
+      if (address) {
+        try {
+          const addressQuery = `${address}`.substring(0, 100);
+          const searchRes = await fetch(
+            `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(addressQuery)}&items_per_page=10`,
+            { headers: { 'Authorization': `Basic ${base64Auth}` } }
+          );
+          
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            for (const company of searchData.items || []) {
+              if (company.company_number !== companyNumber && company.address_snippet?.includes(addressQuery.substring(0, 20))) {
+                companiesSameAddress.push({
+                  company_number: company.company_number,
+                  company_name: company.title,
+                  company_status: company.company_status,
+                  address_snippet: company.address_snippet
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error searching for companies at same address:", err);
+        }
+      }
+      
+      // Remove duplicates and limit results
+      const uniqueOfficers = Array.from(new Map(companiesViaOfficers.map(c => [c.company_number, c])).values()).slice(0, 10);
+      const uniquePSC = Array.from(new Map(companiesViaPSC.map(c => [c.company_number, c])).values()).slice(0, 10);
+      const uniqueAddress = Array.from(new Map(companiesSameAddress.map(c => [c.company_number, c])).values()).slice(0, 10);
+      
+      res.json({
+        officers: uniqueOfficers,
+        psc: uniquePSC,
+        sameAddress: uniqueAddress
+      });
+    } catch (error: any) {
+      console.error("Error finding associated companies:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // AI web search for company - Premium feature
+  app.post("/api/prospects/:prospectId/web-search", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Check user subscription - Premium only
+      const user = await storage.getUser(userId);
+      if (!user || user.subscriptionTier !== 'premium') {
+        return res.status(403).json({ error: "This feature is only available for Premium users" });
+      }
+      
+      // Get prospect and company info
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const tavilyApiKey = process.env.TAVILY_API_KEY;
+      if (!tavilyApiKey) {
+        return res.status(500).json({ error: "Tavily API key not configured" });
+      }
+      
+      const companyName = prospect.company.companyName;
+      const searchQuery = `${companyName} UK company news information`;
+      
+      console.log(`Searching web for company: ${companyName}`);
+      
+      const tavilyResponse = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          api_key: tavilyApiKey,
+          query: searchQuery,
+          search_depth: 'basic',
+          include_answer: true,
+          include_raw_content: false,
+          max_results: 10,
+          include_domains: [],
+          exclude_domains: []
+        })
+      });
+      
+      if (!tavilyResponse.ok) {
+        const errorText = await tavilyResponse.text();
+        console.error("Tavily API error:", tavilyResponse.status, errorText);
+        return res.status(tavilyResponse.status).json({ 
+          error: `Tavily API returned ${tavilyResponse.status}: ${errorText || tavilyResponse.statusText}` 
+        });
+      }
+      
+      const data = await tavilyResponse.json();
+      console.log(`Found ${data.results?.length || 0} web results for ${companyName}`);
+      
+      res.json({
+        answer: data.answer || '',
+        results: data.results || [],
+        query: searchQuery
+      });
+    } catch (error: any) {
+      console.error("Error searching web for company:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Companies API - Protected routes
   app.get("/api/companies/:number", isAuthenticated, async (req, res) => {
     try {
