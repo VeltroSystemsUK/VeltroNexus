@@ -6,6 +6,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 const pricingTiers = [
   {
@@ -90,9 +91,19 @@ export default function Pricing() {
     },
   });
 
+  useEffect(() => {
+    const pendingTier = sessionStorage.getItem('subscription_tier');
+    if (pendingTier && user && pendingTier !== 'free') {
+      createBillingRequestMutation.mutate(pendingTier);
+    }
+  }, [user]);
+
   const handleSelectPlan = (tier: string) => {
     if (!user) {
-      setLocation("/");
+      if (tier !== "free") {
+        sessionStorage.setItem('subscription_tier', tier);
+      }
+      window.location.href = "/api/login";
       return;
     }
 

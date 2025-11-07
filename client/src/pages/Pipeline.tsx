@@ -20,6 +20,7 @@ import { TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 import type { ProspectWithCompany } from "@shared/schema";
 
 type Stage = "lead" | "contacted" | "qualified" | "proposal" | "due-diligence" | "approval" | "approved" | "declined" | "withdrawn";
@@ -42,6 +43,13 @@ const FINAL_STAGES = STAGES.slice(6);
 export default function Pipeline() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  
+  useEffect(() => {
+    const pendingTier = sessionStorage.getItem('subscription_tier');
+    if (pendingTier && isAuthenticated) {
+      navigate('/pricing');
+    }
+  }, [isAuthenticated, navigate]);
   
   const { data: prospects = [], isLoading, error } = useQuery<ProspectWithCompany[]>({
     queryKey: ["/api/prospects"],
