@@ -11,6 +11,7 @@ import {
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { createRequire } from 'module';
+import { generateProspectReport } from "./utils/pdfGenerator";
 const require = createRequire(import.meta.url);
 const gocardless = require("gocardless-nodejs");
 const { Environments } = require("gocardless-nodejs/constants");
@@ -131,6 +132,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteProspect(id, userId);
       res.status(204).send();
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/prospects/:id/report", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      
+      const prospect = await storage.getProspect(id, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+
+      const contacts = await storage.listContacts(id);
+      const activities = await storage.listActivities(id);
+      const dueDiligence = await storage.getDueDiligence(id);
+
+      const doc = generateProspectReport({
+        prospect,
+        contacts,
+        activities,
+        dueDiligence,
+      });
+
+      const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      doc.pipe(res);
+      doc.end();
+    } catch (error: any) {
+      console.error("Error generating prospect report:", error);
       res.status(500).json({ error: error.message });
     }
   });
