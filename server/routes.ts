@@ -457,6 +457,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
+      
+      const existingCompany = await storage.getCompanyByNumber(result.data.companyNumber);
+      if (existingCompany) {
+        return res.json(existingCompany);
+      }
+      
       const company = await storage.createCompany(result.data);
       res.json(company);
     } catch (error: any) {
