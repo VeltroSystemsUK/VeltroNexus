@@ -631,7 +631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const subscription = await gcClient.subscriptions.create({
         amount: amount.toString(),
         currency: 'GBP',
-        name: `LoanFlow ${tier.charAt(0).toUpperCase() + tier.slice(1)} Plan`,
+        name: `FlowLoan ${tier.charAt(0).toUpperCase() + tier.slice(1)} Plan`,
         interval_unit: 'monthly',
         links: {
           mandate: mandateId

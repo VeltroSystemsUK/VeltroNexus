@@ -1,8 +1,8 @@
-# LoanFlow - Commercial Lending Workflow Management Platform
+# FlowLoan - Commercial Lending Workflow Management Platform
 
 ## Overview
 
-LoanFlow is a secure, multi-user commercial lending pipeline management system designed for lending teams. It enables tracking and managing company loan prospects from initial lead to final approval/rejection. Key features include user authentication, user-specific data isolation, a visual drag-and-drop Kanban board, detailed company and prospect management, and a modern SaaS dashboard design. The platform aims to streamline the commercial lending process.
+FlowLoan is a secure, multi-user commercial lending pipeline management system designed for lending teams. It enables tracking and managing company loan prospects from initial lead to final approval/rejection. Key features include user authentication, user-specific data isolation, a visual drag-and-drop Kanban board, detailed company and prospect management, and a modern SaaS dashboard design. The platform aims to streamline the commercial lending process.
 
 ## User Preferences
 

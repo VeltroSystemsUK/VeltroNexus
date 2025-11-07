@@ -174,7 +174,7 @@ export default function CompanySearch() {
               <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
                 <TrendingUp className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-bold">LoanFlow - Add Prospect</h1>
+              <h1 className="text-xl font-bold">FlowLoan - Add Prospect</h1>
             </div>
           </div>
           <ThemeToggle />

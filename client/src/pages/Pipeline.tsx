@@ -142,7 +142,7 @@ export default function Pipeline() {
             <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
               <TrendingUp className="h-5 w-5 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold" data-testid="text-app-title">LoanFlow</h1>
+            <h1 className="text-xl font-bold" data-testid="text-app-title">FlowLoan</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => navigate("/search")} data-testid="button-add-prospect">

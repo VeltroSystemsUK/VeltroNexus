@@ -109,7 +109,7 @@ export default function Pricing() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Start managing your commercial lending pipeline with LoanFlow. Select the plan that fits your needs.
+            Start managing your commercial lending pipeline with FlowLoan. Select the plan that fits your needs.
           </p>
         </div>
 

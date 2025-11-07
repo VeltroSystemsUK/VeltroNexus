@@ -17,7 +17,7 @@ export default function Landing() {
             <div className="h-10 w-10 bg-primary rounded-md flex items-center justify-center">
               <TrendingUp className="h-6 w-6 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold" data-testid="text-app-title">LoanFlow</h1>
+            <h1 className="text-2xl font-bold" data-testid="text-app-title">FlowLoan</h1>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/pricing">
@@ -95,7 +95,7 @@ export default function Landing() {
             <div className="max-w-4xl mx-auto text-center mb-12">
               <h3 className="text-3xl font-bold mb-4">Everything you need to manage commercial loans</h3>
               <p className="text-lg text-muted-foreground">
-                LoanFlow helps lending teams track prospects from initial contact through final approval with powerful tools designed specifically for commercial lending workflows.
+                FlowLoan helps lending teams track prospects from initial contact through final approval with powerful tools designed specifically for commercial lending workflows.
               </p>
             </div>
 
@@ -193,7 +193,7 @@ export default function Landing() {
 
       <footer className="border-t py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 LoanFlow. All rights reserved.</p>
+          <p>© 2024 FlowLoan. All rights reserved.</p>
         </div>
       </footer>
     </div>
