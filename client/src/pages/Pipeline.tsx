@@ -187,6 +187,19 @@ export default function Pipeline() {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
+                  onClick={() => navigate("/profile")}
+                  data-testid="menu-item-profile"
+                >
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => navigate("/settings")}
+                  data-testid="menu-item-settings"
+                >
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
                   onClick={() => window.location.href = "/api/logout"}
                   data-testid="menu-item-logout"
                 >

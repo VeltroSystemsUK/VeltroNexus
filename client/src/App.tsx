@@ -12,6 +12,8 @@ import Pipeline from "@/pages/Pipeline";
 import CompanySearch from "@/pages/CompanySearch";
 import ProspectDetail from "@/pages/ProspectDetail";
 import SubscriptionComplete from "@/pages/SubscriptionComplete";
+import Profile from "@/pages/Profile";
+import Settings from "@/pages/Settings";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -30,6 +32,8 @@ function Router() {
           <Route path="/pipeline" component={Pipeline} />
           <Route path="/search" component={CompanySearch} />
           <Route path="/prospect/:id" component={ProspectDetail} />
+          <Route path="/profile" component={Profile} />
+          <Route path="/settings" component={Settings} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />
         </>
