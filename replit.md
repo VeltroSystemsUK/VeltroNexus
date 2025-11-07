@@ -83,6 +83,15 @@ The platform implements a tiered subscription model that limits the number of pr
 -   Backend endpoint (`DELETE /api/prospects/:id`) enforces user authorization to ensure users can only delete their own prospects
 -   After successful deletion, user is redirected to the pipeline view
 
+**PDF Report Generation:**
+-   Users can download comprehensive PDF reports for any prospect via the "Download Report" button on the prospect detail page
+-   Reports include all prospect data: company information, loan details, security/collateral, contacts, activities, and due diligence results
+-   Generated using PDFKit with professional formatting including headers, sections, and proper typography
+-   Backend endpoint (`GET /api/prospects/:id/report`) enforces user authorization to ensure users can only generate reports for their own prospects
+-   Zero-value handling: Financial metrics and calculator results preserve legitimate zero values (e.g., 0% interest rate, £0 monthly payment)
+-   Collateral section appears only when at least one collateral value is greater than zero to prevent empty sections
+-   All sections use explicit null/undefined checks to distinguish between "no data" and "value is zero"
+
 ### GoCardless Payment Integration
 
 The platform integrates with GoCardless for secure Direct Debit subscription payments. The implementation uses GoCardless's Billing Request Flow for scheme compliance.
@@ -149,6 +158,7 @@ The platform integrates with GoCardless for secure Direct Debit subscription pay
 -   **date-fns**: Date manipulation.
 -   **zod**: Schema validation.
 -   **tsx**: TypeScript execution.
+-   **pdfkit**: PDF document generation.
 
 ### Build Tools
 -   **vite**: Frontend build tool.
