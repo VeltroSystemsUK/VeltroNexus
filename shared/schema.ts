@@ -32,6 +32,7 @@ export const users = pgTable("users", {
   dateFormat: varchar("date_format").notNull().default("DD/MM/YYYY"),
   theme: varchar("theme").notNull().default("light"),
   pipelineStageNames: jsonb("pipeline_stage_names").default(sql`'{"lead":"Lead","contacted":"Contacted","qualified":"Qualified","proposal":"Proposal","dueDiligence":"Due Diligence","approval":"Approval","approved":"Approved","declined":"Declined","withdrawn":"Withdrawn"}'::jsonb`),
+  pdfLayoutPreferences: jsonb("pdf_layout_preferences").default(sql`'{"sections":[{"id":"companyInfo","label":"Company Information","enabled":true},{"id":"officers","label":"Officers","enabled":true},{"id":"psc","label":"Persons with Significant Control","enabled":true},{"id":"charges","label":"Charges","enabled":true},{"id":"loanDetails","label":"Loan Details","enabled":true},{"id":"security","label":"Security & Collateral","enabled":true},{"id":"notes","label":"Notes","enabled":true},{"id":"contacts","label":"Key Contacts","enabled":true},{"id":"activities","label":"Activities & Tasks","enabled":true},{"id":"dueDiligence","label":"Due Diligence","enabled":true}]}'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -40,6 +40,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dateFormat: z.string().optional(),
     theme: z.string().optional(),
     pipelineStageNames: z.record(z.string()).optional(),
+    pdfLayoutPreferences: z.object({
+      sections: z.array(z.object({
+        id: z.string(),
+        label: z.string(),
+        enabled: z.boolean(),
+      })),
+    }).optional(),
   });
 
   app.patch('/api/user/settings', isAuthenticated, async (req: any, res) => {
@@ -214,12 +221,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      const user = await storage.getUser(userId);
+      
       const doc = generateProspectReport({
         prospect,
         contacts,
         activities,
         dueDiligence,
         companiesHouseData,
+        pdfLayoutPreferences: user?.pdfLayoutPreferences || null,
       });
 
       const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`;

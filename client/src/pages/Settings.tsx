@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon } from "lucide-react";
+import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CURRENCIES = [
@@ -57,6 +59,19 @@ const DEFAULT_STAGE_NAMES = {
   withdrawn: "Withdrawn",
 };
 
+const DEFAULT_PDF_SECTIONS = [
+  { id: "companyInfo", label: "Company Information", enabled: true },
+  { id: "officers", label: "Officers", enabled: true },
+  { id: "psc", label: "Persons with Significant Control", enabled: true },
+  { id: "charges", label: "Charges", enabled: true },
+  { id: "loanDetails", label: "Loan Details", enabled: true },
+  { id: "security", label: "Security & Collateral", enabled: true },
+  { id: "notes", label: "Notes", enabled: true },
+  { id: "contacts", label: "Key Contacts", enabled: true },
+  { id: "activities", label: "Activities & Tasks", enabled: true },
+  { id: "dueDiligence", label: "Due Diligence", enabled: true },
+];
+
 export default function Settings() {
   const { toast } = useToast();
   const [currency, setCurrency] = useState("GBP");
@@ -64,6 +79,7 @@ export default function Settings() {
   const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
   const [theme, setTheme] = useState("light");
   const [stageNames, setStageNames] = useState<Record<string, string>>(DEFAULT_STAGE_NAMES);
+  const [pdfSections, setPdfSections] = useState<Array<{ id: string; label: string; enabled: boolean }>>(DEFAULT_PDF_SECTIONS);
 
   const { data: user, isLoading: userLoading } = useQuery<any>({
     queryKey: ["/api/auth/user"],
@@ -76,6 +92,7 @@ export default function Settings() {
       setDateFormat(user.dateFormat || "DD/MM/YYYY");
       setTheme(user.theme || "light");
       setStageNames(user.pipelineStageNames || DEFAULT_STAGE_NAMES);
+      setPdfSections(user.pdfLayoutPreferences?.sections || DEFAULT_PDF_SECTIONS);
     }
   }, [user]);
 
@@ -106,6 +123,7 @@ export default function Settings() {
       dateFormat,
       theme,
       pipelineStageNames: stageNames,
+      pdfLayoutPreferences: { sections: pdfSections },
     });
   };
 
@@ -118,6 +136,28 @@ export default function Settings() {
 
   const handleResetStageNames = () => {
     setStageNames(DEFAULT_STAGE_NAMES);
+  };
+
+  const handlePdfSectionToggle = (id: string) => {
+    setPdfSections((prev) =>
+      prev.map((section) =>
+        section.id === id ? { ...section, enabled: !section.enabled } : section
+      )
+    );
+  };
+
+  const handlePdfSectionsReorder = (result: any) => {
+    if (!result.destination) return;
+
+    const items = Array.from(pdfSections);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    setPdfSections(items);
+  };
+
+  const handleResetPdfLayout = () => {
+    setPdfSections(DEFAULT_PDF_SECTIONS);
   };
 
   if (userLoading) {
@@ -355,6 +395,86 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">
             Customize stage names to match your workflow. These names will appear throughout the application
             including the pipeline view, prospect details, and reports.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-pdf-layout">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                PDF Report Layout
+              </CardTitle>
+              <CardDescription>Customize which sections appear in your PDF reports and their order</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetPdfLayout}
+              data-testid="button-reset-pdf-layout"
+            >
+              Reset to Default
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Drag and drop to reorder sections. Uncheck sections to exclude them from generated PDFs.
+          </p>
+          <DragDropContext onDragEnd={handlePdfSectionsReorder}>
+            <Droppable droppableId="pdf-sections">
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-2"
+                >
+                  {pdfSections.map((section, index) => (
+                    <Draggable key={section.id} draggableId={section.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`flex items-center gap-3 p-3 rounded-md border bg-card ${
+                            snapshot.isDragging ? "shadow-lg" : ""
+                          }`}
+                          data-testid={`pdf-section-${section.id}`}
+                        >
+                          <div
+                            {...provided.dragHandleProps}
+                            className="flex-shrink-0 cursor-grab active:cursor-grabbing"
+                            data-testid={`drag-pdf-section-${section.id}`}
+                          >
+                            <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <Checkbox
+                            checked={section.enabled}
+                            onCheckedChange={() => handlePdfSectionToggle(section.id)}
+                            data-testid={`checkbox-pdf-section-${section.id}`}
+                          />
+                          <Label
+                            className={`flex-1 cursor-pointer ${
+                              !section.enabled ? "text-muted-foreground line-through" : ""
+                            }`}
+                            onClick={() => handlePdfSectionToggle(section.id)}
+                            data-testid={`label-pdf-section-${section.id}`}
+                          >
+                            {section.label}
+                          </Label>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+          <Separator />
+          <p className="text-sm text-muted-foreground">
+            Changes will apply to all future PDF reports generated from prospect details.
           </p>
         </CardContent>
       </Card>
