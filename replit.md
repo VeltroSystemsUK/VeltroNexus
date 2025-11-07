@@ -85,12 +85,17 @@ The platform implements a tiered subscription model that limits the number of pr
 
 **PDF Report Generation:**
 -   Users can download comprehensive PDF reports for any prospect via the "Download Report" button on the prospect detail page
--   Reports include all prospect data: company information, loan details, security/collateral, contacts, activities, and due diligence results
+-   Reports include all prospect data: company information, Companies House data, loan details, security/collateral, contacts, activities, and due diligence results
+-   **Companies House Data Integration**: PDF reports automatically include detailed Companies House information when available:
+    -   **Officers**: Active and resigned directors/secretaries with roles, appointment dates, and resignation dates
+    -   **Persons with Significant Control (PSC)**: Active and ceased PSCs with nature of control percentages and types
+    -   **Charges**: Outstanding and satisfied charges with creation/satisfaction dates and entitled parties
 -   Generated using PDFKit with professional formatting including headers, sections, and proper typography
--   Backend endpoint (`GET /api/prospects/:id/report`) enforces user authorization to ensure users can only generate reports for their own prospects
+-   Backend endpoint (`GET /api/prospects/:id/report`) enforces user authorization and fetches Companies House data in parallel for performance
 -   Zero-value handling: Financial metrics and calculator results preserve legitimate zero values (e.g., 0% interest rate, £0 monthly payment)
 -   Collateral section appears only when at least one collateral value is greater than zero to prevent empty sections
 -   All sections use explicit null/undefined checks to distinguish between "no data" and "value is zero"
+-   Companies House data fetching gracefully handles API failures - if the Companies House API is unavailable, the report generates successfully without that data
 
 ### GoCardless Payment Integration
 
