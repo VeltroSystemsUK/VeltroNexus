@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, Building2, Users, CheckCircle } from "lucide-react";
+import { TrendingUp, Building2, Users, FileCheck, Shield, BarChart3 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
 
@@ -92,25 +92,91 @@ export default function Landing() {
 
         <section className="bg-muted py-16">
           <div className="container mx-auto px-4">
-            <div className="max-w-2xl mx-auto">
-              <h3 className="text-3xl font-bold mb-8 text-center">Pipeline Stages</h3>
-              <div className="space-y-3">
-                {[
-                  "Lead - Initial prospect identification",
-                  "Contacted - First outreach completed",
-                  "Qualified - Eligibility verified",
-                  "Proposal - Loan terms presented",
-                  "Due Diligence - In-depth review",
-                  "Approval - Final decision stage",
-                  "Approved - Loan approved",
-                  "Declined - Application rejected",
-                  "Withdrawn - Applicant withdrew"
-                ].map((stage, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
-                    <span className="text-sm">{stage}</span>
+            <div className="max-w-4xl mx-auto text-center mb-12">
+              <h3 className="text-3xl font-bold mb-4">Everything you need to manage commercial loans</h3>
+              <p className="text-lg text-muted-foreground">
+                LoanFlow helps lending teams track prospects from initial contact through final approval with powerful tools designed specifically for commercial lending workflows.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              <div className="text-center">
+                <div className="bg-background rounded-lg p-6 h-full">
+                  <FileCheck className="h-10 w-10 mx-auto mb-4 text-primary" />
+                  <h4 className="font-semibold mb-2">Due Diligence Tools</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Built-in calculators for DSCR, affordability, and financial ratios. Complete checklists to ensure nothing gets missed.
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-background rounded-lg p-6 h-full">
+                  <Building2 className="h-10 w-10 mx-auto mb-4 text-primary" />
+                  <h4 className="font-semibold mb-2">Companies House Integration</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Instantly pull company information, directors, financials, and charges directly from Companies House.
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-background rounded-lg p-6 h-full">
+                  <BarChart3 className="h-10 w-10 mx-auto mb-4 text-primary" />
+                  <h4 className="font-semibold mb-2">Track Progress Visually</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Drag and drop prospects through your workflow stages. See exactly where each deal stands at a glance.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="container mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto">
+            <h3 className="text-3xl font-bold mb-8 text-center">Built for lending professionals</h3>
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <Shield className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
+                  <div>
+                    <h4 className="font-semibold mb-1">Secure & Private</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Each user's data is completely isolated. Your prospects and company information remain private to your account.
+                    </p>
                   </div>
-                ))}
+                </div>
+                <div className="flex gap-4">
+                  <Users className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
+                  <div>
+                    <h4 className="font-semibold mb-1">Contact Management</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Store key contacts for each prospect. Track directors, guarantors, accountants, and solicitors all in one place.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <TrendingUp className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
+                  <div>
+                    <h4 className="font-semibold mb-1">Priority Management</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Mark prospects as high, medium, or low priority. Focus your team's attention where it matters most.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <FileCheck className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
+                  <div>
+                    <h4 className="font-semibold mb-1">Activity Tracking</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Log calls, meetings, and notes against each prospect. Maintain a complete audit trail of your lending process.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
