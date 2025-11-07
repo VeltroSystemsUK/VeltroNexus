@@ -17,6 +17,7 @@ export interface ProspectCardData {
   companyNumber: string;
   loanAmount?: number;
   priority?: Priority;
+  stage?: string;
 }
 
 interface ProspectCardProps {
@@ -33,6 +34,18 @@ const priorityColors = {
   high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   medium: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   low: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+};
+
+const stageColors: Record<string, string> = {
+  "lead": "border-l-4 border-l-slate-400 dark:border-l-slate-500",
+  "contacted": "border-l-4 border-l-blue-400 dark:border-l-blue-500",
+  "qualified": "border-l-4 border-l-cyan-400 dark:border-l-cyan-500",
+  "proposal": "border-l-4 border-l-purple-400 dark:border-l-purple-500",
+  "due-diligence": "border-l-4 border-l-amber-400 dark:border-l-amber-500",
+  "approval": "border-l-4 border-l-orange-400 dark:border-l-orange-500",
+  "approved": "border-l-4 border-l-green-500 dark:border-l-green-600",
+  "declined": "border-l-4 border-l-red-500 dark:border-l-red-600",
+  "withdrawn": "border-l-4 border-l-gray-400 dark:border-l-gray-500",
 };
 
 export default function ProspectCard({
@@ -53,9 +66,12 @@ export default function ProspectCard({
     }).format(amount / 100);
   };
 
+  const stage = currentStage || prospect.stage || "lead";
+  const stageColorClass = stageColors[stage] || stageColors["lead"];
+
   return (
     <Card
-      className={`cursor-pointer transition-all hover-elevate active-elevate-2 ${
+      className={`cursor-pointer transition-all hover-elevate active-elevate-2 ${stageColorClass} ${
         isDragging ? "shadow-lg rotate-2" : ""
       }`}
       onClick={onClick}
