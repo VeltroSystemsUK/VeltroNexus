@@ -1,16 +1,23 @@
 import PDFDocument from 'pdfkit';
 import type { ProspectWithCompany, Contact, Activity, DueDiligence } from '@shared/schema';
 
+interface CompaniesHouseData {
+  officers?: any;
+  psc?: any;
+  charges?: any;
+}
+
 interface ProspectReportData {
   prospect: ProspectWithCompany;
   contacts: Contact[];
   activities: Activity[];
   dueDiligence?: DueDiligence;
+  companiesHouseData?: CompaniesHouseData | null;
 }
 
 export function generateProspectReport(data: ProspectReportData): typeof PDFDocument.prototype {
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
-  const { prospect, contacts, activities, dueDiligence } = data;
+  const { prospect, contacts, activities, dueDiligence, companiesHouseData } = data;
 
   const headerColor = '#3b82f6';
   const textColor = '#1f2937';
@@ -46,6 +53,141 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     addField(doc, 'Company Type:', prospect.company.companyType);
   }
   doc.moveDown(2);
+
+  if (companiesHouseData?.officers?.items && companiesHouseData.officers.items.length > 0) {
+    doc.fontSize(18).fillColor(headerColor).text('Officers');
+    doc.moveDown(0.5);
+    addLine(doc);
+    doc.moveDown(0.5);
+    doc.fontSize(12).fillColor(textColor);
+
+    const activeOfficers = companiesHouseData.officers.items.filter((o: any) => !o.resigned_on);
+    const resignedOfficers = companiesHouseData.officers.items.filter((o: any) => o.resigned_on);
+
+    if (activeOfficers.length > 0) {
+      doc.font('Helvetica-Bold').text(`Active (${activeOfficers.length}):`);
+      doc.font('Helvetica').moveDown(0.3);
+      activeOfficers.forEach((officer: any) => {
+        const name = officer.name || 'Unknown';
+        const role = officer.officer_role || 'officer';
+        const appointed = officer.appointed_on ? new Date(officer.appointed_on).toLocaleDateString('en-GB') : '';
+        doc.text(`• ${name}`, { indent: 10 });
+        doc.fontSize(10).fillColor(mutedColor);
+        doc.text(`${role.charAt(0).toUpperCase() + role.slice(1)}${appointed ? `, appointed ${appointed}` : ''}`, { indent: 20 });
+        doc.fontSize(12).fillColor(textColor);
+        doc.moveDown(0.3);
+      });
+    }
+
+    if (resignedOfficers.length > 0) {
+      doc.moveDown(0.3);
+      doc.font('Helvetica-Bold').text(`Resigned (${resignedOfficers.length}):`);
+      doc.font('Helvetica').moveDown(0.3);
+      resignedOfficers.forEach((officer: any) => {
+        const name = officer.name || 'Unknown';
+        const role = officer.officer_role || 'officer';
+        const resigned = officer.resigned_on ? new Date(officer.resigned_on).toLocaleDateString('en-GB') : '';
+        doc.text(`• ${name}`, { indent: 10 });
+        doc.fontSize(10).fillColor(mutedColor);
+        doc.text(`${role.charAt(0).toUpperCase() + role.slice(1)}${resigned ? `, resigned ${resigned}` : ''}`, { indent: 20 });
+        doc.fontSize(12).fillColor(textColor);
+        doc.moveDown(0.3);
+      });
+    }
+    doc.moveDown(2);
+  }
+
+  if (companiesHouseData?.psc?.items && companiesHouseData.psc.items.length > 0) {
+    doc.fontSize(18).fillColor(headerColor).text('Persons with Significant Control');
+    doc.moveDown(0.5);
+    addLine(doc);
+    doc.moveDown(0.5);
+    doc.fontSize(12).fillColor(textColor);
+
+    const activePsc = companiesHouseData.psc.items.filter((p: any) => !p.ceased_on);
+    const ceasedPsc = companiesHouseData.psc.items.filter((p: any) => p.ceased_on);
+
+    if (activePsc.length > 0) {
+      doc.font('Helvetica-Bold').text(`Active (${activePsc.length}):`);
+      doc.font('Helvetica').moveDown(0.3);
+      activePsc.forEach((psc: any) => {
+        const name = psc.name || 'Unknown';
+        const kind = psc.kind?.replace(/-/g, ' ') || '';
+        doc.text(`• ${name}`, { indent: 10 });
+        doc.fontSize(10).fillColor(mutedColor);
+        if (kind) doc.text(kind.charAt(0).toUpperCase() + kind.slice(1), { indent: 20 });
+        if (psc.natures_of_control && psc.natures_of_control.length > 0) {
+          psc.natures_of_control.forEach((nature: string) => {
+            const formatted = nature.replace(/-/g, ' ').split(' ').map((w: string) => 
+              w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+            ).join(' ');
+            doc.text(`- ${formatted}`, { indent: 20 });
+          });
+        }
+        doc.fontSize(12).fillColor(textColor);
+        doc.moveDown(0.3);
+      });
+    }
+
+    if (ceasedPsc.length > 0) {
+      doc.moveDown(0.3);
+      doc.font('Helvetica-Bold').text(`Ceased (${ceasedPsc.length}):`);
+      doc.font('Helvetica').moveDown(0.3);
+      ceasedPsc.forEach((psc: any) => {
+        const name = psc.name || 'Unknown';
+        const ceased = psc.ceased_on ? new Date(psc.ceased_on).toLocaleDateString('en-GB') : '';
+        doc.text(`• ${name}`, { indent: 10 });
+        doc.fontSize(10).fillColor(mutedColor);
+        if (ceased) doc.text(`Ceased ${ceased}`, { indent: 20 });
+        doc.fontSize(12).fillColor(textColor);
+        doc.moveDown(0.3);
+      });
+    }
+    doc.moveDown(2);
+  }
+
+  if (companiesHouseData?.charges?.items && companiesHouseData.charges.items.length > 0) {
+    doc.fontSize(18).fillColor(headerColor).text('Charges');
+    doc.moveDown(0.5);
+    addLine(doc);
+    doc.moveDown(0.5);
+    doc.fontSize(12).fillColor(textColor);
+
+    const outstandingCharges = companiesHouseData.charges.items.filter((c: any) => c.status === 'outstanding');
+    const satisfiedCharges = companiesHouseData.charges.items.filter((c: any) => c.status === 'satisfied' || c.status === 'fully-satisfied');
+
+    if (outstandingCharges.length > 0) {
+      doc.font('Helvetica-Bold').text(`Outstanding (${outstandingCharges.length}):`);
+      doc.font('Helvetica').moveDown(0.3);
+      outstandingCharges.forEach((charge: any) => {
+        const created = charge.created_on ? new Date(charge.created_on).toLocaleDateString('en-GB') : '';
+        const entitled = charge.persons_entitled?.[0]?.name || 'Unknown';
+        const type = charge.classification?.description || charge.charge_code || '';
+        doc.text(`• ${entitled}`, { indent: 10 });
+        doc.fontSize(10).fillColor(mutedColor);
+        if (type) doc.text(type, { indent: 20 });
+        if (created) doc.text(`Created: ${created}`, { indent: 20 });
+        doc.fontSize(12).fillColor(textColor);
+        doc.moveDown(0.3);
+      });
+    }
+
+    if (satisfiedCharges.length > 0) {
+      doc.moveDown(0.3);
+      doc.font('Helvetica-Bold').text(`Satisfied (${satisfiedCharges.length}):`);
+      doc.font('Helvetica').moveDown(0.3);
+      satisfiedCharges.forEach((charge: any) => {
+        const entitled = charge.persons_entitled?.[0]?.name || 'Unknown';
+        const satisfied = charge.satisfied_on ? new Date(charge.satisfied_on).toLocaleDateString('en-GB') : '';
+        doc.text(`• ${entitled}`, { indent: 10 });
+        doc.fontSize(10).fillColor(mutedColor);
+        if (satisfied) doc.text(`Satisfied: ${satisfied}`, { indent: 20 });
+        doc.fontSize(12).fillColor(textColor);
+        doc.moveDown(0.3);
+      });
+    }
+    doc.moveDown(2);
+  }
 
   doc.fontSize(18).fillColor(headerColor).text('Loan Details');
   doc.moveDown(0.5);

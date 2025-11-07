@@ -150,11 +150,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activities = await storage.listActivities(id);
       const dueDiligence = await storage.getDueDiligence(id);
 
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      let companiesHouseData = null;
+      
+      if (apiKey && prospect.company.companyNumber) {
+        try {
+          const trimmedApiKey = apiKey.trim();
+          const authString = `${trimmedApiKey}:`;
+          const base64Auth = Buffer.from(authString).toString('base64');
+          const companyNumber = prospect.company.companyNumber;
+          
+          const [officersRes, pscRes, chargesRes] = await Promise.all([
+            fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, {
+              headers: { 'Authorization': `Basic ${base64Auth}` }
+            }).catch(() => null),
+            fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, {
+              headers: { 'Authorization': `Basic ${base64Auth}` }
+            }).catch(() => null),
+            fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`, {
+              headers: { 'Authorization': `Basic ${base64Auth}` }
+            }).catch(() => null)
+          ]);
+
+          companiesHouseData = {
+            officers: officersRes && officersRes.ok ? await officersRes.json() : null,
+            psc: pscRes && pscRes.ok ? await pscRes.json() : null,
+            charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null
+          };
+        } catch (error) {
+          console.error("Error fetching Companies House data for report:", error);
+        }
+      }
+
       const doc = generateProspectReport({
         prospect,
         contacts,
         activities,
         dueDiligence,
+        companiesHouseData,
       });
 
       const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
