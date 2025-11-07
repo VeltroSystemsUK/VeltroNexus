@@ -1,178 +1,58 @@
 # FlowLoan - Commercial Lending Workflow Management Platform
 
 ## Overview
-
-FlowLoan is a secure, multi-user commercial lending pipeline management system designed for lending teams. It enables tracking and managing company loan prospects from initial lead to final approval/rejection. Key features include user authentication, user-specific data isolation, a visual drag-and-drop Kanban board, detailed company and prospect management, and a modern SaaS dashboard design. The platform aims to streamline the commercial lending process.
+FlowLoan is a secure, multi-user commercial lending pipeline management system designed for lending teams. Its purpose is to track and manage company loan prospects from initial lead to final approval/rejection, streamlining the commercial lending process. Key capabilities include user authentication, user-specific data isolation, a drag-and-drop Kanban board, detailed company and prospect management, and a modern SaaS dashboard design.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
 ### Frontend
-
-The frontend is built with React and TypeScript, using Vite for bundling and Wouter for routing. State management is handled by TanStack Query for server state. The UI leverages Shadcn/UI (built on Radix UI) and Tailwind CSS, following a "New York" style preset. It features a component-based architecture, type-safe development, responsive design, and dark mode support. Core features include secure user authentication (Replit Auth), a professional landing page, user-specific data isolation, a drag-and-drop Kanban board (`@hello-pangea/dnd`), client-side form validation (`react-hook-form` with `zod`), and toast notifications (Sonner). The visual pipeline stages include Lead, Contacted, Qualified, Proposal, Due Diligence, Approval, and final status (Approved/Declined/Withdrawn).
+The frontend is built with React and TypeScript, utilizing Vite for bundling and Wouter for routing. TanStack Query manages server state. The UI uses Shadcn/UI (Radix UI) and Tailwind CSS, adhering to a "New York" style. It features a component-based, type-safe, responsive design with dark mode support. Core features include Replit Auth, a professional landing page, user-specific data isolation, a drag-and-drop Kanban board, client-side form validation with `react-hook-form` and `zod`, and Sonner toast notifications. The visual pipeline stages are Lead, Contacted, Qualified, Proposal, Due Diligence, Approval, and final status (Approved/Declined/Withdrawn).
 
 ### Backend
-
-The backend uses Express.js with TypeScript and Node.js. It provides a RESTful API with a clear separation of concerns between routing and storage. Key architectural decisions include custom Vite integration for seamless development, request/response logging, Zod for schema validation before database operations, and robust error handling. Authentication endpoints manage OpenID Connect login/logout, while protected API endpoints handle CRUD operations for prospects and companies, including specific endpoints for due diligence data and integrations.
+The backend uses Express.js with TypeScript and Node.js, providing a RESTful API. It features custom Vite integration, request/response logging, Zod for schema validation, and robust error handling. Authentication endpoints handle OpenID Connect login/logout, while protected API endpoints manage CRUD operations for prospects, companies, due diligence data, and integrations.
 
 ### Database
-
-The application utilizes Drizzle ORM with a PostgreSQL dialect, specifically Neon serverless PostgreSQL for database hosting. Drizzle Kit is used for schema management. The schema includes `Users`, `Sessions`, `Companies`, `Prospects`, and `Due Diligence` tables. `Users` and `Sessions` support Replit Auth, while `Companies` stores company details and `Prospects` links users to companies and tracks loan stages. The `Due Diligence` table stores assessment tool data in a JSONB column. Relationships are defined to ensure user-specific data isolation and efficient data retrieval through joins.
+The application uses Drizzle ORM with Neon serverless PostgreSQL. Drizzle Kit is used for schema management. The schema includes `Users`, `Sessions`, `Companies`, `Prospects`, and `Due Diligence` tables. `Users` and `Sessions` support Replit Auth, `Companies` stores company details, `Prospects` tracks loan stages, and `Due Diligence` stores assessment tool data in a JSONB column. Relationships ensure user-specific data isolation and efficient data retrieval.
 
 ### Design System
+A comprehensive design system defines typography (Inter, JetBrains Mono), an HSL-based color system for light/dark modes with semantic tokens, and a consistent layout with defined spacing and responsive grids. UI elements are card-based with subtle shadows and borders.
 
-A comprehensive design system dictates typography (Inter, JetBrains Mono), a HSL-based color system for light/dark modes with semantic tokens, and a consistent layout system with defined spacing and responsive grid layouts. The UI elements are card-based with subtle shadows and borders.
-
-### Companies House Integration
-
-A full integration with the UK Companies House API allows for searching companies (`/api/companies-house/search`) and fetching complete company profiles (`/api/companies-house/company/:companyNumber`). This enables auto-population of company data during prospect creation and detailed company information display within the prospect's details. The integration requires a `COMPANIES_HOUSE_API_KEY` and handles various company data fields, including financial, address, and status information.
-
-The integration includes four additional API endpoints to display detailed company information:
-- `/api/companies-house/company/:companyNumber/officers` - Fetches company officers (directors and secretaries) with their roles, appointment dates, and contact details
-- `/api/companies-house/company/:companyNumber/persons-with-significant-control` - Retrieves PSC data showing individuals or entities with significant influence
-- `/api/companies-house/company/:companyNumber/charges` - Lists all charges registered against the company including secured details and status
-
-All data is displayed inline on the Company Info tab with loading states, error handling, and properly formatted information including officer roles, PSC control percentages, and charge details.
-
-### Due Diligence Tools
-
-The platform includes six interactive due diligence tools, with data stored in a JSONB column in the `due_diligence` table. These tools are accessible via dedicated API routes and include:
-1.  **Due Diligence Checklist**: A comprehensive 37-item checklist across 10 sections with progress tracking.
-2.  **Loan Calculator**: Computes monthly payments and total interest based on loan amount, interest rate, and term.
-3.  **DSCR Calculator**: Calculates Debt Service Coverage Ratio and performs sensitivity analysis with visual pass/warning/fail indicators.
-4.  **Affordability Estimator**: Assesses loan affordability based on personal income, commitments, and proposed loan payment.
-5.  **Financial Ratios Calculator**: Calculates key financial ratios (Profit Margin, Current Ratio, Debt-to-Equity, ROE, Asset Turnover) from input financial data.
-6.  **Character Assessment Tool**: Provides a qualitative assessment using a 1-5 rating scale across categories like Management Experience and Credit History.
-All tools feature real-time calculations, data persistence, and client-side validation.
-
-### Subscription System
-
-The platform implements a tiered subscription model that limits the number of prospects each user can manage. The system includes three subscription tiers displayed on a dedicated pricing page (`/pricing`) accessible before signup:
-
-**Subscription Tiers:**
-1.  **Free Plan**: 10 prospects included, £3 per additional prospect
-2.  **Standard Plan**: £29/month for 100 prospects, £2 per additional prospect
-3.  **Premium Plan**: £49/month for 500 prospects, £1 per additional prospect
-
-**Technical Implementation:**
--   The `users` table includes `subscriptionTier` (enum: 'free', 'standard', 'premium') and `prospectLimit` (integer) fields with default values ('free', 10)
--   Prospect creation endpoint (`POST /api/prospects`) enforces limits server-side by checking current prospect count against the user's limit
--   Returns 403 status with detailed error message when quota is exceeded
--   The Pipeline page displays subscription status in the user menu dropdown, showing current tier and prospect usage (e.g., "5 / 10 prospects used")
--   Pricing page is accessible from the landing page before authentication to allow users to review plans before signing up
-
-**Feature Access by Tier:**
--   **Free Tier**: Due Diligence tools are hidden and not accessible
--   **Standard & Premium Tiers**: Full access to all Due Diligence tools and features
-
-### Prospect Management Features
-
-**Priority System:**
--   Each prospect has an editable priority field (high, medium, low) displayed on the prospect detail page
--   Priority is shown with color-coded indicators (red for high, amber for medium, blue for low)
--   Users can change priority using a dropdown selector that updates in real-time
--   Priority updates use optimistic UI updates with cache invalidation
-
-**Delete Functionality:**
--   Users can delete prospects from the prospect detail page
--   Delete action requires confirmation via an AlertDialog to prevent accidental deletions
--   Deletion is cascading: removes the prospect along with all associated contacts, activities, and due diligence data
--   Backend endpoint (`DELETE /api/prospects/:id`) enforces user authorization to ensure users can only delete their own prospects
--   After successful deletion, user is redirected to the pipeline view
-
-**PDF Report Generation:**
--   Users can download comprehensive PDF reports for any prospect via the "Download Report" button on the prospect detail page
--   Reports include all prospect data: company information, Companies House data, loan details, security/collateral, contacts, activities, and due diligence results
--   **Companies House Data Integration**: PDF reports automatically include detailed Companies House information when available:
-    -   **Officers**: Active and resigned directors/secretaries with roles, appointment dates, and resignation dates
-    -   **Persons with Significant Control (PSC)**: Active and ceased PSCs with nature of control percentages and types
-    -   **Charges**: Outstanding and satisfied charges with creation/satisfaction dates and entitled parties
--   Generated using PDFKit with professional formatting including headers, sections, and proper typography
--   Backend endpoint (`GET /api/prospects/:id/report`) enforces user authorization and fetches Companies House data in parallel for performance
--   Zero-value handling: Financial metrics and calculator results preserve legitimate zero values (e.g., 0% interest rate, £0 monthly payment)
--   Collateral section appears only when at least one collateral value is greater than zero to prevent empty sections
--   All sections use explicit null/undefined checks to distinguish between "no data" and "value is zero"
--   Companies House data fetching gracefully handles API failures - if the Companies House API is unavailable, the report generates successfully without that data
-
-### GoCardless Payment Integration
-
-The platform integrates with GoCardless for secure Direct Debit subscription payments. The implementation uses GoCardless's Billing Request Flow for scheme compliance.
-
-**Technical Implementation:**
--   Uses `gocardless-nodejs` SDK (v6.0.0) with environment-based initialization (Sandbox/Live)
--   Requires `GOCARDLESS_ACCESS_TOKEN` and `GOCARDLESS_ENVIRONMENT` secrets
--   User schema includes `gocardlessCustomerId`, `gocardlessMandateId`, and `gocardlessSubscriptionId` fields
--   Storage layer includes `updateUser()` and `getAllUsers()` methods for subscription management
-
-**Subscription Flow:**
-1.  User clicks "Subscribe" on the Pricing page for Standard or Premium tier
-2.  Frontend stores tier in sessionStorage and calls `/api/gocardless/create-billing-request`
-3.  Backend creates GoCardless billing request and billing request flow
-4.  User is redirected to GoCardless-hosted payment pages to authorize Direct Debit mandate
-5.  After authorization, GoCardless redirects to `/subscription/complete` with `billing_request_flow_id` query param
-6.  Frontend calls `/api/gocardless/complete-subscription` with flow ID and tier from sessionStorage
-7.  Backend completes the billing request flow, retrieves mandate/customer IDs, creates monthly subscription
-8.  User record is updated with GoCardless IDs, new subscription tier, and increased prospect limit
-9.  Success page displays and redirects to pipeline
-
-**API Endpoints:**
--   `POST /api/gocardless/create-billing-request`: Initiates billing request flow (requires tier)
--   `POST /api/gocardless/complete-subscription`: Completes flow and creates subscription (requires billingRequestFlowId, tier)
--   `POST /api/gocardless/cancel-subscription`: Cancels active subscription and downgrades to Free tier
--   `POST /api/gocardless/webhook`: Handles GoCardless events (subscription cancellations, payment failures)
-
-**Webhook Handling:**
--   Listens for subscription cancellation events to downgrade users to Free tier
--   Logs payment failures for monitoring
--   Uses webhook signature validation for security (production)
-
-**Pricing:**
--   Standard: £29/month (2900 pence) - monthly recurring payment
--   Premium: £49/month (4900 pence) - monthly recurring payment
--   Payments processed via BACS Direct Debit (UK)
+### Feature Specifications
+- **Companies House Integration**: Allows searching and fetching UK Companies House company profiles to auto-populate data and display detailed company information, including officers, persons with significant control, and charges.
+- **Due Diligence Tools**: Six interactive tools (Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment) with data stored in a JSONB column, featuring real-time calculations and data persistence.
+- **Subscription System**: A tiered model (Free, Standard, Premium) limits prospect count per user, with server-side enforcement and a pricing page. Paid tiers unlock Due Diligence tools. Integrates with GoCardless for Direct Debit payments.
+- **Prospect Management**: Includes an editable priority system with color-coded indicators, a confirmation-dialog-protected delete functionality with cascading deletions, and PDF report generation for comprehensive prospect data, including integrated Companies House details.
+- **Profile and Settings Pages**: The Profile page displays account info, subscription status, upgrade options, and GoCardless integration for subscription management. The Settings page allows customization of appearance, regional settings (currency, timezone, date format), and customizable pipeline stage names.
 
 ## External Dependencies
 
 ### UI Libraries
--   **@radix-ui/**: Accessible UI primitives.
--   **@hello-pangea/dnd**: Drag-and-drop functionality.
--   **lucide-react**: Icon library.
--   **sonner**: Toast notifications.
--   **class-variance-authority**: Component variant management.
--   **tailwind-merge**: Tailwind CSS utility.
+- **@radix-ui/**: Accessible UI primitives.
+- **@hello-pangea/dnd**: Drag-and-drop.
+- **lucide-react**: Icon library.
+- **sonner**: Toast notifications.
 
 ### Database & ORM
--   **@neondatabase/serverless**: Neon serverless PostgreSQL client.
--   **drizzle-orm**: TypeScript ORM.
--   **drizzle-kit**: Schema migration tool.
--   **ws**: WebSocket library.
+- **@neondatabase/serverless**: Neon serverless PostgreSQL client.
+- **drizzle-orm**: TypeScript ORM.
+- **drizzle-kit**: Schema migration tool.
 
 ### Authentication & Security
--   **openid-client**: OpenID Connect client.
--   **passport**: Authentication middleware.
--   **express-session**: Session management.
--   **connect-pg-simple**: PostgreSQL session store.
--   **memoizee**: Function memoization.
+- **openid-client**: OpenID Connect client.
+- **passport**: Authentication middleware.
+- **express-session**: Session management.
 
 ### Development & Utilities
--   **@tanstack/react-query**: Server state management.
--   **wouter**: Lightweight routing.
--   **date-fns**: Date manipulation.
--   **zod**: Schema validation.
--   **tsx**: TypeScript execution.
--   **pdfkit**: PDF document generation.
+- **@tanstack/react-query**: Server state management.
+- **wouter**: Lightweight routing.
+- **date-fns**: Date manipulation.
+- **zod**: Schema validation.
+- **pdfkit**: PDF document generation.
+- **gocardless-nodejs**: GoCardless SDK.
 
 ### Build Tools
--   **vite**: Frontend build tool.
--   **@vitejs/plugin-react**: React support for Vite.
--   **esbuild**: JavaScript bundler.
--   **tailwindcss**: CSS framework.
--   **autoprefixer**: PostCSS plugin.
-
-### Replit Specific Tools
--   **@replit/vite-plugin-runtime-error-modal**: Error overlay.
--   **@replit/vite-plugin-cartographer**: Code navigation.
--   **@replit/vite-plugin-dev-banner**: Development banner.
+- **vite**: Frontend build tool.
+- **tailwindcss**: CSS framework.
