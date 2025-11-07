@@ -27,7 +27,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
-  Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle
+  Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect } from "react";
@@ -95,6 +95,11 @@ export default function ProspectDetail() {
     },
   });
 
+  const handleDownloadReport = () => {
+    window.open(`/api/prospects/${prospectId}/report`, '_blank');
+    toast.success("Generating report...");
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -155,6 +160,10 @@ export default function ProspectDetail() {
             <div className="flex items-center gap-3">
               <Button variant="outline" onClick={() => navigate("/")} data-testid="link-view-directory">
                 View in Directory
+              </Button>
+              <Button variant="outline" onClick={handleDownloadReport} data-testid="button-download-report">
+                <FileDown className="h-4 w-4 mr-2" />
+                Download Report
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
