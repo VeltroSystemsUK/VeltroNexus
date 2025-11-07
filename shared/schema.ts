@@ -27,6 +27,11 @@ export const users = pgTable("users", {
   gocardlessCustomerId: varchar("gocardless_customer_id"),
   gocardlessMandateId: varchar("gocardless_mandate_id"),
   gocardlessSubscriptionId: varchar("gocardless_subscription_id"),
+  currency: varchar("currency").notNull().default("GBP"),
+  timezone: varchar("timezone").notNull().default("Europe/London"),
+  dateFormat: varchar("date_format").notNull().default("DD/MM/YYYY"),
+  theme: varchar("theme").notNull().default("light"),
+  pipelineStageNames: jsonb("pipeline_stage_names").default(sql`'{"lead":"Lead","contacted":"Contacted","qualified":"Qualified","proposal":"Proposal","dueDiligence":"Due Diligence","approval":"Approval","approved":"Approved","declined":"Declined","withdrawn":"Withdrawn"}'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
