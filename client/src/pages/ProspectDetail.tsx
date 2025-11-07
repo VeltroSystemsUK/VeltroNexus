@@ -27,7 +27,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
-  Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown
+  Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
+  Network, Search, ExternalLink, Loader2
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect } from "react";
@@ -214,13 +215,16 @@ export default function ProspectDetail() {
 
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
-          <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-5" : "grid-cols-6"} mb-8`}>
+          <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-5" : user?.subscriptionTier === "premium" ? "grid-cols-7" : "grid-cols-6"} mb-8`}>
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
             <TabsTrigger value="company" data-testid="tab-company">Company Info</TabsTrigger>
             <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
             <TabsTrigger value="activity" data-testid="tab-activity">Sales Activity</TabsTrigger>
             {user?.subscriptionTier !== "free" && (
               <TabsTrigger value="diligence" data-testid="tab-diligence">Due Diligence</TabsTrigger>
+            )}
+            {user?.subscriptionTier === "premium" && (
+              <TabsTrigger value="associations" data-testid="tab-associations">Associations & Media</TabsTrigger>
             )}
             <TabsTrigger value="summary" data-testid="tab-summary">Summary</TabsTrigger>
           </TabsList>
@@ -244,6 +248,12 @@ export default function ProspectDetail() {
           {user?.subscriptionTier !== "free" && (
             <TabsContent value="diligence">
               <DueDiligenceTab prospect={prospect} />
+            </TabsContent>
+          )}
+
+          {user?.subscriptionTier === "premium" && (
+            <TabsContent value="associations">
+              <AssociationsMediaTab prospect={prospect} />
             </TabsContent>
           )}
 
@@ -1293,4 +1303,348 @@ function CompanyInformationTab({ companyNumber }: { companyNumber: string }) {
   }
 
   return <CompanyInformation companyProfile={companyProfile} />;
+}
+
+function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
+  const [isLoadingAssociations, setIsLoadingAssociations] = useState(false);
+  const [associatedCompanies, setAssociatedCompanies] = useState<any>(null);
+  const [isLoadingWebSearch, setIsLoadingWebSearch] = useState(false);
+  const [webSearchResults, setWebSearchResults] = useState<any>(null);
+
+  const loadAssociatedCompanies = async () => {
+    setIsLoadingAssociations(true);
+    try {
+      const response = await fetch(`/api/prospects/${prospect.id}/associated-companies`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      
+      const data = await response.json();
+      setAssociatedCompanies(data);
+    } catch (error: any) {
+      toast.error(`Failed to load associated companies: ${error.message}`);
+    } finally {
+      setIsLoadingAssociations(false);
+    }
+  };
+
+  const performWebSearch = async () => {
+    setIsLoadingWebSearch(true);
+    try {
+      const response = await apiRequest(`/api/prospects/${prospect.id}/web-search`, "POST", {});
+      setWebSearchResults(response);
+    } catch (error: any) {
+      toast.error(`Failed to search web: ${error.message}`);
+    } finally {
+      setIsLoadingWebSearch(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Associated Companies Section */}
+      <Card data-testid="card-associations">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Network className="h-5 w-5" />
+                Associated Companies
+              </CardTitle>
+              <CardDescription>
+                Find companies linked through common directors, ownership, or registered address
+              </CardDescription>
+            </div>
+            <Button
+              onClick={loadAssociatedCompanies}
+              disabled={isLoadingAssociations}
+              data-testid="button-find-associations"
+            >
+              {isLoadingAssociations && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Find Associations
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingAssociations && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-sm text-muted-foreground">Searching Companies House...</p>
+              </div>
+            </div>
+          )}
+
+          {!isLoadingAssociations && associatedCompanies && (
+            <div className="space-y-6">
+              {/* Companies via Common Officers */}
+              {associatedCompanies.officers.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Companies with Common Directors ({associatedCompanies.officers.length})</h3>
+                  <div className="space-y-2">
+                    {associatedCompanies.officers.map((company: any, index: number) => (
+                      <Card key={index} className="hover-elevate" data-testid={`card-officer-company-${index}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium">{company.company_name}</h4>
+                                <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                                {company.company_status && (
+                                  <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Common Director: <span className="font-medium">{company.officer_name}</span>
+                                {company.officer_role && ` (${company.officer_role})`}
+                              </p>
+                              {company.appointed_on && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Appointed: {new Date(company.appointed_on).toLocaleDateString("en-GB")}
+                                </p>
+                              )}
+                            </div>
+                            <a
+                              href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-4"
+                            >
+                              <Button variant="ghost" size="icon" data-testid={`button-view-officer-company-${index}`}>
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Companies via Common PSC */}
+              {associatedCompanies.psc.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Companies with Common Ownership ({associatedCompanies.psc.length})</h3>
+                  <div className="space-y-2">
+                    {associatedCompanies.psc.map((company: any, index: number) => (
+                      <Card key={index} className="hover-elevate" data-testid={`card-psc-company-${index}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium">{company.company_name}</h4>
+                                <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                                {company.company_status && (
+                                  <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Common PSC: <span className="font-medium">{company.psc_name}</span>
+                              </p>
+                              {company.address_snippet && (
+                                <p className="text-xs text-muted-foreground mt-1">{company.address_snippet}</p>
+                              )}
+                            </div>
+                            <a
+                              href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-4"
+                            >
+                              <Button variant="ghost" size="icon" data-testid={`button-view-psc-company-${index}`}>
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Companies at Same Address */}
+              {associatedCompanies.sameAddress.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Companies at Same Registered Address ({associatedCompanies.sameAddress.length})</h3>
+                  <div className="space-y-2">
+                    {associatedCompanies.sameAddress.map((company: any, index: number) => (
+                      <Card key={index} className="hover-elevate" data-testid={`card-address-company-${index}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium">{company.company_name}</h4>
+                                <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                                {company.company_status && (
+                                  <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                                )}
+                              </div>
+                              {company.address_snippet && (
+                                <p className="text-sm text-muted-foreground">{company.address_snippet}</p>
+                              )}
+                            </div>
+                            <a
+                              href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-4"
+                            >
+                              <Button variant="ghost" size="icon" data-testid={`button-view-address-company-${index}`}>
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {associatedCompanies.officers.length === 0 && 
+               associatedCompanies.psc.length === 0 && 
+               associatedCompanies.sameAddress.length === 0 && (
+                <div className="text-center py-8">
+                  <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="font-semibold mb-2">No Associated Companies Found</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No companies found with common directors, ownership, or registered address.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isLoadingAssociations && !associatedCompanies && (
+            <div className="text-center py-8">
+              <Network className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="font-semibold mb-2">Find Associated Companies</h3>
+              <p className="text-sm text-muted-foreground">
+                Click "Find Associations" to search for companies linked to {prospect.company.companyName}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* AI Web Search Section */}
+      <Card data-testid="card-web-search">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                AI Web Search
+              </CardTitle>
+              <CardDescription>
+                Search the web for news, information, and media coverage about {prospect.company.companyName}
+              </CardDescription>
+            </div>
+            <Button
+              onClick={performWebSearch}
+              disabled={isLoadingWebSearch}
+              data-testid="button-web-search"
+            >
+              {isLoadingWebSearch && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Search Web
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingWebSearch && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-sm text-muted-foreground">Searching the web with AI...</p>
+              </div>
+            </div>
+          )}
+
+          {!isLoadingWebSearch && webSearchResults && (
+            <div className="space-y-6">
+              {/* AI Summary */}
+              {webSearchResults.answer && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <Search className="h-4 w-4" />
+                    AI Summary
+                  </h3>
+                  <p className="text-sm whitespace-pre-wrap" data-testid="text-ai-summary">
+                    {webSearchResults.answer}
+                  </p>
+                </div>
+              )}
+
+              {/* Search Results */}
+              {webSearchResults.results && webSearchResults.results.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Web Results ({webSearchResults.results.length})</h3>
+                  <div className="space-y-3">
+                    {webSearchResults.results.map((result: any, index: number) => (
+                      <Card key={index} className="hover-elevate" data-testid={`card-search-result-${index}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <a
+                                href={result.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium hover:underline text-primary"
+                              >
+                                {result.title}
+                              </a>
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {result.content}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {new URL(result.url).hostname} • Score: {result.score?.toFixed(2) || 'N/A'}
+                              </p>
+                            </div>
+                            <a
+                              href={result.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Button variant="ghost" size="icon" data-testid={`button-view-result-${index}`}>
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(!webSearchResults.results || webSearchResults.results.length === 0) && (
+                <div className="text-center py-8">
+                  <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="font-semibold mb-2">No Results Found</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No web results found for {prospect.company.companyName}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isLoadingWebSearch && !webSearchResults && (
+            <div className="text-center py-8">
+              <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="font-semibold mb-2">Search the Web</h3>
+              <p className="text-sm text-muted-foreground">
+                Click "Search Web" to find news and information about {prospect.company.companyName}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
