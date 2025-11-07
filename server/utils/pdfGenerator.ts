@@ -8,7 +8,7 @@ interface ProspectReportData {
   dueDiligence?: DueDiligence;
 }
 
-export function generateProspectReport(data: ProspectReportData): PDFDocument {
+export function generateProspectReport(data: ProspectReportData): typeof PDFDocument.prototype {
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
   const { prospect, contacts, activities, dueDiligence } = data;
 
@@ -282,7 +282,7 @@ export function generateProspectReport(data: ProspectReportData): PDFDocument {
   return doc;
 }
 
-function addField(doc: PDFDocument, label: string, value: string, multiline = false) {
+function addField(doc: typeof PDFDocument.prototype, label: string, value: string, multiline = false) {
   const labelWidth = 150;
   if (multiline) {
     doc.font('Helvetica-Bold').text(label, { continued: false });
@@ -295,7 +295,7 @@ function addField(doc: PDFDocument, label: string, value: string, multiline = fa
   }
 }
 
-function addLine(doc: PDFDocument) {
+function addLine(doc: typeof PDFDocument.prototype) {
   doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
 }
 
