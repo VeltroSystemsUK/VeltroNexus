@@ -10,6 +10,7 @@ import {
   insertActivitySchema,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
+import { z } from "zod";
 import { createRequire } from 'module';
 import { generateProspectReport } from "./utils/pdfGenerator";
 const require = createRequire(import.meta.url);
@@ -29,6 +30,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // User settings API
+  const updateUserSettingsSchema = z.object({
+    currency: z.string().optional(),
+    timezone: z.string().optional(),
+    dateFormat: z.string().optional(),
+    theme: z.string().optional(),
+    pipelineStageNames: z.record(z.string()).optional(),
+  });
+
+  app.patch('/api/user/settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = updateUserSettingsSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        const humanError = fromZodError(result.error);
+        return res.status(400).json({ error: humanError.message });
+      }
+
+      const updatedUser = await storage.updateUser(userId, result.data);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(updatedUser);
+    } catch (error: any) {
+      console.error("Error updating user settings:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
