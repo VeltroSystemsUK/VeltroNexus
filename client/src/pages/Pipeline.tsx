@@ -16,11 +16,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
 import type { ProspectWithCompany } from "@shared/schema";
-import logoUrl from "@assets/Gemini_Generated_Image_w096n4w096n4w096_1762508125080.png";
 
 type Stage = "lead" | "contacted" | "qualified" | "proposal" | "due-diligence" | "approval" | "approved" | "declined" | "withdrawn";
 
@@ -139,7 +139,10 @@ export default function Pipeline() {
       <header className="border-b bg-background sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={logoUrl} alt="FlowLoan" className="h-10" data-testid="img-logo" />
+            <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
+              <TrendingUp className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <h1 className="text-xl font-bold" data-testid="text-app-title">FlowLoan</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => navigate("/search")} data-testid="button-add-prospect">

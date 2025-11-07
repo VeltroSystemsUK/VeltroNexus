@@ -17,9 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Building2, Search, MapPin } from "lucide-react";
+import { ArrowLeft, Building2, TrendingUp, Search, MapPin } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import logoUrl from "@assets/Gemini_Generated_Image_w096n4w096n4w096_1762508125080.png";
 
 interface CompanySearchResult {
   title: string;
@@ -172,8 +171,10 @@ export default function CompanySearch() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-3">
-              <img src={logoUrl} alt="FlowLoan" className="h-10" data-testid="img-logo" />
-              <h1 className="text-xl font-bold">Add Prospect</h1>
+              <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <h1 className="text-xl font-bold">FlowLoan - Add Prospect</h1>
             </div>
           </div>
           <ThemeToggle />

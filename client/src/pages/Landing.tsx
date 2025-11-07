@@ -1,9 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building2, Users, FileCheck, Shield, BarChart3, Star } from "lucide-react";
+import { TrendingUp, Building2, Users, FileCheck, Shield, BarChart3 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
-import logoUrl from "@assets/Gemini_Generated_Image_w096n4w096n4w096_1762508125080.png";
 
 export default function Landing() {
   const handleLogin = () => {
@@ -15,7 +14,10 @@ export default function Landing() {
       <header className="border-b bg-background sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logoUrl} alt="FlowLoan" className="h-12" data-testid="img-logo" />
+            <div className="h-10 w-10 bg-primary rounded-md flex items-center justify-center">
+              <TrendingUp className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <h1 className="text-2xl font-bold" data-testid="text-app-title">FlowLoan</h1>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/pricing">
@@ -68,7 +70,7 @@ export default function Landing() {
 
             <Card>
               <CardContent className="p-6 text-center">
-                <BarChart3 className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <TrendingUp className="h-12 w-12 mx-auto mb-4 text-primary" />
                 <h3 className="text-xl font-semibold mb-2">Visual Pipeline</h3>
                 <p className="text-muted-foreground">
                   Drag-and-drop interface to move prospects through 9 pipeline stages from lead to approval.
@@ -158,7 +160,7 @@ export default function Landing() {
 
               <div className="space-y-4">
                 <div className="flex gap-4">
-                  <Star className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
+                  <TrendingUp className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
                   <div>
                     <h4 className="font-semibold mb-1">Priority Management</h4>
                     <p className="text-sm text-muted-foreground">
