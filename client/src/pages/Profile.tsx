@@ -26,7 +26,7 @@ export default function Profile() {
 
   const createBillingRequestMutation = useMutation({
     mutationFn: async (tier: string) => {
-      const response = await apiRequest("POST", "/api/gocardless/create-billing-request", {
+      const response = await apiRequest("/api/gocardless/create-billing-request", "POST", {
         tier,
       });
       return response;
@@ -46,7 +46,7 @@ export default function Profile() {
 
   const cancelSubscriptionMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/gocardless/cancel-subscription", {});
+      await apiRequest("/api/gocardless/cancel-subscription", "POST", {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });

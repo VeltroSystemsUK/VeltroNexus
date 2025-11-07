@@ -81,7 +81,7 @@ export default function Settings() {
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (settings: any) => {
-      await apiRequest("PATCH", "/api/user/settings", settings);
+      await apiRequest("/api/user/settings", "PATCH", settings);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
