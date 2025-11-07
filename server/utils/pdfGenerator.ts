@@ -54,13 +54,13 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
 
   doc.fontSize(12).fillColor(textColor);
   addField(doc, 'Current Stage:', capitalizeStage(prospect.stage));
-  if (prospect.loanAmount) {
+  if (prospect.loanAmount != null) {
     addField(doc, 'Loan Amount:', formatCurrency(prospect.loanAmount));
   }
-  if (prospect.term) {
+  if (prospect.term != null) {
     addField(doc, 'Term:', `${prospect.term} months`);
   }
-  if (prospect.interestRate) {
+  if (prospect.interestRate != null) {
     addField(doc, 'Interest Rate:', `${prospect.interestRate}%`);
   }
   if (prospect.priority) {
@@ -68,9 +68,14 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   }
   doc.moveDown(2);
 
-  const hasCollateral = prospect.directorsGuarantee || prospect.commercialProperty || 
-    prospect.homeEquity || prospect.propertyOther || prospect.debenture || 
-    prospect.parentCompanyGuarantee || prospect.collateral || prospect.crossCompanyGuarantee;
+  const hasCollateral = (prospect.directorsGuarantee != null && prospect.directorsGuarantee > 0) || 
+    (prospect.commercialProperty != null && prospect.commercialProperty > 0) || 
+    (prospect.homeEquity != null && prospect.homeEquity > 0) || 
+    (prospect.propertyOther != null && prospect.propertyOther > 0) || 
+    (prospect.debenture != null && prospect.debenture > 0) || 
+    (prospect.parentCompanyGuarantee != null && prospect.parentCompanyGuarantee > 0) || 
+    (prospect.collateral != null && prospect.collateral > 0) || 
+    (prospect.crossCompanyGuarantee != null && prospect.crossCompanyGuarantee > 0);
 
   if (hasCollateral) {
     doc.fontSize(18).fillColor(headerColor).text('Security & Collateral');
@@ -79,28 +84,28 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     doc.moveDown(0.5);
     doc.fontSize(12).fillColor(textColor);
 
-    if (prospect.directorsGuarantee) {
+    if (prospect.directorsGuarantee != null) {
       addField(doc, 'Directors Guarantee:', formatCurrency(prospect.directorsGuarantee));
     }
-    if (prospect.commercialProperty) {
+    if (prospect.commercialProperty != null) {
       addField(doc, 'Commercial Property:', formatCurrency(prospect.commercialProperty));
     }
-    if (prospect.homeEquity) {
+    if (prospect.homeEquity != null) {
       addField(doc, 'Home Equity:', formatCurrency(prospect.homeEquity));
     }
-    if (prospect.propertyOther) {
+    if (prospect.propertyOther != null) {
       addField(doc, 'Other Property:', formatCurrency(prospect.propertyOther));
     }
-    if (prospect.debenture) {
+    if (prospect.debenture != null) {
       addField(doc, 'Debenture:', formatCurrency(prospect.debenture));
     }
-    if (prospect.parentCompanyGuarantee) {
+    if (prospect.parentCompanyGuarantee != null) {
       addField(doc, 'Parent Company Guarantee:', formatCurrency(prospect.parentCompanyGuarantee));
     }
-    if (prospect.collateral) {
+    if (prospect.collateral != null) {
       addField(doc, 'Other Collateral:', formatCurrency(prospect.collateral));
     }
-    if (prospect.crossCompanyGuarantee) {
+    if (prospect.crossCompanyGuarantee != null) {
       addField(doc, 'Cross Company Guarantee:', formatCurrency(prospect.crossCompanyGuarantee));
     }
     doc.moveDown(2);
@@ -218,7 +223,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
 
     if (ddData.loanCalculator) {
       const calc = ddData.loanCalculator;
-      if (calc.loanAmount && calc.interestRate && calc.term) {
+      if (calc.loanAmount != null && calc.interestRate != null && calc.term != null) {
         doc.fontSize(18).fillColor(headerColor).text('Loan Calculator Results');
         doc.moveDown(0.5);
         addLine(doc);
@@ -228,10 +233,10 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
         addField(doc, 'Principal:', formatCurrency(calc.loanAmount * 100));
         addField(doc, 'Interest Rate:', `${calc.interestRate}%`);
         addField(doc, 'Term:', `${calc.term} months`);
-        if (calc.monthlyPayment) {
+        if (calc.monthlyPayment != null) {
           addField(doc, 'Monthly Payment:', formatCurrency(calc.monthlyPayment * 100));
         }
-        if (calc.totalInterest) {
+        if (calc.totalInterest != null) {
           addField(doc, 'Total Interest:', formatCurrency(calc.totalInterest * 100));
         }
         doc.moveDown(2);
@@ -240,7 +245,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
 
     if (ddData.dscrCalculator) {
       const dscr = ddData.dscrCalculator;
-      if (dscr.dscr) {
+      if (dscr.dscr != null) {
         doc.fontSize(18).fillColor(headerColor).text('DSCR Analysis');
         doc.moveDown(0.5);
         addLine(doc);
@@ -255,18 +260,21 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
 
     if (ddData.financialRatios) {
       const ratios = ddData.financialRatios;
-      if (ratios.profitMargin || ratios.currentRatio || ratios.debtToEquity || ratios.returnOnEquity || ratios.assetTurnover) {
+      const hasAnyRatio = ratios.profitMargin != null || ratios.currentRatio != null || 
+                          ratios.debtToEquity != null || ratios.returnOnEquity != null || 
+                          ratios.assetTurnover != null;
+      if (hasAnyRatio) {
         doc.fontSize(18).fillColor(headerColor).text('Financial Ratios');
         doc.moveDown(0.5);
         addLine(doc);
         doc.moveDown(0.5);
         doc.fontSize(12).fillColor(textColor);
         
-        if (ratios.profitMargin) addField(doc, 'Profit Margin:', `${ratios.profitMargin.toFixed(2)}%`);
-        if (ratios.currentRatio) addField(doc, 'Current Ratio:', ratios.currentRatio.toFixed(2));
-        if (ratios.debtToEquity) addField(doc, 'Debt-to-Equity:', ratios.debtToEquity.toFixed(2));
-        if (ratios.returnOnEquity) addField(doc, 'Return on Equity:', `${ratios.returnOnEquity.toFixed(2)}%`);
-        if (ratios.assetTurnover) addField(doc, 'Asset Turnover:', ratios.assetTurnover.toFixed(2));
+        if (ratios.profitMargin != null) addField(doc, 'Profit Margin:', `${ratios.profitMargin.toFixed(2)}%`);
+        if (ratios.currentRatio != null) addField(doc, 'Current Ratio:', ratios.currentRatio.toFixed(2));
+        if (ratios.debtToEquity != null) addField(doc, 'Debt-to-Equity:', ratios.debtToEquity.toFixed(2));
+        if (ratios.returnOnEquity != null) addField(doc, 'Return on Equity:', `${ratios.returnOnEquity.toFixed(2)}%`);
+        if (ratios.assetTurnover != null) addField(doc, 'Asset Turnover:', ratios.assetTurnover.toFixed(2));
         doc.moveDown(2);
       }
     }
