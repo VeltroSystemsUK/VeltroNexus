@@ -1,28 +1,143 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle2, ListTodo, Video, Phone, FileText, Plus } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths } from "date-fns";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { insertActivitySchema, type InsertActivity } from "@shared/schema";
+import { z } from "zod";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface Activity {
   id: number;
   prospectId: number;
   title: string;
   description: string | null;
+  activityType: string;
   dueDate: Date | null;
   completed: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
+interface ProspectWithCompany {
+  id: number;
+  company: {
+    companyName: string;
+  };
+}
+
+const activityFormSchema = z.object({
+  prospectId: z.number().int().positive(),
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  activityType: z.enum(["task", "event", "meeting", "call", "note"]).default("task"),
+  dueDate: z.date().optional(),
+  completed: z.number().int().min(0).max(1).default(0),
+});
+
+type ActivityFormData = z.infer<typeof activityFormSchema>;
+
+const activityTypeIcons = {
+  task: ListTodo,
+  event: CalendarIcon,
+  meeting: Video,
+  call: Phone,
+  note: FileText,
+};
+
+const activityTypeColors = {
+  task: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  event: "bg-purple-500/10 text-purple-700 dark:text-purple-300",
+  meeting: "bg-green-500/10 text-green-700 dark:text-green-300",
+  call: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  note: "bg-gray-500/10 text-gray-700 dark:text-gray-300",
+};
+
 export default function ActivityCalendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const { toast } = useToast();
 
   const { data: activities = [] } = useQuery<Activity[]>({
     queryKey: ["/api/activities"],
   });
+
+  const { data: prospects = [] } = useQuery<ProspectWithCompany[]>({
+    queryKey: ["/api/prospects"],
+  });
+
+  const form = useForm<ActivityFormData>({
+    resolver: zodResolver(activityFormSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      activityType: "task",
+      dueDate: undefined,
+      completed: 0,
+    },
+  });
+
+  const createActivityMutation = useMutation({
+    mutationFn: async (data: ActivityFormData) => {
+      return await apiRequest("/api/activities", "POST", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({
+        title: "Activity created",
+        description: "Your activity has been added to the calendar.",
+      });
+      setShowCreateDialog(false);
+      form.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to create activity",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDateClick = (day: Date) => {
+    setSelectedDate(day);
+    form.setValue("dueDate", day);
+    setShowCreateDialog(true);
+  };
+
+  const onSubmit = (data: ActivityFormData) => {
+    createActivityMutation.mutate(data);
+  };
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -39,108 +154,280 @@ export default function ActivityCalendar() {
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <Card data-testid="card-activity-calendar">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5" />
-            Calendar
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={previousMonth}
-              data-testid="button-prev-month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="text-sm font-medium min-w-[120px] text-center">
-              {format(currentMonth, "MMMM yyyy")}
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={nextMonth}
-              data-testid="button-next-month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-7 gap-1">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-            <div
-              key={day}
-              className="text-xs font-medium text-muted-foreground text-center p-2"
-            >
-              {day}
-            </div>
-          ))}
-          
-          {/* Empty cells for days before month starts */}
-          {Array.from({ length: (monthStart.getDay() + 6) % 7 }).map((_, i) => (
-            <div key={`empty-${i}`} className="p-2" />
-          ))}
-          
-          {days.map((day) => {
-            const dayActivities = getActivitiesForDay(day);
-            const hasActivities = dayActivities.length > 0;
-            const completedCount = dayActivities.filter(a => a.completed === 1).length;
-            
-            return (
-              <div
-                key={day.toISOString()}
-                className={`
-                  relative min-h-[60px] p-2 border rounded-md
-                  ${!isSameMonth(day, currentMonth) ? "text-muted-foreground bg-muted/30" : ""}
-                  ${isToday(day) ? "border-primary border-2 bg-primary/5" : ""}
-                  hover-elevate
-                `}
-                data-testid={`calendar-day-${format(day, "yyyy-MM-dd")}`}
+    <>
+      <Card data-testid="card-activity-calendar">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Calendar
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={previousMonth}
+                data-testid="button-prev-month"
               >
-                <div className="text-xs font-medium mb-1">
-                  {format(day, "d")}
-                </div>
-                {hasActivities && (
-                  <div className="space-y-1">
-                    {dayActivities.slice(0, 2).map((activity) => (
-                      <div
-                        key={activity.id}
-                        className="text-xs truncate bg-primary/10 px-1 py-0.5 rounded flex items-center gap-1"
-                        title={activity.title}
-                      >
-                        {activity.completed === 1 && (
-                          <CheckCircle2 className="h-3 w-3 text-green-600" />
-                        )}
-                        <span className="truncate">{activity.title}</span>
-                      </div>
-                    ))}
-                    {dayActivities.length > 2 && (
-                      <div className="text-xs text-muted-foreground">
-                        +{dayActivities.length - 2} more
-                      </div>
-                    )}
-                  </div>
-                )}
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="text-sm font-medium min-w-[120px] text-center">
+                {format(currentMonth, "MMMM yyyy")}
               </div>
-            );
-          })}
-        </div>
-        
-        <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded bg-primary/10" />
-            <span>Has tasks</span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={nextMonth}
+                data-testid="button-next-month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <span>Completed</span>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-7 gap-1">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+              <div
+                key={day}
+                className="text-xs font-medium text-muted-foreground text-center p-2"
+              >
+                {day}
+              </div>
+            ))}
+            
+            {/* Empty cells for days before month starts */}
+            {Array.from({ length: (monthStart.getDay() + 6) % 7 }).map((_, i) => (
+              <div key={`empty-${i}`} className="p-2" />
+            ))}
+            
+            {days.map((day) => {
+              const dayActivities = getActivitiesForDay(day);
+              const hasActivities = dayActivities.length > 0;
+              
+              return (
+                <div
+                  key={day.toISOString()}
+                  onClick={() => handleDateClick(day)}
+                  className={`
+                    relative min-h-[70px] p-2 border rounded-md cursor-pointer
+                    ${!isSameMonth(day, currentMonth) ? "text-muted-foreground bg-muted/30" : ""}
+                    ${isToday(day) ? "border-primary border-2 bg-primary/5" : ""}
+                    hover-elevate active-elevate-2
+                  `}
+                  data-testid={`calendar-day-${format(day, "yyyy-MM-dd")}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs font-medium">
+                      {format(day, "d")}
+                    </div>
+                    <Plus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                  </div>
+                  {hasActivities && (
+                    <div className="space-y-1">
+                      {dayActivities.slice(0, 2).map((activity) => {
+                        const Icon = activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] || ListTodo;
+                        const colorClass = activityTypeColors[activity.activityType as keyof typeof activityTypeColors] || activityTypeColors.task;
+                        
+                        return (
+                          <div
+                            key={activity.id}
+                            className={`text-xs truncate px-1.5 py-0.5 rounded flex items-center gap-1 ${colorClass}`}
+                            title={activity.title}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icon className="h-3 w-3 flex-shrink-0" />
+                            {activity.completed === 1 && (
+                              <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                            )}
+                            <span className="truncate">{activity.title}</span>
+                          </div>
+                        );
+                      })}
+                      {dayActivities.length > 2 && (
+                        <div className="text-xs text-muted-foreground">
+                          +{dayActivities.length - 2} more
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
-      </CardContent>
-    </Card>
+          
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <ListTodo className="h-3 w-3" />
+              <span>Task</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Video className="h-3 w-3" />
+              <span>Meeting</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Phone className="h-3 w-3" />
+              <span>Call</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CalendarIcon className="h-3 w-3" />
+              <span>Event</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent data-testid="dialog-create-activity">
+          <DialogHeader>
+            <DialogTitle>Create New Activity</DialogTitle>
+            <DialogDescription>
+              Add a task, event, meeting, call, or note for {selectedDate && format(selectedDate, "MMMM d, yyyy")}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="activityType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-activity-type">
+                          <SelectValue placeholder="Select activity type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="task">
+                          <div className="flex items-center gap-2">
+                            <ListTodo className="h-4 w-4" />
+                            Task
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="event">
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4" />
+                            Event
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="meeting">
+                          <div className="flex items-center gap-2">
+                            <Video className="h-4 w-4" />
+                            Meeting
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="call">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4" />
+                            Call
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="note">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Note
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="e.g., Client meeting, Follow-up call"
+                        data-testid="input-activity-title"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        value={field.value || ""}
+                        placeholder="Add details about this activity..."
+                        data-testid="input-activity-description"
+                        rows={3}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="prospectId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Related Prospect</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(parseInt(value))}
+                      value={field.value?.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-activity-prospect">
+                          <SelectValue placeholder="Select a prospect" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {prospects.map((prospect) => (
+                          <SelectItem key={prospect.id} value={prospect.id.toString()}>
+                            {prospect.company.companyName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowCreateDialog(false)}
+                  data-testid="button-cancel-activity"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createActivityMutation.isPending}
+                  data-testid="button-submit-activity"
+                >
+                  {createActivityMutation.isPending ? "Creating..." : "Create Activity"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

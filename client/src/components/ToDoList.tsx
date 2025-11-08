@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ListTodo, Plus, Trash2, Calendar as CalendarIcon } from "lucide-react";
+import { ListTodo, Plus, Trash2, Calendar as CalendarIcon, Video, Phone, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,11 +41,20 @@ interface Activity {
   prospectId: number;
   title: string;
   description: string | null;
+  activityType: string;
   dueDate: Date | null;
   completed: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const activityTypeIcons = {
+  task: ListTodo,
+  event: CalendarIcon,
+  meeting: Video,
+  call: Phone,
+  note: FileText,
+};
 
 interface ProspectWithCompany {
   id: number;
@@ -289,13 +298,19 @@ export default function ToDoList() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <h4
-                      className={`font-medium ${
-                        activity.completed === 1 ? "line-through" : ""
-                      }`}
-                    >
-                      {activity.title}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const Icon = activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] || ListTodo;
+                        return <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
+                      })()}
+                      <h4
+                        className={`font-medium ${
+                          activity.completed === 1 ? "line-through" : ""
+                        }`}
+                      >
+                        {activity.title}
+                      </h4>
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"

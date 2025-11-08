@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar as CalendarIcon, AlertCircle } from "lucide-react";
+import { Bell, Calendar as CalendarIcon, AlertCircle, ListTodo, Video, Phone, FileText } from "lucide-react";
 import { format, isPast, isToday, isTomorrow, differenceInDays } from "date-fns";
 
 interface Activity {
@@ -9,11 +9,20 @@ interface Activity {
   prospectId: number;
   title: string;
   description: string | null;
+  activityType: string;
   dueDate: Date | null;
   completed: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const activityTypeIcons = {
+  task: ListTodo,
+  event: CalendarIcon,
+  meeting: Video,
+  call: Phone,
+  note: FileText,
+};
 
 interface ProspectWithCompany {
   id: number;
@@ -96,6 +105,8 @@ export default function TaskReminders() {
             urgentTasks.map((task, index) => {
               const { label, variant, icon: Icon } = getDueDateLabel(new Date(task.dueDate!));
               
+              const TypeIcon = activityTypeIcons[task.activityType as keyof typeof activityTypeIcons] || ListTodo;
+              
               return (
                 <div
                   key={task.id}
@@ -113,6 +124,7 @@ export default function TaskReminders() {
                       `}>
                         {index + 1}
                       </div>
+                      <TypeIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <h4 className="font-medium text-sm">{task.title}</h4>
                     </div>
                   </div>

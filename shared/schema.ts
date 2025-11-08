@@ -88,6 +88,7 @@ export const activities = pgTable("activities", {
   prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
+  activityType: text("activity_type").notNull().default("task"),
   dueDate: timestamp("due_date"),
   completed: integer("completed").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
