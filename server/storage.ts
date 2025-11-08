@@ -313,9 +313,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateLender(id: number, userId: string, updates: Partial<InsertLender>): Promise<Lender | undefined> {
+    // Filter out undefined values to preserve existing data
+    const cleanedUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    ) as Partial<InsertLender>;
+    
     const [lender] = await db
       .update(lenders)
-      .set({ ...updates, updatedAt: sql`now()` })
+      .set({ ...cleanedUpdates, updatedAt: sql`now()` })
       .where(and(eq(lenders.id, id), eq(lenders.userId, userId)))
       .returning();
     return lender || undefined;

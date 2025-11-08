@@ -208,6 +208,12 @@ export default function Pipeline() {
                 >
                   Settings
                 </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => navigate("/lenders")}
+                  data-testid="menu-item-lenders"
+                >
+                  Lender Database
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => window.location.href = "/api/logout"}
