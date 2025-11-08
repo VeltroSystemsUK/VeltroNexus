@@ -1262,7 +1262,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const submission = await storage.createApplicationSubmission(result.data, userId);
-      res.status(201).json(submission);
+      
+      // Create an activity task to log this submission
+      const activity = await storage.createActivity({
+        userId,
+        type: "task",
+        title: `Application submitted to ${lender.institutionName}`,
+        description: `Loan application for ${prospect.company.companyName} submitted to ${lender.institutionName}`,
+        prospectId: result.data.prospectId,
+        priority: "high",
+        dueDate: null,
+        completed: true,
+        completedAt: new Date(),
+      });
+      
+      res.status(201).json({ submission, activity });
     } catch (error) {
       console.error("Error creating submission:", error);
       res.status(500).json({ message: "Failed to create submission" });

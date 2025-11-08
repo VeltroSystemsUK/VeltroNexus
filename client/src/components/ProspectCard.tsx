@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GripVertical, MoreVertical, PoundSterling } from "lucide-react";
+import { GripVertical, MoreVertical, PoundSterling, Send } from "lucide-react";
+import SubmitApplicationDialog from "./SubmitApplicationDialog";
 
 export type Priority = "high" | "medium" | "low";
 
@@ -57,6 +59,8 @@ export default function ProspectCard({
   availableStages = [],
   currentStage,
 }: ProspectCardProps) {
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -68,6 +72,7 @@ export default function ProspectCard({
 
   const stage = currentStage || prospect.stage || "lead";
   const stageColorClass = stageColors[stage] || stageColors["lead"];
+  const isSubmissionStage = stage === "submission";
 
   return (
     <Card
@@ -130,16 +135,41 @@ export default function ProspectCard({
           </div>
         )}
 
-        {prospect.priority && (
-          <Badge
-            variant="outline"
-            className={`text-xs ${priorityColors[prospect.priority]}`}
-            data-testid={`badge-priority-${prospect.id}`}
-          >
-            {prospect.priority.charAt(0).toUpperCase() + prospect.priority.slice(1)} Priority
-          </Badge>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {prospect.priority && (
+            <Badge
+              variant="outline"
+              className={`text-xs ${priorityColors[prospect.priority]}`}
+              data-testid={`badge-priority-${prospect.id}`}
+            >
+              {prospect.priority.charAt(0).toUpperCase() + prospect.priority.slice(1)} Priority
+            </Badge>
+          )}
+          
+          {isSubmissionStage && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSubmitDialogOpen(true);
+              }}
+              data-testid={`button-submit-application-${prospect.id}`}
+            >
+              <Send className="h-3 w-3 mr-1" />
+              Submit
+            </Button>
+          )}
+        </div>
       </CardContent>
+      
+      <SubmitApplicationDialog
+        open={submitDialogOpen}
+        onOpenChange={setSubmitDialogOpen}
+        prospectId={prospect.id}
+        companyName={prospect.companyName}
+      />
     </Card>
   );
 }
