@@ -10,6 +10,7 @@ interface Activity {
   title: string;
   description: string | null;
   activityType: string;
+  priority: string;
   dueDate: Date | null;
   completed: number | null;
   createdAt: Date;
@@ -103,7 +104,9 @@ export default function TaskReminders() {
             </div>
           ) : (
             urgentTasks.map((task, index) => {
-              const { label, variant, icon: Icon } = getDueDateLabel(new Date(task.dueDate!));
+              const activityDate = new Date(task.dueDate!);
+              const { label, variant, icon: Icon } = getDueDateLabel(activityDate);
+              const hasTime = activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0;
               
               const TypeIcon = activityTypeIcons[task.activityType as keyof typeof activityTypeIcons] || ListTodo;
               
@@ -134,13 +137,32 @@ export default function TaskReminders() {
                     </p>
                   )}
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="text-xs">
-                      {getProspectName(task.prospectId)}
-                    </Badge>
+                    {task.prospectId && (
+                      <Badge variant="outline" className="text-xs">
+                        {getProspectName(task.prospectId)}
+                      </Badge>
+                    )}
                     <Badge variant={variant} className="text-xs">
                       <Icon className="h-3 w-3 mr-1" />
                       {label}
+                      {hasTime && ` ${format(activityDate, "HH:mm")}`}
                     </Badge>
+                    {task.priority && (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          task.priority === "urgent"
+                            ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20"
+                            : task.priority === "high"
+                            ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20"
+                            : task.priority === "medium"
+                            ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20"
+                            : "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
+                        }`}
+                      >
+                        {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               );

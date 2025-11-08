@@ -42,6 +42,7 @@ interface Activity {
   title: string;
   description: string | null;
   activityType: string;
+  priority: string;
   dueDate: Date | null;
   completed: number | null;
   createdAt: Date;
@@ -60,7 +61,9 @@ const activityFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   activityType: z.enum(["task", "event", "meeting", "call", "note"]).default("task"),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   dueDate: z.date().optional(),
+  dueTime: z.string().optional(),
   completed: z.number().int().min(0).max(1).default(0),
 });
 
@@ -102,16 +105,32 @@ export default function ActivityCalendar() {
       title: "",
       description: "",
       activityType: "task",
+      priority: "medium",
       dueDate: undefined,
+      dueTime: "",
       completed: 0,
     },
   });
 
   const createActivityMutation = useMutation({
     mutationFn: async (data: ActivityFormData) => {
+      let combinedDateTime = null;
+      if (data.dueDate) {
+        combinedDateTime = new Date(data.dueDate);
+        if (data.dueTime) {
+          const [hours, minutes] = data.dueTime.split(':');
+          combinedDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+      }
+      
       const payload = {
-        ...data,
-        dueDate: data.dueDate ? data.dueDate.toISOString() : null,
+        title: data.title,
+        description: data.description,
+        activityType: data.activityType,
+        priority: data.priority,
+        prospectId: data.prospectId,
+        completed: data.completed,
+        dueDate: combinedDateTime ? combinedDateTime.toISOString() : null,
       };
       return await apiRequest("/api/activities", "POST", payload);
     },
@@ -232,17 +251,29 @@ export default function ActivityCalendar() {
                       {dayActivities.slice(0, 2).map((activity) => {
                         const Icon = activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] || ListTodo;
                         const colorClass = activityTypeColors[activity.activityType as keyof typeof activityTypeColors] || activityTypeColors.task;
+                        const activityDate = activity.dueDate ? new Date(activity.dueDate) : null;
+                        const hasTime = activityDate && (activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0);
+                        const priorityColor = activity.priority === "urgent"
+                          ? "border-l-red-500"
+                          : activity.priority === "high"
+                          ? "border-l-orange-500"
+                          : activity.priority === "medium"
+                          ? "border-l-yellow-500"
+                          : "border-l-green-500";
                         
                         return (
                           <div
                             key={activity.id}
-                            className={`text-xs truncate px-1.5 py-0.5 rounded flex items-center gap-1 ${colorClass}`}
-                            title={activity.title}
+                            className={`text-xs truncate px-1.5 py-0.5 rounded flex items-center gap-1 border-l-2 ${colorClass} ${priorityColor}`}
+                            title={`${activity.title}${hasTime ? ` - ${format(activityDate, 'HH:mm')}` : ''} [${activity.priority}]`}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Icon className="h-3 w-3 flex-shrink-0" />
                             {activity.completed === 1 && (
                               <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                            )}
+                            {hasTime && (
+                              <span className="font-medium">{format(activityDate, 'HH:mm')}</span>
                             )}
                             <span className="truncate">{activity.title}</span>
                           </div>
@@ -340,6 +371,51 @@ export default function ActivityCalendar() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-activity-priority">
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="dueTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="time"
+                        data-testid="input-activity-time"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

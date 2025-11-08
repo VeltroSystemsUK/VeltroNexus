@@ -42,6 +42,7 @@ interface Activity {
   title: string;
   description: string | null;
   activityType: string;
+  priority: string;
   dueDate: Date | null;
   completed: number | null;
   createdAt: Date;
@@ -326,13 +327,36 @@ export default function ToDoList() {
                     </p>
                   )}
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <Badge variant="outline" className="text-xs">
-                      {getProspectName(activity.prospectId)}
-                    </Badge>
-                    {activity.dueDate && (
-                      <Badge variant="secondary" className="text-xs">
-                        <CalendarIcon className="h-3 w-3 mr-1" />
-                        {format(new Date(activity.dueDate), "MMM d, yyyy")}
+                    {activity.prospectId && (
+                      <Badge variant="outline" className="text-xs">
+                        {getProspectName(activity.prospectId)}
+                      </Badge>
+                    )}
+                    {activity.dueDate && (() => {
+                      const activityDate = new Date(activity.dueDate);
+                      const hasTime = activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0;
+                      return (
+                        <Badge variant="secondary" className="text-xs">
+                          <CalendarIcon className="h-3 w-3 mr-1" />
+                          {format(activityDate, "MMM d, yyyy")}
+                          {hasTime && ` ${format(activityDate, "HH:mm")}`}
+                        </Badge>
+                      );
+                    })()}
+                    {activity.priority && (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          activity.priority === "urgent"
+                            ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20"
+                            : activity.priority === "high"
+                            ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20"
+                            : activity.priority === "medium"
+                            ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20"
+                            : "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
+                        }`}
+                      >
+                        {activity.priority.charAt(0).toUpperCase() + activity.priority.slice(1)}
                       </Badge>
                     )}
                   </div>

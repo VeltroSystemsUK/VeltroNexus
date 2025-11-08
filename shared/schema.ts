@@ -90,6 +90,7 @@ export const activities = pgTable("activities", {
   title: text("title").notNull(),
   description: text("description"),
   activityType: text("activity_type").notNull().default("task"),
+  priority: text("priority").notNull().default("medium"),
   dueDate: timestamp("due_date"),
   completed: integer("completed").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -203,6 +204,7 @@ export const insertActivitySchema = createInsertSchema(activities, {
     z.string().trim().regex(/^[0-9]+$/).transform(Number),
     z.null(),
   ]).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   dueDate: z.union([
     z.date(),
     z.string().transform((val) => (val ? new Date(val) : null)),
