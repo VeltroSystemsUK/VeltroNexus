@@ -234,7 +234,7 @@ export const updateProspectStageSchema = z.object({
     "qualified",
     "proposal",
     "due-diligence",
-    "approval",
+    "submission",
     "approved",
     "declined",
     "withdrawn",

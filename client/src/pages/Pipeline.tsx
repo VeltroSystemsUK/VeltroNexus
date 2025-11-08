@@ -258,7 +258,7 @@ export default function Pipeline() {
                 Active Pipeline
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                {ACTIVE_STAGES.map((stage) => {
+                {[...PROSPECT_STAGES, ...PROCESS_STAGES].map((stage) => {
                   const stageProspects = getProspectsByStage(stage.value);
                   const totalValue = getTotalValueByStage(stage.value);
 
@@ -297,7 +297,7 @@ export default function Pipeline() {
                                         dragHandleProps={provided.dragHandleProps}
                                         isDragging={snapshot.isDragging}
                                         currentStage={stage.value}
-                                        availableStages={STAGES}
+                                        availableStages={ALL_STAGES}
                                         onClick={() => navigate(`/prospect/${prospect.id}`)}
                                         onMove={(newStage) =>
                                           handleStageChange(prospect.id, newStage as Stage)
@@ -362,7 +362,7 @@ export default function Pipeline() {
                                         dragHandleProps={provided.dragHandleProps}
                                         isDragging={snapshot.isDragging}
                                         currentStage={stage.value}
-                                        availableStages={STAGES}
+                                        availableStages={ALL_STAGES}
                                         onClick={() => navigate(`/prospect/${prospect.id}`)}
                                         onMove={(newStage) =>
                                           handleStageChange(prospect.id, newStage as Stage)
