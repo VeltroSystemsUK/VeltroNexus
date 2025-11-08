@@ -12,6 +12,8 @@ import ToDoList from "@/components/ToDoList";
 import TaskReminders from "@/components/TaskReminders";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,29 +21,34 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, LayoutDashboard, Users, Send } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import type { ProspectWithCompany } from "@shared/schema";
 
-type Stage = "lead" | "contacted" | "qualified" | "proposal" | "due-diligence" | "approval" | "approved" | "declined" | "withdrawn";
+type Stage = "lead" | "contacted" | "qualified" | "proposal" | "due-diligence" | "submission" | "approved" | "declined" | "withdrawn";
 
-const STAGES: { value: Stage; label: string }[] = [
+const PROSPECT_STAGES: { value: Stage; label: string }[] = [
   { value: "lead", label: "Lead" },
   { value: "contacted", label: "Contacted" },
   { value: "qualified", label: "Qualified" },
+];
+
+const PROCESS_STAGES: { value: Stage; label: string }[] = [
   { value: "proposal", label: "Proposal" },
   { value: "due-diligence", label: "Due Diligence" },
-  { value: "approval", label: "Approval" },
+  { value: "submission", label: "Submission" },
+];
+
+const FINAL_STAGES: { value: Stage; label: string }[] = [
   { value: "approved", label: "Approved" },
   { value: "declined", label: "Declined" },
   { value: "withdrawn", label: "Withdrawn" },
 ];
 
-const ACTIVE_STAGES = STAGES.slice(0, 6);
-const FINAL_STAGES = STAGES.slice(6);
+const ALL_STAGES = [...PROSPECT_STAGES, ...PROCESS_STAGES, ...FINAL_STAGES];
 
 export default function Pipeline() {
   const [, navigate] = useLocation();

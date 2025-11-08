@@ -127,7 +127,7 @@ export class DatabaseStorage implements IStorage {
   async createCompany(insertCompany: InsertCompany): Promise<Company> {
     const [company] = await db
       .insert(companies)
-      .values(insertCompany)
+      .values(insertCompany as any)
       .returning();
     return company;
   }
@@ -207,7 +207,7 @@ export class DatabaseStorage implements IStorage {
   async createContact(insertContact: InsertContact): Promise<Contact> {
     const [contact] = await db
       .insert(contacts)
-      .values(insertContact)
+      .values(insertContact as any)
       .returning();
     return contact;
   }
@@ -244,7 +244,7 @@ export class DatabaseStorage implements IStorage {
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {
     const [activity] = await db
       .insert(activities)
-      .values(insertActivity)
+      .values(insertActivity as any)
       .returning();
     return activity;
   }
@@ -307,7 +307,7 @@ export class DatabaseStorage implements IStorage {
   async createLender(insertLender: InsertLender, userId: string): Promise<Lender> {
     const [lender] = await db
       .insert(lenders)
-      .values({ ...insertLender, userId })
+      .values({ ...insertLender, userId } as any)
       .returning();
     return lender;
   }
@@ -346,7 +346,7 @@ export class DatabaseStorage implements IStorage {
   async createApplicationSubmission(insertSubmission: InsertApplicationSubmission, userId: string): Promise<ApplicationSubmission> {
     const [submission] = await db
       .insert(applicationSubmissions)
-      .values({ ...insertSubmission, userId })
+      .values({ ...insertSubmission, userId } as any)
       .returning();
     return submission;
   }

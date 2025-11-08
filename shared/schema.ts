@@ -205,8 +205,8 @@ export const companiesRelations = relations(companies, ({ many }) => ({
 }));
 
 export const insertCompanySchema = createInsertSchema(companies).omit({
-  id: true as const,
-  createdAt: true as const,
+  id: true,
+  createdAt: true,
 });
 
 export const insertProspectSchema = createInsertSchema(prospects, {
@@ -220,10 +220,10 @@ export const insertProspectSchema = createInsertSchema(prospects, {
     z.null(),
   ]).optional(),
 }).omit({
-  id: true as const,
-  userId: true as const,
-  createdAt: true as const,
-  updatedAt: true as const,
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const updateProspectStageSchema = z.object({
@@ -247,8 +247,8 @@ export const insertContactSchema = createInsertSchema(contacts, {
     z.string().trim().regex(/^[0-9]+$/).transform(Number),
   ]),
 }).omit({
-  id: true as const,
-  createdAt: true as const,
+  id: true,
+  createdAt: true,
 });
 
 export const insertActivitySchema = createInsertSchema(activities, {
@@ -264,17 +264,17 @@ export const insertActivitySchema = createInsertSchema(activities, {
     z.null(),
   ]).optional(),
 }).omit({
-  id: true as const,
-  userId: true as const,
-  createdAt: true as const,
-  updatedAt: true as const,
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const insertLenderSchema = createInsertSchema(lenders).omit({
-  id: true as const,
-  userId: true as const,
-  createdAt: true as const,
-  updatedAt: true as const,
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const insertApplicationSubmissionSchema = createInsertSchema(applicationSubmissions, {
@@ -288,11 +288,11 @@ export const insertApplicationSubmissionSchema = createInsertSchema(applicationS
   ]),
   status: z.enum(["pending", "sent", "approved", "declined", "withdrawn"]).default("pending"),
 }).omit({
-  id: true as const,
-  userId: true as const,
-  createdAt: true as const,
-  updatedAt: true as const,
-  sentAt: true as const,
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+  sentAt: true,
 });
 
 export type UpsertUser = typeof users.$inferInsert;
@@ -356,9 +356,9 @@ export const dueDiligenceDataSchema = z.object({
 });
 
 export const insertDueDiligenceSchema = createInsertSchema(dueDiligence).omit({
-  id: true as const,
-  createdAt: true as const,
-  updatedAt: true as const,
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const updateDueDiligenceSchema = z.object({
