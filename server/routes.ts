@@ -826,6 +826,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activities API - Protected routes
+  app.get("/api/activities", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const activities = await storage.listAllUserActivities(userId);
+      res.json(activities);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/prospects/:prospectId/activities", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);

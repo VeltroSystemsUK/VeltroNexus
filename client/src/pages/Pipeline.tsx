@@ -7,6 +7,9 @@ import PipelineColumn from "@/components/PipelineColumn";
 import ProspectCard, { type ProspectCardData } from "@/components/ProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
 import ThemeToggle from "@/components/ThemeToggle";
+import ActivityCalendar from "@/components/ActivityCalendar";
+import ToDoList from "@/components/ToDoList";
+import TaskReminders from "@/components/TaskReminders";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -217,6 +220,17 @@ export default function Pipeline() {
           <p className="text-muted-foreground" data-testid="text-page-description">
             Visual overview of your lending pipeline - drag cards to move between stages
           </p>
+        </div>
+
+        {/* CRM Features Section */}
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <ActivityCalendar />
+          </div>
+          <div className="space-y-6">
+            <TaskReminders />
+            <ToDoList />
+          </div>
         </div>
 
         <div className="mb-8">

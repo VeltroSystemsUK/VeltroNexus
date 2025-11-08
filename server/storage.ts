@@ -49,6 +49,7 @@ export interface IStorage {
 
   // Activities
   listActivities(prospectId: number): Promise<Activity[]>;
+  listAllUserActivities(userId: string): Promise<Activity[]>;
   createActivity(activity: InsertActivity): Promise<Activity>;
   updateActivity(id: number, updates: Partial<InsertActivity>): Promise<Activity | undefined>;
   deleteActivity(id: number): Promise<void>;
@@ -210,6 +211,17 @@ export class DatabaseStorage implements IStorage {
       .from(activities)
       .where(eq(activities.prospectId, prospectId))
       .orderBy(activities.createdAt);
+  }
+
+  async listAllUserActivities(userId: string): Promise<Activity[]> {
+    const results = await db
+      .select()
+      .from(activities)
+      .innerJoin(prospects, eq(activities.prospectId, prospects.id))
+      .where(eq(prospects.userId, userId))
+      .orderBy(activities.dueDate);
+    
+    return results.map(r => r.activities);
   }
 
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {
