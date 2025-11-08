@@ -15,7 +15,7 @@ The frontend is built with React and TypeScript, utilizing Vite for bundling and
 The backend uses Express.js with TypeScript and Node.js, providing a RESTful API. It features custom Vite integration, request/response logging, Zod for schema validation, and robust error handling. Authentication endpoints handle OpenID Connect login/logout, while protected API endpoints manage CRUD operations for prospects, companies, due diligence data, and integrations.
 
 ### Database
-The application uses Drizzle ORM with Neon serverless PostgreSQL. Drizzle Kit is used for schema management. The schema includes `Users`, `Sessions`, `Companies`, `Prospects`, and `Due Diligence` tables. `Users` and `Sessions` support Replit Auth, `Companies` stores company details, `Prospects` tracks loan stages, and `Due Diligence` stores assessment tool data in a JSONB column. Relationships ensure user-specific data isolation and efficient data retrieval.
+The application uses Drizzle ORM with Neon serverless PostgreSQL. Drizzle Kit is used for schema management. The schema includes `Users`, `Sessions`, `Companies`, `Prospects`, `Activities`, and `Due Diligence` tables. `Users` and `Sessions` support Replit Auth, `Companies` stores company details, `Prospects` tracks loan stages, `Activities` stores user tasks/events/meetings/calls/notes with optional prospect association, and `Due Diligence` stores assessment tool data in a JSONB column. Relationships ensure user-specific data isolation and efficient data retrieval.
 
 ### Design System
 A comprehensive design system defines typography (Inter, JetBrains Mono), an HSL-based color system for light/dark modes with semantic tokens, and a consistent layout with defined spacing and responsive grids. UI elements are card-based with subtle shadows and borders.
@@ -26,7 +26,12 @@ A comprehensive design system defines typography (Inter, JetBrains Mono), an HSL
 - **Subscription System**: A tiered model (Free, Standard, Premium) limits prospect count per user, with server-side enforcement and a pricing page. Paid tiers unlock Due Diligence tools. Integrates with GoCardless for Direct Debit payments.
 - **Prospect Management**: Includes an editable priority system with color-coded indicators, a confirmation-dialog-protected delete functionality with cascading deletions, color-coded pipeline cards that change based on stage (9 distinct colors from Lead to Withdrawn), and PDF report generation for comprehensive prospect data, including integrated Companies House details.
 - **Profile and Settings Pages**: The Profile page displays account info, subscription status, upgrade options, and GoCardless integration for subscription management. The Settings page allows customization of appearance, regional settings (currency, timezone, date format), customizable pipeline stage names, and PDF report layout customization with drag-and-drop section reordering and toggle controls.
-- **CRM Features**: Integrated CRM tools on the Pipeline Dashboard include: ActivityCalendar (month-by-month calendar view showing all user activities across prospects with navigation controls), ToDoList (comprehensive task management with create/complete/delete functionality and form validation), and TaskReminders (widget displaying 3 most urgent incomplete tasks sorted by due date with color-coded priority badges for overdue, due today, and upcoming tasks).
+- **CRM Features**: Integrated CRM tools on the Pipeline Dashboard include: 
+  - **ActivityCalendar**: Month-by-month calendar view showing all user activities with navigation controls. Click any calendar date to create new activities (tasks, events, meetings, calls, or notes) with optional prospect association. Activities display with type-specific icons: Task (ListTodo), Event (Calendar), Meeting (Video), Call (Phone), Note (FileText).
+  - **ToDoList**: Comprehensive task management with create/complete/delete functionality, form validation, and activity type badges showing type-specific icons.
+  - **TaskReminders**: Widget displaying 3 most urgent incomplete tasks sorted by due date with color-coded priority badges for overdue, due today, and upcoming tasks.
+  
+  Activities are stored in the database with userId (required) and prospectId (optional), enabling both prospect-specific and general user activities. All three CRM components share the same data source and display consistent type icons across the interface.
 
 ## External Dependencies
 
