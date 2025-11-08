@@ -109,7 +109,11 @@ export default function ActivityCalendar() {
 
   const createActivityMutation = useMutation({
     mutationFn: async (data: ActivityFormData) => {
-      return await apiRequest("/api/activities", "POST", data);
+      const payload = {
+        ...data,
+        dueDate: data.dueDate ? data.dueDate.toISOString() : null,
+      };
+      return await apiRequest("/api/activities", "POST", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });

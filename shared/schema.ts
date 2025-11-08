@@ -201,6 +201,11 @@ export const insertActivitySchema = createInsertSchema(activities, {
     z.number().int().positive(),
     z.string().trim().regex(/^[0-9]+$/).transform(Number),
   ]),
+  dueDate: z.union([
+    z.date(),
+    z.string().transform((val) => (val ? new Date(val) : null)),
+    z.null(),
+  ]).optional(),
 }).omit({
   id: true as const,
   createdAt: true as const,
