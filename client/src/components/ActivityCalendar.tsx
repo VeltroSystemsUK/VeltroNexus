@@ -56,7 +56,7 @@ interface ProspectWithCompany {
 }
 
 const activityFormSchema = z.object({
-  prospectId: z.number().int().positive(),
+  prospectId: z.number().int().positive().optional(),
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   activityType: z.enum(["task", "event", "meeting", "call", "note"]).default("task"),
@@ -388,14 +388,14 @@ export default function ActivityCalendar() {
                 name="prospectId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Related Prospect</FormLabel>
+                    <FormLabel>Related Prospect (Optional)</FormLabel>
                     <Select
                       onValueChange={(value) => field.onChange(parseInt(value))}
                       value={field.value?.toString()}
                     >
                       <FormControl>
                         <SelectTrigger data-testid="select-activity-prospect">
-                          <SelectValue placeholder="Select a prospect" />
+                          <SelectValue placeholder="Select a prospect (optional)" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>

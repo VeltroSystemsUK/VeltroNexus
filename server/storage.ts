@@ -214,14 +214,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async listAllUserActivities(userId: string): Promise<Activity[]> {
-    const results = await db
+    return await db
       .select()
       .from(activities)
-      .innerJoin(prospects, eq(activities.prospectId, prospects.id))
-      .where(eq(prospects.userId, userId))
+      .where(eq(activities.userId, userId))
       .orderBy(activities.dueDate);
-    
-    return results.map(r => r.activities);
   }
 
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {

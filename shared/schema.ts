@@ -85,7 +85,8 @@ export const contacts = pgTable("contacts", {
 
 export const activities = pgTable("activities", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  prospectId: integer("prospect_id").references(() => prospects.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
   activityType: text("activity_type").notNull().default("task"),
@@ -200,7 +201,8 @@ export const insertActivitySchema = createInsertSchema(activities, {
   prospectId: z.union([
     z.number().int().positive(),
     z.string().trim().regex(/^[0-9]+$/).transform(Number),
-  ]),
+    z.null(),
+  ]).optional(),
   dueDate: z.union([
     z.date(),
     z.string().transform((val) => (val ? new Date(val) : null)),
@@ -208,6 +210,7 @@ export const insertActivitySchema = createInsertSchema(activities, {
   ]).optional(),
 }).omit({
   id: true as const,
+  userId: true as const,
   createdAt: true as const,
   updatedAt: true as const,
 });

@@ -836,13 +836,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/activities", isAuthenticated, async (req, res) => {
+  app.post("/api/activities", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const result = insertActivitySchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
-      const activity = await storage.createActivity(result.data);
+      const activity = await storage.createActivity({ ...result.data, userId });
       res.json(activity);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -859,14 +860,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/prospects/:prospectId/activities", isAuthenticated, async (req, res) => {
+  app.post("/api/prospects/:prospectId/activities", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
       const result = insertActivitySchema.safeParse({ ...req.body, prospectId });
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
-      const activity = await storage.createActivity(result.data);
+      const activity = await storage.createActivity({ ...result.data, userId });
       res.json(activity);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
