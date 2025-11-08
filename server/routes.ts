@@ -8,6 +8,8 @@ import {
   updateProspectStageSchema,
   insertContactSchema,
   insertActivitySchema,
+  insertLenderSchema,
+  insertApplicationSubmissionSchema,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -1138,6 +1140,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("GoCardless webhook error:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Lenders API - Protected routes
+  app.get("/api/lenders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const lenders = await storage.listLenders(userId);
+      res.json(lenders);
+    } catch (error) {
+      console.error("Error fetching lenders:", error);
+      res.status(500).json({ message: "Failed to fetch lenders" });
+    }
+  });
+
+  app.get("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const lenderId = parseInt(req.params.id);
+      const lender = await storage.getLender(lenderId, userId);
+      
+      if (!lender) {
+        return res.status(404).json({ message: "Lender not found" });
+      }
+      
+      res.json(lender);
+    } catch (error) {
+      console.error("Error fetching lender:", error);
+      res.status(500).json({ message: "Failed to fetch lender" });
+    }
+  });
+
+  app.post("/api/lenders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = insertLenderSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ message: validationError.toString() });
+      }
+      
+      const lender = await storage.createLender(result.data, userId);
+      res.status(201).json(lender);
+    } catch (error) {
+      console.error("Error creating lender:", error);
+      res.status(500).json({ message: "Failed to create lender" });
+    }
+  });
+
+  app.patch("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const lenderId = parseInt(req.params.id);
+      const result = insertLenderSchema.partial().safeParse(req.body);
+      
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ message: validationError.toString() });
+      }
+      
+      const lender = await storage.updateLender(lenderId, userId, result.data);
+      
+      if (!lender) {
+        return res.status(404).json({ message: "Lender not found" });
+      }
+      
+      res.json(lender);
+    } catch (error) {
+      console.error("Error updating lender:", error);
+      res.status(500).json({ message: "Failed to update lender" });
+    }
+  });
+
+  app.delete("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const lenderId = parseInt(req.params.id);
+      
+      await storage.deleteLender(lenderId, userId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting lender:", error);
+      res.status(500).json({ message: "Failed to delete lender" });
+    }
+  });
+
+  // Application Submissions API - Protected routes
+  app.get("/api/submissions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const submissions = await storage.listApplicationSubmissions(userId);
+      res.json(submissions);
+    } catch (error) {
+      console.error("Error fetching submissions:", error);
+      res.status(500).json({ message: "Failed to fetch submissions" });
+    }
+  });
+
+  app.post("/api/submissions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = insertApplicationSubmissionSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ message: validationError.toString() });
+      }
+      
+      // Validate that the prospect belongs to the user
+      const prospect = await storage.getProspect(result.data.prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ message: "Prospect not found" });
+      }
+      
+      // Validate that the lender belongs to the user
+      const lender = await storage.getLender(result.data.lenderId, userId);
+      if (!lender) {
+        return res.status(404).json({ message: "Lender not found" });
+      }
+      
+      const submission = await storage.createApplicationSubmission(result.data, userId);
+      res.status(201).json(submission);
+    } catch (error) {
+      console.error("Error creating submission:", error);
+      res.status(500).json({ message: "Failed to create submission" });
     }
   });
 

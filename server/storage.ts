@@ -5,6 +5,8 @@ import {
   contacts,
   activities,
   dueDiligence,
+  lenders,
+  applicationSubmissions,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -18,6 +20,10 @@ import {
   type InsertActivity,
   type DueDiligence,
   type DueDiligenceData,
+  type Lender,
+  type InsertLender,
+  type ApplicationSubmission,
+  type InsertApplicationSubmission,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -57,6 +63,20 @@ export interface IStorage {
   // Due Diligence
   getDueDiligence(prospectId: number): Promise<DueDiligence | undefined>;
   upsertDueDiligence(prospectId: number, data: DueDiligenceData): Promise<DueDiligence>;
+
+  // Lenders
+  listLenders(userId: string): Promise<Lender[]>;
+  getLender(id: number, userId: string): Promise<Lender | undefined>;
+  createLender(lender: InsertLender, userId: string): Promise<Lender>;
+  updateLender(id: number, userId: string, updates: Partial<InsertLender>): Promise<Lender | undefined>;
+  deleteLender(id: number, userId: string): Promise<void>;
+
+  // Application Submissions
+  listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]>;
+  getApplicationSubmission(id: number, userId: string): Promise<ApplicationSubmission | undefined>;
+  createApplicationSubmission(submission: InsertApplicationSubmission, userId: string): Promise<ApplicationSubmission>;
+  updateApplicationSubmission(id: number, userId: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined>;
+  deleteApplicationSubmission(id: number, userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -266,6 +286,84 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return result;
+  }
+
+  async listLenders(userId: string): Promise<Lender[]> {
+    return await db
+      .select()
+      .from(lenders)
+      .where(eq(lenders.userId, userId))
+      .orderBy(lenders.institutionName);
+  }
+
+  async getLender(id: number, userId: string): Promise<Lender | undefined> {
+    const [lender] = await db
+      .select()
+      .from(lenders)
+      .where(and(eq(lenders.id, id), eq(lenders.userId, userId)));
+    return lender || undefined;
+  }
+
+  async createLender(insertLender: InsertLender, userId: string): Promise<Lender> {
+    const [lender] = await db
+      .insert(lenders)
+      .values({ ...insertLender, userId })
+      .returning();
+    return lender;
+  }
+
+  async updateLender(id: number, userId: string, updates: Partial<InsertLender>): Promise<Lender | undefined> {
+    const [lender] = await db
+      .update(lenders)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(and(eq(lenders.id, id), eq(lenders.userId, userId)))
+      .returning();
+    return lender || undefined;
+  }
+
+  async deleteLender(id: number, userId: string): Promise<void> {
+    await db
+      .delete(lenders)
+      .where(and(eq(lenders.id, id), eq(lenders.userId, userId)));
+  }
+
+  async listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]> {
+    return await db
+      .select()
+      .from(applicationSubmissions)
+      .where(eq(applicationSubmissions.userId, userId))
+      .orderBy(applicationSubmissions.sentAt);
+  }
+
+  async getApplicationSubmission(id: number, userId: string): Promise<ApplicationSubmission | undefined> {
+    const [submission] = await db
+      .select()
+      .from(applicationSubmissions)
+      .where(and(eq(applicationSubmissions.id, id), eq(applicationSubmissions.userId, userId)));
+    return submission || undefined;
+  }
+
+  async createApplicationSubmission(insertSubmission: InsertApplicationSubmission, userId: string): Promise<ApplicationSubmission> {
+    const [submission] = await db
+      .insert(applicationSubmissions)
+      .values({ ...insertSubmission, userId })
+      .returning();
+    return submission;
+  }
+
+  async updateApplicationSubmission(id: number, userId: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined> {
+    const [submission] = await db
+      .update(applicationSubmissions)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(and(eq(applicationSubmissions.id, id), eq(applicationSubmissions.userId, userId)))
+      .returning();
+    return submission || undefined;
+  }
+
+  async deleteApplicationSubmission(id: number, userId: string): Promise<void> {
+    await db
+      .delete(applicationSubmissions)
+      .where(and(eq(applicationSubmissions.id, id), eq(applicationSubmissions.userId, userId)));
   }
 }
 

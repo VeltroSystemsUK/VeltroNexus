@@ -105,6 +105,33 @@ export const dueDiligence = pgTable("due_diligence", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const lenders = pgTable("lenders", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  institutionName: text("institution_name").notNull(),
+  contactName: text("contact_name"),
+  email: varchar("email").notNull(),
+  phone: varchar("phone"),
+  address: text("address"),
+  website: varchar("website"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const applicationSubmissions = pgTable("application_submissions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
+  lenderId: integer("lender_id").notNull().references(() => lenders.id, { onDelete: "restrict" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  commentary: text("commentary"),
+  status: text("status").notNull().default("pending"),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  responseNotes: text("response_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const prospectsRelations = relations(prospects, ({ one, many }) => ({
   user: one(users, {
     fields: [prospects.userId],
@@ -120,6 +147,7 @@ export const prospectsRelations = relations(prospects, ({ one, many }) => ({
     fields: [prospects.id],
     references: [dueDiligence.prospectId],
   }),
+  applicationSubmissions: many(applicationSubmissions),
 }));
 
 export const contactsRelations = relations(contacts, ({ one }) => ({
@@ -143,8 +171,33 @@ export const dueDiligenceRelations = relations(dueDiligence, ({ one }) => ({
   }),
 }));
 
+export const lendersRelations = relations(lenders, ({ one, many }) => ({
+  user: one(users, {
+    fields: [lenders.userId],
+    references: [users.id],
+  }),
+  applicationSubmissions: many(applicationSubmissions),
+}));
+
+export const applicationSubmissionsRelations = relations(applicationSubmissions, ({ one }) => ({
+  prospect: one(prospects, {
+    fields: [applicationSubmissions.prospectId],
+    references: [prospects.id],
+  }),
+  lender: one(lenders, {
+    fields: [applicationSubmissions.lenderId],
+    references: [lenders.id],
+  }),
+  user: one(users, {
+    fields: [applicationSubmissions.userId],
+    references: [users.id],
+  }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   prospects: many(prospects),
+  lenders: many(lenders),
+  applicationSubmissions: many(applicationSubmissions),
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
@@ -217,6 +270,31 @@ export const insertActivitySchema = createInsertSchema(activities, {
   updatedAt: true as const,
 });
 
+export const insertLenderSchema = createInsertSchema(lenders).omit({
+  id: true as const,
+  userId: true as const,
+  createdAt: true as const,
+  updatedAt: true as const,
+});
+
+export const insertApplicationSubmissionSchema = createInsertSchema(applicationSubmissions, {
+  prospectId: z.union([
+    z.number().int().positive(),
+    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+  ]),
+  lenderId: z.union([
+    z.number().int().positive(),
+    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+  ]),
+  status: z.enum(["pending", "sent", "approved", "declined", "withdrawn"]).default("pending"),
+}).omit({
+  id: true as const,
+  userId: true as const,
+  createdAt: true as const,
+  updatedAt: true as const,
+  sentAt: true as const,
+});
+
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -229,6 +307,10 @@ export type InsertContact = z.infer<typeof insertContactSchema>;
 export type Contact = typeof contacts.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
+export type InsertLender = z.infer<typeof insertLenderSchema>;
+export type Lender = typeof lenders.$inferSelect;
+export type InsertApplicationSubmission = z.infer<typeof insertApplicationSubmissionSchema>;
+export type ApplicationSubmission = typeof applicationSubmissions.$inferSelect;
 
 export const checklistItemSchema = z.object({
   sectionId: z.string(),
