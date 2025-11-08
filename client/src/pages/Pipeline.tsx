@@ -223,166 +223,298 @@ export default function Pipeline() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2" data-testid="text-page-title">Pipeline</h2>
+          <h2 className="text-3xl font-bold mb-2" data-testid="text-page-title">FlowLoan</h2>
           <p className="text-muted-foreground" data-testid="text-page-description">
-            Visual overview of your lending pipeline - drag cards to move between stages
+            Manage your commercial lending pipeline and track loan applications
           </p>
-        </div>
-
-        {/* CRM Features Section */}
-        <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <ActivityCalendar />
-          </div>
-          <div className="space-y-6">
-            <TaskReminders />
-            <ToDoList />
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <PipelineStats
-            totalProspects={prospects.length}
-            activeProspects={activeProspects}
-            totalValue={formatCurrency(totalValue)}
-            approvedCount={approvedCount}
-          />
         </div>
 
         {prospects.length === 0 ? (
           <EmptyPipeline onAddProspect={() => navigate("/search")} />
         ) : (
-          <DragDropContext onDragEnd={onDragEnd}>
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold mb-4" data-testid="text-active-pipeline">
-                Active Pipeline
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                {[...PROSPECT_STAGES, ...PROCESS_STAGES].map((stage) => {
-                  const stageProspects = getProspectsByStage(stage.value);
-                  const totalValue = getTotalValueByStage(stage.value);
+          <Tabs defaultValue="dashboard" className="w-full" data-testid="tabs-main">
+            <TabsList className="grid w-full grid-cols-3 mb-8" data-testid="tabs-list">
+              <TabsTrigger value="dashboard" data-testid="tab-dashboard">
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="prospect-pipeline" data-testid="tab-prospect-pipeline">
+                <Users className="h-4 w-4 mr-2" />
+                Prospect Pipeline
+              </TabsTrigger>
+              <TabsTrigger value="process-pipeline" data-testid="tab-process-pipeline">
+                <Send className="h-4 w-4 mr-2" />
+                Process Pipeline
+              </TabsTrigger>
+            </TabsList>
 
-                  return (
-                    <Droppable key={stage.value} droppableId={stage.value}>
-                      {(provided, snapshot) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps}>
-                          <PipelineColumn
-                            title={stage.label}
-                            count={stageProspects.length}
-                            totalValue={totalValue}
-                            isDraggingOver={snapshot.isDraggingOver}
-                          >
-                            {stageProspects.map((prospect, index) => {
-                              const cardData: ProspectCardData = {
-                                id: prospect.id,
-                                companyName: prospect.company.companyName,
-                                companyNumber: prospect.company.companyNumber,
-                                loanAmount: prospect.loanAmount ?? undefined,
-                                priority: prospect.priority as any,
-                              };
+            {/* Dashboard Tab */}
+            <TabsContent value="dashboard" data-testid="content-dashboard">
+              <div className="space-y-8">
+                {/* Headline Metrics */}
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Overview</h3>
+                  <PipelineStats
+                    totalProspects={prospects.length}
+                    activeProspects={activeProspects}
+                    totalValue={formatCurrency(totalValue)}
+                    approvedCount={approvedCount}
+                  />
+                </div>
 
-                              return (
-                                <Draggable
-                                  key={prospect.id}
-                                  draggableId={`prospect-${prospect.id}`}
-                                  index={index}
-                                >
-                                  {(provided, snapshot) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                    >
-                                      <ProspectCard
-                                        prospect={cardData}
-                                        dragHandleProps={provided.dragHandleProps}
-                                        isDragging={snapshot.isDragging}
-                                        currentStage={stage.value}
-                                        availableStages={ALL_STAGES}
-                                        onClick={() => navigate(`/prospect/${prospect.id}`)}
-                                        onMove={(newStage) =>
-                                          handleStageChange(prospect.id, newStage as Stage)
-                                        }
-                                      />
-                                    </div>
-                                  )}
-                                </Draggable>
-                              );
-                            })}
-                            {provided.placeholder}
-                          </PipelineColumn>
-                        </div>
-                      )}
-                    </Droppable>
-                  );
-                })}
+                {/* CRM Features */}
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Activity Management</h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2">
+                      <ActivityCalendar />
+                    </div>
+                    <div className="space-y-6">
+                      <TaskReminders />
+                      <ToDoList />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Stage Summary */}
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Stage Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {ALL_STAGES.filter(s => !["approved", "declined", "withdrawn"].includes(s.value)).map((stage) => {
+                      const count = getProspectsByStage(stage.value).length;
+                      const totalValue = getTotalValueByStage(stage.value);
+                      return (
+                        <Card key={stage.value} className="hover-elevate">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">{stage.label}</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold">{count}</div>
+                            {totalValue && (
+                              <p className="text-xs text-muted-foreground mt-1">{totalValue}</p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
+            </TabsContent>
 
-            <div>
-              <h3 className="text-xl font-semibold mb-4" data-testid="text-final-outcomes">
-                Final Outcomes
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {FINAL_STAGES.map((stage) => {
-                  const stageProspects = getProspectsByStage(stage.value);
-                  const totalValue = getTotalValueByStage(stage.value);
+            {/* Prospect Pipeline Tab */}
+            <TabsContent value="prospect-pipeline" data-testid="content-prospect-pipeline">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Early Stage Pipeline</h3>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    Track prospects from initial lead through qualification
+                  </p>
+                </div>
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {PROSPECT_STAGES.map((stage) => {
+                      const stageProspects = getProspectsByStage(stage.value);
+                      const totalValue = getTotalValueByStage(stage.value);
 
-                  return (
-                    <Droppable key={stage.value} droppableId={stage.value}>
-                      {(provided, snapshot) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps}>
-                          <PipelineColumn
-                            title={stage.label}
-                            count={stageProspects.length}
-                            totalValue={totalValue}
-                            isDraggingOver={snapshot.isDraggingOver}
-                          >
-                            {stageProspects.map((prospect, index) => {
-                              const cardData: ProspectCardData = {
-                                id: prospect.id,
-                                companyName: prospect.company.companyName,
-                                companyNumber: prospect.company.companyNumber,
-                                loanAmount: prospect.loanAmount ?? undefined,
-                                priority: prospect.priority as any,
-                              };
+                      return (
+                        <Droppable key={stage.value} droppableId={stage.value}>
+                          {(provided, snapshot) => (
+                            <div ref={provided.innerRef} {...provided.droppableProps}>
+                              <PipelineColumn
+                                title={stage.label}
+                                count={stageProspects.length}
+                                totalValue={totalValue}
+                                isDraggingOver={snapshot.isDraggingOver}
+                              >
+                                {stageProspects.map((prospect, index) => {
+                                  const cardData: ProspectCardData = {
+                                    id: prospect.id,
+                                    companyName: prospect.company.companyName,
+                                    companyNumber: prospect.company.companyNumber,
+                                    loanAmount: prospect.loanAmount ?? undefined,
+                                    priority: prospect.priority as any,
+                                  };
 
-                              return (
-                                <Draggable
-                                  key={prospect.id}
-                                  draggableId={`prospect-${prospect.id}`}
-                                  index={index}
-                                >
-                                  {(provided, snapshot) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
+                                  return (
+                                    <Draggable
+                                      key={prospect.id}
+                                      draggableId={`prospect-${prospect.id}`}
+                                      index={index}
                                     >
-                                      <ProspectCard
-                                        prospect={cardData}
-                                        dragHandleProps={provided.dragHandleProps}
-                                        isDragging={snapshot.isDragging}
-                                        currentStage={stage.value}
-                                        availableStages={ALL_STAGES}
-                                        onClick={() => navigate(`/prospect/${prospect.id}`)}
-                                        onMove={(newStage) =>
-                                          handleStageChange(prospect.id, newStage as Stage)
-                                        }
-                                      />
-                                    </div>
-                                  )}
-                                </Draggable>
-                              );
-                            })}
-                            {provided.placeholder}
-                          </PipelineColumn>
-                        </div>
-                      )}
-                    </Droppable>
-                  );
-                })}
+                                      {(provided, snapshot) => (
+                                        <div
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                        >
+                                          <ProspectCard
+                                            prospect={cardData}
+                                            dragHandleProps={provided.dragHandleProps}
+                                            isDragging={snapshot.isDragging}
+                                            currentStage={stage.value}
+                                            availableStages={ALL_STAGES}
+                                            onClick={() => navigate(`/prospect/${prospect.id}`)}
+                                            onMove={(newStage) =>
+                                              handleStageChange(prospect.id, newStage as Stage)
+                                            }
+                                          />
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  );
+                                })}
+                                {provided.placeholder}
+                              </PipelineColumn>
+                            </div>
+                          )}
+                        </Droppable>
+                      );
+                    })}
+                  </div>
+                </DragDropContext>
               </div>
-            </div>
-          </DragDropContext>
+            </TabsContent>
+
+            {/* Process Pipeline Tab */}
+            <TabsContent value="process-pipeline" data-testid="content-process-pipeline">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Application Processing</h3>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    Manage loan applications from proposal through to submission
+                  </p>
+                </div>
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div className="space-y-8">
+                    {/* Active Process Stages */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {PROCESS_STAGES.map((stage) => {
+                        const stageProspects = getProspectsByStage(stage.value);
+                        const totalValue = getTotalValueByStage(stage.value);
+
+                        return (
+                          <Droppable key={stage.value} droppableId={stage.value}>
+                            {(provided, snapshot) => (
+                              <div ref={provided.innerRef} {...provided.droppableProps}>
+                                <PipelineColumn
+                                  title={stage.label}
+                                  count={stageProspects.length}
+                                  totalValue={totalValue}
+                                  isDraggingOver={snapshot.isDraggingOver}
+                                >
+                                  {stageProspects.map((prospect, index) => {
+                                    const cardData: ProspectCardData = {
+                                      id: prospect.id,
+                                      companyName: prospect.company.companyName,
+                                      companyNumber: prospect.company.companyNumber,
+                                      loanAmount: prospect.loanAmount ?? undefined,
+                                      priority: prospect.priority as any,
+                                    };
+
+                                    return (
+                                      <Draggable
+                                        key={prospect.id}
+                                        draggableId={`prospect-${prospect.id}`}
+                                        index={index}
+                                      >
+                                        {(provided, snapshot) => (
+                                          <div
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                          >
+                                            <ProspectCard
+                                              prospect={cardData}
+                                              dragHandleProps={provided.dragHandleProps}
+                                              isDragging={snapshot.isDragging}
+                                              currentStage={stage.value}
+                                              availableStages={ALL_STAGES}
+                                              onClick={() => navigate(`/prospect/${prospect.id}`)}
+                                              onMove={(newStage) =>
+                                                handleStageChange(prospect.id, newStage as Stage)
+                                              }
+                                            />
+                                          </div>
+                                        )}
+                                      </Draggable>
+                                    );
+                                  })}
+                                  {provided.placeholder}
+                                </PipelineColumn>
+                              </div>
+                            )}
+                          </Droppable>
+                        );
+                      })}
+                    </div>
+
+                    {/* Final Outcomes */}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4">Final Outcomes</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {FINAL_STAGES.map((stage) => {
+                          const stageProspects = getProspectsByStage(stage.value);
+                          const totalValue = getTotalValueByStage(stage.value);
+
+                          return (
+                            <Droppable key={stage.value} droppableId={stage.value}>
+                              {(provided, snapshot) => (
+                                <div ref={provided.innerRef} {...provided.droppableProps}>
+                                  <PipelineColumn
+                                    title={stage.label}
+                                    count={stageProspects.length}
+                                    totalValue={totalValue}
+                                    isDraggingOver={snapshot.isDraggingOver}
+                                  >
+                                    {stageProspects.map((prospect, index) => {
+                                      const cardData: ProspectCardData = {
+                                        id: prospect.id,
+                                        companyName: prospect.company.companyName,
+                                        companyNumber: prospect.company.companyNumber,
+                                        loanAmount: prospect.loanAmount ?? undefined,
+                                        priority: prospect.priority as any,
+                                      };
+
+                                      return (
+                                        <Draggable
+                                          key={prospect.id}
+                                          draggableId={`prospect-${prospect.id}`}
+                                          index={index}
+                                        >
+                                          {(provided, snapshot) => (
+                                            <div
+                                              ref={provided.innerRef}
+                                              {...provided.draggableProps}
+                                            >
+                                              <ProspectCard
+                                                prospect={cardData}
+                                                dragHandleProps={provided.dragHandleProps}
+                                                isDragging={snapshot.isDragging}
+                                                currentStage={stage.value}
+                                                availableStages={ALL_STAGES}
+                                                onClick={() => navigate(`/prospect/${prospect.id}`)}
+                                                onMove={(newStage) =>
+                                                  handleStageChange(prospect.id, newStage as Stage)
+                                                }
+                                              />
+                                            </div>
+                                          )}
+                                        </Draggable>
+                                      );
+                                    })}
+                                    {provided.placeholder}
+                                  </PipelineColumn>
+                                </div>
+                              )}
+                            </Droppable>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </DragDropContext>
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
       </main>
     </div>
