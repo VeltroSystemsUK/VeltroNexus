@@ -104,8 +104,31 @@ export default function SubmitApplicationDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[525px]" data-testid="dialog-submit-application">
+    <Dialog 
+      open={open} 
+      onOpenChange={(isOpen) => {
+        // Prevent closing during submission
+        if (!submitMutation.isPending) {
+          onOpenChange(isOpen);
+        }
+      }}
+    >
+      <DialogContent 
+        className="sm:max-w-[525px]" 
+        data-testid="dialog-submit-application"
+        onPointerDownOutside={(e) => {
+          // Prevent closing when clicking outside during submission
+          if (submitMutation.isPending) {
+            e.preventDefault();
+          }
+        }}
+        onInteractOutside={(e) => {
+          // Prevent closing when interacting outside during submission
+          if (submitMutation.isPending) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Submit Application</DialogTitle>
           <DialogDescription>
@@ -179,7 +202,11 @@ export default function SubmitApplicationDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpenChange(false);
+                }}
                 disabled={submitMutation.isPending}
                 data-testid="button-cancel"
               >
@@ -188,6 +215,9 @@ export default function SubmitApplicationDialog({
               <Button
                 type="submit"
                 disabled={submitMutation.isPending || lenders.length === 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
                 data-testid="button-submit-application"
               >
                 {submitMutation.isPending ? (

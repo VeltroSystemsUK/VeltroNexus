@@ -1266,14 +1266,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create an activity task to log this submission
       const activity = await storage.createActivity({
         userId,
-        type: "task",
+        activityType: "task",
         title: `Application submitted to ${lender.institutionName}`,
         description: `Loan application for ${prospect.company.companyName} submitted to ${lender.institutionName}`,
         prospectId: result.data.prospectId,
         priority: "high",
         dueDate: null,
-        completed: true,
-        completedAt: new Date(),
+        completed: 1,
       });
       
       res.status(201).json({ submission, activity });
