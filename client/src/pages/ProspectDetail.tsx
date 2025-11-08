@@ -1310,6 +1310,9 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
   const [associatedCompanies, setAssociatedCompanies] = useState<any>(null);
   const [isLoadingWebSearch, setIsLoadingWebSearch] = useState(false);
   const [webSearchResults, setWebSearchResults] = useState<any>(null);
+  const [selectedAssociations, setSelectedAssociations] = useState<any[]>([]);
+  const [isSavingAssociations, setIsSavingAssociations] = useState(false);
+  const savedAssociations = (prospect as any).savedAssociations || [];
 
   const loadAssociatedCompanies = async () => {
     setIsLoadingAssociations(true);
@@ -1328,6 +1331,47 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
       toast.error(`Failed to load associated companies: ${error.message}`);
     } finally {
       setIsLoadingAssociations(false);
+    }
+  };
+
+  const toggleAssociation = (company: any, type: string) => {
+    const association = { ...company, associationType: type };
+    const key = `${company.company_number}-${type}`;
+    
+    setSelectedAssociations(prev => {
+      const exists = prev.find(a => `${a.company_number}-${a.associationType}` === key);
+      if (exists) {
+        return prev.filter(a => `${a.company_number}-${a.associationType}` !== key);
+      } else {
+        return [...prev, association];
+      }
+    });
+  };
+
+  const isSelected = (companyNumber: string, type: string) => {
+    const key = `${companyNumber}-${type}`;
+    return selectedAssociations.some(a => `${a.company_number}-${a.associationType}` === key);
+  };
+
+  const saveSelectedAssociations = async () => {
+    if (selectedAssociations.length === 0) {
+      toast.error("Please select at least one company to save");
+      return;
+    }
+
+    setIsSavingAssociations(true);
+    try {
+      await apiRequest(`/api/prospects/${prospect.id}/save-associations`, "POST", {
+        associations: selectedAssociations
+      });
+      
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      toast.success(`Saved ${selectedAssociations.length} association(s)`);
+      setSelectedAssociations([]);
+    } catch (error: any) {
+      toast.error(`Failed to save associations: ${error.message}`);
+    } finally {
+      setIsSavingAssociations(false);
     }
   };
 
@@ -1374,6 +1418,51 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Saved Associations */}
+          {savedAssociations.length > 0 && (
+            <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Network className="h-4 w-4" />
+                Saved Associations ({savedAssociations.length})
+              </h3>
+              <div className="space-y-2">
+                {savedAssociations.map((company: any, index: number) => (
+                  <Card key={index} className="bg-background" data-testid={`card-saved-association-${index}`}>
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium text-sm">{company.company_name}</h4>
+                            <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                            {company.company_status && (
+                              <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                            )}
+                            <Badge className="text-xs capitalize">{company.associationType}</Badge>
+                          </div>
+                          {company.officer_name && (
+                            <p className="text-xs text-muted-foreground">Director: {company.officer_name}</p>
+                          )}
+                          {company.psc_name && (
+                            <p className="text-xs text-muted-foreground">PSC: {company.psc_name}</p>
+                          )}
+                        </div>
+                        <a
+                          href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="ghost" size="icon" data-testid={`button-view-saved-${index}`}>
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </a>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isLoadingAssociations && (
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
@@ -1385,6 +1474,27 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
 
           {!isLoadingAssociations && associatedCompanies && (
             <div className="space-y-6">
+              {/* Save Selected Button */}
+              {(associatedCompanies.officers.length > 0 || associatedCompanies.psc.length > 0 || associatedCompanies.sameAddress.length > 0) && (
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="text-sm">
+                    {selectedAssociations.length > 0 ? (
+                      <span className="font-medium">{selectedAssociations.length} company/companies selected</span>
+                    ) : (
+                      <span className="text-muted-foreground">Select companies to save to this prospect</span>
+                    )}
+                  </div>
+                  <Button
+                    onClick={saveSelectedAssociations}
+                    disabled={selectedAssociations.length === 0 || isSavingAssociations}
+                    data-testid="button-save-associations"
+                  >
+                    {isSavingAssociations && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Selected ({selectedAssociations.length})
+                  </Button>
+                </div>
+              )}
+
               {/* Companies via Common Officers */}
               {associatedCompanies.officers.length > 0 && (
                 <div>
@@ -1393,7 +1503,12 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                     {associatedCompanies.officers.map((company: any, index: number) => (
                       <Card key={index} className="hover-elevate" data-testid={`card-officer-company-${index}`}>
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-4">
+                            <Checkbox
+                              checked={isSelected(company.company_number, 'officer')}
+                              onCheckedChange={() => toggleAssociation(company, 'officer')}
+                              data-testid={`checkbox-officer-${index}`}
+                            />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-medium">{company.company_name}</h4>
@@ -1416,7 +1531,6 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="ml-4"
                             >
                               <Button variant="ghost" size="icon" data-testid={`button-view-officer-company-${index}`}>
                                 <ExternalLink className="h-4 w-4" />
@@ -1438,7 +1552,12 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                     {associatedCompanies.psc.map((company: any, index: number) => (
                       <Card key={index} className="hover-elevate" data-testid={`card-psc-company-${index}`}>
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-4">
+                            <Checkbox
+                              checked={isSelected(company.company_number, 'psc')}
+                              onCheckedChange={() => toggleAssociation(company, 'psc')}
+                              data-testid={`checkbox-psc-${index}`}
+                            />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-medium">{company.company_name}</h4>
@@ -1458,7 +1577,6 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="ml-4"
                             >
                               <Button variant="ghost" size="icon" data-testid={`button-view-psc-company-${index}`}>
                                 <ExternalLink className="h-4 w-4" />
@@ -1480,7 +1598,12 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                     {associatedCompanies.sameAddress.map((company: any, index: number) => (
                       <Card key={index} className="hover-elevate" data-testid={`card-address-company-${index}`}>
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-4">
+                            <Checkbox
+                              checked={isSelected(company.company_number, 'address')}
+                              onCheckedChange={() => toggleAssociation(company, 'address')}
+                              data-testid={`checkbox-address-${index}`}
+                            />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-medium">{company.company_name}</h4>
@@ -1497,7 +1620,6 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="ml-4"
                             >
                               <Button variant="ghost" size="icon" data-testid={`button-view-address-company-${index}`}>
                                 <ExternalLink className="h-4 w-4" />

@@ -67,6 +67,7 @@ export const prospects = pgTable("prospects", {
   loanRequirementNotes: text("loan_requirement_notes"),
   priority: text("priority"),
   notes: text("notes"),
+  savedAssociations: jsonb("saved_associations").default('[]'),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -710,6 +710,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save selected associations
+  app.post("/api/prospects/:prospectId/save-associations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      const { associations } = req.body;
+      
+      // Validate associations is an array
+      if (!Array.isArray(associations)) {
+        return res.status(400).json({ error: "Associations must be an array" });
+      }
+      
+      // Limit to 50 associations maximum
+      if (associations.length > 50) {
+        return res.status(400).json({ error: "Maximum 50 associations allowed" });
+      }
+      
+      // Verify prospect ownership
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      // Update prospect with saved associations
+      const updated = await storage.updateProspect(prospectId, userId, {
+        savedAssociations: associations
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error saving associations:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Companies API - Protected routes
   app.get("/api/companies/:number", isAuthenticated, async (req, res) => {
     try {
