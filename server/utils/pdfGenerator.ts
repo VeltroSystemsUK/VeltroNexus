@@ -35,6 +35,7 @@ const DEFAULT_SECTIONS: PDFSection[] = [
   { id: "officers", label: "Officers", enabled: true },
   { id: "psc", label: "Persons with Significant Control", enabled: true },
   { id: "charges", label: "Charges", enabled: true },
+  { id: "savedAssociations", label: "Saved Associated Companies", enabled: true },
   { id: "loanDetails", label: "Loan Details", enabled: true },
   { id: "security", label: "Security & Collateral", enabled: true },
   { id: "notes", label: "Notes", enabled: true },
@@ -78,6 +79,11 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
       case 'charges':
         if (companiesHouseData?.charges) {
           renderCharges(doc, companiesHouseData.charges);
+        }
+        break;
+      case 'savedAssociations':
+        if (prospect.savedAssociations && Array.isArray(prospect.savedAssociations) && prospect.savedAssociations.length > 0) {
+          renderSavedAssociations(doc, prospect.savedAssociations as any[]);
         }
         break;
       case 'loanDetails':
@@ -279,6 +285,71 @@ function renderCharges(doc: typeof PDFDocument.prototype, charges: any) {
       doc.moveDown(0.3);
     });
   }
+  doc.moveDown(2);
+}
+
+function renderSavedAssociations(doc: typeof PDFDocument.prototype, associations: any[]) {
+  doc.fontSize(18).fillColor(headerColor).text('Saved Associated Companies');
+  doc.moveDown(0.5);
+  addLine(doc);
+  doc.moveDown(0.5);
+  doc.fontSize(12).fillColor(textColor);
+
+  const byType: { [key: string]: any[] } = {};
+
+  associations.forEach((assoc: any) => {
+    const type = assoc.associationType || 'other';
+    if (!byType[type]) byType[type] = [];
+    byType[type].push(assoc);
+  });
+
+  const typeLabels: { [key: string]: string } = {
+    officer: 'Common Directors',
+    psc: 'Common Ownership',
+    address: 'Same Registered Address',
+    other: 'Other Associations'
+  };
+
+  let firstSection = true;
+  Object.keys(byType).forEach((type) => {
+    if (byType[type].length === 0) return;
+    
+    if (!firstSection) doc.moveDown(0.3);
+    firstSection = false;
+
+    const label = typeLabels[type] || type.charAt(0).toUpperCase() + type.slice(1);
+    doc.font('Helvetica-Bold').text(`${label} (${byType[type].length}):`);
+    doc.font('Helvetica').moveDown(0.3);
+    
+    byType[type].forEach((company: any) => {
+      doc.text(`• ${company.company_name || 'Unknown'}`, { indent: 10 });
+      doc.fontSize(10).fillColor(mutedColor);
+      
+      if (company.company_number) {
+        doc.text(`Company Number: ${company.company_number}`, { indent: 20 });
+      }
+      
+      if (company.officer_name) {
+        doc.text(`Director: ${company.officer_name}`, { indent: 20 });
+      }
+      
+      if (company.psc_name) {
+        doc.text(`PSC: ${company.psc_name}`, { indent: 20 });
+      }
+      
+      if (company.address_snippet) {
+        doc.text(`Address: ${company.address_snippet}`, { indent: 20 });
+      }
+      
+      if (company.company_status) {
+        doc.text(`Status: ${company.company_status}`, { indent: 20 });
+      }
+      
+      doc.fontSize(12).fillColor(textColor);
+      doc.moveDown(0.3);
+    });
+  });
+
   doc.moveDown(2);
 }
 

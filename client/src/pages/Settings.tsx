@@ -64,6 +64,7 @@ const DEFAULT_PDF_SECTIONS = [
   { id: "officers", label: "Officers", enabled: true },
   { id: "psc", label: "Persons with Significant Control", enabled: true },
   { id: "charges", label: "Charges", enabled: true },
+  { id: "savedAssociations", label: "Saved Associated Companies", enabled: true },
   { id: "loanDetails", label: "Loan Details", enabled: true },
   { id: "security", label: "Security & Collateral", enabled: true },
   { id: "notes", label: "Notes", enabled: true },
