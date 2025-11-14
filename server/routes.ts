@@ -1252,7 +1252,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const submissions = await storage.listApplicationSubmissions(userId);
-      res.json(submissions);
+      
+      // Enrich submissions with prospect and lender details
+      const enrichedSubmissions = await Promise.all(
+        submissions.map(async (submission) => {
+          const [prospect, lender] = await Promise.all([
+            storage.getProspect(submission.prospectId, userId),
+            storage.getLender(submission.lenderId, userId),
+          ]);
+          
+          return {
+            ...submission,
+            prospect,
+            lender,
+          };
+        })
+      );
+      
+      res.json(enrichedSubmissions);
     } catch (error) {
       console.error("Error fetching submissions:", error);
       res.status(500).json({ message: "Failed to fetch submissions" });
