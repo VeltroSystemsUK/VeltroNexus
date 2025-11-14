@@ -80,12 +80,23 @@ export default function SubmitApplicationDialog({
       return response.json();
     },
     onSuccess: (result: any) => {
+      let description = "The application has been submitted.";
+      let variant: "default" | "destructive" = "default";
+      
+      if (result.emailSent) {
+        description = "The application has been emailed to the lender with a PDF attachment.";
+      } else if (result.emailError) {
+        description = `Email delivery failed: ${result.emailError}. The submission was created but please contact the lender directly.`;
+        variant = "destructive";
+      } else {
+        description = "The application was submitted but email delivery failed. Please contact the lender directly.";
+        variant = "destructive";
+      }
+      
       toast({
-        title: result.emailSent ? "Application sent via email" : "Application submitted",
-        description: result.emailSent 
-          ? "The application has been emailed to the lender with a PDF attachment and logged as a task."
-          : "The application has been submitted but email delivery failed. Please contact the lender directly.",
-        variant: result.emailSent ? "default" : "destructive",
+        title: result.emailSent ? "Application sent" : "Application submitted",
+        description,
+        variant,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });

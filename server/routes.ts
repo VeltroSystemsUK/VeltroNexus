@@ -1277,16 +1277,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate that the lender belongs to the user
       const lender = await storage.getLender(result.data.lenderId, userId);
       if (!lender) {
+        console.error("Lender not found");
         return res.status(404).json({ message: "Lender not found" });
       }
       
-      // Create the submission first
-      const submission = await storage.createApplicationSubmission(result.data, userId);
+      // Validate lender email before proceeding
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!lender.email || !emailRegex.test(lender.email)) {
+        console.error("Invalid lender email");
+        return res.status(400).json({ message: "Lender has invalid email address" });
+      }
       
-      // Generate PDF report for the submission
-      let pdfBuffer: Buffer | null = null;
-      let emailSent = false;
+      // Validate Resend configuration before proceeding
+      let resendClient, fromEmail;
+      try {
+        const resendConfig = await getUncachableResendClient();
+        resendClient = resendConfig.client;
+        fromEmail = resendConfig.fromEmail;
+      } catch (resendError: any) {
+        const errMessage = (resendError as Error)?.message || 'Unknown error';
+        console.error("Resend configuration error");
+        return res.status(500).json({ message: `Email service not configured: ${errMessage}` });
+      }
       
+      // Generate PDF report before creating submission
+      let pdfBuffer: Buffer;
       try {
         const [contacts, activities, dueDiligence, companiesHouseData, user] = await Promise.all([
           storage.listContactsForProspect(result.data.prospectId, userId),
@@ -1315,57 +1330,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reportDoc.end();
         });
         pdfBuffer = Buffer.concat(chunks);
+      } catch (pdfError: any) {
+        const errMessage = (pdfError as Error)?.message || 'Unknown error';
+        console.error("PDF generation error");
+        return res.status(500).json({ message: `Failed to generate PDF report: ${errMessage}` });
+      }
+      
+      // Send email with PDF attachment
+      let emailSent = false;
+      let emailError: string | null = null;
+      try {
+        const commentary = result.data.commentary || 'Please find attached the loan application for your review.';
         
-        // Validate lender email before attempting to send
-        if (!lender.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lender.email)) {
-          console.error("Invalid lender email:", lender.email);
-        } else {
-          // Send email with PDF attachment
-          try {
-            const { client, fromEmail } = await getUncachableResendClient();
-            
-            const commentary = result.data.commentary || 'Please find attached the loan application for your review.';
-            
-            await client.emails.send({
-              from: fromEmail,
-              to: lender.email,
-              subject: `Loan Application - ${prospect.company.companyName}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h2 style="color: #3b82f6;">Loan Application Submission</h2>
-                  <p>Dear ${lender.contactName || 'Lender'},</p>
-                  <p>${commentary}</p>
-                  <h3 style="color: #1f2937;">Application Details:</h3>
-                  <ul style="line-height: 1.8;">
-                    <li><strong>Company:</strong> ${prospect.company.companyName}</li>
-                    <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : 'TBC'}</li>
-                    <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : 'TBC'}</li>
-                    ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ''}
-                  </ul>
-                  <p>Please find the complete application details in the attached PDF report.</p>
-                  <p style="margin-top: 30px;">Best regards,<br/>FlowLoan Application</p>
-                </div>
-              `,
-              attachments: [
-                {
-                  filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
-                  content: pdfBuffer.toString('base64'),
-                }
-              ],
-            });
-            
-            emailSent = true;
-            
-            // Update submission to mark email as sent
-            await storage.updateApplicationSubmission(submission.id, userId, { emailSent: 1, status: 'sent' });
-            
-          } catch (emailError: any) {
-            console.error("Error sending email:", emailError?.message || emailError);
-          }
-        }
+        await resendClient.emails.send({
+          from: fromEmail,
+          to: lender.email,
+          subject: `Loan Application - ${prospect.company.companyName}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #3b82f6;">Loan Application Submission</h2>
+              <p>Dear ${lender.contactName || 'Lender'},</p>
+              <p>${commentary}</p>
+              <h3 style="color: #1f2937;">Application Details:</h3>
+              <ul style="line-height: 1.8;">
+                <li><strong>Company:</strong> ${prospect.company.companyName}</li>
+                <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : 'TBC'}</li>
+                <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : 'TBC'}</li>
+                ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ''}
+              </ul>
+              <p>Please find the complete application details in the attached PDF report.</p>
+              <p style="margin-top: 30px;">Best regards,<br/>FlowLoan Application</p>
+            </div>
+          `,
+          attachments: [
+            {
+              filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
+              content: pdfBuffer.toString('base64'),
+            }
+          ],
+        });
         
-      } catch (pdfError) {
-        console.error("Error generating PDF:", pdfError);
+        emailSent = true;
+      } catch (err: any) {
+        const errMessage = (err as Error)?.message || 'Unknown error';
+        emailError = errMessage;
+        console.error("Email send error");
+      }
+      
+      // Create the submission only after successful PDF generation
+      const submission = await storage.createApplicationSubmission(result.data, userId);
+      
+      // Update submission status based on email result
+      if (emailSent) {
+        await storage.updateApplicationSubmission(submission.id, userId, { emailSent: 1, status: 'sent' });
       }
       
       // Create an activity task to log this submission
@@ -1373,7 +1390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         activityType: "task",
         title: `Application ${emailSent ? 'sent' : 'submitted'} to ${lender.institutionName}`,
-        description: `Loan application for ${prospect.company.companyName} ${emailSent ? 'emailed' : 'submitted'} to ${lender.institutionName}${emailSent ? '' : ' (email failed)'}`,
+        description: `Loan application for ${prospect.company.companyName} ${emailSent ? 'emailed' : 'submitted'} to ${lender.institutionName}${emailSent ? '' : emailError ? ` (email failed: ${emailError})` : ' (email failed)'}`,
         prospectId: result.data.prospectId,
         priority: "high",
         dueDate: null,
@@ -1383,7 +1400,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json({ 
         submission: { ...submission, emailSent: emailSent ? 1 : 0, status: emailSent ? 'sent' : 'pending' }, 
         activity, 
-        emailSent 
+        emailSent,
+        emailError: emailError || undefined
       });
     } catch (error) {
       console.error("Error creating submission:", error);

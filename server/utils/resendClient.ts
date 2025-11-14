@@ -22,13 +22,18 @@ async function getCredentials() {
     }
   ).then(res => res.json()).then(data => data.items?.[0]);
 
-  if (!connectionSettings || !connectionSettings.settings.api_key) {
-    throw new Error('Resend not connected');
+  if (!connectionSettings || !connectionSettings.settings.api_key || !connectionSettings.settings.from_email) {
+    throw new Error('Resend not connected or missing credentials');
+  }
+  
+  const fromEmail = connectionSettings.settings.from_email;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) {
+    throw new Error('Invalid from_email in Resend configuration');
   }
   
   return {
     apiKey: connectionSettings.settings.api_key,
-    fromEmail: connectionSettings.settings.from_email
+    fromEmail
   };
 }
 

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { ThemeToggle } from "@/components/theme-toggle";
+import ThemeToggle from "@/components/ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -83,21 +83,21 @@ export default function Submissions() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <Link href="/profile">
-                  <DropdownMenuItem>Profile</DropdownMenuItem>
-                </Link>
-                <Link href="/settings">
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
-                </Link>
+                <DropdownMenuItem asChild data-testid="menu-item-profile">
+                  <Link href="/profile">Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-settings">
+                  <Link href="/settings">Settings</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <Link href="/pipeline">
-                  <DropdownMenuItem>Pipeline</DropdownMenuItem>
-                </Link>
-                <Link href="/dashboard">
-                  <DropdownMenuItem>Dashboard</DropdownMenuItem>
-                </Link>
+                <DropdownMenuItem asChild data-testid="menu-item-pipeline">
+                  <Link href="/pipeline">Pipeline</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild data-testid="menu-item-dashboard">
+                  <Link href="/dashboard">Dashboard</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout">Log out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -197,7 +197,7 @@ export default function Submissions() {
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                             <span className="text-muted-foreground">Sent:</span>
-                            <span>{format(new Date(submission.sentAt), "PPP")}</span>
+                            <span>{submission.sentAt ? format(new Date(submission.sentAt), "PPP") : 'Pending'}</span>
                           </div>
                           {submission.prospect.loanAmount && (
                             <div className="flex items-center gap-2 text-sm">
