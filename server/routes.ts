@@ -10,6 +10,7 @@ import {
   insertActivitySchema,
   insertLenderSchema,
   insertApplicationSubmissionSchema,
+  type InsertApplicationSubmission,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -1268,14 +1269,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: validationError.toString() });
       }
       
+      // Type-narrow the parsed data
+      const submissionInput: InsertApplicationSubmission = result.data;
+      
       // Validate that the prospect belongs to the user
-      const prospect = await storage.getProspect(result.data.prospectId, userId);
+      const prospect = await storage.getProspect(submissionInput.prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ message: "Prospect not found" });
       }
       
       // Validate that the lender belongs to the user
-      const lender = await storage.getLender(result.data.lenderId, userId);
+      const lender = await storage.getLender(submissionInput.lenderId, userId);
       if (!lender) {
         console.error("Lender not found");
         return res.status(404).json({ message: "Lender not found" });
@@ -1303,15 +1307,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate PDF report before creating submission
       let pdfBuffer: Buffer;
       try {
-        const [contacts, activities, dueDiligence, companiesHouseData, user] = await Promise.all([
-          storage.listContactsForProspect(result.data.prospectId, userId),
-          storage.listActivitiesForProspect(result.data.prospectId, userId),
-          storage.getDueDiligence(result.data.prospectId, userId).catch(() => null),
-          prospect.company.companyNumber 
-            ? storage.getCompaniesHouseData(prospect.company.companyNumber).catch(() => null)
-            : Promise.resolve(null),
+        const [contacts, activities, dueDiligence, user] = await Promise.all([
+          storage.listContacts(submissionInput.prospectId),
+          storage.listActivities(submissionInput.prospectId),
+          storage.getDueDiligence(submissionInput.prospectId).catch(() => null),
           storage.getUser(userId),
         ]);
+        
+        // Fetch Companies House data (officers, PSC, charges) if available
+        let companiesHouseData: any = null;
+        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+        if (apiKey && prospect.company.companyNumber) {
+          try {
+            const trimmedApiKey = apiKey.trim();
+            const authString = `${trimmedApiKey}:`;
+            const base64Auth = Buffer.from(authString).toString('base64');
+            const companyNumber = prospect.company.companyNumber;
+            
+            const [officersRes, pscRes, chargesRes] = await Promise.all([
+              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, {
+                headers: { 'Authorization': `Basic ${base64Auth}` }
+              }).catch(() => null),
+              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, {
+                headers: { 'Authorization': `Basic ${base64Auth}` }
+              }).catch(() => null),
+              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`, {
+                headers: { 'Authorization': `Basic ${base64Auth}` }
+              }).catch(() => null)
+            ]);
+
+            companiesHouseData = {
+              officers: officersRes && officersRes.ok ? await officersRes.json() : null,
+              psc: pscRes && pscRes.ok ? await pscRes.json() : null,
+              charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null
+            };
+          } catch (error) {
+            console.error("Error fetching Companies House data for submission report");
+          }
+        }
         
         const reportDoc = generateProspectReport({
           prospect,
@@ -1323,7 +1356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         const chunks: Buffer[] = [];
-        reportDoc.on('data', (chunk) => chunks.push(chunk));
+        reportDoc.on('data', (chunk: Buffer) => chunks.push(chunk));
         await new Promise<void>((resolve, reject) => {
           reportDoc.on('end', () => resolve());
           reportDoc.on('error', reject);
@@ -1340,7 +1373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let emailSent = false;
       let emailError: string | null = null;
       try {
-        const commentary = result.data.commentary || 'Please find attached the loan application for your review.';
+        const commentary = submissionInput.commentary || 'Please find attached the loan application for your review.';
         
         await resendClient.emails.send({
           from: fromEmail,
@@ -1378,7 +1411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create the submission only after successful PDF generation
-      const submission = await storage.createApplicationSubmission(result.data, userId);
+      const submission = await storage.createApplicationSubmission(submissionInput, userId);
       
       // Update submission status based on email result
       if (emailSent) {
@@ -1391,7 +1424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         activityType: "task",
         title: `Application ${emailSent ? 'sent' : 'submitted'} to ${lender.institutionName}`,
         description: `Loan application for ${prospect.company.companyName} ${emailSent ? 'emailed' : 'submitted'} to ${lender.institutionName}${emailSent ? '' : emailError ? ` (email failed: ${emailError})` : ' (email failed)'}`,
-        prospectId: result.data.prospectId,
+        prospectId: submissionInput.prospectId,
         priority: "high",
         dueDate: null,
         completed: 1,
