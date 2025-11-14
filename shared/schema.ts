@@ -128,6 +128,8 @@ export const applicationSubmissions = pgTable("application_submissions", {
   status: text("status").notNull().default("pending"),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
   responseNotes: text("response_notes"),
+  attachments: jsonb("attachments").default('[]'),
+  emailSent: integer("email_sent").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
