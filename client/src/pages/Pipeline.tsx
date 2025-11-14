@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TrendingUp, LayoutDashboard, Users, Send } from "lucide-react";
+import { TrendingUp, LayoutDashboard, Users, Send, Download } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
@@ -163,6 +163,16 @@ export default function Pipeline() {
             <h1 className="text-xl font-bold" data-testid="text-app-title">FlowLoan</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => {
+                window.location.href = '/api/prospects/export/excel';
+              }}
+              data-testid="button-export-excel"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export to Excel
+            </Button>
             <Button onClick={() => navigate("/search")} data-testid="button-add-prospect">
               Add Prospect
             </Button>

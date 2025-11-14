@@ -15,6 +15,7 @@ import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 import { createRequire } from 'module';
 import { generateProspectReport } from "./utils/pdfGenerator";
+import { generatePipelineExcel } from "./utils/excelExporter";
 const require = createRequire(import.meta.url);
 const gocardless = require("gocardless-nodejs");
 const { Environments } = require("gocardless-nodejs/constants");
@@ -80,6 +81,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prospects = await storage.listProspects(userId);
       res.json(prospects);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/prospects/export/excel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospects = await storage.listProspects(userId);
+      
+      const excelBuffer = await generatePipelineExcel(prospects);
+      
+      const filename = `pipeline-export-${new Date().toISOString().split('T')[0]}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(excelBuffer);
+    } catch (error: any) {
+      console.error("Error generating Excel export:", error);
       res.status(500).json({ error: error.message });
     }
   });
