@@ -16,6 +16,7 @@ import { z } from "zod";
 import { createRequire } from 'module';
 import { generateProspectReport } from "./utils/pdfGenerator";
 import { generatePipelineExcel } from "./utils/excelExporter";
+import { getUncachableResendClient } from "./utils/resendClient";
 const require = createRequire(import.meta.url);
 const gocardless = require("gocardless-nodejs");
 const { Environments } = require("gocardless-nodejs/constants");
@@ -1279,21 +1280,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Lender not found" });
       }
       
+      // Create the submission first
       const submission = await storage.createApplicationSubmission(result.data, userId);
+      
+      // Generate PDF report for the submission
+      let pdfBuffer: Buffer | null = null;
+      let emailSent = false;
+      
+      try {
+        const [contacts, activities, dueDiligence, companiesHouseData, user] = await Promise.all([
+          storage.listContactsForProspect(result.data.prospectId, userId),
+          storage.listActivitiesForProspect(result.data.prospectId, userId),
+          storage.getDueDiligence(result.data.prospectId, userId).catch(() => null),
+          prospect.company.companyNumber 
+            ? storage.getCompaniesHouseData(prospect.company.companyNumber).catch(() => null)
+            : Promise.resolve(null),
+          storage.getUser(userId),
+        ]);
+        
+        const reportDoc = generateProspectReport({
+          prospect,
+          contacts,
+          activities,
+          dueDiligence: dueDiligence || undefined,
+          companiesHouseData: companiesHouseData || undefined,
+          pdfLayoutPreferences: user?.pdfLayoutPreferences as any,
+        });
+        
+        const chunks: Buffer[] = [];
+        reportDoc.on('data', (chunk) => chunks.push(chunk));
+        await new Promise<void>((resolve, reject) => {
+          reportDoc.on('end', () => resolve());
+          reportDoc.on('error', reject);
+          reportDoc.end();
+        });
+        pdfBuffer = Buffer.concat(chunks);
+        
+        // Send email with PDF attachment
+        try {
+          const { client, fromEmail } = await getUncachableResendClient();
+          
+          const commentary = result.data.commentary || 'Please find attached the loan application for your review.';
+          
+          await client.emails.send({
+            from: fromEmail,
+            to: lender.email,
+            subject: `Loan Application - ${prospect.company.companyName}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #3b82f6;">Loan Application Submission</h2>
+                <p>Dear ${lender.contactName || 'Lender'},</p>
+                <p>${commentary}</p>
+                <h3 style="color: #1f2937;">Application Details:</h3>
+                <ul style="line-height: 1.8;">
+                  <li><strong>Company:</strong> ${prospect.company.companyName}</li>
+                  <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : 'TBC'}</li>
+                  <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : 'TBC'}</li>
+                  ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ''}
+                </ul>
+                <p>Please find the complete application details in the attached PDF report.</p>
+                <p style="margin-top: 30px;">Best regards,<br/>FlowLoan Application</p>
+              </div>
+            `,
+            attachments: [
+              {
+                filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
+                content: pdfBuffer.toString('base64'),
+              }
+            ],
+          });
+          
+          emailSent = true;
+          
+          // Update submission to mark email as sent
+          await storage.updateApplicationSubmission(submission.id, userId, { emailSent: 1, status: 'sent' });
+          
+        } catch (emailError) {
+          console.error("Error sending email:", emailError);
+        }
+        
+      } catch (pdfError) {
+        console.error("Error generating PDF:", pdfError);
+      }
       
       // Create an activity task to log this submission
       const activity = await storage.createActivity({
         userId,
         activityType: "task",
-        title: `Application submitted to ${lender.institutionName}`,
-        description: `Loan application for ${prospect.company.companyName} submitted to ${lender.institutionName}`,
+        title: `Application ${emailSent ? 'sent' : 'submitted'} to ${lender.institutionName}`,
+        description: `Loan application for ${prospect.company.companyName} ${emailSent ? 'emailed' : 'submitted'} to ${lender.institutionName}${emailSent ? '' : ' (email failed)'}`,
         prospectId: result.data.prospectId,
         priority: "high",
         dueDate: null,
         completed: 1,
       });
       
-      res.status(201).json({ submission, activity });
+      res.status(201).json({ 
+        submission: { ...submission, emailSent: emailSent ? 1 : 0, status: emailSent ? 'sent' : 'pending' }, 
+        activity, 
+        emailSent 
+      });
     } catch (error) {
       console.error("Error creating submission:", error);
       res.status(500).json({ message: "Failed to create submission" });

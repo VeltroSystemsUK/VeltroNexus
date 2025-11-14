@@ -79,14 +79,17 @@ export default function SubmitApplicationDialog({
       );
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       toast({
-        title: "Application submitted",
-        description: "The application has been sent and logged as a task.",
+        title: result.emailSent ? "Application sent via email" : "Application submitted",
+        description: result.emailSent 
+          ? "The application has been emailed to the lender with a PDF attachment and logged as a task."
+          : "The application has been submitted but email delivery failed. Please contact the lender directly.",
+        variant: result.emailSent ? "default" : "destructive",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/application-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
       form.reset();
       onOpenChange(false);
     },

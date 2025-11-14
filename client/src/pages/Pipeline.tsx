@@ -224,6 +224,12 @@ export default function Pipeline() {
                 >
                   Lender Database
                 </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => navigate("/submissions")}
+                  data-testid="menu-item-submissions"
+                >
+                  Submissions
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => window.location.href = "/api/logout"}
