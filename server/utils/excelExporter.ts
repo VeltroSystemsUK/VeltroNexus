@@ -24,7 +24,7 @@ const SECTIONS: ExportSection[] = [
   {
     title: 'IN FLIGHT STAGE - Applications with MF',
     headerLabel: 'In Flight',
-    stages: ['submission'],
+    stages: ['proposal', 'submission'],
     startRow: 32,
   },
   {
@@ -37,7 +37,8 @@ const SECTIONS: ExportSection[] = [
 
 const COLUMN_HEADERS = [
   'Date of Enquiry',
-  '', // Will be replaced with section-specific label
+  'Company Name',
+  '', // Will be replaced with section-specific label (Stage)
   'Amount',
   'Adviser',
   'Referral Source',
@@ -53,7 +54,8 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[]): P
   // Set column widths
   worksheet.columns = [
     { width: 15 }, // Date
-    { width: 30 }, // Stage/Company
+    { width: 30 }, // Company
+    { width: 20 }, // Stage
     { width: 15 }, // Amount
     { width: 20 }, // Adviser
     { width: 20 }, // Referral
@@ -77,14 +79,14 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[]): P
       pattern: 'solid',
       fgColor: { argb: 'FFD9D9D9' },
     };
-    worksheet.mergeCells(currentRow, 1, currentRow, 8);
+    worksheet.mergeCells(currentRow, 1, currentRow, 9);
     currentRow++;
 
     // Add header row
     const headerRow = worksheet.getRow(currentRow);
     COLUMN_HEADERS.forEach((header, index) => {
       const cell = headerRow.getCell(index + 1);
-      cell.value = index === 1 ? section.headerLabel : header;
+      cell.value = index === 2 ? section.headerLabel : header;
       cell.font = { bold: true };
       cell.fill = {
         type: 'pattern',
@@ -111,29 +113,35 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[]): P
       // Company name
       dataRow.getCell(2).value = prospect.company.companyName;
       
+      // Stage (capitalize first letter)
+      const stageLabel = prospect.stage.split('-').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+      dataRow.getCell(3).value = stageLabel;
+      
       // Amount (convert from pence to pounds)
       if (prospect.loanAmount) {
-        dataRow.getCell(3).value = prospect.loanAmount / 100;
-        dataRow.getCell(3).numFmt = '£#,##0';
+        dataRow.getCell(4).value = prospect.loanAmount / 100;
+        dataRow.getCell(4).numFmt = '£#,##0';
       }
       
       // Adviser - would need to be added to schema or left blank
-      dataRow.getCell(4).value = '';
-      
-      // Referral Source - would need to be added to schema or left blank
       dataRow.getCell(5).value = '';
       
+      // Referral Source - would need to be added to schema or left blank
+      dataRow.getCell(6).value = '';
+      
       // Sector - could use company type or industry
-      dataRow.getCell(6).value = prospect.company.companyType || '';
+      dataRow.getCell(7).value = prospect.company.companyType || '';
       
       // Postcode - from company registered address
-      dataRow.getCell(7).value = prospect.company.registeredAddress || '';
+      dataRow.getCell(8).value = prospect.company.registeredAddress || '';
       
       // Comments - could use prospect notes or leave blank
-      dataRow.getCell(8).value = '';
+      dataRow.getCell(9).value = '';
 
       // Add borders to all cells
-      for (let col = 1; col <= 8; col++) {
+      for (let col = 1; col <= 9; col++) {
         dataRow.getCell(col).border = {
           top: { style: 'thin' },
           left: { style: 'thin' },
