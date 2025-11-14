@@ -86,44 +86,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    // Check if user exists by email first
-    const [existingUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, userData.email));
-    
-    if (existingUser) {
-      // Update existing user - preserve ID and only update mutable fields
+    try {
       const [user] = await db
-        .update(users)
-        .set({
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          profileImageUrl: userData.profileImageUrl,
-          updatedAt: new Date(),
+        .insert(users)
+        .values(userData)
+        .onConflictDoUpdate({
+          target: users.id,
+          set: {
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            profileImageUrl: userData.profileImageUrl,
+            updatedAt: new Date(),
+          },
         })
-        .where(eq(users.id, existingUser.id))
         .returning();
       return user;
+    } catch (error: any) {
+      // If there's a duplicate email error, fetch and return the existing user
+      if (error.code === '23505' && error.constraint === 'users_email_unique') {
+        const [existingUser] = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, userData.email));
+        if (existingUser) {
+          return existingUser;
+        }
+      }
+      // Re-throw if it's a different error
+      throw error;
     }
-    
-    // Insert new user
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          profileImageUrl: userData.profileImageUrl,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
