@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useUser } from "@/hooks/use-user";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -27,7 +26,11 @@ type SubmissionWithDetails = ApplicationSubmission & {
 };
 
 export default function Submissions() {
-  const { user } = useUser();
+  const [, navigate] = useLocation();
+  const { data: user } = useQuery<any>({
+    queryKey: ["/api/auth/user"],
+  });
+  
   const { data: submissions = [], isLoading } = useQuery<SubmissionWithDetails[]>({
     queryKey: ["/api/submissions"],
   });

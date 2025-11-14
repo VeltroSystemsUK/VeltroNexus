@@ -1316,47 +1316,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         pdfBuffer = Buffer.concat(chunks);
         
-        // Send email with PDF attachment
-        try {
-          const { client, fromEmail } = await getUncachableResendClient();
-          
-          const commentary = result.data.commentary || 'Please find attached the loan application for your review.';
-          
-          await client.emails.send({
-            from: fromEmail,
-            to: lender.email,
-            subject: `Loan Application - ${prospect.company.companyName}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #3b82f6;">Loan Application Submission</h2>
-                <p>Dear ${lender.contactName || 'Lender'},</p>
-                <p>${commentary}</p>
-                <h3 style="color: #1f2937;">Application Details:</h3>
-                <ul style="line-height: 1.8;">
-                  <li><strong>Company:</strong> ${prospect.company.companyName}</li>
-                  <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : 'TBC'}</li>
-                  <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : 'TBC'}</li>
-                  ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ''}
-                </ul>
-                <p>Please find the complete application details in the attached PDF report.</p>
-                <p style="margin-top: 30px;">Best regards,<br/>FlowLoan Application</p>
-              </div>
-            `,
-            attachments: [
-              {
-                filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
-                content: pdfBuffer.toString('base64'),
-              }
-            ],
-          });
-          
-          emailSent = true;
-          
-          // Update submission to mark email as sent
-          await storage.updateApplicationSubmission(submission.id, userId, { emailSent: 1, status: 'sent' });
-          
-        } catch (emailError) {
-          console.error("Error sending email:", emailError);
+        // Validate lender email before attempting to send
+        if (!lender.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lender.email)) {
+          console.error("Invalid lender email:", lender.email);
+        } else {
+          // Send email with PDF attachment
+          try {
+            const { client, fromEmail } = await getUncachableResendClient();
+            
+            const commentary = result.data.commentary || 'Please find attached the loan application for your review.';
+            
+            await client.emails.send({
+              from: fromEmail,
+              to: lender.email,
+              subject: `Loan Application - ${prospect.company.companyName}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #3b82f6;">Loan Application Submission</h2>
+                  <p>Dear ${lender.contactName || 'Lender'},</p>
+                  <p>${commentary}</p>
+                  <h3 style="color: #1f2937;">Application Details:</h3>
+                  <ul style="line-height: 1.8;">
+                    <li><strong>Company:</strong> ${prospect.company.companyName}</li>
+                    <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : 'TBC'}</li>
+                    <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : 'TBC'}</li>
+                    ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ''}
+                  </ul>
+                  <p>Please find the complete application details in the attached PDF report.</p>
+                  <p style="margin-top: 30px;">Best regards,<br/>FlowLoan Application</p>
+                </div>
+              `,
+              attachments: [
+                {
+                  filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
+                  content: pdfBuffer.toString('base64'),
+                }
+              ],
+            });
+            
+            emailSent = true;
+            
+            // Update submission to mark email as sent
+            await storage.updateApplicationSubmission(submission.id, userId, { emailSent: 1, status: 'sent' });
+            
+          } catch (emailError: any) {
+            console.error("Error sending email:", emailError?.message || emailError);
+          }
         }
         
       } catch (pdfError) {
