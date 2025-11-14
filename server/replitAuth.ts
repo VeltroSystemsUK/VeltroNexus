@@ -53,14 +53,15 @@ function updateUserSession(
 
 async function upsertUser(
   claims: any,
-) {
-  await storage.upsertUser({
+): Promise<{ id: string }> {
+  const user = await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+  return { id: user.id };
 }
 
 export async function setupAuth(app: Express) {
@@ -77,7 +78,9 @@ export async function setupAuth(app: Express) {
   ) => {
     const user = {};
     updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
+    const dbUser = await upsertUser(tokens.claims());
+    // Override the sub in claims with the actual database user ID to ensure consistency
+    (user as any).claims.sub = dbUser.id;
     verified(null, user);
   };
 

@@ -1459,6 +1459,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/submissions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const submissionId = parseInt(req.params.id);
+      
+      if (isNaN(submissionId)) {
+        return res.status(400).json({ message: "Invalid submission ID" });
+      }
+      
+      // Verify submission exists and belongs to user before deleting
+      const submission = await storage.getApplicationSubmission(submissionId, userId);
+      if (!submission) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+      
+      await storage.deleteApplicationSubmission(submissionId, userId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting submission:", error);
+      res.status(500).json({ message: "Failed to delete submission" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

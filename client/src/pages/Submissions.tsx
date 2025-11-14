@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,8 +12,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Send, Building2, Calendar, FileText, Mail, MailX, TrendingUp } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Send, Building2, Calendar, FileText, Mail, MailX, TrendingUp, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ApplicationSubmission, Prospect, Lender } from "@shared/schema";
 
 type SubmissionWithDetails = ApplicationSubmission & {
@@ -27,12 +40,33 @@ type SubmissionWithDetails = ApplicationSubmission & {
 
 export default function Submissions() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
   const { data: user } = useQuery<any>({
     queryKey: ["/api/auth/user"],
   });
   
   const { data: submissions = [], isLoading } = useQuery<SubmissionWithDetails[]>({
     queryKey: ["/api/submissions"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (submissionId: number) => {
+      await apiRequest(`/api/submissions/${submissionId}`, "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
+      toast({
+        title: "Submission deleted",
+        description: "The submission has been deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete submission",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleLogout = async () => {
@@ -243,6 +277,37 @@ export default function Submissions() {
                             View Prospect
                           </Button>
                         </Link>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              data-testid={`button-delete-submission-${submission.id}`}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Submission?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete this submission to {submission.lender.institutionName}? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel data-testid={`button-cancel-delete-${submission.id}`}>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                data-testid={`button-confirm-delete-${submission.id}`}
+                                onClick={() => deleteMutation.mutate(submission.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </CardContent>
                   </Card>
