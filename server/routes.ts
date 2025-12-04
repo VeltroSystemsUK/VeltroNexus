@@ -1120,13 +1120,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert base64 to buffer
       const pdfBuffer = Buffer.from(pdfBase64, 'base64');
       
-      // Parse PDF
-      const data = await PDFParse(pdfBuffer);
+      // Parse PDF using v2 API
+      const parser = new PDFParse({ data: pdfBuffer });
+      const result = await parser.getText();
       
       res.json({ 
-        text: data.text,
-        pages: data.numpages,
-        info: data.info
+        text: result.text,
+        pages: result.totalPages,
+        info: {}
       });
     } catch (error: any) {
       console.error("PDF parsing error:", error);
