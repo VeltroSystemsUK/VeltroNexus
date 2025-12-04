@@ -944,6 +944,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Credit Underwriting Routes (Premium Only)
+  app.post("/api/prospects/:prospectId/underwriting/analyze-csv", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Check if user is premium
+      const user = await storage.getUser(userId);
+      if (!user || user.subscriptionTier !== 'premium') {
+        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
+      }
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const { csvData, loanAmount, monthlyRepayment } = req.body;
+      
+      if (!csvData || !loanAmount || !monthlyRepayment) {
+        return res.status(400).json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
+      }
+      
+      // Import and use gemini client
+      const { analyzeFinancials } = await import("./utils/geminiClient");
+      const analysis = await analyzeFinancials(csvData, loanAmount, monthlyRepayment);
+      
+      // Save to due diligence
+      const existing = await storage.getDueDiligence(prospectId);
+      const existingData = (existing?.data || {}) as Record<string, any>;
+      const mergedData = {
+        ...existingData,
+        underwriting: {
+          ...(existingData.underwriting || {}),
+          financialAnalysis: analysis,
+          analyzedAt: new Date().toISOString()
+        }
+      };
+      await storage.upsertDueDiligence(prospectId, mergedData);
+      
+      res.json(analysis);
+    } catch (error: any) {
+      console.error("CSV analysis error:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze CSV" });
+    }
+  });
+
+  app.post("/api/prospects/:prospectId/underwriting/adverse-media", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Check if user is premium
+      const user = await storage.getUser(userId);
+      if (!user || user.subscriptionTier !== 'premium') {
+        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
+      }
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const { companyName, companyNumber } = req.body;
+      
+      if (!companyName) {
+        return res.status(400).json({ error: "Company name is required" });
+      }
+      
+      // Import and use tavily client
+      const { searchAdverseMedia, assessAdverseMediaRisk } = await import("./utils/tavilyClient");
+      const searchResults = await searchAdverseMedia(companyName, companyNumber);
+      const assessment = assessAdverseMediaRisk(searchResults.results);
+      
+      const result = {
+        ...searchResults,
+        ...assessment
+      };
+      
+      // Save to due diligence
+      const existing = await storage.getDueDiligence(prospectId);
+      const existingData = (existing?.data || {}) as Record<string, any>;
+      const mergedData = {
+        ...existingData,
+        underwriting: {
+          ...(existingData.underwriting || {}),
+          adverseMedia: result,
+          adverseMediaSearchedAt: new Date().toISOString()
+        }
+      };
+      await storage.upsertDueDiligence(prospectId, mergedData);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Adverse media search error:", error);
+      res.status(500).json({ error: error.message || "Failed to search adverse media" });
+    }
+  });
+
   // GoCardless Integration Routes
   const gcClient = gocardless(
     process.env.GOCARDLESS_ACCESS_TOKEN!,
