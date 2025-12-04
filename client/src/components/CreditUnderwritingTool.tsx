@@ -131,6 +131,13 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     nextActions: [],
   });
 
+  const [refinanceAddBack, setRefinanceAddBack] = useState(
+    underwriting.financialAnalysis?.scenarioModeling?.refinanceAddBack?.toString() || "0"
+  );
+  const [projectedNewRevenue, setProjectedNewRevenue] = useState(
+    underwriting.financialAnalysis?.scenarioModeling?.projectedNewRevenue?.toString() || "0"
+  );
+
   const monthlyRepayment = loanAmount && termMonths && interestRate
     ? calculateMonthlyPayment(parseFloat(loanAmount), parseFloat(interestRate), parseInt(termMonths))
     : 0;
@@ -860,44 +867,167 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
             {financialAnalysis ? (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card className="bg-muted/30">
-                    <CardContent className="pt-4">
-                      <div className="text-sm text-muted-foreground">Avg Monthly Revenue</div>
-                      <div className="text-xl font-bold">
-                        {formatCurrency(financialAnalysis.averageMonthlyRevenue || 0)}
+                <Card className="overflow-hidden border-0 shadow-md">
+                  <div className="bg-[#1e3a5f] text-white px-4 py-3">
+                    <h4 className="font-semibold text-sm uppercase tracking-wide">Base Affordability (Historic)</h4>
+                  </div>
+                  <CardContent className="p-0">
+                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border">
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Avg Monthly Rev</div>
+                        <div className="text-xl font-bold text-foreground">
+                          {formatCurrency(financialAnalysis.averageMonthlyRevenue || 0)}
+                        </div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Avg Monthly Exp</div>
+                        <div className="text-xl font-bold text-foreground">
+                          {formatCurrency(financialAnalysis.averageMonthlyExpenses || 0)}
+                        </div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Net Disposable</div>
+                        <div className={`text-xl font-bold ${(financialAnalysis.netDisposableIncome || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(financialAnalysis.netDisposableIncome || 0)}
+                        </div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Base DSCR</div>
+                        <div className={`text-xl font-bold ${(financialAnalysis.dscr || 0) >= DSCR_THRESHOLD ? 'text-green-600' : 'text-red-600'}`}>
+                          {(financialAnalysis.dscr || 0).toFixed(2)}x
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden border-0 shadow-md">
+                  <div className="bg-[#1e3a5f] text-white px-4 py-3">
+                    <h4 className="font-semibold text-sm uppercase tracking-wide">AI Summary</h4>
+                  </div>
+                  <CardContent className="p-4">
+                    <p className="text-sm text-muted-foreground italic leading-relaxed">
+                      "{financialAnalysis.summary}"
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Card className="overflow-hidden border-0 shadow-md">
+                    <div className="bg-[#1e3a5f] text-white px-4 py-3 flex items-center justify-between gap-2">
+                      <h4 className="font-semibold text-sm uppercase tracking-wide">Adjustments & Projections</h4>
+                    </div>
+                    <CardContent className="p-4 space-y-4">
+                      <div>
+                        <Label htmlFor="refinance-addback" className="text-sm font-medium">
+                          Refinance Add-Back (Monthly £)
+                          <span className="text-xs text-muted-foreground ml-2">- Debt being consolidated</span>
+                        </Label>
+                        <Input
+                          id="refinance-addback"
+                          type="number"
+                          value={refinanceAddBack}
+                          onChange={(e) => setRefinanceAddBack(e.target.value)}
+                          onBlur={() => {
+                            onSave({
+                              underwriting: {
+                                ...underwriting,
+                                financialAnalysis: {
+                                  ...financialAnalysis,
+                                  scenarioModeling: {
+                                    ...financialAnalysis.scenarioModeling,
+                                    refinanceAddBack: parseFloat(refinanceAddBack) || 0,
+                                    projectedNewRevenue: parseFloat(projectedNewRevenue) || 0,
+                                  },
+                                },
+                              },
+                            });
+                          }}
+                          className="mt-1"
+                          placeholder="0"
+                          data-testid="input-refinance-addback"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="projected-revenue" className="text-sm font-medium">
+                          Projected New Revenue (Monthly £)
+                          <span className="text-xs text-muted-foreground ml-2">- Conservative estimate</span>
+                        </Label>
+                        <Input
+                          id="projected-revenue"
+                          type="number"
+                          value={projectedNewRevenue}
+                          onChange={(e) => setProjectedNewRevenue(e.target.value)}
+                          onBlur={() => {
+                            onSave({
+                              underwriting: {
+                                ...underwriting,
+                                financialAnalysis: {
+                                  ...financialAnalysis,
+                                  scenarioModeling: {
+                                    ...financialAnalysis.scenarioModeling,
+                                    refinanceAddBack: parseFloat(refinanceAddBack) || 0,
+                                    projectedNewRevenue: parseFloat(projectedNewRevenue) || 0,
+                                  },
+                                },
+                              },
+                            });
+                          }}
+                          className="mt-1"
+                          placeholder="0"
+                          data-testid="input-projected-revenue"
+                        />
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-muted/30">
-                    <CardContent className="pt-4">
-                      <div className="text-sm text-muted-foreground">Avg Monthly Expenses</div>
-                      <div className="text-xl font-bold">
-                        {formatCurrency(financialAnalysis.averageMonthlyExpenses || 0)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/30">
-                    <CardContent className="pt-4">
-                      <div className="text-sm text-muted-foreground">Net Disposable</div>
-                      <div className="text-xl font-bold">
-                        {formatCurrency(financialAnalysis.netDisposableIncome || 0)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/30">
-                    <CardContent className="pt-4">
-                      <div className="text-sm text-muted-foreground">DSCR</div>
-                      <div className={`text-xl font-bold flex items-center gap-2 ${
-                        (financialAnalysis.dscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"
-                      }`}>
-                        {(financialAnalysis.dscr || 0).toFixed(2)}x
-                        {(financialAnalysis.dscr || 0) >= DSCR_THRESHOLD ? (
-                          <CheckCircle2 className="h-4 w-4" />
-                        ) : (
-                          <XCircle className="h-4 w-4" />
-                        )}
-                      </div>
+
+                  <Card className="overflow-hidden border-0 shadow-md">
+                    <div className="bg-[#1e3a5f] text-white px-4 py-3">
+                      <h4 className="font-semibold text-sm uppercase tracking-wide">Scenario Modeling</h4>
+                    </div>
+                    <CardContent className="p-4 space-y-3">
+                      {(() => {
+                        const baseDisposable = financialAnalysis.netDisposableIncome || 0;
+                        const refinance = parseFloat(refinanceAddBack) || 0;
+                        const newRevenue = parseFloat(projectedNewRevenue) || 0;
+                        const adjustedDisposable = baseDisposable + refinance + newRevenue;
+                        const newLoanRepayment = monthlyRepayment;
+                        const adjustedDscr = newLoanRepayment > 0 ? adjustedDisposable / newLoanRepayment : 0;
+                        
+                        return (
+                          <>
+                            <div className="flex justify-between items-center py-2 border-b">
+                              <span className="text-sm text-muted-foreground">Adjusted Disposable Income:</span>
+                              <span 
+                                className={`font-bold ${adjustedDisposable >= 0 ? 'text-foreground' : 'text-red-600'}`}
+                                data-testid="text-adjusted-disposable"
+                              >
+                                {formatCurrency(adjustedDisposable)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b">
+                              <span className="text-sm text-muted-foreground">New Loan Repayment:</span>
+                              <span className="font-bold text-foreground" data-testid="text-new-loan-repayment">
+                                {formatCurrency(newLoanRepayment)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2">
+                              <span className="text-sm font-medium">Adjusted DSCR:</span>
+                              <div className="text-right">
+                                <span 
+                                  className={`text-xl font-bold ${adjustedDscr >= DSCR_THRESHOLD ? 'text-green-600' : 'text-red-600'}`}
+                                  data-testid="text-adjusted-dscr"
+                                >
+                                  {adjustedDscr.toFixed(2)}x
+                                </span>
+                                <div className="text-xs text-muted-foreground">
+                                  Target: {DSCR_THRESHOLD}x
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 </div>
@@ -920,7 +1050,6 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                           <span>Risk Grade</span>
                           {getRiskGradeBadge(financialAnalysis.riskScore)}
                         </div>
-                        <div className="text-sm">{financialAnalysis.summary}</div>
                       </CardContent>
                     </Card>
 
