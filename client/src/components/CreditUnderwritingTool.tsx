@@ -115,6 +115,18 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   const pdfInputRef3 = useRef<HTMLInputElement>(null);
   const [parsingPdf, setParsingPdf] = useState<number | null>(null);
 
+  // Bank statement PDF upload states (alternative to CSV)
+  interface BankStatementPdf {
+    fileName: string;
+    text: string;
+    pages?: number;
+  }
+  const [bankStatementPdfs, setBankStatementPdfs] = useState<BankStatementPdf[]>(
+    underwriting.bankPdfFiles || []
+  );
+  const bankPdfInputRef = useRef<HTMLInputElement>(null);
+  const [parsingBankPdfs, setParsingBankPdfs] = useState(false);
+
   const [adviserSummary, setAdviserSummary] = useState(underwriting.adviserSummary || {
     soarRef: "",
     businessName: prospect.company.companyName || "",
@@ -209,6 +221,33 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to analyze CSV");
+    },
+  });
+
+  const analyzeBankPdfsMutation = useMutation({
+    mutationFn: async (pdfTexts: { fileName: string; text: string; pages?: number }[]) => {
+      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/analyze-bank-pdfs`, "POST", {
+        pdfTexts,
+        loanAmount: parseFloat(loanAmount),
+        monthlyRepayment,
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      onSave({
+        underwriting: {
+          ...underwriting,
+          financialAnalysis: result,
+          bankPdfFiles: bankStatementPdfs.map(p => ({ fileName: p.fileName, pages: p.pages })),
+          analysisSource: 'pdf',
+          analyzedAt: new Date().toISOString(),
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
+      toast.success("Bank statement PDF analysis complete");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to analyze bank statement PDFs");
     },
   });
 
@@ -402,6 +441,81 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
       return;
     }
     analyzeCsvMutation.mutate(csvText);
+  };
+
+  const handleBankPdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    if (files.length > 6) {
+      toast.error("Maximum 6 bank statement PDFs allowed");
+      return;
+    }
+
+    setParsingBankPdfs(true);
+
+    try {
+      const parsedPdfs: BankStatementPdf[] = [];
+
+      for (const file of Array.from(files)) {
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+          toast.error(`${file.name} is not a PDF file`);
+          continue;
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
+
+        try {
+          const response = await apiRequest("/api/parse-pdf", "POST", { pdfBase64: base64 });
+          const data = await response.json();
+
+          parsedPdfs.push({
+            fileName: file.name,
+            text: data.text,
+            pages: data.pages,
+          });
+        } catch (error: any) {
+          toast.error(`Failed to parse ${file.name}`);
+        }
+      }
+
+      if (parsedPdfs.length > 0) {
+        setBankStatementPdfs(parsedPdfs);
+        onSave({
+          underwriting: {
+            ...underwriting,
+            bankPdfFiles: parsedPdfs.map(p => ({ fileName: p.fileName, pages: p.pages })),
+          },
+        });
+        toast.success(`Parsed ${parsedPdfs.length} bank statement${parsedPdfs.length > 1 ? 's' : ''}`);
+      }
+    } catch (error: any) {
+      toast.error("Failed to process PDF files");
+    } finally {
+      setParsingBankPdfs(false);
+    }
+  };
+
+  const handleAnalyzeBankPdfs = () => {
+    if (bankStatementPdfs.length === 0) {
+      toast.error("Please upload at least one bank statement PDF");
+      return;
+    }
+    if (!loanAmount || parseFloat(loanAmount) <= 0) {
+      toast.error("Please enter a valid loan amount");
+      return;
+    }
+    analyzeBankPdfsMutation.mutate(bankStatementPdfs);
+  };
+
+  const clearBankPdfs = () => {
+    setBankStatementPdfs([]);
+    if (bankPdfInputRef.current) {
+      bankPdfInputRef.current.value = '';
+    }
   };
 
   const saveAdviserSummary = () => {
@@ -714,6 +828,90 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 <p className="mt-2 text-sm">{financialAnalysis.summary}</p>
               </div>
             )}
+
+            <Separator className="my-6" />
+
+            <h3 className="text-lg font-semibold">Bank Statement PDF Upload (Alternative)</h3>
+            <p className="text-sm text-muted-foreground">
+              If you have bank statements in PDF format, upload up to 6 months here instead of CSV.
+            </p>
+
+            <div className="border-2 border-dashed rounded-lg p-6 text-center">
+              <input
+                type="file"
+                ref={bankPdfInputRef}
+                accept=".pdf"
+                multiple
+                onChange={handleBankPdfUpload}
+                className="hidden"
+                data-testid="input-bank-pdf-upload"
+              />
+              {parsingBankPdfs ? (
+                <div className="space-y-4">
+                  <Loader2 className="h-12 w-12 mx-auto animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Parsing bank statement PDFs...</p>
+                </div>
+              ) : bankStatementPdfs.length > 0 ? (
+                <div className="space-y-4">
+                  <FileText className="h-12 w-12 mx-auto text-green-500" />
+                  <div className="text-sm">
+                    <p className="font-medium">{bankStatementPdfs.length} PDF{bankStatementPdfs.length > 1 ? 's' : ''} uploaded</p>
+                    <div className="mt-2 text-muted-foreground space-y-1">
+                      {bankStatementPdfs.map((pdf, i) => (
+                        <p key={i} className="text-xs truncate">{pdf.fileName} ({pdf.pages} pages)</p>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-3 justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearBankPdfs}
+                    >
+                      Clear All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => bankPdfInputRef.current?.click()}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Replace
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleAnalyzeBankPdfs}
+                      disabled={analyzeBankPdfsMutation.isPending}
+                      data-testid="button-analyze-bank-pdfs"
+                    >
+                      {analyzeBankPdfsMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Analyze PDFs
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
+                  <div>
+                    <Button onClick={() => bankPdfInputRef.current?.click()}>
+                      Select PDF Files (up to 6)
+                    </Button>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Upload 6 months of bank statements in PDF format
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Separator className="my-6" />
 
