@@ -322,6 +322,114 @@ export const checklistItemSchema = z.object({
   notes: z.string().default(""),
 });
 
+export const underwritingEligibilitySchema = z.object({
+  answers: z.record(z.string(), z.boolean()).optional(),
+  isEligible: z.boolean().optional(),
+  ineligibilityReasons: z.array(z.string()).optional(),
+});
+
+export const underwritingFinancialAnalysisSchema = z.object({
+  averageMonthlyRevenue: z.number().optional(),
+  averageMonthlyExpenses: z.number().optional(),
+  netDisposableIncome: z.number().optional(),
+  dscr: z.number().optional(),
+  riskScore: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
+  summary: z.string().optional(),
+  monthlyBreakdown: z.array(z.object({
+    month: z.string(),
+    income: z.number(),
+    expenses: z.number(),
+    net: z.number(),
+    closingBalance: z.number(),
+  })).optional(),
+  transactionCount: z.number().optional(),
+  profitAndLoss: z.object({
+    turnover: z.number().optional(),
+    costOfSales: z.number().optional(),
+    grossProfit: z.number().optional(),
+    expenses: z.record(z.string(), z.number()).optional(),
+    totalExpenses: z.number().optional(),
+    netProfit: z.number().optional(),
+    periodMonths: z.number().optional(),
+  }).optional(),
+  excludedTransferValue: z.number().optional(),
+  excludedTransferCount: z.number().optional(),
+  redFlags: z.array(z.object({
+    label: z.string(),
+    isActive: z.boolean(),
+  })).optional(),
+  preliminaryFindings: z.object({
+    loans: z.array(z.object({
+      date: z.string(),
+      description: z.string(),
+      amount: z.number(),
+      type: z.string(),
+      details: z.string(),
+    })).optional(),
+    transfers: z.array(z.object({
+      date: z.string(),
+      description: z.string(),
+      amount: z.number(),
+      type: z.string(),
+      details: z.string(),
+    })).optional(),
+    anomalies: z.array(z.object({
+      date: z.string(),
+      description: z.string(),
+      amount: z.number(),
+      type: z.string(),
+      details: z.string(),
+    })).optional(),
+  }).optional(),
+});
+
+export const underwritingAdverseMediaSchema = z.object({
+  query: z.string().optional(),
+  results: z.array(z.object({
+    title: z.string(),
+    url: z.string(),
+    content: z.string(),
+    score: z.number(),
+  })).optional(),
+  riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+  flags: z.array(z.string()).optional(),
+  summary: z.string().optional(),
+});
+
+export const underwritingAdviserSummarySchema = z.object({
+  soarRef: z.string().optional(),
+  businessName: z.string().optional(),
+  product: z.string().optional(),
+  amount: z.number().optional(),
+  term: z.number().optional(),
+  region: z.string().optional(),
+  legalStructure: z.string().optional(),
+  sector: z.string().optional(),
+  purpose: z.string().optional(),
+  sections: z.record(z.string(), z.string()).optional(),
+  questionnaire: z.record(z.string(), z.enum(['Yes', 'No', 'N/A'])).optional(),
+  recommendation: z.string().optional(),
+  nextActions: z.array(z.string()).optional(),
+});
+
+export const underwritingDataSchema = z.object({
+  eligibility: underwritingEligibilitySchema.optional(),
+  loanDetails: z.object({
+    amount: z.number().optional(),
+    termMonths: z.number().optional(),
+    interestRate: z.number().optional(),
+    monthlyRepayment: z.number().optional(),
+  }).optional(),
+  financialAnalysis: underwritingFinancialAnalysisSchema.optional(),
+  csvFileName: z.string().optional(),
+  analyzedAt: z.string().optional(),
+  adverseMedia: underwritingAdverseMediaSchema.optional(),
+  adverseMediaSearchedAt: z.string().optional(),
+  adviserSummary: underwritingAdviserSummarySchema.optional(),
+  riskGrade: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
+  completedAt: z.string().optional(),
+});
+
 export const dueDiligenceDataSchema = z.object({
   checklist: z.array(checklistItemSchema).default([]),
   loanCalculator: z.object({
@@ -355,6 +463,7 @@ export const dueDiligenceDataSchema = z.object({
     contracts: z.number().min(1).max(5).optional(),
     notes: z.string().optional(),
   }).optional(),
+  underwriting: underwritingDataSchema.optional(),
 });
 
 export const insertDueDiligenceSchema = createInsertSchema(dueDiligence).omit({
@@ -372,3 +481,8 @@ export type DueDiligenceData = z.infer<typeof dueDiligenceDataSchema>;
 export type DueDiligence = typeof dueDiligence.$inferSelect;
 export type InsertDueDiligence = z.infer<typeof insertDueDiligenceSchema>;
 export type UpdateDueDiligence = z.infer<typeof updateDueDiligenceSchema>;
+export type UnderwritingData = z.infer<typeof underwritingDataSchema>;
+export type UnderwritingEligibility = z.infer<typeof underwritingEligibilitySchema>;
+export type UnderwritingFinancialAnalysis = z.infer<typeof underwritingFinancialAnalysisSchema>;
+export type UnderwritingAdverseMedia = z.infer<typeof underwritingAdverseMediaSchema>;
+export type UnderwritingAdviserSummary = z.infer<typeof underwritingAdviserSummarySchema>;
