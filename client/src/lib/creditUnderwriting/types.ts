@@ -197,3 +197,61 @@ export interface TavilyResult {
   content: string;
   score: number;
 }
+
+export interface AuditedAccountYear {
+  yearEnding: string;
+  turnover: number;
+  grossProfit: number;
+  netProfit: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  netAssets: number;
+  shareholderFunds: number;
+  cashAndEquivalents: number;
+  debtors: number;
+  creditors: number;
+  bankLoans: number;
+}
+
+export interface AccountsRatios {
+  grossProfitMargin: number;
+  netProfitMargin: number;
+  currentRatio: number;
+  quickRatio: number;
+  debtToEquity: number;
+  interestCover: number;
+  debtorDays: number;
+  creditorDays: number;
+  returnOnCapitalEmployed: number;
+}
+
+export interface AccountsConcern {
+  category: 'going_concern' | 'contingent_liability' | 'related_party' | 'auditor_opinion' | 'subsequent_event' | 'other';
+  description: string;
+  severity: 'low' | 'medium' | 'high';
+  yearEnding: string;
+}
+
+export interface AuditedAccountsAnalysis {
+  years: AuditedAccountYear[];
+  ratios: {
+    year: string;
+    ratios: AccountsRatios;
+  }[];
+  trends: {
+    turnoverGrowth: number[];
+    profitGrowth: number[];
+    netAssetGrowth: number[];
+    trend: 'improving' | 'stable' | 'declining';
+    summary: string;
+  };
+  dscr: {
+    historical: number[];
+    average: number;
+    trend: 'improving' | 'stable' | 'declining';
+  };
+  concerns: AccountsConcern[];
+  auditorOpinion: string;
+  summary: string;
+  riskAssessment: 'low' | 'medium' | 'high';
+}
