@@ -225,3 +225,186 @@ export function calculateRiskGrade(
   if (dscr >= DSCR_THRESHOLD && redFlagsCount <= 2) return 'B';
   return 'C';
 }
+
+export interface AuditedAccountsAnalysisResult {
+  years: {
+    yearEnding: string;
+    turnover: number;
+    grossProfit: number;
+    netProfit: number;
+    totalAssets: number;
+    totalLiabilities: number;
+    netAssets: number;
+    shareholderFunds: number;
+    cashAndEquivalents: number;
+    debtors: number;
+    creditors: number;
+    bankLoans: number;
+  }[];
+  ratios: {
+    year: string;
+    ratios: {
+      grossProfitMargin: number;
+      netProfitMargin: number;
+      currentRatio: number;
+      quickRatio: number;
+      debtToEquity: number;
+      interestCover: number;
+      debtorDays: number;
+      creditorDays: number;
+      returnOnCapitalEmployed: number;
+    };
+  }[];
+  trends: {
+    turnoverGrowth: number[];
+    profitGrowth: number[];
+    netAssetGrowth: number[];
+    trend: 'improving' | 'stable' | 'declining';
+    summary: string;
+  };
+  dscr: {
+    historical: number[];
+    average: number;
+    trend: 'improving' | 'stable' | 'declining';
+  };
+  concerns: {
+    category: 'going_concern' | 'contingent_liability' | 'related_party' | 'auditor_opinion' | 'subsequent_event' | 'other';
+    description: string;
+    severity: 'low' | 'medium' | 'high';
+    yearEnding: string;
+  }[];
+  auditorOpinion: string;
+  summary: string;
+  riskAssessment: 'low' | 'medium' | 'high';
+}
+
+export async function analyzeAuditedAccounts(
+  pdfTexts: { year: string; text: string }[],
+  loanAmount: number,
+  monthlyRepayment: number
+): Promise<AuditedAccountsAnalysisResult> {
+  const combinedText = pdfTexts.map(p => `\n=== ACCOUNTS FOR YEAR ENDING ${p.year} ===\n${p.text}`).join('\n\n');
+  
+  const prompt = `You are a financial analyst specializing in commercial lending. Analyze these audited accounts (up to 3 years) extracted from PDF documents and provide a comprehensive credit assessment.
+
+CRITICAL INSTRUCTIONS:
+- Extract key financial figures from each year's accounts
+- Calculate financial ratios and identify trends
+- Pay special attention to the Notes to the Accounts for any concerns
+- Look for going concern warnings, contingent liabilities, related party transactions, and auditor qualifications
+- Calculate historical DSCR based on operating profit and any debt service costs mentioned
+
+AUDITED ACCOUNTS TEXT:
+${combinedText}
+
+LOAN DETAILS:
+- Requested Amount: £${loanAmount.toLocaleString()}
+- Monthly Repayment: £${monthlyRepayment.toLocaleString()}
+
+Return your analysis as valid JSON with this exact structure:
+{
+  "years": [
+    {
+      "yearEnding": "YYYY-MM-DD",
+      "turnover": number,
+      "grossProfit": number,
+      "netProfit": number,
+      "totalAssets": number,
+      "totalLiabilities": number,
+      "netAssets": number,
+      "shareholderFunds": number,
+      "cashAndEquivalents": number,
+      "debtors": number,
+      "creditors": number,
+      "bankLoans": number
+    }
+  ],
+  "ratios": [
+    {
+      "year": "YYYY",
+      "ratios": {
+        "grossProfitMargin": number (percentage),
+        "netProfitMargin": number (percentage),
+        "currentRatio": number,
+        "quickRatio": number,
+        "debtToEquity": number,
+        "interestCover": number,
+        "debtorDays": number,
+        "creditorDays": number,
+        "returnOnCapitalEmployed": number (percentage)
+      }
+    }
+  ],
+  "trends": {
+    "turnoverGrowth": [number] (year-on-year % growth),
+    "profitGrowth": [number] (year-on-year % growth),
+    "netAssetGrowth": [number] (year-on-year % growth),
+    "trend": "improving" | "stable" | "declining",
+    "summary": "Brief trend analysis summary"
+  },
+  "dscr": {
+    "historical": [number] (DSCR for each year if calculable),
+    "average": number,
+    "trend": "improving" | "stable" | "declining"
+  },
+  "concerns": [
+    {
+      "category": "going_concern" | "contingent_liability" | "related_party" | "auditor_opinion" | "subsequent_event" | "other",
+      "description": "Description of concern from notes to accounts",
+      "severity": "low" | "medium" | "high",
+      "yearEnding": "YYYY"
+    }
+  ],
+  "auditorOpinion": "Summary of auditor's opinion across years (unqualified, qualified, adverse, disclaimer)",
+  "summary": "Executive summary of financial health and creditworthiness based on 3-year analysis",
+  "riskAssessment": "low" | "medium" | "high"
+}
+
+IMPORTANT:
+- Return ONLY valid JSON, no additional text or markdown
+- Use 0 for any figures not found in the accounts
+- If ratios cannot be calculated, use 0
+- Always identify any concerns from the notes to accounts
+- Provide meaningful analysis even with partial data`;
+
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+      
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Failed to extract JSON from AI response");
+      }
+
+      let jsonStr = repairJson(jsonMatch[0]);
+      const result = JSON.parse(jsonStr) as AuditedAccountsAnalysisResult;
+      
+      // Ensure required fields exist with defaults
+      result.years = result.years || [];
+      result.ratios = result.ratios || [];
+      result.trends = result.trends || { turnoverGrowth: [], profitGrowth: [], netAssetGrowth: [], trend: 'stable', summary: '' };
+      result.dscr = result.dscr || { historical: [], average: 0, trend: 'stable' };
+      result.concerns = result.concerns || [];
+      result.auditorOpinion = result.auditorOpinion || 'Not specified';
+      result.summary = result.summary || '';
+      result.riskAssessment = result.riskAssessment || 'medium';
+
+      return result;
+    } catch (error) {
+      console.error(`Audited accounts analysis attempt ${attempt}/${maxRetries} error:`, error);
+      
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  
+  throw new Error("Failed to analyze audited accounts after multiple attempts");
+}
