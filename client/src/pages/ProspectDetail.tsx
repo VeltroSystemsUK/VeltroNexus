@@ -42,6 +42,7 @@ import {
   FinancialRatiosCalculatorTool,
   CharacterAssessmentTool,
 } from "@/components/DueDiligenceTools";
+import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
 import { CompanyInformation } from "@/components/CompanyInformation";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 
@@ -247,7 +248,7 @@ export default function ProspectDetail() {
 
           {user?.subscriptionTier !== "free" && (
             <TabsContent value="diligence">
-              <DueDiligenceTab prospect={prospect} />
+              <DueDiligenceTab prospect={prospect} userTier={user?.subscriptionTier || "free"} />
             </TabsContent>
           )}
 
@@ -1053,7 +1054,7 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
   );
 }
 
-function DueDiligenceTab({ prospect }: { prospect: ProspectWithCompany }) {
+function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany; userTier: string }) {
   const { data: dueDiligence } = useQuery<DueDiligence>({
     queryKey: [`/api/prospects/${prospect.id}/due-diligence`],
   });
@@ -1161,6 +1162,27 @@ function DueDiligenceTab({ prospect }: { prospect: ProspectWithCompany }) {
             />
           </AccordionContent>
         </AccordionItem>
+
+        {userTier === "premium" && (
+          <AccordionItem value="underwriting" className="border rounded-lg border-primary/20" data-testid="accordion-underwriting">
+            <AccordionTrigger className="px-6 hover:no-underline">
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-semibold">Credit Underwriting</span>
+                <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                  Premium
+                </Badge>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6">
+              <CreditUnderwritingTool
+                prospect={prospect}
+                data={dueDiligenceData}
+                onSave={handleSave}
+                isSaving={saveDueDiligenceMutation.isPending}
+              />
+            </AccordionContent>
+          </AccordionItem>
+        )}
       </Accordion>
     </div>
   );
