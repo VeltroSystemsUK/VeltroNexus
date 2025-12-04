@@ -354,6 +354,10 @@ export const underwritingFinancialAnalysisSchema = z.object({
   }).optional(),
   excludedTransferValue: z.number().optional(),
   excludedTransferCount: z.number().optional(),
+  scenarioModeling: z.object({
+    refinanceAddBack: z.number().optional(),
+    projectedNewRevenue: z.number().optional(),
+  }).optional(),
   redFlags: z.array(z.object({
     label: z.string(),
     isActive: z.boolean(),
