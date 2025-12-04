@@ -412,6 +412,65 @@ export const underwritingAdviserSummarySchema = z.object({
   nextActions: z.array(z.string()).optional(),
 });
 
+export const accountsPdfSchema = z.object({
+  year: z.string(),
+  fileName: z.string(),
+  text: z.string(),
+  pages: z.number().optional(),
+});
+
+export const accountsAnalysisSchema = z.object({
+  years: z.array(z.object({
+    yearEnding: z.string(),
+    turnover: z.number(),
+    grossProfit: z.number(),
+    netProfit: z.number(),
+    totalAssets: z.number(),
+    totalLiabilities: z.number(),
+    netAssets: z.number(),
+    shareholderFunds: z.number(),
+    cashAndEquivalents: z.number(),
+    debtors: z.number(),
+    creditors: z.number(),
+    bankLoans: z.number(),
+  })).optional(),
+  ratios: z.array(z.object({
+    year: z.string(),
+    ratios: z.object({
+      grossProfitMargin: z.number(),
+      netProfitMargin: z.number(),
+      currentRatio: z.number(),
+      quickRatio: z.number(),
+      debtToEquity: z.number(),
+      interestCover: z.number(),
+      debtorDays: z.number(),
+      creditorDays: z.number(),
+      returnOnCapitalEmployed: z.number(),
+    }),
+  })).optional(),
+  trends: z.object({
+    turnoverGrowth: z.array(z.number()).optional(),
+    profitGrowth: z.array(z.number()).optional(),
+    netAssetGrowth: z.array(z.number()).optional(),
+    trend: z.enum(['improving', 'stable', 'declining']).optional(),
+    summary: z.string().optional(),
+  }).optional(),
+  dscr: z.object({
+    historical: z.array(z.number()).optional(),
+    average: z.number().optional(),
+    trend: z.enum(['improving', 'stable', 'declining']).optional(),
+  }).optional(),
+  concerns: z.array(z.object({
+    category: z.enum(['going_concern', 'contingent_liability', 'related_party', 'auditor_opinion', 'subsequent_event', 'other']),
+    description: z.string(),
+    severity: z.enum(['low', 'medium', 'high']),
+    yearEnding: z.string(),
+  })).optional(),
+  auditorOpinion: z.string().optional(),
+  summary: z.string().optional(),
+  riskAssessment: z.enum(['low', 'medium', 'high']).optional(),
+});
+
 export const underwritingDataSchema = z.object({
   eligibility: underwritingEligibilitySchema.optional(),
   loanDetails: z.object({
@@ -425,6 +484,9 @@ export const underwritingDataSchema = z.object({
   analyzedAt: z.string().optional(),
   adverseMedia: underwritingAdverseMediaSchema.optional(),
   adverseMediaSearchedAt: z.string().optional(),
+  accountsPdfs: z.array(accountsPdfSchema).optional(),
+  accountsAnalysis: accountsAnalysisSchema.optional(),
+  accountsAnalyzedAt: z.string().optional(),
   adviserSummary: underwritingAdviserSummarySchema.optional(),
   riskGrade: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
   completedAt: z.string().optional(),

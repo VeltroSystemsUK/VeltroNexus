@@ -99,6 +99,21 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   const [csvFileName, setCsvFileName] = useState(underwriting.csvFileName || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // PDF upload states for audited accounts
+  interface AccountsPdf {
+    year: string;
+    fileName: string;
+    text: string;
+    pages?: number;
+  }
+  const [accountsPdfs, setAccountsPdfs] = useState<AccountsPdf[]>(
+    underwriting.accountsPdfs || []
+  );
+  const pdfInputRef1 = useRef<HTMLInputElement>(null);
+  const pdfInputRef2 = useRef<HTMLInputElement>(null);
+  const pdfInputRef3 = useRef<HTMLInputElement>(null);
+  const [parsingPdf, setParsingPdf] = useState<number | null>(null);
+
   const [adviserSummary, setAdviserSummary] = useState(underwriting.adviserSummary || {
     soarRef: "",
     businessName: prospect.company.companyName || "",
@@ -206,6 +221,103 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     },
   });
 
+  const analyzeAccountsMutation = useMutation({
+    mutationFn: async (pdfTexts: { year: string; text: string }[]) => {
+      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/analyze-accounts`, "POST", {
+        pdfTexts,
+        loanAmount: parseFloat(loanAmount),
+        monthlyRepayment,
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      onSave({
+        underwriting: {
+          ...underwriting,
+          accountsPdfs,
+          accountsAnalysis: result,
+          accountsAnalyzedAt: new Date().toISOString(),
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
+      toast.success("Audited accounts analysis complete");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to analyze accounts");
+    },
+  });
+
+  const handlePdfUpload = async (yearIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error("Please upload a PDF file");
+      return;
+    }
+
+    setParsingPdf(yearIndex);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
+        
+        try {
+          const response = await apiRequest("/api/parse-pdf", "POST", { pdfBase64: base64 });
+          const data = await response.json();
+          
+          const currentYear = new Date().getFullYear();
+          const yearLabels = [`${currentYear - 1}`, `${currentYear - 2}`, `${currentYear - 3}`];
+          
+          const newPdf: AccountsPdf = {
+            year: yearLabels[yearIndex] || `Year ${yearIndex + 1}`,
+            fileName: file.name,
+            text: data.text,
+            pages: data.pages,
+          };
+          
+          const updatedPdfs = [...accountsPdfs];
+          updatedPdfs[yearIndex] = newPdf;
+          setAccountsPdfs(updatedPdfs);
+          
+          onSave({
+            underwriting: {
+              ...underwriting,
+              accountsPdfs: updatedPdfs,
+            },
+          });
+          
+          toast.success(`Parsed ${file.name} (${data.pages} pages)`);
+        } catch (error: any) {
+          toast.error(error.message || "Failed to parse PDF");
+        } finally {
+          setParsingPdf(null);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (error: any) {
+      toast.error("Failed to read file");
+      setParsingPdf(null);
+    }
+  };
+
+  const handleAnalyzeAccounts = () => {
+    const validPdfs = accountsPdfs.filter(pdf => pdf && pdf.text);
+    if (validPdfs.length === 0) {
+      toast.error("Please upload at least one year of accounts");
+      return;
+    }
+    if (!loanAmount || parseFloat(loanAmount) <= 0) {
+      toast.error("Please enter a valid loan amount");
+      return;
+    }
+    analyzeAccountsMutation.mutate(validPdfs.map(pdf => ({ year: pdf.year, text: pdf.text })));
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -268,6 +380,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   };
 
   const financialAnalysis = underwriting.financialAnalysis;
+  const accountsAnalysis = underwriting.accountsAnalysis;
   const adverseMedia = underwriting.adverseMedia;
   const { isEligible, reasons } = checkEligibility();
 
@@ -545,10 +658,139 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
               <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
                   <CheckCircle2 className="h-5 w-5" />
-                  <span className="font-medium">Analysis Complete</span>
+                  <span className="font-medium">Bank Statement Analysis Complete</span>
                   {getRiskGradeBadge(financialAnalysis.riskScore)}
                 </div>
                 <p className="mt-2 text-sm">{financialAnalysis.summary}</p>
+              </div>
+            )}
+
+            <Separator className="my-6" />
+
+            <h3 className="text-lg font-semibold">Audited Accounts Upload</h3>
+            <p className="text-sm text-muted-foreground">
+              Upload up to 3 years of audited accounts (PDF format) for trend analysis, credit ratios, and DSCR calculation.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[0, 1, 2].map((yearIndex) => {
+                const currentYear = new Date().getFullYear();
+                const yearLabels = [`${currentYear - 1}`, `${currentYear - 2}`, `${currentYear - 3}`];
+                const pdfRef = yearIndex === 0 ? pdfInputRef1 : yearIndex === 1 ? pdfInputRef2 : pdfInputRef3;
+                const pdf = accountsPdfs[yearIndex];
+                
+                return (
+                  <div key={yearIndex} className="border-2 border-dashed rounded-lg p-4 text-center">
+                    <input
+                      type="file"
+                      ref={pdfRef}
+                      accept=".pdf"
+                      onChange={(e) => handlePdfUpload(yearIndex, e)}
+                      className="hidden"
+                      data-testid={`input-pdf-upload-${yearIndex}`}
+                    />
+                    <p className="text-sm font-medium mb-2">Year Ending {yearLabels[yearIndex]}</p>
+                    {parsingPdf === yearIndex ? (
+                      <div className="space-y-2">
+                        <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">Parsing PDF...</p>
+                      </div>
+                    ) : pdf ? (
+                      <div className="space-y-2">
+                        <FileText className="h-8 w-8 mx-auto text-green-500" />
+                        <p className="text-xs font-medium truncate">{pdf.fileName}</p>
+                        <p className="text-xs text-muted-foreground">{pdf.pages} pages</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => pdfRef.current?.click()}
+                        >
+                          Replace
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Building2 className="h-8 w-8 mx-auto text-muted-foreground" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => pdfRef.current?.click()}
+                        >
+                          Upload PDF
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {accountsPdfs.filter(p => p?.text).length > 0 && (
+              <div className="flex justify-center">
+                <Button
+                  onClick={handleAnalyzeAccounts}
+                  disabled={analyzeAccountsMutation.isPending}
+                  data-testid="button-analyze-accounts"
+                >
+                  {analyzeAccountsMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing Accounts...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Analyze {accountsPdfs.filter(p => p?.text).length} Year{accountsPdfs.filter(p => p?.text).length > 1 ? 's' : ''} of Accounts
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {accountsAnalysis && (
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="font-medium">Accounts Analysis Complete</span>
+                  {accountsAnalysis.riskAssessment && (
+                    <Badge className={
+                      accountsAnalysis.riskAssessment === 'low' ? 'bg-green-500 text-white' :
+                      accountsAnalysis.riskAssessment === 'medium' ? 'bg-yellow-500 text-white' :
+                      'bg-red-500 text-white'
+                    }>
+                      {accountsAnalysis.riskAssessment.toUpperCase()} Risk
+                    </Badge>
+                  )}
+                </div>
+                {accountsAnalysis.summary && (
+                  <p className="text-sm">{accountsAnalysis.summary}</p>
+                )}
+                
+                {accountsAnalysis.trends?.trend && (
+                  <div className="text-sm">
+                    <span className="font-medium">Trend: </span>
+                    <Badge variant={accountsAnalysis.trends.trend === 'improving' ? 'default' : accountsAnalysis.trends.trend === 'stable' ? 'secondary' : 'destructive'}>
+                      {accountsAnalysis.trends.trend.charAt(0).toUpperCase() + accountsAnalysis.trends.trend.slice(1)}
+                    </Badge>
+                  </div>
+                )}
+                
+                {accountsAnalysis.dscr?.average !== undefined && accountsAnalysis.dscr.average > 0 && (
+                  <div className="text-sm">
+                    <span className="font-medium">Avg Historical DSCR: </span>
+                    <span className={accountsAnalysis.dscr.average >= 1.25 ? 'text-green-600' : 'text-red-600'}>
+                      {accountsAnalysis.dscr.average.toFixed(2)}x
+                    </span>
+                  </div>
+                )}
+                
+                {accountsAnalysis.concerns && accountsAnalysis.concerns.length > 0 && (
+                  <div className="text-sm">
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      {accountsAnalysis.concerns.length} Concern{accountsAnalysis.concerns.length > 1 ? 's' : ''} Identified
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
