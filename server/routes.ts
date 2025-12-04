@@ -1115,13 +1115,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Import pdf-parse
-      const pdfParse = (await import("pdf-parse")).default;
+      const { PDFParse } = await import("pdf-parse");
       
       // Convert base64 to buffer
       const pdfBuffer = Buffer.from(pdfBase64, 'base64');
       
       // Parse PDF
-      const data = await pdfParse(pdfBuffer);
+      const data = await PDFParse(pdfBuffer);
       
       res.json({ 
         text: data.text,
