@@ -155,16 +155,18 @@ export default function ToDoList() {
 
   return (
     <Card data-testid="card-todo-list">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <ListTodo className="h-5 w-5" />
+      <CardHeader className="pb-4 pt-5 px-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <CardTitle className="flex items-center gap-2.5 text-lg">
+            <div className="h-9 w-9 rounded-lg bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center">
+              <ListTodo className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
             To Do List
           </CardTitle>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" data-testid="button-add-task">
-                <Plus className="h-4 w-4 mr-1" />
+              <Button data-testid="button-add-task">
+                <Plus className="h-5 w-5 mr-1.5" />
                 Add Task
               </Button>
             </DialogTrigger>
@@ -270,12 +272,13 @@ export default function ToDoList() {
           </Dialog>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+      <CardContent className="px-5 pb-5">
+        <div className="space-y-3 max-h-[400px] overflow-y-auto">
           {sortedActivities.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <ListTodo className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No tasks yet. Create your first task!</p>
+            <div className="text-center py-10 text-muted-foreground">
+              <ListTodo className="h-14 w-14 mx-auto mb-3 opacity-50" />
+              <p className="text-base font-medium">No tasks yet</p>
+              <p className="text-sm mt-1">Create your first task!</p>
             </div>
           ) : (
             sortedActivities.map((activity) => (

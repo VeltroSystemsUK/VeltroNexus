@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TrendingUp, LayoutDashboard, Users, Send, Download } from "lucide-react";
+import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
@@ -154,78 +154,86 @@ export default function Pipeline() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-background sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-              <TrendingUp className="h-5 w-5 text-primary-foreground" />
+      <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
+        <div className="container mx-auto px-6 py-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-11 w-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
+              <Building2 className="h-6 w-6 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold" data-testid="text-app-title">FlowLoan</h1>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-app-title">FlowLoan</h1>
+              <p className="text-sm text-muted-foreground">Commercial Lending Platform</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button 
               variant="outline"
+              size="lg"
               onClick={() => {
                 window.location.href = '/api/prospects/export/excel';
               }}
               data-testid="button-export-excel"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Export to Excel
+              <Download className="h-5 w-5 mr-2" />
+              Export
             </Button>
-            <Button onClick={() => navigate("/search")} data-testid="button-add-prospect">
+            <Button size="lg" onClick={() => navigate("/search")} data-testid="button-add-prospect">
               Add Prospect
             </Button>
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" data-testid="button-user-menu">
-                  <Avatar className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="button-user-menu">
+                  <Avatar className="h-10 w-10">
                     <AvatarImage 
                       src={user?.profileImageUrl || undefined} 
                       alt={user?.firstName || "User"}
                       style={{ objectFit: "cover" }}
                     />
-                    <AvatarFallback>
+                    <AvatarFallback className="text-base font-medium">
                       {user?.firstName?.[0] || user?.email?.[0] || "U"}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <div className="px-2 py-1.5 text-sm">
-                  <p className="font-semibold">{user?.firstName} {user?.lastName}</p>
-                  <p className="text-muted-foreground text-xs">{user?.email}</p>
+              <DropdownMenuContent align="end" className="w-64">
+                <div className="px-3 py-3">
+                  <p className="font-semibold text-base">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-muted-foreground text-sm">{user?.email}</p>
                 </div>
                 <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-sm">
-                  <p className="text-xs text-muted-foreground mb-1">Subscription</p>
-                  <p className="font-semibold capitalize">{user?.subscriptionTier || "Free"} Plan</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                <div className="px-3 py-3">
+                  <p className="text-xs text-muted-foreground mb-1.5 uppercase tracking-wide font-medium">Subscription</p>
+                  <p className="font-semibold text-base capitalize">{user?.subscriptionTier || "Free"} Plan</p>
+                  <p className="text-sm text-muted-foreground mt-1">
                     {prospects.length} / {user?.prospectLimit || 10} prospects used
                   </p>
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => navigate("/profile")}
+                  className="py-2.5 text-base"
                   data-testid="menu-item-profile"
                 >
                   Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => navigate("/settings")}
+                  className="py-2.5 text-base"
                   data-testid="menu-item-settings"
                 >
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => navigate("/lenders")}
+                  className="py-2.5 text-base"
                   data-testid="menu-item-lenders"
                 >
                   Lender Database
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => navigate("/submissions")}
+                  className="py-2.5 text-base"
                   data-testid="menu-item-submissions"
                 >
                   Submissions
@@ -233,6 +241,7 @@ export default function Pipeline() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => window.location.href = "/api/logout"}
+                  className="py-2.5 text-base"
                   data-testid="menu-item-logout"
                 >
                   Sign out
@@ -243,10 +252,10 @@ export default function Pipeline() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2" data-testid="text-page-title">FlowLoan</h2>
-          <p className="text-muted-foreground" data-testid="text-page-description">
+      <main className="container mx-auto px-6 py-10">
+        <div className="mb-10">
+          <h2 className="text-4xl font-bold mb-3 tracking-tight" data-testid="text-page-title">Pipeline Dashboard</h2>
+          <p className="text-lg text-muted-foreground" data-testid="text-page-description">
             Manage your commercial lending pipeline and track loan applications
           </p>
         </div>
@@ -255,27 +264,27 @@ export default function Pipeline() {
           <EmptyPipeline onAddProspect={() => navigate("/search")} />
         ) : (
           <Tabs defaultValue="dashboard" className="w-full" data-testid="tabs-main">
-            <TabsList className="grid w-full grid-cols-3 mb-8" data-testid="tabs-list">
-              <TabsTrigger value="dashboard" data-testid="tab-dashboard">
-                <LayoutDashboard className="h-4 w-4 mr-2" />
+            <TabsList className="grid w-full grid-cols-3 mb-10 h-14" data-testid="tabs-list">
+              <TabsTrigger value="dashboard" className="text-base py-3 gap-2.5" data-testid="tab-dashboard">
+                <LayoutDashboard className="h-5 w-5" />
                 Dashboard
               </TabsTrigger>
-              <TabsTrigger value="prospect-pipeline" data-testid="tab-prospect-pipeline">
-                <Users className="h-4 w-4 mr-2" />
+              <TabsTrigger value="prospect-pipeline" className="text-base py-3 gap-2.5" data-testid="tab-prospect-pipeline">
+                <Users className="h-5 w-5" />
                 Prospect Pipeline
               </TabsTrigger>
-              <TabsTrigger value="process-pipeline" data-testid="tab-process-pipeline">
-                <Send className="h-4 w-4 mr-2" />
+              <TabsTrigger value="process-pipeline" className="text-base py-3 gap-2.5" data-testid="tab-process-pipeline">
+                <Send className="h-5 w-5" />
                 Process Pipeline
               </TabsTrigger>
             </TabsList>
 
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" data-testid="content-dashboard">
-              <div className="space-y-8">
+              <div className="space-y-10">
                 {/* Headline Metrics */}
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Overview</h3>
+                  <h3 className="text-2xl font-semibold mb-6 tracking-tight">Overview</h3>
                   <PipelineStats
                     totalProspects={prospects.length}
                     activeProspects={activeProspects}
@@ -286,7 +295,7 @@ export default function Pipeline() {
 
                 {/* CRM Features */}
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Activity Management</h3>
+                  <h3 className="text-2xl font-semibold mb-6 tracking-tight">Activity Management</h3>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2">
                       <ActivityCalendar />
@@ -300,20 +309,20 @@ export default function Pipeline() {
 
                 {/* Quick Stage Summary */}
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Stage Summary</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  <h3 className="text-2xl font-semibold mb-6 tracking-tight">Stage Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
                     {ALL_STAGES.filter(s => !["approved", "declined", "withdrawn"].includes(s.value)).map((stage) => {
                       const count = getProspectsByStage(stage.value).length;
                       const totalValue = getTotalValueByStage(stage.value);
                       return (
                         <Card key={stage.value} className="hover-elevate">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">{stage.label}</CardTitle>
+                          <CardHeader className="pb-2 pt-5 px-5">
+                            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{stage.label}</CardTitle>
                           </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">{count}</div>
+                          <CardContent className="px-5 pb-5">
+                            <div className="text-4xl font-bold tracking-tight">{count}</div>
                             {totalValue && (
-                              <p className="text-xs text-muted-foreground mt-1">{totalValue}</p>
+                              <p className="text-sm text-muted-foreground mt-2">{totalValue}</p>
                             )}
                           </CardContent>
                         </Card>
@@ -326,10 +335,10 @@ export default function Pipeline() {
 
             {/* Prospect Pipeline Tab */}
             <TabsContent value="prospect-pipeline" data-testid="content-prospect-pipeline">
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
-                  <h3 className="text-xl font-semibold mb-2">Early Stage Pipeline</h3>
-                  <p className="text-muted-foreground text-sm mb-6">
+                  <h3 className="text-2xl font-semibold mb-2 tracking-tight">Early Stage Pipeline</h3>
+                  <p className="text-muted-foreground text-base">
                     Track prospects from initial lead through qualification
                   </p>
                 </div>
@@ -399,10 +408,10 @@ export default function Pipeline() {
 
             {/* Process Pipeline Tab */}
             <TabsContent value="process-pipeline" data-testid="content-process-pipeline">
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
-                  <h3 className="text-xl font-semibold mb-2">Application Processing</h3>
-                  <p className="text-muted-foreground text-sm mb-6">
+                  <h3 className="text-2xl font-semibold mb-2 tracking-tight">Application Processing</h3>
+                  <p className="text-muted-foreground text-base">
                     Manage loan applications from proposal through to submission
                   </p>
                 </div>
@@ -471,8 +480,8 @@ export default function Pipeline() {
 
                     {/* Final Outcomes */}
                     <div>
-                      <h3 className="text-xl font-semibold mb-4">Final Outcomes</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <h3 className="text-2xl font-semibold mb-6 tracking-tight">Final Outcomes</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         {FINAL_STAGES.map((stage) => {
                           const stageProspects = getProspectsByStage(stage.value);
                           const totalValue = getTotalValueByStage(stage.value);

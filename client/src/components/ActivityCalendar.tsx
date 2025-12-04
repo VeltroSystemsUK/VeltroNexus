@@ -179,10 +179,12 @@ export default function ActivityCalendar() {
   return (
     <>
       <Card data-testid="card-activity-calendar">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5" />
+        <CardHeader className="pb-4 pt-5 px-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle className="flex items-center gap-2.5 text-lg">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <CalendarIcon className="h-5 w-5 text-primary" />
+              </div>
               Calendar
             </CardTitle>
             <div className="flex items-center gap-2">
@@ -192,9 +194,9 @@ export default function ActivityCalendar() {
                 onClick={previousMonth}
                 data-testid="button-prev-month"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-5 w-5" />
               </Button>
-              <div className="text-sm font-medium min-w-[120px] text-center">
+              <div className="text-base font-semibold min-w-[140px] text-center">
                 {format(currentMonth, "MMMM yyyy")}
               </div>
               <Button
@@ -203,12 +205,12 @@ export default function ActivityCalendar() {
                 onClick={nextMonth}
                 data-testid="button-next-month"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-5 pb-5">
           <div className="grid grid-cols-7 gap-1">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
               <div

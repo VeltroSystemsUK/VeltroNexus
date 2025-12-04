@@ -33,9 +33,9 @@ interface ProspectCardProps {
 }
 
 const priorityColors = {
-  high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  low: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  high: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 border-red-200 dark:border-red-800",
+  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border-amber-200 dark:border-amber-800",
+  low: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 border-blue-200 dark:border-blue-800",
 };
 
 const stageColors: Record<string, string> = {
@@ -44,7 +44,7 @@ const stageColors: Record<string, string> = {
   "qualified": "border-l-4 border-l-cyan-400 dark:border-l-cyan-500",
   "proposal": "border-l-4 border-l-purple-400 dark:border-l-purple-500",
   "due-diligence": "border-l-4 border-l-amber-400 dark:border-l-amber-500",
-  "approval": "border-l-4 border-l-orange-400 dark:border-l-orange-500",
+  "submission": "border-l-4 border-l-orange-400 dark:border-l-orange-500",
   "approved": "border-l-4 border-l-green-500 dark:border-l-green-600",
   "declined": "border-l-4 border-l-red-500 dark:border-l-red-600",
   "withdrawn": "border-l-4 border-l-gray-400 dark:border-l-gray-500",
@@ -82,32 +82,36 @@ export default function ProspectCard({
       onClick={onClick}
       data-testid={`card-prospect-${prospect.id}`}
     >
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between mb-2">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-3 gap-2">
           <div
             {...dragHandleProps}
-            className="flex-shrink-0 mr-2 cursor-grab active:cursor-grabbing"
+            className="flex-shrink-0 mr-2 cursor-grab active:cursor-grabbing p-1 -ml-1"
             onClick={(e) => e.stopPropagation()}
             data-testid={`drag-handle-${prospect.id}`}
           >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <GripVertical className="h-5 w-5 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-medium text-sm truncate" data-testid={`text-company-name-${prospect.id}`}>
+            <h4 className="font-semibold text-base truncate leading-tight" data-testid={`text-company-name-${prospect.id}`}>
               {prospect.companyName}
             </h4>
-            <p className="text-xs text-muted-foreground font-mono" data-testid={`text-company-number-${prospect.id}`}>
+            <p className="text-sm text-muted-foreground font-mono mt-1" data-testid={`text-company-number-${prospect.id}`}>
               {prospect.companyNumber}
             </p>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" data-testid={`button-menu-${prospect.id}`}>
-                <MoreVertical className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-8 w-8 -mr-1" data-testid={`button-menu-${prospect.id}`}>
+                <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClick?.(); }} data-testid={`menu-view-${prospect.id}`}>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem 
+                onClick={(e) => { e.stopPropagation(); onClick?.(); }} 
+                className="py-2.5 text-base"
+                data-testid={`menu-view-${prospect.id}`}
+              >
                 View Details
               </DropdownMenuItem>
               {availableStages
@@ -119,6 +123,7 @@ export default function ProspectCard({
                       e.stopPropagation();
                       onMove?.(s.value);
                     }}
+                    className="py-2.5 text-base"
                     data-testid={`menu-move-${s.value}-${prospect.id}`}
                   >
                     Move to {s.label}
@@ -129,9 +134,9 @@ export default function ProspectCard({
         </div>
 
         {prospect.loanAmount && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2" data-testid={`text-loan-amount-${prospect.id}`}>
-            <PoundSterling className="h-3 w-3" />
-            {formatCurrency(prospect.loanAmount)}
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3" data-testid={`text-loan-amount-${prospect.id}`}>
+            <PoundSterling className="h-4 w-4" />
+            <span className="font-medium">{formatCurrency(prospect.loanAmount)}</span>
           </div>
         )}
 
@@ -139,10 +144,10 @@ export default function ProspectCard({
           {prospect.priority && (
             <Badge
               variant="outline"
-              className={`text-xs ${priorityColors[prospect.priority]}`}
+              className={`text-sm font-medium ${priorityColors[prospect.priority]}`}
               data-testid={`badge-priority-${prospect.id}`}
             >
-              {prospect.priority.charAt(0).toUpperCase() + prospect.priority.slice(1)} Priority
+              {prospect.priority.charAt(0).toUpperCase() + prospect.priority.slice(1)}
             </Badge>
           )}
           
@@ -150,14 +155,13 @@ export default function ProspectCard({
             <Button
               size="sm"
               variant="default"
-              className="h-7"
               onClick={(e) => {
                 e.stopPropagation();
                 setSubmitDialogOpen(true);
               }}
               data-testid={`button-submit-application-${prospect.id}`}
             >
-              <Send className="h-3 w-3 mr-1" />
+              <Send className="h-4 w-4 mr-1.5" />
               Submit
             </Button>
           )}

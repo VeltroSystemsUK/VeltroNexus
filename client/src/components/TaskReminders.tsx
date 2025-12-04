@@ -88,19 +88,21 @@ export default function TaskReminders() {
 
   return (
     <Card data-testid="card-task-reminders">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="h-5 w-5" />
+      <CardHeader className="pb-4 pt-5 px-5">
+        <CardTitle className="flex items-center gap-2.5 text-lg">
+          <div className="h-9 w-9 rounded-lg bg-amber-500/10 dark:bg-amber-400/10 flex items-center justify-center">
+            <Bell className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
           Urgent Tasks
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 pb-5">
         <div className="space-y-3">
           {urgentTasks.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              <Bell className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No urgent tasks</p>
-              <p className="text-xs">You're all caught up!</p>
+            <div className="text-center py-8 text-muted-foreground">
+              <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="text-base font-medium">No urgent tasks</p>
+              <p className="text-sm mt-1">You're all caught up!</p>
             </div>
           ) : (
             urgentTasks.map((task, index) => {
