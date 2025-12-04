@@ -51,6 +51,15 @@ export async function analyzeFinancials(
 ): Promise<FinancialAnalysisResult> {
   const prompt = `You are a financial analyst specializing in commercial lending. Analyze this bank statement CSV data and provide a comprehensive financial assessment.
 
+CRITICAL INSTRUCTIONS:
+- You MUST analyze the data provided and produce meaningful financial metrics
+- Do NOT reject data due to format inconsistencies - work with what you have
+- Different banks use different CSV formats - adapt to the format provided
+- If balance columns don't reconcile perfectly, ignore them and focus on transaction amounts
+- Treat credits/deposits/IN as income, and debits/withdrawals/OUT as expenses
+- If columns are unclear, make reasonable assumptions based on transaction descriptions and amounts
+- ALWAYS provide numeric values - never return error messages in place of numbers
+
 BANK STATEMENT CSV DATA:
 ${csvData}
 
@@ -60,13 +69,13 @@ LOAN DETAILS:
 - DSCR Threshold: ${DSCR_THRESHOLD}
 
 ANALYSIS REQUIREMENTS:
-1. Parse all transactions and categorize them (income vs expenses)
-2. Calculate monthly cash flow metrics
-3. Identify any red flags (gambling, high-risk transactions, irregular patterns)
-4. Calculate DSCR (Debt Service Coverage Ratio) = Net Disposable Income / Monthly Repayment
-5. Identify existing loan repayments, large transfers, and anomalies
-6. Generate a P&L summary
-7. Assess overall credit risk (A=Excellent, B=Good, C=Acceptable, D=Marginal, E=Decline)
+1. Parse all transactions - identify credits (income) vs debits (expenses) from amount signs, column headers, or descriptions
+2. Calculate monthly cash flow metrics based on actual transaction amounts
+3. Identify any red flags (gambling transactions, high-risk activity, irregular patterns, bounced payments)
+4. Calculate DSCR = Net Disposable Income / Monthly Repayment (use absolute values)
+5. Identify existing loan repayments, large inter-account transfers, and unusual transactions
+6. Generate a P&L summary from the transaction categories
+7. Assess overall credit risk: A=Excellent (DSCR>2.0), B=Good (DSCR>1.5), C=Acceptable (DSCR>1.25), D=Marginal (DSCR>1.0), E=Decline (DSCR<1.0)
 
 Return your analysis as valid JSON with this exact structure:
 {
@@ -75,7 +84,7 @@ Return your analysis as valid JSON with this exact structure:
   "netDisposableIncome": number,
   "dscr": number,
   "riskScore": "A" | "B" | "C" | "D" | "E",
-  "summary": "Brief executive summary of financial health",
+  "summary": "Brief executive summary of financial health based on actual transactions analyzed",
   "monthlyBreakdown": [
     { "month": "Jan 24", "income": number, "expenses": number, "net": number, "closingBalance": number }
   ],
@@ -92,7 +101,7 @@ Return your analysis as valid JSON with this exact structure:
   "excludedTransferValue": number,
   "excludedTransferCount": number,
   "redFlags": [
-    { "label": "Description of concern", "isActive": true }
+    { "label": "Description of specific concern found", "isActive": true }
   ],
   "preliminaryFindings": {
     "loans": [{ "date": "YYYY-MM-DD", "description": "...", "amount": number, "type": "LOAN_REPAYMENT", "details": "..." }],
@@ -101,7 +110,11 @@ Return your analysis as valid JSON with this exact structure:
   }
 }
 
-IMPORTANT: Return ONLY valid JSON, no additional text or markdown formatting. Ensure all arrays and objects are properly closed.`;
+IMPORTANT: 
+- Return ONLY valid JSON, no additional text or markdown formatting
+- Ensure all arrays and objects are properly closed
+- All numeric fields must contain actual numbers (not strings or error messages)
+- Analyze the transactions you can identify even if some data is ambiguous`;
 
   const maxRetries = 3;
   let lastError: Error | null = null;
