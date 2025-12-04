@@ -171,6 +171,135 @@ IMPORTANT:
   throw new Error("Failed to analyze financial data after multiple attempts");
 }
 
+export async function analyzeFinancialsFromPdf(
+  pdfTexts: { fileName: string; text: string; pages?: number }[],
+  loanAmount: number,
+  monthlyRepayment: number
+): Promise<FinancialAnalysisResult> {
+  const combinedText = pdfTexts.map((p, i) => 
+    `\n=== BANK STATEMENT FILE ${i + 1}: ${p.fileName} ===\n${p.text}`
+  ).join('\n\n');
+  
+  const prompt = `You are a financial analyst specializing in commercial lending. Analyze these bank statements extracted from PDF documents (up to 6 months) and provide a comprehensive financial assessment.
+
+CRITICAL INSTRUCTIONS:
+- These are raw text extractions from PDF bank statements - they may contain headers, footers, page numbers, and formatting artifacts
+- You MUST analyze the data provided and produce meaningful financial metrics
+- Identify the bank format and adapt your parsing accordingly (different banks have different statement layouts)
+- Look for transaction tables with dates, descriptions, debits/credits, and balances
+- Ignore repeated headers, footers, page numbers, and promotional content
+- Credits/deposits/payments IN are income; debits/withdrawals/payments OUT are expenses
+- ALWAYS provide numeric values - never return error messages in place of numbers
+
+BANK STATEMENT PDF TEXT:
+${combinedText}
+
+LOAN DETAILS:
+- Requested Amount: £${loanAmount.toLocaleString()}
+- Monthly Repayment: £${monthlyRepayment.toLocaleString()}
+- DSCR Threshold: ${DSCR_THRESHOLD}
+
+ANALYSIS REQUIREMENTS:
+1. Parse all transactions from the PDF text - identify the transaction table structure
+2. Separate credits (income) from debits (expenses) based on amount signs, column positions, or descriptions
+3. Calculate monthly cash flow metrics based on actual transaction amounts
+4. Identify any red flags (gambling, high-risk activity, irregular patterns, bounced payments, returned items)
+5. Calculate DSCR = Net Disposable Income / Monthly Repayment (use absolute values)
+6. Identify existing loan repayments, large transfers, and unusual transactions
+7. Generate a P&L summary from the transaction categories
+8. Assess overall credit risk: A=Excellent (DSCR>2.0), B=Good (DSCR>1.5), C=Acceptable (DSCR>1.25), D=Marginal (DSCR>1.0), E=Decline (DSCR<1.0)
+
+Return your analysis as valid JSON with this exact structure:
+{
+  "averageMonthlyRevenue": number,
+  "averageMonthlyExpenses": number,
+  "netDisposableIncome": number,
+  "dscr": number,
+  "riskScore": "A" | "B" | "C" | "D" | "E",
+  "summary": "Brief executive summary of financial health based on actual transactions analyzed from PDF statements",
+  "monthlyBreakdown": [
+    { "month": "Jan 24", "income": number, "expenses": number, "net": number, "closingBalance": number }
+  ],
+  "transactionCount": number,
+  "profitAndLoss": {
+    "turnover": number,
+    "costOfSales": number,
+    "grossProfit": number,
+    "expenses": { "category": amount },
+    "totalExpenses": number,
+    "netProfit": number,
+    "periodMonths": number
+  },
+  "excludedTransferValue": number,
+  "excludedTransferCount": number,
+  "redFlags": [
+    { "label": "Description of specific concern found", "isActive": true }
+  ],
+  "preliminaryFindings": {
+    "loans": [{ "date": "YYYY-MM-DD", "description": "...", "amount": number, "type": "LOAN_REPAYMENT", "details": "..." }],
+    "transfers": [{ "date": "YYYY-MM-DD", "description": "...", "amount": number, "type": "TRANSFER", "details": "..." }],
+    "anomalies": [{ "date": "YYYY-MM-DD", "description": "...", "amount": number, "type": "ANOMALY", "details": "..." }]
+  }
+}
+
+IMPORTANT: 
+- Return ONLY valid JSON, no additional text or markdown formatting
+- Ensure all arrays and objects are properly closed
+- All numeric fields must contain actual numbers (not strings or error messages)
+- Analyze the transactions you can identify from the PDF text even if some data is unclear`;
+
+  const maxRetries = 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+      
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Failed to extract JSON from AI response");
+      }
+
+      let jsonStr = jsonMatch[0];
+      jsonStr = repairJson(jsonStr);
+      
+      const result = JSON.parse(jsonStr) as FinancialAnalysisResult;
+      
+      result.averageMonthlyRevenue = result.averageMonthlyRevenue || 0;
+      result.averageMonthlyExpenses = result.averageMonthlyExpenses || 0;
+      result.netDisposableIncome = result.netDisposableIncome || 0;
+      result.monthlyBreakdown = result.monthlyBreakdown || [];
+      result.transactionCount = result.transactionCount || 0;
+      result.redFlags = result.redFlags || [];
+      result.preliminaryFindings = result.preliminaryFindings || { loans: [], transfers: [], anomalies: [] };
+      result.profitAndLoss = result.profitAndLoss || {
+        turnover: 0, costOfSales: 0, grossProfit: 0, expenses: {}, totalExpenses: 0, netProfit: 0, periodMonths: 0
+      };
+      
+      if (monthlyRepayment > 0) {
+        result.dscr = result.netDisposableIncome / monthlyRepayment;
+      }
+
+      return result;
+    } catch (error) {
+      console.error(`Gemini PDF analysis attempt ${attempt}/${maxRetries} error:`, error);
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  
+  console.error("All Gemini PDF analysis attempts failed");
+  throw new Error("Failed to analyze bank statement PDFs after multiple attempts");
+}
+
 function repairJson(jsonStr: string): string {
   let result = jsonStr.trim();
   
