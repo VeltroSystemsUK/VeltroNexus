@@ -61,17 +61,6 @@ export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDilige
     onSave({ checklist: updated });
   };
 
-  const updateNotes = (itemId: string, notes: string) => {
-    const updated = checklist.map((item) =>
-      item.itemId === itemId ? { ...item, notes } : item
-    );
-    setChecklist(updated);
-  };
-
-  const saveNotes = () => {
-    onSave({ checklist });
-  };
-
   const getSectionProgress = (sectionId: string) => {
     const sectionItems = checklist.filter((item) => item.sectionId === sectionId);
     if (sectionItems.length === 0) return 0;
@@ -115,34 +104,23 @@ export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDilige
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <div className="space-y-4 pt-2">
+                  <div className="space-y-3 pt-2">
                     {sectionItems.map((item) => (
-                      <div key={item.itemId} className="space-y-2">
-                        <div className="flex items-start gap-3">
-                          <Checkbox
-                            id={item.itemId}
-                            checked={item.completed}
-                            onCheckedChange={() => toggleItem(item.itemId)}
-                            data-testid={`checkbox-${item.itemId}`}
-                          />
-                          <div className="flex-1">
-                            <label
-                              htmlFor={item.itemId}
-                              className={`text-sm cursor-pointer ${
-                                item.completed ? "line-through text-muted-foreground" : ""
-                              }`}
-                            >
-                              {item.description}
-                            </label>
-                            <Textarea
-                              placeholder="Add notes..."
-                              value={item.notes}
-                              onChange={(e) => updateNotes(item.itemId, e.target.value)}
-                              className="mt-2 text-sm"
-                              data-testid={`notes-${item.itemId}`}
-                            />
-                          </div>
-                        </div>
+                      <div key={item.itemId} className="flex items-center gap-3">
+                        <Checkbox
+                          id={item.itemId}
+                          checked={item.completed}
+                          onCheckedChange={() => toggleItem(item.itemId)}
+                          data-testid={`checkbox-${item.itemId}`}
+                        />
+                        <label
+                          htmlFor={item.itemId}
+                          className={`text-sm cursor-pointer ${
+                            item.completed ? "line-through text-muted-foreground" : ""
+                          }`}
+                        >
+                          {item.description}
+                        </label>
                       </div>
                     ))}
                   </div>
@@ -151,12 +129,6 @@ export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDilige
             );
           })}
         </Accordion>
-        <div className="mt-4">
-          <Button onClick={saveNotes} disabled={isSaving} data-testid="button-save-checklist">
-            <Save className="w-4 h-4 mr-2" />
-            {isSaving ? "Saving..." : "Save Notes"}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
