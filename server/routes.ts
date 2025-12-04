@@ -992,6 +992,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Analyze audited accounts PDFs
+  app.post("/api/prospects/:prospectId/underwriting/analyze-accounts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Check if user is premium
+      const user = await storage.getUser(userId);
+      if (!user || user.subscriptionTier !== 'premium') {
+        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
+      }
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const { pdfTexts, loanAmount, monthlyRepayment } = req.body;
+      
+      if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
+        return res.status(400).json({ error: "At least one PDF text with year is required" });
+      }
+      
+      if (!loanAmount || !monthlyRepayment) {
+        return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
+      }
+      
+      // Import and use gemini client
+      const { analyzeAuditedAccounts } = await import("./utils/geminiClient");
+      const analysis = await analyzeAuditedAccounts(pdfTexts, loanAmount, monthlyRepayment);
+      
+      // Save to due diligence
+      const existing = await storage.getDueDiligence(prospectId);
+      const existingData = (existing?.data || {}) as Record<string, any>;
+      const mergedData = {
+        ...existingData,
+        underwriting: {
+          ...(existingData.underwriting || {}),
+          accountsAnalysis: analysis,
+          accountsAnalyzedAt: new Date().toISOString()
+        }
+      };
+      await storage.upsertDueDiligence(prospectId, mergedData);
+      
+      res.json(analysis);
+    } catch (error: any) {
+      console.error("Accounts analysis error:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze accounts" });
+    }
+  });
+
+  // Parse PDF file to text
+  app.post("/api/parse-pdf", isAuthenticated, async (req: any, res) => {
+    try {
+      const { pdfBase64 } = req.body;
+      
+      if (!pdfBase64) {
+        return res.status(400).json({ error: "PDF data is required" });
+      }
+      
+      // Import pdf-parse
+      const pdfParse = (await import("pdf-parse")).default;
+      
+      // Convert base64 to buffer
+      const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      
+      // Parse PDF
+      const data = await pdfParse(pdfBuffer);
+      
+      res.json({ 
+        text: data.text,
+        pages: data.numpages,
+        info: data.info
+      });
+    } catch (error: any) {
+      console.error("PDF parsing error:", error);
+      res.status(500).json({ error: error.message || "Failed to parse PDF" });
+    }
+  });
+
   app.post("/api/prospects/:prospectId/underwriting/adverse-media", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
