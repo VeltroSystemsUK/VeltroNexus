@@ -408,3 +408,94 @@ IMPORTANT:
   
   throw new Error("Failed to analyze audited accounts after multiple attempts");
 }
+
+export interface SwotAnalysisResult {
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  threats: string[];
+  summary: string;
+}
+
+export async function generateSwotAnalysis(
+  companyName: string,
+  sector: string,
+  loanAmount: number,
+  loanPurpose: string,
+  financialSummary: string,
+  companiesHouseData?: string,
+  bankAnalysisSummary?: string,
+  eligibilityNotes?: string
+): Promise<SwotAnalysisResult> {
+  const prompt = `You are a commercial lending analyst. Generate a comprehensive SWOT analysis for this loan application.
+
+COMPANY DETAILS:
+- Company Name: ${companyName}
+- Sector: ${sector}
+- Loan Amount Requested: £${loanAmount.toLocaleString()}
+- Purpose of Finance: ${loanPurpose}
+
+${financialSummary ? `FINANCIAL SUMMARY:\n${financialSummary}\n` : ''}
+${companiesHouseData ? `COMPANIES HOUSE DATA:\n${companiesHouseData}\n` : ''}
+${bankAnalysisSummary ? `BANK STATEMENT ANALYSIS:\n${bankAnalysisSummary}\n` : ''}
+${eligibilityNotes ? `ELIGIBILITY NOTES:\n${eligibilityNotes}\n` : ''}
+
+Generate a SWOT analysis for this loan application. Consider:
+- Strengths: Internal positive attributes that support the loan (e.g., trading history, financial strength, management experience, industry expertise, cash flow stability)
+- Weaknesses: Internal factors that may increase lending risk (e.g., limited trading history, thin margins, high gearing, key person dependency, seasonal cash flow)
+- Opportunities: External factors that could benefit the business (e.g., market growth, expansion potential, contract wins, regulatory changes in favor)
+- Threats: External factors that could harm repayment ability (e.g., competition, economic conditions, regulatory risks, supply chain issues, interest rate sensitivity)
+
+Return your analysis as valid JSON with this structure:
+{
+  "strengths": ["Strength 1", "Strength 2", "Strength 3", "Strength 4"],
+  "weaknesses": ["Weakness 1", "Weakness 2", "Weakness 3"],
+  "opportunities": ["Opportunity 1", "Opportunity 2", "Opportunity 3"],
+  "threats": ["Threat 1", "Threat 2", "Threat 3"],
+  "summary": "Brief overall assessment of the application considering the SWOT factors"
+}
+
+IMPORTANT:
+- Return ONLY valid JSON, no additional text
+- Provide 3-5 points for each category
+- Be specific to this application, not generic
+- Focus on factors relevant to commercial lending decisions`;
+
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+      
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Failed to extract JSON from AI response");
+      }
+
+      let jsonStr = repairJson(jsonMatch[0]);
+      const result = JSON.parse(jsonStr) as SwotAnalysisResult;
+      
+      // Ensure required fields exist with defaults
+      result.strengths = result.strengths || [];
+      result.weaknesses = result.weaknesses || [];
+      result.opportunities = result.opportunities || [];
+      result.threats = result.threats || [];
+      result.summary = result.summary || '';
+
+      return result;
+    } catch (error) {
+      console.error(`SWOT analysis attempt ${attempt}/${maxRetries} error:`, error);
+      
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  
+  throw new Error("Failed to generate SWOT analysis after multiple attempts");
+}

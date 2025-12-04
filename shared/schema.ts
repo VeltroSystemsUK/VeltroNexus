@@ -471,6 +471,14 @@ export const accountsAnalysisSchema = z.object({
   riskAssessment: z.enum(['low', 'medium', 'high']).optional(),
 });
 
+export const swotAnalysisSchema = z.object({
+  strengths: z.array(z.string()).optional(),
+  weaknesses: z.array(z.string()).optional(),
+  opportunities: z.array(z.string()).optional(),
+  threats: z.array(z.string()).optional(),
+  summary: z.string().optional(),
+});
+
 export const underwritingDataSchema = z.object({
   eligibility: underwritingEligibilitySchema.optional(),
   loanDetails: z.object({
@@ -487,6 +495,8 @@ export const underwritingDataSchema = z.object({
   accountsPdfs: z.array(accountsPdfSchema).optional(),
   accountsAnalysis: accountsAnalysisSchema.optional(),
   accountsAnalyzedAt: z.string().optional(),
+  swotAnalysis: swotAnalysisSchema.optional(),
+  swotAnalyzedAt: z.string().optional(),
   adviserSummary: underwritingAdviserSummarySchema.optional(),
   riskGrade: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
   completedAt: z.string().optional(),

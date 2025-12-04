@@ -34,6 +34,7 @@ import {
   DollarSign,
   Calculator,
   ClipboardList,
+  Sparkles,
 } from "lucide-react";
 import type { DueDiligenceData, ProspectWithCompany, UnderwritingData } from "@shared/schema";
 import {
@@ -244,6 +245,48 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to analyze accounts");
+    },
+  });
+
+  const swotMutation = useMutation({
+    mutationFn: async () => {
+      const financialAnalysis = underwriting.financialAnalysis;
+      const accountsAnalysis = underwriting.accountsAnalysis;
+      
+      const financialSummary = financialAnalysis 
+        ? `Risk Score: ${financialAnalysis.riskScore}, DSCR: ${financialAnalysis.dscr?.toFixed(2) || 'N/A'}, Monthly Revenue: £${financialAnalysis.averageMonthlyRevenue?.toLocaleString() || '0'}, Net Disposable Income: £${financialAnalysis.netDisposableIncome?.toLocaleString() || '0'}`
+        : '';
+      
+      const bankAnalysisSummary = financialAnalysis?.summary || '';
+      
+      const companiesHouseData = prospect.company 
+        ? `Incorporated: ${prospect.company.incorporationDate || 'Unknown'}, Status: ${prospect.company.companyStatus || 'Unknown'}, Type: ${prospect.company.companyType || 'Unknown'}`
+        : '';
+      
+      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/swot-analysis`, "POST", {
+        companyName: prospect.company.companyName,
+        sector: adviserSummary.sector,
+        loanAmount: parseFloat(loanAmount),
+        loanPurpose: adviserSummary.purpose,
+        financialSummary,
+        companiesHouseData,
+        bankAnalysisSummary,
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      onSave({
+        underwriting: {
+          ...underwriting,
+          swotAnalysis: result,
+          swotAnalyzedAt: new Date().toISOString(),
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
+      toast.success("SWOT analysis generated successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to generate SWOT analysis");
     },
   });
 
@@ -1336,6 +1379,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     <SelectItem value="RGF">RGF (Regional Growth Fund)</SelectItem>
                     <SelectItem value="ELEM2">ELEM2</SelectItem>
                     <SelectItem value="MEIFII">MEIFII</SelectItem>
+                    <SelectItem value="CEF">CEF (Community Economy Fund)</SelectItem>
                     <SelectItem value="STARTUP">Start Up Loan</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1425,6 +1469,106 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 ))}
               </Tabs>
             </div>
+
+            <Separator />
+
+            {/* SWOT Analysis Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">SWOT Analysis</h4>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => swotMutation.mutate()}
+                  disabled={swotMutation.isPending || !loanAmount}
+                  data-testid="button-generate-swot"
+                >
+                  {swotMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      AI Auto Write
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {underwriting.swotAnalysis && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">Strengths</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc list-inside space-y-1 text-sm">
+                        {underwriting.swotAnalysis.strengths?.map((item: string, i: number) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">Weaknesses</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc list-inside space-y-1 text-sm">
+                        {underwriting.swotAnalysis.weaknesses?.map((item: string, i: number) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">Opportunities</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc list-inside space-y-1 text-sm">
+                        {underwriting.swotAnalysis.opportunities?.map((item: string, i: number) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-red-700 dark:text-red-400">Threats</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc list-inside space-y-1 text-sm">
+                        {underwriting.swotAnalysis.threats?.map((item: string, i: number) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {underwriting.swotAnalysis?.summary && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm font-medium mb-1">Summary</p>
+                  <p className="text-sm text-muted-foreground">{underwriting.swotAnalysis.summary}</p>
+                </div>
+              )}
+
+              {!underwriting.swotAnalysis && (
+                <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
+                  <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Click "AI Auto Write" to generate a SWOT analysis based on your application data</p>
+                </div>
+              )}
+            </div>
+
+            <Separator />
 
             <div>
               <Label htmlFor="recommendation">Final Recommendation</Label>
