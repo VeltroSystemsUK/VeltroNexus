@@ -101,32 +101,101 @@ Return your analysis as valid JSON with this exact structure:
   }
 }
 
-IMPORTANT: Return ONLY valid JSON, no additional text or markdown formatting.`;
+IMPORTANT: Return ONLY valid JSON, no additional text or markdown formatting. Ensure all arrays and objects are properly closed.`;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
+  const maxRetries = 3;
+  let lastError: Error | null = null;
 
-    const text = response.text || "";
-    
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse AI response as JSON");
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+      
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Failed to extract JSON from AI response");
+      }
+
+      let jsonStr = jsonMatch[0];
+      
+      // Try to repair truncated JSON by balancing brackets
+      jsonStr = repairJson(jsonStr);
+      
+      const result = JSON.parse(jsonStr) as FinancialAnalysisResult;
+      
+      // Ensure required fields exist with defaults
+      result.averageMonthlyRevenue = result.averageMonthlyRevenue || 0;
+      result.averageMonthlyExpenses = result.averageMonthlyExpenses || 0;
+      result.netDisposableIncome = result.netDisposableIncome || 0;
+      result.monthlyBreakdown = result.monthlyBreakdown || [];
+      result.transactionCount = result.transactionCount || 0;
+      result.redFlags = result.redFlags || [];
+      result.preliminaryFindings = result.preliminaryFindings || { loans: [], transfers: [], anomalies: [] };
+      result.profitAndLoss = result.profitAndLoss || {
+        turnover: 0, costOfSales: 0, grossProfit: 0, expenses: {}, totalExpenses: 0, netProfit: 0, periodMonths: 0
+      };
+      
+      if (monthlyRepayment > 0) {
+        result.dscr = result.netDisposableIncome / monthlyRepayment;
+      }
+
+      return result;
+    } catch (error) {
+      console.error(`Gemini analysis attempt ${attempt}/${maxRetries} error:`, error);
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
     }
-
-    const result = JSON.parse(jsonMatch[0]) as FinancialAnalysisResult;
-    
-    if (monthlyRepayment > 0) {
-      result.dscr = result.netDisposableIncome / monthlyRepayment;
-    }
-
-    return result;
-  } catch (error) {
-    console.error("Gemini analysis error:", error);
-    throw new Error("Failed to analyze financial data");
   }
+  
+  console.error("All Gemini analysis attempts failed");
+  throw new Error("Failed to analyze financial data after multiple attempts");
+}
+
+function repairJson(jsonStr: string): string {
+  let result = jsonStr.trim();
+  
+  // Remove any markdown code fences
+  result = result.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
+  result = result.replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+  
+  // Count brackets to check balance
+  const openBraces = (result.match(/\{/g) || []).length;
+  const closeBraces = (result.match(/\}/g) || []).length;
+  const openBrackets = (result.match(/\[/g) || []).length;
+  const closeBrackets = (result.match(/\]/g) || []).length;
+  
+  // If unbalanced, try to fix by removing incomplete trailing data
+  if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
+    // Find the last complete property (ends with comma, closing bracket, or closing brace)
+    const lastCompleteMatch = result.match(/^([\s\S]*[}\],"])\s*[^}\],"]*$/);
+    if (lastCompleteMatch) {
+      result = lastCompleteMatch[1];
+    }
+    
+    // Remove trailing incomplete content after last valid structure
+    result = result.replace(/,\s*[^}\]]*$/, '');
+    result = result.replace(/:\s*"[^"]*$/, ': ""');
+    result = result.replace(/:\s*\[[^\]]*$/, ': []');
+    result = result.replace(/:\s*\{[^}]*$/, ': {}');
+    
+    // Add missing closing brackets/braces
+    const newOpenBraces = (result.match(/\{/g) || []).length;
+    const newCloseBraces = (result.match(/\}/g) || []).length;
+    const newOpenBrackets = (result.match(/\[/g) || []).length;
+    const newCloseBrackets = (result.match(/\]/g) || []).length;
+    
+    result += ']'.repeat(Math.max(0, newOpenBrackets - newCloseBrackets));
+    result += '}'.repeat(Math.max(0, newOpenBraces - newCloseBraces));
+  }
+  
+  return result;
 }
 
 export function calculateRiskGrade(
