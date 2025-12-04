@@ -173,7 +173,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
   const analyzeCsvMutation = useMutation({
     mutationFn: async (csvData: string) => {
-      const response = await apiRequest("POST", `/api/prospects/${prospect.id}/underwriting/analyze-csv`, {
+      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/analyze-csv`, "POST", {
         csvData,
         loanAmount: parseFloat(loanAmount),
         monthlyRepayment,
@@ -191,7 +191,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
   const adverseMediaMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/prospects/${prospect.id}/underwriting/adverse-media`, {
+      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/adverse-media`, "POST", {
         companyName: prospect.company.companyName,
         companyNumber: prospect.company.companyNumber,
       });
