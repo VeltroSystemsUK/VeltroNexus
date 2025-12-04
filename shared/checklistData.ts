@@ -9,206 +9,158 @@ export interface ChecklistSection {
 
 export const CHECKLIST_SECTIONS: ChecklistSection[] = [
   {
-    id: "application-validation",
-    name: "Application Validation",
+    id: "eligibility-criteria",
+    name: "Eligibility & Loan Criteria",
     items: [
       {
-        id: "av-1",
-        description: "Recorded under SOAR ref and priced BoE Base + margin per current pricing memo.",
+        id: "ec-1",
+        description: "Applicant/s aged over 18",
       },
       {
-        id: "av-2",
-        description: "Applicant(s) aged 18+, business domiciled in England per §3.3.",
+        id: "ec-2",
+        description: "Applicant/s live in or have business in E Mids and have lived in E Mids min 18 months or business located/to be located in MEIF LEP areas (see LEP postcode document or question which local authority business rates are paid to)",
       },
       {
-        id: "av-3",
-        description: "Loan ≤ 70% of total project cost, contribution ≥ 10%.",
+        id: "ec-3",
+        description: "Loan amount criteria and security requirements met? (As per latest Loan Fund Update Document)",
       },
       {
-        id: "av-4",
-        description: "Purpose not excluded (no property development, crypto, gambling, or lending activity).",
+        id: "ec-4",
+        description: "Minimum contribution 15% for existing businesses",
+      },
+      {
+        id: "ec-5",
+        description: "Request not for excluded purpose (As per latest Loan Fund Update Document)",
       },
     ],
   },
   {
-    id: "documentation-kyc",
-    name: "Documentation & KYC",
-    items: [
-      {
-        id: "dk-1",
-        description: "Full loan application and Adviser Summary completed.",
-      },
-      {
-        id: "dk-2",
-        description: "6 months bank statements (business/personal) reviewed with conduct commentary.",
-      },
-      {
-        id: "dk-3",
-        description: "Photographic ID and proof of address sighted and copied.",
-      },
-      {
-        id: "dk-4",
-        description: "Credit search (3 years) authorised and reviewed.",
-      },
-      {
-        id: "dk-5",
-        description: "Adverse data or voter-roll absence commented with mitigation.",
-      },
-    ],
-  },
-  {
-    id: "financial-review",
-    name: "Financial Review",
-    items: [
-      {
-        id: "fr-1",
-        description: "FY24–FY25 accounts reconciled; Notes 7–9 referenced.",
-      },
-      {
-        id: "fr-2",
-        description: "Management accounts (YTD) reviewed.",
-      },
-      {
-        id: "fr-3",
-        description: "Cashflow forecast includes VAT, PAYE, CT, and loan repayments.",
-      },
-      {
-        id: "fr-4",
-        description: "Debtor book ageing < 90 days (or mitigation explained).",
-      },
-      {
-        id: "fr-5",
-        description: "Associate balances explained and recoverable.",
-      },
-    ],
-  },
-  {
-    id: "credit-governance",
-    name: "Credit & Governance",
-    items: [
-      {
-        id: "cg-1",
-        description: "D&B / Experian corporate rating and PAYDEX obtained.",
-      },
-      {
-        id: "cg-2",
-        description: "Director(s) – no CCJs, verified via CRA.",
-      },
-      {
-        id: "cg-3",
-        description: "Bank conduct acceptable (no unpaid items, excesses, or persistent overdrafts).",
-      },
-    ],
-  },
-  {
-    id: "capacity-contracts",
-    name: "Capacity & Contracts",
+    id: "credit-checks",
+    name: "Credit Checks",
     items: [
       {
         id: "cc-1",
-        description: "Management experience documented (role & tenure).",
+        description: "Before proceeding further – credit searches obtained on all applicants on all addresses revealed over the last 3 years. Must not be more than a month old.",
       },
       {
         id: "cc-2",
-        description: "Active contracts tabled (Client | Value | Start | End | Status).",
-      },
-      {
-        id: "cc-3",
-        description: "Renewals evidenced as scope expansions, not new clients.",
+        description: "If credit search reveals adverse information or not on voters roll then do not proceed further without investigating with applicant/s and obtaining a satisfactory explanation",
       },
     ],
   },
   {
-    id: "loan-structure-security",
-    name: "Loan Structure & Security",
+    id: "kyc-identity",
+    name: "KYC & Identity Verification",
     items: [
       {
-        id: "ls-1",
-        description: "Loan fund type (RGF, ELEM 2, MEIF II) confirmed.",
+        id: "kyc-1",
+        description: "Copy photo ID - passport or if other ID obtain confirmation that UK citizen - certified by adviser or official that it is a copy of the original document",
       },
       {
-        id: "ls-2",
-        description: "Personal Guarantee % within policy (35–100%).",
+        id: "kyc-2",
+        description: "If non-EU, the passport must have written evidence of leave to remain in the UK for at least the term of the loan",
       },
       {
-        id: "ls-3",
-        description: "Debenture or security justified if taken.",
-      },
-      {
-        id: "ls-4",
-        description: "Legal advice/waiver obtained from guarantor(s).",
+        id: "kyc-3",
+        description: "Copy utility bill evidencing current address (note mobile phone bill not acceptable). If no utility bill, then refer to the loan fund manager for an acceptable alternative and note here.",
       },
     ],
   },
   {
-    id: "repayment-affordability",
-    name: "Repayment & Affordability",
+    id: "application-documentation",
+    name: "Application Documentation",
     items: [
       {
-        id: "ra-1",
-        description: "Forecast CFF reconciles to FY25 accounts and bank statements.",
+        id: "ad-1",
+        description: "Signed and fully completed application form held with electronic signature",
       },
       {
-        id: "ra-2",
-        description: "DSCR ≥ 1.5× base; sensitivity –20% revenue ≥ 1.0×.",
+        id: "ad-2",
+        description: "Evidence of bank decline held",
       },
       {
-        id: "ra-3",
-        description: "Director personal income vs. commitments ratio ≥ 1.25×.",
+        id: "ad-3",
+        description: "Customer Charter given out",
+      },
+      {
+        id: "ad-4",
+        description: "Client Perception form given out",
+      },
+      {
+        id: "ad-5",
+        description: "Client details fully entered on the database and updated at each meeting (include Action Plan, notes, timesheet etc)",
+      },
+      {
+        id: "ad-6",
+        description: "Client Contact Form/s signed and completed and held in loan file (mandatory for the initial meeting but either a signed CCF or signed Action Plan is acceptable evidence for every subsequent client meeting) Or Copies of email chains with the client.",
+      },
+      {
+        id: "ad-7",
+        description: "Action plan completed (signed by the client if completed instead of CCF)",
       },
     ],
   },
   {
-    id: "insurance-compliance",
-    name: "Insurance & Compliance",
+    id: "company-business-info",
+    name: "Company & Business Information",
     items: [
       {
-        id: "ic-1",
-        description: "Public Liability £10m, Employer £10m, PI £2m, renewal date verified.",
+        id: "cb-1",
+        description: "If the business is a Limited Co – then obtain a company search from Companies House. (Comment on results in adviser summary)",
       },
       {
-        id: "ic-2",
-        description: "VAT registration confirmed.",
+        id: "cb-2",
+        description: "Business plan",
       },
       {
-        id: "ic-3",
-        description: "Licence or certification (e.g., CAA) valid for loan term.",
+        id: "cb-3",
+        description: "CV for each director (if not included in the Business plan)",
       },
     ],
   },
   {
-    id: "bank-statement-log",
-    name: "Bank Statement Log",
+    id: "financial-documents",
+    name: "Financial Documents",
     items: [
       {
-        id: "bs-1",
-        description: "Three-month bank narrative log completed.",
+        id: "fd-1",
+        description: "Personal Statement of Asset & Liabilities for each Director",
       },
       {
-        id: "bs-2",
-        description: "All recurring credits/debits categorised.",
+        id: "fd-2",
+        description: "One years cashflow forecast and Business Liabilities Form",
       },
       {
-        id: "bs-3",
-        description: "Internal transfers (e.g., GC C1 Inarasystems) identified and flagged.",
+        id: "fd-3",
+        description: "If existing business - 3 years trading accounts (or current management accounts if not traded that long)",
+      },
+      {
+        id: "fd-4",
+        description: "If existing business and no accounts available – recent copy tax return/s held to evidence turnover/drawings etc",
+      },
+      {
+        id: "fd-5",
+        description: "Full latest 6 months bank statements held (on business account if an existing business or personal account/s of all applicants if start-up). (Comment on bank account operation in adviser summary)",
       },
     ],
   },
   {
-    id: "recommendation-integrity",
-    name: "Recommendation Integrity",
+    id: "security-requirements",
+    name: "Security Requirements",
     items: [
       {
-        id: "ri-1",
-        description: "Adviser conclusion signed and dated.",
+        id: "sr-1",
+        description: "If secured lending, then get mortgage statement to confirm borrowings against property offered",
       },
+    ],
+  },
+  {
+    id: "final-submission",
+    name: "Final Submission",
+    items: [
       {
-        id: "ri-2",
-        description: "Lending Committee comments recorded.",
-      },
-      {
-        id: "ri-3",
-        description: "Loan amount, term, and interest rate consistent with fund terms.",
+        id: "fs-1",
+        description: "Adviser summary form fully completed commenting on all the above – plus following attachments if RLS facility – Location Questionnaire and RLS Provisional Eligibility Assessment.",
       },
     ],
   },
