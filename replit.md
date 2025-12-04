@@ -22,7 +22,15 @@ A comprehensive design system defines typography (Inter, JetBrains Mono), an HSL
 
 ### Feature Specifications
 - **Companies House Integration**: Allows searching and fetching UK Companies House company profiles to auto-populate data and display detailed company information, including officers, persons with significant control, and charges.
-- **Due Diligence Tools**: Six interactive tools (Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment) with data stored in a JSONB column, featuring real-time calculations and data persistence.
+- **Due Diligence Tools**: Seven interactive tools with data stored in a JSONB column:
+  - Standard tier (6 tools): Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment
+  - Premium tier (7th tool): **Credit Underwriting** - AI-powered comprehensive credit assessment with 6 substeps:
+    1. Eligibility Check (11 policy questions for lending criteria)
+    2. Bank Statement Upload (CSV file upload for financial analysis)
+    3. Financial Analysis (Gemini AI-powered bank statement analysis with P&L, monthly breakdown, risk flags)
+    4. Due Diligence Checks (Companies House data + Tavily-powered adverse media search)
+    5. Results Summary (Risk grade A-E based on DSCR threshold 1.25, red flags, and due diligence findings)
+    6. Adviser Summary (CAMPARI framework assessment for final credit recommendation)
 - **Subscription System**: A tiered model (Free, Standard, Premium) limits prospect count per user, with server-side enforcement and a pricing page. Paid tiers unlock Due Diligence tools. Integrates with GoCardless for Direct Debit payments.
 - **Prospect Management**: Includes an editable priority system with color-coded indicators, a confirmation-dialog-protected delete functionality with cascading deletions, color-coded pipeline cards that change based on stage (9 distinct colors from Lead to Withdrawn), and PDF report generation for comprehensive prospect data, including integrated Companies House details.
 - **Profile and Settings Pages**: The Profile page displays account info, subscription status, upgrade options, and GoCardless integration for subscription management. The Settings page allows customization of appearance, regional settings (currency, timezone, date format), customizable pipeline stage names, and PDF report layout customization with drag-and-drop section reordering and toggle controls.
