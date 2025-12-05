@@ -185,7 +185,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     renderPageFooter(doc, i, totalPages.count - 1);
   }
 
-  doc.end();
+  // Note: do NOT call doc.end() here - the caller will call it after piping
   return doc;
 }
 
