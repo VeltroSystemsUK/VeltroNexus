@@ -28,8 +28,17 @@ import {
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
   Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
-  Network, Search, ExternalLink, Loader2
+  Network, Search, ExternalLink, Loader2, UserPlus
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect } from "react";
 import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
@@ -231,7 +240,7 @@ export default function ProspectDetail() {
           </TabsList>
 
           <TabsContent value="contacts">
-            <ContactsTab prospectId={prospectId} contacts={contacts} />
+            <ContactsTab prospectId={prospectId} contacts={contacts} companyNumber={prospect.company.companyNumber} />
           </TabsContent>
 
           <TabsContent value="company">
@@ -474,12 +483,22 @@ function CompanyOverview({ prospect }: { prospect: ProspectWithCompany }) {
   );
 }
 
-function ContactsTab({ prospectId, contacts }: { prospectId: number; contacts: Contact[] }) {
+function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: number; contacts: Contact[]; companyNumber: string }) {
   const [isAdding, setIsAdding] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [selectedOfficers, setSelectedOfficers] = useState<Set<string>>(new Set());
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
+
+  const { data: officersData } = useQuery<any>({
+    queryKey: [`/api/companies-house/company/${companyNumber}/officers`],
+    enabled: !!companyNumber,
+  });
+
+  const activeOfficers = officersData?.items?.filter((o: any) => !o.resigned_on) || [];
+  const existingContactNames = new Set(contacts.map(c => c.name.toLowerCase().trim()));
 
   const addContactMutation = useMutation({
     mutationFn: (contact: { name: string; email?: string; phone?: string; role?: string }) =>
@@ -500,6 +519,31 @@ function ContactsTab({ prospectId, contacts }: { prospectId: number; contacts: C
     },
   });
 
+  const importOfficersMutation = useMutation({
+    mutationFn: async (officers: { name: string; role: string }[]) => {
+      const results = await Promise.all(
+        officers.map(officer =>
+          fetch(`/api/prospects/${prospectId}/contacts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(officer),
+          }).then(r => r.json())
+        )
+      );
+      return results;
+    },
+    onSuccess: (_, officers) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
+      toast.success(`${officers.length} officer(s) imported as contacts`);
+      setShowImportDialog(false);
+      setSelectedOfficers(new Set());
+    },
+    onError: () => {
+      toast.error("Failed to import officers");
+    },
+  });
+
   const deleteContactMutation = useMutation({
     mutationFn: (contactId: number) =>
       fetch(`/api/contacts/${contactId}`, {
@@ -512,18 +556,113 @@ function ContactsTab({ prospectId, contacts }: { prospectId: number; contacts: C
     },
   });
 
+  const handleToggleOfficer = (officerName: string) => {
+    const newSelected = new Set(selectedOfficers);
+    if (newSelected.has(officerName)) {
+      newSelected.delete(officerName);
+    } else {
+      newSelected.add(officerName);
+    }
+    setSelectedOfficers(newSelected);
+  };
+
+  const handleImportSelected = () => {
+    const officersToImport = activeOfficers
+      .filter((o: any) => selectedOfficers.has(o.name))
+      .map((o: any) => ({
+        name: o.name,
+        role: o.officer_role?.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Officer',
+      }));
+    
+    if (officersToImport.length > 0) {
+      importOfficersMutation.mutate(officersToImport);
+    }
+  };
+
+  const formatOfficerRole = (role: string) => {
+    return role?.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Officer';
+  };
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <CardTitle>Contacts</CardTitle>
             <CardDescription>Manage contacts at this company</CardDescription>
           </div>
-          <Button onClick={() => setIsAdding(true)} data-testid="button-add-contact">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Contact
-          </Button>
+          <div className="flex gap-2">
+            {activeOfficers.length > 0 && (
+              <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" data-testid="button-import-officers">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Import Officers
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Import Company Officers</DialogTitle>
+                    <DialogDescription>
+                      Select officers from Companies House to add as contacts
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto py-4">
+                    {activeOfficers.map((officer: any, index: number) => {
+                      const isAlreadyContact = existingContactNames.has(officer.name?.toLowerCase().trim());
+                      const isSelected = selectedOfficers.has(officer.name);
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className={`flex items-center gap-3 p-3 rounded-lg border ${
+                            isAlreadyContact 
+                              ? 'bg-muted/50 opacity-60' 
+                              : isSelected 
+                                ? 'bg-primary/10 border-primary' 
+                                : 'hover:bg-muted/50'
+                          }`}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => handleToggleOfficer(officer.name)}
+                            disabled={isAlreadyContact}
+                            data-testid={`checkbox-officer-${index}`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{officer.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatOfficerRole(officer.officer_role)}
+                              {officer.appointed_on && ` • Since ${new Date(officer.appointed_on).toLocaleDateString('en-GB')}`}
+                            </p>
+                            {isAlreadyContact && (
+                              <p className="text-xs text-muted-foreground italic">Already a contact</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleImportSelected}
+                      disabled={selectedOfficers.size === 0 || importOfficersMutation.isPending}
+                      data-testid="button-confirm-import-officers"
+                    >
+                      {importOfficersMutation.isPending ? "Importing..." : `Import ${selectedOfficers.size} Officer(s)`}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+            <Button onClick={() => setIsAdding(true)} data-testid="button-add-contact">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Contact
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
