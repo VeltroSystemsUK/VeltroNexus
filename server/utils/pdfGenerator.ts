@@ -1075,105 +1075,803 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
   const ddData = dueDiligence.data as any;
   let y = doc.y + 10;
   
-  // Checklist summary
+  // ==========================================
+  // 1. CHECKLIST - Full Detail
+  // ==========================================
   if (ddData.checklist) {
-    const totalItems = Object.values(ddData.checklist).flat().length;
-    const completedItems = Object.values(ddData.checklist).flat().filter((item: any) => item.checked).length;
+    const allItems = Object.entries(ddData.checklist).flatMap(([category, items]: [string, any]) => 
+      (items as any[]).map((item: any) => ({ ...item, category }))
+    );
+    const totalItems = allItems.length;
+    const completedItems = allItems.filter((item: any) => item.checked).length;
     const percentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
     
-    doc.rect(MARGIN, y, CONTENT_WIDTH, 60).fillAndStroke(COLORS.white, COLORS.border);
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(COLORS.white, COLORS.border);
     doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
-    doc.text('CHECKLIST PROGRESS', MARGIN + 15, y + 12);
+    doc.text('DUE DILIGENCE CHECKLIST', MARGIN + 15, y + 12);
     
-    renderProgressBar(doc, MARGIN + 15, y + 32, CONTENT_WIDTH - 80, '', percentage);
+    doc.fontSize(10).fillColor(COLORS.text).font('Helvetica');
+    doc.text(`${completedItems} of ${totalItems} items completed`, MARGIN + 15, y + 32);
     
-    y += 75;
+    renderProgressBar(doc, MARGIN + 15, y + 48, CONTENT_WIDTH - 100, '', percentage);
+    
+    y += 85;
+    
+    // Detailed checklist by category
+    const categories = Object.keys(ddData.checklist);
+    categories.forEach((category: string) => {
+      const items = ddData.checklist[category] as any[];
+      if (!items || items.length === 0) return;
+      
+      if (y > PAGE_HEIGHT - 150) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      
+      // Category header
+      const categoryName = category.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+      doc.fontSize(10).fillColor(COLORS.secondary).font('Helvetica-Bold');
+      doc.text(categoryName, MARGIN, y);
+      y += 16;
+      
+      items.forEach((item: any) => {
+        if (y > PAGE_HEIGHT - 50) {
+          doc.addPage();
+          pageNumber++;
+          y = MARGIN + 20;
+        }
+        
+        const checkMark = item.checked ? '✓' : '○';
+        const checkColor = item.checked ? COLORS.success : COLORS.textLight;
+        
+        doc.fontSize(9).fillColor(checkColor).font('Helvetica-Bold');
+        doc.text(checkMark, MARGIN + 10, y);
+        doc.fontSize(9).fillColor(item.checked ? COLORS.text : COLORS.textSecondary).font('Helvetica');
+        doc.text(item.label || item.text || 'Item', MARGIN + 25, y, { width: CONTENT_WIDTH - 40 });
+        y += 14;
+      });
+      
+      y += 10;
+    });
+    
+    y += 10;
   }
   
-  // DSCR Analysis
-  if (ddData.dscrCalculator?.dscr != null) {
-    const dscr = ddData.dscrCalculator.dscr;
-    const dscrStatus = dscr >= 1.25 ? 'PASS' : dscr >= 1.0 ? 'CAUTION' : 'FAIL';
-    const dscrColor = dscr >= 1.25 ? COLORS.success : dscr >= 1.0 ? COLORS.warning : COLORS.danger;
-    
-    doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
-    doc.rect(MARGIN, y, 4, 80).fill(dscrColor);
-    
-    doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
-    doc.text('DEBT SERVICE COVERAGE RATIO', MARGIN + 15, y + 12);
-    
-    doc.fontSize(36).fillColor(dscrColor).font('Helvetica-Bold');
-    doc.text(dscr.toFixed(2), MARGIN + 15, y + 30);
-    
-    // Status badge
-    doc.rect(MARGIN + 120, y + 35, 60, 24).fill(dscrColor);
-    doc.fontSize(10).fillColor(COLORS.white).font('Helvetica-Bold');
-    doc.text(dscrStatus, MARGIN + 130, y + 42);
-    
-    doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
-    doc.text('Minimum threshold: 1.25', MARGIN + 200, y + 45);
-    
-    y += 95;
-  }
-  
-  // Loan Calculator
+  // ==========================================
+  // 2. LOAN CALCULATOR - Full Results
+  // ==========================================
   if (ddData.loanCalculator && ddData.loanCalculator.loanAmount != null) {
+    if (y > PAGE_HEIGHT - 180) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    
     const calc = ddData.loanCalculator;
     
-    doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 130).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    doc.rect(MARGIN, y, 4, 130).fill(COLORS.accent);
     doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
     doc.text('LOAN CALCULATOR RESULTS', MARGIN + 15, y + 12);
     
     const col1X = MARGIN + 15;
     const col2X = MARGIN + CONTENT_WIDTH / 2;
-    let calcY = y + 35;
+    let calcY = y + 38;
     
-    renderDetailRow(doc, col1X, calcY, 'Principal', formatCurrency(calc.loanAmount * 100));
-    renderDetailRow(doc, col2X, calcY, 'Interest Rate', `${calc.interestRate}%`);
+    renderDetailRow(doc, col1X, calcY, 'Principal Amount', formatCurrency((calc.loanAmount || 0) * 100));
+    renderDetailRow(doc, col2X, calcY, 'Interest Rate', `${calc.interestRate || 0}% p.a.`);
     calcY += 30;
     
+    renderDetailRow(doc, col1X, calcY, 'Term', `${calc.termMonths || calc.term || 0} months`);
     if (calc.monthlyPayment != null) {
-      renderDetailRow(doc, col1X, calcY, 'Monthly Payment', formatCurrency(calc.monthlyPayment * 100));
+      renderDetailRow(doc, col2X, calcY, 'Monthly Payment', formatCurrency(calc.monthlyPayment * 100));
     }
+    calcY += 30;
+    
     if (calc.totalInterest != null) {
-      renderDetailRow(doc, col2X, calcY, 'Total Interest', formatCurrency(calc.totalInterest * 100));
+      renderDetailRow(doc, col1X, calcY, 'Total Interest', formatCurrency(calc.totalInterest * 100));
+    }
+    if (calc.totalRepayable != null) {
+      renderDetailRow(doc, col2X, calcY, 'Total Repayable', formatCurrency(calc.totalRepayable * 100));
     }
     
-    y += 115;
+    y += 145;
   }
   
-  // Financial Ratios
+  // ==========================================
+  // 3. DSCR CALCULATOR - Full Details
+  // ==========================================
+  if (ddData.dscrCalculator) {
+    if (y > PAGE_HEIGHT - 180) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    
+    const dscrData = ddData.dscrCalculator;
+    const dscr = dscrData.dscr ?? 0;
+    const dscrStatus = dscr >= 1.25 ? 'PASS' : dscr >= 1.0 ? 'CAUTION' : 'FAIL';
+    const dscrColor = dscr >= 1.25 ? COLORS.success : dscr >= 1.0 ? COLORS.warning : COLORS.danger;
+    
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 130).fillAndStroke(COLORS.white, COLORS.border);
+    doc.rect(MARGIN, y, 4, 130).fill(dscrColor);
+    
+    doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('DEBT SERVICE COVERAGE RATIO (DSCR)', MARGIN + 15, y + 12);
+    
+    // Large DSCR value
+    doc.fontSize(40).fillColor(dscrColor).font('Helvetica-Bold');
+    doc.text(dscr.toFixed(2), MARGIN + 15, y + 35);
+    
+    // Status badge
+    doc.rect(MARGIN + 130, y + 45, 70, 26).fill(dscrColor);
+    doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+    doc.text(dscrStatus, MARGIN + 145, y + 52);
+    
+    // Details
+    const detailsX = MARGIN + 220;
+    let detailsY = y + 38;
+    doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+    
+    if (dscrData.netOperatingIncome != null) {
+      doc.text(`Net Operating Income: ${formatCurrency(dscrData.netOperatingIncome * 100)}`, detailsX, detailsY);
+      detailsY += 16;
+    }
+    if (dscrData.annualDebtService != null) {
+      doc.text(`Annual Debt Service: ${formatCurrency(dscrData.annualDebtService * 100)}`, detailsX, detailsY);
+      detailsY += 16;
+    }
+    doc.text('Minimum threshold: 1.25', detailsX, detailsY);
+    
+    // Interpretation
+    doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+    const interpretation = dscr >= 1.25 
+      ? 'The borrower can comfortably service the debt with income to spare.'
+      : dscr >= 1.0 
+        ? 'The borrower can just cover debt payments with minimal buffer.'
+        : 'The borrower cannot fully cover debt service obligations.';
+    doc.text(interpretation, MARGIN + 15, y + 100, { width: CONTENT_WIDTH - 30 });
+    
+    y += 145;
+  }
+  
+  // ==========================================
+  // 4. AFFORDABILITY ESTIMATOR
+  // ==========================================
+  if (ddData.affordabilityEstimator) {
+    if (y > PAGE_HEIGHT - 160) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    
+    const afford = ddData.affordabilityEstimator;
+    
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 120).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    doc.rect(MARGIN, y, 4, 120).fill(COLORS.secondary);
+    doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('AFFORDABILITY ASSESSMENT', MARGIN + 15, y + 12);
+    
+    const col1X = MARGIN + 15;
+    const col2X = MARGIN + CONTENT_WIDTH / 2;
+    let affY = y + 38;
+    
+    if (afford.monthlyIncome != null) {
+      renderDetailRow(doc, col1X, affY, 'Monthly Income', formatCurrency(afford.monthlyIncome * 100));
+    }
+    if (afford.monthlyExpenses != null) {
+      renderDetailRow(doc, col2X, affY, 'Monthly Expenses', formatCurrency(afford.monthlyExpenses * 100));
+    }
+    affY += 30;
+    
+    if (afford.disposableIncome != null) {
+      renderDetailRow(doc, col1X, affY, 'Disposable Income', formatCurrency(afford.disposableIncome * 100));
+    }
+    if (afford.maxAffordablePayment != null) {
+      renderDetailRow(doc, col2X, affY, 'Max Affordable Payment', formatCurrency(afford.maxAffordablePayment * 100));
+    }
+    affY += 30;
+    
+    if (afford.maxLoanAmount != null) {
+      renderDetailRow(doc, col1X, affY, 'Maximum Loan Amount', formatCurrency(afford.maxLoanAmount * 100));
+    }
+    
+    y += 135;
+  }
+  
+  // ==========================================
+  // 5. FINANCIAL RATIOS - Expanded
+  // ==========================================
   if (ddData.financialRatios) {
     const ratios = ddData.financialRatios;
     const hasAnyRatio = ratios.profitMargin != null || ratios.currentRatio != null || 
-                        ratios.debtToEquity != null || ratios.returnOnEquity != null;
+                        ratios.debtToEquity != null || ratios.returnOnEquity != null ||
+                        ratios.quickRatio != null || ratios.assetTurnover != null;
     
-    if (hasAnyRatio && y < PAGE_HEIGHT - 150) {
-      doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.white, COLORS.border);
+    if (hasAnyRatio) {
+      if (y > PAGE_HEIGHT - 180) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 140).fillAndStroke(COLORS.white, COLORS.border);
       doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
-      doc.text('FINANCIAL RATIOS', MARGIN + 15, y + 12);
+      doc.text('FINANCIAL RATIOS ANALYSIS', MARGIN + 15, y + 12);
       
-      const ratioBoxWidth = (CONTENT_WIDTH - 60) / 4;
+      const ratioBoxWidth = (CONTENT_WIDTH - 75) / 4;
       let ratioX = MARGIN + 15;
-      let ratioY = y + 35;
+      let ratioY = y + 40;
+      let ratioCount = 0;
       
-      if (ratios.profitMargin != null) {
-        renderSmallMetricBox(doc, ratioX, ratioY, ratioBoxWidth, 'Profit Margin', `${ratios.profitMargin.toFixed(1)}%`);
-        ratioX += ratioBoxWidth + 15;
+      const ratiosList = [
+        { key: 'profitMargin', label: 'Profit Margin', format: (v: number) => `${v.toFixed(1)}%` },
+        { key: 'grossMargin', label: 'Gross Margin', format: (v: number) => `${v.toFixed(1)}%` },
+        { key: 'currentRatio', label: 'Current Ratio', format: (v: number) => v.toFixed(2) },
+        { key: 'quickRatio', label: 'Quick Ratio', format: (v: number) => v.toFixed(2) },
+        { key: 'debtToEquity', label: 'Debt/Equity', format: (v: number) => v.toFixed(2) },
+        { key: 'returnOnEquity', label: 'ROE', format: (v: number) => `${v.toFixed(1)}%` },
+        { key: 'returnOnAssets', label: 'ROA', format: (v: number) => `${v.toFixed(1)}%` },
+        { key: 'assetTurnover', label: 'Asset Turnover', format: (v: number) => v.toFixed(2) },
+      ];
+      
+      ratiosList.forEach((ratio) => {
+        if (ratios[ratio.key] != null) {
+          if (ratioCount > 0 && ratioCount % 4 === 0) {
+            ratioX = MARGIN + 15;
+            ratioY += 55;
+          }
+          renderSmallMetricBox(doc, ratioX, ratioY, ratioBoxWidth, ratio.label, ratio.format(ratios[ratio.key]));
+          ratioX += ratioBoxWidth + 15;
+          ratioCount++;
+        }
+      });
+      
+      y += 155;
+    }
+  }
+  
+  // ==========================================
+  // 6. CHARACTER ASSESSMENT
+  // ==========================================
+  if (ddData.characterAssessment) {
+    if (y > PAGE_HEIGHT - 200) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    
+    const charAssess = ddData.characterAssessment;
+    
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 160).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
+    doc.rect(MARGIN, y, 4, 160).fill(COLORS.accent);
+    doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('CHARACTER ASSESSMENT', MARGIN + 15, y + 12);
+    
+    let charY = y + 35;
+    const assessmentFields = [
+      { key: 'businessExperience', label: 'Business Experience' },
+      { key: 'industryExperience', label: 'Industry Experience' },
+      { key: 'managementCapability', label: 'Management Capability' },
+      { key: 'financialTrackRecord', label: 'Financial Track Record' },
+      { key: 'creditHistory', label: 'Credit History' },
+      { key: 'referencesAvailable', label: 'References Available' },
+    ];
+    
+    const colWidth = (CONTENT_WIDTH - 40) / 2;
+    assessmentFields.forEach((field, index) => {
+      const colX = index % 2 === 0 ? MARGIN + 15 : MARGIN + colWidth + 25;
+      if (index > 0 && index % 2 === 0) charY += 22;
+      
+      if (charAssess[field.key] != null) {
+        const value = charAssess[field.key];
+        const displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : 
+                            typeof value === 'number' ? `${value}/10` : String(value);
+        
+        doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+        doc.text(field.label + ':', colX, charY);
+        doc.fontSize(9).fillColor(COLORS.text).font('Helvetica-Bold');
+        doc.text(displayValue, colX + 120, charY);
       }
-      if (ratios.currentRatio != null) {
-        renderSmallMetricBox(doc, ratioX, ratioY, ratioBoxWidth, 'Current Ratio', ratios.currentRatio.toFixed(2));
-        ratioX += ratioBoxWidth + 15;
+    });
+    
+    // Notes if available
+    if (charAssess.notes) {
+      charY += 30;
+      doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+      doc.text('Notes:', MARGIN + 15, charY);
+      doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+      doc.text(charAssess.notes, MARGIN + 15, charY + 14, { width: CONTENT_WIDTH - 30 });
+    }
+    
+    y += 175;
+  }
+  
+  // ==========================================
+  // 7. CREDIT UNDERWRITING (Premium Feature)
+  // ==========================================
+  if (ddData.creditUnderwriting) {
+    const cu = ddData.creditUnderwriting;
+    
+    // New page for Credit Underwriting section
+    doc.addPage();
+    pageNumber++;
+    renderSectionHeader(doc, 'Credit Underwriting Analysis', '14');
+    y = doc.y + 10;
+    
+    // 7.1 Risk Grade Summary
+    if (cu.riskGrade || cu.finalRiskGrade) {
+      const riskGrade = cu.finalRiskGrade || cu.riskGrade || 'N/A';
+      const riskColor = getRiskGradeColor(riskGrade);
+      
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 90).fillAndStroke(riskColor + '15', riskColor);
+      
+      doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+      doc.text('OVERALL RISK ASSESSMENT', MARGIN + 15, y + 12);
+      
+      // Large risk grade
+      doc.fontSize(48).fillColor(riskColor).font('Helvetica-Bold');
+      doc.text(riskGrade, MARGIN + 15, y + 32);
+      
+      // Risk grade description
+      const gradeDescriptions: Record<string, string> = {
+        'A': 'Excellent - Low risk, strong financials',
+        'B': 'Good - Acceptable risk with minor concerns',
+        'C': 'Fair - Moderate risk requiring attention',
+        'D': 'Poor - High risk with significant concerns',
+        'E': 'Very High Risk - Severe concerns identified',
+      };
+      doc.fontSize(10).fillColor(COLORS.text).font('Helvetica');
+      doc.text(gradeDescriptions[riskGrade] || 'Risk assessment completed', MARGIN + 100, y + 55);
+      
+      y += 105;
+    }
+    
+    // 7.2 Eligibility Check Results
+    if (cu.eligibilityAnswers || cu.isEligible !== undefined) {
+      if (y > PAGE_HEIGHT - 200) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
       }
-      if (ratios.debtToEquity != null) {
-        renderSmallMetricBox(doc, ratioX, ratioY, ratioBoxWidth, 'Debt/Equity', ratios.debtToEquity.toFixed(2));
-        ratioX += ratioBoxWidth + 15;
+      
+      const isEligible = cu.isEligible ?? true;
+      const eligColor = isEligible ? COLORS.success : COLORS.danger;
+      
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
+      doc.rect(MARGIN, y, 4, 80).fill(eligColor);
+      
+      doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+      doc.text('ELIGIBILITY CHECK', MARGIN + 15, y + 12);
+      
+      // Eligibility status
+      doc.fontSize(14).fillColor(eligColor).font('Helvetica-Bold');
+      doc.text(isEligible ? 'ELIGIBLE' : 'INELIGIBLE', MARGIN + 15, y + 35);
+      
+      // Count passed/failed if answers available
+      if (cu.eligibilityAnswers && typeof cu.eligibilityAnswers === 'object') {
+        const answers = Object.values(cu.eligibilityAnswers);
+        const passed = answers.filter((a: any) => a === true).length;
+        const total = answers.length;
+        
+        doc.fontSize(10).fillColor(COLORS.textSecondary).font('Helvetica');
+        doc.text(`${passed} of ${total} policy criteria met`, MARGIN + 15, y + 55);
       }
-      if (ratios.returnOnEquity != null) {
-        renderSmallMetricBox(doc, ratioX, ratioY, ratioBoxWidth, 'ROE', `${ratios.returnOnEquity.toFixed(1)}%`);
+      
+      y += 95;
+    }
+    
+    // 7.3 Financial Analysis (AI-powered)
+    if (cu.analysis || cu.financialAnalysis) {
+      const analysis = cu.analysis || cu.financialAnalysis;
+      
+      if (y > PAGE_HEIGHT - 250) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 200).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+      doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+      doc.text('AI-POWERED FINANCIAL ANALYSIS', MARGIN + 15, y + 12);
+      
+      let analysisY = y + 35;
+      const col1X = MARGIN + 15;
+      const col2X = MARGIN + CONTENT_WIDTH / 2;
+      
+      // Key metrics
+      if (analysis.averageMonthlyRevenue != null) {
+        renderDetailRow(doc, col1X, analysisY, 'Avg Monthly Revenue', formatCurrency(analysis.averageMonthlyRevenue * 100));
+      }
+      if (analysis.averageMonthlyExpenses != null) {
+        renderDetailRow(doc, col2X, analysisY, 'Avg Monthly Expenses', formatCurrency(analysis.averageMonthlyExpenses * 100));
+      }
+      analysisY += 30;
+      
+      if (analysis.netDisposableIncome != null) {
+        renderDetailRow(doc, col1X, analysisY, 'Net Disposable Income', formatCurrency(analysis.netDisposableIncome * 100));
+      }
+      if (analysis.dscr != null) {
+        const dscrVal = analysis.dscr;
+        const dscrColor = dscrVal >= 1.25 ? COLORS.success : dscrVal >= 1.0 ? COLORS.warning : COLORS.danger;
+        doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+        doc.text('DSCR', col2X, analysisY);
+        doc.fontSize(11).fillColor(dscrColor).font('Helvetica-Bold');
+        doc.text(dscrVal.toFixed(2), col2X, analysisY + 12);
+      }
+      analysisY += 35;
+      
+      // P&L Summary
+      if (analysis.profitAndLoss) {
+        const pnl = analysis.profitAndLoss;
+        doc.fontSize(10).fillColor(COLORS.secondary).font('Helvetica-Bold');
+        doc.text('Profit & Loss Summary', col1X, analysisY);
+        analysisY += 18;
+        
+        if (pnl.turnover != null) {
+          doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+          doc.text(`Turnover: ${formatCurrency(pnl.turnover * 100)}`, col1X, analysisY);
+        }
+        if (pnl.grossProfit != null) {
+          doc.text(`Gross Profit: ${formatCurrency(pnl.grossProfit * 100)}`, col2X, analysisY);
+        }
+        analysisY += 14;
+        
+        if (pnl.netProfit != null) {
+          doc.text(`Net Profit: ${formatCurrency(pnl.netProfit * 100)}`, col1X, analysisY);
+        }
+        if (pnl.periodMonths != null) {
+          doc.text(`Period: ${pnl.periodMonths} months`, col2X, analysisY);
+        }
+      }
+      
+      // Summary text
+      if (analysis.summary) {
+        analysisY += 25;
+        doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+        doc.text(truncateText(analysis.summary, 300), col1X, analysisY, { width: CONTENT_WIDTH - 30 });
+      }
+      
+      y += 215;
+    }
+    
+    // 7.4 Red Flags
+    if (cu.redFlags && Array.isArray(cu.redFlags) && cu.redFlags.length > 0) {
+      const activeFlags = cu.redFlags.filter((f: any) => f.isActive || f.active);
+      
+      if (activeFlags.length > 0) {
+        if (y > PAGE_HEIGHT - 150) {
+          doc.addPage();
+          pageNumber++;
+          y = MARGIN + 20;
+        }
+        
+        const flagHeight = Math.min(40 + activeFlags.length * 20, 150);
+        doc.rect(MARGIN, y, CONTENT_WIDTH, flagHeight).fillAndStroke(COLORS.danger + '10', COLORS.danger);
+        
+        doc.fontSize(11).fillColor(COLORS.danger).font('Helvetica-Bold');
+        doc.text('⚠ RED FLAGS IDENTIFIED', MARGIN + 15, y + 12);
+        
+        let flagY = y + 35;
+        activeFlags.forEach((flag: any) => {
+          if (flagY < y + flagHeight - 10) {
+            doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+            doc.text(`• ${flag.label || flag.description || 'Concern identified'}`, MARGIN + 20, flagY);
+            flagY += 16;
+          }
+        });
+        
+        y += flagHeight + 15;
+      }
+    }
+    
+    // 7.5 Due Diligence Checks (Companies House + Adverse Media)
+    if (cu.dueDiligence) {
+      const ddChecks = cu.dueDiligence;
+      
+      if (y > PAGE_HEIGHT - 180) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      
+      const riskLevel = ddChecks.riskLevel || 'MEDIUM';
+      const riskColor = riskLevel === 'LOW' ? COLORS.success : riskLevel === 'HIGH' ? COLORS.danger : COLORS.warning;
+      
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 140).fillAndStroke(COLORS.white, COLORS.border);
+      doc.rect(MARGIN, y, 4, 140).fill(riskColor);
+      
+      doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+      doc.text('DUE DILIGENCE CHECKS', MARGIN + 15, y + 12);
+      
+      // Risk level badge
+      doc.rect(MARGIN + 180, y + 8, 60, 20).fill(riskColor);
+      doc.fontSize(9).fillColor(COLORS.white).font('Helvetica-Bold');
+      doc.text(riskLevel + ' RISK', MARGIN + 190, y + 14);
+      
+      let ddY = y + 38;
+      
+      // Summary
+      if (ddChecks.summary) {
+        doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+        doc.text(truncateText(ddChecks.summary, 200), MARGIN + 15, ddY, { width: CONTENT_WIDTH - 30 });
+        ddY += 35;
+      }
+      
+      // Web/Adverse Media Summary
+      if (ddChecks.webSummary) {
+        doc.fontSize(9).fillColor(COLORS.secondary).font('Helvetica-Bold');
+        doc.text('Adverse Media Search:', MARGIN + 15, ddY);
+        ddY += 14;
+        doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+        doc.text(truncateText(ddChecks.webSummary, 180), MARGIN + 15, ddY, { width: CONTENT_WIDTH - 30 });
+        ddY += 30;
+      }
+      
+      // Flags
+      if (ddChecks.flags && Array.isArray(ddChecks.flags) && ddChecks.flags.length > 0) {
+        doc.fontSize(9).fillColor(COLORS.warning).font('Helvetica-Bold');
+        doc.text('Flags:', MARGIN + 15, ddY);
+        ddY += 14;
+        doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+        ddChecks.flags.slice(0, 3).forEach((flag: string) => {
+          doc.text(`• ${flag}`, MARGIN + 20, ddY);
+          ddY += 14;
+        });
+      }
+      
+      y += 155;
+    }
+    
+    // 7.6 Adviser Summary (CAMPARI Framework)
+    if (cu.adviserSummary) {
+      const adviser = cu.adviserSummary;
+      
+      doc.addPage();
+      pageNumber++;
+      renderSectionHeader(doc, 'Adviser Summary - CAMPARI Framework', '15');
+      y = doc.y + 10;
+      
+      // Header info
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
+      
+      const col1X = MARGIN + 15;
+      const col2X = MARGIN + CONTENT_WIDTH / 2;
+      let advY = y + 15;
+      
+      if (adviser.businessName) {
+        renderDetailRow(doc, col1X, advY, 'Business Name', adviser.businessName);
+      }
+      if (adviser.soarRef) {
+        renderDetailRow(doc, col2X, advY, 'Reference', adviser.soarRef);
+      }
+      advY += 30;
+      
+      if (adviser.product) {
+        renderDetailRow(doc, col1X, advY, 'Product', adviser.product);
+      }
+      if (adviser.amount) {
+        renderDetailRow(doc, col2X, advY, 'Amount', formatCurrency(adviser.amount * 100));
+      }
+      
+      y += 95;
+      
+      // CAMPARI sections
+      if (adviser.sections && typeof adviser.sections === 'object') {
+        const campariOrder = ['character', 'ability', 'margin', 'purpose', 'amount', 'repayment', 'insurance'];
+        const campariLabels: Record<string, string> = {
+          character: 'CHARACTER - Management & Background',
+          ability: 'ABILITY - Capacity to Repay',
+          margin: 'MARGIN - Return & Pricing',
+          purpose: 'PURPOSE - Loan Purpose & Rationale',
+          amount: 'AMOUNT - Funding Requirement',
+          repayment: 'REPAYMENT - Source & Terms',
+          insurance: 'INSURANCE - Security & Risk Mitigation',
+        };
+        
+        campariOrder.forEach((key) => {
+          const content = adviser.sections[key];
+          if (!content) return;
+          
+          if (y > PAGE_HEIGHT - 120) {
+            doc.addPage();
+            pageNumber++;
+            y = MARGIN + 20;
+          }
+          
+          doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
+          doc.rect(MARGIN, y, 4, 80).fill(COLORS.secondary);
+          
+          doc.fontSize(10).fillColor(COLORS.secondary).font('Helvetica-Bold');
+          doc.text(campariLabels[key] || key.toUpperCase(), MARGIN + 15, y + 12);
+          
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(truncateText(content, 400), MARGIN + 15, y + 30, { width: CONTENT_WIDTH - 30 });
+          
+          y += 90;
+        });
+      }
+      
+      // Questionnaire
+      if (adviser.questionnaire && typeof adviser.questionnaire === 'object') {
+        if (y > PAGE_HEIGHT - 150) {
+          doc.addPage();
+          pageNumber++;
+          y = MARGIN + 20;
+        }
+        
+        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+        doc.text('Credit Committee Questionnaire', MARGIN, y);
+        y += 25;
+        
+        const questions = Object.entries(adviser.questionnaire);
+        questions.forEach(([question, answer]) => {
+          if (y > PAGE_HEIGHT - 40) {
+            doc.addPage();
+            pageNumber++;
+            y = MARGIN + 20;
+          }
+          
+          const ansColor = answer === 'Yes' ? COLORS.success : answer === 'No' ? COLORS.danger : COLORS.textSecondary;
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(`• ${question}`, MARGIN + 10, y, { width: CONTENT_WIDTH - 80 });
+          doc.fontSize(9).fillColor(ansColor).font('Helvetica-Bold');
+          doc.text(String(answer || 'N/A'), PAGE_WIDTH - MARGIN - 50, y);
+          y += 20;
+        });
+      }
+    }
+    
+    // 7.7 Audited Accounts Analysis
+    if (cu.auditedAccountsAnalysis) {
+      const accounts = cu.auditedAccountsAnalysis;
+      
+      doc.addPage();
+      pageNumber++;
+      renderSectionHeader(doc, 'Audited Accounts Analysis', '16');
+      y = doc.y + 10;
+      
+      // Risk assessment
+      if (accounts.riskAssessment) {
+        const riskColor = accounts.riskAssessment === 'low' ? COLORS.success : 
+                         accounts.riskAssessment === 'high' ? COLORS.danger : COLORS.warning;
+        
+        doc.rect(MARGIN, y, CONTENT_WIDTH, 60).fillAndStroke(riskColor + '15', riskColor);
+        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+        doc.text('ACCOUNTS RISK ASSESSMENT', MARGIN + 15, y + 12);
+        doc.fontSize(20).fillColor(riskColor).font('Helvetica-Bold');
+        doc.text(accounts.riskAssessment.toUpperCase(), MARGIN + 15, y + 32);
+        
+        y += 75;
+      }
+      
+      // Year-by-year data
+      if (accounts.years && Array.isArray(accounts.years)) {
+        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+        doc.text('Financial Performance by Year', MARGIN, y);
+        y += 25;
+        
+        accounts.years.forEach((year: any) => {
+          if (y > PAGE_HEIGHT - 120) {
+            doc.addPage();
+            pageNumber++;
+            y = MARGIN + 20;
+          }
+          
+          doc.rect(MARGIN, y, CONTENT_WIDTH, 90).fillAndStroke(COLORS.white, COLORS.border);
+          doc.fontSize(10).fillColor(COLORS.secondary).font('Helvetica-Bold');
+          doc.text(`Year Ending: ${year.yearEnding || 'N/A'}`, MARGIN + 15, y + 12);
+          
+          const col1X = MARGIN + 15;
+          const col2X = MARGIN + CONTENT_WIDTH / 3;
+          const col3X = MARGIN + (CONTENT_WIDTH / 3) * 2;
+          let yearY = y + 35;
+          
+          if (year.turnover != null) {
+            doc.fontSize(8).fillColor(COLORS.textSecondary).font('Helvetica');
+            doc.text('Turnover', col1X, yearY);
+            doc.fontSize(10).fillColor(COLORS.text).font('Helvetica-Bold');
+            doc.text(formatCurrency(year.turnover * 100), col1X, yearY + 12);
+          }
+          if (year.netProfit != null) {
+            doc.fontSize(8).fillColor(COLORS.textSecondary).font('Helvetica');
+            doc.text('Net Profit', col2X, yearY);
+            doc.fontSize(10).fillColor(year.netProfit >= 0 ? COLORS.success : COLORS.danger).font('Helvetica-Bold');
+            doc.text(formatCurrency(year.netProfit * 100), col2X, yearY + 12);
+          }
+          if (year.netAssets != null) {
+            doc.fontSize(8).fillColor(COLORS.textSecondary).font('Helvetica');
+            doc.text('Net Assets', col3X, yearY);
+            doc.fontSize(10).fillColor(COLORS.text).font('Helvetica-Bold');
+            doc.text(formatCurrency(year.netAssets * 100), col3X, yearY + 12);
+          }
+          
+          yearY += 35;
+          if (year.shareholderFunds != null) {
+            doc.fontSize(8).fillColor(COLORS.textSecondary).font('Helvetica');
+            doc.text('Shareholder Funds', col1X, yearY);
+            doc.fontSize(10).fillColor(COLORS.text).font('Helvetica-Bold');
+            doc.text(formatCurrency(year.shareholderFunds * 100), col1X, yearY + 12);
+          }
+          
+          y += 100;
+        });
+      }
+      
+      // Trends summary
+      if (accounts.trends) {
+        if (y > PAGE_HEIGHT - 100) {
+          doc.addPage();
+          pageNumber++;
+          y = MARGIN + 20;
+        }
+        
+        const trendColor = accounts.trends.trend === 'improving' ? COLORS.success :
+                          accounts.trends.trend === 'declining' ? COLORS.danger : COLORS.warning;
+        
+        doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+        doc.rect(MARGIN, y, 4, 70).fill(trendColor);
+        
+        doc.fontSize(10).fillColor(COLORS.secondary).font('Helvetica-Bold');
+        doc.text('TREND ANALYSIS', MARGIN + 15, y + 12);
+        doc.fontSize(12).fillColor(trendColor).font('Helvetica-Bold');
+        doc.text(capitalizeStage(accounts.trends.trend || 'stable'), MARGIN + 120, y + 10);
+        
+        if (accounts.trends.summary) {
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(truncateText(accounts.trends.summary, 250), MARGIN + 15, y + 35, { width: CONTENT_WIDTH - 30 });
+        }
+        
+        y += 85;
+      }
+      
+      // Concerns
+      if (accounts.concerns && Array.isArray(accounts.concerns) && accounts.concerns.length > 0) {
+        if (y > PAGE_HEIGHT - 120) {
+          doc.addPage();
+          pageNumber++;
+          y = MARGIN + 20;
+        }
+        
+        doc.fontSize(11).fillColor(COLORS.warning).font('Helvetica-Bold');
+        doc.text('⚠ Concerns Identified', MARGIN, y);
+        y += 20;
+        
+        accounts.concerns.forEach((concern: any) => {
+          if (y > PAGE_HEIGHT - 50) return;
+          
+          const severityColor = concern.severity === 'high' ? COLORS.danger :
+                               concern.severity === 'medium' ? COLORS.warning : COLORS.textSecondary;
+          
+          doc.fontSize(9).fillColor(severityColor).font('Helvetica-Bold');
+          doc.text(`[${(concern.severity || 'low').toUpperCase()}]`, MARGIN + 10, y);
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(concern.description || 'Concern identified', MARGIN + 60, y, { width: CONTENT_WIDTH - 80 });
+          y += 18;
+        });
       }
     }
   }
+}
+
+// Helper function for risk grade colors
+function getRiskGradeColor(grade: string): string {
+  const gradeColors: Record<string, string> = {
+    'A': COLORS.success,
+    'B': '#22C55E',
+    'C': COLORS.warning,
+    'D': '#F97316',
+    'E': COLORS.danger,
+  };
+  return gradeColors[grade] || COLORS.textSecondary;
+}
+
+// Helper function to truncate text
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
 }
 
 function renderSmallMetricBox(doc: typeof PDFDocument.prototype, x: number, y: number, width: number, label: string, value: string) {
