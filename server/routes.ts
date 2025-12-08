@@ -1041,7 +1041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prospectId = parseInt(req.params.prospectId);
       
       // Get the prospect to find the company number
-      const prospect = await storage.getProspect(prospectId);
+      const prospect = await storage.getProspect(prospectId, req.user.id);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
