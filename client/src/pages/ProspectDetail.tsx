@@ -1253,7 +1253,54 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
   );
 }
 
+type CreditTool = "loan-calc" | "dscr" | "affordability" | "ratios" | "character" | null;
+
+const creditToolsConfig = [
+  { 
+    id: "loan-calc" as CreditTool, 
+    label: "Loan Calculator", 
+    shortLabel: "Loan",
+    icon: Calculator, 
+    color: "bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700",
+    activeColor: "bg-blue-600 dark:bg-blue-700 ring-2 ring-blue-400 ring-offset-2 ring-offset-background"
+  },
+  { 
+    id: "dscr" as CreditTool, 
+    label: "DSCR Calculator", 
+    shortLabel: "DSCR",
+    icon: TrendingUp, 
+    color: "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700",
+    activeColor: "bg-emerald-600 dark:bg-emerald-700 ring-2 ring-emerald-400 ring-offset-2 ring-offset-background"
+  },
+  { 
+    id: "affordability" as CreditTool, 
+    label: "Affordability Estimator", 
+    shortLabel: "Afford",
+    icon: Target, 
+    color: "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700",
+    activeColor: "bg-amber-600 dark:bg-amber-700 ring-2 ring-amber-400 ring-offset-2 ring-offset-background"
+  },
+  { 
+    id: "ratios" as CreditTool, 
+    label: "Financial Ratios", 
+    shortLabel: "Ratios",
+    icon: FileText, 
+    color: "bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700",
+    activeColor: "bg-purple-600 dark:bg-purple-700 ring-2 ring-purple-400 ring-offset-2 ring-offset-background"
+  },
+  { 
+    id: "character" as CreditTool, 
+    label: "Character Assessment", 
+    shortLabel: "Character",
+    icon: User, 
+    color: "bg-rose-500 hover:bg-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700",
+    activeColor: "bg-rose-600 dark:bg-rose-700 ring-2 ring-rose-400 ring-offset-2 ring-offset-background"
+  },
+];
+
 function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany; userTier: string }) {
+  const [activeTool, setActiveTool] = useState<CreditTool>(null);
+  
   const { data: dueDiligence } = useQuery<DueDiligence>({
     queryKey: [`/api/prospects/${prospect.id}/due-diligence`],
   });
@@ -1281,6 +1328,57 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
     saveDueDiligenceMutation.mutate(updates);
   };
 
+  const handleToolClick = (toolId: CreditTool) => {
+    setActiveTool(activeTool === toolId ? null : toolId);
+  };
+
+  const renderToolContent = () => {
+    switch (activeTool) {
+      case "loan-calc":
+        return (
+          <LoanCalculatorTool
+            data={dueDiligenceData}
+            onSave={handleSave}
+            isSaving={saveDueDiligenceMutation.isPending}
+          />
+        );
+      case "dscr":
+        return (
+          <DSCRCalculatorTool
+            data={dueDiligenceData}
+            onSave={handleSave}
+            isSaving={saveDueDiligenceMutation.isPending}
+          />
+        );
+      case "affordability":
+        return (
+          <AffordabilityEstimatorTool
+            data={dueDiligenceData}
+            onSave={handleSave}
+            isSaving={saveDueDiligenceMutation.isPending}
+          />
+        );
+      case "ratios":
+        return (
+          <FinancialRatiosCalculatorTool
+            data={dueDiligenceData}
+            onSave={handleSave}
+            isSaving={saveDueDiligenceMutation.isPending}
+          />
+        );
+      case "character":
+        return (
+          <CharacterAssessmentTool
+            data={dueDiligenceData}
+            onSave={handleSave}
+            isSaving={saveDueDiligenceMutation.isPending}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Accordion type="multiple" defaultValue={["checklist"]} className="space-y-4">
@@ -1296,73 +1394,70 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
             />
           </AccordionContent>
         </AccordionItem>
+      </Accordion>
 
-        <AccordionItem value="loan-calc" className="border rounded-lg" data-testid="accordion-loan-calc">
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <span className="text-lg font-semibold">Loan Calculator</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <LoanCalculatorTool
-              data={dueDiligenceData}
-              onSave={handleSave}
-              isSaving={saveDueDiligenceMutation.isPending}
-            />
-          </AccordionContent>
-        </AccordionItem>
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <Calculator className="h-5 w-5 text-primary" />
+            Credit Tools
+          </CardTitle>
+          <CardDescription>
+            Interactive calculators and assessment tools
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {creditToolsConfig.map((tool) => {
+              const Icon = tool.icon;
+              const isActive = activeTool === tool.id;
+              
+              return (
+                <button
+                  key={tool.id}
+                  onClick={() => handleToolClick(tool.id)}
+                  className={`
+                    flex items-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium
+                    transition-all duration-200 ease-in-out transform
+                    ${isActive ? tool.activeColor + " scale-105" : tool.color + " hover:scale-102"}
+                    shadow-md hover:shadow-lg active:scale-95
+                  `}
+                  data-testid={`button-tool-${tool.id}`}
+                >
+                  <Icon className={`h-4 w-4 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`} />
+                  <span className="hidden sm:inline">{tool.label}</span>
+                  <span className="sm:hidden">{tool.shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        <AccordionItem value="dscr" className="border rounded-lg" data-testid="accordion-dscr">
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <span className="text-lg font-semibold">DSCR Calculator</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <DSCRCalculatorTool
-              data={dueDiligenceData}
-              onSave={handleSave}
-              isSaving={saveDueDiligenceMutation.isPending}
-            />
-          </AccordionContent>
-        </AccordionItem>
+          {activeTool && (
+            <div 
+              className="mt-6 p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-300"
+              data-testid={`content-tool-${activeTool}`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-semibold">
+                  {creditToolsConfig.find(t => t.id === activeTool)?.label}
+                </h4>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setActiveTool(null)}
+                  data-testid="button-close-tool"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {renderToolContent()}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        <AccordionItem value="affordability" className="border rounded-lg" data-testid="accordion-affordability">
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <span className="text-lg font-semibold">Affordability Estimator</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <AffordabilityEstimatorTool
-              data={dueDiligenceData}
-              onSave={handleSave}
-              isSaving={saveDueDiligenceMutation.isPending}
-            />
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="ratios" className="border rounded-lg" data-testid="accordion-ratios">
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <span className="text-lg font-semibold">Financial Ratios Calculator</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <FinancialRatiosCalculatorTool
-              data={dueDiligenceData}
-              onSave={handleSave}
-              isSaving={saveDueDiligenceMutation.isPending}
-            />
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="character" className="border rounded-lg" data-testid="accordion-character">
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <span className="text-lg font-semibold">Character Assessment</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <CharacterAssessmentTool
-              data={dueDiligenceData}
-              onSave={handleSave}
-              isSaving={saveDueDiligenceMutation.isPending}
-            />
-          </AccordionContent>
-        </AccordionItem>
-
-        {userTier === "premium" && (
+      {userTier === "premium" && (
+        <Accordion type="multiple" className="space-y-4">
           <AccordionItem value="underwriting" className="border rounded-lg border-primary/20" data-testid="accordion-underwriting">
             <AccordionTrigger className="px-6 hover:no-underline">
               <div className="flex items-center gap-3">
@@ -1381,8 +1476,8 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
               />
             </AccordionContent>
           </AccordionItem>
-        )}
-      </Accordion>
+        </Accordion>
+      )}
     </div>
   );
 }
