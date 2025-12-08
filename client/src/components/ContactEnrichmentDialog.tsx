@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,15 @@ export function ContactEnrichmentDialog({
   const [result, setResult] = useState<EnrichmentResult | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setResult(null);
+      setSelectedEmail(null);
+      setSelectedPhone(null);
+    }
+  }, [open]);
 
   const enrichMutation = useMutation({
     mutationFn: async () => {
