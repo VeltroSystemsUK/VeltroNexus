@@ -283,9 +283,9 @@ export function ContactEnrichmentDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const searchQuery = `${contact.name} ${result.companyName.replace(/\s*(limited|ltd\.?|plc|llp|inc\.?|corp\.?)\s*$/gi, '').trim()}`;
+                        // Use just the contact name (First Last)
                         window.open(
-                          `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchQuery)}`,
+                          `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(contact.name)}`,
                           '_blank'
                         );
                       }}
