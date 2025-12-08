@@ -153,22 +153,34 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-6 py-5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-11 w-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-              <Building2 className="h-6 w-6 text-primary-foreground" />
+        <div className="container mx-auto px-4 md:px-6 py-3 md:py-5 flex items-center justify-between gap-2 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="h-9 w-9 md:h-11 md:w-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
+              <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-app-title">FlowLoan</h1>
-              <p className="text-sm text-muted-foreground">Commercial Lending Platform</p>
+              <h1 className="text-lg md:text-2xl font-bold tracking-tight" data-testid="text-app-title">FlowLoan</h1>
+              <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Commercial Lending Platform</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
+            <Button 
+              variant="outline"
+              size="icon"
+              className="md:hidden h-9 w-9"
+              onClick={() => {
+                window.location.href = '/api/prospects/export/excel';
+              }}
+              data-testid="button-export-excel-mobile"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
             <Button 
               variant="outline"
               size="lg"
+              className="hidden md:flex"
               onClick={() => {
                 window.location.href = '/api/prospects/export/excel';
               }}
@@ -177,7 +189,10 @@ export default function Pipeline() {
               <Download className="h-5 w-5 mr-2" />
               Export
             </Button>
-            <Button size="lg" onClick={() => navigate("/search")} data-testid="button-add-prospect">
+            <Button size="icon" className="md:hidden h-9 w-9" onClick={() => navigate("/search")} data-testid="button-add-prospect-mobile">
+              <TrendingUp className="h-4 w-4" />
+            </Button>
+            <Button size="lg" className="hidden md:flex" onClick={() => navigate("/search")} data-testid="button-add-prospect">
               Add Prospect
             </Button>
             <ThemeToggle />
@@ -252,11 +267,11 @@ export default function Pipeline() {
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-10">
-        <div className="mb-10">
-          <h2 className="text-4xl font-bold mb-3 tracking-tight" data-testid="text-page-title">Pipeline Dashboard</h2>
-          <p className="text-lg text-muted-foreground" data-testid="text-page-description">
-            Manage your commercial lending pipeline and track loan applications
+      <main className="container mx-auto px-4 md:px-6 py-6 md:py-10">
+        <div className="mb-6 md:mb-10">
+          <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-3 tracking-tight" data-testid="text-page-title">Pipeline Dashboard</h2>
+          <p className="text-sm md:text-lg text-muted-foreground" data-testid="text-page-description">
+            Manage your commercial lending pipeline
           </p>
         </div>
 
@@ -264,27 +279,30 @@ export default function Pipeline() {
           <EmptyPipeline onAddProspect={() => navigate("/search")} />
         ) : (
           <Tabs defaultValue="dashboard" className="w-full" data-testid="tabs-main">
-            <TabsList className="grid w-full grid-cols-3 mb-10 h-14" data-testid="tabs-list">
-              <TabsTrigger value="dashboard" className="text-base py-3 gap-2.5" data-testid="tab-dashboard">
-                <LayoutDashboard className="h-5 w-5" />
-                Dashboard
+            <TabsList className="grid w-full grid-cols-3 mb-6 md:mb-10 h-12 md:h-14" data-testid="tabs-list">
+              <TabsTrigger value="dashboard" className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5" data-testid="tab-dashboard">
+                <LayoutDashboard className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="hidden sm:inline">Dashboard</span>
+                <span className="sm:hidden">Home</span>
               </TabsTrigger>
-              <TabsTrigger value="prospect-pipeline" className="text-base py-3 gap-2.5" data-testid="tab-prospect-pipeline">
-                <Users className="h-5 w-5" />
-                Prospect Pipeline
+              <TabsTrigger value="prospect-pipeline" className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5" data-testid="tab-prospect-pipeline">
+                <Users className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="hidden sm:inline">Prospect Pipeline</span>
+                <span className="sm:hidden">Prospects</span>
               </TabsTrigger>
-              <TabsTrigger value="process-pipeline" className="text-base py-3 gap-2.5" data-testid="tab-process-pipeline">
-                <Send className="h-5 w-5" />
-                Process Pipeline
+              <TabsTrigger value="process-pipeline" className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5" data-testid="tab-process-pipeline">
+                <Send className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="hidden sm:inline">Process Pipeline</span>
+                <span className="sm:hidden">Process</span>
               </TabsTrigger>
             </TabsList>
 
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" data-testid="content-dashboard">
-              <div className="space-y-10">
+              <div className="space-y-6 md:space-y-10">
                 {/* Headline Metrics */}
                 <div>
-                  <h3 className="text-2xl font-semibold mb-6 tracking-tight">Overview</h3>
+                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Overview</h3>
                   <PipelineStats
                     totalProspects={prospects.length}
                     activeProspects={activeProspects}
@@ -295,12 +313,12 @@ export default function Pipeline() {
 
                 {/* CRM Features */}
                 <div>
-                  <h3 className="text-2xl font-semibold mb-6 tracking-tight">Activity Management</h3>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2">
+                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Activity Management</h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                    <div className="lg:col-span-2 order-2 lg:order-1">
                       <ActivityCalendar />
                     </div>
-                    <div className="space-y-6">
+                    <div className="space-y-4 md:space-y-6 order-1 lg:order-2">
                       <TaskReminders />
                       <ToDoList />
                     </div>
@@ -309,20 +327,20 @@ export default function Pipeline() {
 
                 {/* Quick Stage Summary */}
                 <div>
-                  <h3 className="text-2xl font-semibold mb-6 tracking-tight">Stage Summary</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
+                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Stage Summary</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-5">
                     {ALL_STAGES.filter(s => !["approved", "declined", "withdrawn"].includes(s.value)).map((stage) => {
                       const count = getProspectsByStage(stage.value).length;
                       const totalValue = getTotalValueByStage(stage.value);
                       return (
                         <Card key={stage.value} className="hover-elevate">
-                          <CardHeader className="pb-2 pt-5 px-5">
-                            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{stage.label}</CardTitle>
+                          <CardHeader className="pb-1 md:pb-2 pt-3 md:pt-5 px-3 md:px-5">
+                            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wide">{stage.label}</CardTitle>
                           </CardHeader>
-                          <CardContent className="px-5 pb-5">
-                            <div className="text-4xl font-bold tracking-tight">{count}</div>
+                          <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
+                            <div className="text-2xl md:text-4xl font-bold tracking-tight">{count}</div>
                             {totalValue && (
-                              <p className="text-sm text-muted-foreground mt-2">{totalValue}</p>
+                              <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2">{totalValue}</p>
                             )}
                           </CardContent>
                         </Card>
@@ -335,15 +353,15 @@ export default function Pipeline() {
 
             {/* Prospect Pipeline Tab */}
             <TabsContent value="prospect-pipeline" data-testid="content-prospect-pipeline">
-              <div className="space-y-8">
+              <div className="space-y-4 md:space-y-8">
                 <div>
-                  <h3 className="text-2xl font-semibold mb-2 tracking-tight">Early Stage Pipeline</h3>
-                  <p className="text-muted-foreground text-base">
-                    Track prospects from initial lead through qualification
+                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">Early Stage Pipeline</h3>
+                  <p className="text-muted-foreground text-sm md:text-base">
+                    Track prospects from lead to qualification
                   </p>
                 </div>
                 <DragDropContext onDragEnd={onDragEnd}>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
                     {PROSPECT_STAGES.map((stage) => {
                       const stageProspects = getProspectsByStage(stage.value);
                       const totalValue = getTotalValueByStage(stage.value);
@@ -408,17 +426,17 @@ export default function Pipeline() {
 
             {/* Process Pipeline Tab */}
             <TabsContent value="process-pipeline" data-testid="content-process-pipeline">
-              <div className="space-y-8">
+              <div className="space-y-4 md:space-y-8">
                 <div>
-                  <h3 className="text-2xl font-semibold mb-2 tracking-tight">Application Processing</h3>
-                  <p className="text-muted-foreground text-base">
-                    Manage loan applications from proposal through to submission
+                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">Application Processing</h3>
+                  <p className="text-muted-foreground text-sm md:text-base">
+                    Manage applications from proposal to submission
                   </p>
                 </div>
                 <DragDropContext onDragEnd={onDragEnd}>
-                  <div className="space-y-8">
+                  <div className="space-y-4 md:space-y-8">
                     {/* Active Process Stages */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
                       {PROCESS_STAGES.map((stage) => {
                         const stageProspects = getProspectsByStage(stage.value);
                         const totalValue = getTotalValueByStage(stage.value);
@@ -480,8 +498,8 @@ export default function Pipeline() {
 
                     {/* Final Outcomes */}
                     <div>
-                      <h3 className="text-2xl font-semibold mb-6 tracking-tight">Final Outcomes</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Final Outcomes</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5">
                         {FINAL_STAGES.map((stage) => {
                           const stageProspects = getProspectsByStage(stage.value);
                           const totalValue = getTotalValueByStage(stage.value);

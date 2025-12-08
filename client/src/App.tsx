@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as SonnerToaster } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import MobileNav from "@/components/MobileNav";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
@@ -47,13 +48,24 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  return (
+    <>
+      <Router />
+      {isAuthenticated && !isLoading && <MobileNav />}
+    </>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <SonnerToaster position="top-right" />
-        <Router />
+        <AppContent />
       </TooltipProvider>
     </QueryClientProvider>
   );

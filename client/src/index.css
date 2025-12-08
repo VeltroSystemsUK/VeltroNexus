@@ -362,3 +362,79 @@
     inset: -1px;
   }
 }
+
+/* ==========================================
+   MOBILE-SPECIFIC STYLES
+   ========================================== */
+
+/* Safe area padding for iOS notch and home indicator */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Add bottom padding to main content when mobile nav is visible */
+@media (max-width: 767px) {
+  .mobile-content-padding {
+    padding-bottom: 5rem;
+  }
+  
+  /* Ensure body has proper bottom padding for mobile nav */
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  /* Make touch targets larger on mobile */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Horizontal scroll container for mobile */
+  .mobile-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .mobile-scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Stack elements vertically on mobile */
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+  
+  /* Full width on mobile */
+  .mobile-full-width {
+    width: 100% !important;
+  }
+  
+  /* Smaller text on mobile */
+  .mobile-text-sm {
+    font-size: 0.875rem !important;
+  }
+  
+  /* Hide on mobile */
+  .mobile-hidden {
+    display: none !important;
+  }
+  
+  /* Compact padding on mobile */
+  .mobile-compact-padding {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+}
+
+/* Show only on mobile */
+@media (min-width: 768px) {
+  .desktop-hidden {
+    display: none !important;
+  }
+}

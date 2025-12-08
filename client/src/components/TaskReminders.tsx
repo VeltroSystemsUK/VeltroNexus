@@ -118,21 +118,21 @@ export default function TaskReminders() {
 
   return (
     <Card data-testid="card-task-reminders">
-      <CardHeader className="pb-4 pt-5 px-5">
-        <CardTitle className="flex items-center gap-2.5 text-lg">
-          <div className="h-9 w-9 rounded-lg bg-amber-500/10 dark:bg-amber-400/10 flex items-center justify-center">
-            <Bell className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+      <CardHeader className="pb-3 md:pb-4 pt-3 md:pt-5 px-3 md:px-5">
+        <CardTitle className="flex items-center gap-2 md:gap-2.5 text-base md:text-lg">
+          <div className="h-8 w-8 md:h-9 md:w-9 rounded-lg bg-amber-500/10 dark:bg-amber-400/10 flex items-center justify-center">
+            <Bell className="h-4 w-4 md:h-5 md:w-5 text-amber-600 dark:text-amber-400" />
           </div>
           Urgent Tasks
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-5 pb-5">
-        <div className="space-y-3">
+      <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
+        <div className="space-y-2 md:space-y-3">
           {urgentTasks.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p className="text-base font-medium">No urgent tasks</p>
-              <p className="text-sm mt-1">You're all caught up!</p>
+            <div className="text-center py-6 md:py-8 text-muted-foreground">
+              <Bell className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-2 md:mb-3 opacity-50" />
+              <p className="text-sm md:text-base font-medium">No urgent tasks</p>
+              <p className="text-xs md:text-sm mt-1">You're all caught up!</p>
             </div>
           ) : (
             urgentTasks.map((task, index) => {

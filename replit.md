@@ -20,6 +20,14 @@ The application uses Drizzle ORM with Neon serverless PostgreSQL. Drizzle Kit is
 ### Design System
 A comprehensive design system defines typography (Inter, JetBrains Mono), an HSL-based color system for light/dark modes with semantic tokens, and a consistent layout with defined spacing and responsive grids. UI elements are card-based with subtle shadows and borders.
 
+### Mobile Layout
+The application features optimized mobile layouts for iOS and Android smartphones:
+- **MobileNav**: Bottom navigation bar (hidden on desktop md+) with 5 icons: Pipeline, Search, Lenders, Submissions, Profile. Uses safe-area-inset-bottom padding for iOS home indicator.
+- **Responsive Components**: All major components (PipelineStats, TaskReminders, Pipeline tabs, stage summary cards) use responsive Tailwind classes with md: breakpoints for tablet/desktop.
+- **Touch Targets**: Minimum 44px touch targets for mobile usability.
+- **Mobile CSS Utilities**: Custom CSS classes in index.css including `.safe-area-bottom`, `.safe-area-top`, `.mobile-content-padding`, `.touch-target`, `.mobile-scroll-x`, `.mobile-hidden`, `.desktop-hidden`.
+- **Compact Headers**: Headers and buttons adapt with smaller sizing on mobile (h-9 icons vs h-11 on desktop).
+
 ### Feature Specifications
 - **Companies House Integration**: Allows searching and fetching UK Companies House company profiles to auto-populate data and display detailed company information, including officers, persons with significant control, and charges.
 - **Due Diligence Tools**: Seven interactive tools with data stored in a JSONB column:
