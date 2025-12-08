@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Home, Search, User, Settings, Send, Building2 } from "lucide-react";
+import { Home, Search, User, Settings, Send, Building2, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -11,7 +11,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: "/", label: "Pipeline", icon: Home },
   { path: "/search", label: "Search", icon: Search },
-  { path: "/lenders", label: "Lenders", icon: Building2 },
+  { path: "/leads", label: "Leads", icon: FileSpreadsheet },
   { path: "/submissions", label: "Submissions", icon: Send },
   { path: "/profile", label: "Profile", icon: User },
 ];

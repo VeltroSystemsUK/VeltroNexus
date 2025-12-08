@@ -17,6 +17,7 @@ import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Lenders from "@/pages/Lenders";
 import Submissions from "@/pages/Submissions";
+import Leads from "@/pages/Leads";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,6 +38,7 @@ function Router() {
           <Route path="/prospect/:id" component={ProspectDetail} />
           <Route path="/lenders" component={Lenders} />
           <Route path="/submissions" component={Submissions} />
+          <Route path="/leads" component={Leads} />
           <Route path="/profile" component={Profile} />
           <Route path="/settings" component={Settings} />
           <Route path="/pricing" component={Pricing} />

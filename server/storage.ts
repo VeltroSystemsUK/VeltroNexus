@@ -9,6 +9,8 @@ import {
   applicationSubmissions,
   emailInboxes,
   emailMessages,
+  leadUploads,
+  leads,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -30,6 +32,11 @@ import {
   type InsertEmailInbox,
   type EmailMessage,
   type InsertEmailMessage,
+  type LeadUpload,
+  type InsertLeadUpload,
+  type Lead,
+  type InsertLead,
+  type UpdateLead,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -103,6 +110,21 @@ export interface IStorage {
 
   // Companies
   getCompany(id: number): Promise<Company | undefined>;
+
+  // Lead Uploads
+  listLeadUploads(userId: string): Promise<LeadUpload[]>;
+  getLeadUpload(id: number, userId: string): Promise<LeadUpload | undefined>;
+  createLeadUpload(upload: InsertLeadUpload): Promise<LeadUpload>;
+  updateLeadUpload(id: number, userId: string, updates: Partial<InsertLeadUpload>): Promise<LeadUpload | undefined>;
+
+  // Leads
+  listLeads(userId: string, filters?: { uploadId?: number; matchStatus?: string; search?: string }): Promise<Lead[]>;
+  getLead(id: number, userId: string): Promise<Lead | undefined>;
+  createLead(lead: InsertLead, userId: string): Promise<Lead>;
+  createLeadsBulk(leads: InsertLead[], userId: string): Promise<Lead[]>;
+  updateLead(id: number, userId: string, updates: UpdateLead): Promise<Lead | undefined>;
+  deleteLead(id: number, userId: string): Promise<void>;
+  deleteLeadsByUpload(uploadId: number, userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -527,6 +549,117 @@ export class DatabaseStorage implements IStorage {
       .from(companies)
       .where(eq(companies.id, id));
     return company || undefined;
+  }
+
+  // Lead Uploads
+  async listLeadUploads(userId: string): Promise<LeadUpload[]> {
+    return await db
+      .select()
+      .from(leadUploads)
+      .where(eq(leadUploads.userId, userId))
+      .orderBy(sql`${leadUploads.createdAt} DESC`);
+  }
+
+  async getLeadUpload(id: number, userId: string): Promise<LeadUpload | undefined> {
+    const [upload] = await db
+      .select()
+      .from(leadUploads)
+      .where(and(eq(leadUploads.id, id), eq(leadUploads.userId, userId)));
+    return upload || undefined;
+  }
+
+  async createLeadUpload(upload: InsertLeadUpload): Promise<LeadUpload> {
+    const [newUpload] = await db
+      .insert(leadUploads)
+      .values(upload as any)
+      .returning();
+    return newUpload;
+  }
+
+  async updateLeadUpload(id: number, userId: string, updates: Partial<InsertLeadUpload>): Promise<LeadUpload | undefined> {
+    const [upload] = await db
+      .update(leadUploads)
+      .set(updates as any)
+      .where(and(eq(leadUploads.id, id), eq(leadUploads.userId, userId)))
+      .returning();
+    return upload || undefined;
+  }
+
+  // Leads
+  async listLeads(userId: string, filters?: { uploadId?: number; matchStatus?: string; search?: string }): Promise<Lead[]> {
+    let query = db
+      .select()
+      .from(leads)
+      .where(eq(leads.userId, userId))
+      .$dynamic();
+
+    if (filters?.uploadId) {
+      query = query.where(and(eq(leads.userId, userId), eq(leads.uploadId, filters.uploadId)));
+    }
+    if (filters?.matchStatus) {
+      query = query.where(and(eq(leads.userId, userId), eq(leads.matchStatus, filters.matchStatus)));
+    }
+
+    const allLeads = await query.orderBy(sql`${leads.createdAt} DESC`);
+    
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase();
+      return allLeads.filter(lead => 
+        lead.companyName.toLowerCase().includes(searchLower) ||
+        lead.companyNumber?.toLowerCase().includes(searchLower) ||
+        lead.contactName?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return allLeads;
+  }
+
+  async getLead(id: number, userId: string): Promise<Lead | undefined> {
+    const [lead] = await db
+      .select()
+      .from(leads)
+      .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+    return lead || undefined;
+  }
+
+  async createLead(lead: InsertLead, userId: string): Promise<Lead> {
+    const [newLead] = await db
+      .insert(leads)
+      .values({ ...lead, userId } as any)
+      .returning();
+    return newLead;
+  }
+
+  async createLeadsBulk(leadsData: InsertLead[], userId: string): Promise<Lead[]> {
+    if (leadsData.length === 0) return [];
+    
+    const leadsWithUserId = leadsData.map(lead => ({ ...lead, userId }));
+    const newLeads = await db
+      .insert(leads)
+      .values(leadsWithUserId as any)
+      .returning();
+    return newLeads;
+  }
+
+  async updateLead(id: number, userId: string, updates: UpdateLead): Promise<Lead | undefined> {
+    const [lead] = await db
+      .update(leads)
+      .set({ ...updates, updatedAt: new Date() } as any)
+      .where(and(eq(leads.id, id), eq(leads.userId, userId)))
+      .returning();
+    return lead || undefined;
+  }
+
+  async deleteLead(id: number, userId: string): Promise<void> {
+    await db
+      .delete(leads)
+      .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+  }
+
+  async deleteLeadsByUpload(uploadId: number, userId: string): Promise<void> {
+    await db
+      .delete(leads)
+      .where(and(eq(leads.uploadId, uploadId), eq(leads.userId, userId)));
   }
 }
 

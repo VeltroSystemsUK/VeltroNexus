@@ -259,6 +259,69 @@ export const emailMessagesRelations = relations(emailMessages, ({ one }) => ({
   }),
 }));
 
+// Lead Uploads - Track CSV upload history
+export const leadUploads = pgTable("lead_uploads", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  status: varchar("status").notNull().default("processing"),
+  totalRows: integer("total_rows").default(0),
+  successRows: integer("success_rows").default(0),
+  errorRows: integer("error_rows").default(0),
+  errors: jsonb("errors").default('[]'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Leads - Imported company leads from CSVs
+export const leads = pgTable("leads", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  uploadId: integer("upload_id").references(() => leadUploads.id, { onDelete: "set null" }),
+  companyName: text("company_name").notNull(),
+  companyNumber: varchar("company_number", { length: 20 }),
+  tradingName: text("trading_name"),
+  website: varchar("website"),
+  email: varchar("email"),
+  phone: varchar("phone"),
+  address: text("address"),
+  postcode: varchar("postcode"),
+  sicCode: varchar("sic_code"),
+  contactName: text("contact_name"),
+  contactEmail: varchar("contact_email"),
+  contactPhone: varchar("contact_phone"),
+  notes: text("notes"),
+  rawData: jsonb("raw_data").default('{}'),
+  matchStatus: varchar("match_status").notNull().default("pending"),
+  matchedCompanyNumber: varchar("matched_company_number"),
+  matchConfidence: integer("match_confidence"),
+  linkedProspectId: integer("linked_prospect_id").references(() => prospects.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const leadUploadsRelations = relations(leadUploads, ({ one, many }) => ({
+  user: one(users, {
+    fields: [leadUploads.userId],
+    references: [users.id],
+  }),
+  leads: many(leads),
+}));
+
+export const leadsRelations = relations(leads, ({ one }) => ({
+  user: one(users, {
+    fields: [leads.userId],
+    references: [users.id],
+  }),
+  upload: one(leadUploads, {
+    fields: [leads.uploadId],
+    references: [leadUploads.id],
+  }),
+  linkedProspect: one(prospects, {
+    fields: [leads.linkedProspectId],
+    references: [prospects.id],
+  }),
+}));
+
 export const companiesRelations = relations(companies, ({ many }) => ({
   prospects: many(prospects),
 }));
@@ -385,6 +448,44 @@ export type InsertEmailInbox = z.infer<typeof insertEmailInboxSchema>;
 export type EmailInbox = typeof emailInboxes.$inferSelect;
 export type InsertEmailMessage = z.infer<typeof insertEmailMessageSchema>;
 export type EmailMessage = typeof emailMessages.$inferSelect;
+
+export const insertLeadUploadSchema = createInsertSchema(leadUploads).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertLeadSchema = createInsertSchema(leads).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateLeadSchema = z.object({
+  companyName: z.string().optional(),
+  companyNumber: z.string().optional(),
+  tradingName: z.string().optional(),
+  website: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  postcode: z.string().optional(),
+  sicCode: z.string().optional(),
+  contactName: z.string().optional(),
+  contactEmail: z.string().optional(),
+  contactPhone: z.string().optional(),
+  notes: z.string().optional(),
+  matchStatus: z.enum(["pending", "matched", "prospect_created", "ignored"]).optional(),
+  matchedCompanyNumber: z.string().optional(),
+  matchConfidence: z.number().optional(),
+  linkedProspectId: z.number().optional(),
+});
+
+export type InsertLeadUpload = z.infer<typeof insertLeadUploadSchema>;
+export type LeadUpload = typeof leadUploads.$inferSelect;
+export type InsertLead = z.infer<typeof insertLeadSchema>;
+export type Lead = typeof leads.$inferSelect;
+export type UpdateLead = z.infer<typeof updateLeadSchema>;
 
 export const checklistItemSchema = z.object({
   sectionId: z.string(),

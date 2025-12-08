@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical } from "lucide-react";
+import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CURRENCIES = [
@@ -81,9 +81,15 @@ export default function Settings() {
   const [theme, setTheme] = useState("light");
   const [stageNames, setStageNames] = useState<Record<string, string>>(DEFAULT_STAGE_NAMES);
   const [pdfSections, setPdfSections] = useState<Array<{ id: string; label: string; enabled: boolean }>>(DEFAULT_PDF_SECTIONS);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [uploadResult, setUploadResult] = useState<any>(null);
 
   const { data: user, isLoading: userLoading } = useQuery<any>({
     queryKey: ["/api/auth/user"],
+  });
+
+  const { data: uploads, isLoading: uploadsLoading } = useQuery<any[]>({
+    queryKey: ["/api/leads/uploads"],
   });
 
   useEffect(() => {
@@ -159,6 +165,52 @@ export default function Settings() {
 
   const handleResetPdfLayout = () => {
     setPdfSections(DEFAULT_PDF_SECTIONS);
+  };
+
+  const uploadCsvMutation = useMutation({
+    mutationFn: async (csvData: string) => {
+      const response = await apiRequest("/api/leads/uploads", "POST", {
+        fileName: csvFile?.name || "upload.csv",
+        csvData,
+      });
+      return response;
+    },
+    onSuccess: (data) => {
+      setUploadResult(data);
+      setCsvFile(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/leads/uploads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      toast({
+        title: "CSV Uploaded",
+        description: `Successfully imported ${data.successRows} leads${data.errorRows > 0 ? ` (${data.errorRows} errors)` : ""}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload CSV",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCsvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCsvFile(file);
+      setUploadResult(null);
+    }
+  };
+
+  const handleCsvUpload = () => {
+    if (!csvFile) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      uploadCsvMutation.mutate(content);
+    };
+    reader.readAsText(csvFile);
   };
 
   if (userLoading) {
@@ -477,6 +529,141 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">
             Changes will apply to all future PDF reports generated from prospect details.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Data Import
+          </CardTitle>
+          <CardDescription>Upload CSV files to bulk import company leads for prospecting</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border-2 border-dashed p-6 text-center">
+            <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
+            <p className="text-sm font-medium mb-2">Upload a CSV file with company data</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              Required column: Company Name. Optional: Company Number, Contact Name, Email, Phone, Address, Postcode, SIC Code
+            </p>
+            <div className="flex flex-col items-center gap-2">
+              <Input
+                type="file"
+                accept=".csv"
+                onChange={handleCsvFileChange}
+                className="max-w-xs"
+                data-testid="input-csv-file"
+              />
+              {csvFile && (
+                <div className="flex items-center gap-2 text-sm">
+                  <FileText className="h-4 w-4" />
+                  <span>{csvFile.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setCsvFile(null)}
+                    data-testid="button-clear-csv"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              <Button
+                onClick={handleCsvUpload}
+                disabled={!csvFile || uploadCsvMutation.isPending}
+                data-testid="button-upload-csv"
+              >
+                {uploadCsvMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload CSV
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {uploadResult && (
+            <div className={`p-4 rounded-lg ${uploadResult.status === 'failed' ? 'bg-destructive/10' : 'bg-green-500/10'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                {uploadResult.status === 'failed' ? (
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                ) : (
+                  <Check className="h-5 w-5 text-green-600" />
+                )}
+                <span className="font-medium">
+                  {uploadResult.status === 'failed' ? 'Upload Failed' : 'Upload Complete'}
+                </span>
+              </div>
+              <div className="text-sm space-y-1">
+                <p>Total rows: {uploadResult.totalRows}</p>
+                <p className="text-green-600">Successful: {uploadResult.successRows}</p>
+                {uploadResult.errorRows > 0 && (
+                  <p className="text-destructive">Errors: {uploadResult.errorRows}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <Separator />
+
+          <div>
+            <h4 className="font-medium mb-2">Recent Uploads</h4>
+            {uploadsLoading ? (
+              <div className="flex items-center justify-center p-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : uploads && uploads.length > 0 ? (
+              <div className="space-y-2">
+                {uploads.slice(0, 5).map((upload: any) => (
+                  <div
+                    key={upload.id}
+                    className="flex items-center justify-between p-3 rounded-md border bg-card"
+                    data-testid={`upload-${upload.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{upload.fileName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {upload.successRows} leads imported • {new Date(upload.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {upload.status === 'completed' ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : upload.status === 'failed' ? (
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No uploads yet. Upload a CSV file to import leads.
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="outline" asChild data-testid="button-view-leads">
+              <a href="/leads">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View All Leads
+              </a>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

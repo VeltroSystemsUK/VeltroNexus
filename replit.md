@@ -22,7 +22,7 @@ A comprehensive design system defines typography (Inter, JetBrains Mono), an HSL
 
 ### Mobile Layout
 The application features optimized mobile layouts for iOS and Android smartphones:
-- **MobileNav**: Bottom navigation bar (hidden on desktop md+) with 5 icons: Pipeline, Search, Lenders, Submissions, Profile. Uses safe-area-inset-bottom padding for iOS home indicator.
+- **MobileNav**: Bottom navigation bar (hidden on desktop md+) with 5 icons: Pipeline, Search, Leads, Submissions, Profile. Uses safe-area-inset-bottom padding for iOS home indicator.
 - **Responsive Components**: All major components (PipelineStats, TaskReminders, Pipeline tabs, stage summary cards) use responsive Tailwind classes with md: breakpoints for tablet/desktop.
 - **Touch Targets**: Minimum 44px touch targets for mobile usability.
 - **Mobile CSS Utilities**: Custom CSS classes in index.css including `.safe-area-bottom`, `.safe-area-top`, `.mobile-content-padding`, `.touch-target`, `.mobile-scroll-x`, `.mobile-hidden`, `.desktop-hidden`.
@@ -57,7 +57,13 @@ The application features optimized mobile layouts for iOS and Android smartphone
     6. Adviser Summary (CAMPARI framework assessment for final credit recommendation)
 - **Subscription System**: A tiered model (Free, Standard, Premium) limits prospect count per user, with server-side enforcement and a pricing page. Paid tiers unlock Due Diligence tools. Integrates with GoCardless for Direct Debit payments.
 - **Prospect Management**: Includes an editable priority system with color-coded indicators, a confirmation-dialog-protected delete functionality with cascading deletions, color-coded pipeline cards that change based on stage (9 distinct colors from Lead to Withdrawn), and PDF report generation for comprehensive prospect data, including integrated Companies House details.
-- **Profile and Settings Pages**: The Profile page displays account info, subscription status, upgrade options, and GoCardless integration for subscription management. The Settings page allows customization of appearance, regional settings (currency, timezone, date format), customizable pipeline stage names, and PDF report layout customization with drag-and-drop section reordering and toggle controls.
+- **Profile and Settings Pages**: The Profile page displays account info, subscription status, upgrade options, and GoCardless integration for subscription management. The Settings page allows customization of appearance, regional settings (currency, timezone, date format), customizable pipeline stage names, PDF report layout customization with drag-and-drop section reordering, and CSV data import functionality.
+- **Leads Import System**: Bulk import company leads from CSV files for streamlined prospecting:
+  - **CSV Upload**: Upload CSV files in Settings page with intelligent column mapping for Company Name, Company Number, Contact, Email, Phone, Address, Postcode, SIC Code
+  - **Leads Page**: Dedicated page displaying all imported leads with search and status filtering (Pending, Matched, Added to Pipeline, Ignored)
+  - **Companies House Integration**: Click any lead to search Companies House, select a match, and automatically create a prospect with full company data
+  - **Status Tracking**: Lead statuses update automatically when added to pipeline or ignored
+  - **Upload History**: View recent uploads with success/error counts in Settings page
 - **CRM Features**: Integrated CRM tools on the Pipeline Dashboard include: 
   - **ActivityCalendar**: Month-by-month calendar view showing all user activities with navigation controls. Click any calendar date to create new activities (tasks, events, meetings, calls, or notes) with optional prospect association. Activities display with type-specific icons: Task (ListTodo), Event (Calendar), Meeting (Video), Call (Phone), Note (FileText).
   - **ToDoList**: Comprehensive task management with create/complete/delete functionality, form validation, and activity type badges showing type-specific icons.
