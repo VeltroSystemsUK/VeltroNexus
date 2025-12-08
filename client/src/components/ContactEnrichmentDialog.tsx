@@ -269,9 +269,9 @@ export function ContactEnrichmentDialog({
                         const companyName = result.companyName
                           .replace(/\s*(limited|ltd\.?|plc|llp|llc|inc\.?|corp\.?|corporation|company|co\.?|&\s*co\.?)\s*$/gi, '')
                           .trim();
-                        // Use general search URL with origin parameter (same as LinkedIn's native search)
+                        // Use LinkedIn Companies search specifically
                         window.open(
-                          `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(companyName)}&origin=GLOBAL_SEARCH_HEADER`,
+                          `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(companyName)}&origin=SWITCH_SEARCH_VERTICAL&sid=rGI`,
                           '_blank'
                         );
                       }}

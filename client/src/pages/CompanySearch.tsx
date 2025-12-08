@@ -29,10 +29,13 @@ interface CompanySearchResult {
   company_type: string;
   address_snippet?: string;
   address?: {
+    premises?: string;
     address_line_1?: string;
     address_line_2?: string;
     locality?: string;
+    region?: string;
     postal_code?: string;
+    country?: string;
   };
   date_of_creation?: string;
   sic_codes?: string[];
@@ -224,13 +227,16 @@ export default function CompanySearch() {
     setCompanyNumber(company.company_number);
     setCompanyType(company.company_type || "ltd");
     
-    // Build address string
+    // Build full address string from all available parts
     if (company.address) {
       const addressParts = [
+        company.address.premises,
         company.address.address_line_1,
         company.address.address_line_2,
         company.address.locality,
+        company.address.region,
         company.address.postal_code,
+        company.address.country,
       ].filter(Boolean);
       setRegisteredAddress(addressParts.join(", "));
     } else if (company.address_snippet) {
