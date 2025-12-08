@@ -799,12 +799,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to format officer name from "SURNAME, First Middle" to "First Middle Surname"
+  function formatOfficerName(name: string): string {
+    if (!name) return name;
+    
+    // Check if name contains a comma (Companies House format: "SURNAME, First Middle")
+    if (name.includes(',')) {
+      const parts = name.split(',').map(p => p.trim());
+      if (parts.length >= 2) {
+        const surname = parts[0];
+        const firstNames = parts.slice(1).join(' ');
+        // Convert to proper case
+        const formatWord = (word: string) => 
+          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        
+        const formattedSurname = surname.split(/[\s-]+/).map(formatWord).join(surname.includes('-') ? '-' : ' ');
+        const formattedFirstNames = firstNames.split(/\s+/).map(formatWord).join(' ');
+        
+        return `${formattedFirstNames} ${formattedSurname}`.trim();
+      }
+    }
+    return name;
+  }
+
   // Contacts API - Protected routes
   app.get("/api/prospects/:prospectId/contacts", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const contacts = await storage.listContacts(prospectId);
       res.json(contacts);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Auto-sync officers from Companies House to contacts
+  app.post("/api/prospects/:prospectId/sync-officers", isAuthenticated, async (req, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Get the prospect to find the company number
+      const prospect = await storage.getProspect(prospectId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const companyNumber = prospect.company.companyNumber;
+      if (!companyNumber) {
+        return res.status(400).json({ error: "No company number available" });
+      }
+      
+      // Fetch officers from Companies House
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+      
+      const officersResponse = await fetch(
+        `https://api.company-information.service.gov.uk/company/${companyNumber}/officers`,
+        {
+          headers: {
+            Authorization: `Basic ${Buffer.from(apiKey + ":").toString("base64")}`,
+          },
+        }
+      );
+      
+      if (!officersResponse.ok) {
+        return res.status(officersResponse.status).json({ error: "Failed to fetch officers" });
+      }
+      
+      const officersData = await officersResponse.json();
+      const activeOfficers = officersData.items?.filter((o: any) => !o.resigned_on) || [];
+      
+      // Get existing contacts
+      const existingContacts = await storage.listContacts(prospectId);
+      const existingNames = new Set(existingContacts.map(c => c.name.toLowerCase().trim()));
+      
+      // Create contacts for officers not already in contacts
+      const newContacts = [];
+      for (const officer of activeOfficers) {
+        const formattedName = formatOfficerName(officer.name);
+        if (!existingNames.has(formattedName.toLowerCase().trim())) {
+          const role = officer.officer_role?.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Officer';
+          const contact = await storage.createContact({
+            prospectId,
+            name: formattedName,
+            role,
+          });
+          newContacts.push(contact);
+        }
+      }
+      
+      // Return all contacts
+      const allContacts = await storage.listContacts(prospectId);
+      res.json({ 
+        contacts: allContacts, 
+        synced: newContacts.length,
+        message: newContacts.length > 0 
+          ? `Synced ${newContacts.length} officer(s)` 
+          : "All officers already synced"
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

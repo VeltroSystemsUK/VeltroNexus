@@ -28,7 +28,7 @@ import {
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
   Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
-  Network, Search, ExternalLink, Loader2, UserPlus
+  Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil
 } from "lucide-react";
 import {
   Dialog,
@@ -484,8 +484,6 @@ function CompanyOverview({ prospect }: { prospect: ProspectWithCompany }) {
 
 function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: number; contacts: Contact[]; companyNumber: string }) {
   const [isAdding, setIsAdding] = useState(false);
-  const [showImportDialog, setShowImportDialog] = useState(false);
-  const [selectedOfficers, setSelectedOfficers] = useState<Set<string>>(new Set());
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -497,13 +495,85 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
   const [editPhone, setEditPhone] = useState("");
   const [editRole, setEditRole] = useState("");
 
-  const { data: officersData } = useQuery<any>({
-    queryKey: [`/api/companies-house/company/${companyNumber}/officers`],
-    enabled: !!companyNumber,
+  // Auto-sync officers on component mount
+  const syncOfficersMutation = useMutation({
+    mutationFn: () =>
+      fetch(`/api/prospects/${prospectId}/sync-officers`, {
+        method: "POST",
+        credentials: "include",
+      }).then(r => r.json()),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
+      if (data.synced > 0) {
+        toast.success(data.message);
+      }
+    },
   });
 
-  const activeOfficers = officersData?.items?.filter((o: any) => !o.resigned_on) || [];
-  const existingContactNames = new Set(contacts.map(c => c.name.toLowerCase().trim()));
+  // Track if we've already attempted sync to prevent multiple syncs
+  const [hasSynced, setHasSynced] = useState(false);
+
+  // Auto-sync officers when component mounts (only once if no contacts exist)
+  useEffect(() => {
+    if (companyNumber && contacts.length === 0 && !hasSynced && !syncOfficersMutation.isPending) {
+      setHasSynced(true);
+      syncOfficersMutation.mutate();
+    }
+  }, [prospectId, companyNumber, contacts.length, hasSynced]);
+
+  // Edit contact mutation
+  const editContactMutation = useMutation({
+    mutationFn: (updates: { id: number; name?: string; email?: string; phone?: string; role?: string }) =>
+      fetch(`/api/contacts/${updates.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: updates.name,
+          email: updates.email || null,
+          phone: updates.phone || null,
+          role: updates.role || null,
+        }),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
+      toast.success("Contact updated");
+      setEditingContact(null);
+    },
+    onError: () => {
+      toast.error("Failed to update contact");
+    },
+  });
+
+  const handleStartEdit = (contact: Contact) => {
+    setEditingContact(contact);
+    setEditName(contact.name);
+    setEditEmail(contact.email || "");
+    setEditPhone(contact.phone || "");
+    setEditRole(contact.role || "");
+  };
+
+  const handleSaveEdit = () => {
+    const trimmedName = editName.trim();
+    const trimmedEmail = editEmail.trim();
+    const trimmedPhone = editPhone.trim();
+    const trimmedRole = editRole.trim();
+    
+    if (!editingContact) return;
+    
+    if (!trimmedName) {
+      toast.error("Name is required");
+      return;
+    }
+    
+    editContactMutation.mutate({
+      id: editingContact.id,
+      name: trimmedName,
+      email: trimmedEmail || undefined,
+      phone: trimmedPhone || undefined,
+      role: trimmedRole || undefined,
+    });
+  };
 
   const addContactMutation = useMutation({
     mutationFn: (contact: { name: string; email?: string; phone?: string; role?: string }) =>
@@ -524,31 +594,6 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
     },
   });
 
-  const importOfficersMutation = useMutation({
-    mutationFn: async (officers: { name: string; role: string }[]) => {
-      const results = await Promise.all(
-        officers.map(officer =>
-          fetch(`/api/prospects/${prospectId}/contacts`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(officer),
-          }).then(r => r.json())
-        )
-      );
-      return results;
-    },
-    onSuccess: (_, officers) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
-      toast.success(`${officers.length} officer(s) imported as contacts`);
-      setShowImportDialog(false);
-      setSelectedOfficers(new Set());
-    },
-    onError: () => {
-      toast.error("Failed to import officers");
-    },
-  });
-
   const deleteContactMutation = useMutation({
     mutationFn: (contactId: number) =>
       fetch(`/api/contacts/${contactId}`, {
@@ -561,108 +606,24 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
     },
   });
 
-  const handleToggleOfficer = (officerName: string) => {
-    const newSelected = new Set(selectedOfficers);
-    if (newSelected.has(officerName)) {
-      newSelected.delete(officerName);
-    } else {
-      newSelected.add(officerName);
-    }
-    setSelectedOfficers(newSelected);
-  };
-
-  const handleImportSelected = () => {
-    const officersToImport = activeOfficers
-      .filter((o: any) => selectedOfficers.has(o.name))
-      .map((o: any) => ({
-        name: o.name,
-        role: o.officer_role?.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Officer',
-      }));
-    
-    if (officersToImport.length > 0) {
-      importOfficersMutation.mutate(officersToImport);
-    }
-  };
-
-  const formatOfficerRole = (role: string) => {
-    return role?.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Officer';
-  };
-
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <CardTitle>Contacts</CardTitle>
-            <CardDescription>Manage contacts at this company</CardDescription>
+            <CardDescription>Company officers and contacts</CardDescription>
           </div>
           <div className="flex gap-2">
-            {activeOfficers.length > 0 && (
-              <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" data-testid="button-import-officers">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Import Officers
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Import Company Officers</DialogTitle>
-                    <DialogDescription>
-                      Select officers from Companies House to add as contacts
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto py-4">
-                    {activeOfficers.map((officer: any, index: number) => {
-                      const isAlreadyContact = existingContactNames.has(officer.name?.toLowerCase().trim());
-                      const isSelected = selectedOfficers.has(officer.name);
-                      
-                      return (
-                        <div 
-                          key={index} 
-                          className={`flex items-center gap-3 p-3 rounded-lg border ${
-                            isAlreadyContact 
-                              ? 'bg-muted/50 opacity-60' 
-                              : isSelected 
-                                ? 'bg-primary/10 border-primary' 
-                                : 'hover:bg-muted/50'
-                          }`}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => handleToggleOfficer(officer.name)}
-                            disabled={isAlreadyContact}
-                            data-testid={`checkbox-officer-${index}`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{officer.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatOfficerRole(officer.officer_role)}
-                              {officer.appointed_on && ` • Since ${new Date(officer.appointed_on).toLocaleDateString('en-GB')}`}
-                            </p>
-                            {isAlreadyContact && (
-                              <p className="text-xs text-muted-foreground italic">Already a contact</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowImportDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleImportSelected}
-                      disabled={selectedOfficers.size === 0 || importOfficersMutation.isPending}
-                      data-testid="button-confirm-import-officers"
-                    >
-                      {importOfficersMutation.isPending ? "Importing..." : `Import ${selectedOfficers.size} Officer(s)`}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
+            <Button 
+              variant="outline" 
+              onClick={() => syncOfficersMutation.mutate()}
+              disabled={syncOfficersMutation.isPending}
+              data-testid="button-sync-officers"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncOfficersMutation.isPending ? 'animate-spin' : ''}`} />
+              Sync Officers
+            </Button>
             <Button onClick={() => setIsAdding(true)} data-testid="button-add-contact">
               <Plus className="h-4 w-4 mr-2" />
               Add Contact
@@ -737,60 +698,154 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
           </Card>
         )}
 
-        {contacts.length === 0 ? (
+        {/* Edit Contact Dialog */}
+        <Dialog open={!!editingContact} onOpenChange={(open) => !open && setEditingContact(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Contact</DialogTitle>
+              <DialogDescription>
+                Update contact details including email and phone number
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Name *</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  data-testid="input-edit-contact-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">Role</Label>
+                <Input
+                  id="edit-role"
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  placeholder="e.g. Director, Finance Manager"
+                  data-testid="input-edit-contact-role"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  data-testid="input-edit-contact-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Telephone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="+44 20 1234 5678"
+                  data-testid="input-edit-contact-phone"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingContact(null)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveEdit}
+                disabled={!editName || editContactMutation.isPending}
+                data-testid="button-save-edit-contact"
+              >
+                {editContactMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {contacts.length === 0 && !syncOfficersMutation.isPending ? (
           <div className="text-center py-12">
             <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No contacts yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Click "Sync Officers" to import company officers</p>
             <Button
               variant="outline"
               className="mt-4"
-              onClick={() => setIsAdding(true)}
-              data-testid="button-add-first-contact"
+              onClick={() => syncOfficersMutation.mutate()}
+              disabled={syncOfficersMutation.isPending}
+              data-testid="button-sync-officers-empty"
             >
-              Add First Contact
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncOfficersMutation.isPending ? 'animate-spin' : ''}`} />
+              Sync Officers
             </Button>
+          </div>
+        ) : syncOfficersMutation.isPending ? (
+          <div className="text-center py-12">
+            <Loader2 className="h-12 w-12 mx-auto text-muted-foreground mb-4 animate-spin" />
+            <p className="text-muted-foreground">Syncing officers from Companies House...</p>
           </div>
         ) : (
           <div className="space-y-3">
             {contacts.map((contact) => (
-              <Card key={contact.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex gap-4">
-                      <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
+              <Card key={contact.id} className="hover-elevate">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex gap-3 flex-1 min-w-0">
+                      <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                         <User className="h-5 w-5 text-primary" />
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="font-semibold" data-testid={`text-contact-name-${contact.id}`}>
                           {contact.name}
                         </p>
                         {contact.role && (
                           <p className="text-sm text-muted-foreground">{contact.role}</p>
                         )}
-                        <div className="flex gap-4 mt-2">
-                          {contact.email && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                          {contact.email ? (
                             <div className="flex items-center gap-2 text-sm">
                               <Mail className="h-4 w-4 text-muted-foreground" />
-                              <span>{contact.email}</span>
+                              <a href={`mailto:${contact.email}`} className="hover:underline">{contact.email}</a>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground italic">
+                              <Mail className="h-4 w-4" />
+                              <span>No email</span>
                             </div>
                           )}
-                          {contact.phone && (
+                          {contact.phone ? (
                             <div className="flex items-center gap-2 text-sm">
                               <Phone className="h-4 w-4 text-muted-foreground" />
-                              <span>{contact.phone}</span>
+                              <a href={`tel:${contact.phone}`} className="hover:underline">{contact.phone}</a>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground italic">
+                              <Phone className="h-4 w-4" />
+                              <span>No phone</span>
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteContactMutation.mutate(contact.id)}
-                      data-testid={`button-delete-contact-${contact.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleStartEdit(contact)}
+                        data-testid={`button-edit-contact-${contact.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteContactMutation.mutate(contact.id)}
+                        data-testid={`button-delete-contact-${contact.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

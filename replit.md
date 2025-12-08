@@ -30,6 +30,11 @@ The application features optimized mobile layouts for iOS and Android smartphone
 
 ### Feature Specifications
 - **Companies House Integration**: Allows searching and fetching UK Companies House company profiles to auto-populate data and display detailed company information, including officers, persons with significant control, and charges.
+- **Contacts Management**: The Contacts tab automatically syncs company officers from Companies House as editable contacts. Key features:
+  - **Auto-sync Officers**: Officers are automatically imported when viewing a prospect, with names formatted as "First Middle Surname" (converted from Companies House "SURNAME, First Middle" format).
+  - **Editable Contact Details**: Each contact can be edited to add/update telephone number and email address via a dialog.
+  - **Sync Officers Button**: Manual sync button to re-fetch officers from Companies House.
+  - **Add Manual Contacts**: Users can add custom contacts not from Companies House.
 - **Due Diligence Tools**: Seven interactive tools with data stored in a JSONB column:
   - Standard tier (6 tools): Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment
   - Premium tier (7th tool): **Credit Underwriting** - AI-powered comprehensive credit assessment with 6 substeps:
