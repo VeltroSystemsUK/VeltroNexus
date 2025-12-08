@@ -226,7 +226,7 @@ export default function ProspectDetail() {
         <Tabs defaultValue="contacts" className="mt-8">
           <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-5" : user?.subscriptionTier === "premium" ? "grid-cols-7" : "grid-cols-6"} mb-8`}>
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
-            <TabsTrigger value="company" data-testid="tab-company">Company Info</TabsTrigger>
+            <TabsTrigger value="company" data-testid="tab-company">Company</TabsTrigger>
             <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
             <TabsTrigger value="activity" data-testid="tab-activity">Activity</TabsTrigger>
             {user?.subscriptionTier !== "free" && (
