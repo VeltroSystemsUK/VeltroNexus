@@ -330,41 +330,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const trimmedApiKey = apiKey.trim();
       const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString('base64');
 
-      // Build search query based on parameters
-      let searchQuery = "";
+      // Use Advanced Search API which supports proper filtering
+      // Documentation: https://developer-specs.company-information.service.gov.uk/companies-house-public-data-api/reference/search/advanced-company-search
+      const params = new URLSearchParams();
+      params.append('size', '20');
+      
       if (sic_codes) {
-        // Search by SIC code - use company search with SIC filter
-        searchQuery = sic_codes as string;
+        // Filter by SIC code
+        params.append('sic_codes', sic_codes as string);
+        console.log(`Advanced search by SIC code: ${sic_codes}`);
       } else if (location) {
-        // Search by location
-        searchQuery = location as string;
+        // Filter by location (town/city in registered address)
+        params.append('location', location as string);
+        console.log(`Advanced search by location: ${location}`);
       } else if (postcode) {
-        // Search by postcode
-        searchQuery = postcode as string;
+        // Filter by postcode (registered office address)
+        // Format postcode: remove spaces and convert to uppercase
+        const formattedPostcode = (postcode as string).replace(/\s+/g, '').toUpperCase();
+        params.append('location', formattedPostcode);
+        console.log(`Advanced search by postcode: ${formattedPostcode}`);
       } else {
         return res.status(400).json({ error: "At least one search parameter required" });
       }
 
-      console.log(`Advanced search: sic=${sic_codes}, location=${location}, postcode=${postcode}`);
+      // Only search active companies by default
+      params.append('company_status', 'active');
       
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(searchQuery)}&items_per_page=20`,
-        {
-          headers: { 'Authorization': `Basic ${base64Auth}` },
-        }
-      );
+      const url = `https://api.company-information.service.gov.uk/advanced-search/companies?${params.toString()}`;
+      console.log(`Advanced search URL: ${url}`);
+      
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Basic ${base64Auth}` },
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Companies House API error:", response.status, errorText);
+        console.error("Companies House Advanced Search API error:", response.status, errorText);
+        
+        // If advanced search fails (e.g., not available on free tier), fall back to basic search
+        if (response.status === 403 || response.status === 401) {
+          console.log("Falling back to basic company search...");
+          const fallbackQuery = postcode || location || sic_codes;
+          const fallbackResponse = await fetch(
+            `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(fallbackQuery as string)}&items_per_page=20`,
+            {
+              headers: { 'Authorization': `Basic ${base64Auth}` },
+            }
+          );
+          
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            console.log(`Fallback search found ${fallbackData.items?.length || 0} companies`);
+            return res.json(fallbackData);
+          }
+        }
+        
         return res.status(response.status).json({ 
           error: `Companies House API returned ${response.status}` 
         });
       }
 
       const data = await response.json();
-      console.log(`Advanced search found ${data.items?.length || 0} companies`);
-      res.json(data);
+      // Advanced search returns slightly different format, normalize it
+      const normalizedData = {
+        items: data.items?.map((item: any) => ({
+          title: item.company_name,
+          company_number: item.company_number,
+          company_status: item.company_status,
+          company_type: item.company_type,
+          address_snippet: item.registered_office_address ? 
+            [
+              item.registered_office_address.address_line_1,
+              item.registered_office_address.locality,
+              item.registered_office_address.postal_code
+            ].filter(Boolean).join(', ') : undefined,
+          date_of_creation: item.date_of_creation,
+          sic_codes: item.sic_codes
+        })) || [],
+        total_results: data.total_results || data.hits
+      };
+      
+      console.log(`Advanced search found ${normalizedData.items.length} companies`);
+      res.json(normalizedData);
     } catch (error: any) {
       console.error("Error in advanced search:", error);
       res.status(500).json({ error: error.message });
