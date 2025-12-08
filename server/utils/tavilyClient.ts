@@ -116,10 +116,28 @@ export async function searchContactInfo(
     
     // Email regex pattern
     const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    // UK phone pattern (various formats)
-    const phonePattern = /(?:\+44|0)(?:\s?[0-9]{2,4}){2,4}[0-9]{2,4}/g;
     // LinkedIn URL pattern
     const linkedinPattern = /linkedin\.com\/in\/[a-zA-Z0-9-]+/g;
+    
+    // UK phone patterns - stricter validation for real phone numbers
+    // UK landlines: 01234 567890, 0121 234 5678, etc.
+    // UK mobiles: 07xxx xxxxxx
+    // International format: +44 xxx xxx xxxx
+    const ukMobilePattern = /(?:\+44\s?7|07)[0-9]{3}\s?[0-9]{3}\s?[0-9]{3}/g;
+    const ukLandlinePattern = /(?:\+44\s?|0)(?:1[0-9]{2,4}|2[0-9]{1,3}|3[0-9]{1,3})\s?[0-9]{3}\s?[0-9]{3,4}/g;
+    
+    // Function to validate phone number format
+    const isValidPhoneNumber = (phone: string): boolean => {
+      const cleaned = phone.replace(/\s/g, '');
+      // Must be 10-13 digits (including country code)
+      if (cleaned.startsWith('+44')) {
+        return cleaned.length >= 12 && cleaned.length <= 14;
+      }
+      if (cleaned.startsWith('0')) {
+        return cleaned.length >= 10 && cleaned.length <= 11;
+      }
+      return false;
+    };
     
     for (const result of results) {
       const content = result.content + ' ' + result.title + ' ' + result.url;
@@ -128,9 +146,23 @@ export async function searchContactInfo(
       const foundEmails = content.match(emailPattern) || [];
       foundEmails.forEach((e: string) => emails.add(e.toLowerCase()));
       
-      // Extract phones
-      const foundPhones = content.match(phonePattern) || [];
-      foundPhones.forEach((p: string) => phones.add(p.replace(/\s/g, '')));
+      // Extract UK mobile phones
+      const foundMobiles = content.match(ukMobilePattern) || [];
+      foundMobiles.forEach((p: string) => {
+        const cleaned = p.replace(/\s/g, '');
+        if (isValidPhoneNumber(cleaned)) {
+          phones.add(cleaned);
+        }
+      });
+      
+      // Extract UK landline phones
+      const foundLandlines = content.match(ukLandlinePattern) || [];
+      foundLandlines.forEach((p: string) => {
+        const cleaned = p.replace(/\s/g, '');
+        if (isValidPhoneNumber(cleaned)) {
+          phones.add(cleaned);
+        }
+      });
       
       // Extract LinkedIn URLs
       const foundLinkedin = content.match(linkedinPattern) || [];
