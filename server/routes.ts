@@ -1203,12 +1203,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: contact.id,
           name: contact.name,
           currentEmail: contact.email,
-          currentPhone: contact.phone  // Use correct field name from schema
+          currentPhone: contact.phone,
+          currentProfilePicture: contact.profilePicture
         },
         webSearch: {
           emails: webResults.emails,
           phones: webResults.phones,
           linkedinUrls: webResults.linkedinUrls,
+          profileImages: webResults.profileImages,
           sources: webResults.sources
         },
         emailSearch: {

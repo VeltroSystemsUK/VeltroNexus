@@ -65,6 +65,7 @@ export interface ContactEnrichmentResult {
   emails: string[];
   phones: string[];
   linkedinUrls: string[];
+  profileImages: string[];
   sources: { url: string; title: string; snippet: string }[];
 }
 
@@ -112,6 +113,7 @@ export async function searchContactInfo(
     const emails = new Set<string>();
     const phones = new Set<string>();
     const linkedinUrls = new Set<string>();
+    const profileImages = new Set<string>();
     const sources: { url: string; title: string; snippet: string }[] = [];
     
     // Email regex pattern
@@ -173,6 +175,29 @@ export async function searchContactInfo(
         linkedinUrls.add(result.url);
       }
       
+      // Extract profile images from common image URL patterns
+      const imagePattern = /https?:\/\/[^\s"'<>]+\.(jpg|jpeg|png|webp)(\?[^\s"'<>]*)?/gi;
+      const foundImages = content.match(imagePattern) || [];
+      foundImages.forEach((img: string) => {
+        // Filter to likely profile pictures (exclude small icons, logos, etc.)
+        const lowerImg = img.toLowerCase();
+        if (
+          (lowerImg.includes('profile') || 
+           lowerImg.includes('avatar') || 
+           lowerImg.includes('photo') ||
+           lowerImg.includes('headshot') ||
+           lowerImg.includes('portrait') ||
+           lowerImg.includes('linkedin') ||
+           lowerImg.includes('media.licdn')) &&
+          !lowerImg.includes('icon') &&
+          !lowerImg.includes('logo') &&
+          !lowerImg.includes('banner') &&
+          !lowerImg.includes('thumbnail')
+        ) {
+          profileImages.add(img);
+        }
+      });
+      
       sources.push({
         url: result.url,
         title: result.title,
@@ -184,6 +209,7 @@ export async function searchContactInfo(
       emails: Array.from(emails),
       phones: Array.from(phones),
       linkedinUrls: Array.from(linkedinUrls),
+      profileImages: Array.from(profileImages),
       sources
     };
   } catch (error) {
@@ -192,6 +218,7 @@ export async function searchContactInfo(
       emails: [],
       phones: [],
       linkedinUrls: [],
+      profileImages: [],
       sources: []
     };
   }

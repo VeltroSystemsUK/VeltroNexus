@@ -80,6 +80,7 @@ export const contacts = pgTable("contacts", {
   phone: varchar("phone"),
   role: text("role"),
   isPrimary: integer("is_primary").default(0),
+  profilePicture: text("profile_picture"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

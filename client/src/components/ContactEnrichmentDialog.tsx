@@ -4,7 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Mail, Phone, Linkedin, ExternalLink, Check } from "lucide-react";
+import { Loader2, Search, Mail, Phone, Linkedin, ExternalLink, Check, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "sonner";
 import type { Contact } from "@shared/schema";
@@ -22,11 +23,13 @@ interface EnrichmentResult {
     name: string;
     currentEmail: string | null;
     currentPhone: string | null;
+    currentProfilePicture: string | null;
   };
   webSearch: {
     emails: string[];
     phones: string[];
     linkedinUrls: string[];
+    profileImages: string[];
     sources: { url: string; title: string; snippet: string }[];
   };
   emailSearch: {
@@ -50,6 +53,7 @@ export function ContactEnrichmentDialog({
   const [result, setResult] = useState<EnrichmentResult | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+  const [selectedProfileImage, setSelectedProfileImage] = useState<string | null>(null);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -57,6 +61,7 @@ export function ContactEnrichmentDialog({
       setResult(null);
       setSelectedEmail(null);
       setSelectedPhone(null);
+      setSelectedProfileImage(null);
     }
   }, [open]);
 
@@ -74,7 +79,7 @@ export function ContactEnrichmentDialog({
   });
 
   const updateContactMutation = useMutation({
-    mutationFn: async (updates: { email?: string; phone?: string }) => {
+    mutationFn: async (updates: { email?: string; phone?: string; profilePicture?: string }) => {
       const response = await apiRequest(`/api/contacts/${contact.id}`, "PATCH", updates);
       return response.json();
     },
@@ -92,16 +97,20 @@ export function ContactEnrichmentDialog({
     setResult(null);
     setSelectedEmail(null);
     setSelectedPhone(null);
+    setSelectedProfileImage(null);
     enrichMutation.mutate();
   };
 
   const handleApply = () => {
-    const updates: { email?: string; phone?: string } = {};
+    const updates: { email?: string; phone?: string; profilePicture?: string } = {};
     if (selectedEmail) {
       updates.email = selectedEmail;
     }
     if (selectedPhone) {
       updates.phone = selectedPhone;
+    }
+    if (selectedProfileImage) {
+      updates.profilePicture = selectedProfileImage;
     }
     if (Object.keys(updates).length > 0) {
       updateContactMutation.mutate(updates);
@@ -257,6 +266,49 @@ export function ContactEnrichmentDialog({
                 </Card>
               )}
 
+              {/* Profile Pictures */}
+              {result.webSearch.profileImages.length > 0 && (
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Profile Pictures ({result.webSearch.profileImages.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2">
+                    <div className="flex flex-wrap gap-3">
+                      {result.webSearch.profileImages.map((imageUrl, i) => (
+                        <div
+                          key={i}
+                          className={`relative cursor-pointer rounded-lg border-2 p-1 transition-all ${
+                            selectedProfileImage === imageUrl
+                              ? "border-primary bg-primary/10"
+                              : "border-transparent hover:border-muted-foreground/30"
+                          }`}
+                          onClick={() => setSelectedProfileImage(selectedProfileImage === imageUrl ? null : imageUrl)}
+                          data-testid={`profile-image-${i}`}
+                        >
+                          <Avatar className="h-16 w-16">
+                            <AvatarImage src={imageUrl} alt={`Profile option ${i + 1}`} />
+                            <AvatarFallback>
+                              <User className="h-8 w-8" />
+                            </AvatarFallback>
+                          </Avatar>
+                          {selectedProfileImage === imageUrl && (
+                            <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                              <Check className="h-3 w-3" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Click on an image to select it as the contact&apos;s profile picture
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Web Sources */}
               {result.webSearch.sources.length > 0 && (
                 <Card>
@@ -311,7 +363,8 @@ export function ContactEnrichmentDialog({
               {/* No results message */}
               {result.webSearch.emails.length === 0 &&
                 result.webSearch.phones.length === 0 &&
-                result.webSearch.linkedinUrls.length === 0 && (
+                result.webSearch.linkedinUrls.length === 0 &&
+                result.webSearch.profileImages.length === 0 && (
                   <div className="text-center py-4 text-muted-foreground">
                     No contact information found in public sources
                   </div>
@@ -326,7 +379,7 @@ export function ContactEnrichmentDialog({
                   <Search className="h-4 w-4 mr-2" />
                   Search Again
                 </Button>
-                {(selectedEmail || selectedPhone) && (
+                {(selectedEmail || selectedPhone || selectedProfileImage) && (
                   <Button
                     onClick={handleApply}
                     disabled={updateContactMutation.isPending}
