@@ -1258,15 +1258,15 @@ type CreditTool = "loan-calc" | "dscr" | "affordability" | "ratios" | "character
 const creditToolsConfig = [
   { 
     id: "loan-calc" as CreditTool, 
-    label: "Loan Calculator", 
-    shortLabel: "Loan",
+    label: "Calculator", 
+    shortLabel: "Calc",
     icon: Calculator, 
     color: "bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700",
     activeColor: "bg-blue-600 dark:bg-blue-700 ring-2 ring-blue-400 ring-offset-2 ring-offset-background"
   },
   { 
     id: "dscr" as CreditTool, 
-    label: "DSCR Calculator", 
+    label: "DSCR Estimator", 
     shortLabel: "DSCR",
     icon: TrendingUp, 
     color: "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700",
@@ -1274,7 +1274,7 @@ const creditToolsConfig = [
   },
   { 
     id: "affordability" as CreditTool, 
-    label: "Affordability Estimator", 
+    label: "Affordability Check", 
     shortLabel: "Afford",
     icon: Target, 
     color: "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700",
@@ -1290,8 +1290,8 @@ const creditToolsConfig = [
   },
   { 
     id: "character" as CreditTool, 
-    label: "Character Assessment", 
-    shortLabel: "Character",
+    label: "Character", 
+    shortLabel: "Char",
     icon: User, 
     color: "bg-rose-500 hover:bg-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700",
     activeColor: "bg-rose-600 dark:bg-rose-700 ring-2 ring-rose-400 ring-offset-2 ring-offset-background"
