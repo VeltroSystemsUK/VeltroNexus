@@ -2113,15 +2113,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // First try to list existing inboxes
           try {
             const listResponse = await client.inboxes.list();
-            const inboxes: any[] = [];
-            for await (const item of listResponse) {
-              inboxes.push(item);
-            }
+            // The response is pageable - get the data from the body
+            const listData = (listResponse as any).body || listResponse;
+            console.log("List response:", JSON.stringify(listData, null, 2));
+            
+            // Check if it has a data array (paginated response)
+            const inboxes = listData.data || listData.items || (Array.isArray(listData) ? listData : []);
             
             if (inboxes.length > 0) {
               // Use the first available inbox
               agentMailInbox = inboxes[0];
-              console.log("Using existing AgentMail inbox:", agentMailInbox.id);
+              console.log("Using existing AgentMail inbox:", agentMailInbox.id, agentMailInbox.emailAddress);
             }
           } catch (listError) {
             console.log("Could not list inboxes, will try to create:", listError);
@@ -2133,13 +2135,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const createResponse = await client.inboxes.create({
                 name: displayName,
               });
-              agentMailInbox = createResponse.body || createResponse;
-              console.log("Created new AgentMail inbox:", agentMailInbox.id);
+              // Log the full response to understand structure
+              console.log("Create response raw:", JSON.stringify(createResponse, null, 2));
+              agentMailInbox = (createResponse as any).body || createResponse;
+              console.log("Created new AgentMail inbox:", agentMailInbox?.id, agentMailInbox?.emailAddress);
             } catch (createError: any) {
               // If limit exceeded, we already checked for existing inboxes
               console.error("Error creating inbox:", createError);
               return res.status(500).json({ error: "Failed to create email inbox. AgentMail inbox limit may be exceeded." });
             }
+          }
+          
+          // Validate we have the required fields
+          if (!agentMailInbox?.id) {
+            console.error("AgentMail inbox missing id:", agentMailInbox);
+            return res.status(500).json({ error: "Failed to get inbox details from AgentMail." });
           }
           
           // Save inbox to our database
