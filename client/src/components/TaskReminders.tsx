@@ -1,8 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar as CalendarIcon, AlertCircle, ListTodo, Video, Phone, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Bell, Calendar as CalendarIcon, AlertCircle, ListTodo, Video, Phone, FileText, Trash2 } from "lucide-react";
 import { format, isPast, isToday, isTomorrow, differenceInDays } from "date-fns";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface Activity {
   id: number;
@@ -33,6 +36,8 @@ interface ProspectWithCompany {
 }
 
 export default function TaskReminders() {
+  const { toast } = useToast();
+  
   const { data: activities = [] } = useQuery<Activity[]>({
     queryKey: ["/api/activities"],
   });
@@ -40,6 +45,31 @@ export default function TaskReminders() {
   const { data: prospects = [] } = useQuery<ProspectWithCompany[]>({
     queryKey: ["/api/prospects"],
   });
+
+  const deleteActivityMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/activities/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({
+        title: "Task deleted",
+        description: "The task has been removed.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete the task.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDelete = (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    deleteActivityMutation.mutate(id);
+  };
 
   const getProspectName = (prospectId: number) => {
     const prospect = prospects.find((p) => p.id === prospectId);
@@ -119,9 +149,9 @@ export default function TaskReminders() {
                   data-testid={`urgent-task-${index}`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       <div className={`
-                        flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold
+                        flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold flex-shrink-0
                         ${variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : ''}
                         ${variant === 'default' ? 'bg-primary text-primary-foreground' : ''}
                         ${variant === 'secondary' ? 'bg-secondary text-secondary-foreground' : ''}
@@ -130,8 +160,18 @@ export default function TaskReminders() {
                         {index + 1}
                       </div>
                       <TypeIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <h4 className="font-medium text-sm">{task.title}</h4>
+                      <h4 className="font-medium text-sm truncate">{task.title}</h4>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => handleDelete(e, task.id)}
+                      disabled={deleteActivityMutation.isPending}
+                      data-testid={`button-delete-urgent-task-${task.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                   {task.description && (
                     <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
