@@ -7,6 +7,8 @@ import {
   dueDiligence,
   lenders,
   applicationSubmissions,
+  emailInboxes,
+  emailMessages,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -24,6 +26,10 @@ import {
   type InsertLender,
   type ApplicationSubmission,
   type InsertApplicationSubmission,
+  type EmailInbox,
+  type InsertEmailInbox,
+  type EmailMessage,
+  type InsertEmailMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -77,6 +83,20 @@ export interface IStorage {
   createApplicationSubmission(submission: InsertApplicationSubmission, userId: string): Promise<ApplicationSubmission>;
   updateApplicationSubmission(id: number, userId: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined>;
   deleteApplicationSubmission(id: number, userId: string): Promise<void>;
+
+  // Email Inboxes
+  getEmailInbox(userId: string): Promise<EmailInbox | undefined>;
+  createEmailInbox(inbox: InsertEmailInbox): Promise<EmailInbox>;
+
+  // Email Messages
+  listEmailMessages(inboxId: number): Promise<EmailMessage[]>;
+  getEmailMessage(id: number): Promise<EmailMessage | undefined>;
+  getEmailMessageByMessageId(messageId: string): Promise<EmailMessage | undefined>;
+  createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage>;
+  markEmailAsRead(id: number): Promise<void>;
+  updateEmailMessageLink(id: number, updates: { contactId?: number | null; prospectId?: number | null }): Promise<EmailMessage | undefined>;
+  getEmailMessagesForContact(inboxId: number, contactId: number): Promise<EmailMessage[]>;
+  getEmailMessagesForProspect(inboxId: number, prospectId: number): Promise<EmailMessage[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -386,6 +406,88 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(applicationSubmissions)
       .where(and(eq(applicationSubmissions.id, id), eq(applicationSubmissions.userId, userId)));
+  }
+
+  // Email Inboxes
+  async getEmailInbox(userId: string): Promise<EmailInbox | undefined> {
+    const [inbox] = await db
+      .select()
+      .from(emailInboxes)
+      .where(eq(emailInboxes.userId, userId));
+    return inbox || undefined;
+  }
+
+  async createEmailInbox(inbox: InsertEmailInbox): Promise<EmailInbox> {
+    const [newInbox] = await db
+      .insert(emailInboxes)
+      .values(inbox as any)
+      .returning();
+    return newInbox;
+  }
+
+  // Email Messages
+  async listEmailMessages(inboxId: number): Promise<EmailMessage[]> {
+    return await db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.inboxId, inboxId))
+      .orderBy(sql`${emailMessages.sentAt} DESC`);
+  }
+
+  async getEmailMessage(id: number): Promise<EmailMessage | undefined> {
+    const [message] = await db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.id, id));
+    return message || undefined;
+  }
+
+  async getEmailMessageByMessageId(messageId: string): Promise<EmailMessage | undefined> {
+    const [message] = await db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.messageId, messageId));
+    return message || undefined;
+  }
+
+  async createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage> {
+    const [newMessage] = await db
+      .insert(emailMessages)
+      .values(message as any)
+      .returning();
+    return newMessage;
+  }
+
+  async markEmailAsRead(id: number): Promise<void> {
+    await db
+      .update(emailMessages)
+      .set({ isRead: 1 })
+      .where(eq(emailMessages.id, id));
+  }
+
+  async updateEmailMessageLink(id: number, updates: { contactId?: number | null; prospectId?: number | null }): Promise<EmailMessage | undefined> {
+    const [message] = await db
+      .update(emailMessages)
+      .set(updates as any)
+      .where(eq(emailMessages.id, id))
+      .returning();
+    return message || undefined;
+  }
+
+  async getEmailMessagesForContact(inboxId: number, contactId: number): Promise<EmailMessage[]> {
+    return await db
+      .select()
+      .from(emailMessages)
+      .where(and(eq(emailMessages.inboxId, inboxId), eq(emailMessages.contactId, contactId)))
+      .orderBy(sql`${emailMessages.sentAt} DESC`);
+  }
+
+  async getEmailMessagesForProspect(inboxId: number, prospectId: number): Promise<EmailMessage[]> {
+    return await db
+      .select()
+      .from(emailMessages)
+      .where(and(eq(emailMessages.inboxId, inboxId), eq(emailMessages.prospectId, prospectId)))
+      .orderBy(sql`${emailMessages.sentAt} DESC`);
   }
 }
 

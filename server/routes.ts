@@ -2088,6 +2088,279 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ====== EMAIL INBOX API (AgentMail Integration) ======
+  
+  // Get or create user's email inbox
+  app.get("/api/email/inbox", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      let inbox = await storage.getEmailInbox(userId);
+      
+      if (!inbox) {
+        // Create a new inbox for this user using AgentMail
+        try {
+          const { getAgentMailClient } = await import("./agentmail");
+          const client = await getAgentMailClient();
+          
+          // Create an inbox with a unique name for this user
+          const user = await storage.getUser(userId);
+          const displayName = user?.firstName 
+            ? `${user.firstName} ${user.lastName || ''}`.trim() 
+            : 'FlowLoan User';
+          
+          const newInbox = await client.inboxes.create({
+            name: displayName,
+          });
+          
+          // Save inbox to our database
+          inbox = await storage.createEmailInbox({
+            userId,
+            inboxId: newInbox.id,
+            emailAddress: newInbox.email_address,
+            displayName,
+          });
+        } catch (error) {
+          console.error("Error creating AgentMail inbox:", error);
+          return res.status(500).json({ error: "Failed to create email inbox. Please ensure AgentMail is configured." });
+        }
+      }
+      
+      res.json(inbox);
+    } catch (error: any) {
+      console.error("Error getting inbox:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Check if AgentMail is configured
+  app.get("/api/email/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const { isAgentMailConfigured } = await import("./agentmail");
+      const configured = await isAgentMailConfigured();
+      res.json({ configured });
+    } catch (error: any) {
+      res.json({ configured: false });
+    }
+  });
+  
+  // Sync messages from AgentMail to local database
+  app.post("/api/email/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const inbox = await storage.getEmailInbox(userId);
+      
+      if (!inbox) {
+        return res.status(404).json({ error: "No inbox found. Create one first." });
+      }
+      
+      const { getAgentMailClient } = await import("./agentmail");
+      const client = await getAgentMailClient();
+      
+      // Fetch messages from AgentMail
+      const messages = await client.inboxes.messages.list(inbox.inboxId);
+      
+      // Sync each message to our database
+      let syncedCount = 0;
+      for (const message of messages.data || []) {
+        // Check if we already have this message
+        const existing = await storage.getEmailMessageByMessageId(message.id);
+        if (!existing) {
+          await storage.createEmailMessage({
+            inboxId: inbox.id,
+            messageId: message.id,
+            threadId: message.thread_id || null,
+            fromAddress: message.from?.address || 'unknown',
+            toAddresses: message.to?.map((t: any) => t.address) || [],
+            ccAddresses: message.cc?.map((c: any) => c.address) || [],
+            subject: message.subject || '',
+            textBody: message.body_text || null,
+            htmlBody: message.body_html || null,
+            direction: message.direction || 'inbound',
+            isRead: 0,
+            attachments: message.attachments || [],
+            sentAt: new Date(message.created_at),
+          });
+          syncedCount++;
+        }
+      }
+      
+      res.json({ synced: syncedCount, total: messages.data?.length || 0 });
+    } catch (error: any) {
+      console.error("Error syncing messages:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get all messages for user's inbox
+  app.get("/api/email/messages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const inbox = await storage.getEmailInbox(userId);
+      
+      if (!inbox) {
+        return res.json([]);
+      }
+      
+      const messages = await storage.listEmailMessages(inbox.id);
+      res.json(messages);
+    } catch (error: any) {
+      console.error("Error listing messages:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get a single message
+  app.get("/api/email/messages/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const messageId = parseInt(req.params.id);
+      
+      const inbox = await storage.getEmailInbox(userId);
+      if (!inbox) {
+        return res.status(404).json({ error: "No inbox found" });
+      }
+      
+      const message = await storage.getEmailMessage(messageId);
+      if (!message || message.inboxId !== inbox.id) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      
+      // Mark as read
+      if (!message.isRead) {
+        await storage.markEmailAsRead(messageId);
+      }
+      
+      res.json(message);
+    } catch (error: any) {
+      console.error("Error getting message:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Send an email
+  app.post("/api/email/send", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { to, cc, subject, body, contactId, prospectId, replyToMessageId } = req.body;
+      
+      if (!to || !subject) {
+        return res.status(400).json({ error: "To address and subject are required" });
+      }
+      
+      const inbox = await storage.getEmailInbox(userId);
+      if (!inbox) {
+        return res.status(404).json({ error: "No inbox found. Create one first." });
+      }
+      
+      const { getAgentMailClient } = await import("./agentmail");
+      const client = await getAgentMailClient();
+      
+      // Prepare recipients
+      const toAddresses = Array.isArray(to) ? to : [to];
+      const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
+      
+      // Send the email via AgentMail
+      const sentMessage = await client.inboxes.messages.create(inbox.inboxId, {
+        to: toAddresses.map((addr: string) => ({ address: addr })),
+        cc: ccAddresses.map((addr: string) => ({ address: addr })),
+        subject,
+        body_text: body,
+        reply_to_message_id: replyToMessageId || undefined,
+      });
+      
+      // Save to our database
+      const savedMessage = await storage.createEmailMessage({
+        inboxId: inbox.id,
+        messageId: sentMessage.id,
+        threadId: sentMessage.thread_id || null,
+        contactId: contactId ? parseInt(contactId) : null,
+        prospectId: prospectId ? parseInt(prospectId) : null,
+        fromAddress: inbox.emailAddress,
+        toAddresses,
+        ccAddresses,
+        subject,
+        textBody: body,
+        htmlBody: null,
+        direction: 'outbound',
+        isRead: 1,
+        attachments: [],
+        sentAt: new Date(),
+      });
+      
+      res.status(201).json(savedMessage);
+    } catch (error: any) {
+      console.error("Error sending email:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Link a message to a contact/prospect
+  app.patch("/api/email/messages/:id/link", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const messageId = parseInt(req.params.id);
+      const { contactId, prospectId } = req.body;
+      
+      const inbox = await storage.getEmailInbox(userId);
+      if (!inbox) {
+        return res.status(404).json({ error: "No inbox found" });
+      }
+      
+      const message = await storage.getEmailMessage(messageId);
+      if (!message || message.inboxId !== inbox.id) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      
+      const updated = await storage.updateEmailMessageLink(messageId, {
+        contactId: contactId ? parseInt(contactId) : null,
+        prospectId: prospectId ? parseInt(prospectId) : null,
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error linking message:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get messages for a specific contact
+  app.get("/api/email/contact/:contactId/messages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const contactId = parseInt(req.params.contactId);
+      
+      const inbox = await storage.getEmailInbox(userId);
+      if (!inbox) {
+        return res.json([]);
+      }
+      
+      const messages = await storage.getEmailMessagesForContact(inbox.id, contactId);
+      res.json(messages);
+    } catch (error: any) {
+      console.error("Error getting contact messages:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get messages for a specific prospect
+  app.get("/api/email/prospect/:prospectId/messages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      const inbox = await storage.getEmailInbox(userId);
+      if (!inbox) {
+        return res.json([]);
+      }
+      
+      const messages = await storage.getEmailMessagesForProspect(inbox.id, prospectId);
+      res.json(messages);
+    } catch (error: any) {
+      console.error("Error getting prospect messages:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
