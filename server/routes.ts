@@ -410,20 +410,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await response.json();
       // Advanced search returns slightly different format, normalize it
       const normalizedData = {
-        items: data.items?.map((item: any) => ({
-          title: item.company_name,
-          company_number: item.company_number,
-          company_status: item.company_status,
-          company_type: item.company_type,
-          address_snippet: item.registered_office_address ? 
-            [
-              item.registered_office_address.address_line_1,
-              item.registered_office_address.locality,
-              item.registered_office_address.postal_code
-            ].filter(Boolean).join(', ') : undefined,
-          date_of_creation: item.date_of_creation,
-          sic_codes: item.sic_codes
-        })) || [],
+        items: data.items?.map((item: any) => {
+          const addr = item.registered_office_address;
+          return {
+            title: item.company_name,
+            company_number: item.company_number,
+            company_status: item.company_status,
+            company_type: item.company_type,
+            address_snippet: addr ? 
+              [
+                addr.premises,
+                addr.address_line_1,
+                addr.address_line_2,
+                addr.locality,
+                addr.region,
+                addr.postal_code,
+                addr.country
+              ].filter(Boolean).join(', ') : undefined,
+            address: addr,
+            date_of_creation: item.date_of_creation,
+            sic_codes: item.sic_codes
+          };
+        }) || [],
         total_results: data.total_results || data.hits
       };
       

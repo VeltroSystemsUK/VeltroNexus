@@ -497,8 +497,8 @@ function CompanyOverview({ prospect }: { prospect: ProspectWithCompany }) {
           <div className="space-y-4">
             <div>
               <Label className="text-muted-foreground">Company Status</Label>
-              <p className="text-sm font-medium" data-testid="text-company-status">
-                {prospect.company.companyStatus || "ACTIVE"}
+              <p className="text-sm font-medium capitalize" data-testid="text-company-status">
+                {prospect.company.companyStatus || "Active"}
               </p>
             </div>
             <div>
@@ -509,8 +509,8 @@ function CompanyOverview({ prospect }: { prospect: ProspectWithCompany }) {
             </div>
             <div>
               <Label className="text-muted-foreground">Company Type</Label>
-              <p className="text-sm" data-testid="text-company-type">
-                {prospect.company.companyType || "ltd"}
+              <p className="text-sm uppercase" data-testid="text-company-type">
+                {prospect.company.companyType || "Ltd"}
               </p>
             </div>
           </div>
@@ -1710,7 +1710,7 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Company Type:</span>
-                      <span className="text-sm font-medium">{prospect.company.companyType || "ltd"}</span>
+                      <span className="text-sm font-medium uppercase">{prospect.company.companyType || "Ltd"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Incorporated:</span>
