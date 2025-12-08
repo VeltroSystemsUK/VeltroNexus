@@ -87,12 +87,12 @@ export function ContactEnrichmentDialog({
   };
 
   const handleApply = () => {
-    const updates: { email?: string; telephone?: string } = {};
+    const updates: { email?: string; phone?: string } = {};
     if (selectedEmail) {
       updates.email = selectedEmail;
     }
     if (selectedPhone) {
-      updates.telephone = selectedPhone;
+      updates.phone = selectedPhone;
     }
     if (Object.keys(updates).length > 0) {
       updateContactMutation.mutate(updates);
