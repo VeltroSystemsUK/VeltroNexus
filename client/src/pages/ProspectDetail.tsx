@@ -210,7 +210,6 @@ export default function ProspectDetail() {
           </div>
         </div>
       </header>
-
       <main className="container mx-auto px-6 py-8">
         {/* Key Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -229,7 +228,7 @@ export default function ProspectDetail() {
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
             <TabsTrigger value="company" data-testid="tab-company">Company Info</TabsTrigger>
             <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
-            <TabsTrigger value="activity" data-testid="tab-activity">Sales Activity</TabsTrigger>
+            <TabsTrigger value="activity" data-testid="tab-activity">Activity</TabsTrigger>
             {user?.subscriptionTier !== "free" && (
               <TabsTrigger value="diligence" data-testid="tab-diligence">Due Diligence</TabsTrigger>
             )}
@@ -1415,7 +1414,6 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
           </div>
         </CardHeader>
       </Card>
-
       <Accordion type="multiple" defaultValue={["company", "loan", "diligence", "associations"]} className="space-y-4">
         <AccordionItem value="company" className="border rounded-lg" data-testid="accordion-summary-company">
           <AccordionTrigger className="px-6 hover:no-underline">
