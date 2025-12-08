@@ -523,7 +523,7 @@ export default function ActivityCalendar() {
               variant="outline"
               size="sm"
               onClick={() => handleQuickCreate("task")}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-500/20"
               data-testid="button-quick-task"
             >
               <ListTodo className="h-4 w-4" />
@@ -533,7 +533,7 @@ export default function ActivityCalendar() {
               variant="outline"
               size="sm"
               onClick={() => handleQuickCreate("meeting")}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 bg-green-500/10 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-500/20"
               data-testid="button-quick-meeting"
             >
               <Video className="h-4 w-4" />
@@ -543,7 +543,7 @@ export default function ActivityCalendar() {
               variant="outline"
               size="sm"
               onClick={() => handleQuickCreate("call")}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 hover:bg-orange-500/20"
               data-testid="button-quick-call"
             >
               <Phone className="h-4 w-4" />
@@ -553,7 +553,7 @@ export default function ActivityCalendar() {
               variant="outline"
               size="sm"
               onClick={() => handleQuickCreate("event")}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-500/20"
               data-testid="button-quick-event"
             >
               <CalendarIcon className="h-4 w-4" />
@@ -563,7 +563,7 @@ export default function ActivityCalendar() {
               variant="outline"
               size="sm"
               onClick={() => handleQuickCreate("note")}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-500/20"
               data-testid="button-quick-note"
             >
               <FileText className="h-4 w-4" />
