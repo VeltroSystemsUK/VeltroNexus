@@ -265,8 +265,9 @@ export function ContactEnrichmentDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => {
+                        // Strip all legal suffixes from company name
                         const companyName = result.companyName
-                          .replace(/\s*(limited|ltd\.?|plc|llp|inc\.?|corp\.?)\s*$/gi, '')
+                          .replace(/\s*(limited|ltd\.?|plc|llp|llc|inc\.?|corp\.?|corporation|company|co\.?|&\s*co\.?)\s*$/gi, '')
                           .trim();
                         window.open(
                           `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(companyName)}`,
@@ -283,9 +284,13 @@ export function ContactEnrichmentDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        // Use just the contact name (First Last)
+                        // Extract just First Name and Last Name (no middle names)
+                        const nameParts = contact.name.trim().split(/\s+/);
+                        const firstName = nameParts[0] || '';
+                        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                        const searchName = `${firstName} ${lastName}`.trim();
                         window.open(
-                          `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(contact.name)}`,
+                          `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchName)}`,
                           '_blank'
                         );
                       }}
