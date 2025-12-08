@@ -55,6 +55,7 @@ export interface IStorage {
 
   // Contacts
   listContacts(prospectId: number): Promise<Contact[]>;
+  getContact(id: number): Promise<Contact | undefined>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined>;
   deleteContact(id: number): Promise<void>;
@@ -90,6 +91,7 @@ export interface IStorage {
 
   // Email Messages
   listEmailMessages(inboxId: number): Promise<EmailMessage[]>;
+  getEmailMessagesByInbox(inboxId: number): Promise<EmailMessage[]>;
   getEmailMessage(id: number): Promise<EmailMessage | undefined>;
   getEmailMessageByMessageId(messageId: string): Promise<EmailMessage | undefined>;
   createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage>;
@@ -97,6 +99,9 @@ export interface IStorage {
   updateEmailMessageLink(id: number, updates: { contactId?: number | null; prospectId?: number | null }): Promise<EmailMessage | undefined>;
   getEmailMessagesForContact(inboxId: number, contactId: number): Promise<EmailMessage[]>;
   getEmailMessagesForProspect(inboxId: number, prospectId: number): Promise<EmailMessage[]>;
+
+  // Companies
+  getCompany(id: number): Promise<Company | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -239,6 +244,14 @@ export class DatabaseStorage implements IStorage {
       .from(contacts)
       .where(eq(contacts.prospectId, prospectId))
       .orderBy(contacts.createdAt);
+  }
+
+  async getContact(id: number): Promise<Contact | undefined> {
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.id, id));
+    return contact || undefined;
   }
 
   async createContact(insertContact: InsertContact): Promise<Contact> {
@@ -488,6 +501,22 @@ export class DatabaseStorage implements IStorage {
       .from(emailMessages)
       .where(and(eq(emailMessages.inboxId, inboxId), eq(emailMessages.prospectId, prospectId)))
       .orderBy(sql`${emailMessages.sentAt} DESC`);
+  }
+
+  async getEmailMessagesByInbox(inboxId: number): Promise<EmailMessage[]> {
+    return await db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.inboxId, inboxId))
+      .orderBy(sql`${emailMessages.sentAt} DESC`);
+  }
+
+  async getCompany(id: number): Promise<Company | undefined> {
+    const [company] = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, id));
+    return company || undefined;
   }
 }
 

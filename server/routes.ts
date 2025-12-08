@@ -1144,6 +1144,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Contact enrichment - search web and email inbox for contact info
+  app.post("/api/contacts/:id/enrich", isAuthenticated, async (req: any, res) => {
+    try {
+      const contactId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      // Get the contact
+      const contact = await storage.getContact(contactId);
+      if (!contact) {
+        return res.status(404).json({ error: "Contact not found" });
+      }
+      
+      // Get the prospect and verify ownership (security check)
+      const prospect = await storage.getProspect(contact.prospectId, userId);
+      if (!prospect) {
+        // Either prospect doesn't exist or doesn't belong to user
+        return res.status(403).json({ error: "Access denied - you don't have permission to access this contact" });
+      }
+      
+      // Get company name for search context
+      const company = await storage.getCompany(prospect.companyId);
+      const companyName = company?.name || '';
+      
+      // Search the web for contact info using Tavily
+      const { searchContactInfo } = await import("./utils/tavilyClient");
+      const webResults = await searchContactInfo(contact.name, companyName);
+      
+      // Search email inbox for related emails
+      let emailResults: any[] = [];
+      try {
+        const inbox = await storage.getEmailInbox(userId);
+        if (inbox) {
+          // Search for emails that mention the contact name or existing email
+          const searchTerms = [contact.name];
+          if (contact.email) {
+            searchTerms.push(contact.email);
+          }
+          
+          const messages = await storage.getEmailMessagesByInbox(inbox.id);
+          emailResults = messages.filter((msg: any) => {
+            const content = `${msg.subject} ${msg.textBody || ''} ${msg.fromAddress} ${msg.toAddresses?.join(' ') || ''}`.toLowerCase();
+            return searchTerms.some(term => content.includes(term.toLowerCase()));
+          }).map((msg: any) => ({
+            subject: msg.subject,
+            from: msg.fromAddress,
+            to: msg.toAddresses,
+            date: msg.sentAt,
+            snippet: msg.textBody?.substring(0, 200) || ''
+          }));
+        }
+      } catch (emailError) {
+        console.log("Could not search email inbox:", emailError);
+      }
+      
+      res.json({
+        contact: {
+          id: contact.id,
+          name: contact.name,
+          currentEmail: contact.email,
+          currentPhone: contact.phone  // Use correct field name from schema
+        },
+        webSearch: {
+          emails: webResults.emails,
+          phones: webResults.phones,
+          linkedinUrls: webResults.linkedinUrls,
+          sources: webResults.sources
+        },
+        emailSearch: {
+          relatedEmails: emailResults.slice(0, 10)
+        }
+      });
+    } catch (error: any) {
+      console.error("Contact enrichment error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Activities API - Protected routes
   app.get("/api/activities", isAuthenticated, async (req: any, res) => {
     try {

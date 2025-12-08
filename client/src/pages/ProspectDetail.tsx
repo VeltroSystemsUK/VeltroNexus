@@ -54,6 +54,7 @@ import {
 import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
 import { CompanyInformation } from "@/components/CompanyInformation";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
+import { ContactEnrichmentDialog } from "@/components/ContactEnrichmentDialog";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 
 const STAGES = [
@@ -498,6 +499,13 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
 
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [selectedContactForEmail, setSelectedContactForEmail] = useState<Contact | null>(null);
+  const [enrichDialogOpen, setEnrichDialogOpen] = useState(false);
+  const [selectedContactForEnrich, setSelectedContactForEnrich] = useState<Contact | null>(null);
+
+  const handleOpenEnrichDialog = (contact: Contact) => {
+    setSelectedContactForEnrich(contact);
+    setEnrichDialogOpen(true);
+  };
 
   const handleOpenEmailDialog = (contact: Contact) => {
     if (!contact.email) {
@@ -845,6 +853,15 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => handleOpenEnrichDialog(contact)}
+                        title="Find contact info"
+                        data-testid={`button-enrich-contact-${contact.id}`}
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleOpenEmailDialog(contact)}
                         title={contact.email ? "Send email" : "No email address"}
                         className={!contact.email ? "opacity-50" : ""}
@@ -882,6 +899,15 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
           contact={selectedContactForEmail}
           prospectId={prospectId}
         />
+
+        {selectedContactForEnrich && (
+          <ContactEnrichmentDialog
+            contact={selectedContactForEnrich}
+            open={enrichDialogOpen}
+            onOpenChange={setEnrichDialogOpen}
+            prospectId={prospectId}
+          />
+        )}
       </CardContent>
     </Card>
   );

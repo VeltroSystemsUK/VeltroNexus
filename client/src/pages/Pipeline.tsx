@@ -266,10 +266,9 @@ export default function Pipeline() {
           </div>
         </div>
       </header>
-
       <main className="container mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="mb-6 md:mb-10">
-          <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-3 tracking-tight" data-testid="text-page-title">Pipeline Dashboard</h2>
+          <h2 className="md:text-4xl font-bold mb-2 md:mb-3 tracking-tight text-[32px]" data-testid="text-page-title">Pipeline Dashboard</h2>
           <p className="text-sm md:text-lg text-muted-foreground" data-testid="text-page-description">
             Manage your commercial lending pipeline
           </p>
