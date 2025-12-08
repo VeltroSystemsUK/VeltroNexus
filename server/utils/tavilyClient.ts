@@ -82,20 +82,25 @@ export async function searchContactInfo(
   const cleanName = personName.replace(/"/g, '');
   const cleanCompany = companyName?.replace(/"/g, '') || '';
   
+  // Clean company name for LinkedIn - remove legal suffixes like Ltd, Limited, PLC, LLP, etc.
+  const linkedinCompanyName = cleanCompany
+    .replace(/\s*(limited|ltd\.?|plc|llp|inc\.?|corp\.?|corporation|company|co\.?)\s*$/gi, '')
+    .trim();
+  
   // Step 1: Search for the person at the company (general contact info)
   const generalQuery = cleanCompany 
     ? `"${cleanName}" AND "${cleanCompany}" (email OR contact OR phone OR mobile OR director)`
     : `"${cleanName}" (email OR contact OR phone OR mobile OR director)`;
   
   // Step 2: LinkedIn searches - find company page and people
-  // Search for the specific person at the company
-  const linkedinPersonQuery = cleanCompany
-    ? `site:linkedin.com/in "${cleanName}" "${cleanCompany}"`
+  // Search for the specific person at the company (use cleaned name without Ltd/Limited)
+  const linkedinPersonQuery = linkedinCompanyName
+    ? `site:linkedin.com/in "${cleanName}" "${linkedinCompanyName}"`
     : `site:linkedin.com/in "${cleanName}"`;
   
-  // Search for company page and associated people/employees
-  const linkedinCompanyQuery = cleanCompany
-    ? `site:linkedin.com "${cleanCompany}" (people OR employees OR team OR staff)`
+  // Search for company page and associated people/employees (use cleaned name without Ltd/Limited)
+  const linkedinCompanyQuery = linkedinCompanyName
+    ? `site:linkedin.com "${linkedinCompanyName}" (people OR employees OR team OR staff)`
     : null;
   
   try {
