@@ -156,10 +156,22 @@ export default function ActivityCalendar() {
     },
   });
 
-  const handleDateClick = (day: Date, time?: string) => {
+  const handleDateClick = (day: Date, time?: string, activityType?: string) => {
     setSelectedDate(day);
     form.setValue("dueDate", day);
     form.setValue("dueTime", time || "");
+    if (activityType) {
+      form.setValue("activityType", activityType as any);
+    }
+    setShowCreateDialog(true);
+  };
+
+  const handleQuickCreate = (activityType: string) => {
+    const today = new Date();
+    setSelectedDate(today);
+    form.setValue("dueDate", today);
+    form.setValue("dueTime", "");
+    form.setValue("activityType", activityType as any);
     setShowCreateDialog(true);
   };
 
@@ -318,12 +330,12 @@ export default function ActivityCalendar() {
             </div>
           ))}
           
-          {HOURS.map((hour) => (
-            <>
-              <div key={`hour-${hour}`} className="bg-background p-2 text-xs text-muted-foreground border-t">
+          {HOURS.map((hour) => {
+            const hourCells = [
+              <div key={`hour-label-${hour}`} className="bg-background p-2 text-xs text-muted-foreground border-t">
                 {hour.toString().padStart(2, '0')}:00
-              </div>
-              {weekDays.map((day) => {
+              </div>,
+              ...weekDays.map((day) => {
                 const hourActivities = getActivitiesForHour(day, hour);
                 return (
                   <div
@@ -348,9 +360,10 @@ export default function ActivityCalendar() {
                     })}
                   </div>
                 );
-              })}
-            </>
-          ))}
+              })
+            ];
+            return hourCells;
+          })}
         </div>
       </div>
     );
@@ -505,23 +518,57 @@ export default function ActivityCalendar() {
           {viewType === "weekly" && renderWeeklyView()}
           {viewType === "daily" && renderDailyView()}
           
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <ListTodo className="h-3 w-3" />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleQuickCreate("task")}
+              className="flex items-center gap-1.5"
+              data-testid="button-quick-task"
+            >
+              <ListTodo className="h-4 w-4" />
               <span>Task</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Video className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleQuickCreate("meeting")}
+              className="flex items-center gap-1.5"
+              data-testid="button-quick-meeting"
+            >
+              <Video className="h-4 w-4" />
               <span>Meeting</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Phone className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleQuickCreate("call")}
+              className="flex items-center gap-1.5"
+              data-testid="button-quick-call"
+            >
+              <Phone className="h-4 w-4" />
               <span>Call</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CalendarIcon className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleQuickCreate("event")}
+              className="flex items-center gap-1.5"
+              data-testid="button-quick-event"
+            >
+              <CalendarIcon className="h-4 w-4" />
               <span>Event</span>
-            </div>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleQuickCreate("note")}
+              className="flex items-center gap-1.5"
+              data-testid="button-quick-note"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Note</span>
+            </Button>
           </div>
         </CardContent>
       </Card>
