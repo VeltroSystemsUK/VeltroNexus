@@ -54,6 +54,17 @@ interface OfficerSearchResult {
   };
 }
 
+interface OfficerAppointment {
+  appointed_to: {
+    company_name: string;
+    company_number: string;
+    company_status: string;
+  };
+  officer_role: string;
+  appointed_on?: string;
+  resigned_on?: string;
+}
+
 type SearchType = "company" | "sic" | "location" | "postcode" | "officers";
 
 const COMPANY_TYPES = [
@@ -75,6 +86,9 @@ export default function CompanySearch() {
   const [searchType, setSearchType] = useState<SearchType>("company");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<CompanySearchResult | null>(null);
+  const [selectedOfficer, setSelectedOfficer] = useState<OfficerSearchResult | null>(null);
+  const [officerAppointments, setOfficerAppointments] = useState<OfficerAppointment[]>([]);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   
   // Form state (shared between search selection and manual entry)
   const [companyName, setCompanyName] = useState("");
@@ -217,16 +231,59 @@ export default function CompanySearch() {
     toast.success("Company details populated");
   };
 
-  const handleSelectOfficerCompany = async (officer: OfficerSearchResult) => {
-    if (!officer.appointed_to?.company_number) {
-      toast.error("No company information available for this officer");
+  const handleSelectOfficer = async (officer: OfficerSearchResult) => {
+    // Extract officer ID from the links.self path
+    const officerLink = officer.links?.self;
+    if (!officerLink) {
+      toast.error("Unable to fetch director's companies");
       return;
     }
     
+    // Extract officer ID from path like /officers/abc123/appointments
+    const officerIdMatch = officerLink.match(/\/officers\/([^\/]+)/);
+    const officerId = officerIdMatch ? officerIdMatch[1] : null;
+    
+    if (!officerId) {
+      toast.error("Unable to identify officer");
+      return;
+    }
+    
+    setSelectedOfficer(officer);
+    setIsLoadingAppointments(true);
+    setOfficerAppointments([]);
+    
+    try {
+      const response = await fetch(
+        `/api/companies-house/officer-appointments?officer_id=${encodeURIComponent(officerId)}`,
+        { credentials: "include" }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Filter to only show active appointments (no resigned_on date)
+        const activeAppointments = (data.items || []).filter(
+          (apt: OfficerAppointment) => !apt.resigned_on
+        );
+        setOfficerAppointments(activeAppointments);
+        
+        if (activeAppointments.length === 0) {
+          toast.info("No active directorships found for this person");
+        }
+      } else {
+        toast.error("Failed to fetch director's companies");
+      }
+    } catch {
+      toast.error("Failed to fetch director's companies");
+    } finally {
+      setIsLoadingAppointments(false);
+    }
+  };
+  
+  const handleSelectAppointmentCompany = async (appointment: OfficerAppointment) => {
     // Fetch the company details
     try {
       const response = await fetch(
-        `/api/companies-house/company/${officer.appointed_to.company_number}`,
+        `/api/companies-house/company/${appointment.appointed_to.company_number}`,
         { credentials: "include" }
       );
       if (response.ok) {
@@ -238,10 +295,20 @@ export default function CompanySearch() {
           company_type: company.type,
           address: company.registered_office_address,
         });
+        // Clear officer selection state
+        setSelectedOfficer(null);
+        setOfficerAppointments([]);
+      } else {
+        toast.error("Failed to fetch company details");
       }
     } catch {
       toast.error("Failed to fetch company details");
     }
+  };
+  
+  const clearOfficerSelection = () => {
+    setSelectedOfficer(null);
+    setOfficerAppointments([]);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -272,6 +339,8 @@ export default function CompanySearch() {
 
   const resetForm = () => {
     setSelectedCompany(null);
+    setSelectedOfficer(null);
+    setOfficerAppointments([]);
     setCompanyName("");
     setCompanyNumber("");
     setCompanyType("");
@@ -284,11 +353,21 @@ export default function CompanySearch() {
   const getSearchPlaceholder = () => {
     switch (searchType) {
       case "company": return "Enter company name or number...";
-      case "sic": return "Enter SIC code (e.g., 62020)...";
-      case "location": return "Enter town or city...";
-      case "postcode": return "Enter postcode (e.g., SW1A 1AA)...";
+      case "sic": return "Enter SIC code (e.g., 62020, 47110)...";
+      case "location": return "Enter town or city (e.g., Manchester, Leeds)...";
+      case "postcode": return "Enter postcode area (e.g., SW1A, M1, B15)...";
       case "officers": return "Enter director/officer name...";
       default: return "Search...";
+    }
+  };
+
+  const getSearchHint = () => {
+    switch (searchType) {
+      case "sic": return "Enter a SIC code to find companies in that industry";
+      case "location": return "Search for companies by town or city name";
+      case "postcode": return "Enter a postcode to find companies in that area";
+      case "officers": return "Search by name, then click to see their companies";
+      default: return null;
     }
   };
 
@@ -435,6 +514,9 @@ export default function CompanySearch() {
                         {isFetching ? "Searching..." : "Search"}
                       </Button>
                     </div>
+                    {getSearchHint() && (
+                      <p className="text-xs text-muted-foreground">{getSearchHint()}</p>
+                    )}
                   </div>
                 </form>
 
@@ -479,17 +561,17 @@ export default function CompanySearch() {
                 )}
 
                 {/* Officers Search Results */}
-                {searchType === "officers" && officerResults?.items && officerResults.items.length > 0 && (
+                {searchType === "officers" && !selectedOfficer && officerResults?.items && officerResults.items.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      {officerResults.items.length} {officerResults.items.length === 1 ? 'officer' : 'officers'} found
+                      {officerResults.items.length} {officerResults.items.length === 1 ? 'director' : 'directors'} found - click to view their companies
                     </p>
                     <div className="max-h-80 overflow-y-auto space-y-2">
                       {officerResults.items.map((officer, idx) => (
                         <Card
                           key={`${officer.title}-${idx}`}
                           className="hover-elevate cursor-pointer"
-                          onClick={() => handleSelectOfficerCompany(officer)}
+                          onClick={() => handleSelectOfficer(officer)}
                           data-testid={`officer-result-${idx}`}
                         >
                           <CardContent className="p-4">
@@ -499,12 +581,6 @@ export default function CompanySearch() {
                                   <Users className="h-4 w-4 text-primary flex-shrink-0" />
                                   <h3 className="font-semibold text-sm truncate">{officer.title}</h3>
                                 </div>
-                                {officer.appointed_to && (
-                                  <div className="mt-1 pl-6">
-                                    <p className="text-xs font-medium">{officer.appointed_to.company_name}</p>
-                                    <p className="text-xs text-muted-foreground font-mono">{officer.appointed_to.company_number}</p>
-                                  </div>
-                                )}
                                 {officer.address_snippet && (
                                   <div className="flex items-start gap-1 mt-1 pl-6">
                                     <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
@@ -512,11 +588,9 @@ export default function CompanySearch() {
                                   </div>
                                 )}
                               </div>
-                              {officer.appointed_to?.company_status && (
-                                <Badge variant="secondary" className="text-xs flex-shrink-0">
-                                  {officer.appointed_to.company_status}
-                                </Badge>
-                              )}
+                              <Badge variant="outline" className="text-xs flex-shrink-0">
+                                Click to view companies
+                              </Badge>
                             </div>
                           </CardContent>
                         </Card>
@@ -524,10 +598,68 @@ export default function CompanySearch() {
                     </div>
                   </div>
                 )}
+                
+                {/* Selected Officer's Companies */}
+                {selectedOfficer && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-primary" />
+                        <span className="font-medium text-sm">{selectedOfficer.title}'s Companies</span>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={clearOfficerSelection}>
+                        Back to results
+                      </Button>
+                    </div>
+                    
+                    {isLoadingAppointments && (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-muted-foreground">Loading companies...</p>
+                      </div>
+                    )}
+                    
+                    {!isLoadingAppointments && officerAppointments.length > 0 && (
+                      <div className="max-h-80 overflow-y-auto space-y-2">
+                        {officerAppointments.map((apt, idx) => (
+                          <Card
+                            key={`${apt.appointed_to.company_number}-${idx}`}
+                            className="hover-elevate cursor-pointer"
+                            onClick={() => handleSelectAppointmentCompany(apt)}
+                            data-testid={`appointment-result-${idx}`}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
+                                    <h3 className="font-semibold text-sm truncate">{apt.appointed_to.company_name}</h3>
+                                  </div>
+                                  <div className="mt-1 pl-6">
+                                    <p className="text-xs text-muted-foreground font-mono">{apt.appointed_to.company_number}</p>
+                                    <p className="text-xs text-muted-foreground capitalize">Role: {apt.officer_role.replace(/-/g, ' ')}</p>
+                                  </div>
+                                </div>
+                                <Badge variant="secondary" className="text-xs flex-shrink-0">
+                                  {apt.appointed_to.company_status}
+                                </Badge>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {!isLoadingAppointments && officerAppointments.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No active directorships found for this person.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* No Results */}
                 {((searchType !== "officers" && companyResults?.items?.length === 0) ||
-                  (searchType === "officers" && officerResults?.items?.length === 0)) && (
+                  (searchType === "officers" && !selectedOfficer && officerResults?.items?.length === 0)) && (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     No results found. Try a different search term.
                   </p>

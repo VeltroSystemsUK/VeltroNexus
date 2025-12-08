@@ -413,6 +413,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get officer appointments (companies they are a director of)
+  app.get("/api/companies-house/officer-appointments", isAuthenticated, async (req, res) => {
+    try {
+      const officerId = req.query.officer_id as string;
+      if (!officerId) {
+        return res.status(400).json({ error: "Officer ID is required" });
+      }
+
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+
+      const trimmedApiKey = apiKey.trim();
+      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString('base64');
+
+      console.log(`Fetching appointments for officer: "${officerId}"`);
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/officers/${encodeURIComponent(officerId)}/appointments`,
+        {
+          headers: { 'Authorization': `Basic ${base64Auth}` },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Companies House API error:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Companies House API returned ${response.status}` 
+        });
+      }
+
+      const data = await response.json();
+      console.log(`Found ${data.items?.length || 0} appointments`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error fetching officer appointments:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Companies House Company Profile API - Protected route
   app.get("/api/companies-house/company/:companyNumber", isAuthenticated, async (req, res) => {
     try {
