@@ -1039,9 +1039,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/prospects/:prospectId/sync-officers", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
+      const userId = req.user.claims.sub;
       
       // Get the prospect to find the company number
-      const prospect = await storage.getProspect(prospectId, req.user.id);
+      const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
