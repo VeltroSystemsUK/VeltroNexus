@@ -317,6 +317,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Companies House Advanced Search API - Search by SIC, location, postcode
+  app.get("/api/companies-house/advanced-search", isAuthenticated, async (req, res) => {
+    try {
+      const { sic_codes, location, postcode } = req.query;
+      
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+
+      const trimmedApiKey = apiKey.trim();
+      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString('base64');
+
+      // Build search query based on parameters
+      let searchQuery = "";
+      if (sic_codes) {
+        // Search by SIC code - use company search with SIC filter
+        searchQuery = sic_codes as string;
+      } else if (location) {
+        // Search by location
+        searchQuery = location as string;
+      } else if (postcode) {
+        // Search by postcode
+        searchQuery = postcode as string;
+      } else {
+        return res.status(400).json({ error: "At least one search parameter required" });
+      }
+
+      console.log(`Advanced search: sic=${sic_codes}, location=${location}, postcode=${postcode}`);
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(searchQuery)}&items_per_page=20`,
+        {
+          headers: { 'Authorization': `Basic ${base64Auth}` },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Companies House API error:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Companies House API returned ${response.status}` 
+        });
+      }
+
+      const data = await response.json();
+      console.log(`Advanced search found ${data.items?.length || 0} companies`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error in advanced search:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Companies House Officers Search API - Search for directors/officers
+  app.get("/api/companies-house/search-officers", isAuthenticated, async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.trim().length === 0) {
+        return res.status(400).json({ error: "Search query is required" });
+      }
+
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+
+      const trimmedApiKey = apiKey.trim();
+      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString('base64');
+
+      console.log(`Searching officers for: "${query}"`);
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/search/officers?q=${encodeURIComponent(query)}&items_per_page=20`,
+        {
+          headers: { 'Authorization': `Basic ${base64Auth}` },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Companies House API error:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Companies House API returned ${response.status}` 
+        });
+      }
+
+      const data = await response.json();
+      console.log(`Found ${data.items?.length || 0} officers`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error searching officers:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Companies House Company Profile API - Protected route
   app.get("/api/companies-house/company/:companyNumber", isAuthenticated, async (req, res) => {
     try {
