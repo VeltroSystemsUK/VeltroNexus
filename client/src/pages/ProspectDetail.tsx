@@ -96,6 +96,56 @@ export default function ProspectDetail() {
     enabled: prospectId > 0,
   });
 
+  // Fetch Companies House profile for auto-sync
+  const { data: companyProfile } = useQuery<any>({
+    queryKey: [`/api/companies-house/company/${prospect?.company?.companyNumber}`],
+    enabled: !!prospect?.company?.companyNumber,
+  });
+
+  // Track if we've already synced this company to prevent duplicate requests
+  const syncedCompanyRef = useRef<number | null>(null);
+
+  // Auto-sync company data from Companies House when profile is loaded
+  useEffect(() => {
+    const companyId = prospect?.company?.id;
+    if (!companyProfile || !companyId) return;
+    if (syncedCompanyRef.current === companyId) return; // Already synced this company
+    
+    const updates: Record<string, string> = {};
+    
+    // Sync incorporation date if missing
+    if (!prospect.company.incorporationDate && companyProfile.date_of_creation) {
+      updates.incorporationDate = companyProfile.date_of_creation;
+    }
+    // Sync company status if missing
+    if (!prospect.company.companyStatus && companyProfile.company_status) {
+      updates.companyStatus = companyProfile.company_status;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      syncedCompanyRef.current = companyId; // Mark as syncing
+      
+      (async () => {
+        try {
+          const res = await fetch(`/api/companies/${companyId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(updates),
+          });
+          if (res.ok) {
+            queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}`] });
+          } else {
+            syncedCompanyRef.current = null; // Reset on failure to allow retry
+          }
+        } catch (error) {
+          console.error('Failed to sync company data:', error);
+          syncedCompanyRef.current = null; // Reset on failure to allow retry
+        }
+      })();
+    }
+  }, [companyProfile, prospectId, prospect?.company?.id, prospect?.company?.incorporationDate, prospect?.company?.companyStatus]);
+
   const deleteProspectMutation = useMutation({
     mutationFn: () => apiRequest(`/api/prospects/${prospectId}`, "DELETE"),
     onSuccess: () => {

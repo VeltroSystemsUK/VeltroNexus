@@ -155,6 +155,7 @@ export default function CompanySearch() {
       companyNumber: string;
       companyType?: string;
       registeredAddress?: string;
+      incorporationDate?: string;
       loanAmount?: number;
       priority?: string;
       notes?: string;
@@ -175,7 +176,7 @@ export default function CompanySearch() {
         companyName: data.companyName,
         companyNumber: finalCompanyNumber,
         registeredAddress: data.registeredAddress || null,
-        incorporationDate: null,
+        incorporationDate: data.incorporationDate || null,
         companyStatus: null,
         companyType: data.companyType || null,
       });
@@ -339,6 +340,7 @@ export default function CompanySearch() {
       companyNumber: companyNumber.trim(),
       companyType: companyType || undefined,
       registeredAddress: registeredAddress.trim() || undefined,
+      incorporationDate: selectedCompany?.date_of_creation || undefined,
       loanAmount: loanAmount ? parseInt(loanAmount) * 100 : undefined,
       priority: priority || undefined,
       notes: notes.trim() || undefined,

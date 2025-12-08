@@ -1001,6 +1001,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update company details (e.g., sync incorporation date from Companies House)
+  app.patch("/api/companies/:id", isAuthenticated, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      if (isNaN(companyId)) {
+        return res.status(400).json({ error: "Invalid company ID" });
+      }
+
+      const { incorporationDate, companyStatus, registeredAddress } = req.body;
+      
+      // Build update object with only provided fields
+      const updates: Partial<{ incorporationDate: string; companyStatus: string; registeredAddress: string }> = {};
+      if (incorporationDate !== undefined) updates.incorporationDate = incorporationDate;
+      if (companyStatus !== undefined) updates.companyStatus = companyStatus;
+      if (registeredAddress !== undefined) updates.registeredAddress = registeredAddress;
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No fields to update" });
+      }
+
+      const company = await storage.updateCompany(companyId, updates);
+      res.json(company);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Helper function to format officer name from "SURNAME, First Middle" to "First Middle Surname"
   function formatOfficerName(name: string): string {
     if (!name) return name;
