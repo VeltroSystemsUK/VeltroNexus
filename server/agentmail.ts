@@ -1,7 +1,7 @@
 // AgentMail integration for email functionality
 // Documentation: https://docs.agentmail.to/api-reference
 
-import { AgentMail } from 'agentmail';
+import { AgentMailClient } from 'agentmail';
 
 let connectionSettings: any;
 
@@ -36,10 +36,9 @@ async function getCredentials() {
 // WARNING: Never cache this client.
 // Access tokens expire, so a new client must be created each time.
 // Always call this function again to get a fresh client.
-export async function getAgentMailClient(): Promise<AgentMail> {
+export async function getAgentMailClient(): Promise<AgentMailClient> {
   const { apiKey } = await getCredentials();
-  return new AgentMail({
-    baseUrl: "https://api.agentmail.to",
+  return new AgentMailClient({
     apiKey: apiKey
   });
 }

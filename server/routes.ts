@@ -2109,15 +2109,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? `${user.firstName} ${user.lastName || ''}`.trim() 
             : 'FlowLoan User';
           
-          const newInbox = await client.inboxes.create({
+          const response = await client.inboxes.create({
             name: displayName,
           });
+          const newInbox = response.body;
           
           // Save inbox to our database
           inbox = await storage.createEmailInbox({
             userId,
             inboxId: newInbox.id,
-            emailAddress: newInbox.email_address,
+            emailAddress: newInbox.emailAddress,
             displayName,
           });
         } catch (error) {
@@ -2158,7 +2159,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const client = await getAgentMailClient();
       
       // Fetch messages from AgentMail
-      const messages = await client.inboxes.messages.list(inbox.inboxId);
+      const messagesResponse = await client.inboxes.messages.list(inbox.inboxId);
+      const messages = messagesResponse.body;
       
       // Sync each message to our database
       let syncedCount = 0;
@@ -2169,17 +2171,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.createEmailMessage({
             inboxId: inbox.id,
             messageId: message.id,
-            threadId: message.thread_id || null,
+            threadId: message.threadId || null,
             fromAddress: message.from?.address || 'unknown',
             toAddresses: message.to?.map((t: any) => t.address) || [],
             ccAddresses: message.cc?.map((c: any) => c.address) || [],
             subject: message.subject || '',
-            textBody: message.body_text || null,
-            htmlBody: message.body_html || null,
+            textBody: message.bodyText || null,
+            htmlBody: message.bodyHtml || null,
             direction: message.direction || 'inbound',
             isRead: 0,
             attachments: message.attachments || [],
-            sentAt: new Date(message.created_at),
+            sentAt: new Date(message.createdAt),
           });
           syncedCount++;
         }
@@ -2261,19 +2263,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
       
       // Send the email via AgentMail
-      const sentMessage = await client.inboxes.messages.create(inbox.inboxId, {
+      const sendResponse = await client.inboxes.messages.create(inbox.inboxId, {
         to: toAddresses.map((addr: string) => ({ address: addr })),
         cc: ccAddresses.map((addr: string) => ({ address: addr })),
         subject,
-        body_text: body,
-        reply_to_message_id: replyToMessageId || undefined,
+        bodyText: body,
+        replyToMessageId: replyToMessageId || undefined,
       });
+      const sentMessage = sendResponse.body;
       
       // Save to our database
       const savedMessage = await storage.createEmailMessage({
         inboxId: inbox.id,
         messageId: sentMessage.id,
-        threadId: sentMessage.thread_id || null,
+        threadId: sentMessage.threadId || null,
         contactId: contactId ? parseInt(contactId) : null,
         prospectId: prospectId ? parseInt(prospectId) : null,
         fromAddress: inbox.emailAddress,
