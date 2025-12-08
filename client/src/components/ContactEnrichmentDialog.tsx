@@ -53,7 +53,7 @@ export function ContactEnrichmentDialog({
 
   const enrichMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/contacts/${contact.id}/enrich`);
+      const response = await apiRequest(`/api/contacts/${contact.id}/enrich`, "POST");
       return response.json();
     },
     onSuccess: (data: EnrichmentResult) => {
@@ -66,7 +66,7 @@ export function ContactEnrichmentDialog({
 
   const updateContactMutation = useMutation({
     mutationFn: async (updates: { email?: string; phone?: string }) => {
-      const response = await apiRequest("PATCH", `/api/contacts/${contact.id}`, updates);
+      const response = await apiRequest(`/api/contacts/${contact.id}`, "PATCH", updates);
       return response.json();
     },
     onSuccess: () => {
