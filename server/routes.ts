@@ -2112,13 +2112,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const response = await client.inboxes.create({
             name: displayName,
           });
-          const newInbox = response.body;
+          
+          // Debug: log the response structure
+          console.log("AgentMail create response:", JSON.stringify(response, null, 2));
+          
+          // The SDK might return the inbox directly or wrapped
+          const newInbox = response.body || response;
+          console.log("New inbox object:", JSON.stringify(newInbox, null, 2));
           
           // Save inbox to our database
           inbox = await storage.createEmailInbox({
             userId,
             inboxId: newInbox.id,
-            emailAddress: newInbox.emailAddress,
+            emailAddress: newInbox.emailAddress || newInbox.email_address,
             displayName,
           });
         } catch (error) {
