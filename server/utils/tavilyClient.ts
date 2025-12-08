@@ -121,8 +121,9 @@ export async function searchContactInfo(
     
     // Email regex pattern
     const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    // LinkedIn URL pattern
-    const linkedinPattern = /linkedin\.com\/in\/[a-zA-Z0-9-]+/g;
+    // LinkedIn URL patterns - match various LinkedIn profile URL formats
+    // Includes /in/, /pub/, company pages, and profiles with locales
+    const linkedinPattern = /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/(?:in|pub|profile\/view|company)\/[a-zA-Z0-9_-]+\/?[a-zA-Z0-9_?=&-]*/gi;
     
     // UK phone patterns - recognize common UK phone formats
     // UK mobiles: 07xxx xxxxxx, +44 7xxx xxxxxx
@@ -168,10 +169,19 @@ export async function searchContactInfo(
       
       // Extract LinkedIn URLs
       const foundLinkedin = content.match(linkedinPattern) || [];
-      foundLinkedin.forEach((l: string) => linkedinUrls.add('https://' + l));
+      foundLinkedin.forEach((l: string) => {
+        // Normalize URL - ensure it starts with https://
+        let url = l.trim();
+        if (!url.startsWith('http')) {
+          url = 'https://' + url;
+        }
+        // Remove trailing slashes and clean up
+        url = url.replace(/\/+$/, '');
+        linkedinUrls.add(url);
+      });
       
       // Also check if the URL itself is a LinkedIn profile
-      if (result.url.includes('linkedin.com/in/')) {
+      if (result.url.includes('linkedin.com/')) {
         linkedinUrls.add(result.url);
       }
       
