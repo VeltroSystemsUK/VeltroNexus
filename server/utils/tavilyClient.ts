@@ -87,15 +87,21 @@ export async function searchContactInfo(
     ? `"${cleanName}" AND "${cleanCompany}" (email OR contact OR phone OR mobile OR director)`
     : `"${cleanName}" (email OR contact OR phone OR mobile OR director)`;
   
-  // Step 2: Specific LinkedIn search - search company first, then person
-  // This helps find the right person within the company's LinkedIn page/connections
-  const linkedinQuery = cleanCompany
-    ? `site:linkedin.com "${cleanCompany}" "${cleanName}"`
-    : `site:linkedin.com "${cleanName}"`;
+  // Step 2: LinkedIn searches - find company page and people
+  // Search for the specific person at the company
+  const linkedinPersonQuery = cleanCompany
+    ? `site:linkedin.com/in "${cleanName}" "${cleanCompany}"`
+    : `site:linkedin.com/in "${cleanName}"`;
+  
+  // Search for company page and associated people/employees
+  const linkedinCompanyQuery = cleanCompany
+    ? `site:linkedin.com "${cleanCompany}" (people OR employees OR team OR staff)`
+    : null;
   
   try {
-    // Run both searches in parallel
-    const [generalResponse, linkedinResponse] = await Promise.all([
+    // Run all searches in parallel
+    const searchPromises = [
+      // General contact info search
       fetch(BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -109,12 +115,13 @@ export async function searchContactInfo(
           exclude_domains: ["linkedin.com"]
         })
       }),
+      // LinkedIn person search
       fetch(BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           api_key: apiKey,
-          query: linkedinQuery,
+          query: linkedinPersonQuery,
           search_depth: "advanced",
           include_answer: false,
           max_results: 5,
@@ -122,19 +129,44 @@ export async function searchContactInfo(
           exclude_domains: []
         })
       })
-    ]);
+    ];
+    
+    // Add company LinkedIn search if we have a company name
+    if (linkedinCompanyQuery) {
+      searchPromises.push(
+        fetch(BASE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_key: apiKey,
+            query: linkedinCompanyQuery,
+            search_depth: "advanced",
+            include_answer: false,
+            max_results: 5,
+            include_domains: ["linkedin.com"],
+            exclude_domains: []
+          })
+        })
+      );
+    }
+    
+    const responses = await Promise.all(searchPromises);
 
-    if (!generalResponse.ok || !linkedinResponse.ok) {
-      throw new Error(`Tavily API Error`);
+    for (const response of responses) {
+      if (!response.ok) {
+        throw new Error(`Tavily API Error`);
+      }
     }
 
-    const [generalData, linkedinData] = await Promise.all([
-      generalResponse.json(),
-      linkedinResponse.json()
-    ]);
+    const dataResults = await Promise.all(responses.map(r => r.json()));
     
-    // Combine results from both searches
-    const results = [...(generalData.results || []), ...(linkedinData.results || [])];
+    // Combine results from all searches
+    const results: TavilyResult[] = [];
+    for (const data of dataResults) {
+      if (data.results) {
+        results.push(...data.results);
+      }
+    }
     
     // Extract emails, phones, and LinkedIn URLs from results
     const emails = new Set<string>();
