@@ -92,24 +92,13 @@ export async function searchContactInfo(
     ? `"${cleanName}" AND "${cleanCompany}" (email OR contact OR phone OR mobile OR director)`
     : `"${cleanName}" (email OR contact OR phone OR mobile OR director)`;
   
-  // Step 2: LinkedIn searches - find company page and people
-  // Search for the specific person at the company (use cleaned name without Ltd/Limited)
-  const linkedinPersonQuery = linkedinCompanyName
-    ? `site:linkedin.com/in "${cleanName}" "${linkedinCompanyName}"`
-    : `site:linkedin.com/in "${cleanName}"`;
-  
-  // Search specifically for the company's LinkedIn page
-  const linkedinCompanyPageQuery = linkedinCompanyName
+  // Step 2: LinkedIn search - only search for company page
+  const linkedinCompanyQuery = linkedinCompanyName
     ? `site:linkedin.com/company "${linkedinCompanyName}"`
     : null;
   
-  // Search for people/employees at the company on LinkedIn
-  const linkedinPeopleQuery = linkedinCompanyName
-    ? `site:linkedin.com/in "${linkedinCompanyName}"`
-    : null;
-  
   try {
-    // Run all searches in parallel
+    // Run searches in parallel
     const searchPromises: Promise<Response>[] = [
       // General contact info search
       fetch(BASE_URL, {
@@ -120,55 +109,22 @@ export async function searchContactInfo(
           query: generalQuery,
           search_depth: "advanced",
           include_answer: false,
-          max_results: 8,
+          max_results: 10,
           include_domains: ["companieshouse.gov.uk", "endole.co.uk", "duedil.com", "companycheck.co.uk"],
           exclude_domains: ["linkedin.com"]
-        })
-      }),
-      // LinkedIn person search - specific person at the company
-      fetch(BASE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          api_key: apiKey,
-          query: linkedinPersonQuery,
-          search_depth: "advanced",
-          include_answer: false,
-          max_results: 5,
-          include_domains: ["linkedin.com"],
-          exclude_domains: []
         })
       })
     ];
     
-    // Add company page search if we have a company name
-    if (linkedinCompanyPageQuery) {
+    // Add LinkedIn company page search if we have a company name
+    if (linkedinCompanyQuery) {
       searchPromises.push(
         fetch(BASE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             api_key: apiKey,
-            query: linkedinCompanyPageQuery,
-            search_depth: "advanced",
-            include_answer: false,
-            max_results: 3,
-            include_domains: ["linkedin.com"],
-            exclude_domains: []
-          })
-        })
-      );
-    }
-    
-    // Add people at company search if we have a company name
-    if (linkedinPeopleQuery) {
-      searchPromises.push(
-        fetch(BASE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            api_key: apiKey,
-            query: linkedinPeopleQuery,
+            query: linkedinCompanyQuery,
             search_depth: "advanced",
             include_answer: false,
             max_results: 5,
@@ -206,9 +162,8 @@ export async function searchContactInfo(
     
     // Email regex pattern
     const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    // LinkedIn URL pattern - match personal profile URLs
-    // Format: linkedin.com/in/username or linkedin.com/pub/name/etc
-    const linkedinPattern = /linkedin\.com\/in\/[a-zA-Z0-9_-]+/gi;
+    // LinkedIn URL pattern - match company pages
+    const linkedinPattern = /linkedin\.com\/company\/[a-zA-Z0-9_-]+/gi;
     
     // UK phone patterns - recognize common UK phone formats
     // UK mobiles: 07xxx xxxxxx, +44 7xxx xxxxxx
@@ -260,8 +215,8 @@ export async function searchContactInfo(
         linkedinUrls.add(url);
       });
       
-      // Also check if the URL itself is a LinkedIn profile
-      if (result.url.includes('linkedin.com/in/')) {
+      // Also check if the URL itself is a LinkedIn company page
+      if (result.url.includes('linkedin.com/company/')) {
         linkedinUrls.add(result.url);
       }
       
