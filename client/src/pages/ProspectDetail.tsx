@@ -230,7 +230,7 @@ export default function ProspectDetail() {
             <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
             <TabsTrigger value="activity" data-testid="tab-activity">Activity</TabsTrigger>
             {user?.subscriptionTier !== "free" && (
-              <TabsTrigger value="diligence" data-testid="tab-diligence">Due Diligence</TabsTrigger>
+              <TabsTrigger value="diligence" data-testid="tab-diligence">Credit</TabsTrigger>
             )}
             {user?.subscriptionTier === "premium" && (
               <TabsTrigger value="associations" data-testid="tab-associations">Associations & Media</TabsTrigger>
