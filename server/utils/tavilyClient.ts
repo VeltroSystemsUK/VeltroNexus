@@ -82,8 +82,11 @@ export async function searchContactInfo(
   const cleanName = personName.replace(/"/g, '');
   const cleanCompany = companyName?.replace(/"/g, '') || '';
   
-  // Build search query for contact information
-  const query = `"${cleanName}" ${cleanCompany ? `"${cleanCompany}"` : ''} (email OR "contact" OR phone OR mobile OR linkedin OR "director")`;
+  // Build search query tying contact name to company name together
+  // Use AND to ensure results contain both the person AND the company
+  const query = cleanCompany 
+    ? `"${cleanName}" AND "${cleanCompany}" (email OR contact OR phone OR mobile OR linkedin OR director)`
+    : `"${cleanName}" (email OR contact OR phone OR mobile OR linkedin OR director)`;
   
   try {
     const response = await fetch(BASE_URL, {

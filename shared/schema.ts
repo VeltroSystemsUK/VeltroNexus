@@ -81,6 +81,7 @@ export const contacts = pgTable("contacts", {
   role: text("role"),
   isPrimary: integer("is_primary").default(0),
   profilePicture: text("profile_picture"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

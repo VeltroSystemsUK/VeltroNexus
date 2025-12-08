@@ -1198,14 +1198,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Could not search email inbox:", emailError);
       }
       
+      // Build search notes from all results
+      const searchDate = new Date().toISOString().split('T')[0];
+      let searchNotes = `--- Web Search Results (${searchDate}) ---\n`;
+      searchNotes += `Search: "${contact.name}" at "${companyName}"\n\n`;
+      
+      if (webResults.emails.length > 0) {
+        searchNotes += `Found Emails:\n${webResults.emails.map(e => `  - ${e}`).join('\n')}\n\n`;
+      }
+      if (webResults.phones.length > 0) {
+        searchNotes += `Found Phone Numbers:\n${webResults.phones.map(p => `  - ${p}`).join('\n')}\n\n`;
+      }
+      if (webResults.linkedinUrls.length > 0) {
+        searchNotes += `LinkedIn Profiles:\n${webResults.linkedinUrls.map(l => `  - ${l}`).join('\n')}\n\n`;
+      }
+      if (webResults.sources.length > 0) {
+        searchNotes += `Sources:\n${webResults.sources.slice(0, 5).map(s => `  - ${s.title}: ${s.url}`).join('\n')}\n\n`;
+      }
+      if (emailResults.length > 0) {
+        searchNotes += `Related Emails in Inbox:\n${emailResults.slice(0, 5).map(e => `  - ${e.subject} (from: ${e.from})`).join('\n')}\n`;
+      }
+      
       res.json({
         contact: {
           id: contact.id,
           name: contact.name,
           currentEmail: contact.email,
           currentPhone: contact.phone,
-          currentProfilePicture: contact.profilePicture
+          currentProfilePicture: contact.profilePicture,
+          currentNotes: contact.notes
         },
+        companyName: companyName,
+        searchNotes: searchNotes,
         webSearch: {
           emails: webResults.emails,
           phones: webResults.phones,

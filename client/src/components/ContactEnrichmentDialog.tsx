@@ -24,7 +24,10 @@ interface EnrichmentResult {
     currentEmail: string | null;
     currentPhone: string | null;
     currentProfilePicture: string | null;
+    currentNotes: string | null;
   };
+  companyName: string;
+  searchNotes: string;
   webSearch: {
     emails: string[];
     phones: string[];
@@ -79,7 +82,7 @@ export function ContactEnrichmentDialog({
   });
 
   const updateContactMutation = useMutation({
-    mutationFn: async (updates: { email?: string; phone?: string; profilePicture?: string }) => {
+    mutationFn: async (updates: { email?: string; phone?: string; profilePicture?: string; notes?: string }) => {
       const response = await apiRequest(`/api/contacts/${contact.id}`, "PATCH", updates);
       return response.json();
     },
@@ -102,7 +105,7 @@ export function ContactEnrichmentDialog({
   };
 
   const handleApply = () => {
-    const updates: { email?: string; phone?: string; profilePicture?: string } = {};
+    const updates: { email?: string; phone?: string; profilePicture?: string; notes?: string } = {};
     if (selectedEmail) {
       updates.email = selectedEmail;
     }
@@ -111,6 +114,13 @@ export function ContactEnrichmentDialog({
     }
     if (selectedProfileImage) {
       updates.profilePicture = selectedProfileImage;
+    }
+    // Always append search notes when applying any changes
+    if (result?.searchNotes) {
+      const existingNotes = result.contact.currentNotes || '';
+      updates.notes = existingNotes 
+        ? `${existingNotes}\n\n${result.searchNotes}`
+        : result.searchNotes;
     }
     if (Object.keys(updates).length > 0) {
       updateContactMutation.mutate(updates);
@@ -129,6 +139,7 @@ export function ContactEnrichmentDialog({
           </DialogTitle>
           <DialogDescription>
             Search the web and your email inbox for contact information for {contact.name}
+            {result?.companyName && ` at ${result.companyName}`}
           </DialogDescription>
         </DialogHeader>
 
