@@ -92,9 +92,10 @@ export async function searchContactInfo(
     ? `"${cleanName}" AND "${cleanCompany}" (email OR contact OR phone OR mobile OR director)`
     : `"${cleanName}" (email OR contact OR phone OR mobile OR director)`;
   
-  // Step 2: LinkedIn search - only search for company page
+  // Step 2: LinkedIn search - search for company LinkedIn references across the web
+  // Since LinkedIn blocks direct crawling, we search for references to the company's LinkedIn
   const linkedinCompanyQuery = linkedinCompanyName
-    ? `site:linkedin.com/company "${linkedinCompanyName}"`
+    ? `"${linkedinCompanyName}" linkedin company`
     : null;
   
   try {
@@ -116,7 +117,7 @@ export async function searchContactInfo(
       })
     ];
     
-    // Add LinkedIn company page search if we have a company name
+    // Add LinkedIn company search - search across all sites for LinkedIn references
     if (linkedinCompanyQuery) {
       searchPromises.push(
         fetch(BASE_URL, {
@@ -128,7 +129,7 @@ export async function searchContactInfo(
             search_depth: "advanced",
             include_answer: false,
             max_results: 5,
-            include_domains: ["linkedin.com"],
+            include_domains: [],
             exclude_domains: []
           })
         })
@@ -162,8 +163,9 @@ export async function searchContactInfo(
     
     // Email regex pattern
     const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    // LinkedIn URL pattern - match company pages
-    const linkedinPattern = /linkedin\.com\/company\/[a-zA-Z0-9_-]+/gi;
+    // LinkedIn URL pattern - match company pages and profile pages
+    const linkedinCompanyPattern = /linkedin\.com\/company\/[a-zA-Z0-9_-]+/gi;
+    const linkedinProfilePattern = /linkedin\.com\/in\/[a-zA-Z0-9_-]+/gi;
     
     // UK phone patterns - recognize common UK phone formats
     // UK mobiles: 07xxx xxxxxx, +44 7xxx xxxxxx
@@ -207,16 +209,22 @@ export async function searchContactInfo(
         }
       });
       
-      // Extract LinkedIn URLs
-      const foundLinkedin = content.match(linkedinPattern) || [];
-      foundLinkedin.forEach((l: string) => {
-        // Ensure URL starts with https://
+      // Extract LinkedIn company URLs
+      const foundCompanyUrls = content.match(linkedinCompanyPattern) || [];
+      foundCompanyUrls.forEach((l: string) => {
         const url = 'https://' + l.toLowerCase();
         linkedinUrls.add(url);
       });
       
-      // Also check if the URL itself is a LinkedIn company page
-      if (result.url.includes('linkedin.com/company/')) {
+      // Extract LinkedIn profile URLs
+      const foundProfileUrls = content.match(linkedinProfilePattern) || [];
+      foundProfileUrls.forEach((l: string) => {
+        const url = 'https://' + l.toLowerCase();
+        linkedinUrls.add(url);
+      });
+      
+      // Also check if the URL itself is a LinkedIn page
+      if (result.url.includes('linkedin.com/company/') || result.url.includes('linkedin.com/in/')) {
         linkedinUrls.add(result.url);
       }
       
