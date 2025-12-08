@@ -18,7 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Building2, TrendingUp, Search, MapPin, Users, Hash, Briefcase, UserSearch, PenLine } from "lucide-react";
+import { ArrowLeft, Building2, TrendingUp, Search, MapPin, Users, Hash, Briefcase, UserSearch, PenLine, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import ThemeToggle from "@/components/ThemeToggle";
 
 interface CompanySearchResult {
@@ -90,6 +91,10 @@ export default function CompanySearch() {
   const [officerAppointments, setOfficerAppointments] = useState<OfficerAppointment[]>([]);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   
+  // Search filters
+  const [hideDissolvedCompanies, setHideDissolvedCompanies] = useState(true);
+  const [searchLimit, setSearchLimit] = useState<string>("50");
+  
   // Form state (shared between search selection and manual entry)
   const [companyName, setCompanyName] = useState("");
   const [companyNumber, setCompanyNumber] = useState("");
@@ -101,17 +106,20 @@ export default function CompanySearch() {
 
   // Company search query
   const { data: companyResults, refetch: searchCompanies, isFetching: isSearchingCompanies } = useQuery<{ items: CompanySearchResult[] }>({
-    queryKey: ["/api/companies-house/search", searchQuery, searchType],
+    queryKey: ["/api/companies-house/search", searchQuery, searchType, hideDissolvedCompanies, searchLimit],
     queryFn: async () => {
-      let url = `/api/companies-house/search?q=${encodeURIComponent(searchQuery)}`;
+      const limit = parseInt(searchLimit) || 50;
+      const activeOnly = hideDissolvedCompanies ? "&active_only=true" : "";
+      
+      let url = `/api/companies-house/search?q=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
       
       // Add search type specific parameters
       if (searchType === "sic") {
-        url = `/api/companies-house/advanced-search?sic_codes=${encodeURIComponent(searchQuery)}`;
+        url = `/api/companies-house/advanced-search?sic_codes=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
       } else if (searchType === "location") {
-        url = `/api/companies-house/advanced-search?location=${encodeURIComponent(searchQuery)}`;
+        url = `/api/companies-house/advanced-search?location=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
       } else if (searchType === "postcode") {
-        url = `/api/companies-house/advanced-search?postcode=${encodeURIComponent(searchQuery)}`;
+        url = `/api/companies-house/advanced-search?postcode=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
       }
       
       const response = await fetch(url, { credentials: "include" });
@@ -517,6 +525,38 @@ export default function CompanySearch() {
                     {getSearchHint() && (
                       <p className="text-xs text-muted-foreground">{getSearchHint()}</p>
                     )}
+                  </div>
+                  
+                  {/* Search Filters */}
+                  <div className="flex flex-wrap items-center gap-4 pt-2 border-t">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="hide-dissolved"
+                        checked={hideDissolvedCompanies}
+                        onCheckedChange={(checked) => setHideDissolvedCompanies(checked === true)}
+                        data-testid="checkbox-hide-dissolved"
+                      />
+                      <label 
+                        htmlFor="hide-dissolved" 
+                        className="text-sm cursor-pointer"
+                      >
+                        Hide dissolved companies
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="search-limit" className="text-sm whitespace-nowrap">Max results:</Label>
+                      <Select value={searchLimit} onValueChange={setSearchLimit}>
+                        <SelectTrigger className="w-20 h-8" id="search-limit" data-testid="select-search-limit">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="20">20</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </form>
 

@@ -271,6 +271,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/companies-house/search", isAuthenticated, async (req, res) => {
     try {
       const query = req.query.q as string;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100); // Max 100 per API
+      const activeOnly = req.query.active_only === "true";
+      
       if (!query || query.trim().length === 0) {
         return res.status(400).json({ error: "Search query is required" });
       }
@@ -289,10 +292,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const authString = `${trimmedApiKey}:`;
       const base64Auth = Buffer.from(authString).toString('base64');
       
-      console.log(`Searching Companies House for: "${query}"`);
+      console.log(`Searching Companies House for: "${query}" (limit: ${limit}, activeOnly: ${activeOnly})`);
       
       const response = await fetch(
-        `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(query)}&items_per_page=20`,
+        `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(query)}&items_per_page=${limit}`,
         {
           headers: {
             'Authorization': `Basic ${base64Auth}`,
@@ -309,6 +312,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const data = await response.json();
+      
+      // Filter out dissolved companies if activeOnly is true
+      if (activeOnly && data.items) {
+        data.items = data.items.filter((company: any) => 
+          company.company_status !== "dissolved" && 
+          company.company_status !== "removed" &&
+          company.company_status !== "closed"
+        );
+      }
+      
       console.log(`Found ${data.items?.length || 0} companies`);
       res.json(data);
     } catch (error: any) {
@@ -321,6 +334,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/companies-house/advanced-search", isAuthenticated, async (req, res) => {
     try {
       const { sic_codes, location, postcode } = req.query;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const activeOnly = req.query.active_only === "true";
       
       const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
       if (!apiKey) {
@@ -333,28 +348,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use Advanced Search API which supports proper filtering
       // Documentation: https://developer-specs.company-information.service.gov.uk/companies-house-public-data-api/reference/search/advanced-company-search
       const params = new URLSearchParams();
-      params.append('size', '20');
+      params.append('size', limit.toString());
       
       if (sic_codes) {
         // Filter by SIC code
         params.append('sic_codes', sic_codes as string);
-        console.log(`Advanced search by SIC code: ${sic_codes}`);
+        console.log(`Advanced search by SIC code: ${sic_codes} (limit: ${limit})`);
       } else if (location) {
         // Filter by location (town/city in registered address)
         params.append('location', location as string);
-        console.log(`Advanced search by location: ${location}`);
+        console.log(`Advanced search by location: ${location} (limit: ${limit})`);
       } else if (postcode) {
         // Filter by postcode (registered office address)
         // Format postcode: remove spaces and convert to uppercase
         const formattedPostcode = (postcode as string).replace(/\s+/g, '').toUpperCase();
         params.append('location', formattedPostcode);
-        console.log(`Advanced search by postcode: ${formattedPostcode}`);
+        console.log(`Advanced search by postcode: ${formattedPostcode} (limit: ${limit})`);
       } else {
         return res.status(400).json({ error: "At least one search parameter required" });
       }
 
-      // Only search active companies by default
-      params.append('company_status', 'active');
+      // Only search active companies if filter is enabled
+      if (activeOnly) {
+        params.append('company_status', 'active');
+      }
       
       const url = `https://api.company-information.service.gov.uk/advanced-search/companies?${params.toString()}`;
       console.log(`Advanced search URL: ${url}`);
