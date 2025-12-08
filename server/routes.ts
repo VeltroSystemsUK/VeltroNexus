@@ -1192,7 +1192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get company name for search context
       const company = await storage.getCompany(prospect.companyId);
-      const companyName = company?.name || '';
+      const companyName = company?.companyName || '';
       
       // Search the web for contact info using Tavily
       const { searchContactInfo } = await import("./utils/tavilyClient");
