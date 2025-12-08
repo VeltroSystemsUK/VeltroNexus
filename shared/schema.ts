@@ -134,6 +134,37 @@ export const applicationSubmissions = pgTable("application_submissions", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Email Inboxes - Each user gets their own AgentMail inbox
+export const emailInboxes = pgTable("email_inboxes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  inboxId: varchar("inbox_id").notNull().unique(),
+  emailAddress: varchar("email_address").notNull(),
+  displayName: varchar("display_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Email Messages - Stored locally for quick access
+export const emailMessages = pgTable("email_messages", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  inboxId: integer("inbox_id").notNull().references(() => emailInboxes.id, { onDelete: "cascade" }),
+  messageId: varchar("message_id").notNull().unique(),
+  threadId: varchar("thread_id"),
+  contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+  prospectId: integer("prospect_id").references(() => prospects.id, { onDelete: "set null" }),
+  fromAddress: varchar("from_address").notNull(),
+  toAddresses: jsonb("to_addresses").notNull().default('[]'),
+  ccAddresses: jsonb("cc_addresses").default('[]'),
+  subject: text("subject"),
+  textBody: text("text_body"),
+  htmlBody: text("html_body"),
+  direction: varchar("direction").notNull().default("inbound"),
+  isRead: integer("is_read").default(0),
+  attachments: jsonb("attachments").default('[]'),
+  sentAt: timestamp("sent_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const prospectsRelations = relations(prospects, ({ one, many }) => ({
   user: one(users, {
     fields: [prospects.userId],
@@ -200,6 +231,30 @@ export const usersRelations = relations(users, ({ many }) => ({
   prospects: many(prospects),
   lenders: many(lenders),
   applicationSubmissions: many(applicationSubmissions),
+  emailInboxes: many(emailInboxes),
+}));
+
+export const emailInboxesRelations = relations(emailInboxes, ({ one, many }) => ({
+  user: one(users, {
+    fields: [emailInboxes.userId],
+    references: [users.id],
+  }),
+  messages: many(emailMessages),
+}));
+
+export const emailMessagesRelations = relations(emailMessages, ({ one }) => ({
+  inbox: one(emailInboxes, {
+    fields: [emailMessages.inboxId],
+    references: [emailInboxes.id],
+  }),
+  contact: one(contacts, {
+    fields: [emailMessages.contactId],
+    references: [contacts.id],
+  }),
+  prospect: one(prospects, {
+    fields: [emailMessages.prospectId],
+    references: [prospects.id],
+  }),
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
@@ -313,6 +368,21 @@ export type InsertLender = z.infer<typeof insertLenderSchema>;
 export type Lender = typeof lenders.$inferSelect;
 export type InsertApplicationSubmission = z.infer<typeof insertApplicationSubmissionSchema>;
 export type ApplicationSubmission = typeof applicationSubmissions.$inferSelect;
+
+export const insertEmailInboxSchema = createInsertSchema(emailInboxes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEmailMessageSchema = createInsertSchema(emailMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertEmailInbox = z.infer<typeof insertEmailInboxSchema>;
+export type EmailInbox = typeof emailInboxes.$inferSelect;
+export type InsertEmailMessage = z.infer<typeof insertEmailMessageSchema>;
+export type EmailMessage = typeof emailMessages.$inferSelect;
 
 export const checklistItemSchema = z.object({
   sectionId: z.string(),
