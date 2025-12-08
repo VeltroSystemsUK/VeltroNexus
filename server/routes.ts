@@ -2098,38 +2098,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let inbox = await storage.getEmailInbox(userId);
       
       if (!inbox) {
-        // Create a new inbox for this user using AgentMail
+        // Create or retrieve inbox for this user using AgentMail
         try {
           const { getAgentMailClient } = await import("./agentmail");
           const client = await getAgentMailClient();
           
-          // Create an inbox with a unique name for this user
           const user = await storage.getUser(userId);
           const displayName = user?.firstName 
             ? `${user.firstName} ${user.lastName || ''}`.trim() 
             : 'FlowLoan User';
           
-          const response = await client.inboxes.create({
-            name: displayName,
-          });
+          let agentMailInbox: any = null;
           
-          // Debug: log the response structure
-          console.log("AgentMail create response:", JSON.stringify(response, null, 2));
+          // First try to list existing inboxes
+          try {
+            const listResponse = await client.inboxes.list();
+            const inboxes: any[] = [];
+            for await (const item of listResponse) {
+              inboxes.push(item);
+            }
+            
+            if (inboxes.length > 0) {
+              // Use the first available inbox
+              agentMailInbox = inboxes[0];
+              console.log("Using existing AgentMail inbox:", agentMailInbox.id);
+            }
+          } catch (listError) {
+            console.log("Could not list inboxes, will try to create:", listError);
+          }
           
-          // The SDK might return the inbox directly or wrapped
-          const newInbox = response.body || response;
-          console.log("New inbox object:", JSON.stringify(newInbox, null, 2));
+          // If no existing inbox, try to create one
+          if (!agentMailInbox) {
+            try {
+              const createResponse = await client.inboxes.create({
+                name: displayName,
+              });
+              agentMailInbox = createResponse.body || createResponse;
+              console.log("Created new AgentMail inbox:", agentMailInbox.id);
+            } catch (createError: any) {
+              // If limit exceeded, we already checked for existing inboxes
+              console.error("Error creating inbox:", createError);
+              return res.status(500).json({ error: "Failed to create email inbox. AgentMail inbox limit may be exceeded." });
+            }
+          }
           
           // Save inbox to our database
           inbox = await storage.createEmailInbox({
             userId,
-            inboxId: newInbox.id,
-            emailAddress: newInbox.emailAddress || newInbox.email_address,
+            inboxId: agentMailInbox.id,
+            emailAddress: agentMailInbox.emailAddress || agentMailInbox.email_address,
             displayName,
           });
         } catch (error) {
-          console.error("Error creating AgentMail inbox:", error);
-          return res.status(500).json({ error: "Failed to create email inbox. Please ensure AgentMail is configured." });
+          console.error("Error setting up AgentMail inbox:", error);
+          return res.status(500).json({ error: "Failed to set up email inbox. Please ensure AgentMail is configured." });
         }
       }
       
