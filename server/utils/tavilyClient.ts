@@ -82,77 +82,33 @@ export async function searchContactInfo(
   const cleanName = personName.replace(/"/g, '');
   const cleanCompany = companyName?.replace(/"/g, '') || '';
   
-  // Clean company name for LinkedIn - remove legal suffixes like Ltd, Limited, PLC, LLP, etc.
-  const linkedinCompanyName = cleanCompany
-    .replace(/\s*(limited|ltd\.?|plc|llp|inc\.?|corp\.?|corporation|company|co\.?)\s*$/gi, '')
-    .trim();
-  
-  // Step 1: Search for the person at the company (general contact info)
+  // Build search query for general contact info
   const generalQuery = cleanCompany 
     ? `"${cleanName}" AND "${cleanCompany}" (email OR contact OR phone OR mobile OR director)`
     : `"${cleanName}" (email OR contact OR phone OR mobile OR director)`;
   
-  // Step 2: LinkedIn search - search for company LinkedIn references across the web
-  // Since LinkedIn blocks direct crawling, we search for references to the company's LinkedIn
-  const linkedinCompanyQuery = linkedinCompanyName
-    ? `"${linkedinCompanyName}" linkedin company`
-    : null;
-  
   try {
-    // Run searches in parallel
-    const searchPromises: Promise<Response>[] = [
-      // General contact info search
-      fetch(BASE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          api_key: apiKey,
-          query: generalQuery,
-          search_depth: "advanced",
-          include_answer: false,
-          max_results: 10,
-          include_domains: ["companieshouse.gov.uk", "endole.co.uk", "duedil.com", "companycheck.co.uk"],
-          exclude_domains: ["linkedin.com"]
-        })
+    // Single search for contact info - LinkedIn search removed (user uses manual workflow)
+    const response = await fetch(BASE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: generalQuery,
+        search_depth: "advanced",
+        include_answer: false,
+        max_results: 10,
+        include_domains: ["companieshouse.gov.uk", "endole.co.uk", "duedil.com", "companycheck.co.uk"],
+        exclude_domains: ["linkedin.com"]
       })
-    ];
-    
-    // Add LinkedIn company search - search across all sites for LinkedIn references
-    if (linkedinCompanyQuery) {
-      searchPromises.push(
-        fetch(BASE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            api_key: apiKey,
-            query: linkedinCompanyQuery,
-            search_depth: "advanced",
-            include_answer: false,
-            max_results: 5,
-            include_domains: [],
-            exclude_domains: []
-          })
-        })
-      );
-    }
-    
-    const responses = await Promise.all(searchPromises);
+    });
 
-    for (const response of responses) {
-      if (!response.ok) {
-        throw new Error(`Tavily API Error`);
-      }
+    if (!response.ok) {
+      throw new Error(`Tavily API Error: ${response.statusText}`);
     }
 
-    const dataResults = await Promise.all(responses.map(r => r.json()));
-    
-    // Combine results from all searches
-    const results: TavilyResult[] = [];
-    for (const data of dataResults) {
-      if (data.results) {
-        results.push(...data.results);
-      }
-    }
+    const data = await response.json();
+    const results: TavilyResult[] = data.results || [];
     
     // Extract emails, phones, and LinkedIn URLs from results
     const emails = new Set<string>();

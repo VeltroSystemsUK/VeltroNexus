@@ -248,34 +248,77 @@ export function ContactEnrichmentDialog({
                 </Card>
               )}
 
-              {/* LinkedIn URLs */}
-              {result.webSearch.linkedinUrls.length > 0 && (
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Linkedin className="h-4 w-4" />
-                      LinkedIn Profiles ({result.webSearch.linkedinUrls.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    <div className="space-y-2">
-                      {result.webSearch.linkedinUrls.map((url, i) => (
-                        <a
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-primary hover:underline"
-                          data-testid={`link-linkedin-${i}`}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          {url}
-                        </a>
-                      ))}
+              {/* LinkedIn Search - Manual workflow */}
+              <Card>
+                <CardHeader className="py-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Linkedin className="h-4 w-4" />
+                    Search LinkedIn
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-2">
+                  <p className="text-xs text-muted-foreground mb-3">
+                    LinkedIn blocks external search. Click below to search manually on LinkedIn.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const companyName = result.companyName
+                          .replace(/\s*(limited|ltd\.?|plc|llp|inc\.?|corp\.?)\s*$/gi, '')
+                          .trim();
+                        window.open(
+                          `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(companyName)}`,
+                          '_blank'
+                        );
+                      }}
+                      data-testid="button-linkedin-company-search"
+                    >
+                      <Linkedin className="h-4 w-4 mr-2" />
+                      Search Company
+                      <ExternalLink className="h-3 w-3 ml-2" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const searchQuery = `${contact.name} ${result.companyName.replace(/\s*(limited|ltd\.?|plc|llp|inc\.?|corp\.?)\s*$/gi, '').trim()}`;
+                        window.open(
+                          `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchQuery)}`,
+                          '_blank'
+                        );
+                      }}
+                      data-testid="button-linkedin-person-search"
+                    >
+                      <Linkedin className="h-4 w-4 mr-2" />
+                      Search Person
+                      <ExternalLink className="h-3 w-3 ml-2" />
+                    </Button>
+                  </div>
+                  {/* Show any LinkedIn URLs found */}
+                  {result.webSearch.linkedinUrls.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs text-muted-foreground mb-2">Found references:</p>
+                      <div className="space-y-1">
+                        {result.webSearch.linkedinUrls.map((url, i) => (
+                          <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-xs text-primary hover:underline"
+                            data-testid={`link-linkedin-${i}`}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            {url}
+                          </a>
+                        ))}
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Profile Pictures */}
               {result.webSearch.profileImages.length > 0 && (
