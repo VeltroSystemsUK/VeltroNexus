@@ -98,14 +98,19 @@ export async function searchContactInfo(
     ? `site:linkedin.com/in "${cleanName}" "${linkedinCompanyName}"`
     : `site:linkedin.com/in "${cleanName}"`;
   
-  // Search for company page and associated people/employees (use cleaned name without Ltd/Limited)
-  const linkedinCompanyQuery = linkedinCompanyName
-    ? `site:linkedin.com "${linkedinCompanyName}" (people OR employees OR team OR staff)`
+  // Search specifically for the company's LinkedIn page
+  const linkedinCompanyPageQuery = linkedinCompanyName
+    ? `site:linkedin.com/company "${linkedinCompanyName}"`
+    : null;
+  
+  // Search for people/employees at the company on LinkedIn
+  const linkedinPeopleQuery = linkedinCompanyName
+    ? `site:linkedin.com/in "${linkedinCompanyName}"`
     : null;
   
   try {
     // Run all searches in parallel
-    const searchPromises = [
+    const searchPromises: Promise<Response>[] = [
       // General contact info search
       fetch(BASE_URL, {
         method: 'POST',
@@ -120,7 +125,7 @@ export async function searchContactInfo(
           exclude_domains: ["linkedin.com"]
         })
       }),
-      // LinkedIn person search
+      // LinkedIn person search - specific person at the company
       fetch(BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -136,15 +141,34 @@ export async function searchContactInfo(
       })
     ];
     
-    // Add company LinkedIn search if we have a company name
-    if (linkedinCompanyQuery) {
+    // Add company page search if we have a company name
+    if (linkedinCompanyPageQuery) {
       searchPromises.push(
         fetch(BASE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             api_key: apiKey,
-            query: linkedinCompanyQuery,
+            query: linkedinCompanyPageQuery,
+            search_depth: "advanced",
+            include_answer: false,
+            max_results: 3,
+            include_domains: ["linkedin.com"],
+            exclude_domains: []
+          })
+        })
+      );
+    }
+    
+    // Add people at company search if we have a company name
+    if (linkedinPeopleQuery) {
+      searchPromises.push(
+        fetch(BASE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_key: apiKey,
+            query: linkedinPeopleQuery,
             search_depth: "advanced",
             include_answer: false,
             max_results: 5,
