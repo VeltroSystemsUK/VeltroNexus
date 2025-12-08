@@ -53,6 +53,7 @@ import {
 } from "@/components/DueDiligenceTools";
 import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
 import { CompanyInformation } from "@/components/CompanyInformation";
+import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 
 const STAGES = [
@@ -495,6 +496,18 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
   const [editPhone, setEditPhone] = useState("");
   const [editRole, setEditRole] = useState("");
 
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedContactForEmail, setSelectedContactForEmail] = useState<Contact | null>(null);
+
+  const handleOpenEmailDialog = (contact: Contact) => {
+    if (!contact.email) {
+      toast.error("This contact has no email address. Please add an email first.");
+      return;
+    }
+    setSelectedContactForEmail(contact);
+    setEmailDialogOpen(true);
+  };
+
   // Auto-sync officers on component mount
   const syncOfficersMutation = useMutation({
     mutationFn: () =>
@@ -832,6 +845,16 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => handleOpenEmailDialog(contact)}
+                        title={contact.email ? "Send email" : "No email address"}
+                        className={!contact.email ? "opacity-50" : ""}
+                        data-testid={`button-email-contact-${contact.id}`}
+                      >
+                        <Mail className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleStartEdit(contact)}
                         data-testid={`button-edit-contact-${contact.id}`}
                       >
@@ -852,6 +875,13 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
             ))}
           </div>
         )}
+
+        <EmailComposeDialog
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          contact={selectedContactForEmail}
+          prospectId={prospectId}
+        />
       </CardContent>
     </Card>
   );
