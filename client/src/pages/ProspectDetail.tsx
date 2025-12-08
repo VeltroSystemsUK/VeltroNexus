@@ -227,7 +227,7 @@ export default function ProspectDetail() {
           <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-5" : user?.subscriptionTier === "premium" ? "grid-cols-7" : "grid-cols-6"} mb-8`}>
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
             <TabsTrigger value="company" data-testid="tab-company">Company</TabsTrigger>
-            <TabsTrigger value="loan" data-testid="tab-loan">Loan Requirement</TabsTrigger>
+            <TabsTrigger value="loan" data-testid="tab-loan">Requirement</TabsTrigger>
             <TabsTrigger value="activity" data-testid="tab-activity">Activity</TabsTrigger>
             {user?.subscriptionTier !== "free" && (
               <TabsTrigger value="diligence" data-testid="tab-diligence">Credit</TabsTrigger>
@@ -490,6 +490,12 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
+  
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState("");
 
   const { data: officersData } = useQuery<any>({
     queryKey: [`/api/companies-house/company/${companyNumber}/officers`],
