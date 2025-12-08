@@ -40,7 +40,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import ThemeToggle from "@/components/ThemeToggle";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -510,16 +510,16 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
     },
   });
 
-  // Track if we've already attempted sync to prevent multiple syncs
-  const [hasSynced, setHasSynced] = useState(false);
+  // Track if we've already attempted sync to prevent multiple syncs (using ref to avoid re-renders)
+  const hasSyncedRef = useRef(false);
 
   // Auto-sync officers when component mounts (only once if no contacts exist)
   useEffect(() => {
-    if (companyNumber && contacts.length === 0 && !hasSynced && !syncOfficersMutation.isPending) {
-      setHasSynced(true);
+    if (companyNumber && contacts.length === 0 && !hasSyncedRef.current && !syncOfficersMutation.isPending) {
+      hasSyncedRef.current = true;
       syncOfficersMutation.mutate();
     }
-  }, [prospectId, companyNumber, contacts.length, hasSynced]);
+  }, [prospectId, companyNumber]);
 
   // Edit contact mutation
   const editContactMutation = useMutation({
