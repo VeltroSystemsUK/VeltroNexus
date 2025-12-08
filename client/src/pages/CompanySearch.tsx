@@ -352,7 +352,7 @@ export default function CompanySearch() {
                   <CardTitle>Search Companies House</CardTitle>
                 </div>
                 <CardDescription>
-                  Search UK registered companies by name, SIC code, location, postcode, or directors
+                  Search UK registered companies by name, SIC code, location, postcode, or director name
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -661,8 +661,8 @@ export default function CompanySearch() {
                       </SelectContent>
                     </Select>
                     {isUnregisteredType && (
-                      <p className="text-xs text-muted-foreground">
-                        No company registration number required for this business type
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Not registered with Companies House - a system reference will be generated
                       </p>
                     )}
                   </div>

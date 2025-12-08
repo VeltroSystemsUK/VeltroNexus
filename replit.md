@@ -29,6 +29,17 @@ The application features optimized mobile layouts for iOS and Android smartphone
 - **Compact Headers**: Headers and buttons adapt with smaller sizing on mobile (h-9 icons vs h-11 on desktop).
 
 ### Feature Specifications
+- **Add Prospect Page**: Split into two tabs for adding new prospects:
+  - **Search Companies House Tab**: Search UK registered companies using 5 search modes:
+    - Company Name/Number search
+    - SIC Code search (enter SIC code as search term)
+    - Town/City search (location-based text search)
+    - Postcode search (enter postcode as search term)
+    - Directors search (search officers by name, click to select their company)
+  - **Add Manually Tab**: Add any business type without Companies House lookup:
+    - Supports 6 business types: Limited Company (Ltd), PLC, LLP, Partnership, Sole Trader, CIC
+    - Company number is required only for registered types (Ltd, PLC, LLP, CIC)
+    - Partnerships and Sole Traders generate a system reference (UNREG-xxx-yyy format)
 - **Companies House Integration**: Allows searching and fetching UK Companies House company profiles to auto-populate data and display detailed company information, including officers, persons with significant control, and charges.
 - **Contacts Management**: The Contacts tab automatically syncs company officers from Companies House as editable contacts. Key features:
   - **Auto-sync Officers**: Officers are automatically imported when viewing a prospect, with names formatted as "First Middle Surname" (converted from Companies House "SURNAME, First Middle" format).
