@@ -3466,6 +3466,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Prospect Documents - List all documents for a prospect
+  app.get("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const documents = await storage.listProspectDocuments(prospectId);
+      res.json(documents);
+    } catch (error: any) {
+      console.error("Error fetching prospect documents:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Upload document for a prospect
+  app.post("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const chunks: Buffer[] = [];
+      
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      req.on('end', async () => {
+        try {
+          const body = Buffer.concat(chunks);
+          const contentType = req.headers['content-type'];
+          
+          if (!contentType?.startsWith('multipart/form-data')) {
+            return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+          }
+          
+          const boundaryMatch = contentType.match(/boundary=(.+)/);
+          if (!boundaryMatch) {
+            return res.status(400).json({ error: "Missing boundary in multipart data" });
+          }
+          
+          const boundary = boundaryMatch[1];
+          const parts = body.toString('binary').split(`--${boundary}`);
+          
+          let category = 'general';
+          let notes = '';
+          let uploadedDocument = null;
+          
+          for (const part of parts) {
+            // Parse category field
+            if (part.includes('name="category"') && !part.includes('filename=')) {
+              const contentStart = part.indexOf('\r\n\r\n') + 4;
+              const contentEnd = part.lastIndexOf('\r\n');
+              category = part.slice(contentStart, contentEnd).trim() || 'general';
+            }
+            
+            // Parse notes field
+            if (part.includes('name="notes"') && !part.includes('filename=')) {
+              const contentStart = part.indexOf('\r\n\r\n') + 4;
+              const contentEnd = part.lastIndexOf('\r\n');
+              notes = part.slice(contentStart, contentEnd).trim();
+            }
+            
+            // Parse file
+            if (part.includes('filename=')) {
+              const filenameMatch = part.match(/filename="([^"]+)"/);
+              const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/);
+              
+              if (filenameMatch) {
+                const fileName = filenameMatch[1];
+                const fileType = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
+                
+                const contentStart = part.indexOf('\r\n\r\n') + 4;
+                const contentEnd = part.lastIndexOf('\r\n');
+                const fileContent = Buffer.from(part.slice(contentStart, contentEnd), 'binary');
+                
+                const timestamp = Date.now();
+                const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const storagePath = `.private/documents/${prospectId}/${timestamp}_${sanitizedFileName}`;
+                
+                await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+                
+                uploadedDocument = await storage.createProspectDocument({
+                  prospectId,
+                  fileName,
+                  fileType,
+                  fileSize: fileContent.length,
+                  storagePath,
+                  category,
+                  notes: notes || null,
+                });
+              }
+            }
+          }
+          
+          if (!uploadedDocument) {
+            return res.status(400).json({ error: "No file uploaded" });
+          }
+          
+          res.status(201).json(uploadedDocument);
+        } catch (parseError: any) {
+          console.error("Error parsing document upload:", parseError);
+          res.status(500).json({ error: parseError.message });
+        }
+      });
+    } catch (error: any) {
+      console.error("Error uploading document:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Download a prospect document
+  app.get("/api/prospects/:prospectId/documents/:id/download", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      const documentId = parseInt(req.params.id);
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const document = await storage.getProspectDocument(documentId);
+      if (!document || document.prospectId !== prospectId) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const { data } = await getObjectStorage().downloadAsBytes(document.storagePath);
+      
+      res.setHeader('Content-Type', document.fileType);
+      res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+      res.send(Buffer.from(data));
+    } catch (error: any) {
+      console.error("Error downloading document:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete a prospect document
+  app.delete("/api/prospects/:prospectId/documents/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      const documentId = parseInt(req.params.id);
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const document = await storage.getProspectDocument(documentId);
+      if (!document || document.prospectId !== prospectId) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Delete from object storage
+      try {
+        await getObjectStorage().delete(document.storagePath);
+      } catch (storageError) {
+        console.error("Error deleting from storage (continuing):", storageError);
+      }
+      
+      // Delete from database
+      await storage.deleteProspectDocument(documentId);
+      
+      res.json({ message: "Document deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting document:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
