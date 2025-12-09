@@ -2906,6 +2906,318 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return parts.join(', ');
   }
 
+  // ============= UNDERWRITING SUBMISSIONS =============
+
+  // Middleware to check if user is an underwriter
+  const isUnderwriter = async (req: any, res: any, next: any) => {
+    if (!req.user?.claims?.sub) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const user = await storage.getUser(req.user.claims.sub);
+    if (!user || user.role !== 'underwriter') {
+      return res.status(403).json({ error: "Access denied. Underwriter role required." });
+    }
+    next();
+  };
+
+  // Get all underwriting submissions (for underwriters)
+  app.get("/api/underwriting/submissions", isAuthenticated, isUnderwriter, async (req: any, res) => {
+    try {
+      const { status, assigned } = req.query;
+      const userId = req.user.claims.sub;
+      
+      const filters: { status?: string; assignedUnderwriterId?: string } = {};
+      if (status) filters.status = status;
+      if (assigned === 'me') filters.assignedUnderwriterId = userId;
+      
+      const submissions = await storage.listUnderwritingSubmissions(filters);
+      res.json(submissions);
+    } catch (error: any) {
+      console.error("Error listing underwriting submissions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get broker's own underwriting submissions
+  app.get("/api/underwriting/my-submissions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
+      res.json(submissions);
+    } catch (error: any) {
+      console.error("Error listing broker submissions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single underwriting submission
+  app.get("/api/underwriting/submissions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const submission = await storage.getUnderwritingSubmission(id);
+      
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Brokers can only see their own submissions
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'underwriter' && submission.brokerId !== req.user.claims.sub) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(submission);
+    } catch (error: any) {
+      console.error("Error getting underwriting submission:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create underwriting submission (broker submits prospect for review)
+  app.post("/api/underwriting/submissions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { prospectId, priority, brokerComments } = req.body;
+      
+      if (!prospectId) {
+        return res.status(400).json({ error: "prospectId is required" });
+      }
+      
+      // Check if prospect exists and belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      // Check if there's already an active submission for this prospect
+      const existingSubmission = await storage.getUnderwritingSubmissionByProspect(prospectId);
+      if (existingSubmission && !['approved', 'declined', 'withdrawn'].includes(existingSubmission.status)) {
+        return res.status(409).json({ error: "This prospect already has an active underwriting submission" });
+      }
+      
+      // Create the submission
+      const submission = await storage.createUnderwritingSubmission({
+        prospectId,
+        priority: priority || 'normal',
+        brokerComments,
+      }, userId);
+      
+      // Create activity record
+      await storage.createUnderwritingActivity({
+        submissionId: submission.id,
+        activityType: 'submitted',
+        content: brokerComments || 'Submitted for underwriting review',
+      }, userId);
+      
+      // Update prospect stage to submission
+      await storage.updateProspectStage(prospectId, userId, 'submission');
+      
+      res.status(201).json(submission);
+    } catch (error: any) {
+      console.error("Error creating underwriting submission:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Claim a submission (underwriter takes ownership)
+  app.post("/api/underwriting/submissions/:id/claim", isAuthenticated, isUnderwriter, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const submission = await storage.getUnderwritingSubmission(id);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      if (submission.status !== 'submitted') {
+        return res.status(400).json({ error: "Can only claim submissions with 'submitted' status" });
+      }
+      
+      const updated = await storage.claimUnderwritingSubmission(id, userId);
+      
+      // Create activity record
+      await storage.createUnderwritingActivity({
+        submissionId: id,
+        activityType: 'claimed',
+        content: 'Claimed for review',
+      }, userId);
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error claiming submission:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update submission (underwriter actions: approve, decline, query, add notes)
+  app.patch("/api/underwriting/submissions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      const submission = await storage.getUnderwritingSubmission(id);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Only underwriters can update, or brokers can withdraw their own
+      const isBroker = user?.role === 'broker';
+      const isOwner = submission.brokerId === userId;
+      const isUnderwriterRole = user?.role === 'underwriter';
+      
+      if (!isUnderwriterRole && !(isBroker && isOwner)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { status, underwriterNotes, decisionReason } = req.body;
+      
+      // Brokers can only withdraw
+      if (isBroker && status && status !== 'withdrawn') {
+        return res.status(403).json({ error: "Brokers can only withdraw submissions" });
+      }
+      
+      const updates: any = {};
+      if (status) updates.status = status;
+      if (underwriterNotes) updates.underwriterNotes = underwriterNotes;
+      if (decisionReason) updates.decisionReason = decisionReason;
+      
+      const updated = await storage.updateUnderwritingSubmission(id, updates);
+      
+      // Create activity record for status changes
+      if (status) {
+        await storage.createUnderwritingActivity({
+          submissionId: id,
+          activityType: status,
+          content: decisionReason || `Status changed to ${status}`,
+        }, userId);
+        
+        // Update prospect stage based on decision
+        if (status === 'approved') {
+          await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'approved');
+        } else if (status === 'declined') {
+          await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'declined');
+        } else if (status === 'withdrawn') {
+          await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'due-diligence');
+        }
+      }
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating submission:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add comment to submission
+  app.post("/api/underwriting/submissions/:id/comments", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const { content } = req.body;
+      
+      if (!content) {
+        return res.status(400).json({ error: "Content is required" });
+      }
+      
+      const submission = await storage.getUnderwritingSubmission(id);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Check access
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'underwriter' && submission.brokerId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Determine if this is a response to a query
+      const activityType = user?.role === 'broker' && submission.status === 'queried' ? 'responded' : 'comment';
+      
+      const activity = await storage.createUnderwritingActivity({
+        submissionId: id,
+        activityType,
+        content,
+      }, userId);
+      
+      // If broker responded to query, update status back to in_review
+      if (activityType === 'responded') {
+        await storage.updateUnderwritingSubmission(id, { status: 'in_review' });
+      }
+      
+      res.status(201).json(activity);
+    } catch (error: any) {
+      console.error("Error adding comment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get submission activities
+  app.get("/api/underwriting/submissions/:id/activities", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const submission = await storage.getUnderwritingSubmission(id);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Check access
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'underwriter' && submission.brokerId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const activities = await storage.listUnderwritingActivities(id);
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error getting activities:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get underwriting submission for a specific prospect
+  app.get("/api/underwriting/prospects/:prospectId/submission", isAuthenticated, async (req: any, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const userId = req.user.claims.sub;
+      
+      // Check prospect ownership
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        // Also check if user is underwriter
+        const user = await storage.getUser(userId);
+        if (user?.role !== 'underwriter') {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+      }
+      
+      const submission = await storage.getUnderwritingSubmissionByProspect(prospectId);
+      if (!submission) {
+        return res.status(404).json({ error: "No submission found for this prospect" });
+      }
+      
+      res.json(submission);
+    } catch (error: any) {
+      console.error("Error getting prospect submission:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get current user role
+  app.get("/api/auth/role", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json({ role: user?.role || 'broker' });
+    } catch (error: any) {
+      console.error("Error getting user role:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

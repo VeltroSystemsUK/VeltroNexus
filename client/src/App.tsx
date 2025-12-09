@@ -1,6 +1,6 @@
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as SonnerToaster } from "sonner";
@@ -18,9 +18,16 @@ import Settings from "@/pages/Settings";
 import Lenders from "@/pages/Lenders";
 import Submissions from "@/pages/Submissions";
 import Leads from "@/pages/Leads";
+import UnderwriterInbox from "@/pages/UnderwriterInbox";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { data: roleData } = useQuery<{ role: string }>({
+    queryKey: ["/api/auth/role"],
+    enabled: isAuthenticated,
+  });
+
+  const isUnderwriter = roleData?.role === "underwriter";
 
   return (
     <Switch>
@@ -32,13 +39,14 @@ function Router() {
         </>
       ) : (
         <>
-          <Route path="/" component={Pipeline} />
+          <Route path="/" component={isUnderwriter ? UnderwriterInbox : Pipeline} />
           <Route path="/pipeline" component={Pipeline} />
           <Route path="/search" component={CompanySearch} />
           <Route path="/prospect/:id" component={ProspectDetail} />
           <Route path="/lenders" component={Lenders} />
           <Route path="/submissions" component={Submissions} />
           <Route path="/leads" component={Leads} />
+          <Route path="/underwriting" component={UnderwriterInbox} />
           <Route path="/profile" component={Profile} />
           <Route path="/settings" component={Settings} />
           <Route path="/pricing" component={Pricing} />

@@ -28,7 +28,7 @@ import {
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
   Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
-  Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil
+  Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil, Send
 } from "lucide-react";
 import {
   Dialog,
@@ -55,6 +55,7 @@ import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
 import { CompanyInformation } from "@/components/CompanyInformation";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import { ContactEnrichmentDialog } from "@/components/ContactEnrichmentDialog";
+import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 
 const STAGES = [
@@ -163,6 +164,8 @@ export default function ProspectDetail() {
     toast.success("Generating report...");
   };
 
+  const [showUnderwritingDialog, setShowUnderwritingDialog] = useState(false);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -227,6 +230,10 @@ export default function ProspectDetail() {
               <Button variant="outline" onClick={handleDownloadReport} data-testid="button-download-report">
                 <FileDown className="h-4 w-4 mr-2" />
                 Download Report
+              </Button>
+              <Button onClick={() => setShowUnderwritingDialog(true)} data-testid="button-submit-underwriting">
+                <Send className="h-4 w-4 mr-2" />
+                Submit for Underwriting
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -323,6 +330,13 @@ export default function ProspectDetail() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <SubmitToUnderwritingDialog
+        open={showUnderwritingDialog}
+        onOpenChange={setShowUnderwritingDialog}
+        prospectId={prospectId}
+        companyName={prospect.company.companyName}
+      />
     </div>
   );
 }

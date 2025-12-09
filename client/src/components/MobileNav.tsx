@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
-import { Home, Search, User, Settings, Send, Building2, FileSpreadsheet } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Home, Search, User, Settings, Send, Building2, FileSpreadsheet, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -8,7 +9,7 @@ interface NavItem {
   icon: typeof Home;
 }
 
-const navItems: NavItem[] = [
+const brokerNavItems: NavItem[] = [
   { path: "/", label: "Pipeline", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/leads", label: "Leads", icon: FileSpreadsheet },
@@ -16,12 +17,26 @@ const navItems: NavItem[] = [
   { path: "/profile", label: "Profile", icon: User },
 ];
 
+const underwriterNavItems: NavItem[] = [
+  { path: "/underwriting", label: "Inbox", icon: Inbox },
+  { path: "/pipeline", label: "Pipeline", icon: Home },
+  { path: "/search", label: "Search", icon: Search },
+  { path: "/profile", label: "Profile", icon: User },
+];
+
 export default function MobileNav() {
   const [location, navigate] = useLocation();
+  const { data: roleData } = useQuery<{ role: string }>({
+    queryKey: ["/api/auth/role"],
+  });
+
+  const isUnderwriter = roleData?.role === "underwriter";
+  const navItems = isUnderwriter ? underwriterNavItems : brokerNavItems;
 
   const isActive = (path: string) => {
     if (path === "/" && location === "/pipeline") return true;
     if (path === "/" && location === "/") return true;
+    if (path === "/underwriting" && location === "/") return isUnderwriter;
     return location === path;
   };
 
