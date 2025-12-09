@@ -38,7 +38,9 @@ import {
   Ticket,
   ArrowRight,
   RefreshCw,
+  Settings,
 } from "lucide-react";
+import { Link } from "wouter";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -268,15 +270,23 @@ export default function UnderwriterInbox() {
             Review and process loan applications
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] })}
-          data-testid="button-refresh"
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] })}
+            data-testid="button-refresh"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Link href="/profile">
+            <Button variant="outline" size="sm" data-testid="button-profile">
+              <User className="h-4 w-4 mr-2" />
+              Profile
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
