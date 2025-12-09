@@ -13,6 +13,7 @@ import {
   leads,
   underwritingSubmissions,
   underwritingActivity,
+  prospectDocuments,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -44,6 +45,8 @@ import {
   type UpdateUnderwritingSubmission,
   type UnderwritingActivity,
   type InsertUnderwritingActivity,
+  type ProspectDocument,
+  type InsertProspectDocument,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -146,6 +149,12 @@ export interface IStorage {
   // Underwriting Activity
   listUnderwritingActivities(submissionId: number): Promise<UnderwritingActivity[]>;
   createUnderwritingActivity(activity: InsertUnderwritingActivity, userId: string): Promise<UnderwritingActivity>;
+
+  // Prospect Documents
+  listProspectDocuments(prospectId: number): Promise<ProspectDocument[]>;
+  getProspectDocument(id: number): Promise<ProspectDocument | undefined>;
+  createProspectDocument(document: InsertProspectDocument): Promise<ProspectDocument>;
+  deleteProspectDocument(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -793,6 +802,35 @@ export class DatabaseStorage implements IStorage {
       .values({ ...activity, userId } as any)
       .returning();
     return newActivity;
+  }
+
+  // Prospect Documents
+  async listProspectDocuments(prospectId: number): Promise<ProspectDocument[]> {
+    return await db
+      .select()
+      .from(prospectDocuments)
+      .where(eq(prospectDocuments.prospectId, prospectId))
+      .orderBy(prospectDocuments.createdAt);
+  }
+
+  async getProspectDocument(id: number): Promise<ProspectDocument | undefined> {
+    const [document] = await db
+      .select()
+      .from(prospectDocuments)
+      .where(eq(prospectDocuments.id, id));
+    return document || undefined;
+  }
+
+  async createProspectDocument(document: InsertProspectDocument): Promise<ProspectDocument> {
+    const [newDocument] = await db
+      .insert(prospectDocuments)
+      .values(document as any)
+      .returning();
+    return newDocument;
+  }
+
+  async deleteProspectDocument(id: number): Promise<void> {
+    await db.delete(prospectDocuments).where(eq(prospectDocuments.id, id));
   }
 }
 
