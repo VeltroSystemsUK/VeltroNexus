@@ -3261,6 +3261,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update current user role (for testing/switching between broker and underwriter)
+  app.post("/api/auth/role", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { role } = req.body;
+      
+      if (!role || !['broker', 'underwriter'].includes(role)) {
+        return res.status(400).json({ error: "Invalid role. Must be 'broker' or 'underwriter'" });
+      }
+      
+      await storage.updateUser(userId, { role });
+      res.json({ role, message: `Role updated to ${role}` });
+    } catch (error: any) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

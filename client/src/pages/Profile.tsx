@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState } from "react";
-import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2 } from "lucide-react";
+import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Profile() {
@@ -22,6 +23,33 @@ export default function Profile() {
 
   const { data: prospects } = useQuery<any[]>({
     queryKey: ["/api/prospects"],
+  });
+
+  const { data: roleData } = useQuery<{ role: string }>({
+    queryKey: ["/api/auth/role"],
+  });
+
+  const switchRoleMutation = useMutation({
+    mutationFn: async (newRole: string) => {
+      const response = await apiRequest("/api/auth/role", "POST", { role: newRole });
+      return response;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/role"] });
+      toast({
+        title: "Role Switched",
+        description: `You are now viewing the app as a ${data.role}. Refresh to see the updated navigation.`,
+      });
+      // Reload the page to update navigation
+      setTimeout(() => window.location.reload(), 1000);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to switch role",
+        variant: "destructive",
+      });
+    },
   });
 
   const createBillingRequestMutation = useMutation({
@@ -238,6 +266,62 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
+
+      <Card data-testid="card-role-switcher">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Role Switcher
+          </CardTitle>
+          <CardDescription>Switch between broker and underwriter views for testing</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {roleData?.role === 'broker' ? (
+                <Briefcase className="h-5 w-5 text-primary" />
+              ) : (
+                <Users className="h-5 w-5 text-primary" />
+              )}
+              <div>
+                <p className="font-medium">Current Role</p>
+                <p className="text-sm text-muted-foreground">
+                  {roleData?.role === 'broker' ? 'You manage prospects and submit for review' : 'You review and approve submissions'}
+                </p>
+              </div>
+            </div>
+            <Select
+              value={roleData?.role || 'broker'}
+              onValueChange={(value) => switchRoleMutation.mutate(value)}
+              disabled={switchRoleMutation.isPending}
+            >
+              <SelectTrigger className="w-40" data-testid="select-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="broker" data-testid="option-broker">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" />
+                    Broker
+                  </div>
+                </SelectItem>
+                <SelectItem value="underwriter" data-testid="option-underwriter">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Underwriter
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {switchRoleMutation.isPending && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Switching role...
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {currentTier !== "premium" && (
         <Card data-testid="card-upgrade">
