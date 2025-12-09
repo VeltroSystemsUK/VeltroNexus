@@ -432,10 +432,11 @@ export default function ProspectDetail() {
 
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
-          <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-5" : user?.subscriptionTier === "premium" ? "grid-cols-7" : "grid-cols-6"} mb-8`}>
+          <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-6" : user?.subscriptionTier === "premium" ? "grid-cols-8" : "grid-cols-7"} mb-8`}>
             <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
             <TabsTrigger value="company" data-testid="tab-company">Company</TabsTrigger>
             <TabsTrigger value="loan" data-testid="tab-loan">Requirement</TabsTrigger>
+            <TabsTrigger value="documents" data-testid="tab-documents">Documents</TabsTrigger>
             <TabsTrigger value="activity" data-testid="tab-activity">Activity</TabsTrigger>
             {user?.subscriptionTier !== "free" && (
               <TabsTrigger value="diligence" data-testid="tab-diligence">Credit</TabsTrigger>
@@ -456,6 +457,10 @@ export default function ProspectDetail() {
 
           <TabsContent value="loan">
             <LoanRequirementTab prospect={prospect} />
+          </TabsContent>
+
+          <TabsContent value="documents">
+            <DocumentsTab prospectId={prospectId} />
           </TabsContent>
 
           <TabsContent value="activity">
@@ -2940,5 +2945,307 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+const DOCUMENT_CATEGORIES = [
+  { value: "general", label: "General" },
+  { value: "financial", label: "Financial Statements" },
+  { value: "legal", label: "Legal Documents" },
+  { value: "identity", label: "Identity Documents" },
+  { value: "property", label: "Property Documents" },
+  { value: "business", label: "Business Plans" },
+  { value: "correspondence", label: "Correspondence" },
+  { value: "other", label: "Other" },
+];
+
+interface ProspectDocument {
+  id: number;
+  prospectId: number;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  storagePath: string;
+  category: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+function DocumentsTab({ prospectId }: { prospectId: number }) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("general");
+  const [notes, setNotes] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: documents = [], isLoading } = useQuery<ProspectDocument[]>({
+    queryKey: [`/api/prospects/${prospectId}/documents`],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", selectedCategory);
+      formData.append("notes", notes);
+
+      const response = await fetch(`/api/prospects/${prospectId}/documents`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Upload failed");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/documents`] });
+      toast.success("Document uploaded successfully");
+      setSelectedCategory("general");
+      setNotes("");
+      setIsUploading(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (documentId: number) => {
+      const response = await fetch(`/api/prospects/${prospectId}/documents/${documentId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Delete failed");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/documents`] });
+      toast.success("Document deleted");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadMutation.mutate(file);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDownload = (doc: ProspectDocument) => {
+    window.open(`/api/prospects/${prospectId}/documents/${doc.id}/download`, "_blank");
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.includes("pdf")) return "PDF";
+    if (fileType.includes("image")) return "IMG";
+    if (fileType.includes("word") || fileType.includes("document")) return "DOC";
+    if (fileType.includes("sheet") || fileType.includes("excel")) return "XLS";
+    return "FILE";
+  };
+
+  const filteredDocuments = filterCategory === "all" 
+    ? documents 
+    : documents.filter(doc => doc.category === filterCategory);
+
+  const getCategoryLabel = (value: string) => {
+    return DOCUMENT_CATEGORIES.find(c => c.value === value)?.label || value;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Documents
+            </CardTitle>
+            <CardDescription>Upload and manage prospect documents</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="w-[180px]" data-testid="select-filter-category">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {DOCUMENT_CATEGORIES.map(cat => (
+                  <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => setIsUploading(true)} data-testid="button-upload-document">
+              <Plus className="h-4 w-4 mr-2" />
+              Upload
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isUploading && (
+          <Card className="mb-4 border-dashed">
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger data-testid="select-upload-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOCUMENT_CATEGORIES.map(cat => (
+                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add notes about this document..."
+                  className="resize-none"
+                  rows={2}
+                  data-testid="input-document-notes"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  data-testid="input-file-upload"
+                />
+                <Button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadMutation.isPending}
+                  data-testid="button-select-file"
+                >
+                  {uploadMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Select File
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={() => setIsUploading(false)} data-testid="button-cancel-upload">
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="font-semibold mb-2">No Documents</h3>
+            <p className="text-sm text-muted-foreground">
+              {filterCategory !== "all" 
+                ? `No documents in the ${getCategoryLabel(filterCategory)} category`
+                : "Upload documents to keep everything organized"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredDocuments.map((doc) => (
+              <div 
+                key={doc.id}
+                className="flex items-center justify-between p-4 border rounded-lg hover-elevate"
+                data-testid={`document-row-${doc.id}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center w-10 h-10 rounded bg-muted text-xs font-semibold">
+                    {getFileIcon(doc.fileType)}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm" data-testid={`text-document-name-${doc.id}`}>{doc.fileName}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-xs">{getCategoryLabel(doc.category)}</Badge>
+                      <span>{formatFileSize(doc.fileSize)}</span>
+                      <span>{format(new Date(doc.createdAt), "MMM d, yyyy")}</span>
+                    </div>
+                    {doc.notes && (
+                      <p className="text-xs text-muted-foreground mt-1">{doc.notes}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDownload(doc)}
+                    data-testid={`button-download-${doc.id}`}
+                  >
+                    <FileDown className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        data-testid={`button-delete-${doc.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{doc.fileName}"? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteMutation.mutate(doc.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          data-testid={`button-confirm-delete-${doc.id}`}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
