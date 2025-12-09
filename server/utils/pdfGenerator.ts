@@ -1079,9 +1079,11 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
   // 1. CHECKLIST - Full Detail
   // ==========================================
   if (ddData.checklist) {
-    const allItems = Object.entries(ddData.checklist).flatMap(([category, items]: [string, any]) => 
-      (items as any[]).map((item: any) => ({ ...item, category }))
-    );
+    const allItems = Object.entries(ddData.checklist).flatMap(([category, items]: [string, any]) => {
+      // Safety check: ensure items is an array before mapping
+      if (!Array.isArray(items)) return [];
+      return items.map((item: any) => ({ ...item, category }));
+    });
     const totalItems = allItems.length;
     const completedItems = allItems.filter((item: any) => item.checked).length;
     const percentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
@@ -1100,8 +1102,9 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
     // Detailed checklist by category
     const categories = Object.keys(ddData.checklist);
     categories.forEach((category: string) => {
-      const items = ddData.checklist[category] as any[];
-      if (!items || items.length === 0) return;
+      const items = ddData.checklist[category];
+      // Safety check: skip if items is not an array
+      if (!Array.isArray(items) || items.length === 0) return;
       
       if (y > PAGE_HEIGHT - 150) {
         doc.addPage();
