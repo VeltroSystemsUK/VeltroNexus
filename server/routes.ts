@@ -3284,7 +3284,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get object storage client lazily to avoid initialization errors
   const getObjectStorage = () => {
-    return new ObjectStorageClient();
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) {
+      throw new Error("Object storage bucket not configured");
+    }
+    return new ObjectStorageClient(bucketId);
   };
 
   // File upload endpoint for underwriting attachments
