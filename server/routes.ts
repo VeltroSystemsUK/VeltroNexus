@@ -3561,6 +3561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 uploadedDocument = await storage.createProspectDocument({
                   prospectId,
+                  userId,
                   fileName,
                   fileType,
                   fileSize: fileContent.length,
