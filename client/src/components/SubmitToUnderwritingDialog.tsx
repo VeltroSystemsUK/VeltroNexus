@@ -74,6 +74,7 @@ export default function SubmitToUnderwritingDialog({
       toast.success("Application submitted for underwriting review");
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/underwriting/my-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/underwriting/status"] });
       form.reset();
       onOpenChange(false);
     },

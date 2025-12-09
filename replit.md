@@ -64,6 +64,21 @@ The application features optimized mobile layouts for iOS and Android smartphone
   - **Companies House Integration**: Click any lead to search Companies House, select a match, and automatically create a prospect with full company data
   - **Status Tracking**: Lead statuses update automatically when added to pipeline or ignored
   - **Upload History**: View recent uploads with success/error counts in Settings page
+- **Role-Based Credit Underwriting Workflow**: A two-role workflow for internal credit review:
+  - **User Roles**: Broker (default) and Underwriter roles assigned directly in the database
+  - **Broker Features**: 
+    - "Submit for Underwriting" button on prospect detail page
+    - Set priority (low/normal/high/urgent) and add comments when submitting
+    - Track submission status on pipeline cards with color-coded badges (Submitted, In Review, Queried, Approved, Declined, Withdrawn)
+  - **Underwriter Features**:
+    - Dedicated Underwriter Inbox page with three-tab queue: Queue (new submissions), In Review (claimed), Completed
+    - Claim/unclaim submissions to assign ownership
+    - View full prospect and company details including Companies House data
+    - Make decisions: Approve, Decline, Query (request more info), or Withdraw
+    - Add decision reasons for audit trail
+  - **Role-Based Navigation**: Mobile nav adapts based on user role (brokers see Pipeline/Search/Leads/Submissions, underwriters see Inbox)
+  - **Visual Status Indicators**: Prospect cards display underwriting status badges showing current review state
+  - **Submit to Lender Button**: Separate from internal underwriting, the "Submit to Lender" button on prospect cards is for external lender submissions
 - **CRM Features**: Integrated CRM tools on the Pipeline Dashboard include: 
   - **ActivityCalendar**: Month-by-month calendar view showing all user activities with navigation controls. Click any calendar date to create new activities (tasks, events, meetings, calls, or notes) with optional prospect association. Activities display with type-specific icons: Task (ListTodo), Event (Calendar), Meeting (Video), Call (Phone), Note (FileText).
   - **ToDoList**: Comprehensive task management with create/complete/delete functionality, form validation, and activity type badges showing type-specific icons.

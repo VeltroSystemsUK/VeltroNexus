@@ -4,7 +4,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineColumn from "@/components/PipelineColumn";
-import ProspectCard, { type ProspectCardData } from "@/components/ProspectCard";
+import ProspectCard, { type ProspectCardData, type UnderwritingStatus } from "@/components/ProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
 import ThemeToggle from "@/components/ThemeToggle";
 import ActivityCalendar from "@/components/ActivityCalendar";
@@ -64,6 +64,12 @@ export default function Pipeline() {
   const { data: prospects = [], isLoading, error } = useQuery<ProspectWithCompany[]>({
     queryKey: ["/api/prospects"],
     queryFn: () => api.prospects.list(),
+    enabled: isAuthenticated,
+  });
+
+  // Fetch underwriting statuses for all prospects
+  const { data: underwritingStatuses = {} } = useQuery<Record<number, UnderwritingStatus>>({
+    queryKey: ["/api/underwriting/status"],
     enabled: isAuthenticated,
   });
 
@@ -405,6 +411,7 @@ export default function Pipeline() {
                                             onMove={(newStage) =>
                                               handleStageChange(prospect.id, newStage as Stage)
                                             }
+                                            underwritingStatus={underwritingStatuses[prospect.id]}
                                           />
                                         </div>
                                       )}
@@ -480,6 +487,7 @@ export default function Pipeline() {
                                               onMove={(newStage) =>
                                                 handleStageChange(prospect.id, newStage as Stage)
                                               }
+                                              underwritingStatus={underwritingStatuses[prospect.id]}
                                             />
                                           </div>
                                         )}
@@ -543,6 +551,7 @@ export default function Pipeline() {
                                                 onMove={(newStage) =>
                                                   handleStageChange(prospect.id, newStage as Stage)
                                                 }
+                                                underwritingStatus={underwritingStatuses[prospect.id]}
                                               />
                                             </div>
                                           )}

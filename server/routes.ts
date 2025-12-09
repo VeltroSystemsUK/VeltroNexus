@@ -2972,6 +2972,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get underwriting status for all user's prospects (for pipeline view)
+  app.get("/api/underwriting/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
+      
+      // Return a map of prospectId -> status
+      const statusMap: Record<number, { status: string; submittedAt: Date | null }> = {};
+      for (const submission of submissions) {
+        statusMap[submission.prospectId] = {
+          status: submission.status,
+          submittedAt: submission.submittedAt,
+        };
+      }
+      res.json(statusMap);
+    } catch (error: any) {
+      console.error("Error getting underwriting status:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get single underwriting submission
   app.get("/api/underwriting/submissions/:id", isAuthenticated, async (req: any, res) => {
     try {

@@ -8,10 +8,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GripVertical, MoreVertical, Ticket, Send } from "lucide-react";
+import { GripVertical, MoreVertical, Ticket, Send, FileCheck } from "lucide-react";
 import SubmitApplicationDialog from "./SubmitApplicationDialog";
 
 export type Priority = "high" | "medium" | "low";
+
+export interface UnderwritingStatus {
+  status: string;
+  submittedAt: Date | string | null;
+}
 
 export interface ProspectCardData {
   id: number;
@@ -30,6 +35,7 @@ interface ProspectCardProps {
   isDragging?: boolean;
   availableStages?: { value: string; label: string }[];
   currentStage?: string;
+  underwritingStatus?: UnderwritingStatus;
 }
 
 const priorityColors = {
@@ -50,6 +56,16 @@ const stageColors: Record<string, string> = {
   "withdrawn": "border-l-4 border-l-gray-400 dark:border-l-gray-500",
 };
 
+// Underwriting status display labels and colors
+const underwritingStatusConfig: Record<string, { label: string; className: string }> = {
+  submitted: { label: "Submitted", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 border-blue-200 dark:border-blue-800" },
+  in_review: { label: "In Review", className: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 border-purple-200 dark:border-purple-800" },
+  queried: { label: "Queried", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border-amber-200 dark:border-amber-800" },
+  approved: { label: "Approved", className: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200 border-green-200 dark:border-green-800" },
+  declined: { label: "Declined", className: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 border-red-200 dark:border-red-800" },
+  withdrawn: { label: "Withdrawn", className: "bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200 border-gray-200 dark:border-gray-800" },
+};
+
 export default function ProspectCard({
   prospect,
   onMove,
@@ -58,6 +74,7 @@ export default function ProspectCard({
   isDragging = false,
   availableStages = [],
   currentStage,
+  underwritingStatus,
 }: ProspectCardProps) {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   
@@ -151,6 +168,17 @@ export default function ProspectCard({
             </Badge>
           )}
           
+          {underwritingStatus && (
+            <Badge
+              variant="outline"
+              className={`text-sm font-medium ${underwritingStatusConfig[underwritingStatus.status]?.className || underwritingStatusConfig.submitted.className}`}
+              data-testid={`badge-underwriting-${prospect.id}`}
+            >
+              <FileCheck className="h-3 w-3 mr-1" />
+              {underwritingStatusConfig[underwritingStatus.status]?.label || "Submitted"}
+            </Badge>
+          )}
+          
           {isSubmissionStage && (
             <Button
               size="sm"
@@ -162,7 +190,7 @@ export default function ProspectCard({
               data-testid={`button-submit-application-${prospect.id}`}
             >
               <Send className="h-4 w-4 mr-1.5" />
-              Submit
+              Submit to Lender
             </Button>
           )}
         </div>
