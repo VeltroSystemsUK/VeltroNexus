@@ -149,10 +149,13 @@ export default function ReplyToQueryDialog({
     
     if (validFiles.length > 0) {
       setIsUploading(true);
-      const dataTransfer = new DataTransfer();
-      validFiles.forEach(file => dataTransfer.items.add(file));
-      await uploadMutation.mutateAsync(dataTransfer.files);
-      setIsUploading(false);
+      try {
+        const dataTransfer = new DataTransfer();
+        validFiles.forEach(file => dataTransfer.items.add(file));
+        await uploadMutation.mutateAsync(dataTransfer.files);
+      } finally {
+        setIsUploading(false);
+      }
     }
   }, [uploadMutation]);
 
@@ -184,8 +187,17 @@ export default function ReplyToQueryDialog({
     submitMutation.mutate();
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setMessage("");
+      setAttachments([]);
+      setDragOver(false);
+    }
+    onOpenChange(newOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
