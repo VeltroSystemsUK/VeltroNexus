@@ -29,7 +29,7 @@ import {
   Users, FileText, TrendingUp, CheckSquare, Calculator,
   Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
   Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil, Send,
-  CheckCircle2, XCircle, MessageSquare, Clock
+  CheckCircle2, XCircle, MessageSquare, Clock, Reply
 } from "lucide-react";
 import {
   Dialog,
@@ -58,6 +58,7 @@ import { CompanyInformation } from "@/components/CompanyInformation";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import { ContactEnrichmentDialog } from "@/components/ContactEnrichmentDialog";
 import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog";
+import ReplyToQueryDialog from "@/components/ReplyToQueryDialog";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 
 const STAGES = [
@@ -78,7 +79,13 @@ const priorityConfig = {
   low: { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", dot: "bg-blue-500" },
 };
 
-function UnderwritingStatusBanner({ submission }: { submission: UnderwritingSubmission }) {
+function UnderwritingStatusBanner({ 
+  submission, 
+  onReplyClick 
+}: { 
+  submission: UnderwritingSubmission; 
+  onReplyClick?: () => void;
+}) {
   const statusConfig: Record<string, { bg: string; border: string; icon: typeof Clock; iconColor: string; title: string; description: string }> = {
     submitted: {
       bg: "bg-blue-50 dark:bg-blue-950",
@@ -183,6 +190,17 @@ function UnderwritingStatusBanner({ submission }: { submission: UnderwritingSubm
                 Decision made: {format(new Date(submission.decidedAt), "dd MMM yyyy 'at' HH:mm")}
               </p>
             )}
+
+            {submission.status === 'queried' && onReplyClick && (
+              <Button
+                onClick={onReplyClick}
+                className="mt-4 bg-purple-600 hover:bg-purple-700"
+                data-testid="button-reply-to-query"
+              >
+                <Reply className="h-4 w-4 mr-2" />
+                Reply to Query with Documents
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -286,6 +304,7 @@ export default function ProspectDetail() {
   };
 
   const [showUnderwritingDialog, setShowUnderwritingDialog] = useState(false);
+  const [showReplyDialog, setShowReplyDialog] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
@@ -393,7 +412,10 @@ export default function ProspectDetail() {
 
       {/* Underwriting Status Banner */}
       {underwritingSubmission && (
-        <UnderwritingStatusBanner submission={underwritingSubmission} />
+        <UnderwritingStatusBanner 
+          submission={underwritingSubmission} 
+          onReplyClick={() => setShowReplyDialog(true)}
+        />
       )}
 
       <main className="container mx-auto px-6 py-8">
@@ -464,6 +486,16 @@ export default function ProspectDetail() {
         prospectId={prospectId}
         companyName={prospect.company.companyName}
       />
+
+      {underwritingSubmission && (
+        <ReplyToQueryDialog
+          open={showReplyDialog}
+          onOpenChange={setShowReplyDialog}
+          submissionId={underwritingSubmission.id}
+          prospectId={prospectId}
+          queryMessage={underwritingSubmission.decisionReason || undefined}
+        />
+      )}
     </div>
   );
 }
