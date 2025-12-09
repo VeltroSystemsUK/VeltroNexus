@@ -59,6 +59,7 @@ import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import { ContactEnrichmentDialog } from "@/components/ContactEnrichmentDialog";
 import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog";
 import ReplyToQueryDialog from "@/components/ReplyToQueryDialog";
+import ConversationThread from "@/components/ConversationThread";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 
 const STAGES = [
@@ -86,6 +87,7 @@ function UnderwritingStatusBanner({
   submission: UnderwritingSubmission; 
   onReplyClick?: () => void;
 }) {
+  const [showConversation, setShowConversation] = useState(false);
   const statusConfig: Record<string, { bg: string; border: string; icon: typeof Clock; iconColor: string; title: string; description: string }> = {
     submitted: {
       bg: "bg-blue-50 dark:bg-blue-950",
@@ -191,15 +193,35 @@ function UnderwritingStatusBanner({
               </p>
             )}
 
-            {submission.status === 'queried' && onReplyClick && (
+            <div className="flex items-center gap-3 mt-4">
+              {submission.status === 'queried' && onReplyClick && (
+                <Button
+                  onClick={onReplyClick}
+                  className="bg-purple-600 hover:bg-purple-700"
+                  data-testid="button-reply-to-query"
+                >
+                  <Reply className="h-4 w-4 mr-2" />
+                  Reply to Query with Documents
+                </Button>
+              )}
               <Button
-                onClick={onReplyClick}
-                className="mt-4 bg-purple-600 hover:bg-purple-700"
-                data-testid="button-reply-to-query"
+                variant="outline"
+                onClick={() => setShowConversation(!showConversation)}
+                data-testid="button-toggle-conversation"
               >
-                <Reply className="h-4 w-4 mr-2" />
-                Reply to Query with Documents
+                <MessageSquare className="h-4 w-4 mr-2" />
+                {showConversation ? "Hide" : "View"} Conversation History
               </Button>
+            </div>
+
+            {showConversation && (
+              <div className="mt-4 border-t pt-4">
+                <h4 className="font-medium text-sm mb-3">Communication History</h4>
+                <ConversationThread 
+                  submissionId={submission.id}
+                  maxHeight="400px"
+                />
+              </div>
             )}
           </div>
         </div>

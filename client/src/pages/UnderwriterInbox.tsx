@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -39,9 +40,11 @@ import {
   ArrowRight,
   RefreshCw,
   Settings,
+  Send,
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import ConversationThread from "@/components/ConversationThread";
 
 const statusColors: Record<string, string> = {
   submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
@@ -72,6 +75,9 @@ export default function UnderwriterInbox() {
   const [decisionDialogOpen, setDecisionDialogOpen] = useState(false);
   const [decisionType, setDecisionType] = useState<"approved" | "declined" | "queried" | null>(null);
   const [decisionReason, setDecisionReason] = useState("");
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
+  const [messageAsQuery, setMessageAsQuery] = useState(false);
 
   const { data: submissions, isLoading } = useQuery<UnderwritingSubmission[]>({
     queryKey: ["/api/underwriting/submissions"],
@@ -109,6 +115,34 @@ export default function UnderwriterInbox() {
       toast.error(error.message || "Failed to record decision");
     },
   });
+
+  const messageMutation = useMutation({
+    mutationFn: async ({ id, message, setStatus }: { id: number; message: string; setStatus?: string }) => {
+      return apiRequest(`/api/underwriting/submissions/${id}/message`, "POST", { message, setStatus });
+    },
+    onSuccess: () => {
+      if (selectedSubmission) {
+        queryClient.invalidateQueries({ queryKey: [`/api/underwriting/submissions/${selectedSubmission.id}/activities`] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] });
+      setMessageDialogOpen(false);
+      setNewMessage("");
+      setMessageAsQuery(false);
+      toast.success(messageAsQuery ? "Query sent to broker" : "Message sent successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to send message");
+    },
+  });
+
+  const handleSendMessage = () => {
+    if (!selectedSubmission || !newMessage.trim()) return;
+    messageMutation.mutate({
+      id: selectedSubmission.id,
+      message: newMessage,
+      setStatus: messageAsQuery ? 'queried' : undefined,
+    });
+  };
 
   const queueSubmissions = submissions?.filter(s => s.status === "submitted") || [];
   const inReviewSubmissions = submissions?.filter(s => s.status === "in_review" || s.status === "queried") || [];
@@ -419,6 +453,197 @@ export default function UnderwriterInbox() {
               {decisionType === "approved" && "Approve"}
               {decisionType === "declined" && "Decline"}
               {decisionType === "queried" && "Send Query"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Dialog with Conversation Thread */}
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              {selectedSubmission?.prospect?.company?.companyName || `Submission #${selectedSubmission?.id}`}
+            </DialogTitle>
+            <DialogDescription>
+              Review details and communication history
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-4">
+            {/* Submission Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <div className="mt-1">
+                  <Badge className={statusColors[selectedSubmission?.status || 'submitted']}>
+                    {selectedSubmission?.status?.replace("_", " ")}
+                  </Badge>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Priority</Label>
+                <div className="mt-1">
+                  <Badge className={priorityColors[selectedSubmission?.priority || 'normal']}>
+                    {selectedSubmission?.priority}
+                  </Badge>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Submitted</Label>
+                <p className="text-sm mt-1">
+                  {selectedSubmission?.submittedAt && format(new Date(selectedSubmission.submittedAt), "dd MMM yyyy HH:mm")}
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Broker</Label>
+                <p className="text-sm mt-1">
+                  {selectedSubmission?.broker?.firstName} {selectedSubmission?.broker?.lastName}
+                </p>
+              </div>
+            </div>
+
+            {selectedSubmission?.brokerComments && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Initial Comments</Label>
+                <p className="text-sm mt-1 p-3 bg-muted rounded-lg">
+                  {selectedSubmission.brokerComments}
+                </p>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Conversation Thread */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm font-medium">Communication History</Label>
+                {selectedSubmission && (selectedSubmission.status === 'in_review' || selectedSubmission.status === 'queried') && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setMessageDialogOpen(true)}
+                    data-testid="button-send-message"
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Message
+                  </Button>
+                )}
+              </div>
+              {selectedSubmission && (
+                <ConversationThread 
+                  submissionId={selectedSubmission.id} 
+                  maxHeight="300px"
+                />
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-row gap-2 justify-between border-t pt-4">
+            <Button variant="outline" onClick={() => setDetailDialogOpen(false)}>
+              Close
+            </Button>
+            <div className="flex gap-2">
+              {selectedSubmission?.status === 'in_review' && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="text-green-600 border-green-600"
+                    onClick={() => {
+                      setDetailDialogOpen(false);
+                      handleDecision("approved");
+                    }}
+                    data-testid="button-detail-approve"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    Approve
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-red-600 border-red-600"
+                    onClick={() => {
+                      setDetailDialogOpen(false);
+                      handleDecision("declined");
+                    }}
+                    data-testid="button-detail-decline"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Decline
+                  </Button>
+                </>
+              )}
+              <Button
+                onClick={() => {
+                  setDetailDialogOpen(false);
+                  setLocation(`/prospect/${selectedSubmission?.prospectId}`);
+                }}
+                data-testid="button-detail-view-prospect"
+              >
+                <ArrowRight className="h-4 w-4 mr-2" />
+                View Full Prospect
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Message Dialog */}
+      <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Send Message to Broker
+            </DialogTitle>
+            <DialogDescription>
+              Send a message or query to the broker regarding this submission.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="new-message">Your Message</Label>
+              <Textarea
+                id="new-message"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="mt-2"
+                rows={4}
+                data-testid="input-new-message"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="message-as-query"
+                checked={messageAsQuery}
+                onChange={(e) => setMessageAsQuery(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+                data-testid="checkbox-message-as-query"
+              />
+              <Label htmlFor="message-as-query" className="text-sm font-normal">
+                Mark as query (requires broker response)
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMessageDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim() || messageMutation.isPending}
+              data-testid="button-submit-message"
+            >
+              {messageMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Send {messageAsQuery ? "Query" : "Message"}
             </Button>
           </DialogFooter>
         </DialogContent>

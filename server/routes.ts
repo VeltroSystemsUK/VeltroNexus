@@ -3217,7 +3217,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const activities = await storage.listUnderwritingActivities(id);
-      res.json(activities);
+      
+      // Enrich activities with user info
+      const enrichedActivities = await Promise.all(
+        activities.map(async (activity) => {
+          const activityUser = await storage.getUser(activity.userId);
+          return {
+            ...activity,
+            user: activityUser ? {
+              firstName: activityUser.firstName,
+              lastName: activityUser.lastName,
+              email: activityUser.email,
+              role: activityUser.role,
+            } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedActivities);
     } catch (error: any) {
       console.error("Error getting activities:", error);
       res.status(500).json({ error: error.message });
@@ -3462,6 +3479,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error submitting response:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Underwriter sends message to broker
+  app.post("/api/underwriting/submissions/:id/message", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'underwriter') {
+        return res.status(403).json({ error: "Only underwriters can send messages through this endpoint" });
+      }
+      
+      const submission = await storage.getUnderwritingSubmission(id);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Only assigned underwriter can message
+      if (submission.assignedUnderwriterId !== userId) {
+        return res.status(403).json({ error: "Only the assigned underwriter can send messages" });
+      }
+      
+      const { message, setStatus } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+      
+      // Create activity record
+      const activityType = setStatus === 'queried' ? 'queried' : 'comment';
+      const activity = await storage.createUnderwritingActivity({
+        submissionId: id,
+        activityType,
+        content: message,
+        attachments: [],
+      }, userId);
+      
+      // Update status if requesting a query
+      if (setStatus === 'queried') {
+        await storage.updateUnderwritingSubmission(id, { 
+          status: 'queried',
+          decisionReason: message,
+        });
+      }
+      
+      res.status(201).json({
+        activity,
+        message: activityType === 'queried' 
+          ? "Query sent to broker. They will be notified to respond."
+          : "Message sent successfully.",
+      });
+    } catch (error: any) {
+      console.error("Error sending message:", error);
       res.status(500).json({ error: error.message });
     }
   });
