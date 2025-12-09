@@ -10,7 +10,9 @@ import {
   insertActivitySchema,
   insertLenderSchema,
   insertApplicationSubmissionSchema,
+  queryResponseSchema,
   type InsertApplicationSubmission,
+  type UnderwritingAttachment,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -18,6 +20,7 @@ import { createRequire } from 'module';
 import { generateProspectReport } from "./utils/pdfGenerator";
 import { generatePipelineExcel } from "./utils/excelExporter";
 import { getUncachableResendClient } from "./utils/resendClient";
+import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 const gocardless = require("gocardless-nodejs");
 const { Environments } = require("gocardless-nodejs/constants");
@@ -3275,6 +3278,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ role, message: `Role updated to ${role}` });
     } catch (error: any) {
       console.error("Error updating user role:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get object storage client lazily to avoid initialization errors
+  const getObjectStorage = () => {
+    return new ObjectStorageClient();
+  };
+
+  // File upload endpoint for underwriting attachments
+  app.post("/api/underwriting/upload", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const chunks: Buffer[] = [];
+      
+      // Collect data from request
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      req.on('end', async () => {
+        try {
+          const body = Buffer.concat(chunks);
+          const contentType = req.headers['content-type'];
+          
+          if (!contentType?.startsWith('multipart/form-data')) {
+            return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+          }
+          
+          // Parse boundary from content-type
+          const boundaryMatch = contentType.match(/boundary=(.+)/);
+          if (!boundaryMatch) {
+            return res.status(400).json({ error: "Missing boundary in multipart data" });
+          }
+          
+          const boundary = boundaryMatch[1];
+          const parts = body.toString('binary').split(`--${boundary}`);
+          
+          const uploadedFiles: UnderwritingAttachment[] = [];
+          
+          for (const part of parts) {
+            if (part.includes('filename=')) {
+              const filenameMatch = part.match(/filename="([^"]+)"/);
+              const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/);
+              
+              if (filenameMatch) {
+                const fileName = filenameMatch[1];
+                const fileType = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
+                
+                // Extract file content (after double newline)
+                const contentStart = part.indexOf('\r\n\r\n') + 4;
+                const contentEnd = part.lastIndexOf('\r\n');
+                const fileContent = Buffer.from(part.slice(contentStart, contentEnd), 'binary');
+                
+                // Generate unique storage path
+                const timestamp = Date.now();
+                const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const storagePath = `.private/underwriting/${userId}/${timestamp}_${sanitizedFileName}`;
+                
+                // Upload to object storage
+                await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+                
+                uploadedFiles.push({
+                  fileName,
+                  fileType,
+                  fileSize: fileContent.length,
+                  storagePath,
+                  uploadedAt: new Date().toISOString(),
+                });
+              }
+            }
+          }
+          
+          if (uploadedFiles.length === 0) {
+            return res.status(400).json({ error: "No files uploaded" });
+          }
+          
+          res.json({ files: uploadedFiles });
+        } catch (parseError: any) {
+          console.error("Error parsing upload:", parseError);
+          res.status(500).json({ error: parseError.message });
+        }
+      });
+    } catch (error: any) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Download attachment endpoint
+  app.get("/api/underwriting/download/:submissionId/:activityId/:fileIndex", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const submissionId = parseInt(req.params.submissionId);
+      const activityId = parseInt(req.params.activityId);
+      const fileIndex = parseInt(req.params.fileIndex);
+      
+      // Check submission access
+      const submission = await storage.getUnderwritingSubmission(submissionId);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'underwriter' && submission.brokerId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Get the activity and extract attachment
+      const activities = await storage.listUnderwritingActivities(submissionId);
+      const activity = activities.find(a => a.id === activityId);
+      
+      if (!activity || !activity.attachments) {
+        return res.status(404).json({ error: "Activity not found" });
+      }
+      
+      const attachments = activity.attachments as UnderwritingAttachment[];
+      if (fileIndex < 0 || fileIndex >= attachments.length) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      const attachment = attachments[fileIndex];
+      
+      // Download from object storage
+      const { data } = await getObjectStorage().downloadAsBytes(attachment.storagePath);
+      
+      res.setHeader('Content-Type', attachment.fileType);
+      res.setHeader('Content-Disposition', `attachment; filename="${attachment.fileName}"`);
+      res.send(Buffer.from(data));
+    } catch (error: any) {
+      console.error("Error downloading file:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Broker responds to underwriter query with message and attachments
+  app.post("/api/underwriting/submissions/:id/respond", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const submission = await storage.getUnderwritingSubmission(id);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Only the broker who submitted can respond
+      if (submission.brokerId !== userId) {
+        return res.status(403).json({ error: "Only the submitting broker can respond to queries" });
+      }
+      
+      // Can only respond to queries
+      if (submission.status !== 'queried') {
+        return res.status(400).json({ error: "Can only respond to submissions with 'queried' status" });
+      }
+      
+      const { message, attachments } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: "Response message is required" });
+      }
+      
+      // Create activity record with response and attachments
+      const activity = await storage.createUnderwritingActivity({
+        submissionId: id,
+        activityType: 'responded',
+        content: message,
+        attachments: attachments || [],
+      }, userId);
+      
+      // Update submission status back to in_review
+      await storage.updateUnderwritingSubmission(id, { status: 'in_review' });
+      
+      res.status(201).json({
+        activity,
+        message: "Response submitted successfully. The underwriter will review your response.",
+      });
+    } catch (error: any) {
+      console.error("Error submitting response:", error);
       res.status(500).json({ error: error.message });
     }
   });

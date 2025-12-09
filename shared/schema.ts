@@ -348,6 +348,7 @@ export const underwritingActivity = pgTable("underwriting_activity", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   activityType: varchar("activity_type").notNull(), // submitted, claimed, queried, responded, approved, declined, withdrawn, comment
   content: text("content"),
+  attachments: jsonb("attachments").default('[]'), // Array of {fileName, fileType, fileSize, storagePath, uploadedAt}
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -584,6 +585,24 @@ export type UnderwritingSubmission = typeof underwritingSubmissions.$inferSelect
 export type UpdateUnderwritingSubmission = z.infer<typeof updateUnderwritingSubmissionSchema>;
 export type InsertUnderwritingActivity = z.infer<typeof insertUnderwritingActivitySchema>;
 export type UnderwritingActivity = typeof underwritingActivity.$inferSelect;
+
+export const underwritingAttachmentSchema = z.object({
+  fileName: z.string(),
+  fileType: z.string(),
+  fileSize: z.number(),
+  storagePath: z.string(),
+  uploadedAt: z.string(),
+});
+
+export type UnderwritingAttachment = z.infer<typeof underwritingAttachmentSchema>;
+
+export const queryResponseSchema = z.object({
+  submissionId: z.number(),
+  message: z.string().min(1, "Please provide a response message"),
+  attachments: z.array(underwritingAttachmentSchema).default([]),
+});
+
+export type QueryResponse = z.infer<typeof queryResponseSchema>;
 
 export const checklistItemSchema = z.object({
   sectionId: z.string(),
