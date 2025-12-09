@@ -168,6 +168,20 @@ export const emailMessages = pgTable("email_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Prospect Documents - Uploaded files stored in object storage
+export const prospectDocuments = pgTable("prospect_documents", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  fileName: text("file_name").notNull(),
+  fileType: varchar("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  storagePath: text("storage_path").notNull(),
+  category: varchar("category").default("general"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const prospectsRelations = relations(prospects, ({ one, many }) => ({
   user: one(users, {
     fields: [prospects.userId],
@@ -179,11 +193,23 @@ export const prospectsRelations = relations(prospects, ({ one, many }) => ({
   }),
   contacts: many(contacts),
   activities: many(activities),
+  documents: many(prospectDocuments),
   dueDiligence: one(dueDiligence, {
     fields: [prospects.id],
     references: [dueDiligence.prospectId],
   }),
   applicationSubmissions: many(applicationSubmissions),
+}));
+
+export const prospectDocumentsRelations = relations(prospectDocuments, ({ one }) => ({
+  prospect: one(prospects, {
+    fields: [prospectDocuments.prospectId],
+    references: [prospects.id],
+  }),
+  user: one(users, {
+    fields: [prospectDocuments.userId],
+    references: [users.id],
+  }),
 }));
 
 export const contactsRelations = relations(contacts, ({ one }) => ({
@@ -543,6 +569,27 @@ export type LeadUpload = typeof leadUploads.$inferSelect;
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
 export type UpdateLead = z.infer<typeof updateLeadSchema>;
+
+// Prospect Document schemas
+export const insertProspectDocumentSchema = createInsertSchema(prospectDocuments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const documentCategorySchema = z.enum([
+  "general",
+  "financial",
+  "legal",
+  "identity",
+  "property",
+  "insurance",
+  "correspondence",
+  "other"
+]);
+
+export type InsertProspectDocument = z.infer<typeof insertProspectDocumentSchema>;
+export type ProspectDocument = typeof prospectDocuments.$inferSelect;
+export type DocumentCategory = z.infer<typeof documentCategorySchema>;
 
 // Underwriting submission schemas
 export const insertUnderwritingSubmissionSchema = createInsertSchema(underwritingSubmissions, {
