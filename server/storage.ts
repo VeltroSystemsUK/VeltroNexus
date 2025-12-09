@@ -11,6 +11,8 @@ import {
   emailMessages,
   leadUploads,
   leads,
+  underwritingSubmissions,
+  underwritingActivity,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -37,6 +39,11 @@ import {
   type Lead,
   type InsertLead,
   type UpdateLead,
+  type UnderwritingSubmission,
+  type InsertUnderwritingSubmission,
+  type UpdateUnderwritingSubmission,
+  type UnderwritingActivity,
+  type InsertUnderwritingActivity,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -125,6 +132,19 @@ export interface IStorage {
   updateLead(id: number, userId: string, updates: UpdateLead): Promise<Lead | undefined>;
   deleteLead(id: number, userId: string): Promise<void>;
   deleteLeadsByUpload(uploadId: number, userId: string): Promise<void>;
+
+  // Underwriting Submissions
+  listUnderwritingSubmissions(filters?: { status?: string; assignedUnderwriterId?: string }): Promise<UnderwritingSubmission[]>;
+  listBrokerUnderwritingSubmissions(brokerId: string): Promise<UnderwritingSubmission[]>;
+  getUnderwritingSubmission(id: number): Promise<UnderwritingSubmission | undefined>;
+  createUnderwritingSubmission(submission: InsertUnderwritingSubmission, brokerId: string): Promise<UnderwritingSubmission>;
+  updateUnderwritingSubmission(id: number, updates: UpdateUnderwritingSubmission): Promise<UnderwritingSubmission | undefined>;
+  claimUnderwritingSubmission(id: number, underwriterId: string): Promise<UnderwritingSubmission | undefined>;
+  getUnderwritingSubmissionByProspect(prospectId: number): Promise<UnderwritingSubmission | undefined>;
+
+  // Underwriting Activity
+  listUnderwritingActivities(submissionId: number): Promise<UnderwritingActivity[]>;
+  createUnderwritingActivity(activity: InsertUnderwritingActivity, userId: string): Promise<UnderwritingActivity>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -660,6 +680,103 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(leads)
       .where(and(eq(leads.uploadId, uploadId), eq(leads.userId, userId)));
+  }
+
+  // Underwriting Submissions
+  async listUnderwritingSubmissions(filters?: { status?: string; assignedUnderwriterId?: string }): Promise<UnderwritingSubmission[]> {
+    let query = db.select().from(underwritingSubmissions);
+    
+    if (filters?.status) {
+      query = query.where(eq(underwritingSubmissions.status, filters.status)) as any;
+    }
+    if (filters?.assignedUnderwriterId) {
+      query = query.where(eq(underwritingSubmissions.assignedUnderwriterId, filters.assignedUnderwriterId)) as any;
+    }
+    
+    return await query.orderBy(underwritingSubmissions.submittedAt);
+  }
+
+  async listBrokerUnderwritingSubmissions(brokerId: string): Promise<UnderwritingSubmission[]> {
+    return await db
+      .select()
+      .from(underwritingSubmissions)
+      .where(eq(underwritingSubmissions.brokerId, brokerId))
+      .orderBy(underwritingSubmissions.submittedAt);
+  }
+
+  async getUnderwritingSubmission(id: number): Promise<UnderwritingSubmission | undefined> {
+    const [submission] = await db
+      .select()
+      .from(underwritingSubmissions)
+      .where(eq(underwritingSubmissions.id, id));
+    return submission || undefined;
+  }
+
+  async createUnderwritingSubmission(submission: InsertUnderwritingSubmission, brokerId: string): Promise<UnderwritingSubmission> {
+    const [newSubmission] = await db
+      .insert(underwritingSubmissions)
+      .values({ ...submission, brokerId } as any)
+      .returning();
+    return newSubmission;
+  }
+
+  async updateUnderwritingSubmission(id: number, updates: UpdateUnderwritingSubmission): Promise<UnderwritingSubmission | undefined> {
+    const updateData: any = { ...updates, updatedAt: new Date() };
+    
+    // Set timestamps based on status
+    if (updates.status === 'in_review' && !updateData.claimedAt) {
+      updateData.claimedAt = new Date();
+    }
+    if (['approved', 'declined', 'withdrawn'].includes(updates.status || '')) {
+      updateData.decidedAt = new Date();
+    }
+    
+    const [submission] = await db
+      .update(underwritingSubmissions)
+      .set(updateData)
+      .where(eq(underwritingSubmissions.id, id))
+      .returning();
+    return submission || undefined;
+  }
+
+  async claimUnderwritingSubmission(id: number, underwriterId: string): Promise<UnderwritingSubmission | undefined> {
+    const [submission] = await db
+      .update(underwritingSubmissions)
+      .set({
+        assignedUnderwriterId: underwriterId,
+        status: 'in_review',
+        claimedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(underwritingSubmissions.id, id))
+      .returning();
+    return submission || undefined;
+  }
+
+  async getUnderwritingSubmissionByProspect(prospectId: number): Promise<UnderwritingSubmission | undefined> {
+    const [submission] = await db
+      .select()
+      .from(underwritingSubmissions)
+      .where(eq(underwritingSubmissions.prospectId, prospectId))
+      .orderBy(underwritingSubmissions.submittedAt);
+    return submission || undefined;
+  }
+
+  // Underwriting Activity
+  async listUnderwritingActivities(submissionId: number): Promise<UnderwritingActivity[]> {
+    return await db
+      .select()
+      .from(underwritingActivity)
+      .where(eq(underwritingActivity.submissionId, submissionId))
+      .orderBy(underwritingActivity.createdAt);
+  }
+
+  async createUnderwritingActivity(activity: InsertUnderwritingActivity, userId: string): Promise<UnderwritingActivity> {
+    const [newActivity] = await db
+      .insert(underwritingActivity)
+      .values({ ...activity, userId } as any)
+      .returning();
+    return newActivity;
   }
 }
 

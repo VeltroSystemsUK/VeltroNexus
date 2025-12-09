@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  role: varchar("role").notNull().default("broker"), // broker or underwriter
   subscriptionTier: varchar("subscription_tier").notNull().default("free"),
   prospectLimit: integer("prospect_limit").notNull().default(10),
   gocardlessCustomerId: varchar("gocardless_customer_id"),
@@ -322,6 +323,61 @@ export const leadsRelations = relations(leads, ({ one }) => ({
   }),
 }));
 
+// Underwriting Submissions - Credit underwriter review queue
+export const underwritingSubmissions = pgTable("underwriting_submissions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
+  brokerId: varchar("broker_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  assignedUnderwriterId: varchar("assigned_underwriter_id").references(() => users.id, { onDelete: "set null" }),
+  status: varchar("status").notNull().default("submitted"), // submitted, in_review, queried, approved, declined, withdrawn
+  priority: varchar("priority").notNull().default("normal"), // low, normal, high, urgent
+  brokerComments: text("broker_comments"),
+  underwriterNotes: text("underwriter_notes"),
+  decisionReason: text("decision_reason"),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  claimedAt: timestamp("claimed_at"),
+  decidedAt: timestamp("decided_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Underwriting Activity - Track all activity on a submission
+export const underwritingActivity = pgTable("underwriting_activity", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  submissionId: integer("submission_id").notNull().references(() => underwritingSubmissions.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityType: varchar("activity_type").notNull(), // submitted, claimed, queried, responded, approved, declined, withdrawn, comment
+  content: text("content"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const underwritingSubmissionsRelations = relations(underwritingSubmissions, ({ one, many }) => ({
+  prospect: one(prospects, {
+    fields: [underwritingSubmissions.prospectId],
+    references: [prospects.id],
+  }),
+  broker: one(users, {
+    fields: [underwritingSubmissions.brokerId],
+    references: [users.id],
+  }),
+  assignedUnderwriter: one(users, {
+    fields: [underwritingSubmissions.assignedUnderwriterId],
+    references: [users.id],
+  }),
+  activities: many(underwritingActivity),
+}));
+
+export const underwritingActivityRelations = relations(underwritingActivity, ({ one }) => ({
+  submission: one(underwritingSubmissions, {
+    fields: [underwritingActivity.submissionId],
+    references: [underwritingSubmissions.id],
+  }),
+  user: one(users, {
+    fields: [underwritingActivity.userId],
+    references: [users.id],
+  }),
+}));
+
 export const companiesRelations = relations(companies, ({ many }) => ({
   prospects: many(prospects),
 }));
@@ -486,6 +542,48 @@ export type LeadUpload = typeof leadUploads.$inferSelect;
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
 export type UpdateLead = z.infer<typeof updateLeadSchema>;
+
+// Underwriting submission schemas
+export const insertUnderwritingSubmissionSchema = createInsertSchema(underwritingSubmissions, {
+  prospectId: z.union([
+    z.number().int().positive(),
+    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+  ]),
+  status: z.enum(["submitted", "in_review", "queried", "approved", "declined", "withdrawn"]).default("submitted"),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+}).omit({
+  id: true,
+  brokerId: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+});
+
+export const updateUnderwritingSubmissionSchema = z.object({
+  status: z.enum(["submitted", "in_review", "queried", "approved", "declined", "withdrawn"]).optional(),
+  priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+  assignedUnderwriterId: z.string().nullable().optional(),
+  underwriterNotes: z.string().optional(),
+  decisionReason: z.string().optional(),
+});
+
+export const insertUnderwritingActivitySchema = createInsertSchema(underwritingActivity, {
+  submissionId: z.union([
+    z.number().int().positive(),
+    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+  ]),
+  activityType: z.enum(["submitted", "claimed", "queried", "responded", "approved", "declined", "withdrawn", "comment"]),
+}).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export type InsertUnderwritingSubmission = z.infer<typeof insertUnderwritingSubmissionSchema>;
+export type UnderwritingSubmission = typeof underwritingSubmissions.$inferSelect;
+export type UpdateUnderwritingSubmission = z.infer<typeof updateUnderwritingSubmissionSchema>;
+export type InsertUnderwritingActivity = z.infer<typeof insertUnderwritingActivitySchema>;
+export type UnderwritingActivity = typeof underwritingActivity.$inferSelect;
 
 export const checklistItemSchema = z.object({
   sectionId: z.string(),
