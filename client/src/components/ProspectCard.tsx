@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GripVertical, MoreVertical, PoundSterling, Send } from "lucide-react";
+import { GripVertical, MoreVertical, Ticket, Send } from "lucide-react";
 import SubmitApplicationDialog from "./SubmitApplicationDialog";
 
 export type Priority = "high" | "medium" | "low";
@@ -135,7 +135,7 @@ export default function ProspectCard({
 
         {prospect.loanAmount && (
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3" data-testid={`text-loan-amount-${prospect.id}`}>
-            <PoundSterling className="h-4 w-4" />
+            <Ticket className="h-4 w-4" />
             <span className="font-medium">{formatCurrency(prospect.loanAmount)}</span>
           </div>
         )}
