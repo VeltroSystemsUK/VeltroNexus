@@ -28,7 +28,8 @@ import {
   ArrowLeft, Building2, PoundSterling, Calendar, Target,
   Users, FileText, TrendingUp, CheckSquare, Calculator,
   Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
-  Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil, Send
+  Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil, Send,
+  CheckCircle2, XCircle, MessageSquare, Clock
 } from "lucide-react";
 import {
   Dialog,
@@ -41,7 +42,8 @@ import {
 } from "@/components/ui/dialog";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect, useRef } from "react";
-import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
+import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData, UnderwritingSubmission } from "@shared/schema";
+import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DueDiligenceChecklist,
@@ -76,6 +78,118 @@ const priorityConfig = {
   low: { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", dot: "bg-blue-500" },
 };
 
+function UnderwritingStatusBanner({ submission }: { submission: UnderwritingSubmission }) {
+  const statusConfig: Record<string, { bg: string; border: string; icon: typeof Clock; iconColor: string; title: string; description: string }> = {
+    submitted: {
+      bg: "bg-blue-50 dark:bg-blue-950",
+      border: "border-blue-200 dark:border-blue-800",
+      icon: Clock,
+      iconColor: "text-blue-600 dark:text-blue-400",
+      title: "Submitted for Review",
+      description: "This prospect has been submitted to the underwriting team for review."
+    },
+    in_review: {
+      bg: "bg-amber-50 dark:bg-amber-950",
+      border: "border-amber-200 dark:border-amber-800",
+      icon: FileText,
+      iconColor: "text-amber-600 dark:text-amber-400",
+      title: "Under Review",
+      description: "An underwriter is currently reviewing this submission."
+    },
+    queried: {
+      bg: "bg-purple-50 dark:bg-purple-950",
+      border: "border-purple-200 dark:border-purple-800",
+      icon: MessageSquare,
+      iconColor: "text-purple-600 dark:text-purple-400",
+      title: "Query from Underwriter",
+      description: "The underwriter has requested additional information."
+    },
+    approved: {
+      bg: "bg-green-50 dark:bg-green-950",
+      border: "border-green-200 dark:border-green-800",
+      icon: CheckCircle2,
+      iconColor: "text-green-600 dark:text-green-400",
+      title: "Approved",
+      description: "This submission has been approved by the underwriting team."
+    },
+    declined: {
+      bg: "bg-red-50 dark:bg-red-950",
+      border: "border-red-200 dark:border-red-800",
+      icon: XCircle,
+      iconColor: "text-red-600 dark:text-red-400",
+      title: "Declined",
+      description: "This submission has been declined by the underwriting team."
+    },
+    withdrawn: {
+      bg: "bg-gray-50 dark:bg-gray-950",
+      border: "border-gray-200 dark:border-gray-800",
+      icon: XCircle,
+      iconColor: "text-gray-600 dark:text-gray-400",
+      title: "Withdrawn",
+      description: "This submission has been withdrawn."
+    },
+  };
+
+  const config = statusConfig[submission.status] || statusConfig.submitted;
+  const Icon = config.icon;
+
+  return (
+    <div className={`${config.bg} ${config.border} border-b`}>
+      <div className="container mx-auto px-6 py-4">
+        <div className="flex items-start gap-4">
+          <div className={`p-2 rounded-full ${config.bg}`}>
+            <Icon className={`h-6 w-6 ${config.iconColor}`} />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-1">
+              <h3 className="font-semibold text-lg" data-testid="text-underwriting-status">
+                {config.title}
+              </h3>
+              <Badge variant="outline" className="text-xs">
+                {format(new Date(submission.submittedAt), "dd MMM yyyy HH:mm")}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground text-sm mb-2">{config.description}</p>
+            
+            {submission.decisionReason && (
+              <Card className="mt-3 border-2">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <MessageSquare className={`h-5 w-5 mt-0.5 ${config.iconColor} flex-shrink-0`} />
+                    <div>
+                      <p className="font-medium text-sm mb-1">
+                        {submission.status === 'queried' ? 'Underwriter Query:' : 
+                         submission.status === 'approved' ? 'Approval Notes:' :
+                         submission.status === 'declined' ? 'Decline Reason:' : 'Notes:'}
+                      </p>
+                      <p className="text-sm" data-testid="text-decision-reason">
+                        {submission.decisionReason}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {submission.brokerComments && (
+              <div className="mt-3 text-sm">
+                <span className="text-muted-foreground">Your submission notes: </span>
+                <span className="italic">{submission.brokerComments}</span>
+              </div>
+            )}
+
+            {submission.decidedAt && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Decision made: {format(new Date(submission.decidedAt), "dd MMM yyyy 'at' HH:mm")}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProspectDetail() {
   const params = useParams();
   const [, navigate] = useLocation();
@@ -95,6 +209,13 @@ export default function ProspectDetail() {
   const { data: activities = [] } = useQuery<Activity[]>({
     queryKey: [`/api/prospects/${prospectId}/activities`],
     enabled: prospectId > 0,
+  });
+
+  // Fetch underwriting submission status
+  const { data: underwritingSubmission } = useQuery<UnderwritingSubmission>({
+    queryKey: [`/api/underwriting/prospects/${prospectId}/submission`],
+    enabled: prospectId > 0,
+    retry: false,
   });
 
   // Fetch Companies House profile for auto-sync
@@ -269,6 +390,12 @@ export default function ProspectDetail() {
           </div>
         </div>
       </header>
+
+      {/* Underwriting Status Banner */}
+      {underwritingSubmission && (
+        <UnderwritingStatusBanner submission={underwritingSubmission} />
+      )}
+
       <main className="container mx-auto px-6 py-8">
         {/* Key Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
