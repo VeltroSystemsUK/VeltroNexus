@@ -79,6 +79,14 @@ The application features optimized mobile layouts for iOS and Android smartphone
   - **Role-Based Navigation**: Mobile nav adapts based on user role (brokers see Pipeline/Search/Leads/Submissions, underwriters see Inbox)
   - **Visual Status Indicators**: Prospect cards display underwriting status badges showing current review state
   - **Submit to Lender Button**: Separate from internal underwriting, the "Submit to Lender" button on prospect cards is for external lender submissions
+- **Prospect Document Management**: A dedicated Documents tab on the prospect detail page for storing and organizing files:
+  - **File Upload**: Upload any file type with multipart form data to object storage
+  - **Category Organization**: Documents categorized as General, Financial Statements, Legal Documents, Identity Documents, Property Documents, Business Plans, Correspondence, or Other
+  - **Notes Support**: Optional notes can be added to each document for context
+  - **Filter by Category**: Dropdown filter to view documents by category
+  - **Download and Delete**: Quick download button and delete with confirmation dialog
+  - **File Metadata**: Displays file name, type icon (PDF/IMG/DOC/XLS/FILE), size, upload date, and category badge
+  - **Secure Storage**: Files stored in object storage with metadata in database, tied to prospects with cascade delete
 - **CRM Features**: Integrated CRM tools on the Pipeline Dashboard include: 
   - **ActivityCalendar**: Month-by-month calendar view showing all user activities with navigation controls. Click any calendar date to create new activities (tasks, events, meetings, calls, or notes) with optional prospect association. Activities display with type-specific icons: Task (ListTodo), Event (Calendar), Meeting (Video), Call (Phone), Note (FileText).
   - **ToDoList**: Comprehensive task management with create/complete/delete functionality, form validation, and activity type badges showing type-specific icons.
