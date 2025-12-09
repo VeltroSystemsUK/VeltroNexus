@@ -2920,6 +2920,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
+  // Helper to enrich submissions with prospect and company details
+  async function enrichSubmissions(submissions: any[]) {
+    const enriched = await Promise.all(
+      submissions.map(async (submission) => {
+        const prospectWithCompany = await storage.getProspectById(submission.prospectId);
+        const broker = await storage.getUser(submission.brokerId);
+        return {
+          ...submission,
+          prospect: prospectWithCompany || null,
+          broker: broker ? {
+            firstName: broker.firstName,
+            lastName: broker.lastName,
+            email: broker.email,
+          } : null,
+        };
+      })
+    );
+    return enriched;
+  }
+
   // Get all underwriting submissions (for underwriters)
   app.get("/api/underwriting/submissions", isAuthenticated, isUnderwriter, async (req: any, res) => {
     try {
@@ -2931,7 +2951,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (assigned === 'me') filters.assignedUnderwriterId = userId;
       
       const submissions = await storage.listUnderwritingSubmissions(filters);
-      res.json(submissions);
+      const enrichedSubmissions = await enrichSubmissions(submissions);
+      res.json(enrichedSubmissions);
     } catch (error: any) {
       console.error("Error listing underwriting submissions:", error);
       res.status(500).json({ error: error.message });
@@ -2943,7 +2964,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
-      res.json(submissions);
+      const enrichedSubmissions = await enrichSubmissions(submissions);
+      res.json(enrichedSubmissions);
     } catch (error: any) {
       console.error("Error listing broker submissions:", error);
       res.status(500).json({ error: error.message });

@@ -135,7 +135,7 @@ export default function UnderwriterInbox() {
     });
   };
 
-  const SubmissionCard = ({ submission }: { submission: UnderwritingSubmission }) => (
+  const SubmissionCard = ({ submission }: { submission: SubmissionWithDetails }) => (
     <Card className="hover-elevate cursor-pointer" onClick={() => handleViewDetails(submission)}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
@@ -143,7 +143,7 @@ export default function UnderwriterInbox() {
             <div className="flex items-center gap-2 mb-1">
               <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <span className="font-semibold truncate" data-testid={`text-prospect-${submission.id}`}>
-                Prospect #{submission.prospectId}
+                {submission.prospect?.company?.companyName || `Prospect #${submission.prospectId}`}
               </span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

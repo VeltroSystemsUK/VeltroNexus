@@ -63,6 +63,7 @@ export interface IStorage {
   // Prospects
   listProspects(userId: string): Promise<ProspectWithCompany[]>;
   getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined>;
+  getProspectById(id: number): Promise<ProspectWithCompany | undefined>;
   createProspect(prospect: InsertProspect, userId: string): Promise<Prospect>;
   updateProspectStage(prospectId: number, userId: string, stage: string): Promise<Prospect | undefined>;
   updateProspect(id: number, userId: string, updates: Partial<InsertProspect>): Promise<Prospect | undefined>;
@@ -246,6 +247,21 @@ export class DatabaseStorage implements IStorage {
       .from(prospects)
       .leftJoin(companies, eq(prospects.companyId, companies.id))
       .where(and(eq(prospects.id, id), eq(prospects.userId, userId)));
+
+    if (!result) return undefined;
+
+    return {
+      ...result.prospects,
+      company: result.companies!,
+    };
+  }
+
+  async getProspectById(id: number): Promise<ProspectWithCompany | undefined> {
+    const [result] = await db
+      .select()
+      .from(prospects)
+      .leftJoin(companies, eq(prospects.companyId, companies.id))
+      .where(eq(prospects.id, id));
 
     if (!result) return undefined;
 
