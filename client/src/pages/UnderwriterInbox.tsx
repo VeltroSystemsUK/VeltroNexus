@@ -81,7 +81,7 @@ export default function UnderwriterInbox() {
 
   const claimMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("POST", `/api/underwriting/submissions/${id}/claim`);
+      return apiRequest(`/api/underwriting/submissions/${id}/claim`, "POST");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] });
@@ -94,7 +94,7 @@ export default function UnderwriterInbox() {
 
   const decisionMutation = useMutation({
     mutationFn: async ({ id, status, decisionReason }: { id: number; status: string; decisionReason: string }) => {
-      return apiRequest("PATCH", `/api/underwriting/submissions/${id}`, { status, decisionReason });
+      return apiRequest(`/api/underwriting/submissions/${id}`, "PATCH", { status, decisionReason });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] });

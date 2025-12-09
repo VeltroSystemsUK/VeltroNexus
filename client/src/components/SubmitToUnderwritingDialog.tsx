@@ -63,7 +63,7 @@ export default function SubmitToUnderwritingDialog({
 
   const submitMutation = useMutation({
     mutationFn: async (data: SubmitToUnderwritingForm) => {
-      const response = await apiRequest("POST", "/api/underwriting/submissions", {
+      const response = await apiRequest("/api/underwriting/submissions", "POST", {
         prospectId,
         priority: data.priority,
         brokerComments: data.brokerComments || undefined,
