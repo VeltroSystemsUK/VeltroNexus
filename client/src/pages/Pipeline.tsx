@@ -172,29 +172,6 @@ export default function Pipeline() {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <Button 
-              variant="outline"
-              size="icon"
-              className="md:hidden h-9 w-9"
-              onClick={() => {
-                window.location.href = '/api/prospects/export/excel';
-              }}
-              data-testid="button-export-excel-mobile"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="outline"
-              size="lg"
-              className="hidden md:flex"
-              onClick={() => {
-                window.location.href = '/api/prospects/export/excel';
-              }}
-              data-testid="button-export-excel"
-            >
-              <Download className="h-5 w-5 mr-2" />
-              Export
-            </Button>
             <Button size="icon" className="md:hidden h-9 w-9" onClick={() => navigate("/search")} data-testid="button-add-prospect-mobile">
               <TrendingUp className="h-4 w-4" />
             </Button>

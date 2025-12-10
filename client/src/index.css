@@ -48,7 +48,7 @@
 
   --popover-border: 240 5.9% 90%;
 
-  --primary: 342 85.11% 52.55%;
+  --primary: 341.94deg 85.12% 52.55%;
 
   --primary-foreground: 0 0% 100%;
 
@@ -134,13 +134,13 @@
 
   --background: 20 14% 4%;
 
-  --foreground: 45 25% 91%;
+  --foreground: 0deg 30.77% 89.8%;
 
   --border: 20 14% 15%;
 
   --card: 20 14% 8%;
 
-  --card-foreground: 45 25% 85%;
+  --card-foreground: 0deg 0% 98.04%;
 
   --card-border: 240 3.7% 10%;
 
@@ -162,11 +162,11 @@
 
   --popover: 20 14% 4%;
 
-  --popover-foreground: 45 25% 91%;
+  --popover-foreground: 0deg 33.33% 97.06%;
 
   --popover-border: 240 3.7% 15.9%;
 
-  --primary: 9 75% 61%;
+  --primary: 341.94deg 85.12% 52.55%;
 
   --primary-foreground: 0 0% 100%;
 
@@ -176,7 +176,7 @@
 
   --muted: 20 14% 15%;
 
-  --muted-foreground: 45 15% 46%;
+  --muted-foreground: 0deg 0% 100%;
 
   --accent: 25 45% 20%;
 
@@ -187,7 +187,7 @@
   --destructive-foreground: 0 0% 100%;
 
   --input: 20 14% 18%;
-  --ring: 9 75% 61%;
+  --ring: 341.94deg 85.12% 52.55%;
   --chart-1: 203.8863 88.2845% 53.1373%;
   --chart-2: 159.7826 100% 36.0784%;
   --chart-3: 42.0290 92.8251% 56.2745%;
@@ -226,9 +226,9 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --radius: 1.3rem;
   --spacing: 0.25rem;
-  --font-mono: Menlo, monospace;
-  --font-sans: Open Sans, sans-serif;
-  --font-serif: Georgia, serif;
+  --font-mono: 'Poppins', sans-serif;
+  --font-sans: 'Poppins', sans-serif;
+  --font-serif: 'Poppins', sans-serif;
   --tracking-normal: 0em;
 }
 
