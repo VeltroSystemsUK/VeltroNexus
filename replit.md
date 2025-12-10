@@ -56,6 +56,15 @@ The application features optimized mobile layouts for iOS and Android smartphone
     5. Results Summary (Risk grade A-E based on DSCR threshold 1.25, red flags, and due diligence findings)
     6. Adviser Summary (CAMPARI framework assessment for final credit recommendation)
 - **Subscription System**: A tiered model (Free, Standard, Premium) limits prospect count per user, with server-side enforcement and a pricing page. Paid tiers unlock Due Diligence tools. Integrates with GoCardless for Direct Debit payments.
+- **Add-Ons Marketplace**: Purchase additional prospect packs and feature add-ons:
+  - **Profile Page Integration**: Add-Ons shop section on the Profile page displays available products in a grid layout
+  - **Prospect Packs**: One-time purchases of prospect credits (10, 25, 50 pack sizes)
+  - **Feature Add-Ons**: Unlock premium features with one-off payments
+  - **GoCardless Integration**: Uses existing Direct Debit mandate for one-click purchases
+  - **Credits Display**: Shows available prospect credits from purchased add-on packs
+  - **Purchase History**: Track all add-on purchases with status badges (pending, completed, failed)
+  - **Admin Management**: Super Admins can create new add-on products via API
+  - **Database Schema**: `addOnProducts` stores product catalog, `addOnPurchases` tracks user purchases with GoCardless payment IDs
 - **Prospect Management**: Includes an editable priority system with color-coded indicators, a confirmation-dialog-protected delete functionality with cascading deletions, color-coded pipeline cards that change based on stage (9 distinct colors from Lead to Withdrawn), and PDF report generation for comprehensive prospect data, including integrated Companies House details.
 - **Profile and Settings Pages**: The Profile page displays account info, subscription status, upgrade options, and GoCardless integration for subscription management. The Settings page allows customization of appearance, regional settings (currency, timezone, date format), customizable pipeline stage names, PDF report layout customization with drag-and-drop section reordering, and CSV data import functionality.
 - **Leads Import System**: Bulk import company leads from CSV files for streamlined prospecting:

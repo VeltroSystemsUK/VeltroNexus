@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState } from "react";
-import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase, Shield, UserCog, ArrowLeft } from "lucide-react";
+import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase, Shield, UserCog, ArrowLeft, ShoppingBag, Package, Plus, History } from "lucide-react";
 import { useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,60 @@ export default function Profile() {
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/role"],
   });
+
+  const { data: addOnProducts, isLoading: addOnsLoading } = useQuery<any[]>({
+    queryKey: ["/api/add-ons"],
+  });
+
+  const { data: purchases } = useQuery<any[]>({
+    queryKey: ["/api/add-ons/purchases"],
+  });
+
+  const { data: creditsData } = useQuery<{ credits: number }>({
+    queryKey: ["/api/add-ons/credits"],
+  });
+
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  const purchaseMutation = useMutation({
+    mutationFn: async (productId: number) => {
+      const response = await apiRequest("/api/add-ons/purchase", "POST", {
+        productId,
+        quantity: 1,
+      });
+      return response as unknown as { success: boolean; purchase: any; message: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/add-ons/purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/add-ons/credits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({
+        title: "Purchase Successful",
+        description: data.message,
+      });
+      setPurchaseDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Purchase Failed",
+        description: error.message || "Failed to complete purchase",
+        variant: "destructive",
+      });
+      setPurchaseDialogOpen(false);
+    },
+  });
+
+  const handlePurchase = (product: any) => {
+    setSelectedProduct(product);
+    setPurchaseDialogOpen(true);
+  };
+
+  const confirmPurchase = () => {
+    if (selectedProduct) {
+      purchaseMutation.mutate(selectedProduct.id);
+    }
+  };
 
   const switchRoleMutation = useMutation({
     mutationFn: async (newRole: string) => {
@@ -420,6 +474,160 @@ export default function Profile() {
         </Card>
       )}
 
+      {/* Add-Ons Marketplace */}
+      <Card data-testid="card-add-ons">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5" />
+            Add-Ons Marketplace
+          </CardTitle>
+          <CardDescription>Purchase additional prospect packs and feature add-ons</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Credits Display */}
+          {creditsData?.credits !== undefined && creditsData.credits > 0 && (
+            <div className="bg-muted/50 rounded-lg p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-2 rounded-full">
+                  <Package className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">Available Prospect Credits</p>
+                  <p className="text-sm text-muted-foreground">From purchased add-on packs</p>
+                </div>
+              </div>
+              <Badge className="text-lg px-4 py-1" data-testid="badge-credits">{creditsData.credits}</Badge>
+            </div>
+          )}
+
+          {/* Products Grid */}
+          {addOnsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : addOnProducts && addOnProducts.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {addOnProducts.map((product) => (
+                <Card key={product.id} className="relative" data-testid={`card-product-${product.id}`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-lg">{product.title}</CardTitle>
+                      <Badge variant={product.category === "prospects" ? "default" : "secondary"}>
+                        {product.category === "prospects" ? "Prospects" : "Feature"}
+                      </Badge>
+                    </div>
+                    {product.description && (
+                      <CardDescription>{product.description}</CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent className="pb-2">
+                    <div className="space-y-2">
+                      {product.category === "prospects" && product.quantityIncluded && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Plus className="h-4 w-4 text-primary" />
+                          <span>{product.quantityIncluded} additional prospects</span>
+                        </div>
+                      )}
+                      {product.featureKey && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <CheckCircle className="h-4 w-4 text-primary" />
+                          <span>Unlocks: {product.featureKey.replace(/_/g, " ")}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                  <CardFooter className="pt-2">
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <span className="text-2xl font-bold">
+                        £{(product.priceInPence / 100).toFixed(2)}
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={() => handlePurchase(product)}
+                        disabled={purchaseMutation.isPending || !user?.gocardlessMandateId}
+                        data-testid={`button-purchase-${product.id}`}
+                      >
+                        {purchaseMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ShoppingBag className="h-4 w-4 mr-1" />
+                        )}
+                        Buy Now
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p>No add-ons available at the moment</p>
+              <p className="text-sm">Check back later for prospect packs and feature add-ons</p>
+            </div>
+          )}
+
+          {!user?.gocardlessMandateId && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                <strong>Payment method required:</strong> Set up a subscription first to enable one-click purchases.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Purchase History */}
+      {purchases && purchases.length > 0 && (
+        <Card data-testid="card-purchase-history">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Purchase History
+            </CardTitle>
+            <CardDescription>Your add-on purchase history</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {purchases.map((purchase) => (
+                <div
+                  key={purchase.id}
+                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                  data-testid={`row-purchase-${purchase.id}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="bg-primary/10 p-2 rounded-full">
+                      <Package className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{purchase.product?.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(purchase.createdAt).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium">
+                      £{(purchase.totalPaidInPence / 100).toFixed(2)}
+                    </span>
+                    <Badge
+                      variant={purchase.status === "completed" ? "default" : "secondary"}
+                      className={purchase.status === "completed" ? "bg-green-600" : ""}
+                    >
+                      {purchase.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <AlertDialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
         <AlertDialogContent data-testid="dialog-upgrade-confirm">
           <AlertDialogHeader>
@@ -459,6 +667,38 @@ export default function Profile() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
               Yes, Cancel Subscription
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
+        <AlertDialogContent data-testid="dialog-purchase-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to purchase <span className="font-semibold">{selectedProduct?.title}</span> for{" "}
+              <span className="font-semibold">£{selectedProduct ? (selectedProduct.priceInPence / 100).toFixed(2) : "0.00"}</span>.
+              {selectedProduct?.category === "prospects" && selectedProduct?.quantityIncluded && (
+                <> This will add <span className="font-semibold">{selectedProduct.quantityIncluded} prospect credits</span> to your account.</>
+              )}
+              <br /><br />
+              The payment will be collected via your existing Direct Debit mandate.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-purchase">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPurchase}
+              disabled={purchaseMutation.isPending}
+              data-testid="button-confirm-purchase"
+            >
+              {purchaseMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <ShoppingBag className="mr-2 h-4 w-4" />
+              )}
+              Confirm Purchase
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
