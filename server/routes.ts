@@ -29,6 +29,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication - Required for Replit Auth
   await setupAuth(app);
 
+  // Get object storage client lazily to avoid initialization errors
+  const getObjectStorage = () => {
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    console.log("Object storage bucket ID:", bucketId);
+    if (!bucketId) {
+      throw new Error("Object storage bucket not configured");
+    }
+    return new ObjectStorageClient({ bucketId });
+  };
+
   // Auth routes - Required for Replit Auth
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -179,6 +189,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting logo:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Serve public objects from object storage (logos, etc.)
+  app.get('/public-objects/*', async (req, res) => {
+    try {
+      const filePath = req.params[0];
+      const storagePath = `public/${filePath}`;
+      
+      const objectStorage = getObjectStorage();
+      const { data } = await objectStorage.downloadAsBytes(storagePath);
+      
+      // Set appropriate content type based on file extension
+      const ext = filePath.split('.').pop()?.toLowerCase();
+      const contentTypes: Record<string, string> = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'svg': 'image/svg+xml',
+        'webp': 'image/webp',
+      };
+      const contentType = contentTypes[ext || ''] || 'application/octet-stream';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.send(Buffer.from(data));
+    } catch (error: any) {
+      console.error("Error serving public object:", error);
+      res.status(404).json({ error: "File not found" });
     }
   });
 
@@ -3804,16 +3844,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
-
-  // Get object storage client lazily to avoid initialization errors
-  const getObjectStorage = () => {
-    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-    console.log("Object storage bucket ID:", bucketId);
-    if (!bucketId) {
-      throw new Error("Object storage bucket not configured");
-    }
-    return new ObjectStorageClient({ bucketId });
-  };
 
   // File upload endpoint for underwriting attachments
   app.post("/api/underwriting/upload", isAuthenticated, async (req: any, res) => {
