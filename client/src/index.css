@@ -18,9 +18,9 @@
 
   --foreground: 0 0% 10.2%;
 
-  --border: 0 0% 90.98%;
+  --border: 0deg 5.26% 85.1%;
 
-  --card: 0 0% 98.82%;
+  --card: 0deg 0% 98.82%;
 
   --card-foreground: 0 0% 0%;
 
@@ -42,7 +42,7 @@
 
   --sidebar-ring: 9 75% 61%;
 
-  --popover: 45 25% 97%;
+  --popover: 341.94deg 85.12% 52.55%;
 
   --popover-foreground: 0 0% 100%;
 
@@ -52,7 +52,7 @@
 
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 0 0% 76.86%;
+  --secondary: 0deg 100% 0.59%;
 
   --secondary-foreground: 0 0% 10.2%;
 
@@ -60,7 +60,7 @@
 
   --muted-foreground: 0 0% 12.94%;
 
-  --accent: 0 0% 100%;
+  --accent: 0deg 0% 96.86%;
 
   --accent-foreground: 0 0% 10.2%;
 
@@ -70,16 +70,16 @@
 
   --input: 0 0% 70.98%;
   --ring: 0 0% 41.96%;
-  --chart-1: 203.8863 88.2845% 53.1373%;
+  --chart-1: 204deg 83.33% 52.94%;
   --chart-2: 159.7826 100% 36.0784%;
-  --chart-3: 42.0290 92.8251% 56.2745%;
-  --chart-4: 147.1429 78.5047% 41.9608%;
+  --chart-3: 41.1deg 81.9% 56.67%;
+  --chart-4: 286.91deg 81.74% 45.1%;
   --chart-5: 341.4894 75.2000% 50.9804%;
 
   --font-sans: 'Poppins', sans-serif;
   --font-serif: 'Poppins', sans-serif;
   --font-mono: 'Poppins', sans-serif;
-  --radius: 0.8rem;
+  --radius: 0.9rem;
   --shadow-2xs: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00);
   --shadow-xs: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00);
   --shadow-sm: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00), 0px 1px 2px -1px hsl(9, 75%, 61% / 0.00);

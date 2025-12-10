@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink } from "lucide-react";
+import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CURRENCIES = [
@@ -528,6 +528,34 @@ export default function Settings() {
           <Separator />
           <p className="text-sm text-muted-foreground">
             Changes will apply to all future PDF reports generated from prospect details.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-pipeline-report">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Pipeline Report
+          </CardTitle>
+          <CardDescription>Export your entire pipeline as a comprehensive report</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Download a complete Excel report of all your prospects including company details, loan information, 
+            pipeline stage, priority, and key dates.
+          </p>
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => window.open('/api/prospects/export/excel', '_blank')}
+              data-testid="button-download-pipeline-report"
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Download Pipeline Report
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The report includes all prospects visible to you based on your role and team membership.
           </p>
         </CardContent>
       </Card>
