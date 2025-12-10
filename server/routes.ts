@@ -137,13 +137,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 const timestamp = Date.now();
                 const extension = fileName.split('.').pop() || 'png';
-                const storagePath = `public/branding/${userId}_logo_${timestamp}.${extension}`;
+                const logoFileName = `${userId}_logo_${timestamp}.${extension}`;
+                const storagePath = `public/branding/${logoFileName}`;
                 
                 await getObjectStorage().uploadFromBytes(storagePath, fileContent);
                 
-                // Get public URL
-                const { publicUrl } = await getObjectStorage().getPublicUrl(storagePath);
-                logoUrl = publicUrl || storagePath;
+                // Construct the public URL using the /public-objects endpoint
+                logoUrl = `/public-objects/branding/${logoFileName}`;
                 
                 // Update user with new logo URL
                 await storage.updateUser(userId, { brandingLogoUrl: logoUrl });
