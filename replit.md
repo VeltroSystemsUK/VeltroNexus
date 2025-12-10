@@ -64,19 +64,29 @@ The application features optimized mobile layouts for iOS and Android smartphone
   - **Companies House Integration**: Click any lead to search Companies House, select a match, and automatically create a prospect with full company data
   - **Status Tracking**: Lead statuses update automatically when added to pipeline or ignored
   - **Upload History**: View recent uploads with success/error counts in Settings page
-- **Role-Based Credit Underwriting Workflow**: A two-role workflow for internal credit review:
-  - **User Roles**: Broker (default) and Underwriter roles assigned directly in the database
+- **Role-Based Access Control (RBAC)**: Comprehensive 4-role permission system:
+  - **Super Admin**: Full platform access - manage all users, teams, prospects across the entire platform. Can change user roles and create/manage all teams.
+  - **Sales Admin**: Team-level oversight - manage teams they own/admin, view team member prospects, cannot modify other admins' teams.
+  - **Broker User**: Standard user - manage own prospects, submit for underwriting, view own pipeline and leads.
+  - **Underwriter**: Underwriting workflow only - access to Underwriter Inbox, claim and review submissions, make decisions.
+  - **Team Management Page** (`/teams`): Admin-only page for creating teams and managing team membership. Super/Sales Admins can add/remove users from teams.
+  - **Role Switcher**: Profile page includes role dropdown for testing different roles (in production, only Super Admin can change roles).
+  - **Database Schema**: `teams` table stores team info with `createdBy` reference, `teamMembers` junction table links users to teams with `memberRole` (member/admin).
+  - **Role-Based Navigation**: MobileNav dynamically shows different menu items based on user role.
+- **Role-Based Credit Underwriting Workflow**: Built on RBAC, workflow for internal credit review:
   - **Broker Features**: 
     - "Submit for Underwriting" button on prospect detail page
     - Set priority (low/normal/high/urgent) and add comments when submitting
     - Track submission status on pipeline cards with color-coded badges (Submitted, In Review, Queried, Approved, Declined, Withdrawn)
+    - Two-way messaging with underwriters via ConversationThread component
   - **Underwriter Features**:
     - Dedicated Underwriter Inbox page with three-tab queue: Queue (new submissions), In Review (claimed), Completed
     - Claim/unclaim submissions to assign ownership
     - View full prospect and company details including Companies House data
     - Make decisions: Approve, Decline, Query (request more info), or Withdraw
     - Add decision reasons for audit trail
-  - **Role-Based Navigation**: Mobile nav adapts based on user role (brokers see Pipeline/Search/Leads/Submissions, underwriters see Inbox)
+    - Two-way messaging with brokers
+  - **Communication History**: Pop-out dialog with scrollable conversation thread, color-coded by sender (blue for broker, purple for underwriter), compact email-style layout with date/time on left, message on right.
   - **Visual Status Indicators**: Prospect cards display underwriting status badges showing current review state
   - **Submit to Lender Button**: Separate from internal underwriting, the "Submit to Lender" button on prospect cards is for external lender submissions
 - **Prospect Document Management**: A dedicated Documents tab on the prospect detail page for storing and organizing files:

@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Home, Search, User, Settings, Send, Building2, FileSpreadsheet, Inbox } from "lucide-react";
+import { Home, Search, User, Settings, Send, Building2, FileSpreadsheet, Inbox, Users, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -24,19 +24,49 @@ const underwriterNavItems: NavItem[] = [
   { path: "/profile", label: "Profile", icon: User },
 ];
 
+const salesAdminNavItems: NavItem[] = [
+  { path: "/", label: "Pipeline", icon: Home },
+  { path: "/search", label: "Search", icon: Search },
+  { path: "/teams", label: "Teams", icon: Users },
+  { path: "/leads", label: "Leads", icon: FileSpreadsheet },
+  { path: "/profile", label: "Profile", icon: User },
+];
+
+const superAdminNavItems: NavItem[] = [
+  { path: "/", label: "Pipeline", icon: Home },
+  { path: "/admin", label: "Admin", icon: Shield },
+  { path: "/teams", label: "Teams", icon: Users },
+  { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/profile", label: "Profile", icon: User },
+];
+
 export default function MobileNav() {
   const [location, navigate] = useLocation();
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/role"],
   });
 
-  const isUnderwriter = roleData?.role === "underwriter";
-  const navItems = isUnderwriter ? underwriterNavItems : brokerNavItems;
+  const role = roleData?.role || "broker";
+  
+  const getNavItems = () => {
+    switch (role) {
+      case "super_admin":
+        return superAdminNavItems;
+      case "sales_admin":
+        return salesAdminNavItems;
+      case "underwriter":
+        return underwriterNavItems;
+      default:
+        return brokerNavItems;
+    }
+  };
+  
+  const navItems = getNavItems();
 
   const isActive = (path: string) => {
     if (path === "/" && location === "/pipeline") return true;
     if (path === "/" && location === "/") return true;
-    if (path === "/underwriting" && location === "/") return isUnderwriter;
+    if (path === "/underwriting" && location === "/" && role === "underwriter") return true;
     return location === path;
   };
 

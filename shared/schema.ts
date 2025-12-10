@@ -16,13 +16,14 @@ export const sessions = pgTable(
 );
 
 // User storage table - required for Replit Auth
+// Roles: super_admin (all access), sales_admin (team access), broker (own prospects), underwriter (underwriting only)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").notNull().default("broker"), // broker or underwriter
+  role: varchar("role").notNull().default("broker"), // super_admin, sales_admin, broker, underwriter
   subscriptionTier: varchar("subscription_tier").notNull().default("free"),
   prospectLimit: integer("prospect_limit").notNull().default(10),
   gocardlessCustomerId: varchar("gocardless_customer_id"),
@@ -36,6 +37,26 @@ export const users = pgTable("users", {
   pdfLayoutPreferences: jsonb("pdf_layout_preferences").default(sql`'{"sections":[{"id":"companyInfo","label":"Company Information","enabled":true},{"id":"officers","label":"Officers","enabled":true},{"id":"psc","label":"Persons with Significant Control","enabled":true},{"id":"charges","label":"Charges","enabled":true},{"id":"loanDetails","label":"Loan Details","enabled":true},{"id":"security","label":"Security & Collateral","enabled":true},{"id":"notes","label":"Notes","enabled":true},{"id":"contacts","label":"Key Contacts","enabled":true},{"id":"activities","label":"Activities & Tasks","enabled":true},{"id":"dueDiligence","label":"Due Diligence","enabled":true}]}'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Teams - Groups of brokers managed by Sales Admins
+export const teams = pgTable("teams", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Team Members - Links users to teams with roles
+// memberRole: admin (can manage team), member (regular access)
+export const teamMembers = pgTable("team_members", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  teamId: integer("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  memberRole: varchar("member_role").notNull().default("member"), // admin, member
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const companies = pgTable("companies", {
@@ -52,6 +73,7 @@ export const companies = pgTable("companies", {
 export const prospects = pgTable("prospects", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
   companyId: integer("company_id").notNull().references(() => companies.id),
   stage: text("stage").notNull().default("lead"),
   loanAmount: integer("loan_amount"),
@@ -409,7 +431,40 @@ export const companiesRelations = relations(companies, ({ many }) => ({
   prospects: many(prospects),
 }));
 
+// Team relations
+export const teamsRelations = relations(teams, ({ one, many }) => ({
+  createdByUser: one(users, {
+    fields: [teams.createdBy],
+    references: [users.id],
+  }),
+  members: many(teamMembers),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+  user: one(users, {
+    fields: [teamMembers.userId],
+    references: [users.id],
+  }),
+}));
+
 export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Team insert schemas
+export const insertTeamSchema = createInsertSchema(teams).omit({
+  id: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
   id: true,
   createdAt: true,
 });
@@ -504,6 +559,11 @@ export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type Company = typeof companies.$inferSelect;
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+export type Team = typeof teams.$inferSelect;
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type TeamWithMembers = Team & { members: (TeamMember & { user: User })[] };
 export type InsertProspect = z.infer<typeof insertProspectSchema>;
 export type Prospect = typeof prospects.$inferSelect;
 export type ProspectWithCompany = Prospect & { company: Company };

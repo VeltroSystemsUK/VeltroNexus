@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState } from "react";
-import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase } from "lucide-react";
+import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase, Shield, UserCog } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,7 +32,7 @@ export default function Profile() {
   const switchRoleMutation = useMutation({
     mutationFn: async (newRole: string) => {
       const response = await apiRequest("/api/auth/role", "POST", { role: newRole });
-      return response;
+      return response as unknown as { role: string; message: string };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/role"] });
@@ -57,7 +57,7 @@ export default function Profile() {
       const response = await apiRequest("/api/gocardless/create-billing-request", "POST", {
         tier,
       });
-      return response;
+      return response as unknown as { billingRequestFlowUrl: string };
     },
     onSuccess: (data) => {
       sessionStorage.setItem("selectedTier", selectedTier || "");
@@ -273,20 +273,22 @@ export default function Profile() {
             <Users className="h-5 w-5" />
             Role Switcher
           </CardTitle>
-          <CardDescription>Switch between broker and underwriter views for testing</CardDescription>
+          <CardDescription>Switch between roles for testing (in production, only admins can change roles)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              {roleData?.role === 'broker' ? (
-                <Briefcase className="h-5 w-5 text-primary" />
-              ) : (
-                <Users className="h-5 w-5 text-primary" />
-              )}
+              {roleData?.role === 'super_admin' && <Shield className="h-5 w-5 text-red-500" />}
+              {roleData?.role === 'sales_admin' && <UserCog className="h-5 w-5 text-orange-500" />}
+              {roleData?.role === 'broker' && <Briefcase className="h-5 w-5 text-primary" />}
+              {roleData?.role === 'underwriter' && <Users className="h-5 w-5 text-purple-500" />}
               <div>
-                <p className="font-medium">Current Role</p>
+                <p className="font-medium">Current Role: {roleData?.role?.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
                 <p className="text-sm text-muted-foreground">
-                  {roleData?.role === 'broker' ? 'You manage prospects and submit for review' : 'You review and approve submissions'}
+                  {roleData?.role === 'super_admin' && 'Full platform access, manage users and teams'}
+                  {roleData?.role === 'sales_admin' && 'Team-level prospect oversight and management'}
+                  {roleData?.role === 'broker' && 'Manage prospects and submit for review'}
+                  {roleData?.role === 'underwriter' && 'Review and approve underwriting submissions'}
                 </p>
               </div>
             </div>
@@ -295,10 +297,22 @@ export default function Profile() {
               onValueChange={(value) => switchRoleMutation.mutate(value)}
               disabled={switchRoleMutation.isPending}
             >
-              <SelectTrigger className="w-40" data-testid="select-role">
+              <SelectTrigger className="w-44" data-testid="select-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="super_admin" data-testid="option-super-admin">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-red-500" />
+                    Super Admin
+                  </div>
+                </SelectItem>
+                <SelectItem value="sales_admin" data-testid="option-sales-admin">
+                  <div className="flex items-center gap-2">
+                    <UserCog className="h-4 w-4 text-orange-500" />
+                    Sales Admin
+                  </div>
+                </SelectItem>
                 <SelectItem value="broker" data-testid="option-broker">
                   <div className="flex items-center gap-2">
                     <Briefcase className="h-4 w-4" />
@@ -307,7 +321,7 @@ export default function Profile() {
                 </SelectItem>
                 <SelectItem value="underwriter" data-testid="option-underwriter">
                   <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
+                    <Users className="h-4 w-4 text-purple-500" />
                     Underwriter
                   </div>
                 </SelectItem>

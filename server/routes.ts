@@ -3000,6 +3000,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/underwriting/submissions/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid submission ID" });
+      }
       const submission = await storage.getUnderwritingSubmission(id);
       
       if (!submission) {
@@ -3281,18 +3284,248 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update current user role (for testing/switching between broker and underwriter)
+  // Update current user role
+  // SECURITY: In production (NODE_ENV !== 'development'), only super_admin can change roles
+  // DEVELOPMENT: Self role switching is allowed for testing when NODE_ENV === 'development'
   app.post("/api/auth/role", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { role } = req.body;
+      const { role, targetUserId } = req.body;
+      const currentUser = await storage.getUser(userId);
       
-      if (!role || !['broker', 'underwriter'].includes(role)) {
-        return res.status(400).json({ error: "Invalid role. Must be 'broker' or 'underwriter'" });
+      const validRoles = ['super_admin', 'sales_admin', 'broker', 'underwriter'];
+      if (!role || !validRoles.includes(role)) {
+        return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+      }
+      
+      // Check if testing mode is enabled
+      const testingModeEnabled = process.env.NODE_ENV === 'development';
+      
+      // If changing another user's role, must be super_admin
+      if (targetUserId && targetUserId !== userId) {
+        if (currentUser?.role !== 'super_admin') {
+          return res.status(403).json({ error: "Only Super Admin can change other users' roles" });
+        }
+        await storage.updateUser(targetUserId, { role });
+        return res.json({ role, message: `User role updated to ${role}` });
+      }
+      
+      // Self role switching - only allowed for super_admin OR in testing mode
+      if (currentUser?.role !== 'super_admin') {
+        if (!testingModeEnabled) {
+          return res.status(403).json({ error: "Only Super Admin can change roles" });
+        }
+        // In development mode, allow self-switching with a warning
+        console.warn(`[DEV MODE] User ${userId} switching own role to ${role} - disabled in production`);
       }
       
       await storage.updateUser(userId, { role });
       res.json({ role, message: `Role updated to ${role}` });
+    } catch (error: any) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ TEAM MANAGEMENT ============
+
+  // Get all teams (super_admin and sales_admin only)
+  app.get("/api/teams", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+      }
+      
+      const teams = await storage.getTeams(user.role === 'super_admin' ? undefined : userId);
+      res.json(teams);
+    } catch (error: any) {
+      console.error("Error fetching teams:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create a new team (super_admin and sales_admin only)
+  app.post("/api/teams", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+      }
+      
+      const { name, description } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "Team name is required" });
+      }
+      
+      const team = await storage.createTeam({ name, description }, userId);
+      res.status(201).json(team);
+    } catch (error: any) {
+      console.error("Error creating team:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get team by ID with members
+  app.get("/api/teams/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const teamId = parseInt(req.params.id);
+      
+      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+      }
+      
+      const team = await storage.getTeamWithMembers(teamId);
+      if (!team) {
+        return res.status(404).json({ error: "Team not found" });
+      }
+      
+      // Sales admin can only access teams they created or are admin of
+      if (user.role === 'sales_admin') {
+        const isOwner = team.createdBy === userId;
+        const isTeamAdmin = team.members.some(m => m.userId === userId && m.memberRole === 'admin');
+        if (!isOwner && !isTeamAdmin) {
+          return res.status(403).json({ error: "You don't have permission to view this team" });
+        }
+      }
+      
+      res.json(team);
+    } catch (error: any) {
+      console.error("Error fetching team:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add member to team
+  app.post("/api/teams/:id/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const teamId = parseInt(req.params.id);
+      
+      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+      }
+      
+      // Verify team ownership for sales_admin
+      if (user.role === 'sales_admin') {
+        const team = await storage.getTeamWithMembers(teamId);
+        if (!team) {
+          return res.status(404).json({ error: "Team not found" });
+        }
+        const isOwner = team.createdBy === userId;
+        const isTeamAdmin = team.members.some(m => m.userId === userId && m.memberRole === 'admin');
+        if (!isOwner && !isTeamAdmin) {
+          return res.status(403).json({ error: "You don't have permission to modify this team" });
+        }
+      }
+      
+      const { userId: memberUserId, memberRole } = req.body;
+      if (!memberUserId) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+      
+      const member = await storage.addTeamMember({
+        teamId,
+        userId: memberUserId,
+        memberRole: memberRole || 'member',
+      });
+      res.status(201).json(member);
+    } catch (error: any) {
+      console.error("Error adding team member:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Remove member from team
+  app.delete("/api/teams/:teamId/members/:userId", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.claims.sub;
+      const user = await storage.getUser(currentUserId);
+      const teamId = parseInt(req.params.teamId);
+      const memberUserId = req.params.userId;
+      
+      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+      }
+      
+      // Verify team ownership for sales_admin
+      if (user.role === 'sales_admin') {
+        const team = await storage.getTeamWithMembers(teamId);
+        if (!team) {
+          return res.status(404).json({ error: "Team not found" });
+        }
+        const isOwner = team.createdBy === currentUserId;
+        const isTeamAdmin = team.members.some(m => m.userId === currentUserId && m.memberRole === 'admin');
+        if (!isOwner && !isTeamAdmin) {
+          return res.status(403).json({ error: "You don't have permission to modify this team" });
+        }
+      }
+      
+      await storage.removeTeamMember(teamId, memberUserId);
+      res.json({ message: "Member removed from team" });
+    } catch (error: any) {
+      console.error("Error removing team member:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get user's teams
+  app.get("/api/my-teams", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const teams = await storage.getUserTeams(userId);
+      res.json(teams);
+    } catch (error: any) {
+      console.error("Error fetching user teams:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all users for team management (super_admin and sales_admin only)
+  app.get("/api/users", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+      }
+      
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error: any) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update user role (super_admin only)
+  app.patch("/api/users/:id/role", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.claims.sub;
+      const currentUser = await storage.getUser(currentUserId);
+      
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ error: "Access denied. Super Admin role required." });
+      }
+      
+      const targetUserId = req.params.id;
+      const { role } = req.body;
+      
+      const validRoles = ['super_admin', 'sales_admin', 'broker', 'underwriter'];
+      if (!role || !validRoles.includes(role)) {
+        return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+      }
+      
+      await storage.updateUser(targetUserId, { role });
+      res.json({ message: `User role updated to ${role}` });
     } catch (error: any) {
       console.error("Error updating user role:", error);
       res.status(500).json({ error: error.message });

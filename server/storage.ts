@@ -14,6 +14,8 @@ import {
   underwritingSubmissions,
   underwritingActivity,
   prospectDocuments,
+  teams,
+  teamMembers,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -47,6 +49,10 @@ import {
   type InsertUnderwritingActivity,
   type ProspectDocument,
   type InsertProspectDocument,
+  type Team,
+  type InsertTeam,
+  type TeamMember,
+  type InsertTeamMember,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -155,6 +161,19 @@ export interface IStorage {
   getProspectDocument(id: number): Promise<ProspectDocument | undefined>;
   createProspectDocument(document: InsertProspectDocument): Promise<ProspectDocument>;
   deleteProspectDocument(id: number): Promise<void>;
+
+  // Teams
+  getTeams(adminUserId?: string): Promise<Team[]>;
+  getTeamWithMembers(teamId: number): Promise<(Team & { members: (TeamMember & { user: User })[] }) | undefined>;
+  createTeam(team: InsertTeam, createdBy: string): Promise<Team>;
+  updateTeam(id: number, updates: Partial<InsertTeam>): Promise<Team | undefined>;
+  deleteTeam(id: number): Promise<void>;
+
+  // Team Members
+  addTeamMember(member: InsertTeamMember): Promise<TeamMember>;
+  removeTeamMember(teamId: number, userId: string): Promise<void>;
+  getUserTeams(userId: string): Promise<Team[]>;
+  getTeamMembers(teamId: number): Promise<(TeamMember & { user: User })[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -831,6 +850,105 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProspectDocument(id: number): Promise<void> {
     await db.delete(prospectDocuments).where(eq(prospectDocuments.id, id));
+  }
+
+  // Teams
+  async getTeams(adminUserId?: string): Promise<Team[]> {
+    if (adminUserId) {
+      // For sales_admin, only return teams they created or are admin members of
+      const memberTeams = await db
+        .select({ teamId: teamMembers.teamId })
+        .from(teamMembers)
+        .where(and(eq(teamMembers.userId, adminUserId), eq(teamMembers.memberRole, 'admin')));
+      
+      const memberTeamIds = memberTeams.map(t => t.teamId);
+      
+      return await db
+        .select()
+        .from(teams)
+        .where(
+          sql`${teams.createdBy} = ${adminUserId} OR ${teams.id} = ANY(${memberTeamIds})`
+        )
+        .orderBy(teams.name);
+    }
+    // Super admin gets all teams
+    return await db.select().from(teams).orderBy(teams.name);
+  }
+
+  async getTeamWithMembers(teamId: number): Promise<(Team & { members: (TeamMember & { user: User })[] }) | undefined> {
+    const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
+    if (!team) return undefined;
+
+    const members = await this.getTeamMembers(teamId);
+    return { ...team, members };
+  }
+
+  async createTeam(team: InsertTeam, createdBy: string): Promise<Team> {
+    const [newTeam] = await db
+      .insert(teams)
+      .values({ ...team, createdBy } as any)
+      .returning();
+    return newTeam;
+  }
+
+  async updateTeam(id: number, updates: Partial<InsertTeam>): Promise<Team | undefined> {
+    const [team] = await db
+      .update(teams)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(teams.id, id))
+      .returning();
+    return team || undefined;
+  }
+
+  async deleteTeam(id: number): Promise<void> {
+    await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  // Team Members
+  async addTeamMember(member: InsertTeamMember): Promise<TeamMember> {
+    const [newMember] = await db
+      .insert(teamMembers)
+      .values(member as any)
+      .returning();
+    return newMember;
+  }
+
+  async removeTeamMember(teamId: number, userId: string): Promise<void> {
+    await db
+      .delete(teamMembers)
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+  }
+
+  async getUserTeams(userId: string): Promise<Team[]> {
+    const userTeamMemberships = await db
+      .select({ teamId: teamMembers.teamId })
+      .from(teamMembers)
+      .where(eq(teamMembers.userId, userId));
+    
+    if (userTeamMemberships.length === 0) return [];
+    
+    const teamIds = userTeamMemberships.map(m => m.teamId);
+    return await db
+      .select()
+      .from(teams)
+      .where(sql`${teams.id} = ANY(${teamIds})`)
+      .orderBy(teams.name);
+  }
+
+  async getTeamMembers(teamId: number): Promise<(TeamMember & { user: User })[]> {
+    const members = await db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, teamId));
+    
+    const membersWithUsers = await Promise.all(
+      members.map(async (member) => {
+        const [user] = await db.select().from(users).where(eq(users.id, member.userId));
+        return { ...member, user };
+      })
+    );
+    
+    return membersWithUsers;
   }
 }
 
