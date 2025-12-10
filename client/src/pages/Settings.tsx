@@ -85,6 +85,10 @@ export default function Settings() {
   const [pdfSections, setPdfSections] = useState<Array<{ id: string; label: string; enabled: boolean }>>(DEFAULT_PDF_SECTIONS);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<any>(null);
+  const [brandingPrimaryColor, setBrandingPrimaryColor] = useState<string>("");
+  const [brandingAccentColor, setBrandingAccentColor] = useState<string>("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   const { data: user, isLoading: userLoading } = useQuery<any>({
     queryKey: ["/api/auth/user"],
@@ -102,6 +106,9 @@ export default function Settings() {
       setTheme(user.theme || "light");
       setStageNames(user.pipelineStageNames || DEFAULT_STAGE_NAMES);
       setPdfSections(user.pdfLayoutPreferences?.sections || DEFAULT_PDF_SECTIONS);
+      setBrandingPrimaryColor(user.brandingPrimaryColor || "");
+      setBrandingAccentColor(user.brandingAccentColor || "");
+      setLogoPreview(user.brandingLogoUrl || null);
     }
   }, [user]);
 
@@ -133,7 +140,114 @@ export default function Settings() {
       theme,
       pipelineStageNames: stageNames,
       pdfLayoutPreferences: { sections: pdfSections },
+      brandingPrimaryColor: brandingPrimaryColor || null,
+      brandingAccentColor: brandingAccentColor || null,
     });
+  };
+
+  const uploadLogoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('logo', file);
+      
+      const response = await fetch('/api/user/branding/logo', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload logo');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setLogoPreview(data.logoUrl);
+      setLogoFile(null);
+      toast({
+        title: "Logo Uploaded",
+        description: "Your corporate logo has been saved successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload logo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteLogoMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/user/branding/logo', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove logo');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setLogoPreview(null);
+      toast({
+        title: "Logo Removed",
+        description: "Your corporate logo has been removed.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove logo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid File",
+          description: "Please select an image file (PNG, JPG, etc.)",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Logo must be under 2MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleLogoUpload = () => {
+    if (logoFile) {
+      uploadLogoMutation.mutate(logoFile);
+    }
+  };
+
+  const handleLogoRemove = () => {
+    deleteLogoMutation.mutate();
   };
 
   const handleStageNameChange = (key: string, value: string) => {
@@ -281,6 +395,186 @@ export default function Settings() {
               Choose how FlowLoan looks on your device
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-branding">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            White Label Branding
+          </CardTitle>
+          <CardDescription>Add your corporate logo and customize colors for a branded experience</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Logo Upload */}
+          <div className="space-y-4">
+            <Label>Corporate Logo</Label>
+            <div className="flex flex-col md:flex-row items-start gap-6">
+              <div className="flex-shrink-0">
+                {logoPreview ? (
+                  <div className="space-y-2 text-center">
+                    <div className="border rounded-lg p-4 bg-muted/30">
+                      <img
+                        src={logoPreview}
+                        alt="Corporate logo preview"
+                        className="max-h-20 max-w-48 object-contain"
+                        data-testid="img-logo-preview"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Powered by FlowLoan</p>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-lg p-8 text-center bg-muted/20" data-testid="logo-placeholder">
+                    <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">No logo uploaded</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoFileChange}
+                    className="max-w-xs"
+                    data-testid="input-logo-file"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {logoFile && (
+                    <Button
+                      size="sm"
+                      onClick={handleLogoUpload}
+                      disabled={uploadLogoMutation.isPending}
+                      data-testid="button-upload-logo"
+                    >
+                      {uploadLogoMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" />
+                      )}
+                      Upload Logo
+                    </Button>
+                  )}
+                  {user?.brandingLogoUrl && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleLogoRemove}
+                      disabled={deleteLogoMutation.isPending}
+                      data-testid="button-remove-logo"
+                    >
+                      {deleteLogoMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <X className="mr-2 h-4 w-4" />
+                      )}
+                      Remove Logo
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload your company logo (PNG, JPG, SVG). Max 2MB. Your logo will appear in the header.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Theme Colors */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="primaryColor">Primary Color</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="color"
+                  id="primaryColor"
+                  value={brandingPrimaryColor || "#0f766e"}
+                  onChange={(e) => setBrandingPrimaryColor(e.target.value)}
+                  className="w-16 h-10 p-1 cursor-pointer"
+                  data-testid="input-primary-color"
+                />
+                <Input
+                  type="text"
+                  value={brandingPrimaryColor}
+                  onChange={(e) => setBrandingPrimaryColor(e.target.value)}
+                  placeholder="#0f766e"
+                  className="flex-1 max-w-32"
+                  data-testid="input-primary-color-hex"
+                />
+                {brandingPrimaryColor && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setBrandingPrimaryColor("")}
+                    data-testid="button-reset-primary"
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Main brand color used for buttons and accents
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="accentColor">Accent Color</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="color"
+                  id="accentColor"
+                  value={brandingAccentColor || "#0d9488"}
+                  onChange={(e) => setBrandingAccentColor(e.target.value)}
+                  className="w-16 h-10 p-1 cursor-pointer"
+                  data-testid="input-accent-color"
+                />
+                <Input
+                  type="text"
+                  value={brandingAccentColor}
+                  onChange={(e) => setBrandingAccentColor(e.target.value)}
+                  placeholder="#0d9488"
+                  className="flex-1 max-w-32"
+                  data-testid="input-accent-color-hex"
+                />
+                {brandingAccentColor && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setBrandingAccentColor("")}
+                    data-testid="button-reset-accent"
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Secondary color for highlights and links
+              </p>
+            </div>
+          </div>
+
+          {(brandingPrimaryColor || brandingAccentColor) && (
+            <div className="bg-muted/30 rounded-lg p-4">
+              <p className="text-sm font-medium mb-2">Color Preview</p>
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-24 h-10 rounded flex items-center justify-center text-white text-sm font-medium"
+                  style={{ backgroundColor: brandingPrimaryColor || "#0f766e" }}
+                >
+                  Primary
+                </div>
+                <div
+                  className="w-24 h-10 rounded flex items-center justify-center text-white text-sm font-medium"
+                  style={{ backgroundColor: brandingAccentColor || "#0d9488" }}
+                >
+                  Accent
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
