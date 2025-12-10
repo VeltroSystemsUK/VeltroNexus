@@ -1,117 +1,35 @@
 # FlowLoan - Commercial Lending Workflow Management Platform
 
 ## Overview
-FlowLoan is a secure, multi-user commercial lending pipeline management system designed for lending teams. Its purpose is to track and manage company loan prospects from initial lead to final approval/rejection, streamlining the commercial lending process. Key capabilities include user authentication, user-specific data isolation, a drag-and-drop Kanban board, detailed company and prospect management, and a modern SaaS dashboard design.
+FlowLoan is a secure, multi-user commercial lending pipeline management system for lending teams. It streamlines the commercial lending process by tracking and managing company loan prospects from initial lead to final approval/rejection. Key capabilities include user authentication, user-specific data isolation, a drag-and-drop Kanban board, detailed company and prospect management, and a modern SaaS dashboard design. The platform aims to enhance efficiency in commercial lending.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend
-The frontend is built with React and TypeScript, utilizing Vite for bundling and Wouter for routing. TanStack Query manages server state. The UI uses Shadcn/UI (Radix UI) and Tailwind CSS, adhering to a "New York" style. It features a component-based, type-safe, responsive design with dark mode support. Core features include Replit Auth, a professional landing page, user-specific data isolation, a drag-and-drop Kanban board, client-side form validation with `react-hook-form` and `zod`, and Sonner toast notifications. The visual pipeline stages are Lead, Contacted, Qualified, Proposal, Due Diligence, Approval, and final status (Approved/Declined/Withdrawn).
+### UI/UX Decisions
+The frontend uses React, TypeScript, Shadcn/UI (Radix UI), and Tailwind CSS, adhering to a "New York" style with dark mode support. It features a component-based, type-safe, responsive design with card-based UI elements, subtle shadows, and borders. Typography uses Inter and JetBrains Mono, with an HSL-based color system for semantic tokens. Mobile layouts are optimized for iOS and Android, including a bottom navigation bar, responsive components, minimum 44px touch targets, and compact headers. The visual pipeline stages are Lead, Contacted, Qualified, Proposal, Due Diligence, Approval, and final status (Approved/Declined/Withdrawn).
 
-### Backend
-The backend uses Express.js with TypeScript and Node.js, providing a RESTful API. It features custom Vite integration, request/response logging, Zod for schema validation, and robust error handling. Authentication endpoints handle OpenID Connect login/logout, while protected API endpoints manage CRUD operations for prospects, companies, due diligence data, and integrations.
-
-### Database
-The application uses Drizzle ORM with Neon serverless PostgreSQL. Drizzle Kit is used for schema management. The schema includes `Users`, `Sessions`, `Companies`, `Prospects`, `Activities`, and `Due Diligence` tables. `Users` and `Sessions` support Replit Auth, `Companies` stores company details, `Prospects` tracks loan stages, `Activities` stores user tasks/events/meetings/calls/notes with optional prospect association, and `Due Diligence` stores assessment tool data in a JSONB column. Relationships ensure user-specific data isolation and efficient data retrieval.
-
-### Design System
-A comprehensive design system defines typography (Inter, JetBrains Mono), an HSL-based color system for light/dark modes with semantic tokens, and a consistent layout with defined spacing and responsive grids. UI elements are card-based with subtle shadows and borders.
-
-### Mobile Layout
-The application features optimized mobile layouts for iOS and Android smartphones:
-- **MobileNav**: Bottom navigation bar (hidden on desktop md+) with 5 icons: Pipeline, Search, Leads, Submissions, Profile. Uses safe-area-inset-bottom padding for iOS home indicator.
-- **Responsive Components**: All major components (PipelineStats, TaskReminders, Pipeline tabs, stage summary cards) use responsive Tailwind classes with md: breakpoints for tablet/desktop.
-- **Touch Targets**: Minimum 44px touch targets for mobile usability.
-- **Mobile CSS Utilities**: Custom CSS classes in index.css including `.safe-area-bottom`, `.safe-area-top`, `.mobile-content-padding`, `.touch-target`, `.mobile-scroll-x`, `.mobile-hidden`, `.desktop-hidden`.
-- **Compact Headers**: Headers and buttons adapt with smaller sizing on mobile (h-9 icons vs h-11 on desktop).
+### Technical Implementations
+The frontend is built with React, TypeScript, Vite, and Wouter for routing. TanStack Query manages server state. Client-side form validation uses `react-hook-form` and `zod`. The backend uses Express.js with TypeScript and Node.js, providing a RESTful API with custom Vite integration, request/response logging, Zod for schema validation, and robust error handling. Replit Auth handles authentication.
 
 ### Feature Specifications
-- **Add Prospect Page**: Split into two tabs for adding new prospects:
-  - **Search Companies House Tab**: Search UK registered companies using 5 search modes:
-    - Company Name/Number search
-    - SIC Code search (enter SIC code as search term)
-    - Town/City search (location-based text search)
-    - Postcode search (enter postcode as search term)
-    - Directors search (search officers by name, click to select their company)
-  - **Add Manually Tab**: Add any business type without Companies House lookup:
-    - Supports 6 business types: Limited Company (Ltd), PLC, LLP, Partnership, Sole Trader, CIC
-    - Company number is required only for registered types (Ltd, PLC, LLP, CIC)
-    - Partnerships and Sole Traders generate a system reference (UNREG-xxx-yyy format)
-- **Companies House Integration**: Allows searching and fetching UK Companies House company profiles to auto-populate data and display detailed company information, including officers, persons with significant control, and charges.
-- **Contacts Management**: The Contacts tab automatically syncs company officers from Companies House as editable contacts. Key features:
-  - **Auto-sync Officers**: Officers are automatically imported when viewing a prospect, with names formatted as "First Middle Surname" (converted from Companies House "SURNAME, First Middle" format).
-  - **Editable Contact Details**: Each contact can be edited to add/update telephone number and email address via a dialog.
-  - **Sync Officers Button**: Manual sync button to re-fetch officers from Companies House.
-  - **Add Manual Contacts**: Users can add custom contacts not from Companies House.
-- **Due Diligence Tools**: Seven interactive tools with data stored in a JSONB column:
-  - Standard tier (6 tools): Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment
-  - Premium tier (7th tool): **Credit Underwriting** - AI-powered comprehensive credit assessment with 6 substeps:
-    1. Eligibility Check (11 policy questions for lending criteria)
-    2. Bank Statement Upload (CSV file upload for financial analysis)
-    3. Financial Analysis (Gemini AI-powered bank statement analysis with P&L, monthly breakdown, risk flags)
-    4. Due Diligence Checks (Companies House data + Tavily-powered adverse media search)
-    5. Results Summary (Risk grade A-E based on DSCR threshold 1.25, red flags, and due diligence findings)
-    6. Adviser Summary (CAMPARI framework assessment for final credit recommendation)
-- **Subscription System**: A tiered model (Free, Standard, Premium) limits prospect count per user, with server-side enforcement and a pricing page. Paid tiers unlock Due Diligence tools. Integrates with GoCardless for Direct Debit payments.
-- **Add-Ons Marketplace**: Purchase additional prospect packs and feature add-ons:
-  - **Profile Page Integration**: Add-Ons shop section on the Profile page displays available products in a grid layout
-  - **Prospect Packs**: One-time purchases of prospect credits (10, 25, 50 pack sizes)
-  - **Feature Add-Ons**: Unlock premium features with one-off payments
-  - **GoCardless Integration**: Uses existing Direct Debit mandate for one-click purchases
-  - **Credits Display**: Shows available prospect credits from purchased add-on packs
-  - **Purchase History**: Track all add-on purchases with status badges (pending, completed, failed)
-  - **Admin Management**: Super Admins can create new add-on products via API
-  - **Database Schema**: `addOnProducts` stores product catalog, `addOnPurchases` tracks user purchases with GoCardless payment IDs
-- **Prospect Management**: Includes an editable priority system with color-coded indicators, a confirmation-dialog-protected delete functionality with cascading deletions, color-coded pipeline cards that change based on stage (9 distinct colors from Lead to Withdrawn), and PDF report generation for comprehensive prospect data, including integrated Companies House details.
-- **Profile and Settings Pages**: The Profile page displays account info, subscription status, upgrade options, and GoCardless integration for subscription management. The Settings page allows customization of appearance, regional settings (currency, timezone, date format), customizable pipeline stage names, PDF report layout customization with drag-and-drop section reordering, and CSV data import functionality.
-- **Leads Import System**: Bulk import company leads from CSV files for streamlined prospecting:
-  - **CSV Upload**: Upload CSV files in Settings page with intelligent column mapping for Company Name, Company Number, Contact, Email, Phone, Address, Postcode, SIC Code
-  - **Leads Page**: Dedicated page displaying all imported leads with search and status filtering (Pending, Matched, Added to Pipeline, Ignored)
-  - **Companies House Integration**: Click any lead to search Companies House, select a match, and automatically create a prospect with full company data
-  - **Status Tracking**: Lead statuses update automatically when added to pipeline or ignored
-  - **Upload History**: View recent uploads with success/error counts in Settings page
-- **Role-Based Access Control (RBAC)**: Comprehensive 4-role permission system:
-  - **Super Admin**: Full platform access - manage all users, teams, prospects across the entire platform. Can change user roles and create/manage all teams.
-  - **Sales Admin**: Team-level oversight - manage teams they own/admin, view team member prospects, cannot modify other admins' teams.
-  - **Broker User**: Standard user - manage own prospects, submit for underwriting, view own pipeline and leads.
-  - **Underwriter**: Underwriting workflow only - access to Underwriter Inbox, claim and review submissions, make decisions.
-  - **Team Management Page** (`/teams`): Admin-only page for creating teams and managing team membership. Super/Sales Admins can add/remove users from teams.
-  - **Role Switcher**: Profile page includes role dropdown for testing different roles (in production, only Super Admin can change roles).
-  - **Database Schema**: `teams` table stores team info with `createdBy` reference, `teamMembers` junction table links users to teams with `memberRole` (member/admin).
-  - **Role-Based Navigation**: MobileNav dynamically shows different menu items based on user role.
-- **Role-Based Credit Underwriting Workflow**: Built on RBAC, workflow for internal credit review:
-  - **Broker Features**: 
-    - "Submit for Underwriting" button on prospect detail page
-    - Set priority (low/normal/high/urgent) and add comments when submitting
-    - Track submission status on pipeline cards with color-coded badges (Submitted, In Review, Queried, Approved, Declined, Withdrawn)
-    - Two-way messaging with underwriters via ConversationThread component
-  - **Underwriter Features**:
-    - Dedicated Underwriter Inbox page with three-tab queue: Queue (new submissions), In Review (claimed), Completed
-    - Claim/unclaim submissions to assign ownership
-    - View full prospect and company details including Companies House data
-    - Make decisions: Approve, Decline, Query (request more info), or Withdraw
-    - Add decision reasons for audit trail
-    - Two-way messaging with brokers
-  - **Communication History**: Pop-out dialog with scrollable conversation thread, color-coded by sender (blue for broker, purple for underwriter), compact email-style layout with date/time on left, message on right.
-  - **Visual Status Indicators**: Prospect cards display underwriting status badges showing current review state
-  - **Submit to Lender Button**: Separate from internal underwriting, the "Submit to Lender" button on prospect cards is for external lender submissions
-- **Prospect Document Management**: A dedicated Documents tab on the prospect detail page for storing and organizing files:
-  - **File Upload**: Upload any file type with multipart form data to object storage
-  - **Category Organization**: Documents categorized as General, Financial Statements, Legal Documents, Identity Documents, Property Documents, Business Plans, Correspondence, or Other
-  - **Notes Support**: Optional notes can be added to each document for context
-  - **Filter by Category**: Dropdown filter to view documents by category
-  - **Download and Delete**: Quick download button and delete with confirmation dialog
-  - **File Metadata**: Displays file name, type icon (PDF/IMG/DOC/XLS/FILE), size, upload date, and category badge
-  - **Secure Storage**: Files stored in object storage with metadata in database, tied to prospects with cascade delete
-- **CRM Features**: Integrated CRM tools on the Pipeline Dashboard include: 
-  - **ActivityCalendar**: Month-by-month calendar view showing all user activities with navigation controls. Click any calendar date to create new activities (tasks, events, meetings, calls, or notes) with optional prospect association. Activities display with type-specific icons: Task (ListTodo), Event (Calendar), Meeting (Video), Call (Phone), Note (FileText).
-  - **ToDoList**: Comprehensive task management with create/complete/delete functionality, form validation, and activity type badges showing type-specific icons.
-  - **TaskReminders**: Widget displaying 3 most urgent incomplete tasks sorted by due date with color-coded priority badges for overdue, due today, and upcoming tasks.
-  
-  Activities are stored in the database with userId (required) and prospectId (optional), enabling both prospect-specific and general user activities. All three CRM components share the same data source and display consistent type icons across the interface.
+- **Prospect Management**: Includes a drag-and-drop Kanban board, user-specific data isolation, editable priority system, confirmation-dialog-protected delete, and color-coded pipeline cards. PDF report generation for comprehensive prospect data is also available.
+- **Company & Contact Management**: Integration with Companies House (UK) allows searching and fetching company profiles to auto-populate data. Contacts from Companies House are auto-synced and editable, with options to add manual contacts.
+- **Due Diligence Tools**: Seven interactive tools, including a Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment, and an optional AI-powered Credit Underwriting tool (Premium tier).
+- **CRM Features**: Integrated Activity Calendar for managing tasks, events, meetings, calls, and notes, a ToDoList for task management, and Task Reminders for urgent tasks.
+- **Leads Import System**: Bulk import leads from CSV files with intelligent column mapping, a dedicated Leads page for tracking, and Companies House integration for prospect creation.
+- **Subscription System**: A tiered model (Free, Standard, Premium) with prospect count limits and GoCardless integration for Direct Debit payments.
+- **Add-Ons Marketplace**: Allows purchasing prospect packs and feature add-ons via GoCardless, managed by Super Admins.
+- **Profile and Settings**: Account information, subscription management, appearance customization (dark mode, colors), regional settings, customizable pipeline stage names, PDF report layout customization, and CSV data import.
+- **White Label Branding**: Upload custom logos and customize primary/accent theme colors.
+- **Role-Based Access Control (RBAC)**: A 4-role permission system (Super Admin, Sales Admin, Broker User, Underwriter) with a team management page and role-based navigation.
+- **Role-Based Credit Underwriting Workflow**: Brokers can submit prospects for underwriting with priority and comments. Underwriters use a dedicated inbox to claim, review, make decisions (Approve, Decline, Query, Withdraw), and communicate with brokers via a conversation thread.
+- **Prospect Document Management**: Upload, categorize, add notes, filter, download, and delete files associated with prospects. Files are stored in object storage with metadata in the database.
+
+### System Design Choices
+The application uses Drizzle ORM with Neon serverless PostgreSQL. The schema includes `Users`, `Sessions`, `Companies`, `Prospects`, `Activities`, and `Due Diligence` tables, ensuring user-specific data isolation and efficient data retrieval. `Due Diligence` stores assessment data in a JSONB column.
 
 ## External Dependencies
 
@@ -120,6 +38,7 @@ The application features optimized mobile layouts for iOS and Android smartphone
 - **@hello-pangea/dnd**: Drag-and-drop.
 - **lucide-react**: Icon library.
 - **sonner**: Toast notifications.
+- **tailwindcss**: CSS framework.
 
 ### Database & ORM
 - **@neondatabase/serverless**: Neon serverless PostgreSQL client.
@@ -138,7 +57,4 @@ The application features optimized mobile layouts for iOS and Android smartphone
 - **zod**: Schema validation.
 - **pdfkit**: PDF document generation.
 - **gocardless-nodejs**: GoCardless SDK.
-
-### Build Tools
 - **vite**: Frontend build tool.
-- **tailwindcss**: CSS framework.

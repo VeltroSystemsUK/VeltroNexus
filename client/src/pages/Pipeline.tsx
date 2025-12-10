@@ -163,13 +163,27 @@ export default function Pipeline() {
       <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 md:px-6 py-3 md:py-5 flex items-center justify-between gap-2 md:gap-4">
           <div className="flex items-center gap-2 md:gap-4">
-            <div className="h-9 w-9 md:h-11 md:w-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-              <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-lg md:text-2xl font-bold tracking-tight" data-testid="text-app-title">FlowLoan</h1>
-              <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Commercial Lending Platform</p>
-            </div>
+            {user?.brandingLogoUrl ? (
+              <div className="flex flex-col items-start">
+                <img
+                  src={user.brandingLogoUrl}
+                  alt="Company logo"
+                  className="max-h-10 md:max-h-12 max-w-32 md:max-w-48 object-contain"
+                  data-testid="img-custom-logo"
+                />
+                <p className="text-[10px] text-muted-foreground">Powered by FlowLoan</p>
+              </div>
+            ) : (
+              <>
+                <div className="h-9 w-9 md:h-11 md:w-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
+                  <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-lg md:text-2xl font-bold tracking-tight" data-testid="text-app-title">FlowLoan</h1>
+                  <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Commercial Lending Platform</p>
+                </div>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             <Button size="icon" className="md:hidden h-9 w-9" onClick={() => navigate("/search")} data-testid="button-add-prospect-mobile">
