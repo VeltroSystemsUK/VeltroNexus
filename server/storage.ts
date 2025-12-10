@@ -53,6 +53,13 @@ import {
   type InsertTeam,
   type TeamMember,
   type InsertTeamMember,
+  type AddOnProduct,
+  type InsertAddOnProduct,
+  type UpdateAddOnProduct,
+  type AddOnPurchase,
+  type InsertAddOnPurchase,
+  addOnProducts,
+  addOnPurchases,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and } from "drizzle-orm";
@@ -174,6 +181,20 @@ export interface IStorage {
   removeTeamMember(teamId: number, userId: string): Promise<void>;
   getUserTeams(userId: string): Promise<Team[]>;
   getTeamMembers(teamId: number): Promise<(TeamMember & { user: User })[]>;
+
+  // Add-On Products
+  listAddOnProducts(activeOnly?: boolean): Promise<AddOnProduct[]>;
+  getAddOnProduct(id: number): Promise<AddOnProduct | undefined>;
+  createAddOnProduct(product: InsertAddOnProduct): Promise<AddOnProduct>;
+  updateAddOnProduct(id: number, updates: UpdateAddOnProduct): Promise<AddOnProduct | undefined>;
+
+  // Add-On Purchases
+  listUserAddOnPurchases(userId: string): Promise<(AddOnPurchase & { product: AddOnProduct })[]>;
+  getAddOnPurchase(id: number): Promise<AddOnPurchase | undefined>;
+  getAddOnPurchaseByIdempotencyKey(key: string): Promise<AddOnPurchase | undefined>;
+  createAddOnPurchase(purchase: InsertAddOnPurchase): Promise<AddOnPurchase>;
+  updateAddOnPurchase(id: number, updates: Partial<AddOnPurchase>): Promise<AddOnPurchase | undefined>;
+  getUserProspectCredits(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -949,6 +970,99 @@ export class DatabaseStorage implements IStorage {
     );
     
     return membersWithUsers;
+  }
+
+  // Add-On Products
+  async listAddOnProducts(activeOnly: boolean = true): Promise<AddOnProduct[]> {
+    if (activeOnly) {
+      return await db
+        .select()
+        .from(addOnProducts)
+        .where(eq(addOnProducts.isActive, 1))
+        .orderBy(addOnProducts.displayOrder, addOnProducts.title);
+    }
+    return await db.select().from(addOnProducts).orderBy(addOnProducts.displayOrder, addOnProducts.title);
+  }
+
+  async getAddOnProduct(id: number): Promise<AddOnProduct | undefined> {
+    const [product] = await db.select().from(addOnProducts).where(eq(addOnProducts.id, id));
+    return product;
+  }
+
+  async createAddOnProduct(product: InsertAddOnProduct): Promise<AddOnProduct> {
+    const [newProduct] = await db.insert(addOnProducts).values(product as any).returning();
+    return newProduct;
+  }
+
+  async updateAddOnProduct(id: number, updates: UpdateAddOnProduct): Promise<AddOnProduct | undefined> {
+    const [product] = await db
+      .update(addOnProducts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(addOnProducts.id, id))
+      .returning();
+    return product || undefined;
+  }
+
+  // Add-On Purchases
+  async listUserAddOnPurchases(userId: string): Promise<(AddOnPurchase & { product: AddOnProduct })[]> {
+    const purchases = await db
+      .select()
+      .from(addOnPurchases)
+      .where(eq(addOnPurchases.userId, userId))
+      .orderBy(addOnPurchases.createdAt);
+    
+    const purchasesWithProducts = await Promise.all(
+      purchases.map(async (purchase) => {
+        const product = await this.getAddOnProduct(purchase.addOnProductId);
+        return { ...purchase, product: product! };
+      })
+    );
+    
+    return purchasesWithProducts;
+  }
+
+  async getAddOnPurchase(id: number): Promise<AddOnPurchase | undefined> {
+    const [purchase] = await db.select().from(addOnPurchases).where(eq(addOnPurchases.id, id));
+    return purchase;
+  }
+
+  async getAddOnPurchaseByIdempotencyKey(key: string): Promise<AddOnPurchase | undefined> {
+    const [purchase] = await db.select().from(addOnPurchases).where(eq(addOnPurchases.idempotencyKey, key));
+    return purchase;
+  }
+
+  async createAddOnPurchase(purchase: InsertAddOnPurchase): Promise<AddOnPurchase> {
+    const [newPurchase] = await db.insert(addOnPurchases).values(purchase as any).returning();
+    return newPurchase;
+  }
+
+  async updateAddOnPurchase(id: number, updates: Partial<AddOnPurchase>): Promise<AddOnPurchase | undefined> {
+    const [purchase] = await db
+      .update(addOnPurchases)
+      .set(updates)
+      .where(eq(addOnPurchases.id, id))
+      .returning();
+    return purchase || undefined;
+  }
+
+  async getUserProspectCredits(userId: string): Promise<number> {
+    // Sum up all completed purchases of prospect packs for this user
+    const purchases = await db
+      .select()
+      .from(addOnPurchases)
+      .where(and(
+        eq(addOnPurchases.userId, userId),
+        eq(addOnPurchases.status, "completed")
+      ));
+    
+    let totalCredits = 0;
+    for (const purchase of purchases) {
+      const product = await this.getAddOnProduct(purchase.addOnProductId);
+      if (product && product.category === "prospects" && product.quantityIncluded) {
+        totalCredits += product.quantityIncluded * purchase.quantity;
+      }
+    }
+    return totalCredits;
   }
 }
 
