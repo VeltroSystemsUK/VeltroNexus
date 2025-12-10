@@ -9,7 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet } from "lucide-react";
+import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
 const CURRENCIES = [
@@ -74,6 +75,7 @@ const DEFAULT_PDF_SECTIONS = [
 ];
 
 export default function Settings() {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const [currency, setCurrency] = useState("GBP");
   const [timezone, setTimezone] = useState("Europe/London");
@@ -222,11 +224,21 @@ export default function Settings() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="heading-settings">Settings</h1>
-          <p className="text-muted-foreground">Customize your FlowLoan experience</p>
+    <div className="container max-w-4xl mx-auto p-6 space-y-6 pb-24">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/")}
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="heading-settings">Settings</h1>
+            <p className="text-muted-foreground">Customize your FlowLoan experience</p>
+          </div>
         </div>
         <Button
           onClick={handleSave}

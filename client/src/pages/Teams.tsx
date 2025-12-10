@@ -10,7 +10,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
-import { Plus, Users, UserPlus, Trash2, Loader2, Building2, Shield, UserCog, Briefcase } from "lucide-react";
+import { Plus, Users, UserPlus, Trash2, Loader2, Building2, Shield, UserCog, Briefcase, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
 interface Team {
@@ -50,6 +51,7 @@ interface User {
 }
 
 export default function Teams() {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
@@ -161,11 +163,21 @@ export default function Teams() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6 pb-24">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">Team Management</h1>
-          <p className="text-muted-foreground">Create and manage teams to organize your users</p>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/")}
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Team Management</h1>
+            <p className="text-muted-foreground">Create and manage teams to organize your users</p>
+          </div>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>

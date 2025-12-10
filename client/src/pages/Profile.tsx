@@ -7,11 +7,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState } from "react";
-import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase, Shield, UserCog } from "lucide-react";
+import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase, Shield, UserCog, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Profile() {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"standard" | "premium" | null>(null);
@@ -173,8 +175,16 @@ export default function Profile() {
   };
 
   return (
-    <div className="container max-w-6xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container max-w-6xl mx-auto p-6 space-y-6 pb-24">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/")}
+          data-testid="button-back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         <h1 className="text-3xl font-bold" data-testid="heading-profile">Profile & Subscription</h1>
       </div>
 
