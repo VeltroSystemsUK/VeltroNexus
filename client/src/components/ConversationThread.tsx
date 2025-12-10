@@ -125,25 +125,31 @@ export default function ConversationThread({
       <div className="divide-y">
         {activities.map((activity) => {
           const Icon = activityIcons[activity.activityType] || MessageSquare;
-          const colorClass = activityColors[activity.activityType] || "bg-gray-100 text-gray-800";
           const label = activityLabels[activity.activityType] || activity.activityType;
           const attachments = (activity.attachments as any[]) || [];
+          const isUnderwriter = activity.user?.role === 'underwriter' || 
+            ['queried', 'claimed', 'approved', 'declined', 'withdrawn'].includes(activity.activityType);
           const senderName = activity.user?.firstName && activity.user?.lastName 
             ? `${activity.user.firstName} ${activity.user.lastName}`
-            : activity.user?.role === 'underwriter' ? 'Underwriter' : 'Broker';
+            : isUnderwriter ? 'Underwriter' : 'Broker';
+          
+          // Color coding: Blue for broker, Purple for underwriter
+          const rowColor = isUnderwriter 
+            ? 'border-l-2 border-l-purple-500 pl-2' 
+            : 'border-l-2 border-l-blue-500 pl-2';
 
           return (
-            <div key={activity.id} className="py-2" data-testid={`activity-${activity.id}`}>
-              {/* Row 1: Icon, Type, Sender, Date */}
+            <div key={activity.id} className={`py-2 ${rowColor}`} data-testid={`activity-${activity.id}`}>
+              {/* Row 1: Date/Time, Icon, Type, Sender */}
               <div className="flex items-center gap-2 text-xs">
-                <Icon className={`h-3.5 w-3.5 ${colorClass.includes('text-') ? colorClass.split(' ').find(c => c.startsWith('text-')) : 'text-muted-foreground'}`} />
-                <span className="font-medium">{label}</span>
-                <span className="text-muted-foreground">from {senderName}</span>
-                <span className="text-muted-foreground ml-auto">{format(new Date(activity.createdAt), "dd MMM, HH:mm")}</span>
+                <span className="text-muted-foreground w-24 flex-shrink-0">{format(new Date(activity.createdAt), "dd MMM, HH:mm")}</span>
+                <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${isUnderwriter ? 'text-purple-600' : 'text-blue-600'}`} />
+                <span className={`font-medium ${isUnderwriter ? 'text-purple-700 dark:text-purple-400' : 'text-blue-700 dark:text-blue-400'}`}>{label}</span>
+                <span className="text-muted-foreground">— {senderName}</span>
               </div>
               {/* Row 2: Content + Attachments */}
               {(activity.content || attachments.length > 0) && (
-                <div className="mt-1 pl-5.5 flex items-start gap-2">
+                <div className="mt-1 ml-24 flex items-start gap-2">
                   {activity.content && (
                     <p className="text-sm text-foreground flex-1">{activity.content}</p>
                   )}
