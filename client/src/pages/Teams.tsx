@@ -70,7 +70,7 @@ export default function Teams() {
     enabled: roleData?.role === "super_admin" || roleData?.role === "sales_admin",
   });
 
-  const { data: users } = useQuery<User[]>({
+  const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
     enabled: roleData?.role === "super_admin" || roleData?.role === "sales_admin",
   });
@@ -300,14 +300,21 @@ export default function Teams() {
                             <SelectValue placeholder="Select a user..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {users?.filter(u => !selectedTeam?.members.some(m => m.userId === u.id)).map((user) => (
-                              <SelectItem key={user.id} value={user.id}>
-                                <div className="flex items-center gap-2">
-                                  {getRoleIcon(user.role)}
-                                  {user.firstName} {user.lastName} ({user.email})
-                                </div>
+                            {usersLoading ? (
+                              <SelectItem value="loading" disabled>
+                                Loading users...
                               </SelectItem>
-                            ))}
+                            ) : users && users.length > 0 ? (
+                              users.filter(u => !selectedTeam?.members.some(m => m.userId === u.id)).map((user) => (
+                                <SelectItem key={user.id} value={user.id}>
+                                  {user.firstName || user.email?.split('@')[0]} {user.lastName || ''} - {user.email}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="no-users" disabled>
+                                No users available
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
