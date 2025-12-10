@@ -1911,6 +1911,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add-On Products API - Marketplace for prospect packs and feature add-ons
+  app.get("/api/add-ons", isAuthenticated, async (req: any, res) => {
+    try {
+      const products = await storage.listAddOnProducts(true);
+      res.json(products);
+    } catch (error: any) {
+      console.error("Error fetching add-on products:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/add-ons/purchases", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const purchases = await storage.listUserAddOnPurchases(userId);
+      res.json(purchases);
+    } catch (error: any) {
+      console.error("Error fetching purchases:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/add-ons/credits", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credits = await storage.getUserProspectCredits(userId);
+      res.json({ credits });
+    } catch (error: any) {
+      console.error("Error fetching credits:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Purchase an add-on using GoCardless one-off payment
+  app.post("/api/add-ons/purchase", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { productId, quantity = 1 } = req.body;
+
+      if (!productId) {
+        return res.status(400).json({ error: "Product ID required" });
+      }
+
+      const product = await storage.getAddOnProduct(productId);
+      if (!product || product.isActive !== 1) {
+        return res.status(404).json({ error: "Product not found or unavailable" });
+      }
+
+      // Get user to check they have a mandate set up
+      const user = await storage.getUser(userId);
+      if (!user?.gocardlessMandateId) {
+        return res.status(400).json({ 
+          error: "No payment method set up. Please set up a subscription first.",
+          requiresPaymentSetup: true 
+        });
+      }
+
+      // Calculate total and create idempotency key
+      const totalPence = product.priceInPence * quantity;
+      const idempotencyKey = `addon_${userId}_${productId}_${Date.now()}`;
+
+      // Check for existing purchase with this key
+      const existing = await storage.getAddOnPurchaseByIdempotencyKey(idempotencyKey);
+      if (existing) {
+        return res.json(existing);
+      }
+
+      // Create purchase record
+      const purchase = await storage.createAddOnPurchase({
+        userId,
+        addOnProductId: productId,
+        status: "pending",
+        quantity,
+        totalPaidInPence: totalPence,
+        idempotencyKey,
+      });
+
+      // Create one-off payment with GoCardless
+      try {
+        const payment = await gcClient.payments.create({
+          amount: totalPence,
+          currency: product.currency || "GBP",
+          links: {
+            mandate: user.gocardlessMandateId,
+          },
+          metadata: {
+            purchase_id: purchase.id.toString(),
+            product_id: productId.toString(),
+            user_id: userId,
+          },
+        }, {
+          headers: {
+            'Idempotency-Key': idempotencyKey,
+          },
+        });
+
+        // Update purchase with payment ID and mark as completed (Direct Debit payments are usually confirmed)
+        const updatedPurchase = await storage.updateAddOnPurchase(purchase.id, {
+          gocardlessPaymentId: payment.id,
+          status: "completed",
+          completedAt: new Date(),
+        });
+
+        res.json({ 
+          success: true, 
+          purchase: updatedPurchase,
+          message: `Successfully purchased ${product.title}`,
+        });
+      } catch (paymentError: any) {
+        // Mark purchase as failed
+        await storage.updateAddOnPurchase(purchase.id, {
+          status: "failed",
+        });
+        throw paymentError;
+      }
+    } catch (error: any) {
+      console.error("Error purchasing add-on:", error);
+      res.status(500).json({ error: error.message || "Failed to process purchase" });
+    }
+  });
+
+  // Admin: Create add-on product (Super Admin only)
+  app.post("/api/add-ons/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ error: "Super Admin access required" });
+      }
+
+      const { title, description, category, quantityIncluded, featureKey, priceInPence, currency } = req.body;
+      
+      const product = await storage.createAddOnProduct({
+        title,
+        description,
+        category: category || "prospects",
+        quantityIncluded: quantityIncluded || 0,
+        featureKey,
+        priceInPence,
+        currency: currency || "GBP",
+        isActive: 1,
+        displayOrder: 0,
+      });
+
+      res.status(201).json(product);
+    } catch (error: any) {
+      console.error("Error creating add-on product:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Lenders API - Protected routes
   app.get("/api/lenders", isAuthenticated, async (req: any, res) => {
     try {
