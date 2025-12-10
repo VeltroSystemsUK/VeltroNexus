@@ -323,24 +323,22 @@ function UnderwritingStatusBanner({
 
             {/* Conversation History Dialog */}
             <Dialog open={showConversation} onOpenChange={setShowConversation}>
-              <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
+              <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
+                <DialogHeader className="pb-2">
+                  <DialogTitle className="flex items-center gap-2 text-base">
+                    <MessageSquare className="h-4 w-4" />
                     Conversation History
                   </DialogTitle>
-                  <DialogDescription>
-                    View all messages exchanged with the underwriter for this submission.
-                  </DialogDescription>
                 </DialogHeader>
-                <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[50vh] border rounded-md p-4 bg-muted/30">
+                <div className="flex-1 overflow-y-auto min-h-[400px] max-h-[70vh] border rounded-md p-3 bg-muted/20">
                   <ConversationThread 
                     submissionId={submission.id}
                   />
                 </div>
-                <DialogFooter>
+                <DialogFooter className="pt-2">
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={() => setShowConversation(false)}
                   >
                     Close

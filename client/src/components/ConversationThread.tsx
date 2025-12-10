@@ -121,8 +121,8 @@ export default function ConversationThread({
   };
 
   return (
-    <ScrollArea className="pr-4" style={{ maxHeight }}>
-      <div className="space-y-4">
+    <ScrollArea className="pr-2" style={{ maxHeight }}>
+      <div className="space-y-2">
         {activities.map((activity) => {
           const Icon = activityIcons[activity.activityType] || MessageSquare;
           const colorClass = activityColors[activity.activityType] || "bg-gray-100 text-gray-800";
@@ -132,74 +132,57 @@ export default function ConversationThread({
           const attachments = (activity.attachments as any[]) || [];
 
           return (
-            <Card 
+            <div 
               key={activity.id} 
-              className={`${isQuery ? 'border-l-4 border-l-purple-500' : ''} ${isResponse ? 'border-l-4 border-l-cyan-500' : ''}`}
+              className={`p-2.5 rounded-md border bg-card ${isQuery ? 'border-l-2 border-l-purple-500' : ''} ${isResponse ? 'border-l-2 border-l-cyan-500' : ''}`}
               data-testid={`activity-${activity.id}`}
             >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className={`p-2 rounded-full ${colorClass}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Badge variant="secondary" className={colorClass}>
-                        {label}
-                      </Badge>
-                      {activity.user && (
-                        <span className="text-sm text-muted-foreground">
-                          by {activity.user.firstName} {activity.user.lastName}
-                          {activity.user.role && (
-                            <span className="text-xs ml-1">
-                              ({activity.user.role === 'underwriter' ? 'Underwriter' : 'Broker'})
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {activity.content && (
-                      <p className="text-sm text-foreground mt-2 whitespace-pre-wrap">
-                        {activity.content}
-                      </p>
-                    )}
-
-                    {attachments.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Paperclip className="h-3 w-3" />
-                          <span>{attachments.length} attachment(s)</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {attachments.map((att: any, idx: number) => (
-                            <Button
-                              key={idx}
-                              variant="outline"
-                              size="sm"
-                              className="h-auto py-1.5 px-2"
-                              onClick={() => handleDownload(att.storagePath, att.fileName)}
-                              data-testid={`button-download-attachment-${activity.id}-${idx}`}
-                            >
-                              <FileText className="h-3 w-3 mr-1.5" />
-                              <span className="text-xs truncate max-w-[120px]">{att.fileName}</span>
-                              <span className="text-xs text-muted-foreground ml-1">
-                                ({formatFileSize(att.fileSize)})
-                              </span>
-                              <Download className="h-3 w-3 ml-1.5" />
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {format(new Date(activity.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                    </p>
-                  </div>
+              <div className="flex items-start gap-2">
+                <div className={`p-1 rounded-full ${colorClass} flex-shrink-0`}>
+                  <Icon className="h-3 w-3" />
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge variant="secondary" className={`${colorClass} text-xs py-0 px-1.5`}>
+                      {label}
+                    </Badge>
+                    {activity.user && (
+                      <span className="text-xs text-muted-foreground">
+                        {activity.user.firstName} {activity.user.lastName}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      · {format(new Date(activity.createdAt), "MMM d, h:mm a")}
+                    </span>
+                  </div>
+                  
+                  {activity.content && (
+                    <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">
+                      {activity.content}
+                    </p>
+                  )}
+
+                  {attachments.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {attachments.map((att: any, idx: number) => (
+                        <Button
+                          key={idx}
+                          variant="outline"
+                          size="sm"
+                          className="h-6 py-0 px-1.5 text-xs"
+                          onClick={() => handleDownload(att.storagePath, att.fileName)}
+                          data-testid={`button-download-attachment-${activity.id}-${idx}`}
+                        >
+                          <Paperclip className="h-2.5 w-2.5 mr-1" />
+                          <span className="truncate max-w-[100px]">{att.fileName}</span>
+                          <Download className="h-2.5 w-2.5 ml-1" />
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           );
         })}
       </div>
