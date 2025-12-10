@@ -120,67 +120,93 @@ export default function ConversationThread({
     }
   };
 
+  // Determine if message is from broker (right side) or underwriter (left side)
+  const isBrokerMessage = (type: string) => ['submitted', 'responded', 'comment'].includes(type) && 
+    activities?.find(a => a.activityType === type)?.user?.role !== 'underwriter';
+
   return (
     <ScrollArea className="pr-2" style={{ maxHeight }}>
-      <div className="space-y-2">
+      <div className="space-y-3 py-2">
         {activities.map((activity) => {
-          const Icon = activityIcons[activity.activityType] || MessageSquare;
-          const colorClass = activityColors[activity.activityType] || "bg-gray-100 text-gray-800";
           const label = activityLabels[activity.activityType] || activity.activityType;
-          const isQuery = activity.activityType === 'queried';
-          const isResponse = activity.activityType === 'responded';
           const attachments = (activity.attachments as any[]) || [];
+          
+          // Broker messages (submitted, responded, comment from broker) go right
+          // Underwriter messages (queried, claimed, approved, declined, withdrawn, comment from underwriter) go left
+          const isFromBroker = activity.user?.role === 'broker' || 
+            (activity.activityType === 'submitted') ||
+            (activity.activityType === 'responded');
+          
+          // System messages (no content, just status updates)
+          const isSystemMessage = ['claimed', 'approved', 'declined', 'withdrawn'].includes(activity.activityType) && !activity.content;
+
+          if (isSystemMessage) {
+            return (
+              <div key={activity.id} className="flex justify-center" data-testid={`activity-${activity.id}`}>
+                <div className="bg-muted/50 text-muted-foreground text-xs px-3 py-1 rounded-full">
+                  {label} · {format(new Date(activity.createdAt), "MMM d, h:mm a")}
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div 
               key={activity.id} 
-              className={`p-2.5 rounded-md border bg-card ${isQuery ? 'border-l-2 border-l-purple-500' : ''} ${isResponse ? 'border-l-2 border-l-cyan-500' : ''}`}
+              className={`flex ${isFromBroker ? 'justify-end' : 'justify-start'}`}
               data-testid={`activity-${activity.id}`}
             >
-              <div className="flex items-start gap-2">
-                <div className={`p-1 rounded-full ${colorClass} flex-shrink-0`}>
-                  <Icon className="h-3 w-3" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <Badge variant="secondary" className={`${colorClass} text-xs py-0 px-1.5`}>
+              <div className={`max-w-[80%] ${isFromBroker ? 'order-1' : ''}`}>
+                {/* Sender name */}
+                <p className={`text-xs text-muted-foreground mb-0.5 ${isFromBroker ? 'text-right' : 'text-left'}`}>
+                  {activity.user?.firstName || (isFromBroker ? 'You' : 'Underwriter')}
+                </p>
+                
+                {/* Message bubble */}
+                <div 
+                  className={`px-3 py-2 rounded-2xl ${
+                    isFromBroker 
+                      ? 'bg-primary text-primary-foreground rounded-br-sm' 
+                      : 'bg-muted rounded-bl-sm'
+                  }`}
+                >
+                  {/* Activity type badge for non-standard messages */}
+                  {!['responded', 'comment'].includes(activity.activityType) && (
+                    <p className={`text-xs font-medium mb-1 ${isFromBroker ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                       {label}
-                    </Badge>
-                    {activity.user && (
-                      <span className="text-xs text-muted-foreground">
-                        {activity.user.firstName} {activity.user.lastName}
-                      </span>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      · {format(new Date(activity.createdAt), "MMM d, h:mm a")}
-                    </span>
-                  </div>
+                    </p>
+                  )}
                   
                   {activity.content && (
-                    <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">
+                    <p className="text-sm whitespace-pre-wrap">
                       {activity.content}
                     </p>
                   )}
 
                   {attachments.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
+                    <div className="mt-2 space-y-1">
                       {attachments.map((att: any, idx: number) => (
                         <Button
                           key={idx}
-                          variant="outline"
+                          variant={isFromBroker ? "secondary" : "outline"}
                           size="sm"
-                          className="h-6 py-0 px-1.5 text-xs"
+                          className="h-7 w-full justify-start text-xs"
                           onClick={() => handleDownload(att.storagePath, att.fileName)}
                           data-testid={`button-download-attachment-${activity.id}-${idx}`}
                         >
-                          <Paperclip className="h-2.5 w-2.5 mr-1" />
-                          <span className="truncate max-w-[100px]">{att.fileName}</span>
-                          <Download className="h-2.5 w-2.5 ml-1" />
+                          <Paperclip className="h-3 w-3 mr-1.5 flex-shrink-0" />
+                          <span className="truncate">{att.fileName}</span>
+                          <Download className="h-3 w-3 ml-auto flex-shrink-0" />
                         </Button>
                       ))}
                     </div>
                   )}
                 </div>
+                
+                {/* Timestamp */}
+                <p className={`text-[10px] text-muted-foreground mt-0.5 ${isFromBroker ? 'text-right' : 'text-left'}`}>
+                  {format(new Date(activity.createdAt), "h:mm a")}
+                </p>
               </div>
             </div>
           );
