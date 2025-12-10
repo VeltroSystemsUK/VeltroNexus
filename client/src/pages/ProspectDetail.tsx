@@ -267,11 +267,11 @@ function UnderwritingStatusBanner({
               )}
               <Button
                 variant="outline"
-                onClick={() => setShowConversation(!showConversation)}
+                onClick={() => setShowConversation(true)}
                 data-testid="button-toggle-conversation"
               >
                 <MessageSquare className="h-4 w-4 mr-2" />
-                {showConversation ? "Hide" : "View"} Conversation History
+                View Conversation History
               </Button>
             </div>
 
@@ -321,15 +321,33 @@ function UnderwritingStatusBanner({
               </DialogContent>
             </Dialog>
 
-            {showConversation && (
-              <div className="mt-4 border-t pt-4">
-                <h4 className="font-medium text-sm mb-3">Communication History</h4>
-                <ConversationThread 
-                  submissionId={submission.id}
-                  maxHeight="400px"
-                />
-              </div>
-            )}
+            {/* Conversation History Dialog */}
+            <Dialog open={showConversation} onOpenChange={setShowConversation}>
+              <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Conversation History
+                  </DialogTitle>
+                  <DialogDescription>
+                    View all messages exchanged with the underwriter for this submission.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[50vh] border rounded-md p-4 bg-muted/30">
+                  <ConversationThread 
+                    submissionId={submission.id}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowConversation(false)}
+                  >
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </div>
