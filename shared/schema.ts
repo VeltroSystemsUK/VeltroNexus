@@ -427,6 +427,51 @@ export const underwritingActivityRelations = relations(underwritingActivity, ({ 
   }),
 }));
 
+// Add-On Products - Marketplace items for purchase
+export const addOnProducts = pgTable("add_on_products", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull().default("prospects"), // prospects, features
+  quantityIncluded: integer("quantity_included").default(0), // e.g., 10 prospects
+  featureKey: varchar("feature_key"), // e.g., "premium_reports", "api_access"
+  priceInPence: integer("price_in_pence").notNull(),
+  currency: varchar("currency").notNull().default("GBP"),
+  isActive: integer("is_active").notNull().default(1),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Add-On Purchases - User purchases of add-on products
+export const addOnPurchases = pgTable("add_on_purchases", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  addOnProductId: integer("add_on_product_id").notNull().references(() => addOnProducts.id),
+  status: varchar("status").notNull().default("pending"), // pending, completed, failed, refunded
+  quantity: integer("quantity").notNull().default(1),
+  totalPaidInPence: integer("total_paid_in_pence").notNull(),
+  gocardlessPaymentId: varchar("gocardless_payment_id"),
+  idempotencyKey: varchar("idempotency_key").unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const addOnProductsRelations = relations(addOnProducts, ({ many }) => ({
+  purchases: many(addOnPurchases),
+}));
+
+export const addOnPurchasesRelations = relations(addOnPurchases, ({ one }) => ({
+  user: one(users, {
+    fields: [addOnPurchases.userId],
+    references: [users.id],
+  }),
+  product: one(addOnProducts, {
+    fields: [addOnPurchases.addOnProductId],
+    references: [addOnProducts.id],
+  }),
+}));
+
 export const companiesRelations = relations(companies, ({ many }) => ({
   prospects: many(prospects),
 }));
@@ -959,3 +1004,39 @@ export type UnderwritingEligibility = z.infer<typeof underwritingEligibilitySche
 export type UnderwritingFinancialAnalysis = z.infer<typeof underwritingFinancialAnalysisSchema>;
 export type UnderwritingAdverseMedia = z.infer<typeof underwritingAdverseMediaSchema>;
 export type UnderwritingAdviserSummary = z.infer<typeof underwritingAdviserSummarySchema>;
+
+// Add-On Product Schemas
+export const insertAddOnProductSchema = createInsertSchema(addOnProducts, {
+  category: z.enum(["prospects", "features"]).default("prospects"),
+  priceInPence: z.number().int().positive(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateAddOnProductSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().nullable().optional(),
+  category: z.enum(["prospects", "features"]).optional(),
+  quantityIncluded: z.number().int().optional(),
+  featureKey: z.string().nullable().optional(),
+  priceInPence: z.number().int().positive().optional(),
+  currency: z.string().optional(),
+  isActive: z.number().int().min(0).max(1).optional(),
+  displayOrder: z.number().int().optional(),
+});
+
+export const insertAddOnPurchaseSchema = createInsertSchema(addOnPurchases, {
+  status: z.enum(["pending", "completed", "failed", "refunded"]).default("pending"),
+}).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export type AddOnProduct = typeof addOnProducts.$inferSelect;
+export type InsertAddOnProduct = z.infer<typeof insertAddOnProductSchema>;
+export type UpdateAddOnProduct = z.infer<typeof updateAddOnProductSchema>;
+export type AddOnPurchase = typeof addOnPurchases.$inferSelect;
+export type InsertAddOnPurchase = z.infer<typeof insertAddOnPurchaseSchema>;
