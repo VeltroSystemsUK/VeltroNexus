@@ -3539,6 +3539,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Broker sends a message on their submission
+  app.post("/api/underwriting/submissions/:id/broker-message", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const submission = await storage.getUnderwritingSubmission(id);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Only the broker who submitted can send messages
+      if (submission.brokerId !== userId) {
+        return res.status(403).json({ error: "Only the submitting broker can send messages" });
+      }
+      
+      const { message } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+      
+      // Create activity record as a comment from broker
+      const activity = await storage.createUnderwritingActivity({
+        submissionId: id,
+        activityType: 'comment',
+        content: message,
+        attachments: [],
+      }, userId);
+      
+      res.status(201).json({
+        activity,
+        message: "Message sent to underwriter.",
+      });
+    } catch (error: any) {
+      console.error("Error sending broker message:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Prospect Documents - List all documents for a prospect
   app.get("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
     try {

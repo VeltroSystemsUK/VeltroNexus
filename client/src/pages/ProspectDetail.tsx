@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
@@ -88,6 +89,55 @@ function UnderwritingStatusBanner({
   onReplyClick?: () => void;
 }) {
   const [showConversation, setShowConversation] = useState(false);
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const { toast } = useToast();
+
+  const sendMessage = async () => {
+    if (!messageText.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      const response = await fetch(`/api/underwriting/submissions/${submission.id}/broker-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: messageText }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to send message");
+      }
+
+      toast({
+        title: "Message Sent",
+        description: "Your message has been sent to the underwriter.",
+      });
+      
+      setMessageText("");
+      setShowMessageDialog(false);
+      
+      // Invalidate activities query to refresh conversation
+      queryClient.invalidateQueries({ queryKey: [`/api/underwriting/submissions/${submission.id}/activities`] });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
   const statusConfig: Record<string, { bg: string; border: string; icon: typeof Clock; iconColor: string; title: string; description: string }> = {
     submitted: {
       bg: "bg-blue-50 dark:bg-blue-950",
@@ -193,7 +243,7 @@ function UnderwritingStatusBanner({
               </p>
             )}
 
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex items-center gap-3 mt-4 flex-wrap">
               {submission.status === 'queried' && onReplyClick && (
                 <Button
                   onClick={onReplyClick}
@@ -202,6 +252,17 @@ function UnderwritingStatusBanner({
                 >
                   <Reply className="h-4 w-4 mr-2" />
                   Reply to Query with Documents
+                </Button>
+              )}
+              {/* Show Send Message for active submissions (not final states) */}
+              {!['approved', 'declined', 'withdrawn'].includes(submission.status) && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowMessageDialog(true)}
+                  data-testid="button-send-message-broker"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Message
                 </Button>
               )}
               <Button
@@ -213,6 +274,52 @@ function UnderwritingStatusBanner({
                 {showConversation ? "Hide" : "View"} Conversation History
               </Button>
             </div>
+
+            {/* Send Message Dialog */}
+            <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Send Message to Underwriter</DialogTitle>
+                  <DialogDescription>
+                    Send a message or additional information to the underwriter reviewing this submission.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <Textarea
+                    placeholder="Type your message here..."
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    rows={5}
+                    data-testid="input-broker-message"
+                  />
+                </div>
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowMessageDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={sendMessage}
+                    disabled={isSendingMessage || !messageText.trim()}
+                    data-testid="button-send-broker-message"
+                  >
+                    {isSendingMessage ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Message
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {showConversation && (
               <div className="mt-4 border-t pt-4">
