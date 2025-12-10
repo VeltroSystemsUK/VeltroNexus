@@ -120,94 +120,52 @@ export default function ConversationThread({
     }
   };
 
-  // Determine if message is from broker (right side) or underwriter (left side)
-  const isBrokerMessage = (type: string) => ['submitted', 'responded', 'comment'].includes(type) && 
-    activities?.find(a => a.activityType === type)?.user?.role !== 'underwriter';
-
   return (
     <ScrollArea className="pr-2" style={{ maxHeight }}>
-      <div className="space-y-3 py-2">
+      <div className="divide-y">
         {activities.map((activity) => {
+          const Icon = activityIcons[activity.activityType] || MessageSquare;
+          const colorClass = activityColors[activity.activityType] || "bg-gray-100 text-gray-800";
           const label = activityLabels[activity.activityType] || activity.activityType;
           const attachments = (activity.attachments as any[]) || [];
-          
-          // Broker messages (submitted, responded, comment from broker) go right
-          // Underwriter messages (queried, claimed, approved, declined, withdrawn, comment from underwriter) go left
-          const isFromBroker = activity.user?.role === 'broker' || 
-            (activity.activityType === 'submitted') ||
-            (activity.activityType === 'responded');
-          
-          // System messages (no content, just status updates)
-          const isSystemMessage = ['claimed', 'approved', 'declined', 'withdrawn'].includes(activity.activityType) && !activity.content;
-
-          if (isSystemMessage) {
-            return (
-              <div key={activity.id} className="flex justify-center" data-testid={`activity-${activity.id}`}>
-                <div className="bg-muted/50 text-muted-foreground text-xs px-3 py-1 rounded-full">
-                  {label} · {format(new Date(activity.createdAt), "MMM d, h:mm a")}
-                </div>
-              </div>
-            );
-          }
+          const senderName = activity.user?.firstName && activity.user?.lastName 
+            ? `${activity.user.firstName} ${activity.user.lastName}`
+            : activity.user?.role === 'underwriter' ? 'Underwriter' : 'Broker';
 
           return (
-            <div 
-              key={activity.id} 
-              className={`flex ${isFromBroker ? 'justify-end' : 'justify-start'}`}
-              data-testid={`activity-${activity.id}`}
-            >
-              <div className={`max-w-[80%] ${isFromBroker ? 'order-1' : ''}`}>
-                {/* Sender name */}
-                <p className={`text-xs text-muted-foreground mb-0.5 ${isFromBroker ? 'text-right' : 'text-left'}`}>
-                  {activity.user?.firstName || (isFromBroker ? 'You' : 'Underwriter')}
-                </p>
-                
-                {/* Message bubble */}
-                <div 
-                  className={`px-3 py-2 rounded-2xl ${
-                    isFromBroker 
-                      ? 'bg-primary text-primary-foreground rounded-br-sm' 
-                      : 'bg-muted rounded-bl-sm'
-                  }`}
-                >
-                  {/* Activity type badge for non-standard messages */}
-                  {!['responded', 'comment'].includes(activity.activityType) && (
-                    <p className={`text-xs font-medium mb-1 ${isFromBroker ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                      {label}
-                    </p>
-                  )}
-                  
+            <div key={activity.id} className="py-2" data-testid={`activity-${activity.id}`}>
+              {/* Row 1: Icon, Type, Sender, Date */}
+              <div className="flex items-center gap-2 text-xs">
+                <Icon className={`h-3.5 w-3.5 ${colorClass.includes('text-') ? colorClass.split(' ').find(c => c.startsWith('text-')) : 'text-muted-foreground'}`} />
+                <span className="font-medium">{label}</span>
+                <span className="text-muted-foreground">from {senderName}</span>
+                <span className="text-muted-foreground ml-auto">{format(new Date(activity.createdAt), "dd MMM, HH:mm")}</span>
+              </div>
+              {/* Row 2: Content + Attachments */}
+              {(activity.content || attachments.length > 0) && (
+                <div className="mt-1 pl-5.5 flex items-start gap-2">
                   {activity.content && (
-                    <p className="text-sm whitespace-pre-wrap">
-                      {activity.content}
-                    </p>
+                    <p className="text-sm text-foreground flex-1">{activity.content}</p>
                   )}
-
                   {attachments.length > 0 && (
-                    <div className="mt-2 space-y-1">
+                    <div className="flex gap-1 flex-shrink-0">
                       {attachments.map((att: any, idx: number) => (
                         <Button
                           key={idx}
-                          variant={isFromBroker ? "secondary" : "outline"}
+                          variant="ghost"
                           size="sm"
-                          className="h-7 w-full justify-start text-xs"
+                          className="h-6 px-2 text-xs"
                           onClick={() => handleDownload(att.storagePath, att.fileName)}
                           data-testid={`button-download-attachment-${activity.id}-${idx}`}
                         >
-                          <Paperclip className="h-3 w-3 mr-1.5 flex-shrink-0" />
-                          <span className="truncate">{att.fileName}</span>
-                          <Download className="h-3 w-3 ml-auto flex-shrink-0" />
+                          <Paperclip className="h-3 w-3 mr-1" />
+                          <span className="truncate max-w-[80px]">{att.fileName}</span>
                         </Button>
                       ))}
                     </div>
                   )}
                 </div>
-                
-                {/* Timestamp */}
-                <p className={`text-[10px] text-muted-foreground mt-0.5 ${isFromBroker ? 'text-right' : 'text-left'}`}>
-                  {format(new Date(activity.createdAt), "h:mm a")}
-                </p>
-              </div>
+              )}
             </div>
           );
         })}
