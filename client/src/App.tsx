@@ -20,6 +20,7 @@ import Submissions from "@/pages/Submissions";
 import Leads from "@/pages/Leads";
 import UnderwriterInbox from "@/pages/UnderwriterInbox";
 import Teams from "@/pages/Teams";
+import Admin from "@/pages/Admin";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -49,6 +50,7 @@ function Router() {
           <Route path="/leads" component={Leads} />
           <Route path="/underwriting" component={UnderwriterInbox} />
           <Route path="/teams" component={Teams} />
+          <Route path="/admin" component={Admin} />
           <Route path="/profile" component={Profile} />
           <Route path="/settings" component={Settings} />
           <Route path="/pricing" component={Pricing} />

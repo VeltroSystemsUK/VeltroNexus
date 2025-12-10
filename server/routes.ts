@@ -3329,6 +3329,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ============ TEAM MANAGEMENT ============
 
+  // Get all users (super_admin only)
+  app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const currentUser = await storage.getUser(userId);
+      
+      if (!currentUser || currentUser.role !== "super_admin") {
+        return res.status(403).json({ error: "Only super admins can access this endpoint" });
+      }
+      
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error: any) {
+      console.error("Error listing users:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get all teams (super_admin and sales_admin only)
   app.get("/api/teams", isAuthenticated, async (req: any, res) => {
     try {
