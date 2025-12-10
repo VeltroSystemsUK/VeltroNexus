@@ -55,6 +55,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         enabled: z.boolean(),
       })),
     }).optional(),
+    brandingPrimaryColor: z.string().optional().nullable(),
+    brandingAccentColor: z.string().optional().nullable(),
+    brandingLogoUrl: z.string().optional().nullable(),
   });
 
   app.patch('/api/user/settings', isAuthenticated, async (req: any, res) => {
@@ -75,6 +78,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedUser);
     } catch (error: any) {
       console.error("Error updating user settings:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Upload branding logo
+  app.post('/api/user/branding/logo', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const chunks: Buffer[] = [];
+      
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      req.on('end', async () => {
+        try {
+          const body = Buffer.concat(chunks);
+          const contentType = req.headers['content-type'];
+          
+          if (!contentType?.startsWith('multipart/form-data')) {
+            return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+          }
+          
+          const boundaryMatch = contentType.match(/boundary=(.+)/);
+          if (!boundaryMatch) {
+            return res.status(400).json({ error: "Missing boundary in multipart data" });
+          }
+          
+          const boundary = boundaryMatch[1];
+          const parts = body.toString('binary').split(`--${boundary}`);
+          
+          let logoUrl: string | null = null;
+          
+          for (const part of parts) {
+            if (part.includes('filename=')) {
+              const filenameMatch = part.match(/filename="([^"]+)"/);
+              const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/);
+              
+              if (filenameMatch) {
+                const fileName = filenameMatch[1];
+                const fileType = contentTypeMatch ? contentTypeMatch[1].trim() : 'image/png';
+                
+                // Validate it's an image
+                if (!fileType.startsWith('image/')) {
+                  return res.status(400).json({ error: "Only image files are allowed for logos" });
+                }
+                
+                const contentStart = part.indexOf('\r\n\r\n') + 4;
+                const contentEnd = part.lastIndexOf('\r\n');
+                const fileContent = Buffer.from(part.slice(contentStart, contentEnd), 'binary');
+                
+                // Max file size 2MB
+                if (fileContent.length > 2 * 1024 * 1024) {
+                  return res.status(400).json({ error: "Logo file must be under 2MB" });
+                }
+                
+                const timestamp = Date.now();
+                const extension = fileName.split('.').pop() || 'png';
+                const storagePath = `public/branding/${userId}_logo_${timestamp}.${extension}`;
+                
+                await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+                
+                // Get public URL
+                const { publicUrl } = await getObjectStorage().getPublicUrl(storagePath);
+                logoUrl = publicUrl || storagePath;
+                
+                // Update user with new logo URL
+                await storage.updateUser(userId, { brandingLogoUrl: logoUrl });
+              }
+            }
+          }
+          
+          if (!logoUrl) {
+            return res.status(400).json({ error: "No logo file uploaded" });
+          }
+          
+          res.json({ logoUrl, message: "Logo uploaded successfully" });
+        } catch (parseError: any) {
+          console.error("Error parsing logo upload:", parseError);
+          res.status(500).json({ error: parseError.message });
+        }
+      });
+    } catch (error: any) {
+      console.error("Error uploading logo:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete branding logo
+  app.delete('/api/user/branding/logo', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Clear the logo URL from user settings
+      await storage.updateUser(userId, { brandingLogoUrl: null });
+      
+      res.json({ message: "Logo removed successfully" });
+    } catch (error: any) {
+      console.error("Error deleting logo:", error);
       res.status(500).json({ error: error.message });
     }
   });
