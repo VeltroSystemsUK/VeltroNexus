@@ -196,13 +196,13 @@ export default function Landing() {
           <div className="text-center mb-16">
             <Badge variant="outline" className="mb-4 text-[16px]">
               <Brain className="h-3.5 w-3.5 mr-2" />
-              AI-Powered Intelligence
+              AI-Assisted Analysis
             </Badge>
             <h3 className="text-3xl md:text-4xl font-bold mb-4">
-              AI That Works While You Sleep
+              AI Tools That Support Your Decisions
             </h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Our AI engine automates credit decisioning, risk assessment, and document analysis - reducing manual work by up to 85%.
+              AI assists with credit analysis, document processing, and risk assessment. You review the outputs and make the final call - combining speed with human judgement.
             </p>
           </div>
 
