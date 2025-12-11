@@ -237,11 +237,20 @@ export default function Landing() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-3 mb-12">
-              {['Lead', 'Contacted', 'Qualified', 'Proposal', 'Due Diligence', 'Approval', 'Approved', 'Declined', 'Withdrawn'].map((stage, i) => (
+              {[
+                { stage: 'Lead', color: 'bg-slate-500 dark:bg-slate-600' },
+                { stage: 'Contacted', color: 'bg-blue-500 dark:bg-blue-600' },
+                { stage: 'Qualified', color: 'bg-indigo-500 dark:bg-indigo-600' },
+                { stage: 'Proposal', color: 'bg-violet-500 dark:bg-violet-600' },
+                { stage: 'Due Diligence', color: 'bg-purple-500 dark:bg-purple-600' },
+                { stage: 'Approval', color: 'bg-amber-500 dark:bg-amber-600' },
+                { stage: 'Approved', color: 'bg-green-500 dark:bg-green-600' },
+                { stage: 'Declined', color: 'bg-red-500 dark:bg-red-600' },
+                { stage: 'Withdrawn', color: 'bg-gray-400 dark:bg-gray-500' },
+              ].map(({ stage, color }, i) => (
                 <div key={stage} className="flex items-center gap-2">
                   <Badge 
-                    variant={i < 6 ? "default" : i === 6 ? "default" : "secondary"}
-                    className="whitespace-nowrap inline-flex items-center rounded-md border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover-elevate border-transparent bg-primary text-primary-foreground shadow-xs text-[13px]"
+                    className={`whitespace-nowrap inline-flex items-center rounded-md border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover-elevate border-transparent text-white shadow-xs text-[13px] ${color}`}
                   >
                     {stage}
                   </Badge>
