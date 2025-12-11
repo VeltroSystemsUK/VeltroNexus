@@ -103,7 +103,7 @@ export default function Landing() {
           <div className="container mx-auto px-4 py-12">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
               <div className="text-center">
-                <div className="text-4xl font-bold text-primary mb-2">10x</div>
+                <div className="font-bold text-primary mb-2 text-[42px]">10x</div>
                 <p className="text-sm text-muted-foreground">Faster Processing</p>
               </div>
               <div className="text-center">
