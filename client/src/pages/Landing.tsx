@@ -55,7 +55,7 @@ export default function Landing() {
           
           <div className="container mx-auto px-4 py-20 md:py-28 relative">
             <div className="max-w-4xl mx-auto text-center">
-              <Badge variant="secondary" className="mb-6 px-4 py-1.5">
+              <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-[18px]">
                 <Sparkles className="h-3.5 w-3.5 mr-2" />
                 AI-Powered Commercial Lending Platform
               </Badge>
