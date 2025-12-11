@@ -254,7 +254,12 @@ export default function Landing() {
                   >
                     {stage}
                   </Badge>
-                  {i < 8 && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  {i < 8 && (
+                    <div className="flex items-center -mx-1">
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground -ml-2" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
