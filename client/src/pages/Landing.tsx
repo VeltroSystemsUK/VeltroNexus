@@ -33,14 +33,14 @@ export default function Landing() {
           </nav>
           <div className="flex items-center gap-2">
             <Link href="/pricing">
-              <Button variant="ghost" data-testid="button-pricing">
+              <Button variant="ghost" className="font-semibold" data-testid="button-pricing">
                 Pricing
               </Button>
             </Link>
-            <Button variant="ghost" onClick={handleLogin} data-testid="button-sign-in">
+            <Button variant="ghost" className="font-semibold" onClick={handleLogin} data-testid="button-sign-in">
               Sign In
             </Button>
-            <Button onClick={handleLogin} data-testid="button-sign-up">
+            <Button className="font-semibold" onClick={handleLogin} data-testid="button-sign-up">
               Start Free Trial
             </Button>
             <ThemeToggle />
