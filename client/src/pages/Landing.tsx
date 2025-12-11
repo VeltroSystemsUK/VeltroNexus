@@ -107,7 +107,7 @@ export default function Landing() {
                 <p className="text-sm text-muted-foreground">Faster Processing</p>
               </div>
               <div className="text-center">
-                <div className="text-4xl font-bold text-primary mb-2">85%</div>
+                <div className="font-bold text-primary mb-2 text-[42px]">85%</div>
                 <p className="text-sm text-muted-foreground">Automation Rate</p>
               </div>
               <div className="text-center">
