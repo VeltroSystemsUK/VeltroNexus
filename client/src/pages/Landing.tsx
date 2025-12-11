@@ -28,7 +28,7 @@ export default function Landing() {
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold">Features</a>
-            <a href="#ai-powered" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Automation</a>
+            <a href="#ai-powered" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold">AI Automation</a>
             <a href="#workflow" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Workflow</a>
           </nav>
           <div className="flex items-center gap-2">
