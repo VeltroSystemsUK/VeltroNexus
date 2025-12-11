@@ -125,7 +125,7 @@ export default function Landing() {
         {/* AI-Powered Section */}
         <section id="ai-powered" className="container mx-auto px-4 py-20">
           <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4 text-[14px]">
+            <Badge variant="outline" className="mb-4 text-[16px]">
               <Brain className="h-3.5 w-3.5 mr-2" />
               AI-Powered Intelligence
             </Badge>
@@ -225,7 +225,7 @@ export default function Landing() {
         <section id="workflow" className="bg-muted/30 py-20">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-              <Badge variant="outline" className="mb-4 text-[14px]">
+              <Badge variant="outline" className="mb-4 text-[16px]">
                 <Workflow className="h-3.5 w-3.5 mr-2" />
                 End-to-End Workflow
               </Badge>
@@ -306,7 +306,7 @@ export default function Landing() {
         {/* Features Grid */}
         <section id="features" className="container mx-auto px-4 py-20">
           <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4">
+            <Badge variant="outline" className="mb-4 text-[16px]">
               <Layers className="h-3.5 w-3.5 mr-2" />
               Complete Platform
             </Badge>
@@ -397,7 +397,7 @@ export default function Landing() {
         <section className="bg-gradient-to-b from-muted/50 to-background py-20">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-              <Badge variant="outline" className="mb-4">
+              <Badge variant="outline" className="mb-4 text-[16px]">
                 <Users className="h-3.5 w-3.5 mr-2" />
                 Role-Based Workflow
               </Badge>
@@ -482,7 +482,7 @@ export default function Landing() {
           <div className="max-w-5xl mx-auto">
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div>
-                <Badge variant="outline" className="mb-4">
+                <Badge variant="outline" className="mb-4 text-[16px]">
                   <Lock className="h-3.5 w-3.5 mr-2" />
                   Enterprise Security
                 </Badge>
@@ -575,7 +575,7 @@ export default function Landing() {
         {/* Final CTA */}
         <section className="container mx-auto px-4 py-20 text-center">
           <div className="max-w-2xl mx-auto">
-            <Badge variant="secondary" className="mb-6">
+            <Badge variant="secondary" className="mb-6 text-[18px]">
               <Zap className="h-3.5 w-3.5 mr-2" />
               Get Started in Minutes
             </Badge>
