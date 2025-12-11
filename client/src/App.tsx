@@ -21,6 +21,7 @@ import Leads from "@/pages/Leads";
 import UnderwriterInbox from "@/pages/UnderwriterInbox";
 import Teams from "@/pages/Teams";
 import Admin from "@/pages/Admin";
+import ValuePackages from "@/pages/ValuePackages";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,6 +38,7 @@ function Router() {
         <>
           <Route path="/" component={Landing} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/value-packages" component={ValuePackages} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />
         </>
       ) : (
@@ -54,6 +56,7 @@ function Router() {
           <Route path="/profile" component={Profile} />
           <Route path="/settings" component={Settings} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/value-packages" component={ValuePackages} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />
         </>
       )}

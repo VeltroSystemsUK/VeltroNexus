@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Calendar, Phone } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,7 +17,7 @@ import {
 
 const pricingTiers = [
   {
-    name: "Broker Starter",
+    name: "Starter",
     price: "£39",
     period: "per month",
     prospects: 50,
@@ -34,7 +34,7 @@ const pricingTiers = [
       "Email support",
     ],
     popular: false,
-    tier: "broker_starter",
+    tier: "starter",
     ctaText: "Start 14-Day Free Trial",
     ctaType: "trial" as const,
     highlight: "No credit card required",
@@ -123,7 +123,7 @@ export default function Pricing() {
 
   useEffect(() => {
     const pendingTier = sessionStorage.getItem('subscription_tier');
-    if (pendingTier && user && pendingTier === 'broker_starter') {
+    if (pendingTier && user && pendingTier === 'starter') {
       createBillingRequestMutation.mutate(pendingTier);
     }
   }, [user]);
@@ -197,7 +197,9 @@ export default function Pricing() {
                 {plan.additionalCost && (
                   <div className="text-sm text-muted-foreground text-center border-t border-b py-3">
                     <div>Additional prospects: <span className="font-semibold text-foreground">{plan.additionalCost}</span> each</div>
-                    <div className="text-xs text-primary mt-1">Value Packages Available</div>
+                    <Link href={`/value-packages?plan=${plan.tier}`}>
+                      <span className="text-xs text-primary hover:underline cursor-pointer mt-1 inline-block">Value Packages Available</span>
+                    </Link>
                   </div>
                 )}
                 <ul className="space-y-3">
