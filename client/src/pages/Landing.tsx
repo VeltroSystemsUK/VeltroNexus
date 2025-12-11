@@ -147,15 +147,15 @@ export default function Landing() {
             <div className="max-w-4xl mx-auto text-center">
               <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-[18px]">
                 <Sparkles className="h-3.5 w-3.5 mr-2" />
-                AI-Enhanced Commercial Lending Platform
+                Commercial Lending Workflow Platform
               </Badge>
               
               <h2 className="text-4xl md:text-6xl font-bold mb-6 leading-tight" data-testid="text-hero-title">
-                Your Expertise, <span className="text-primary">Amplified by AI</span>
+                Better Decisions. <span className="text-primary">Faster Outcomes.</span>
               </h2>
               
               <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto" data-testid="text-hero-description">
-                AI handles the heavy lifting - data analysis, risk calculations, and document processing - so you can focus on what matters: building relationships and making informed decisions.
+                AI-assisted tools for credit analysis, risk assessment, and document processing. You stay in control - the platform provides the data and insights you need to make confident lending decisions.
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
