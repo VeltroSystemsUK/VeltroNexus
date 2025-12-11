@@ -27,7 +27,7 @@ export default function Landing() {
             <h1 className="text-2xl font-bold" data-testid="text-app-title">FlowLoan</h1>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
+            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold">Features</a>
             <a href="#ai-powered" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Automation</a>
             <a href="#workflow" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Workflow</a>
           </nav>
@@ -47,7 +47,6 @@ export default function Landing() {
           </div>
         </div>
       </header>
-
       <main>
         {/* Hero Section */}
         <section className="relative overflow-hidden">
@@ -600,7 +599,6 @@ export default function Landing() {
           </div>
         </section>
       </main>
-
       {/* Footer */}
       <footer className="border-t py-12 bg-muted/30">
         <div className="container mx-auto px-4">
