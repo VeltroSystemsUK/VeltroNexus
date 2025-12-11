@@ -196,7 +196,8 @@ export default function Pricing() {
               <CardContent className="space-y-4">
                 {plan.additionalCost && (
                   <div className="text-sm text-muted-foreground text-center border-t border-b py-3">
-                    Additional prospects: <span className="font-semibold text-foreground">{plan.additionalCost}</span> each
+                    <div>Additional prospects: <span className="font-semibold text-foreground">{plan.additionalCost}</span> each</div>
+                    <div className="text-xs text-primary mt-1">Value Packages Available</div>
                   </div>
                 )}
                 <ul className="space-y-3">
