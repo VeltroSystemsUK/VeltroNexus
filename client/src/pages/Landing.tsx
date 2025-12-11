@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,95 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
+
+function useCountUp(end: number, duration: number = 2000, startOnView: boolean = true) {
+  const [count, setCount] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!startOnView) {
+      setHasStarted(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasStarted) {
+          setHasStarted(true);
+        }
+      },
+      { threshold: 0.3 }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, [startOnView, hasStarted]);
+
+  useEffect(() => {
+    if (!hasStarted) return;
+
+    let startTime: number;
+    let animationFrame: number;
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      setCount(Math.floor(easeOutQuart * end));
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [end, duration, hasStarted]);
+
+  return { count, ref };
+}
+
+function StatsSection() {
+  const stat1 = useCountUp(10, 2000);
+  const stat2 = useCountUp(85, 2000);
+  const stat3 = useCountUp(30, 2000);
+  const stat4 = useCountUp(24, 2000);
+
+  return (
+    <section className="border-y bg-muted/30">
+      <div className="container mx-auto px-4 py-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="text-center" ref={stat1.ref}>
+            <div className="font-bold text-primary mb-2 text-[42px]">{stat1.count}x</div>
+            <p className="text-sm text-muted-foreground">Faster Processing</p>
+          </div>
+          <div className="text-center" ref={stat2.ref}>
+            <div className="font-bold text-primary mb-2 text-[42px]">{stat2.count}%</div>
+            <p className="text-sm text-muted-foreground">Automation Rate</p>
+          </div>
+          <div className="text-center" ref={stat3.ref}>
+            <div className="font-bold text-primary mb-2 text-[42px]">{stat3.count}s</div>
+            <p className="text-sm text-muted-foreground">AI Credit Decisions</p>
+          </div>
+          <div className="text-center" ref={stat4.ref}>
+            <div className="font-bold text-primary mb-2 text-[42px]">{stat4.count}/7</div>
+            <p className="text-sm text-muted-foreground">Automated Workflow</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function Landing() {
   const handleLogin = () => {
@@ -98,28 +188,7 @@ export default function Landing() {
         </section>
 
         {/* Stats Section */}
-        <section className="border-y bg-muted/30">
-          <div className="container mx-auto px-4 py-12">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              <div className="text-center">
-                <div className="font-bold text-primary mb-2 text-[42px]">10x</div>
-                <p className="text-sm text-muted-foreground">Faster Processing</p>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-primary mb-2 text-[42px]">85%</div>
-                <p className="text-sm text-muted-foreground">Automation Rate</p>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-primary mb-2 text-[42px]">30s</div>
-                <p className="text-sm text-muted-foreground">AI Credit Decisions</p>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-primary mb-2 text-[42px]">24/7</div>
-                <p className="text-sm text-muted-foreground">Automated Workflow</p>
-              </div>
-            </div>
-          </div>
-        </section>
+        <StatsSection />
 
         {/* AI-Powered Section */}
         <section id="ai-powered" className="container mx-auto px-4 py-20">
