@@ -64,9 +64,8 @@ export default function Landing() {
                 The <span className="text-primary">AI Commercial Lending</span> Workflow Management Platform
               </h2>
               
-              <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto" data-testid="text-hero-description">
-                Automate your lending pipeline with AI-powered credit decisioning, intelligent risk assessment, and seamless workflow automation. From lead to approval in record time.
-              </p>
+              <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto" data-testid="text-hero-description">Automate your lending pipeline with AI-powered credit decisioning, intelligent risk assessment, and seamless workflow automation. 
+              From lead to approval in record time...</p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
                 <Button size="lg" onClick={handleLogin} className="gap-2 text-lg px-8 font-semibold" data-testid="button-get-started">
