@@ -69,11 +69,11 @@ export default function Landing() {
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-                <Button size="lg" onClick={handleLogin} className="gap-2 text-lg px-8" data-testid="button-get-started">
+                <Button size="lg" onClick={handleLogin} className="gap-2 text-lg px-8 font-semibold" data-testid="button-get-started">
                   Start Free Trial
                   <ArrowRight className="h-5 w-5" />
                 </Button>
-                <Button size="lg" variant="outline" onClick={handleLogin} className="gap-2" data-testid="button-demo">
+                <Button size="lg" variant="outline" onClick={handleLogin} className="gap-2 font-semibold" data-testid="button-demo">
                   <Bot className="h-5 w-5" />
                   See AI in Action
                 </Button>
