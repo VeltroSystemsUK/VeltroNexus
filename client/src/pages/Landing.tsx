@@ -242,7 +242,7 @@ export default function Landing() {
                 <div key={stage} className="flex items-center gap-2">
                   <Badge 
                     variant={i < 6 ? "default" : i === 6 ? "default" : "secondary"}
-                    className={`${i === 6 ? 'bg-green-600' : i === 7 ? 'bg-red-600' : i === 8 ? 'bg-gray-500' : ''}`}
+                    className="whitespace-nowrap inline-flex items-center rounded-md border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover-elevate border-transparent bg-primary text-primary-foreground shadow-xs text-[13px]"
                   >
                     {stage}
                   </Badge>
