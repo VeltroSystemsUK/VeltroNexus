@@ -125,7 +125,7 @@ export default function Landing() {
         {/* AI-Powered Section */}
         <section id="ai-powered" className="container mx-auto px-4 py-20">
           <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4">
+            <Badge variant="outline" className="mb-4 text-[14px]">
               <Brain className="h-3.5 w-3.5 mr-2" />
               AI-Powered Intelligence
             </Badge>
@@ -225,7 +225,7 @@ export default function Landing() {
         <section id="workflow" className="bg-muted/30 py-20">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-              <Badge variant="outline" className="mb-4">
+              <Badge variant="outline" className="mb-4 text-[14px]">
                 <Workflow className="h-3.5 w-3.5 mr-2" />
                 End-to-End Workflow
               </Badge>
