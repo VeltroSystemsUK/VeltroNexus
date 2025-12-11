@@ -150,7 +150,7 @@ export default function Landing() {
                 Commercial Lending Workflow Platform
               </Badge>
               
-              <h2 className="text-4xl md:text-6xl font-bold mb-6 leading-tight" data-testid="text-hero-title">
+              <h2 className="md:text-6xl mb-6 text-[88px] font-bold" data-testid="text-hero-title">
                 Better Decisions. <span className="text-primary">Faster Outcomes.</span>
               </h2>
               
