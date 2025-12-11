@@ -155,7 +155,7 @@ export default function Landing() {
               </h2>
               
               <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto" data-testid="text-hero-description">
-                AI-assisted tools for credit analysis, risk assessment, and document processing. You stay in control - the platform provides the data and insights you need to make confident lending decisions.
+                AI-assisted tools for credit analysis, risk assessment, and document processing - empowering commercial finance brokers to prioritize better sales opportunities. You stay in control of the decisions.
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
