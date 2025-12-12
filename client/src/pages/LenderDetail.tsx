@@ -99,6 +99,7 @@ const LENDER_TYPES: Record<string, string> = {
   challenger_bank: "Challenger Bank",
   building_society: "Building Society",
   specialist_lender: "Specialist Lender",
+  specialist_cdfi: "Specialist - CDFI",
   bridging_lender: "Bridging Lender",
   asset_finance: "Asset Finance",
   invoice_finance: "Invoice Finance",

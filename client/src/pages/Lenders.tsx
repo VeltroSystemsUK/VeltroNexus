@@ -103,6 +103,7 @@ const LENDER_TYPES = [
   { value: "challenger_bank", label: "Challenger Bank" },
   { value: "building_society", label: "Building Society" },
   { value: "specialist_lender", label: "Specialist Lender" },
+  { value: "specialist_cdfi", label: "Specialist - CDFI" },
   { value: "bridging_lender", label: "Bridging Lender" },
   { value: "asset_finance", label: "Asset Finance" },
   { value: "invoice_finance", label: "Invoice Finance" },
