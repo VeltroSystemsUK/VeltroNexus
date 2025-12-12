@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GripVertical, MoreVertical, Ticket, Send, FileCheck } from "lucide-react";
+import { GripVertical, MoreVertical, Ticket, Send, FileCheck, Lock } from "lucide-react";
 import SubmitApplicationDialog from "./SubmitApplicationDialog";
 
 export type Priority = "high" | "medium" | "low";
@@ -36,6 +36,8 @@ interface ProspectCardProps {
   availableStages?: { value: string; label: string }[];
   currentStage?: string;
   underwritingStatus?: UnderwritingStatus;
+  isOverLimit?: boolean;
+  onLimitClick?: () => void;
 }
 
 const priorityColors = {
@@ -75,8 +77,18 @@ export default function ProspectCard({
   availableStages = [],
   currentStage,
   underwritingStatus,
+  isOverLimit = false,
+  onLimitClick,
 }: ProspectCardProps) {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+
+  const handleCardClick = () => {
+    if (isOverLimit) {
+      onLimitClick?.();
+    } else {
+      onClick?.();
+    }
+  };
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
@@ -95,11 +107,21 @@ export default function ProspectCard({
     <Card
       className={`cursor-pointer transition-all hover-elevate active-elevate-2 ${stageColorClass} ${
         isDragging ? "shadow-lg rotate-2" : ""
-      }`}
-      onClick={onClick}
+      } ${isOverLimit ? "opacity-75" : ""}`}
+      onClick={handleCardClick}
       data-testid={`card-prospect-${prospect.id}`}
     >
-      <CardContent className="p-4">
+      <CardContent className="p-4 relative">
+        {isOverLimit && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
+            <div className="flex flex-col items-center gap-2 text-center px-4">
+              <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+                <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <span className="text-sm font-medium">Upgrade to Access</span>
+            </div>
+          </div>
+        )}
         <div className="flex items-start justify-between mb-3 gap-2">
           <div
             {...dragHandleProps}

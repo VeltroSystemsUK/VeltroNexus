@@ -25,8 +25,9 @@ import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2 } from "l
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { ProspectWithCompany } from "@shared/schema";
+import ProspectLimitModal from "@/components/ProspectLimitModal";
 
 type Stage = "lead" | "contacted" | "qualified" | "proposal" | "due-diligence" | "submission" | "approved" | "declined" | "withdrawn";
 
@@ -53,6 +54,7 @@ const ALL_STAGES = [...PROSPECT_STAGES, ...PROCESS_STAGES, ...FINAL_STAGES];
 export default function Pipeline() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const [showLimitModal, setShowLimitModal] = useState(false);
   
   useEffect(() => {
     const pendingTier = sessionStorage.getItem('subscription_tier');
@@ -66,6 +68,20 @@ export default function Pipeline() {
     queryFn: () => api.prospects.list(),
     enabled: isAuthenticated,
   });
+  
+  const prospectLimit = (user as any)?.prospectLimit || 10;
+  const subscriptionTier = (user as any)?.subscriptionTier || "free";
+  
+  const sortedProspectIds = useMemo(() => {
+    return prospects
+      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+      .map(p => p.id);
+  }, [prospects]);
+  
+  const isProspectOverLimit = (prospectId: number) => {
+    const index = sortedProspectIds.indexOf(prospectId);
+    return index >= prospectLimit;
+  };
 
   // Fetch underwriting statuses for all prospects
   const { data: underwritingStatuses = {} } = useQuery<Record<number, UnderwritingStatus>>({
@@ -403,6 +419,8 @@ export default function Pipeline() {
                                               handleStageChange(prospect.id, newStage as Stage)
                                             }
                                             underwritingStatus={underwritingStatuses[prospect.id]}
+                                            isOverLimit={isProspectOverLimit(prospect.id)}
+                                            onLimitClick={() => setShowLimitModal(true)}
                                           />
                                         </div>
                                       )}
@@ -479,6 +497,8 @@ export default function Pipeline() {
                                                 handleStageChange(prospect.id, newStage as Stage)
                                               }
                                               underwritingStatus={underwritingStatuses[prospect.id]}
+                                              isOverLimit={isProspectOverLimit(prospect.id)}
+                                              onLimitClick={() => setShowLimitModal(true)}
                                             />
                                           </div>
                                         )}
@@ -543,6 +563,8 @@ export default function Pipeline() {
                                                   handleStageChange(prospect.id, newStage as Stage)
                                                 }
                                                 underwritingStatus={underwritingStatuses[prospect.id]}
+                                                isOverLimit={isProspectOverLimit(prospect.id)}
+                                                onLimitClick={() => setShowLimitModal(true)}
                                               />
                                             </div>
                                           )}
@@ -565,6 +587,14 @@ export default function Pipeline() {
           </Tabs>
         )}
       </main>
+      
+      <ProspectLimitModal
+        open={showLimitModal}
+        onOpenChange={setShowLimitModal}
+        currentCount={prospects.length}
+        limit={prospectLimit}
+        subscriptionTier={subscriptionTier}
+      />
     </div>
   );
 }

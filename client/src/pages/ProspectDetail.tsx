@@ -42,10 +42,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import ThemeToggle from "@/components/ThemeToggle";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData, UnderwritingSubmission } from "@shared/schema";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import ProspectLimitModal from "@/components/ProspectLimitModal";
 import {
   DueDiligenceChecklist,
   LoanCalculatorTool,
@@ -358,11 +359,33 @@ export default function ProspectDetail() {
   const [, navigate] = useLocation();
   const prospectId = params.id ? parseInt(params.id) : 0;
   const { user } = useAuth();
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   const { data: prospect, isLoading } = useQuery<ProspectWithCompany>({
     queryKey: [`/api/prospects/${prospectId}`],
     enabled: prospectId > 0,
   });
+  
+  const { data: allProspects = [] } = useQuery<ProspectWithCompany[]>({
+    queryKey: ["/api/prospects"],
+  });
+  
+  const prospectLimit = (user as any)?.prospectLimit || 10;
+  const subscriptionTier = (user as any)?.subscriptionTier || "free";
+  
+  const isOverLimit = useMemo(() => {
+    const sortedIds = allProspects
+      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+      .map(p => p.id);
+    const index = sortedIds.indexOf(prospectId);
+    return index >= prospectLimit;
+  }, [allProspects, prospectId, prospectLimit]);
+  
+  useEffect(() => {
+    if (isOverLimit && allProspects.length > 0) {
+      setShowLimitModal(true);
+    }
+  }, [isOverLimit, allProspects.length]);
 
   const { data: contacts = [] } = useQuery<Contact[]>({
     queryKey: [`/api/prospects/${prospectId}/contacts`],
@@ -646,6 +669,19 @@ export default function ProspectDetail() {
           queryMessage={underwritingSubmission.decisionReason || undefined}
         />
       )}
+      
+      <ProspectLimitModal
+        open={showLimitModal}
+        onOpenChange={(open) => {
+          setShowLimitModal(open);
+          if (!open && isOverLimit) {
+            navigate("/");
+          }
+        }}
+        currentCount={allProspects.length}
+        limit={prospectLimit}
+        subscriptionTier={subscriptionTier}
+      />
     </div>
   );
 }
