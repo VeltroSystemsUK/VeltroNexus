@@ -16,6 +16,7 @@ import SubscriptionComplete from "@/pages/SubscriptionComplete";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Lenders from "@/pages/Lenders";
+import LenderDetail from "@/pages/LenderDetail";
 import Submissions from "@/pages/Submissions";
 import Leads from "@/pages/Leads";
 import UnderwriterInbox from "@/pages/UnderwriterInbox";
@@ -48,6 +49,7 @@ function Router() {
           <Route path="/search" component={CompanySearch} />
           <Route path="/prospect/:id" component={ProspectDetail} />
           <Route path="/lenders" component={Lenders} />
+          <Route path="/lenders/:id" component={LenderDetail} />
           <Route path="/submissions" component={Submissions} />
           <Route path="/leads" component={Leads} />
           <Route path="/underwriting" component={UnderwriterInbox} />

@@ -143,6 +143,82 @@ export const lenders = pgTable("lenders", {
   address: text("address"),
   website: varchar("website"),
   notes: text("notes"),
+  lenderType: text("lender_type").default("bank"),
+  productTypes: jsonb("product_types").default('[]'),
+  minLoanAmount: integer("min_loan_amount"),
+  maxLoanAmount: integer("max_loan_amount"),
+  minTermMonths: integer("min_term_months"),
+  maxTermMonths: integer("max_term_months"),
+  minLtv: integer("min_ltv"),
+  maxLtv: integer("max_ltv"),
+  typicalRateFrom: text("typical_rate_from"),
+  typicalRateTo: text("typical_rate_to"),
+  arrangementFee: text("arrangement_fee"),
+  sectors: jsonb("sectors").default('[]'),
+  regions: jsonb("regions").default('[]'),
+  securityTypes: jsonb("security_types").default('[]'),
+  borrowerTypes: jsonb("borrower_types").default('[]'),
+  minTradingYears: integer("min_trading_years"),
+  minRevenue: integer("min_revenue"),
+  turnaroundDays: integer("turnaround_days"),
+  panelStatus: text("panel_status").default("market"),
+  accreditationStatus: text("accreditation_status"),
+  accreditationExpiry: timestamp("accreditation_expiry"),
+  bdmName: text("bdm_name"),
+  bdmEmail: varchar("bdm_email"),
+  bdmPhone: varchar("bdm_phone"),
+  underwriterEmail: varchar("underwriter_email"),
+  submissionEmail: varchar("submission_email"),
+  processingNotes: text("processing_notes"),
+  creditAppetite: text("credit_appetite"),
+  keyStrengths: text("key_strengths"),
+  keyWeaknesses: text("key_weaknesses"),
+  rating: integer("rating"),
+  lastContactedAt: timestamp("last_contacted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const lenderProducts = pgTable("lender_products", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  lenderId: integer("lender_id").notNull().references(() => lenders.id, { onDelete: "cascade" }),
+  productName: text("product_name").notNull(),
+  productType: text("product_type").notNull(),
+  description: text("description"),
+  minLoanAmount: integer("min_loan_amount"),
+  maxLoanAmount: integer("max_loan_amount"),
+  minTermMonths: integer("min_term_months"),
+  maxTermMonths: integer("max_term_months"),
+  minLtv: integer("min_ltv"),
+  maxLtv: integer("max_ltv"),
+  rateType: text("rate_type"),
+  typicalRate: text("typical_rate"),
+  arrangementFee: text("arrangement_fee"),
+  exitFee: text("exit_fee"),
+  securityRequirements: text("security_requirements"),
+  eligibilityCriteria: jsonb("eligibility_criteria").default('{}'),
+  features: jsonb("features").default('[]'),
+  isActive: integer("is_active").default(1),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const lenderInteractions = pgTable("lender_interactions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  lenderId: integer("lender_id").notNull().references(() => lenders.id, { onDelete: "cascade" }),
+  prospectId: integer("prospect_id").references(() => prospects.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  interactionType: text("interaction_type").notNull(),
+  channel: text("channel").default("email"),
+  subject: text("subject"),
+  summary: text("summary"),
+  status: text("status").default("sent"),
+  sentAt: timestamp("sent_at"),
+  respondedAt: timestamp("responded_at"),
+  outcome: text("outcome"),
+  followUpDate: timestamp("follow_up_date"),
+  attachments: jsonb("attachments").default('[]'),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -264,6 +340,30 @@ export const lendersRelations = relations(lenders, ({ one, many }) => ({
     references: [users.id],
   }),
   applicationSubmissions: many(applicationSubmissions),
+  products: many(lenderProducts),
+  interactions: many(lenderInteractions),
+}));
+
+export const lenderProductsRelations = relations(lenderProducts, ({ one }) => ({
+  lender: one(lenders, {
+    fields: [lenderProducts.lenderId],
+    references: [lenders.id],
+  }),
+}));
+
+export const lenderInteractionsRelations = relations(lenderInteractions, ({ one }) => ({
+  lender: one(lenders, {
+    fields: [lenderInteractions.lenderId],
+    references: [lenders.id],
+  }),
+  prospect: one(prospects, {
+    fields: [lenderInteractions.prospectId],
+    references: [prospects.id],
+  }),
+  user: one(users, {
+    fields: [lenderInteractions.userId],
+    references: [users.id],
+  }),
 }));
 
 export const applicationSubmissionsRelations = relations(applicationSubmissions, ({ one }) => ({
@@ -578,9 +678,32 @@ export const insertActivitySchema = createInsertSchema(activities, {
   updatedAt: true,
 });
 
-export const insertLenderSchema = createInsertSchema(lenders).omit({
+export const insertLenderSchema = createInsertSchema(lenders, {
+  productTypes: z.array(z.string()).optional().default([]),
+  sectors: z.array(z.string()).optional().default([]),
+  regions: z.array(z.string()).optional().default([]),
+  securityTypes: z.array(z.string()).optional().default([]),
+  borrowerTypes: z.array(z.string()).optional().default([]),
+}).omit({
   id: true,
   userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertLenderProductSchema = createInsertSchema(lenderProducts, {
+  eligibilityCriteria: z.record(z.any()).optional().default({}),
+  features: z.array(z.string()).optional().default([]),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertLenderInteractionSchema = createInsertSchema(lenderInteractions, {
+  attachments: z.array(z.any()).optional().default([]),
+}).omit({
+  id: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -622,6 +745,11 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
 export type InsertLender = z.infer<typeof insertLenderSchema>;
 export type Lender = typeof lenders.$inferSelect;
+export type InsertLenderProduct = z.infer<typeof insertLenderProductSchema>;
+export type LenderProduct = typeof lenderProducts.$inferSelect;
+export type InsertLenderInteraction = z.infer<typeof insertLenderInteractionSchema>;
+export type LenderInteraction = typeof lenderInteractions.$inferSelect;
+export type LenderWithProducts = Lender & { products: LenderProduct[] };
 export type InsertApplicationSubmission = z.infer<typeof insertApplicationSubmissionSchema>;
 export type ApplicationSubmission = typeof applicationSubmissions.$inferSelect;
 

@@ -6,6 +6,8 @@ import {
   activities,
   dueDiligence,
   lenders,
+  lenderProducts,
+  lenderInteractions,
   applicationSubmissions,
   emailInboxes,
   emailMessages,
@@ -31,6 +33,11 @@ import {
   type DueDiligenceData,
   type Lender,
   type InsertLender,
+  type LenderProduct,
+  type InsertLenderProduct,
+  type LenderInteraction,
+  type InsertLenderInteraction,
+  type LenderWithProducts,
   type ApplicationSubmission,
   type InsertApplicationSubmission,
   type EmailInbox,
@@ -62,7 +69,7 @@ import {
   addOnPurchases,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Users - required for Replit Auth
@@ -106,9 +113,35 @@ export interface IStorage {
   // Lenders
   listLenders(userId: string): Promise<Lender[]>;
   getLender(id: number, userId: string): Promise<Lender | undefined>;
+  getLenderWithProducts(id: number, userId: string): Promise<LenderWithProducts | undefined>;
   createLender(lender: InsertLender, userId: string): Promise<Lender>;
   updateLender(id: number, userId: string, updates: Partial<InsertLender>): Promise<Lender | undefined>;
   deleteLender(id: number, userId: string): Promise<void>;
+  searchLenders(userId: string, filters: {
+    search?: string;
+    lenderType?: string;
+    productType?: string;
+    minLoanAmount?: number;
+    maxLoanAmount?: number;
+    sector?: string;
+    region?: string;
+    panelStatus?: string;
+  }): Promise<Lender[]>;
+
+  // Lender Products
+  listLenderProducts(lenderId: number): Promise<LenderProduct[]>;
+  getLenderProduct(id: number): Promise<LenderProduct | undefined>;
+  createLenderProduct(product: InsertLenderProduct): Promise<LenderProduct>;
+  updateLenderProduct(id: number, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined>;
+  deleteLenderProduct(id: number): Promise<void>;
+
+  // Lender Interactions
+  listLenderInteractions(lenderId: number): Promise<LenderInteraction[]>;
+  listUserLenderInteractions(userId: string): Promise<LenderInteraction[]>;
+  getLenderInteraction(id: number): Promise<LenderInteraction | undefined>;
+  createLenderInteraction(interaction: InsertLenderInteraction): Promise<LenderInteraction>;
+  updateLenderInteraction(id: number, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined>;
+  deleteLenderInteraction(id: number): Promise<void>;
 
   // Application Submissions
   listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]>;
@@ -497,6 +530,150 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(lenders)
       .where(and(eq(lenders.id, id), eq(lenders.userId, userId)));
+  }
+
+  async getLenderWithProducts(id: number, userId: string): Promise<LenderWithProducts | undefined> {
+    const [lender] = await db
+      .select()
+      .from(lenders)
+      .where(and(eq(lenders.id, id), eq(lenders.userId, userId)));
+    if (!lender) return undefined;
+    
+    const products = await db
+      .select()
+      .from(lenderProducts)
+      .where(eq(lenderProducts.lenderId, id));
+    
+    return { ...lender, products };
+  }
+
+  async searchLenders(userId: string, filters: {
+    search?: string;
+    lenderType?: string;
+    productType?: string;
+    minLoanAmount?: number;
+    maxLoanAmount?: number;
+    sector?: string;
+    region?: string;
+    panelStatus?: string;
+  }): Promise<Lender[]> {
+    const conditions = [eq(lenders.userId, userId)];
+    
+    if (filters.search) {
+      conditions.push(
+        or(
+          ilike(lenders.institutionName, `%${filters.search}%`),
+          ilike(lenders.contactName, `%${filters.search}%`),
+          ilike(lenders.bdmName, `%${filters.search}%`)
+        ) as any
+      );
+    }
+    
+    if (filters.lenderType) {
+      conditions.push(eq(lenders.lenderType, filters.lenderType));
+    }
+    
+    if (filters.panelStatus) {
+      conditions.push(eq(lenders.panelStatus, filters.panelStatus));
+    }
+    
+    if (filters.minLoanAmount) {
+      conditions.push(gte(lenders.minLoanAmount, filters.minLoanAmount));
+    }
+    
+    if (filters.maxLoanAmount) {
+      conditions.push(lte(lenders.maxLoanAmount, filters.maxLoanAmount));
+    }
+    
+    return await db
+      .select()
+      .from(lenders)
+      .where(and(...conditions))
+      .orderBy(lenders.institutionName);
+  }
+
+  // Lender Products
+  async listLenderProducts(lenderId: number): Promise<LenderProduct[]> {
+    return await db
+      .select()
+      .from(lenderProducts)
+      .where(eq(lenderProducts.lenderId, lenderId))
+      .orderBy(lenderProducts.productName);
+  }
+
+  async getLenderProduct(id: number): Promise<LenderProduct | undefined> {
+    const [product] = await db
+      .select()
+      .from(lenderProducts)
+      .where(eq(lenderProducts.id, id));
+    return product || undefined;
+  }
+
+  async createLenderProduct(product: InsertLenderProduct): Promise<LenderProduct> {
+    const [created] = await db
+      .insert(lenderProducts)
+      .values(product as any)
+      .returning();
+    return created;
+  }
+
+  async updateLenderProduct(id: number, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined> {
+    const [product] = await db
+      .update(lenderProducts)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(lenderProducts.id, id))
+      .returning();
+    return product || undefined;
+  }
+
+  async deleteLenderProduct(id: number): Promise<void> {
+    await db.delete(lenderProducts).where(eq(lenderProducts.id, id));
+  }
+
+  // Lender Interactions
+  async listLenderInteractions(lenderId: number): Promise<LenderInteraction[]> {
+    return await db
+      .select()
+      .from(lenderInteractions)
+      .where(eq(lenderInteractions.lenderId, lenderId))
+      .orderBy(desc(lenderInteractions.createdAt));
+  }
+
+  async listUserLenderInteractions(userId: string): Promise<LenderInteraction[]> {
+    return await db
+      .select()
+      .from(lenderInteractions)
+      .where(eq(lenderInteractions.userId, userId))
+      .orderBy(desc(lenderInteractions.createdAt));
+  }
+
+  async getLenderInteraction(id: number): Promise<LenderInteraction | undefined> {
+    const [interaction] = await db
+      .select()
+      .from(lenderInteractions)
+      .where(eq(lenderInteractions.id, id));
+    return interaction || undefined;
+  }
+
+  async createLenderInteraction(interaction: InsertLenderInteraction): Promise<LenderInteraction> {
+    const [created] = await db
+      .insert(lenderInteractions)
+      .values(interaction as any)
+      .returning();
+    return created;
+  }
+
+  async updateLenderInteraction(id: number, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined> {
+    const [interaction] = await db
+      .update(lenderInteractions)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(lenderInteractions.id, id))
+      .returning();
+    return interaction || undefined;
+  }
+
+  async deleteLenderInteraction(id: number): Promise<void> {
+    await db.delete(lenderInteractions).where(eq(lenderInteractions.id, id));
   }
 
   async listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]> {

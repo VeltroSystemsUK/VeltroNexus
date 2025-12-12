@@ -2290,6 +2290,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lender Search with filters
+  app.get("/api/lenders/search", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const filters = {
+        search: req.query.search as string,
+        lenderType: req.query.lenderType as string,
+        productType: req.query.productType as string,
+        minLoanAmount: req.query.minLoanAmount ? parseInt(req.query.minLoanAmount) : undefined,
+        maxLoanAmount: req.query.maxLoanAmount ? parseInt(req.query.maxLoanAmount) : undefined,
+        sector: req.query.sector as string,
+        region: req.query.region as string,
+        panelStatus: req.query.panelStatus as string,
+      };
+      const lenders = await storage.searchLenders(userId, filters);
+      res.json(lenders);
+    } catch (error) {
+      console.error("Error searching lenders:", error);
+      res.status(500).json({ message: "Failed to search lenders" });
+    }
+  });
+
+  // Get lender with products
+  app.get("/api/lenders/:id/full", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const lenderId = parseInt(req.params.id);
+      const lender = await storage.getLenderWithProducts(lenderId, userId);
+      
+      if (!lender) {
+        return res.status(404).json({ message: "Lender not found" });
+      }
+      
+      // Also get interactions
+      const interactions = await storage.listLenderInteractions(lenderId);
+      
+      res.json({ ...lender, interactions });
+    } catch (error) {
+      console.error("Error fetching lender details:", error);
+      res.status(500).json({ message: "Failed to fetch lender details" });
+    }
+  });
+
+  // Lender Products API
+  app.get("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const lenderId = parseInt(req.params.lenderId);
+      const products = await storage.listLenderProducts(lenderId);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching lender products:", error);
+      res.status(500).json({ message: "Failed to fetch lender products" });
+    }
+  });
+
+  app.post("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const lenderId = parseInt(req.params.lenderId);
+      const productData = { ...req.body, lenderId };
+      const product = await storage.createLenderProduct(productData);
+      res.status(201).json(product);
+    } catch (error) {
+      console.error("Error creating lender product:", error);
+      res.status(500).json({ message: "Failed to create lender product" });
+    }
+  });
+
+  app.patch("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const product = await storage.updateLenderProduct(productId, req.body);
+      
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+      
+      res.json(product);
+    } catch (error) {
+      console.error("Error updating lender product:", error);
+      res.status(500).json({ message: "Failed to update lender product" });
+    }
+  });
+
+  app.delete("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      await storage.deleteLenderProduct(productId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting lender product:", error);
+      res.status(500).json({ message: "Failed to delete lender product" });
+    }
+  });
+
+  // Lender Interactions API
+  app.get("/api/lenders/:lenderId/interactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const lenderId = parseInt(req.params.lenderId);
+      const interactions = await storage.listLenderInteractions(lenderId);
+      res.json(interactions);
+    } catch (error) {
+      console.error("Error fetching lender interactions:", error);
+      res.status(500).json({ message: "Failed to fetch lender interactions" });
+    }
+  });
+
+  app.get("/api/lender-interactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const interactions = await storage.listUserLenderInteractions(userId);
+      res.json(interactions);
+    } catch (error) {
+      console.error("Error fetching user lender interactions:", error);
+      res.status(500).json({ message: "Failed to fetch lender interactions" });
+    }
+  });
+
+  app.post("/api/lender-interactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sentAt, respondedAt, ...rest } = req.body;
+      const interactionData = {
+        ...rest,
+        userId,
+        sentAt: sentAt ? new Date(sentAt) : new Date(),
+        respondedAt: respondedAt ? new Date(respondedAt) : undefined,
+      };
+      const interaction = await storage.createLenderInteraction(interactionData);
+      
+      // Update lender's lastContactedAt
+      if (interaction.lenderId) {
+        await storage.updateLender(interaction.lenderId, userId, {
+          lastContactedAt: new Date(),
+        } as any);
+      }
+      
+      res.status(201).json(interaction);
+    } catch (error) {
+      console.error("Error creating lender interaction:", error);
+      res.status(500).json({ message: "Failed to create lender interaction" });
+    }
+  });
+
+  app.patch("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const interactionId = parseInt(req.params.id);
+      const interaction = await storage.updateLenderInteraction(interactionId, req.body);
+      
+      if (!interaction) {
+        return res.status(404).json({ message: "Interaction not found" });
+      }
+      
+      res.json(interaction);
+    } catch (error) {
+      console.error("Error updating lender interaction:", error);
+      res.status(500).json({ message: "Failed to update lender interaction" });
+    }
+  });
+
+  app.delete("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const interactionId = parseInt(req.params.id);
+      await storage.deleteLenderInteraction(interactionId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting lender interaction:", error);
+      res.status(500).json({ message: "Failed to delete lender interaction" });
+    }
+  });
+
   // Application Submissions API - Protected routes
   app.get("/api/submissions", isAuthenticated, async (req: any, res) => {
     try {
