@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -317,6 +318,28 @@ export default function Lenders() {
     },
   });
 
+  const toggleFavouriteMutation = useMutation({
+    mutationFn: ({ id, isFavourite }: { id: number; isFavourite: boolean }) =>
+      apiRequest(`/api/lenders/${id}`, "PATCH", { isFavourite: isFavourite ? 1 : 0 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lenders"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update favourite: ${error.message}`);
+    },
+  });
+
+  const toggleAgreementMutation = useMutation({
+    mutationFn: ({ id, signed }: { id: number; signed: boolean }) =>
+      apiRequest(`/api/lenders/${id}`, "PATCH", { introducerAgreementSigned: signed ? 1 : 0 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lenders"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update agreement status: ${error.message}`);
+    },
+  });
+
   const handleSubmit = (data: ExtendedLenderForm) => {
     if (editingLender) {
       updateMutation.mutate({ id: editingLender.id, data });
@@ -381,19 +404,28 @@ export default function Lenders() {
     setIsDialogOpen(true);
   };
 
-  const filteredLenders = lenders.filter((lender) => {
-    const matchesSearch = searchQuery === "" || 
-      lender.institutionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lender.contactName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lender.bdmName?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesPanelStatus = filterPanelStatus === "all" || lender.panelStatus === filterPanelStatus;
-    const matchesLenderType = filterLenderType === "all" || lender.lenderType === filterLenderType;
-    const matchesProducts = selectedProducts.length === 0 || 
-      selectedProducts.some(p => (lender.productTypes as string[])?.includes(p));
-    
-    return matchesSearch && matchesPanelStatus && matchesLenderType && matchesProducts;
-  });
+  const filteredLenders = lenders
+    .filter((lender) => {
+      const matchesSearch = searchQuery === "" || 
+        lender.institutionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lender.contactName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lender.bdmName?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesPanelStatus = filterPanelStatus === "all" || lender.panelStatus === filterPanelStatus;
+      const matchesLenderType = filterLenderType === "all" || lender.lenderType === filterLenderType;
+      const matchesProducts = selectedProducts.length === 0 || 
+        selectedProducts.some(p => (lender.productTypes as string[])?.includes(p));
+      
+      return matchesSearch && matchesPanelStatus && matchesLenderType && matchesProducts;
+    })
+    .sort((a, b) => {
+      // Favourites first
+      const aFav = a.isFavourite ? 1 : 0;
+      const bFav = b.isFavourite ? 1 : 0;
+      if (bFav !== aFav) return bFav - aFav;
+      // Then alphabetically
+      return a.institutionName.localeCompare(b.institutionName);
+    });
 
   const panelLenders = lenders.filter(l => l.panelStatus === "panel" || l.panelStatus === "preferred");
   const marketLenders = lenders.filter(l => l.panelStatus === "market");
@@ -641,7 +673,7 @@ export default function Lenders() {
                     </div>
                   )}
                 </CardContent>
-                <CardFooter className="pt-0">
+                <CardFooter className="pt-0 flex-col gap-3">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground w-full">
                     {lender.bdmName && (
                       <div className="flex items-center gap-1">
@@ -658,6 +690,25 @@ export default function Lenders() {
                       </div>
                     )}
                   </div>
+                  <div className="flex items-center justify-between w-full pt-2 border-t">
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Switch
+                        checked={!!lender.isFavourite}
+                        onCheckedChange={(checked) => toggleFavouriteMutation.mutate({ id: lender.id, isFavourite: checked })}
+                        data-testid={`switch-favourite-${lender.id}`}
+                      />
+                      <Star className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`} />
+                    </div>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-xs text-muted-foreground">Introducer Agreement</span>
+                      <Switch
+                        checked={!!lender.introducerAgreementSigned}
+                        onCheckedChange={(checked) => toggleAgreementMutation.mutate({ id: lender.id, signed: checked })}
+                        data-testid={`switch-agreement-${lender.id}`}
+                      />
+                      <CheckCircle2 className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`} />
+                    </div>
+                  </div>
                 </CardFooter>
               </Card>
             ))}
@@ -668,13 +719,13 @@ export default function Lenders() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">Fav</TableHead>
                     <TableHead>Lender</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Panel</TableHead>
                     <TableHead>Loan Range</TableHead>
-                    <TableHead>Rates</TableHead>
                     <TableHead>Rating</TableHead>
-                    <TableHead>BDM</TableHead>
+                    <TableHead>Agreement</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -686,6 +737,16 @@ export default function Lenders() {
                       onClick={() => navigate(`/lenders/${lender.id}`)}
                       data-testid={`row-lender-${lender.id}`}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <Switch
+                            checked={!!lender.isFavourite}
+                            onCheckedChange={(checked) => toggleFavouriteMutation.mutate({ id: lender.id, isFavourite: checked })}
+                            data-testid={`table-switch-favourite-${lender.id}`}
+                          />
+                          <Star className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`} />
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -704,12 +765,18 @@ export default function Lenders() {
                         {formatCurrency(lender.minLoanAmount)} - {formatCurrency(lender.maxLoanAmount)}
                       </TableCell>
                       <TableCell>
-                        {lender.typicalRateFrom || "-"} - {lender.typicalRateTo || "-"}
-                      </TableCell>
-                      <TableCell>
                         <RatingStars rating={lender.rating} />
                       </TableCell>
-                      <TableCell>{lender.bdmName || "-"}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <Switch
+                            checked={!!lender.introducerAgreementSigned}
+                            onCheckedChange={(checked) => toggleAgreementMutation.mutate({ id: lender.id, signed: checked })}
+                            data-testid={`table-switch-agreement-${lender.id}`}
+                          />
+                          <CheckCircle2 className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`} />
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           <Button

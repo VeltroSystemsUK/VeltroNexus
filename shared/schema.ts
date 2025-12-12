@@ -174,6 +174,8 @@ export const lenders = pgTable("lenders", {
   keyStrengths: text("key_strengths"),
   keyWeaknesses: text("key_weaknesses"),
   rating: integer("rating"),
+  isFavourite: integer("is_favourite").default(0),
+  introducerAgreementSigned: integer("introducer_agreement_signed").default(0),
   lastContactedAt: timestamp("last_contacted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
