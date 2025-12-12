@@ -76,23 +76,23 @@ function StatsSection() {
 
   return (
     <section className="border-y bg-muted/30">
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="container mx-auto px-6 md:px-8 py-16">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
           <div className="text-center" ref={stat1.ref}>
-            <div className="font-bold text-primary mb-2 text-[42px]">{stat1.count}x</div>
-            <p className="text-sm text-muted-foreground">Faster Processing</p>
+            <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat1.count}x</div>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">Faster Processing</p>
           </div>
           <div className="text-center" ref={stat2.ref}>
-            <div className="font-bold text-primary mb-2 text-[42px]">{stat2.count}%</div>
-            <p className="text-sm text-muted-foreground">Automation Rate</p>
+            <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat2.count}%</div>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">Automation Rate</p>
           </div>
           <div className="text-center" ref={stat3.ref}>
-            <div className="font-bold text-primary mb-2 text-[42px]">{stat3.count}s</div>
-            <p className="text-sm text-muted-foreground">AI Credit Decisions</p>
+            <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat3.count}s</div>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">AI Credit Decisions</p>
           </div>
           <div className="text-center" ref={stat4.ref}>
-            <div className="font-bold text-primary mb-2 text-[42px]">{stat4.count}/7</div>
-            <p className="text-sm text-muted-foreground">Automated Workflow</p>
+            <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat4.count}/7</div>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">Automated Workflow</p>
           </div>
         </div>
       </div>
@@ -143,45 +143,46 @@ export default function Landing() {
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-50" />
           
-          <div className="container mx-auto px-4 py-20 md:py-28 relative">
+          <div className="container mx-auto px-6 md:px-8 py-16 md:py-24 lg:py-32 relative">
             <div className="max-w-4xl mx-auto text-center">
-              <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-[18px]">
-                <Sparkles className="h-3.5 w-3.5 mr-2" />
-                Commercial Lending Workflow Platform
+              <Badge variant="secondary" className="mb-8 px-4 py-2">
+                <Sparkles className="h-4 w-4 mr-2" />
+                <span className="text-sm font-medium">Commercial Lending Workflow Platform</span>
               </Badge>
               
-              <h2 className="md:text-6xl mb-6 text-[88px] font-bold" data-testid="text-hero-title">
-                Better Decisions. <span className="text-primary">Faster Outcomes.</span>
+              <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight" data-testid="text-hero-title">
+                Better Decisions.{" "}
+                <span className="text-primary">Faster Outcomes.</span>
               </h2>
               
-              <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto" data-testid="text-hero-description">
-                AI-assisted tools for credit analysis, risk assessment, and document processing - empowering commercial finance brokers to prioritize better sales opportunities. You stay in control of the decisions.
+              <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed" data-testid="text-hero-description">
+                AI-assisted tools for credit analysis, risk assessment, and document processing — empowering commercial finance brokers to prioritize better sales opportunities.
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-                <Button size="lg" onClick={handleLogin} className="gap-2 text-lg px-8 font-semibold" data-testid="button-get-started">
+                <Button size="lg" onClick={handleLogin} className="gap-2 text-base px-8 h-12 font-semibold" data-testid="button-get-started">
                   Start Free Trial
                   <ArrowRight className="h-5 w-5" />
                 </Button>
-                <Button size="lg" variant="outline" onClick={handleLogin} className="gap-2 font-semibold" data-testid="button-demo">
+                <Button size="lg" variant="outline" onClick={handleLogin} className="gap-2 h-12 font-medium" data-testid="button-demo">
                   <Bot className="h-5 w-5" />
                   See AI in Action
                 </Button>
               </div>
 
               {/* Trust Badges */}
-              <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Shield className="h-4 w-4 text-green-500" />
-                  <span>Bank-Grade Security</span>
+                  <span className="font-medium">Bank-Grade Security</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>GDPR Compliant</span>
+                  <span className="font-medium">GDPR Compliant</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-green-500" />
-                  <span>Companies House Integrated</span>
+                  <span className="font-medium">Companies House Integrated</span>
                 </div>
               </div>
             </div>
@@ -192,96 +193,96 @@ export default function Landing() {
         <StatsSection />
 
         {/* AI-Powered Section */}
-        <section id="ai-powered" className="container mx-auto px-4 py-20">
-          <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4 text-[16px]">
-              <Brain className="h-3.5 w-3.5 mr-2" />
-              AI-Assisted Analysis
+        <section id="ai-powered" className="container mx-auto px-6 md:px-8 py-20 md:py-24">
+          <div className="text-center mb-12 md:mb-16">
+            <Badge variant="outline" className="mb-6 px-3 py-1.5">
+              <Brain className="h-4 w-4 mr-2" />
+              <span className="text-sm font-medium">AI-Assisted Analysis</span>
             </Badge>
-            <h3 className="text-3xl md:text-4xl font-bold mb-4">
+            <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight">
               AI Tools That Support Your Decisions
             </h3>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              AI assists with credit analysis, document processing, and risk assessment. You review the outputs and make the final call - combining speed with human judgement.
+            <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              AI assists with credit analysis, document processing, and risk assessment. You review the outputs and make the final call — combining speed with human judgement.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="relative overflow-hidden group">
+          <div className="grid md:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
+            <Card className="relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-bl-full" />
-              <CardContent className="p-6">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+              <CardContent className="p-6 md:p-8">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-5">
                   <Brain className="h-6 w-6 text-primary" />
                 </div>
-                <h4 className="text-xl font-semibold mb-2">AI Credit Underwriting</h4>
-                <p className="text-muted-foreground mb-4">
-                  Machine learning analyzes bank statements, financial data, and company profiles to deliver instant credit recommendations with risk grades A-E.
+                <h4 className="text-lg md:text-xl font-semibold mb-3">AI Credit Underwriting</h4>
+                <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed">
+                  Machine learning analyzes bank statements, financial data, and company profiles to deliver instant credit recommendations.
                 </p>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>CAMPARI Framework Analysis</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>Automated DSCR Calculation</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>Red Flag Detection</span>
                   </li>
                 </ul>
               </CardContent>
             </Card>
 
-            <Card className="relative overflow-hidden group">
+            <Card className="relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-bl-full" />
-              <CardContent className="p-6">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+              <CardContent className="p-6 md:p-8">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-5">
                   <FileText className="h-6 w-6 text-primary" />
                 </div>
-                <h4 className="text-xl font-semibold mb-2">Smart Document Analysis</h4>
-                <p className="text-muted-foreground mb-4">
-                  Upload bank statements and financial documents. Our AI extracts key metrics, identifies patterns, and flags anomalies automatically.
+                <h4 className="text-lg md:text-xl font-semibold mb-3">Smart Document Analysis</h4>
+                <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed">
+                  Upload bank statements and financial documents. Our AI extracts key metrics and flags anomalies automatically.
                 </p>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>CSV Bank Statement Parsing</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>P&L Auto-Generation</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>Monthly Trend Analysis</span>
                   </li>
                 </ul>
               </CardContent>
             </Card>
 
-            <Card className="relative overflow-hidden group">
+            <Card className="relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-bl-full" />
-              <CardContent className="p-6">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+              <CardContent className="p-6 md:p-8">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-5">
                   <Target className="h-6 w-6 text-primary" />
                 </div>
-                <h4 className="text-xl font-semibold mb-2">Adverse Media Search</h4>
-                <p className="text-muted-foreground mb-4">
-                  AI-powered web search scans for adverse media, legal issues, and reputational risks associated with borrowers and their directors.
+                <h4 className="text-lg md:text-xl font-semibold mb-3">Adverse Media Search</h4>
+                <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed">
+                  AI-powered web search scans for adverse media, legal issues, and reputational risks associated with borrowers.
                 </p>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>Real-time Web Search</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>Director Background Checks</span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                     <span>Risk Flag Summaries</span>
                   </li>
                 </ul>
@@ -291,21 +292,22 @@ export default function Landing() {
         </section>
 
         {/* Visual Pipeline Section */}
-        <section id="workflow" className="bg-muted/30 py-20">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-16">
-              <Badge variant="outline" className="mb-4 text-[16px]">
-                <Workflow className="h-3.5 w-3.5 mr-2" />
-                End-to-End Workflow
+        <section id="workflow" className="bg-muted/30 py-20 md:py-24">
+          <div className="container mx-auto px-6 md:px-8">
+            <div className="text-center mb-12 md:mb-16">
+              <Badge variant="outline" className="mb-6 px-3 py-1.5">
+                <Workflow className="h-4 w-4 mr-2" />
+                <span className="text-sm font-medium">End-to-End Workflow</span>
               </Badge>
-              <h3 className="text-3xl md:text-4xl font-bold mb-4">
+              <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight">
                 Visual Pipeline Management
               </h3>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">Drag-and-drop your prospects through 9 customizable stages. 
-              See exactly where every deal stands at a glance.</p>
+              <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                Drag-and-drop your prospects through 9 customizable stages. See exactly where every deal stands at a glance.
+              </p>
             </div>
 
-            <div className="flex flex-wrap justify-center gap-3 mb-12">
+            <div className="flex flex-wrap justify-center gap-3 mb-12 md:mb-16">
               {[
                 { stage: 'Lead', color: 'bg-slate-500 dark:bg-slate-600' },
                 { stage: 'Contacted', color: 'bg-blue-500 dark:bg-blue-600' },
@@ -319,7 +321,7 @@ export default function Landing() {
               ].map(({ stage, color }, i) => (
                 <div key={stage} className="flex items-center gap-2">
                   <Badge 
-                    className={`whitespace-nowrap inline-flex items-center rounded-md border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover-elevate border-transparent text-white shadow-xs text-[13px] ${color}`}
+                    className={`whitespace-nowrap inline-flex items-center rounded-md border px-3 py-1 font-medium transition-colors border-transparent text-white shadow-sm text-xs ${color}`}
                   >
                     {stage}
                   </Badge>
@@ -333,51 +335,51 @@ export default function Landing() {
               ))}
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
               <Card>
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mx-auto mb-4">
-                    <Zap className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                <CardContent className="p-6 md:p-8 text-center">
+                  <div className="h-14 w-14 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mx-auto mb-5">
+                    <Zap className="h-7 w-7 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <h4 className="font-semibold mb-2">Instant Lead Capture</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Import leads via CSV, search Companies House, or add manually. All business types supported.
+                  <h4 className="font-semibold mb-3 text-base">Instant Lead Capture</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Import leads via CSV, search Companies House, or add manually.
                   </p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center mx-auto mb-4">
-                    <Building2 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                <CardContent className="p-6 md:p-8 text-center">
+                  <div className="h-14 w-14 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center mx-auto mb-5">
+                    <Building2 className="h-7 w-7 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <h4 className="font-semibold mb-2">Auto-Enrich Data</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Pull company details, directors, charges, and PSCs directly from Companies House API.
+                  <h4 className="font-semibold mb-3 text-base">Auto-Enrich Data</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Pull company details, directors, and charges directly from Companies House.
                   </p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mx-auto mb-4">
-                    <FileCheck className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                <CardContent className="p-6 md:p-8 text-center">
+                  <div className="h-14 w-14 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mx-auto mb-5">
+                    <FileCheck className="h-7 w-7 text-amber-600 dark:text-amber-400" />
                   </div>
-                  <h4 className="font-semibold mb-2">Due Diligence Suite</h4>
-                  <p className="text-sm text-muted-foreground">
-                    7 built-in tools: checklists, calculators, affordability, ratios, character assessment & AI underwriting.
+                  <h4 className="font-semibold mb-3 text-base">Due Diligence Suite</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    7 built-in tools: checklists, calculators, affordability, and AI underwriting.
                   </p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto mb-4">
-                    <LineChart className="h-6 w-6 text-green-600 dark:text-green-400" />
+                <CardContent className="p-6 md:p-8 text-center">
+                  <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto mb-5">
+                    <LineChart className="h-7 w-7 text-green-600 dark:text-green-400" />
                   </div>
-                  <h4 className="font-semibold mb-2">Decision & Submit</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Internal underwriting workflow, generate PDF reports, and submit to lenders via email.
+                  <h4 className="font-semibold mb-3 text-base">Decision & Submit</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Generate PDF reports and submit to lenders via email.
                   </p>
                 </CardContent>
               </Card>
@@ -386,89 +388,89 @@ export default function Landing() {
         </section>
 
         {/* Features Grid */}
-        <section id="features" className="container mx-auto px-4 py-20">
-          <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4 text-[16px]">
-              <Layers className="h-3.5 w-3.5 mr-2" />
-              Complete Platform
+        <section id="features" className="container mx-auto px-6 md:px-8 py-20 md:py-24">
+          <div className="text-center mb-12 md:mb-16">
+            <Badge variant="outline" className="mb-6 px-3 py-1.5">
+              <Layers className="h-4 w-4 mr-2" />
+              <span className="text-sm font-medium">Complete Platform</span>
             </Badge>
-            <h3 className="text-3xl md:text-4xl font-bold mb-4">
+            <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight">
               Everything You Need to Scale
             </h3>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Built specifically for commercial lending teams. No bloat, no complexity - just powerful tools that work.
+            <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Built specifically for commercial lending teams. No bloat, no complexity — just powerful tools that work.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            <div className="flex gap-4 p-6 rounded-lg border bg-card">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6 max-w-6xl mx-auto">
+            <div className="flex gap-4 p-5 md:p-6 rounded-xl border bg-card">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Building2 className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Companies House API</h4>
-                <p className="text-sm text-muted-foreground">
-                  Search by name, number, SIC code, postcode, or director. Auto-populate company data instantly.
+                <h4 className="font-semibold mb-2 text-base">Companies House API</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Search by name, number, SIC code, postcode, or director.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-4 p-6 rounded-lg border bg-card">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="flex gap-4 p-5 md:p-6 rounded-xl border bg-card">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Users className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Contact Management</h4>
-                <p className="text-sm text-muted-foreground">
-                  Auto-sync officers from Companies House. Add custom contacts with enriched profiles.
+                <h4 className="font-semibold mb-2 text-base">Contact Management</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Auto-sync officers from Companies House with enriched profiles.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-4 p-6 rounded-lg border bg-card">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="flex gap-4 p-5 md:p-6 rounded-xl border bg-card">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Clock className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold mb-1">CRM & Activities</h4>
-                <p className="text-sm text-muted-foreground">
-                  Calendar, tasks, meetings, calls, and notes. Never miss a follow-up with smart reminders.
+                <h4 className="font-semibold mb-2 text-base">CRM & Activities</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Calendar, tasks, meetings, calls, and smart reminders.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-4 p-6 rounded-lg border bg-card">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="flex gap-4 p-5 md:p-6 rounded-xl border bg-card">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <FileText className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Document Storage</h4>
-                <p className="text-sm text-muted-foreground">
-                  Upload and organize documents by category. Financial statements, ID docs, property files, and more.
+                <h4 className="font-semibold mb-2 text-base">Document Storage</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Upload and organize documents by category.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-4 p-6 rounded-lg border bg-card">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="flex gap-4 p-5 md:p-6 rounded-xl border bg-card">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <BarChart3 className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold mb-1">PDF Reports</h4>
-                <p className="text-sm text-muted-foreground">
-                  Generate professional prospect reports with customizable sections and drag-and-drop ordering.
+                <h4 className="font-semibold mb-2 text-base">PDF Reports</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Generate professional prospect reports with customizable sections.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-4 p-6 rounded-lg border bg-card">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="flex gap-4 p-5 md:p-6 rounded-xl border bg-card">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <CreditCard className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Subscription Management</h4>
-                <p className="text-sm text-muted-foreground">
-                  Tiered plans with GoCardless Direct Debit. Upgrade anytime to unlock premium AI features.
+                <h4 className="font-semibold mb-2 text-base">Subscription Management</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Tiered plans with GoCardless Direct Debit.
                 </p>
               </div>
             </div>
@@ -476,81 +478,81 @@ export default function Landing() {
         </section>
 
         {/* Role-Based Workflow */}
-        <section className="bg-gradient-to-b from-muted/50 to-background py-20">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-16">
-              <Badge variant="outline" className="mb-4 text-[16px]">
-                <Users className="h-3.5 w-3.5 mr-2" />
-                Role-Based Workflow
+        <section className="bg-gradient-to-b from-muted/50 to-background py-20 md:py-24">
+          <div className="container mx-auto px-6 md:px-8">
+            <div className="text-center mb-12 md:mb-16">
+              <Badge variant="outline" className="mb-6 px-3 py-1.5">
+                <Users className="h-4 w-4 mr-2" />
+                <span className="text-sm font-medium">Role-Based Workflow</span>
               </Badge>
-              <h3 className="text-3xl md:text-4xl font-bold mb-4">
+              <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight">
                 Broker & Underwriter Collaboration
               </h3>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
                 Streamlined internal credit review with dedicated queues, two-way messaging, and complete audit trails.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-6 md:gap-8 max-w-4xl mx-auto">
               <Card className="border-2">
-                <CardContent className="p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                      <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                <CardContent className="p-6 md:p-8">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="h-14 w-14 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                      <TrendingUp className="h-7 w-7 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                      <h4 className="text-xl font-semibold">Brokers</h4>
+                      <h4 className="text-lg md:text-xl font-semibold">Brokers</h4>
                       <p className="text-sm text-muted-foreground">Origination & Submission</p>
                     </div>
                   </div>
-                  <ul className="space-y-3">
+                  <ul className="space-y-4">
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Submit prospects for internal underwriting review</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Submit prospects for internal underwriting review</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Set priority levels and add submission notes</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Set priority levels and add submission notes</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Reply to underwriter queries with document attachments</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Reply to underwriter queries with attachments</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Track submission status with visual badges</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Track submission status with visual badges</span>
                     </li>
                   </ul>
                 </CardContent>
               </Card>
 
               <Card className="border-2">
-                <CardContent className="p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
-                      <Shield className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                <CardContent className="p-6 md:p-8">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="h-14 w-14 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
+                      <Shield className="h-7 w-7 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div>
-                      <h4 className="text-xl font-semibold">Underwriters</h4>
+                      <h4 className="text-lg md:text-xl font-semibold">Underwriters</h4>
                       <p className="text-sm text-muted-foreground">Review & Decision</p>
                     </div>
                   </div>
-                  <ul className="space-y-3">
+                  <ul className="space-y-4">
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Dedicated inbox with prioritized submission queue</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Dedicated inbox with prioritized submission queue</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Claim cases and manage workload efficiently</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Claim cases and manage workload efficiently</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Query brokers for additional information</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Query brokers for additional information</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                      <span className="text-sm">Make decisions: Approve, Decline, Query, or Withdraw</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm leading-relaxed">Approve, Decline, Query, or Withdraw</span>
                     </li>
                   </ul>
                 </CardContent>
@@ -560,74 +562,74 @@ export default function Landing() {
         </section>
 
         {/* Security Section */}
-        <section className="container mx-auto px-4 py-20">
+        <section className="container mx-auto px-6 md:px-8 py-20 md:py-24">
           <div className="max-w-5xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-center">
               <div>
-                <Badge variant="outline" className="mb-4 text-[16px]">
-                  <Lock className="h-3.5 w-3.5 mr-2" />
-                  Enterprise Security
+                <Badge variant="outline" className="mb-6 px-3 py-1.5">
+                  <Lock className="h-4 w-4 mr-2" />
+                  <span className="text-sm font-medium">Enterprise Security</span>
                 </Badge>
-                <h3 className="text-3xl font-bold mb-4">
+                <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight">
                   Bank-Grade Security & Compliance
                 </h3>
-                <p className="text-muted-foreground mb-6">
+                <p className="text-base md:text-lg text-muted-foreground mb-8 leading-relaxed">
                   Your data is protected with enterprise-grade security. Full audit trails, role-based access, and GDPR compliance built-in.
                 </p>
                 <ul className="space-y-4">
-                  <li className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <li className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
-                    <span>User-specific data isolation</span>
+                    <span className="text-base">User-specific data isolation</span>
                   </li>
-                  <li className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <li className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
-                    <span>Complete activity audit trails</span>
+                    <span className="text-base">Complete activity audit trails</span>
                   </li>
-                  <li className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <li className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
-                    <span>Role-based access controls</span>
+                    <span className="text-base">Role-based access controls</span>
                   </li>
-                  <li className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <li className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
-                    <span>Secure document storage</span>
+                    <span className="text-base">Secure document storage</span>
                   </li>
                 </ul>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 md:gap-5">
                 <Card>
-                  <CardContent className="p-6 text-center">
-                    <Shield className="h-10 w-10 mx-auto mb-3 text-primary" />
-                    <h4 className="font-semibold">GDPR</h4>
-                    <p className="text-xs text-muted-foreground">Compliant</p>
+                  <CardContent className="p-6 md:p-8 text-center">
+                    <Shield className="h-10 w-10 mx-auto mb-4 text-primary" />
+                    <h4 className="font-semibold text-base">GDPR</h4>
+                    <p className="text-sm text-muted-foreground">Compliant</p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-6 text-center">
-                    <Lock className="h-10 w-10 mx-auto mb-3 text-primary" />
-                    <h4 className="font-semibold">Encrypted</h4>
-                    <p className="text-xs text-muted-foreground">Data at Rest</p>
+                  <CardContent className="p-6 md:p-8 text-center">
+                    <Lock className="h-10 w-10 mx-auto mb-4 text-primary" />
+                    <h4 className="font-semibold text-base">Encrypted</h4>
+                    <p className="text-sm text-muted-foreground">Data at Rest</p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-6 text-center">
-                    <Users className="h-10 w-10 mx-auto mb-3 text-primary" />
-                    <h4 className="font-semibold">SSO</h4>
-                    <p className="text-xs text-muted-foreground">Authentication</p>
+                  <CardContent className="p-6 md:p-8 text-center">
+                    <Users className="h-10 w-10 mx-auto mb-4 text-primary" />
+                    <h4 className="font-semibold text-base">SSO</h4>
+                    <p className="text-sm text-muted-foreground">Authentication</p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-6 text-center">
-                    <FileCheck className="h-10 w-10 mx-auto mb-3 text-primary" />
-                    <h4 className="font-semibold">Audit</h4>
-                    <p className="text-xs text-muted-foreground">Full Trail</p>
+                  <CardContent className="p-6 md:p-8 text-center">
+                    <FileCheck className="h-10 w-10 mx-auto mb-4 text-primary" />
+                    <h4 className="font-semibold text-base">Audit</h4>
+                    <p className="text-sm text-muted-foreground">Full Trail</p>
                   </CardContent>
                 </Card>
               </div>
@@ -636,44 +638,44 @@ export default function Landing() {
         </section>
 
         {/* Testimonial/Social Proof */}
-        <section className="bg-primary text-primary-foreground py-16">
-          <div className="container mx-auto px-4">
+        <section className="bg-primary text-primary-foreground py-16 md:py-20">
+          <div className="container mx-auto px-6 md:px-8">
             <div className="max-w-3xl mx-auto text-center">
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-6">
                 {[...Array(5)].map((_, i) => (
                   <Star key={i} className="h-6 w-6 fill-current" />
                 ))}
               </div>
-              <blockquote className="text-xl md:text-2xl font-medium mb-6">
-                "FlowLoan transformed how we manage our lending pipeline. The AI credit underwriting alone saves us hours every week. It's like having an extra team member."
+              <blockquote className="text-xl md:text-2xl lg:text-3xl font-medium mb-6 leading-relaxed">
+                "FlowLoan transformed how we manage our lending pipeline. The AI credit underwriting alone saves us hours every week."
               </blockquote>
-              <p className="text-primary-foreground/80">
-                Commercial Finance Broker, UK
+              <p className="text-primary-foreground/80 text-base">
+                — Commercial Finance Broker, UK
               </p>
             </div>
           </div>
         </section>
 
         {/* Final CTA */}
-        <section className="container mx-auto px-4 py-20 text-center">
+        <section className="container mx-auto px-6 md:px-8 py-20 md:py-24 text-center">
           <div className="max-w-2xl mx-auto">
-            <Badge variant="secondary" className="mb-6 text-[18px]">
-              <Zap className="h-3.5 w-3.5 mr-2" />
-              Get Started in Minutes
+            <Badge variant="secondary" className="mb-8 px-4 py-2">
+              <Zap className="h-4 w-4 mr-2" />
+              <span className="text-sm font-medium">Get Started in Minutes</span>
             </Badge>
-            <h3 className="text-3xl md:text-4xl font-bold mb-6">
+            <h3 className="text-3xl md:text-4xl font-bold mb-6 tracking-tight">
               Ready to Transform Your Lending Workflow?
             </h3>
-            <p className="text-lg text-muted-foreground mb-8">
+            <p className="text-base md:text-lg text-muted-foreground mb-10 leading-relaxed">
               Start with 10 free prospects. No credit card required. Upgrade anytime to unlock AI-powered credit underwriting.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" onClick={handleLogin} className="gap-2 text-lg px-8" data-testid="button-sign-up-cta">
+              <Button size="lg" onClick={handleLogin} className="gap-2 text-base px-8 h-12 font-semibold" data-testid="button-sign-up-cta">
                 Start Free Trial
                 <ArrowRight className="h-5 w-5" />
               </Button>
               <Link href="/pricing">
-                <Button size="lg" variant="outline" className="gap-2">
+                <Button size="lg" variant="outline" className="gap-2 h-12 font-medium">
                   View Pricing
                 </Button>
               </Link>
@@ -682,21 +684,21 @@ export default function Landing() {
         </section>
       </main>
       {/* Footer */}
-      <footer className="border-t py-12 bg-muted/30">
-        <div className="container mx-auto px-4">
+      <footer className="border-t py-12 md:py-16 bg-muted/30">
+        <div className="container mx-auto px-6 md:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-primary-foreground" />
+              <div className="h-9 w-9 bg-primary rounded-lg flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-semibold">FlowLoan</span>
+              <span className="font-semibold text-lg">FlowLoan</span>
             </div>
-            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-8 text-sm text-muted-foreground">
               <Link href="/pricing">
-                <span className="hover:text-foreground transition-colors cursor-pointer">Pricing</span>
+                <span className="hover:text-foreground transition-colors cursor-pointer font-medium">Pricing</span>
               </Link>
-              <span>Privacy Policy</span>
-              <span>Terms of Service</span>
+              <span className="hover:text-foreground transition-colors cursor-pointer">Privacy Policy</span>
+              <span className="hover:text-foreground transition-colors cursor-pointer">Terms of Service</span>
             </div>
             <p className="text-sm text-muted-foreground">
               © 2024 FlowLoan. All rights reserved.
