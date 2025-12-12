@@ -27,6 +27,7 @@ The frontend is built with React, TypeScript, Vite, and Wouter for routing. TanS
 - **Role-Based Access Control (RBAC)**: A 4-role permission system (Super Admin, Sales Admin, Broker User, Underwriter) with a team management page and role-based navigation.
 - **Role-Based Credit Underwriting Workflow**: Brokers can submit prospects for underwriting with priority and comments. Underwriters use a dedicated inbox to claim, review, make decisions (Approve, Decline, Query, Withdraw), and communicate with brokers via a conversation thread.
 - **Prospect Document Management**: Upload, categorize, add notes, filter, download, and delete files associated with prospects. Files are stored in object storage with metadata in the database.
+- **Master Broker Lender Directory**: Comprehensive lender management with enhanced schema (lender type, product types, loan amounts, LTV ranges, rates, sectors, regions, turnaround times, panel status). Features include lender products table, interaction tracking with timeline, BDM contact details, search/filter functionality, grid/table views, and lender detail pages with full profile display.
 
 ### System Design Choices
 The application uses Drizzle ORM with Neon serverless PostgreSQL. The schema includes `Users`, `Sessions`, `Companies`, `Prospects`, `Activities`, and `Due Diligence` tables, ensuring user-specific data isolation and efficient data retrieval. `Due Diligence` stores assessment data in a JSONB column.
