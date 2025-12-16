@@ -110,7 +110,7 @@ export default function Settings() {
   const generateApiKeyMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("/api/user/webhook-key", "POST");
-      return response;
+      return response.json();
     },
     onSuccess: (data: any) => {
       setNewApiKey(data.apiKey);
