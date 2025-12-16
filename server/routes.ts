@@ -11,8 +11,10 @@ import {
   insertLenderSchema,
   insertApplicationSubmissionSchema,
   queryResponseSchema,
+  webhookProspectPayloadSchema,
   type InsertApplicationSubmission,
   type UnderwritingAttachment,
+  type DueDiligenceData,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -4469,6 +4471,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting document:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // WEBHOOK API ENDPOINTS
+  // ============================================
+
+  // Generate or regenerate webhook API key for authenticated user
+  app.post("/api/user/webhook-key", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const apiKey = await storage.generateWebhookApiKey(userId);
+      res.json({ 
+        apiKey,
+        message: "API key generated successfully. Store this securely - it won't be shown again."
+      });
+    } catch (error: any) {
+      console.error("Error generating webhook API key:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get webhook API key status (not the actual key)
+  app.get("/api/user/webhook-key", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json({
+        hasApiKey: !!user.webhookApiKey,
+        createdAt: user.webhookApiKeyCreatedAt,
+        lastUsedAt: user.webhookApiKeyLastUsedAt,
+      });
+    } catch (error: any) {
+      console.error("Error fetching webhook key status:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Webhook endpoint to receive prospects from external applications
+  app.post("/api/webhooks/prospects", async (req: any, res) => {
+    try {
+      // Authenticate via API key header
+      const apiKey = req.headers["x-flowloan-api-key"];
+      if (!apiKey || typeof apiKey !== "string") {
+        return res.status(401).json({ error: "Missing API key" });
+      }
+
+      const user = await storage.getUserByWebhookApiKey(apiKey);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+
+      // Update last used timestamp
+      await storage.updateWebhookApiKeyLastUsed(user.id);
+
+      // Validate payload
+      const validationResult = webhookProspectPayloadSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        const humanError = fromZodError(validationResult.error);
+        return res.status(422).json({ 
+          error: "Validation failed",
+          details: humanError.message 
+        });
+      }
+
+      const payload = validationResult.data;
+
+      // Check prospect limits
+      const existingProspects = await storage.listProspects(user.id);
+      const prospectCredits = await storage.getUserProspectCredits(user.id);
+      const totalAllowedProspects = user.prospectLimit + prospectCredits;
+      
+      if (existingProspects.length >= totalAllowedProspects) {
+        return res.status(403).json({ 
+          error: "Prospect limit reached",
+          message: "Upgrade your plan or purchase additional prospect credits."
+        });
+      }
+
+      // Create or find company
+      let company;
+      if (payload.company.companyNumber) {
+        company = await storage.getCompanyByNumber(payload.company.companyNumber);
+      }
+      
+      if (!company) {
+        company = await storage.createCompany({
+          companyName: payload.company.companyName,
+          companyNumber: payload.company.companyNumber || `WEBHOOK-${Date.now()}`,
+          registeredAddress: payload.company.registeredAddress || null,
+          incorporationDate: payload.company.incorporationDate || null,
+          companyStatus: payload.company.companyStatus || null,
+          companyType: payload.company.companyType || null,
+        });
+      }
+
+      // Create prospect
+      const prospectData = payload.prospect || {};
+      const prospect = await storage.createProspect({
+        companyId: company.id,
+        stage: prospectData.stage || "lead",
+        loanAmount: prospectData.loanAmount || null,
+        term: prospectData.term || null,
+        interestRate: prospectData.interestRate || null,
+        priority: prospectData.priority || null,
+        notes: prospectData.notes || null,
+        directorsGuarantee: prospectData.directorsGuarantee || null,
+        commercialProperty: prospectData.commercialProperty || null,
+        homeEquity: prospectData.homeEquity || null,
+        propertyOther: prospectData.propertyOther || null,
+        debenture: prospectData.debenture || null,
+        parentCompanyGuarantee: prospectData.parentCompanyGuarantee || null,
+        collateral: prospectData.collateral || null,
+        crossCompanyGuarantee: prospectData.crossCompanyGuarantee || null,
+        loanRequirementNotes: prospectData.loanRequirementNotes || null,
+      }, user.id);
+
+      // Create contacts
+      if (payload.contacts && payload.contacts.length > 0) {
+        for (const contact of payload.contacts) {
+          await storage.createContact({
+            prospectId: prospect.id,
+            name: contact.name,
+            email: contact.email || null,
+            phone: contact.phone || null,
+            role: contact.role || null,
+            isPrimary: contact.isPrimary ? 1 : 0,
+            notes: contact.notes || null,
+          });
+        }
+      }
+
+      // Create due diligence if provided
+      if (payload.dueDiligence) {
+        const dueDiligenceData: DueDiligenceData = {
+          checklist: payload.dueDiligence.checklist || [],
+          loanCalculator: payload.dueDiligence.loanCalculator,
+          dscr: payload.dueDiligence.dscr,
+          affordability: payload.dueDiligence.affordability,
+          financialRatios: payload.dueDiligence.financialRatios,
+          character: payload.dueDiligence.character,
+        };
+        await storage.upsertDueDiligence(prospect.id, dueDiligenceData);
+      }
+
+      // Log the webhook activity
+      await storage.createActivity({
+        userId: user.id,
+        prospectId: prospect.id,
+        title: "Prospect created via webhook",
+        description: payload.metadata?.sourceApp 
+          ? `Created from external app: ${payload.metadata.sourceApp}${payload.metadata.externalId ? ` (ID: ${payload.metadata.externalId})` : ""}`
+          : "Created via webhook API",
+        activityType: "note",
+        priority: "low",
+      });
+
+      res.status(201).json({
+        success: true,
+        prospectId: prospect.id,
+        companyId: company.id,
+        message: "Prospect created successfully",
+      });
+    } catch (error: any) {
+      console.error("Webhook error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
