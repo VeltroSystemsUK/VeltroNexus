@@ -38,6 +38,9 @@ export const users = pgTable("users", {
   brandingLogoUrl: varchar("branding_logo_url"),
   brandingPrimaryColor: varchar("branding_primary_color"),
   brandingAccentColor: varchar("branding_accent_color"),
+  webhookApiKey: varchar("webhook_api_key"),
+  webhookApiKeyCreatedAt: timestamp("webhook_api_key_created_at"),
+  webhookApiKeyLastUsedAt: timestamp("webhook_api_key_last_used_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1173,3 +1176,90 @@ export type InsertAddOnProduct = z.infer<typeof insertAddOnProductSchema>;
 export type UpdateAddOnProduct = z.infer<typeof updateAddOnProductSchema>;
 export type AddOnPurchase = typeof addOnPurchases.$inferSelect;
 export type InsertAddOnPurchase = z.infer<typeof insertAddOnPurchaseSchema>;
+
+// Webhook Payload Schema - for receiving prospects from external apps
+export const webhookCompanySchema = z.object({
+  companyName: z.string().min(1, "Company name is required"),
+  companyNumber: z.string().optional(),
+  registeredAddress: z.string().optional(),
+  incorporationDate: z.string().optional(),
+  companyStatus: z.string().optional(),
+  companyType: z.string().optional(),
+});
+
+export const webhookProspectSchema = z.object({
+  loanAmount: z.number().positive().optional(),
+  term: z.number().positive().optional(),
+  interestRate: z.string().optional(),
+  stage: z.enum(["lead", "contacted", "qualified", "proposal", "dueDiligence", "approval", "approved", "declined", "withdrawn"]).optional().default("lead"),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+  notes: z.string().optional(),
+  directorsGuarantee: z.number().optional(),
+  commercialProperty: z.number().optional(),
+  homeEquity: z.number().optional(),
+  propertyOther: z.number().optional(),
+  debenture: z.number().optional(),
+  parentCompanyGuarantee: z.number().optional(),
+  collateral: z.number().optional(),
+  crossCompanyGuarantee: z.number().optional(),
+  loanRequirementNotes: z.string().optional(),
+});
+
+export const webhookContactSchema = z.object({
+  name: z.string().min(1, "Contact name is required"),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional(),
+  role: z.string().optional(),
+  isPrimary: z.boolean().optional().default(false),
+  notes: z.string().optional(),
+});
+
+export const webhookDueDiligenceSchema = z.object({
+  loanCalculator: z.object({
+    loanAmount: z.number().optional(),
+    interestRate: z.number().optional(),
+    term: z.number().optional(),
+  }).optional(),
+  dscr: z.object({
+    annualNetOperatingIncome: z.number().optional(),
+    annualDebtService: z.number().optional(),
+    sensitivityRevenue: z.number().optional(),
+  }).optional(),
+  affordability: z.object({
+    personalIncome: z.number().optional(),
+    monthlyCommitments: z.number().optional(),
+    loanPayment: z.number().optional(),
+  }).optional(),
+  financialRatios: z.object({
+    revenue: z.number().optional(),
+    costs: z.number().optional(),
+    currentAssets: z.number().optional(),
+    currentLiabilities: z.number().optional(),
+    totalAssets: z.number().optional(),
+    totalLiabilities: z.number().optional(),
+    equity: z.number().optional(),
+  }).optional(),
+  character: z.object({
+    managementExperience: z.number().min(1).max(5).optional(),
+    creditHistory: z.number().min(1).max(5).optional(),
+    bankConduct: z.number().min(1).max(5).optional(),
+    contracts: z.number().min(1).max(5).optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  checklist: z.array(checklistItemSchema).optional(),
+}).optional();
+
+export const webhookMetadataSchema = z.object({
+  externalId: z.string().optional(),
+  sourceApp: z.string().optional(),
+});
+
+export const webhookProspectPayloadSchema = z.object({
+  company: webhookCompanySchema,
+  prospect: webhookProspectSchema.optional(),
+  contacts: z.array(webhookContactSchema).max(10).optional(),
+  dueDiligence: webhookDueDiligenceSchema,
+  metadata: webhookMetadataSchema.optional(),
+});
+
+export type WebhookProspectPayload = z.infer<typeof webhookProspectPayloadSchema>;
