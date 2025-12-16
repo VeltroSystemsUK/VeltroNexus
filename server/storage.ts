@@ -228,6 +228,11 @@ export interface IStorage {
   createAddOnPurchase(purchase: InsertAddOnPurchase): Promise<AddOnPurchase>;
   updateAddOnPurchase(id: number, updates: Partial<AddOnPurchase>): Promise<AddOnPurchase | undefined>;
   getUserProspectCredits(userId: string): Promise<number>;
+
+  // Webhook API
+  getUserByWebhookApiKey(apiKey: string): Promise<User | undefined>;
+  generateWebhookApiKey(userId: string): Promise<string>;
+  updateWebhookApiKeyLastUsed(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1240,6 +1245,36 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return totalCredits;
+  }
+
+  // Webhook API
+  async getUserByWebhookApiKey(apiKey: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.webhookApiKey, apiKey));
+    return user;
+  }
+
+  async generateWebhookApiKey(userId: string): Promise<string> {
+    // Generate a random API key
+    const crypto = await import('crypto');
+    const apiKey = `flwh_${crypto.randomBytes(32).toString('hex')}`;
+    
+    await db
+      .update(users)
+      .set({ 
+        webhookApiKey: apiKey,
+        webhookApiKeyCreatedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+    
+    return apiKey;
+  }
+
+  async updateWebhookApiKeyLastUsed(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ webhookApiKeyLastUsedAt: new Date() })
+      .where(eq(users.id, userId));
   }
 }
 
