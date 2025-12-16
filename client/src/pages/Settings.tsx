@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet, ArrowLeft } from "lucide-react";
+import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet, ArrowLeft, Key, Copy, RefreshCw, Link2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -89,6 +89,7 @@ export default function Settings() {
   const [brandingAccentColor, setBrandingAccentColor] = useState<string>("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [newApiKey, setNewApiKey] = useState<string | null>(null);
 
   const { data: user, isLoading: userLoading } = useQuery<any>({
     queryKey: ["/api/auth/user"],
@@ -97,6 +98,44 @@ export default function Settings() {
   const { data: uploads, isLoading: uploadsLoading } = useQuery<any[]>({
     queryKey: ["/api/leads/uploads"],
   });
+
+  const { data: webhookKeyStatus } = useQuery<{
+    hasApiKey: boolean;
+    createdAt: string | null;
+    lastUsedAt: string | null;
+  }>({
+    queryKey: ["/api/user/webhook-key"],
+  });
+
+  const generateApiKeyMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("/api/user/webhook-key", "POST");
+      return response;
+    },
+    onSuccess: (data: any) => {
+      setNewApiKey(data.apiKey);
+      queryClient.invalidateQueries({ queryKey: ["/api/user/webhook-key"] });
+      toast({
+        title: "API Key Generated",
+        description: "Your new API key has been created. Copy it now - it won't be shown again.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate API key",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied",
+      description: "API key copied to clipboard",
+    });
+  };
 
   useEffect(() => {
     if (user) {
@@ -997,6 +1036,148 @@ export default function Settings() {
                 View All Leads
               </a>
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-api-integration">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Link2 className="h-5 w-5" />
+            API Integration
+          </CardTitle>
+          <CardDescription>Connect external applications to FlowLoan using the webhook API</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-base">Webhook API Key</Label>
+                <p className="text-sm text-muted-foreground">
+                  Use this key to authenticate requests from your other applications
+                </p>
+              </div>
+              <Button
+                onClick={() => generateApiKeyMutation.mutate()}
+                disabled={generateApiKeyMutation.isPending}
+                variant={webhookKeyStatus?.hasApiKey ? "outline" : "default"}
+                data-testid="button-generate-api-key"
+              >
+                {generateApiKeyMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : webhookKeyStatus?.hasApiKey ? (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                ) : (
+                  <Key className="mr-2 h-4 w-4" />
+                )}
+                {webhookKeyStatus?.hasApiKey ? "Regenerate Key" : "Generate API Key"}
+              </Button>
+            </div>
+
+            {newApiKey && (
+              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                    New API Key Generated
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newApiKey}
+                    readOnly
+                    className="font-mono text-sm"
+                    data-testid="input-api-key"
+                  />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => copyToClipboard(newApiKey)}
+                    data-testid="button-copy-api-key"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Copy this key now. It won't be shown again for security reasons.
+                </p>
+              </div>
+            )}
+
+            {webhookKeyStatus?.hasApiKey && !newApiKey && (
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Key className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">API Key Active</span>
+                </div>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  {webhookKeyStatus.createdAt && (
+                    <p>Created: {new Date(webhookKeyStatus.createdAt).toLocaleDateString()}</p>
+                  )}
+                  {webhookKeyStatus.lastUsedAt && (
+                    <p>Last used: {new Date(webhookKeyStatus.lastUsedAt).toLocaleDateString()}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div>
+              <Label className="text-base">Webhook Endpoint</Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                Send POST requests to create prospects from your other applications
+              </p>
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">Endpoint URL</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="flex-1 bg-background px-3 py-2 rounded text-sm font-mono border">
+                    POST {window.location.origin}/api/webhooks/prospects
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => copyToClipboard(`${window.location.origin}/api/webhooks/prospects`)}
+                    data-testid="button-copy-endpoint"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Required Header</Label>
+                <code className="block bg-background px-3 py-2 rounded text-sm font-mono border mt-1">
+                  x-flowloan-api-key: YOUR_API_KEY
+                </code>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Example Request Body</Label>
+                <pre className="bg-background px-3 py-2 rounded text-xs font-mono border mt-1 overflow-x-auto">
+{`{
+  "company": {
+    "companyName": "Example Ltd",
+    "companyNumber": "12345678"
+  },
+  "prospect": {
+    "stage": "lead",
+    "loanAmount": 50000
+  },
+  "contacts": [{
+    "name": "John Smith",
+    "email": "john@example.com",
+    "isPrimary": true
+  }]
+}`}
+                </pre>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
