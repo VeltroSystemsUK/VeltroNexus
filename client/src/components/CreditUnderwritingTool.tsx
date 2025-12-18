@@ -294,7 +294,6 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   }, [underwriting.accountingSoftware]);
 
   const [adviserSummary, setAdviserSummary] = useState(underwriting.adviserSummary || {
-    soarRef: "",
     businessName: prospect.company.companyName || "",
     product: "RGF",
     amount: parseFloat(loanAmount) || 0,
@@ -2088,16 +2087,6 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="soar-ref">SOAR Reference</Label>
-                <Input
-                  id="soar-ref"
-                  value={adviserSummary.soarRef}
-                  onChange={(e) => setAdviserSummary({ ...adviserSummary, soarRef: e.target.value })}
-                  placeholder="Enter reference number"
-                  data-testid="input-soar-ref"
-                />
-              </div>
               <div>
                 <Label htmlFor="product">Product</Label>
                 <Select
