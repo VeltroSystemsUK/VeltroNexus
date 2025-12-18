@@ -1093,6 +1093,7 @@ export const underwritingDataSchema = z.object({
   openBanking: openBankingSchema.optional(),
   bankPdfFiles: z.array(z.object({
     fileName: z.string(),
+    text: z.string().optional(),
     pages: z.number().optional(),
   })).optional(),
   analysisSource: z.enum(['csv', 'pdf', 'openbanking']).optional(),

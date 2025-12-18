@@ -35,6 +35,11 @@ import {
   Calculator,
   ClipboardList,
   Sparkles,
+  Send,
+  Link,
+  Clock,
+  Check,
+  Mail,
 } from "lucide-react";
 import type { DueDiligenceData, ProspectWithCompany, UnderwritingData } from "@shared/schema";
 import {
@@ -78,6 +83,124 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+interface OpenBankingSectionProps {
+  openBanking?: {
+    status: 'not_sent' | 'invited' | 'connected' | 'expired' | 'error';
+    invitedAt?: string;
+    connectedAt?: string;
+    customerEmail?: string;
+    linkId?: string;
+  };
+  existingUnderwriting: UnderwritingData;
+  onSave: (data: Partial<DueDiligenceData>) => void;
+  isSaving: boolean;
+}
+
+function OpenBankingSection({ openBanking, existingUnderwriting, onSave, isSaving }: OpenBankingSectionProps) {
+  const [email, setEmail] = useState(openBanking?.customerEmail || '');
+  const [isSending, setIsSending] = useState(false);
+  
+  const status = openBanking?.status || 'not_sent';
+  
+  const getStatusBadge = () => {
+    switch (status) {
+      case 'connected':
+        return <Badge className="bg-green-500 text-white text-xs"><Check className="h-3 w-3 mr-1" />Connected</Badge>;
+      case 'invited':
+        return <Badge className="bg-amber-500 text-white text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+      case 'expired':
+        return <Badge variant="destructive" className="text-xs"><AlertCircle className="h-3 w-3 mr-1" />Expired</Badge>;
+      case 'error':
+        return <Badge variant="destructive" className="text-xs"><XCircle className="h-3 w-3 mr-1" />Error</Badge>;
+      default:
+        return <Badge variant="secondary" className="text-xs">Not Sent</Badge>;
+    }
+  };
+  
+  const handleSendLink = async () => {
+    if (!email) {
+      toast.error("Please enter a customer email address");
+      return;
+    }
+    
+    setIsSending(true);
+    try {
+      onSave({
+        underwriting: {
+          ...existingUnderwriting,
+          openBanking: {
+            status: 'invited',
+            invitedAt: new Date().toISOString(),
+            customerEmail: email,
+            linkId: `ob_${Date.now()}`,
+          },
+        },
+      });
+      toast.success("Open Banking invitation sent");
+    } catch (error) {
+      toast.error("Failed to send invitation");
+    } finally {
+      setIsSending(false);
+    }
+  };
+  
+  if (status === 'connected') {
+    return (
+      <div className="text-center space-y-2">
+        <Link className="h-8 w-8 mx-auto text-green-500" />
+        {getStatusBadge()}
+        <p className="text-xs text-muted-foreground">
+          {openBanking?.connectedAt ? `Connected ${new Date(openBanking.connectedAt).toLocaleDateString()}` : 'Bank linked'}
+        </p>
+      </div>
+    );
+  }
+  
+  if (status === 'invited') {
+    return (
+      <div className="text-center space-y-2">
+        <Mail className="h-8 w-8 mx-auto text-amber-500" />
+        {getStatusBadge()}
+        <p className="text-xs text-muted-foreground truncate">{openBanking?.customerEmail}</p>
+        <Button variant="outline" size="sm" onClick={handleSendLink} disabled={isSending || isSaving}>
+          Resend
+        </Button>
+      </div>
+    );
+  }
+  
+  if (status === 'expired' || status === 'error') {
+    return (
+      <div className="text-center space-y-2">
+        <AlertCircle className="h-8 w-8 mx-auto text-destructive" />
+        {getStatusBadge()}
+        <p className="text-xs text-muted-foreground truncate">{openBanking?.customerEmail}</p>
+        <Button variant="outline" size="sm" onClick={handleSendLink} disabled={isSending || isSaving}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-2 text-center">
+      <Link className="h-8 w-8 mx-auto text-muted-foreground" />
+      {getStatusBadge()}
+      <Input
+        type="email"
+        placeholder="Customer email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="h-8 text-xs"
+        data-testid="input-openbanking-email"
+      />
+      <Button size="sm" onClick={handleSendLink} disabled={isSending || isSaving || !email} className="w-full" data-testid="button-send-openbanking">
+        {isSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Send className="h-3 w-3 mr-1" />Send Link</>}
+      </Button>
+    </div>
+  );
+}
+
 export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: CreditUnderwritingToolProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const underwriting = (data.underwriting || {}) as UnderwritingData;
@@ -118,7 +241,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   // Bank statement PDF upload states (alternative to CSV)
   interface BankStatementPdf {
     fileName: string;
-    text: string;
+    text?: string;
     pages?: number;
   }
   const [bankStatementPdfs, setBankStatementPdfs] = useState<BankStatementPdf[]>(
@@ -500,7 +623,8 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   };
 
   const handleAnalyzeBankPdfs = () => {
-    if (bankStatementPdfs.length === 0) {
+    const pdfsWithText = bankStatementPdfs.filter((pdf): pdf is BankStatementPdf & { text: string } => !!pdf.text);
+    if (pdfsWithText.length === 0) {
       toast.error("Please upload at least one bank statement PDF");
       return;
     }
@@ -508,7 +632,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
       toast.error("Please enter a valid loan amount");
       return;
     }
-    analyzeBankPdfsMutation.mutate(bankStatementPdfs);
+    analyzeBankPdfsMutation.mutate(pdfsWithText);
   };
 
   const clearBankPdfs = () => {
@@ -753,164 +877,127 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
         {currentStep === 2 && (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Bank Statement Upload</h3>
-            <p className="text-sm text-muted-foreground">
-              Upload the applicant's bank statement CSV file for AI-powered financial analysis.
-            </p>
-
-            <div className="border-2 border-dashed rounded-lg p-8 text-center">
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept=".csv"
-                onChange={handleFileUpload}
-                className="hidden"
-                data-testid="input-csv-upload"
-              />
-              {csvFileName ? (
-                <div className="space-y-4">
-                  <FileText className="h-12 w-12 mx-auto text-green-500" />
-                  <div>
-                    <p className="font-medium">{csvFileName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {csvText.split("\n").length} rows detected
-                    </p>
-                  </div>
-                  <div className="flex gap-3 justify-center">
-                    <Button
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Replace File
-                    </Button>
-                    <Button
-                      onClick={handleAnalyze}
-                      disabled={analyzeCsvMutation.isPending}
-                      data-testid="button-analyze-csv"
-                    >
-                      {analyzeCsvMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <TrendingUp className="h-4 w-4 mr-2" />
-                          Analyze Financials
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
-                  <div>
-                    <Button onClick={() => fileInputRef.current?.click()}>
-                      Select CSV File
-                    </Button>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      or drag and drop here
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div>
+              <h3 className="text-lg font-semibold">Bank Statement Data</h3>
+              <p className="text-sm text-muted-foreground">
+                Choose one method to provide bank statement data for AI-powered financial analysis.
+              </p>
             </div>
 
             {financialAnalysis && (
-              <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+              <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span className="font-medium">Bank Statement Analysis Complete</span>
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="font-medium text-sm">Bank Statement Analysis Complete</span>
                   {getRiskGradeBadge(financialAnalysis.riskScore)}
                 </div>
-                <p className="mt-2 text-sm">{financialAnalysis.summary}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{financialAnalysis.summary}</p>
               </div>
             )}
 
-            <Separator className="my-6" />
-
-            <h3 className="text-lg font-semibold">Bank Statement PDF Upload (Alternative)</h3>
-            <p className="text-sm text-muted-foreground">
-              If you have bank statements in PDF format, upload up to 6 months here instead of CSV.
-            </p>
-
-            <div className="border-2 border-dashed rounded-lg p-6 text-center">
-              <input
-                type="file"
-                ref={bankPdfInputRef}
-                accept=".pdf"
-                multiple
-                onChange={handleBankPdfUpload}
-                className="hidden"
-                data-testid="input-bank-pdf-upload"
-              />
-              {parsingBankPdfs ? (
-                <div className="space-y-4">
-                  <Loader2 className="h-12 w-12 mx-auto animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Parsing bank statement PDFs...</p>
-                </div>
-              ) : bankStatementPdfs.length > 0 ? (
-                <div className="space-y-4">
-                  <FileText className="h-12 w-12 mx-auto text-green-500" />
-                  <div className="text-sm">
-                    <p className="font-medium">{bankStatementPdfs.length} PDF{bankStatementPdfs.length > 1 ? 's' : ''} uploaded</p>
-                    <div className="mt-2 text-muted-foreground space-y-1">
-                      {bankStatementPdfs.map((pdf, i) => (
-                        <p key={i} className="text-xs truncate">{pdf.fileName} ({pdf.pages} pages)</p>
-                      ))}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-2 border-dashed">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    CSV Upload
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    data-testid="input-csv-upload"
+                  />
+                  {csvFileName ? (
+                    <div className="space-y-2 text-center">
+                      <FileText className="h-8 w-8 mx-auto text-green-500" />
+                      <p className="text-xs font-medium truncate">{csvFileName}</p>
+                      <p className="text-xs text-muted-foreground">{csvText.split("\n").length} rows</p>
+                      <div className="flex gap-2 justify-center flex-wrap">
+                        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                          Replace
+                        </Button>
+                        <Button size="sm" onClick={handleAnalyze} disabled={analyzeCsvMutation.isPending} data-testid="button-analyze-csv">
+                          {analyzeCsvMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Analyze"}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-3 justify-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={clearBankPdfs}
-                    >
-                      Clear All
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => bankPdfInputRef.current?.click()}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Replace
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleAnalyzeBankPdfs}
-                      disabled={analyzeBankPdfsMutation.isPending}
-                      data-testid="button-analyze-bank-pdfs"
-                    >
-                      {analyzeBankPdfsMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <TrendingUp className="h-4 w-4 mr-2" />
-                          Analyze PDFs
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
-                  <div>
-                    <Button onClick={() => bankPdfInputRef.current?.click()}>
-                      Select PDF Files (up to 6)
-                    </Button>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Upload 6 months of bank statements in PDF format
-                    </p>
-                  </div>
-                </div>
-              )}
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
+                      <Button size="sm" onClick={() => fileInputRef.current?.click()}>
+                        Select CSV
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-2 border-dashed">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    PDF Upload
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <input
+                    type="file"
+                    ref={bankPdfInputRef}
+                    accept=".pdf"
+                    multiple
+                    onChange={handleBankPdfUpload}
+                    className="hidden"
+                    data-testid="input-bank-pdf-upload"
+                  />
+                  {parsingBankPdfs ? (
+                    <div className="text-center space-y-2">
+                      <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
+                      <p className="text-xs text-muted-foreground">Parsing...</p>
+                    </div>
+                  ) : bankStatementPdfs.length > 0 ? (
+                    <div className="space-y-2 text-center">
+                      <FileText className="h-8 w-8 mx-auto text-green-500" />
+                      <p className="text-xs font-medium">{bankStatementPdfs.length} PDF{bankStatementPdfs.length > 1 ? 's' : ''}</p>
+                      <div className="flex gap-2 justify-center flex-wrap">
+                        <Button variant="outline" size="sm" onClick={clearBankPdfs}>Clear</Button>
+                        <Button size="sm" onClick={handleAnalyzeBankPdfs} disabled={analyzeBankPdfsMutation.isPending} data-testid="button-analyze-bank-pdfs">
+                          {analyzeBankPdfsMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Analyze"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
+                      <Button size="sm" onClick={() => bankPdfInputRef.current?.click()}>
+                        Select PDFs
+                      </Button>
+                      <p className="text-xs text-muted-foreground">Up to 6 months</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-2 border-dashed">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <ExternalLink className="h-4 w-4" />
+                    Open Banking
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <OpenBankingSection
+                    openBanking={underwriting.openBanking}
+                    existingUnderwriting={underwriting}
+                    onSave={onSave}
+                    isSaving={isSaving}
+                  />
+                </CardContent>
+              </Card>
             </div>
 
             <Separator className="my-6" />
