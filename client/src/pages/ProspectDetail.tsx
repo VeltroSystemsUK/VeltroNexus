@@ -30,7 +30,7 @@ import {
   Users, FileText, TrendingUp, CheckSquare, Calculator,
   Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
   Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil, Send,
-  CheckCircle2, XCircle, MessageSquare, Clock, Reply
+  CheckCircle2, XCircle, MessageSquare, Clock, Reply, ClipboardList, Shield
 } from "lucide-react";
 import {
   Dialog,
@@ -1845,105 +1845,123 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
   };
 
   return (
-    <div className="space-y-6">
-      <Accordion type="multiple" defaultValue={["checklist"]} className="space-y-4">
-        <AccordionItem value="checklist" className="border rounded-lg" data-testid="accordion-checklist">
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <span className="text-lg font-semibold">Due Diligence Checklist</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <DueDiligenceChecklist
-              data={dueDiligenceData}
-              onSave={handleSave}
-              isSaving={saveDueDiligenceMutation.isPending}
-            />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+    <Tabs defaultValue="checklist" className="w-full">
+      <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsTrigger value="checklist" data-testid="tab-credit-checklist">
+          <ClipboardList className="h-4 w-4 mr-2" />
+          Due Diligence Checklist
+        </TabsTrigger>
+        <TabsTrigger value="tools" data-testid="tab-credit-tools">
+          <Calculator className="h-4 w-4 mr-2" />
+          Credit Tools
+        </TabsTrigger>
+        <TabsTrigger 
+          value="underwriting" 
+          data-testid="tab-credit-underwriting"
+          className="relative"
+        >
+          <Shield className="h-4 w-4 mr-2" />
+          Pre-Underwriting
+          <Badge variant="outline" className="ml-2 text-xs bg-primary/10 text-primary border-primary/20">
+            Premium
+          </Badge>
+        </TabsTrigger>
+      </TabsList>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-primary" />
-            Credit Tools
-          </CardTitle>
-          <CardDescription>
-            Interactive calculators and assessment tools
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {creditToolsConfig.map((tool) => {
-              const Icon = tool.icon;
-              const isActive = activeTool === tool.id;
-              
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => handleToolClick(tool.id)}
-                  className={`
-                    flex items-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium
-                    transition-all duration-200 ease-in-out transform
-                    ${isActive ? tool.activeColor + " scale-105" : tool.color + " hover:scale-102"}
-                    shadow-md hover:shadow-lg active:scale-95
-                  `}
-                  data-testid={`button-tool-${tool.id}`}
-                >
-                  <Icon className={`h-4 w-4 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`} />
-                  <span className="hidden sm:inline">{tool.label}</span>
-                  <span className="sm:hidden">{tool.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
+      <TabsContent value="checklist" className="mt-0">
+        <DueDiligenceChecklist
+          data={dueDiligenceData}
+          onSave={handleSave}
+          isSaving={saveDueDiligenceMutation.isPending}
+        />
+      </TabsContent>
 
-          {activeTool && (
-            <div 
-              className="mt-6 p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-300"
-              data-testid={`content-tool-${activeTool}`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-lg font-semibold">
-                  {creditToolsConfig.find(t => t.id === activeTool)?.label}
-                </h4>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => setActiveTool(null)}
-                  data-testid="button-close-tool"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              {renderToolContent()}
+      <TabsContent value="tools" className="mt-0">
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5 text-primary" />
+              Credit Tools
+            </CardTitle>
+            <CardDescription>
+              Interactive calculators and assessment tools
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {creditToolsConfig.map((tool) => {
+                const Icon = tool.icon;
+                const isActive = activeTool === tool.id;
+                
+                return (
+                  <button
+                    key={tool.id}
+                    onClick={() => handleToolClick(tool.id)}
+                    className={`
+                      flex items-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium
+                      transition-all duration-200 ease-in-out transform
+                      ${isActive ? tool.activeColor + " scale-105" : tool.color + " hover:scale-102"}
+                      shadow-md hover:shadow-lg active:scale-95
+                    `}
+                    data-testid={`button-tool-${tool.id}`}
+                  >
+                    <Icon className={`h-4 w-4 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`} />
+                    <span className="hidden sm:inline">{tool.label}</span>
+                    <span className="sm:hidden">{tool.shortLabel}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {userTier === "premium" && (
-        <Accordion type="multiple" className="space-y-4">
-          <AccordionItem value="underwriting" className="border rounded-lg border-primary/20" data-testid="accordion-underwriting">
-            <AccordionTrigger className="px-6 hover:no-underline">
-              <div className="flex items-center gap-3">
-                <span className="text-lg font-semibold">Credit Underwriting</span>
-                <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
-                  Premium
-                </Badge>
+            {activeTool && (
+              <div 
+                className="mt-6 p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-300"
+                data-testid={`content-tool-${activeTool}`}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold">
+                    {creditToolsConfig.find(t => t.id === activeTool)?.label}
+                  </h4>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setActiveTool(null)}
+                    data-testid="button-close-tool"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {renderToolContent()}
               </div>
-            </AccordionTrigger>
-            <AccordionContent className="px-6 pb-6">
-              <CreditUnderwritingTool
-                prospect={prospect}
-                data={dueDiligenceData}
-                onSave={handleSave}
-                isSaving={saveDueDiligenceMutation.isPending}
-              />
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
-    </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="underwriting" className="mt-0">
+        {userTier === "premium" ? (
+          <CreditUnderwritingTool
+            prospect={prospect}
+            data={dueDiligenceData}
+            onSave={handleSave}
+            isSaving={saveDueDiligenceMutation.isPending}
+          />
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Premium Feature</h3>
+              <p className="text-muted-foreground mb-4">
+                AI-powered pre-underwriting is available on Premium plans.
+              </p>
+              <Button variant="default" data-testid="button-upgrade-premium">
+                Upgrade to Premium
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }
 
