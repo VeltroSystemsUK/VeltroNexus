@@ -1069,6 +1069,23 @@ export const openBankingSchema = z.object({
   linkId: z.string().optional(),
 });
 
+export const managementAccountsSchema = z.object({
+  files: z.array(z.object({
+    fileName: z.string(),
+    text: z.string().optional(),
+    pages: z.number().optional(),
+  })).optional(),
+  months: z.number().min(1).max(12).default(3),
+  uploadedAt: z.string().optional(),
+});
+
+export const accountingSoftwareSchema = z.object({
+  status: z.enum(['not_linked', 'pending', 'connected', 'error']).default('not_linked'),
+  softwarePackage: z.string().optional(),
+  linkedAt: z.string().optional(),
+  customerEmail: z.string().optional(),
+});
+
 export const underwritingDataSchema = z.object({
   eligibility: underwritingEligibilitySchema.optional(),
   loanDetails: z.object({
@@ -1097,6 +1114,8 @@ export const underwritingDataSchema = z.object({
     pages: z.number().optional(),
   })).optional(),
   analysisSource: z.enum(['csv', 'pdf', 'openbanking']).optional(),
+  managementAccounts: managementAccountsSchema.optional(),
+  accountingSoftware: accountingSoftwareSchema.optional(),
 });
 
 export const dueDiligenceDataSchema = z.object({

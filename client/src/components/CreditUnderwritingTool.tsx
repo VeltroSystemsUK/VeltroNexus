@@ -40,7 +40,11 @@ import {
   Clock,
   Check,
   Mail,
+  Info,
+  Plug,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import type { DueDiligenceData, ProspectWithCompany, UnderwritingData } from "@shared/schema";
 import {
   ELIGIBILITY_QUESTIONS,
@@ -249,6 +253,45 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   );
   const bankPdfInputRef = useRef<HTMLInputElement>(null);
   const [parsingBankPdfs, setParsingBankPdfs] = useState(false);
+
+  // Management accounts state
+  interface ManagementAccountFile {
+    fileName: string;
+    text?: string;
+    pages?: number;
+  }
+  const [managementAccountFiles, setManagementAccountFiles] = useState<ManagementAccountFile[]>(
+    underwriting.managementAccounts?.files || []
+  );
+  const [managementAccountsMonths, setManagementAccountsMonths] = useState(
+    underwriting.managementAccounts?.months || 3
+  );
+  const managementAccountsInputRef = useRef<HTMLInputElement>(null);
+  const [parsingManagementAccounts, setParsingManagementAccounts] = useState(false);
+
+  // Accounting software state
+  const [accountingSoftwareStatus, setAccountingSoftwareStatus] = useState<'not_linked' | 'pending' | 'connected' | 'error'>(
+    underwriting.accountingSoftware?.status || 'not_linked'
+  );
+  const [accountingSoftwarePackage, setAccountingSoftwarePackage] = useState(
+    underwriting.accountingSoftware?.softwarePackage || ''
+  );
+  const [accountingSoftwareEmail, setAccountingSoftwareEmail] = useState(
+    underwriting.accountingSoftware?.customerEmail || ''
+  );
+
+  // Sync management accounts state when underwriting data changes
+  useEffect(() => {
+    setManagementAccountFiles(underwriting.managementAccounts?.files || []);
+    setManagementAccountsMonths(underwriting.managementAccounts?.months || 3);
+  }, [underwriting.managementAccounts]);
+
+  // Sync accounting software state when underwriting data changes
+  useEffect(() => {
+    setAccountingSoftwareStatus(underwriting.accountingSoftware?.status || 'not_linked');
+    setAccountingSoftwarePackage(underwriting.accountingSoftware?.softwarePackage || '');
+    setAccountingSoftwareEmail(underwriting.accountingSoftware?.customerEmail || '');
+  }, [underwriting.accountingSoftware]);
 
   const [adviserSummary, setAdviserSummary] = useState(underwriting.adviserSummary || {
     soarRef: "",
@@ -1002,132 +1045,407 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
             <Separator className="my-6" />
 
-            <h3 className="text-lg font-semibold">Audited Accounts Upload</h3>
-            <p className="text-sm text-muted-foreground">
-              Upload up to 3 years of audited accounts (PDF format) for trend analysis, credit ratios, and DSCR calculation.
-            </p>
+            {/* Section 1: Audited Accounts Upload */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-semibold">Last Three Years Financial Accounts</CardTitle>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-sm">Upload the last 3 years of audited or filed accounts in PDF format. <strong>Must include notes to the accounts</strong> for complete financial analysis including depreciation, director loans, and related party transactions.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <CardDescription>Upload audited accounts with notes for trend analysis, credit ratios, and DSCR calculation</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[0, 1, 2].map((yearIndex) => {
+                    const currentYear = new Date().getFullYear();
+                    const yearLabels = [`${currentYear - 1}`, `${currentYear - 2}`, `${currentYear - 3}`];
+                    const pdfRef = yearIndex === 0 ? pdfInputRef1 : yearIndex === 1 ? pdfInputRef2 : pdfInputRef3;
+                    const pdf = accountsPdfs[yearIndex];
+                    
+                    return (
+                      <div key={yearIndex} className="border-2 border-dashed rounded-lg p-4 text-center">
+                        <input
+                          type="file"
+                          ref={pdfRef}
+                          accept=".pdf"
+                          onChange={(e) => handlePdfUpload(yearIndex, e)}
+                          className="hidden"
+                          data-testid={`input-pdf-upload-${yearIndex}`}
+                        />
+                        <p className="text-sm font-medium mb-2">Year Ending {yearLabels[yearIndex]}</p>
+                        {parsingPdf === yearIndex ? (
+                          <div className="space-y-2">
+                            <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
+                            <p className="text-sm text-muted-foreground">Parsing PDF...</p>
+                          </div>
+                        ) : pdf ? (
+                          <div className="space-y-2">
+                            <FileText className="h-8 w-8 mx-auto text-green-500" />
+                            <p className="text-xs font-medium truncate">{pdf.fileName}</p>
+                            <p className="text-xs text-muted-foreground">{pdf.pages} pages</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => pdfRef.current?.click()}
+                            >
+                              Replace
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Building2 className="h-8 w-8 mx-auto text-muted-foreground" />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => pdfRef.current?.click()}
+                            >
+                              Upload PDF
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[0, 1, 2].map((yearIndex) => {
-                const currentYear = new Date().getFullYear();
-                const yearLabels = [`${currentYear - 1}`, `${currentYear - 2}`, `${currentYear - 3}`];
-                const pdfRef = yearIndex === 0 ? pdfInputRef1 : yearIndex === 1 ? pdfInputRef2 : pdfInputRef3;
-                const pdf = accountsPdfs[yearIndex];
-                
-                return (
-                  <div key={yearIndex} className="border-2 border-dashed rounded-lg p-4 text-center">
-                    <input
-                      type="file"
-                      ref={pdfRef}
-                      accept=".pdf"
-                      onChange={(e) => handlePdfUpload(yearIndex, e)}
-                      className="hidden"
-                      data-testid={`input-pdf-upload-${yearIndex}`}
-                    />
-                    <p className="text-sm font-medium mb-2">Year Ending {yearLabels[yearIndex]}</p>
-                    {parsingPdf === yearIndex ? (
-                      <div className="space-y-2">
-                        <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Parsing PDF...</p>
+                {accountsPdfs.filter(p => p?.text).length > 0 && (
+                  <div className="flex justify-center mt-4">
+                    <Button
+                      onClick={handleAnalyzeAccounts}
+                      disabled={analyzeAccountsMutation.isPending}
+                      data-testid="button-analyze-accounts"
+                    >
+                      {analyzeAccountsMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Analyzing Accounts...
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Analyze {accountsPdfs.filter(p => p?.text).length} Year{accountsPdfs.filter(p => p?.text).length > 1 ? 's' : ''} of Accounts
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {accountsAnalysis && (
+                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                      <CheckCircle2 className="h-5 w-5" />
+                      <span className="font-medium">Accounts Analysis Complete</span>
+                      {accountsAnalysis.riskAssessment && (
+                        <Badge className={
+                          accountsAnalysis.riskAssessment === 'low' ? 'bg-green-500 text-white' :
+                          accountsAnalysis.riskAssessment === 'medium' ? 'bg-yellow-500 text-white' :
+                          'bg-red-500 text-white'
+                        }>
+                          {accountsAnalysis.riskAssessment.toUpperCase()} Risk
+                        </Badge>
+                      )}
+                    </div>
+                    {accountsAnalysis.summary && (
+                      <p className="text-sm">{accountsAnalysis.summary}</p>
+                    )}
+                    
+                    {accountsAnalysis.trends?.trend && (
+                      <div className="text-sm">
+                        <span className="font-medium">Trend: </span>
+                        <Badge variant={accountsAnalysis.trends.trend === 'improving' ? 'default' : accountsAnalysis.trends.trend === 'stable' ? 'secondary' : 'destructive'}>
+                          {accountsAnalysis.trends.trend.charAt(0).toUpperCase() + accountsAnalysis.trends.trend.slice(1)}
+                        </Badge>
                       </div>
-                    ) : pdf ? (
-                      <div className="space-y-2">
-                        <FileText className="h-8 w-8 mx-auto text-green-500" />
-                        <p className="text-xs font-medium truncate">{pdf.fileName}</p>
-                        <p className="text-xs text-muted-foreground">{pdf.pages} pages</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => pdfRef.current?.click()}
-                        >
-                          Replace
-                        </Button>
+                    )}
+                    
+                    {accountsAnalysis.dscr?.average !== undefined && accountsAnalysis.dscr.average > 0 && (
+                      <div className="text-sm">
+                        <span className="font-medium">Avg Historical DSCR: </span>
+                        <span className={accountsAnalysis.dscr.average >= 1.25 ? 'text-green-600' : 'text-red-600'}>
+                          {accountsAnalysis.dscr.average.toFixed(2)}x
+                        </span>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Building2 className="h-8 w-8 mx-auto text-muted-foreground" />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => pdfRef.current?.click()}
-                        >
-                          Upload PDF
-                        </Button>
+                    )}
+                    
+                    {accountsAnalysis.concerns && accountsAnalysis.concerns.length > 0 && (
+                      <div className="text-sm">
+                        <span className="font-medium text-amber-600 dark:text-amber-400">
+                          {accountsAnalysis.concerns.length} Concern{accountsAnalysis.concerns.length > 1 ? 's' : ''} Identified
+                        </span>
                       </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </CardContent>
+            </Card>
 
-            {accountsPdfs.filter(p => p?.text).length > 0 && (
-              <div className="flex justify-center">
-                <Button
-                  onClick={handleAnalyzeAccounts}
-                  disabled={analyzeAccountsMutation.isPending}
-                  data-testid="button-analyze-accounts"
-                >
-                  {analyzeAccountsMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Analyzing Accounts...
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Analyze {accountsPdfs.filter(p => p?.text).length} Year{accountsPdfs.filter(p => p?.text).length > 1 ? 's' : ''} of Accounts
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
+            {/* Section 2: Management Accounts */}
+            <Card className="mt-4">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-semibold">Latest Management Accounts</CardTitle>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-sm">Upload the most recent management accounts showing Profit & Loss and Balance Sheet. This provides up-to-date financial performance since the last filed accounts.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <CardDescription>Upload recent management accounts for current trading performance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col md:flex-row gap-4 items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Label htmlFor="management-months" className="text-sm font-medium whitespace-nowrap">Number of months:</Label>
+                      <Select 
+                        value={managementAccountsMonths.toString()} 
+                        onValueChange={(val) => {
+                          setManagementAccountsMonths(parseInt(val));
+                          onSave({
+                            underwriting: {
+                              ...underwriting,
+                              managementAccounts: {
+                                ...underwriting.managementAccounts,
+                                months: parseInt(val),
+                              },
+                            },
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="w-24" data-testid="select-management-months">
+                          <SelectValue placeholder="Months" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
+                            <SelectItem key={m} value={m.toString()}>{m} month{m > 1 ? 's' : ''}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <input
+                      type="file"
+                      ref={managementAccountsInputRef}
+                      accept=".pdf"
+                      multiple
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files || files.length === 0) return;
+                        setParsingManagementAccounts(true);
+                        try {
+                          const parsedFiles: ManagementAccountFile[] = [];
+                          for (const file of Array.from(files)) {
+                            const formData = new FormData();
+                            formData.append("file", file);
+                            const response = await fetch("/api/parse-pdf", {
+                              method: "POST",
+                              body: formData,
+                            });
+                            if (!response.ok) throw new Error("Failed to parse PDF");
+                            const data = await response.json();
+                            parsedFiles.push({
+                              fileName: file.name,
+                              text: data.text,
+                              pages: data.pages,
+                            });
+                          }
+                          setManagementAccountFiles(parsedFiles);
+                          onSave({
+                            underwriting: {
+                              ...underwriting,
+                              managementAccounts: {
+                                files: parsedFiles.map(p => ({ fileName: p.fileName, pages: p.pages })),
+                                months: managementAccountsMonths,
+                                uploadedAt: new Date().toISOString(),
+                              },
+                            },
+                          });
+                          toast.success(`Uploaded ${parsedFiles.length} management account file${parsedFiles.length > 1 ? 's' : ''}`);
+                        } catch (error) {
+                          toast.error("Failed to parse management accounts");
+                        } finally {
+                          setParsingManagementAccounts(false);
+                        }
+                      }}
+                      className="hidden"
+                      data-testid="input-management-accounts"
+                    />
+                    <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                      {parsingManagementAccounts ? (
+                        <div className="space-y-2">
+                          <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
+                          <p className="text-sm text-muted-foreground">Parsing files...</p>
+                        </div>
+                      ) : managementAccountFiles.length > 0 ? (
+                        <div className="space-y-2">
+                          <FileText className="h-8 w-8 mx-auto text-green-500" />
+                          <p className="text-sm font-medium">{managementAccountFiles.length} file{managementAccountFiles.length > 1 ? 's' : ''} uploaded</p>
+                          <p className="text-xs text-muted-foreground">{managementAccountFiles.map(f => f.fileName).join(', ')}</p>
+                          <Button variant="outline" size="sm" onClick={() => managementAccountsInputRef.current?.click()}>
+                            Replace Files
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
+                          <Button variant="outline" size="sm" onClick={() => managementAccountsInputRef.current?.click()}>
+                            Upload Management Accounts
+                          </Button>
+                          <p className="text-xs text-muted-foreground">PDF format</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            {accountsAnalysis && (
-              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
-                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span className="font-medium">Accounts Analysis Complete</span>
-                  {accountsAnalysis.riskAssessment && (
-                    <Badge className={
-                      accountsAnalysis.riskAssessment === 'low' ? 'bg-green-500 text-white' :
-                      accountsAnalysis.riskAssessment === 'medium' ? 'bg-yellow-500 text-white' :
-                      'bg-red-500 text-white'
-                    }>
-                      {accountsAnalysis.riskAssessment.toUpperCase()} Risk
-                    </Badge>
+            {/* Section 3: Link to Accounting Software */}
+            <Card className="mt-4">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-semibold">Link to Accounting Software</CardTitle>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-sm">Connect directly to the customer's accounting software (Xero, QuickBooks, Sage, FreeAgent, etc.) to automatically retrieve financial data. This provides real-time access to the most current financial information.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <CardDescription>Connect to accounting software for real-time financial data</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor="accounting-software" className="text-sm font-medium whitespace-nowrap">Software Package:</Label>
+                    <Select 
+                      value={accountingSoftwarePackage} 
+                      onValueChange={(val) => {
+                        setAccountingSoftwarePackage(val);
+                        onSave({
+                          underwriting: {
+                            ...underwriting,
+                            accountingSoftware: {
+                              ...underwriting.accountingSoftware,
+                              softwarePackage: val,
+                              status: underwriting.accountingSoftware?.status || 'not_linked',
+                            },
+                          },
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="w-48" data-testid="select-accounting-software">
+                        <SelectValue placeholder="Select software" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="xero">Xero</SelectItem>
+                        <SelectItem value="quickbooks">QuickBooks</SelectItem>
+                        <SelectItem value="sage">Sage</SelectItem>
+                        <SelectItem value="freeagent">FreeAgent</SelectItem>
+                        <SelectItem value="freshbooks">FreshBooks</SelectItem>
+                        <SelectItem value="wave">Wave</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {accountingSoftwarePackage && (
+                    <div className="border rounded-lg p-4">
+                      {accountingSoftwareStatus === 'not_linked' && (
+                        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                          <div className="flex-1">
+                            <Input
+                              type="email"
+                              placeholder="Customer email address"
+                              value={accountingSoftwareEmail}
+                              onChange={(e) => setAccountingSoftwareEmail(e.target.value)}
+                              className="max-w-xs"
+                              data-testid="input-accounting-software-email"
+                            />
+                          </div>
+                          <Button
+                            onClick={() => {
+                              if (!accountingSoftwareEmail) {
+                                toast.error("Please enter a customer email");
+                                return;
+                              }
+                              setAccountingSoftwareStatus('pending');
+                              onSave({
+                                underwriting: {
+                                  ...underwriting,
+                                  accountingSoftware: {
+                                    status: 'pending',
+                                    softwarePackage: accountingSoftwarePackage,
+                                    customerEmail: accountingSoftwareEmail,
+                                    linkedAt: new Date().toISOString(),
+                                  },
+                                },
+                              });
+                              toast.success("Connection request sent to customer");
+                            }}
+                            disabled={!accountingSoftwareEmail}
+                            data-testid="button-send-accounting-link"
+                          >
+                            <Plug className="h-4 w-4 mr-2" />
+                            Send Connection Request
+                          </Button>
+                        </div>
+                      )}
+
+                      {accountingSoftwareStatus === 'pending' && (
+                        <div className="flex items-center gap-3">
+                          <Clock className="h-5 w-5 text-amber-500" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">Awaiting customer connection</p>
+                            <p className="text-xs text-muted-foreground">Sent to {accountingSoftwareEmail}</p>
+                          </div>
+                          <Badge variant="secondary">Pending</Badge>
+                        </div>
+                      )}
+
+                      {accountingSoftwareStatus === 'connected' && (
+                        <div className="flex items-center gap-3">
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">Connected to {accountingSoftwarePackage}</p>
+                            <p className="text-xs text-muted-foreground">Financial data synced</p>
+                          </div>
+                          <Badge className="bg-green-500 text-white">Connected</Badge>
+                        </div>
+                      )}
+
+                      {accountingSoftwareStatus === 'error' && (
+                        <div className="flex items-center gap-3">
+                          <XCircle className="h-5 w-5 text-red-500" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-red-600">Connection failed</p>
+                            <p className="text-xs text-muted-foreground">Please try again</p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAccountingSoftwareStatus('not_linked')}
+                          >
+                            Retry
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-                {accountsAnalysis.summary && (
-                  <p className="text-sm">{accountsAnalysis.summary}</p>
-                )}
-                
-                {accountsAnalysis.trends?.trend && (
-                  <div className="text-sm">
-                    <span className="font-medium">Trend: </span>
-                    <Badge variant={accountsAnalysis.trends.trend === 'improving' ? 'default' : accountsAnalysis.trends.trend === 'stable' ? 'secondary' : 'destructive'}>
-                      {accountsAnalysis.trends.trend.charAt(0).toUpperCase() + accountsAnalysis.trends.trend.slice(1)}
-                    </Badge>
-                  </div>
-                )}
-                
-                {accountsAnalysis.dscr?.average !== undefined && accountsAnalysis.dscr.average > 0 && (
-                  <div className="text-sm">
-                    <span className="font-medium">Avg Historical DSCR: </span>
-                    <span className={accountsAnalysis.dscr.average >= 1.25 ? 'text-green-600' : 'text-red-600'}>
-                      {accountsAnalysis.dscr.average.toFixed(2)}x
-                    </span>
-                  </div>
-                )}
-                
-                {accountsAnalysis.concerns && accountsAnalysis.concerns.length > 0 && (
-                  <div className="text-sm">
-                    <span className="font-medium text-amber-600 dark:text-amber-400">
-                      {accountsAnalysis.concerns.length} Concern{accountsAnalysis.concerns.length > 1 ? 's' : ''} Identified
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+              </CardContent>
+            </Card>
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setCurrentStep(1)}>
