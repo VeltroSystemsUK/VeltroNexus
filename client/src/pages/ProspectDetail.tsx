@@ -1887,53 +1887,60 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
               Interactive calculators and assessment tools
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {creditToolsConfig.map((tool) => {
-                const Icon = tool.icon;
-                const isActive = activeTool === tool.id;
-                
-                return (
-                  <button
-                    key={tool.id}
-                    onClick={() => handleToolClick(tool.id)}
-                    className={`
-                      flex items-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium
-                      transition-all duration-200 ease-in-out transform
-                      ${isActive ? tool.activeColor + " scale-105" : tool.color + " hover:scale-102"}
-                      shadow-md hover:shadow-lg active:scale-95
-                    `}
-                    data-testid={`button-tool-${tool.id}`}
-                  >
-                    <Icon className={`h-4 w-4 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`} />
-                    <span className="hidden sm:inline">{tool.label}</span>
-                    <span className="sm:hidden">{tool.shortLabel}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {activeTool && (
-              <div 
-                className="mt-6 p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-300"
-                data-testid={`content-tool-${activeTool}`}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-semibold">
-                    {creditToolsConfig.find(t => t.id === activeTool)?.label}
-                  </h4>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => setActiveTool(null)}
-                    data-testid="button-close-tool"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                {renderToolContent()}
+          <CardContent>
+            <div className="flex gap-6">
+              <div className="flex flex-col gap-2 w-48 shrink-0">
+                {creditToolsConfig.map((tool) => {
+                  const Icon = tool.icon;
+                  const isActive = activeTool === tool.id;
+                  
+                  return (
+                    <button
+                      key={tool.id}
+                      onClick={() => handleToolClick(tool.id)}
+                      className={`
+                        flex items-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium w-full justify-start
+                        transition-all duration-200 ease-in-out
+                        ${isActive ? tool.activeColor : tool.color}
+                        shadow-md hover:shadow-lg
+                      `}
+                      data-testid={`button-tool-${tool.id}`}
+                    >
+                      <Icon className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`} />
+                      <span>{tool.label}</span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
+
+              <div className="flex-1 min-w-0">
+                {activeTool ? (
+                  <div 
+                    className="p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-left-2 duration-300"
+                    data-testid={`content-tool-${activeTool}`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold">
+                        {creditToolsConfig.find(t => t.id === activeTool)?.label}
+                      </h4>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => setActiveTool(null)}
+                        data-testid="button-close-tool"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {renderToolContent()}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full min-h-[200px] border rounded-lg bg-muted/30">
+                    <p className="text-muted-foreground">Select a tool from the left to get started</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>
