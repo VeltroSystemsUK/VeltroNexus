@@ -2158,7 +2158,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     <SelectItem value="RGF">RGF (Regional Growth Fund)</SelectItem>
                     <SelectItem value="ELEM2">ELEM2</SelectItem>
                     <SelectItem value="MEIFII">MEIFII</SelectItem>
-                    <SelectItem value="CEF">CEF (Community Economy Fund)</SelectItem>
+                    <SelectItem value="CEF">CEF (Community Enable Fund)</SelectItem>
                     <SelectItem value="STARTUP">Start Up Loan</SelectItem>
                   </SelectContent>
                 </Select>
