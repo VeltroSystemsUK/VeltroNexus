@@ -103,7 +103,7 @@ export default function Pipeline() {
 
   const reorderMutation = useMutation({
     mutationFn: ({ stage, orderedIds }: { stage: string; orderedIds: number[] }) =>
-      apiRequest("POST", "/api/prospects/reorder", { stage, orderedIds }),
+      apiRequest("/api/prospects/reorder", "POST", { stage, orderedIds }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
     },
