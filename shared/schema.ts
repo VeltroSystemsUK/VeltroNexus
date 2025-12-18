@@ -97,6 +97,7 @@ export const prospects = pgTable("prospects", {
   priority: text("priority"),
   notes: text("notes"),
   savedAssociations: jsonb("saved_associations").default('[]'),
+  queueOrder: integer("queue_order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
