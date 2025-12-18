@@ -84,7 +84,7 @@ const NON_REGISTERED_TYPES = ["partnership", "sole-trader"];
 
 export default function CompanySearch() {
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<"search" | "manual">("search");
+  const [activeTab, setActiveTab] = useState<"search" | "manual" | "confirmation">("search");
   
   // Search state
   const [searchType, setSearchType] = useState<SearchType>("company");
@@ -243,7 +243,9 @@ export default function CompanySearch() {
       setRegisteredAddress(company.address_snippet);
     }
     
-    toast.success("Company details populated");
+    // Switch to confirmation tab
+    setActiveTab("confirmation");
+    toast.success("Company selected - review and confirm details");
   };
 
   const handleSelectOfficer = async (officer: OfficerSearchResult) => {
@@ -426,8 +428,14 @@ export default function CompanySearch() {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-3xl">
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "search" | "manual"); resetForm(); }}>
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+        <Tabs value={activeTab} onValueChange={(v) => { 
+            const newTab = v as "search" | "manual" | "confirmation";
+            if (newTab !== "confirmation") {
+              resetForm();
+            }
+            setActiveTab(newTab); 
+          }}>
+          <TabsList className={`grid w-full mb-6 ${selectedCompany ? "grid-cols-3" : "grid-cols-2"}`}>
             <TabsTrigger value="search" data-testid="tab-search" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
               Search Companies House
@@ -436,6 +444,12 @@ export default function CompanySearch() {
               <PenLine className="h-4 w-4" />
               Add Manually
             </TabsTrigger>
+            {selectedCompany && (
+              <TabsTrigger value="confirmation" data-testid="tab-confirmation" className="flex items-center gap-2">
+                <Check className="h-4 w-4" />
+                Prospect Confirmation
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* SEARCH TAB */}
@@ -714,8 +728,10 @@ export default function CompanySearch() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
 
-            {/* Selected Company Form */}
+          {/* CONFIRMATION TAB */}
+          <TabsContent value="confirmation" className="space-y-6">
             {selectedCompany && (
               <Card>
                 <CardHeader>
@@ -723,12 +739,12 @@ export default function CompanySearch() {
                     <div className="flex items-center gap-3">
                       <Building2 className="h-6 w-6 text-primary" />
                       <div>
-                        <CardTitle>Selected Company</CardTitle>
+                        <CardTitle>Prospect Confirmation</CardTitle>
                         <CardDescription>Review and complete the prospect details</CardDescription>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={resetForm}>
-                      Clear
+                    <Button variant="ghost" size="sm" onClick={() => { resetForm(); setActiveTab("search"); }}>
+                      Start Over
                     </Button>
                   </div>
                 </CardHeader>
