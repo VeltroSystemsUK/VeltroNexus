@@ -38,6 +38,7 @@ interface ProspectCardProps {
   underwritingStatus?: UnderwritingStatus;
   isOverLimit?: boolean;
   onLimitClick?: () => void;
+  queuePosition?: number;
 }
 
 const priorityColors = {
@@ -79,6 +80,7 @@ export default function ProspectCard({
   underwritingStatus,
   isOverLimit = false,
   onLimitClick,
+  queuePosition,
 }: ProspectCardProps) {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
 
@@ -123,13 +125,23 @@ export default function ProspectCard({
           </div>
         )}
         <div className="flex items-start justify-between mb-3 gap-2">
-          <div
-            {...dragHandleProps}
-            className="flex-shrink-0 mr-2 cursor-grab active:cursor-grabbing p-1 -ml-1"
-            onClick={(e) => e.stopPropagation()}
-            data-testid={`drag-handle-${prospect.id}`}
-          >
-            <GripVertical className="h-5 w-5 text-muted-foreground" />
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {queuePosition !== undefined && (
+              <div 
+                className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold"
+                data-testid={`queue-position-${prospect.id}`}
+              >
+                {queuePosition}
+              </div>
+            )}
+            <div
+              {...dragHandleProps}
+              className="cursor-grab active:cursor-grabbing p-1"
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`drag-handle-${prospect.id}`}
+            >
+              <GripVertical className="h-5 w-5 text-muted-foreground" />
+            </div>
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-semibold text-base truncate leading-tight" data-testid={`text-company-name-${prospect.id}`}>

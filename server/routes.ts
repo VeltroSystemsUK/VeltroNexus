@@ -318,6 +318,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/prospects/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { stage, orderedIds } = req.body;
+      
+      if (!stage || !Array.isArray(orderedIds)) {
+        return res.status(400).json({ error: "Stage and orderedIds array are required" });
+      }
+      
+      await storage.reorderProspects(userId, stage, orderedIds);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.patch("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

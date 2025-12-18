@@ -101,21 +101,40 @@ export default function Pipeline() {
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: ({ stage, orderedIds }: { stage: string; orderedIds: number[] }) =>
+      apiRequest("POST", "/api/prospects/reorder", { stage, orderedIds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to reorder: ${error.message}`);
+    },
+  });
+
   const onDragEnd = (result: DropResult) => {
-    const { destination, draggableId } = result;
+    const { destination, source, draggableId } = result;
 
     if (!destination) {
       return;
     }
 
-    if (destination.droppableId === result.source.droppableId) {
+    const prospectId = parseInt(draggableId.replace("prospect-", ""));
+    const sourceStage = source.droppableId as Stage;
+    const destStage = destination.droppableId as Stage;
+
+    if (sourceStage === destStage) {
+      const stageProspects = getProspectsByStage(sourceStage);
+      const newOrder = [...stageProspects];
+      const [removed] = newOrder.splice(source.index, 1);
+      newOrder.splice(destination.index, 0, removed);
+      
+      const orderedIds = newOrder.map(p => p.id);
+      reorderMutation.mutate({ stage: sourceStage, orderedIds });
       return;
     }
 
-    const prospectId = parseInt(draggableId.replace("prospect-", ""));
-    const newStage = destination.droppableId as Stage;
-
-    updateStageMutation.mutate({ prospectId, stage: newStage });
+    updateStageMutation.mutate({ prospectId, stage: destStage });
   };
 
   const handleStageChange = (prospectId: number, newStage: Stage) => {
@@ -132,7 +151,9 @@ export default function Pipeline() {
   };
 
   const getProspectsByStage = (stage: Stage) => {
-    return prospects.filter((p) => p.stage === stage);
+    return prospects
+      .filter((p) => p.stage === stage)
+      .sort((a, b) => (a.queueOrder ?? 0) - (b.queueOrder ?? 0));
   };
 
   const getTotalValueByStage = (stage: Stage) => {
@@ -421,6 +442,7 @@ export default function Pipeline() {
                                             underwritingStatus={underwritingStatuses[prospect.id]}
                                             isOverLimit={isProspectOverLimit(prospect.id)}
                                             onLimitClick={() => setShowLimitModal(true)}
+                                            queuePosition={index + 1}
                                           />
                                         </div>
                                       )}
@@ -499,6 +521,7 @@ export default function Pipeline() {
                                               underwritingStatus={underwritingStatuses[prospect.id]}
                                               isOverLimit={isProspectOverLimit(prospect.id)}
                                               onLimitClick={() => setShowLimitModal(true)}
+                                              queuePosition={index + 1}
                                             />
                                           </div>
                                         )}
@@ -565,6 +588,7 @@ export default function Pipeline() {
                                                 underwritingStatus={underwritingStatuses[prospect.id]}
                                                 isOverLimit={isProspectOverLimit(prospect.id)}
                                                 onLimitClick={() => setShowLimitModal(true)}
+                                                queuePosition={index + 1}
                                               />
                                             </div>
                                           )}
