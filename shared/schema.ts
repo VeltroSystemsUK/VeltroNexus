@@ -1061,6 +1061,14 @@ export const swotAnalysisSchema = z.object({
   summary: z.string().optional(),
 });
 
+export const openBankingSchema = z.object({
+  status: z.enum(['not_sent', 'invited', 'connected', 'expired', 'error']).default('not_sent'),
+  invitedAt: z.string().optional(),
+  connectedAt: z.string().optional(),
+  customerEmail: z.string().optional(),
+  linkId: z.string().optional(),
+});
+
 export const underwritingDataSchema = z.object({
   eligibility: underwritingEligibilitySchema.optional(),
   loanDetails: z.object({
@@ -1082,6 +1090,12 @@ export const underwritingDataSchema = z.object({
   adviserSummary: underwritingAdviserSummarySchema.optional(),
   riskGrade: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
   completedAt: z.string().optional(),
+  openBanking: openBankingSchema.optional(),
+  bankPdfFiles: z.array(z.object({
+    fileName: z.string(),
+    pages: z.number().optional(),
+  })).optional(),
+  analysisSource: z.enum(['csv', 'pdf', 'openbanking']).optional(),
 });
 
 export const dueDiligenceDataSchema = z.object({
