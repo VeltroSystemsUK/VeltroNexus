@@ -2607,7 +2607,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const commentary = submissionInput.commentary || 'Please find attached the loan application for your review.';
         
-        await resendClient.emails.send({
+        console.log(`Sending email to lender: ${lender.email} from: ${fromEmail}`);
+        
+        const emailResponse = await resendClient.emails.send({
           from: fromEmail,
           to: lender.email,
           subject: `Loan Application - ${prospect.company.companyName}`,
@@ -2635,11 +2637,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ],
         });
         
+        console.log("Resend API response:", JSON.stringify(emailResponse));
+        
+        // Check for errors in the response
+        if (emailResponse.error) {
+          throw new Error(emailResponse.error.message || 'Resend returned an error');
+        }
+        
+        if (!emailResponse.data?.id) {
+          throw new Error('No email ID returned from Resend - email may not have been sent');
+        }
+        
+        console.log(`Email sent successfully with ID: ${emailResponse.data.id}`);
         emailSent = true;
       } catch (err: any) {
         const errMessage = (err as Error)?.message || 'Unknown error';
         emailError = errMessage;
-        console.error("Email send error");
+        console.error("Email send error:", errMessage);
       }
       
       // Create the submission only after successful PDF generation
