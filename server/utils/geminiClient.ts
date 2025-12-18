@@ -682,6 +682,12 @@ const CAMPARI_PROMPTS: Record<string, string> = {
 - Is the security proportionate to the loan size?`
 };
 
+export interface DocumentSummary {
+  fileName: string;
+  category: string;
+  content: string;
+}
+
 export async function generateCampariSection(
   sectionKey: string,
   companyName: string,
@@ -691,11 +697,29 @@ export async function generateCampariSection(
   financialSummary: string,
   companiesHouseData?: string,
   bankAnalysisSummary?: string,
-  accountsAnalysisSummary?: string
+  accountsAnalysisSummary?: string,
+  documentSummaries?: DocumentSummary[]
 ): Promise<string> {
   const sectionPrompt = CAMPARI_PROMPTS[sectionKey];
   if (!sectionPrompt) {
     throw new Error(`Unknown CAMPARI section: ${sectionKey}`);
+  }
+
+  // Build document content section
+  let documentContent = '';
+  if (documentSummaries && documentSummaries.length > 0) {
+    documentContent = 'UPLOADED DOCUMENTS:\n\n';
+    for (const doc of documentSummaries) {
+      const categoryLabel = doc.category === 'business' ? 'Business Plan' :
+                           doc.category === 'financial' ? 'Financial Document' :
+                           doc.category === 'legal' ? 'Legal Document' :
+                           doc.category === 'identity' ? 'CV / Identity Document' :
+                           doc.category === 'correspondence' ? 'Correspondence / Loan Application' :
+                           doc.category === 'property' ? 'Property Document' :
+                           doc.category === 'other' ? 'Supporting Document' :
+                           'Document';
+      documentContent += `--- ${categoryLabel}: ${doc.fileName} ---\n${doc.content}\n\n`;
+    }
   }
 
   const prompt = `You are an experienced commercial lending underwriter. Write a professional assessment for a loan application.
@@ -710,10 +734,13 @@ ${financialSummary ? `FINANCIAL SUMMARY:\n${financialSummary}\n` : ''}
 ${companiesHouseData ? `COMPANIES HOUSE DATA:\n${companiesHouseData}\n` : ''}
 ${bankAnalysisSummary ? `BANK STATEMENT ANALYSIS:\n${bankAnalysisSummary}\n` : ''}
 ${accountsAnalysisSummary ? `ACCOUNTS ANALYSIS:\n${accountsAnalysisSummary}\n` : ''}
+${documentContent}
 
 TASK: Write a professional credit assessment for this CAMPARI section.
 
 ${sectionPrompt}
+
+IMPORTANT: You MUST draw upon ALL the information provided above, especially any uploaded documents such as Business Plans, Company Profiles, CVs, and Loan Applications. Reference specific details and evidence from these documents in your assessment.
 
 Write 2-4 concise paragraphs in professional underwriting language. Be specific to this application using the data provided.
 Start directly with the assessment - do not include section headers or titles.

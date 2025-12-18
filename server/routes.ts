@@ -1818,6 +1818,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: sectionKey, companyName, loanAmount" });
       }
       
+      // Fetch uploaded documents for the prospect
+      const documents = await storage.listProspectDocuments(prospectId);
+      
+      // Filter relevant document categories for CAMPARI analysis
+      // Include: business plans, financial docs, legal docs, CVs (identity), correspondence, and general/other documents
+      const relevantCategories = ['business', 'financial', 'legal', 'identity', 'correspondence', 'general', 'other'];
+      const relevantDocs = documents.filter(doc => relevantCategories.includes(doc.category || 'general'));
+      
+      // Parse document contents
+      const documentSummaries: { fileName: string; category: string; content: string }[] = [];
+      const pdfParse = (await import("pdf-parse")).default;
+      
+      for (const doc of relevantDocs.slice(0, 10)) { // Limit to 10 documents to avoid token limits
+        try {
+          const { data } = await getObjectStorage().downloadAsBytes(doc.storagePath);
+          
+          if (doc.fileType === 'application/pdf' || doc.fileName.toLowerCase().endsWith('.pdf')) {
+            // Parse PDF content
+            const pdfData = await pdfParse(Buffer.from(data));
+            const textContent = pdfData.text?.trim() || '';
+            if (textContent.length > 100) { // Only include if substantial content
+              // Truncate very long documents to avoid token limits
+              const truncatedContent = textContent.length > 15000 
+                ? textContent.substring(0, 15000) + '\n[... Document truncated ...]' 
+                : textContent;
+              documentSummaries.push({
+                fileName: doc.fileName,
+                category: doc.category || 'general',
+                content: truncatedContent
+              });
+            }
+          } else if (doc.fileType === 'text/plain' || doc.fileName.toLowerCase().endsWith('.txt')) {
+            // Plain text files
+            const textContent = Buffer.from(data).toString('utf-8').trim();
+            if (textContent.length > 50) {
+              const truncatedContent = textContent.length > 15000 
+                ? textContent.substring(0, 15000) + '\n[... Document truncated ...]' 
+                : textContent;
+              documentSummaries.push({
+                fileName: doc.fileName,
+                category: doc.category || 'general',
+                content: truncatedContent
+              });
+            }
+          }
+          // Skip other file types (images, etc.) as they can't be parsed for text
+        } catch (docError) {
+          console.error(`Error parsing document ${doc.fileName}:`, docError);
+          // Continue with other documents
+        }
+      }
+      
+      console.log(`CAMPARI section ${sectionKey}: Found ${documentSummaries.length} parseable documents for prospect ${prospectId}`);
+      
       // Import and use gemini client
       const { generateCampariSection } = await import("./utils/geminiClient");
       const content = await generateCampariSection(
@@ -1829,7 +1883,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         financialSummary || '',
         companiesHouseData,
         bankAnalysisSummary,
-        accountsAnalysisSummary
+        accountsAnalysisSummary,
+        documentSummaries.length > 0 ? documentSummaries : undefined
       );
       
       // Save to due diligence
