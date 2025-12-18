@@ -1576,13 +1576,48 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
   );
 }
 
+const activityTypeConfig = {
+  task: { label: "Task", icon: CheckSquare, color: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  call: { label: "Call", icon: Phone, color: "bg-orange-500/10 text-orange-700 dark:text-orange-300" },
+  meeting: { label: "Meeting", icon: Users, color: "bg-green-500/10 text-green-700 dark:text-green-300" },
+  event: { label: "Event", icon: Calendar, color: "bg-purple-500/10 text-purple-700 dark:text-purple-300" },
+  note: { label: "Note", icon: FileText, color: "bg-gray-500/10 text-gray-700 dark:text-gray-300" },
+};
+
+const activityPriorityConfig = {
+  low: { label: "Low", color: "bg-gray-500/10 text-gray-700 dark:text-gray-300" },
+  medium: { label: "Medium", color: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  high: { label: "High", color: "bg-orange-500/10 text-orange-700 dark:text-orange-300" },
+  urgent: { label: "Urgent", color: "bg-red-500/10 text-red-700 dark:text-red-300" },
+};
+
 function SalesActivityTab({ prospectId, activities }: { prospectId: number; activities: Activity[] }) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [activityType, setActivityType] = useState<string>("task");
+  const [priority, setPriority] = useState<string>("medium");
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setActivityType("task");
+    setPriority("medium");
+    setDueDate("");
+    setDueTime("");
+    setIsAdding(false);
+  };
 
   const addActivityMutation = useMutation({
-    mutationFn: (activity: { title: string; description?: string }) =>
+    mutationFn: (activity: { 
+      title: string; 
+      description?: string; 
+      activityType: string;
+      priority: string;
+      dueDate?: string;
+    }) =>
       fetch(`/api/prospects/${prospectId}/activities`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1591,10 +1626,9 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
       }).then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
-      toast.success("Task added");
-      setIsAdding(false);
-      setTitle("");
-      setDescription("");
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast.success("Activity added");
+      resetForm();
     },
   });
 
@@ -1608,20 +1642,67 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
       }).then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
     },
   });
+
+  const deleteActivityMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/activities/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast.success("Activity deleted");
+    },
+  });
+
+  const handleSave = () => {
+    let formattedDueDate: string | undefined;
+    if (dueDate) {
+      const dateObj = new Date(dueDate);
+      if (dueTime) {
+        const [hours, minutes] = dueTime.split(':');
+        dateObj.setHours(parseInt(hours), parseInt(minutes));
+      }
+      formattedDueDate = dateObj.toISOString();
+    }
+
+    addActivityMutation.mutate({
+      title,
+      description: description || undefined,
+      activityType,
+      priority,
+      dueDate: formattedDueDate,
+    });
+  };
+
+  const formatDueDate = (date: Date | string | null) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const dateStr = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    const timeStr = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return { dateStr, timeStr, hasTime: d.getHours() !== 0 || d.getMinutes() !== 0 };
+  };
+
+  const isOverdue = (date: Date | string | null) => {
+    if (!date) return false;
+    return new Date(date) < new Date();
+  };
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <CardTitle>Sales Activity</CardTitle>
-            <CardDescription>Track sales tasks and activities</CardDescription>
+            <CardDescription>Track tasks, calls, meetings, and notes</CardDescription>
           </div>
           <Button onClick={() => setIsAdding(true)} data-testid="button-new-task">
             <Plus className="h-4 w-4 mr-2" />
-            New Task
+            New Activity
           </Button>
         </div>
       </CardHeader>
@@ -1629,6 +1710,37 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
         {isAdding && (
           <Card className="mb-4">
             <CardContent className="pt-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="activity-type">Activity Type</Label>
+                  <Select value={activityType} onValueChange={setActivityType}>
+                    <SelectTrigger data-testid="select-activity-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="task">Task</SelectItem>
+                      <SelectItem value="call">Call</SelectItem>
+                      <SelectItem value="meeting">Meeting</SelectItem>
+                      <SelectItem value="event">Event</SelectItem>
+                      <SelectItem value="note">Note</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="activity-priority">Priority</Label>
+                  <Select value={priority} onValueChange={setPriority}>
+                    <SelectTrigger data-testid="select-activity-priority">
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="activity-title">Title *</Label>
                 <Input
@@ -1650,17 +1762,39 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
                   data-testid="textarea-activity-description"
                 />
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="activity-due-date">Due Date</Label>
+                  <Input
+                    id="activity-due-date"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    data-testid="input-activity-due-date"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="activity-due-time">Due Time</Label>
+                  <Input
+                    id="activity-due-time"
+                    type="time"
+                    value={dueTime}
+                    onChange={(e) => setDueTime(e.target.value)}
+                    data-testid="input-activity-due-time"
+                  />
+                </div>
+              </div>
               <div className="flex gap-3">
                 <Button
-                  onClick={() => addActivityMutation.mutate({ title, description: description || undefined })}
+                  onClick={handleSave}
                   disabled={!title || addActivityMutation.isPending}
                   data-testid="button-save-activity"
                 >
-                  Save Task
+                  {addActivityMutation.isPending ? "Saving..." : "Save Activity"}
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => setIsAdding(false)}
+                  onClick={resetForm}
                   data-testid="button-cancel-activity"
                 >
                   Cancel
@@ -1680,37 +1814,77 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
               onClick={() => setIsAdding(true)}
               data-testid="button-add-first-task"
             >
-              Add First Task
+              Add First Activity
             </Button>
           </div>
         ) : (
           <div className="space-y-3">
-            {activities.map((activity) => (
-              <Card key={activity.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-4">
-                    <Checkbox
-                      checked={!!activity.completed}
-                      onCheckedChange={(checked) =>
-                        toggleActivityMutation.mutate({ id: activity.id, completed: checked ? 1 : 0 })
-                      }
-                      data-testid={`checkbox-activity-${activity.id}`}
-                    />
-                    <div className="flex-1">
-                      <p className={`font-semibold ${activity.completed ? "line-through text-muted-foreground" : ""}`} data-testid={`text-activity-title-${activity.id}`}>
-                        {activity.title}
-                      </p>
-                      {activity.description && (
-                        <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {new Date(activity.createdAt).toLocaleDateString("en-GB")}
-                      </p>
+            {activities.map((activity) => {
+              const typeConfig = activityTypeConfig[activity.activityType as keyof typeof activityTypeConfig] || activityTypeConfig.task;
+              const TypeIcon = typeConfig.icon;
+              const prioConfig = activityPriorityConfig[activity.priority as keyof typeof activityPriorityConfig] || activityPriorityConfig.medium;
+              const dueDateInfo = formatDueDate(activity.dueDate);
+              const overdue = !activity.completed && isOverdue(activity.dueDate);
+
+              return (
+                <Card key={activity.id} className={overdue ? "border-red-500/50" : ""}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start gap-4">
+                      <Checkbox
+                        checked={!!activity.completed}
+                        onCheckedChange={(checked) =>
+                          toggleActivityMutation.mutate({ id: activity.id, completed: checked ? 1 : 0 })
+                        }
+                        data-testid={`checkbox-activity-${activity.id}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <Badge variant="outline" className={`${typeConfig.color} text-xs`}>
+                            <TypeIcon className="h-3 w-3 mr-1" />
+                            {typeConfig.label}
+                          </Badge>
+                          <Badge variant="outline" className={`${prioConfig.color} text-xs`}>
+                            {prioConfig.label}
+                          </Badge>
+                          {overdue && (
+                            <Badge variant="destructive" className="text-xs">
+                              Overdue
+                            </Badge>
+                          )}
+                        </div>
+                        <p className={`font-semibold ${activity.completed ? "line-through text-muted-foreground" : ""}`} data-testid={`text-activity-title-${activity.id}`}>
+                          {activity.title}
+                        </p>
+                        {activity.description && (
+                          <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
+                        )}
+                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                          {dueDateInfo && (
+                            <span className={`flex items-center gap-1 ${overdue ? "text-red-500" : ""}`}>
+                              <Clock className="h-3 w-3" />
+                              {dueDateInfo.dateStr}
+                              {dueDateInfo.hasTime && ` at ${dueDateInfo.timeStr}`}
+                            </span>
+                          )}
+                          <span>
+                            Created {new Date(activity.createdAt).toLocaleDateString("en-GB")}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteActivityMutation.mutate(activity.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                        data-testid={`button-delete-activity-${activity.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </CardContent>
