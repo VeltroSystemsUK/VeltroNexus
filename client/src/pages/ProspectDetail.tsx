@@ -1878,16 +1878,7 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
 
       <TabsContent value="tools" className="mt-0">
         <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-primary" />
-              Credit Tools
-            </CardTitle>
-            <CardDescription>
-              Interactive calculators and assessment tools
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="flex gap-6">
               <div className="flex flex-col gap-2 w-48 shrink-0">
                 {creditToolsConfig.map((tool) => {
@@ -1919,19 +1910,6 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
                     className="p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-left-2 duration-300"
                     data-testid={`content-tool-${activeTool}`}
                   >
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold">
-                        {creditToolsConfig.find(t => t.id === activeTool)?.label}
-                      </h4>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => setActiveTool(null)}
-                        data-testid="button-close-tool"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
                     {renderToolContent()}
                   </div>
                 ) : (
