@@ -628,3 +628,127 @@ IMPORTANT:
   
   throw new Error("Failed to generate SWOT analysis after multiple attempts");
 }
+
+// CAMPARI section generation
+const CAMPARI_PROMPTS: Record<string, string> = {
+  character: `Assess the CHARACTER of the applicant/business. Consider:
+- Who are the owners/directors and their track record?
+- How long has the business traded?
+- Any CCJs, defaults, late filings, or governance concerns?
+- What does bank conduct show about reliability?
+- Are credit reports (personal + business) clean?
+- Have statutory obligations (VAT, PAYE, CT) been met?
+- Is management transparent and responsive?`,
+  ability: `Assess the ABILITY of the management team. Consider:
+- Do directors have the skills and experience to run this business?
+- What qualifications or industry experience do they have?
+- Is team capability sufficient to deliver contracts?
+- Evidence of recurring revenue or proven delivery history?
+- Are contracts, pipelines, or orders in place?
+- Any operational or staffing gaps that impact delivery?`,
+  means: `Assess the MEANS (financial position) of the business. Consider:
+- Current financial position (assets, liabilities, equity)?
+- Do accounts show consistent profitability or deterioration?
+- Balance sheet indicators (working capital, liquidity, gearing)?
+- Are debtor, creditor, and stock levels reasonable?
+- Related-party balances or intercompany exposures?
+- Is the business over-leveraged or reliant on short-term debt?
+- Does bank behaviour support the financial summaries?`,
+  purpose: `Assess the PURPOSE of the loan. Consider:
+- What exactly is the loan for?
+- Is the purpose permitted under policy?
+- What evidence supports the requirement (invoices, quotes)?
+- For refinance: which lenders, what balances, what savings?
+- Does the purpose improve viability?
+- Is the purpose business-related only (no private benefit)?`,
+  amount: `Assess the AMOUNT requested. Consider:
+- How much funding is required and how was this calculated?
+- Does the amount reconcile to evidence?
+- Is contribution required and verified?
+- Is loan size proportionate to turnover and balance-sheet strength?
+- Could the same outcome be achieved with a smaller amount?`,
+  repayment: `Assess the REPAYMENT ability. Consider:
+- Historic cash inflows/outflows from bank statements?
+- What will monthly repayment be under the loan?
+- Is there sufficient free cashflow to service the loan?
+- What is DSCR (base case and downside)?
+- Are VAT/PAYE/CT obligations included in cashflow forecast?
+- Are forecasts realistic and tied to evidence?`,
+  insurance: `Assess INSURANCE and security considerations. Consider:
+- What security is available (PGs, assets, debentures)?
+- Is insurance adequate for business risks?
+- Are there life/key person policies in place?
+- What mitigants exist for identified risks?
+- Is the security proportionate to the loan size?`
+};
+
+export async function generateCampariSection(
+  sectionKey: string,
+  companyName: string,
+  sector: string,
+  loanAmount: number,
+  loanPurpose: string,
+  financialSummary: string,
+  companiesHouseData?: string,
+  bankAnalysisSummary?: string,
+  accountsAnalysisSummary?: string
+): Promise<string> {
+  const sectionPrompt = CAMPARI_PROMPTS[sectionKey];
+  if (!sectionPrompt) {
+    throw new Error(`Unknown CAMPARI section: ${sectionKey}`);
+  }
+
+  const prompt = `You are an experienced commercial lending underwriter. Write a professional assessment for a loan application.
+
+COMPANY DETAILS:
+- Company Name: ${companyName}
+- Sector: ${sector}
+- Loan Amount Requested: £${loanAmount.toLocaleString()}
+- Purpose of Finance: ${loanPurpose}
+
+${financialSummary ? `FINANCIAL SUMMARY:\n${financialSummary}\n` : ''}
+${companiesHouseData ? `COMPANIES HOUSE DATA:\n${companiesHouseData}\n` : ''}
+${bankAnalysisSummary ? `BANK STATEMENT ANALYSIS:\n${bankAnalysisSummary}\n` : ''}
+${accountsAnalysisSummary ? `ACCOUNTS ANALYSIS:\n${accountsAnalysisSummary}\n` : ''}
+
+TASK: Write a professional credit assessment for this CAMPARI section.
+
+${sectionPrompt}
+
+Write 2-4 concise paragraphs in professional underwriting language. Be specific to this application using the data provided.
+Start directly with the assessment - do not include section headers or titles.
+Focus on facts and evidence from the provided data. Where data is limited, note what additional information would be helpful.`;
+
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+      
+      // Clean up the response
+      const cleanedText = text
+        .replace(/^[\s\n]*/, '')  // Remove leading whitespace
+        .replace(/[\s\n]*$/, '')  // Remove trailing whitespace
+        .trim();
+
+      if (cleanedText.length < 50) {
+        throw new Error("Response too short");
+      }
+
+      return cleanedText;
+    } catch (error) {
+      console.error(`CAMPARI section generation attempt ${attempt}/${maxRetries} error:`, error);
+      
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  
+  throw new Error("Failed to generate CAMPARI section after multiple attempts");
+}

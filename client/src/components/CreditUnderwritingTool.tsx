@@ -501,6 +501,64 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     },
   });
 
+  const [generatingSection, setGeneratingSection] = useState<string | null>(null);
+
+  const campariSectionMutation = useMutation({
+    mutationFn: async (sectionKey: string) => {
+      setGeneratingSection(sectionKey);
+      const financialAnalysis = underwriting.financialAnalysis;
+      const accountsAnalysis = underwriting.accountsAnalysis;
+      
+      const financialSummary = financialAnalysis 
+        ? `Risk Score: ${financialAnalysis.riskScore}, DSCR: ${financialAnalysis.dscr?.toFixed(2) || 'N/A'}, Monthly Revenue: £${financialAnalysis.averageMonthlyRevenue?.toLocaleString() || '0'}, Net Disposable Income: £${financialAnalysis.netDisposableIncome?.toLocaleString() || '0'}`
+        : '';
+      
+      const bankAnalysisSummary = financialAnalysis?.summary || '';
+      const accountsAnalysisSummary = accountsAnalysis?.summary || '';
+      
+      const companiesHouseData = prospect.company 
+        ? `Incorporated: ${prospect.company.incorporationDate || 'Unknown'}, Status: ${prospect.company.companyStatus || 'Unknown'}, Type: ${prospect.company.companyType || 'Unknown'}`
+        : '';
+      
+      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/campari-section`, "POST", {
+        sectionKey,
+        companyName: prospect.company.companyName,
+        sector: adviserSummary.sector,
+        loanAmount: parseFloat(loanAmount),
+        loanPurpose: adviserSummary.purpose,
+        financialSummary,
+        companiesHouseData,
+        bankAnalysisSummary,
+        accountsAnalysisSummary,
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      const updatedSections = {
+        ...adviserSummary.sections,
+        [result.sectionKey]: result.content
+      };
+      const updatedAdviserSummary = {
+        ...adviserSummary,
+        sections: updatedSections
+      };
+      setAdviserSummary(updatedAdviserSummary);
+      onSave({
+        underwriting: {
+          ...underwriting,
+          adviserSummary: updatedAdviserSummary,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
+      toast.success(`${result.sectionKey.charAt(0).toUpperCase() + result.sectionKey.slice(1)} section generated`);
+      setGeneratingSection(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to generate section");
+      setGeneratingSection(null);
+    },
+  });
+
   const handlePdfUpload = async (yearIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -2162,8 +2220,29 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 {SUMMARY_SECTIONS.slice(2, 9).map((section) => (
                   <TabsContent key={section.key} value={section.key}>
                     <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">{section.title}</CardTitle>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-base">{section.title}</CardTitle>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => campariSectionMutation.mutate(section.key)}
+                            disabled={generatingSection !== null || !loanAmount}
+                            data-testid={`button-ai-${section.key}`}
+                          >
+                            {generatingSection === section.key ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Writing...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-4 w-4 mr-2" />
+                                AI Auto Write
+                              </>
+                            )}
+                          </Button>
+                        </div>
                         {CAMPARI_QUESTIONS[section.key] && (
                           <CardDescription>
                             Consider: {CAMPARI_QUESTIONS[section.key].slice(0, 2).join(' ')}

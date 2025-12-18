@@ -1784,6 +1784,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CAMPARI section AI generation
+  app.post("/api/prospects/:prospectId/underwriting/campari-section", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      
+      // Check if user is premium
+      const user = await storage.getUser(userId);
+      if (!user || user.subscriptionTier !== 'premium') {
+        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
+      }
+      
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+      
+      const { 
+        sectionKey,
+        companyName, 
+        sector, 
+        loanAmount, 
+        loanPurpose, 
+        financialSummary,
+        companiesHouseData,
+        bankAnalysisSummary,
+        accountsAnalysisSummary
+      } = req.body;
+      
+      if (!sectionKey || !companyName || !loanAmount) {
+        return res.status(400).json({ error: "Missing required fields: sectionKey, companyName, loanAmount" });
+      }
+      
+      // Import and use gemini client
+      const { generateCampariSection } = await import("./utils/geminiClient");
+      const content = await generateCampariSection(
+        sectionKey,
+        companyName,
+        sector || '',
+        loanAmount,
+        loanPurpose || '',
+        financialSummary || '',
+        companiesHouseData,
+        bankAnalysisSummary,
+        accountsAnalysisSummary
+      );
+      
+      // Save to due diligence
+      const existing = await storage.getDueDiligence(prospectId);
+      const existingData = (existing?.data || {}) as Record<string, any>;
+      const existingSections = existingData.underwriting?.adviserSummary?.sections || {};
+      const mergedData = {
+        ...existingData,
+        underwriting: {
+          ...(existingData.underwriting || {}),
+          adviserSummary: {
+            ...(existingData.underwriting?.adviserSummary || {}),
+            sections: {
+              ...existingSections,
+              [sectionKey]: content
+            }
+          }
+        }
+      };
+      await storage.upsertDueDiligence(prospectId, mergedData);
+      
+      res.json({ sectionKey, content });
+    } catch (error: any) {
+      console.error("CAMPARI section generation error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate CAMPARI section" });
+    }
+  });
+
   app.post("/api/prospects/:prospectId/underwriting/adverse-media", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
