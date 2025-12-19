@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { 
   Building2, Calendar, MapPin, FileText, Users, 
   AlertCircle, CheckCircle2, XCircle,
-  TrendingUp, Shield
+  TrendingUp, Shield, Briefcase
 } from "lucide-react";
 import type { 
   CompanyProfile, 
@@ -14,6 +14,7 @@ import type {
   ChargesResponse 
 } from "@shared/companiesHouseTypes";
 import { format } from "date-fns";
+import { getSicDescription } from "@/utils/sicCodeLookup";
 
 interface CompanyInformationProps {
   companyProfile: CompanyProfile;
@@ -128,6 +129,29 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
           </div>
         </CardContent>
       </Card>
+
+      {/* SIC Codes - Business Activities */}
+      {companyProfile.sic_codes && companyProfile.sic_codes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Briefcase className="w-4 h-4" />
+              Business Activities (SIC Codes)
+            </CardTitle>
+            <CardDescription>Standard Industrial Classification codes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {companyProfile.sic_codes.map((sicCode, idx) => (
+                <div key={idx} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md" data-testid={`sic-code-${idx}`}>
+                  <Badge variant="outline" className="font-mono">{sicCode}</Badge>
+                  <span className="text-sm text-muted-foreground">{getSicDescription(sicCode)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Registered Office Address */}
       <Card>
