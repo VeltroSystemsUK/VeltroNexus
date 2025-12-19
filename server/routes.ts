@@ -1189,13 +1189,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid company ID" });
       }
 
-      const { incorporationDate, companyStatus, registeredAddress } = req.body;
+      const { incorporationDate, companyStatus, registeredAddress, postcode, sicCode, sicDescription } = req.body;
       
       // Build update object with only provided fields
-      const updates: Partial<{ incorporationDate: string; companyStatus: string; registeredAddress: string }> = {};
+      const updates: Partial<{ incorporationDate: string; companyStatus: string; registeredAddress: string; postcode: string; sicCode: string; sicDescription: string }> = {};
       if (incorporationDate !== undefined) updates.incorporationDate = incorporationDate;
       if (companyStatus !== undefined) updates.companyStatus = companyStatus;
       if (registeredAddress !== undefined) updates.registeredAddress = registeredAddress;
+      if (postcode !== undefined) updates.postcode = postcode;
+      if (sicCode !== undefined) updates.sicCode = sicCode;
+      if (sicDescription !== undefined) updates.sicDescription = sicDescription;
       
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: "No fields to update" });
@@ -1203,6 +1206,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const company = await storage.updateCompany(companyId, updates);
       res.json(company);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Sync company data from Companies House (SIC codes, postcode, etc.)
+  app.post("/api/companies/:id/sync-companies-house", isAuthenticated, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      if (isNaN(companyId)) {
+        return res.status(400).json({ error: "Invalid company ID" });
+      }
+      
+      // Get the company to find the company number
+      const companyRecord = await storage.getCompanyById(companyId);
+      if (!companyRecord) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+      
+      // Skip non-registered companies
+      if (companyRecord.companyNumber.startsWith('UNREG-')) {
+        return res.status(400).json({ error: "Cannot sync unregistered companies" });
+      }
+      
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Companies House API key not configured" });
+      }
+      
+      // Fetch company profile from Companies House
+      const trimmedApiKey = apiKey.trim();
+      const authString = `${trimmedApiKey}:`;
+      const base64Auth = Buffer.from(authString).toString('base64');
+      
+      const response = await fetch(
+        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyRecord.companyNumber)}`,
+        { headers: { 'Authorization': `Basic ${base64Auth}` } }
+      );
+      
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Failed to fetch company data from Companies House" });
+      }
+      
+      const chData = await response.json();
+      
+      // Build update object
+      const updates: Partial<{ sicCode: string; sicDescription: string; postcode: string; registeredAddress: string; companyStatus: string; incorporationDate: string }> = {};
+      
+      // Extract SIC code
+      if (chData.sic_codes && chData.sic_codes.length > 0) {
+        updates.sicCode = chData.sic_codes[0];
+        updates.sicDescription = getSicDescription(chData.sic_codes[0]);
+      }
+      
+      // Extract postcode and address
+      if (chData.registered_office_address) {
+        const addr = chData.registered_office_address;
+        if (addr.postal_code) {
+          updates.postcode = addr.postal_code;
+        }
+        // Build full address
+        const addressParts = [
+          addr.premises,
+          addr.address_line_1,
+          addr.address_line_2,
+          addr.locality,
+          addr.region,
+          addr.postal_code,
+          addr.country,
+        ].filter(Boolean);
+        if (addressParts.length > 0) {
+          updates.registeredAddress = addressParts.join(", ");
+        }
+      }
+      
+      // Extract status and incorporation date
+      if (chData.company_status) {
+        updates.companyStatus = chData.company_status;
+      }
+      if (chData.date_of_creation) {
+        updates.incorporationDate = chData.date_of_creation;
+      }
+      
+      if (Object.keys(updates).length === 0) {
+        return res.json({ message: "No updates available", company: companyRecord });
+      }
+      
+      const updatedCompany = await storage.updateCompany(companyId, updates);
+      res.json(updatedCompany);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

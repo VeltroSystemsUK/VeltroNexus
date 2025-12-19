@@ -621,7 +621,7 @@ export default function ProspectDetail() {
           </TabsContent>
 
           <TabsContent value="company">
-            <CompanyInformationTab companyNumber={prospect.company.companyNumber} />
+            <CompanyInformationTab companyNumber={prospect.company.companyNumber} companyId={prospect.company.id} />
           </TabsContent>
 
           <TabsContent value="loan">
@@ -2863,11 +2863,36 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
   );
 }
 
-function CompanyInformationTab({ companyNumber }: { companyNumber: string }) {
+function CompanyInformationTab({ companyNumber, companyId }: { companyNumber: string; companyId: number }) {
+  const [isSyncing, setIsSyncing] = useState(false);
+  
   const { data: companyProfile, isLoading, error } = useQuery<CompanyProfile>({
     queryKey: [`/api/companies-house/company/${companyNumber}`],
     enabled: !!companyNumber,
   });
+
+  const handleSyncCompanyData = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`/api/companies/${companyId}/sync-companies-house`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sync company data');
+      }
+      
+      const updatedCompany = await response.json();
+      toast.success('Company data synced from Companies House');
+      queryClient.invalidateQueries({ queryKey: ['/api/prospects'] });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to sync company data');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -2916,7 +2941,32 @@ function CompanyInformationTab({ companyNumber }: { companyNumber: string }) {
     );
   }
 
-  return <CompanyInformation companyProfile={companyProfile} />;
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSyncCompanyData}
+          disabled={isSyncing || companyNumber.startsWith('UNREG-')}
+          data-testid="button-sync-companies-house"
+        >
+          {isSyncing ? (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              Syncing...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Sync from Companies House
+            </>
+          )}
+        </Button>
+      </div>
+      <CompanyInformation companyProfile={companyProfile} />
+    </div>
+  );
 }
 
 function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
