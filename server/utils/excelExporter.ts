@@ -138,8 +138,10 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[], us
       // Referral Source - from prospect
       dataRow.getCell(6).value = prospect.referralSource || '';
       
-      // Sector - SIC Code from company
-      dataRow.getCell(7).value = prospect.company.sicCode || '';
+      // Sector - SIC Code and description from company
+      const sicCode = prospect.company.sicCode || '';
+      const sicDescription = (prospect.company as any).sicDescription || '';
+      dataRow.getCell(7).value = sicCode && sicDescription ? `${sicCode} - ${sicDescription}` : sicCode;
       
       // Postcode - from company registered address
       dataRow.getCell(8).value = prospect.company.registeredAddress || '';

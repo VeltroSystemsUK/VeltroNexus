@@ -103,6 +103,7 @@ export default function CompanySearch() {
   const [companyNumber, setCompanyNumber] = useState("");
   const [companyType, setCompanyType] = useState("");
   const [registeredAddress, setRegisteredAddress] = useState("");
+  const [sicCodes, setSicCodes] = useState<string[]>([]);
   const [loanAmount, setLoanAmount] = useState("");
   const [priority, setPriority] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -159,6 +160,7 @@ export default function CompanySearch() {
       companyType?: string;
       registeredAddress?: string;
       incorporationDate?: string;
+      sicCode?: string;
       loanAmount?: number;
       priority?: string;
       notes?: string;
@@ -182,6 +184,7 @@ export default function CompanySearch() {
         incorporationDate: data.incorporationDate || null,
         companyStatus: null,
         companyType: data.companyType || null,
+        sicCode: data.sicCode || null,
       });
 
       // Then create the prospect
@@ -226,6 +229,7 @@ export default function CompanySearch() {
     setCompanyName(company.title);
     setCompanyNumber(company.company_number);
     setCompanyType(company.company_type || "ltd");
+    setSicCodes(company.sic_codes || []);
     
     // Build full address string from all available parts
     if (company.address) {
@@ -349,6 +353,7 @@ export default function CompanySearch() {
       companyType: companyType || undefined,
       registeredAddress: registeredAddress.trim() || undefined,
       incorporationDate: selectedCompany?.date_of_creation || undefined,
+      sicCode: sicCodes[0] || undefined,
       loanAmount: loanAmount ? parseInt(loanAmount) * 100 : undefined,
       priority: priority || undefined,
       notes: notes.trim() || undefined,

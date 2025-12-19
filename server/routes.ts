@@ -22,6 +22,7 @@ import { createRequire } from 'module';
 import { generateProspectReport } from "./utils/pdfGenerator";
 import { generatePipelineExcel } from "./utils/excelExporter";
 import { getUncachableResendClient } from "./utils/resendClient";
+import { getSicDescription } from "./utils/sicCodeLookup";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 const gocardless = require("gocardless-nodejs");
@@ -1167,7 +1168,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(existingCompany);
       }
       
-      const company = await storage.createCompany(result.data);
+      // Add SIC description if sicCode is provided
+      const companyData = {
+        ...result.data,
+        sicDescription: result.data.sicCode ? getSicDescription(result.data.sicCode) : null,
+      };
+      
+      const company = await storage.createCompany(companyData);
       res.json(company);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3478,6 +3485,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!company && companyData) {
         // Create new company from Companies House data
+        const sicCode = companyData.sic_codes?.[0] || null;
+        const sicDescription = sicCode ? getSicDescription(sicCode) : null;
         company = await storage.createCompany({
           companyName: companyData.company_name || companyName,
           companyNumber: companyNumber,
@@ -3485,6 +3494,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           incorporationDate: companyData.date_of_creation || null,
           companyStatus: companyData.company_status || null,
           companyType: companyData.type || null,
+          sicCode: sicCode,
+          sicDescription: sicDescription,
         });
       } else if (!company) {
         // Create company with minimal info from lead
