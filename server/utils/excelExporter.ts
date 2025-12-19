@@ -143,8 +143,8 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[], us
       const sicDescription = prospect.company.sicDescription || '';
       dataRow.getCell(7).value = sicCode && sicDescription ? `${sicCode} - ${sicDescription}` : (sicCode || sicDescription || '');
       
-      // Postcode - from company registered address
-      dataRow.getCell(8).value = prospect.company.registeredAddress || '';
+      // Postcode - isolated from Companies House data
+      dataRow.getCell(8).value = prospect.company.postcode || '';
       
       // Comments - prospect notes
       dataRow.getCell(9).value = prospect.notes || '';

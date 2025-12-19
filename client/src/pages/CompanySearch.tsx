@@ -103,6 +103,7 @@ export default function CompanySearch() {
   const [companyNumber, setCompanyNumber] = useState("");
   const [companyType, setCompanyType] = useState("");
   const [registeredAddress, setRegisteredAddress] = useState("");
+  const [postcode, setPostcode] = useState("");
   const [sicCodes, setSicCodes] = useState<string[]>([]);
   const [loanAmount, setLoanAmount] = useState("");
   const [priority, setPriority] = useState<string>("");
@@ -159,6 +160,7 @@ export default function CompanySearch() {
       companyNumber: string;
       companyType?: string;
       registeredAddress?: string;
+      postcode?: string;
       incorporationDate?: string;
       sicCode?: string;
       loanAmount?: number;
@@ -181,6 +183,7 @@ export default function CompanySearch() {
         companyName: data.companyName,
         companyNumber: finalCompanyNumber,
         registeredAddress: data.registeredAddress || null,
+        postcode: data.postcode || null,
         incorporationDate: data.incorporationDate || null,
         companyStatus: null,
         companyType: data.companyType || null,
@@ -243,8 +246,11 @@ export default function CompanySearch() {
         company.address.country,
       ].filter(Boolean);
       setRegisteredAddress(addressParts.join(", "));
+      // Capture postcode separately
+      setPostcode(company.address.postal_code || "");
     } else if (company.address_snippet) {
       setRegisteredAddress(company.address_snippet);
+      setPostcode("");
     }
     
     // Switch to confirmation tab
@@ -352,6 +358,7 @@ export default function CompanySearch() {
       companyNumber: companyNumber.trim(),
       companyType: companyType || undefined,
       registeredAddress: registeredAddress.trim() || undefined,
+      postcode: postcode.trim() || undefined,
       incorporationDate: selectedCompany?.date_of_creation || undefined,
       sicCode: sicCodes[0] || undefined,
       loanAmount: loanAmount ? parseInt(loanAmount) * 100 : undefined,
@@ -363,6 +370,7 @@ export default function CompanySearch() {
   const resetForm = () => {
     setSelectedCompany(null);
     setSelectedOfficer(null);
+    setPostcode("");
     setOfficerAppointments([]);
     setCompanyName("");
     setCompanyNumber("");

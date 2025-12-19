@@ -70,6 +70,7 @@ export const companies = pgTable("companies", {
   companyName: text("company_name").notNull(),
   companyNumber: varchar("company_number", { length: 20 }).notNull().unique(),
   registeredAddress: text("registered_address"),
+  postcode: varchar("postcode", { length: 15 }),
   incorporationDate: text("incorporation_date"),
   companyStatus: text("company_status"),
   companyType: text("company_type"),
