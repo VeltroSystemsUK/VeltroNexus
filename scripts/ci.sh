@@ -6,22 +6,39 @@ echo "FlowLoan CI Pipeline"
 echo "========================================"
 echo ""
 
-echo "[1/6] Checking for high/critical vulnerabilities..."
-# npm audit returns non-zero for high/critical vulnerabilities
-# --audit-level=high only reports high and critical
-if npm audit --audit-level=high --production 2>/dev/null; then
-  echo "No high/critical vulnerabilities found."
+# ============================================================================
+# SECURITY ALLOWLIST
+# Document any temporarily allowed CVEs here with expiration dates.
+# Format: CVE-YYYY-NNNNN expires YYYY-MM-DD reason
+# Example: CVE-2024-12345 expires 2025-02-01 "No patch available, mitigated by WAF"
+# ============================================================================
+ALLOWED_CVES=""
+
+echo "[1/7] Checking for high/critical vulnerabilities..."
+# npm audit --omit=dev excludes devDependencies from production vulnerability checks
+AUDIT_OUTPUT=$(npm audit --audit-level=high --omit=dev 2>&1) || AUDIT_EXIT=$?
+
+if [ -z "$AUDIT_EXIT" ] || [ "$AUDIT_EXIT" -eq 0 ]; then
+  echo "No high/critical vulnerabilities found in production dependencies."
 else
   echo ""
-  echo "WARNING: High/critical vulnerabilities detected!"
-  echo "Review with: npm audit"
-  echo "If exceptions are documented, this warning can be acknowledged."
+  echo "ERROR: High/critical vulnerabilities detected in production dependencies!"
+  echo "$AUDIT_OUTPUT" | head -50
   echo ""
-  # Don't fail the build - just warn (documented exception process)
+  
+  # Check if all found CVEs are in the allowlist
+  if [ -n "$ALLOWED_CVES" ]; then
+    echo "Checking against allowlist..."
+    # For now, fail the build - implement CVE parsing if allowlist is used
+  fi
+  
+  echo "To fix: Run 'npm audit fix' or update vulnerable packages."
+  echo "To temporarily allow (NOT RECOMMENDED): Add CVE to ALLOWED_CVES with expiration."
+  exit 1
 fi
 echo ""
 
-echo "[2/6] Running Prettier format check..."
+echo "[2/7] Running Prettier format check..."
 npx prettier --check "client/src/**/*.{ts,tsx}" "server/**/*.ts" "shared/**/*.ts" || {
   echo "ERROR: Formatting issues detected. Run 'npx prettier --write .' to fix."
   exit 1
@@ -29,7 +46,7 @@ npx prettier --check "client/src/**/*.{ts,tsx}" "server/**/*.ts" "shared/**/*.ts
 echo "Prettier check passed!"
 echo ""
 
-echo "[3/6] Running ESLint..."
+echo "[3/7] Running ESLint..."
 npx eslint client/src server shared --max-warnings 0 || {
   echo "ERROR: ESLint found errors. Fix them before committing."
   exit 1
@@ -37,7 +54,7 @@ npx eslint client/src server shared --max-warnings 0 || {
 echo "ESLint check passed!"
 echo ""
 
-echo "[4/6] Running TypeScript type check..."
+echo "[4/7] Running TypeScript type check..."
 npm run check || {
   echo "ERROR: TypeScript type check failed."
   exit 1
@@ -82,6 +99,7 @@ fi
 echo ""
 
 echo "[7/7] Security validation summary..."
+echo "  - Dependency audit: PASSED (production deps only)"
 echo "  - CSRF protection: Tested"
 echo "  - Webhook authentication: Tested"
 echo "  - Rate limiting: Tested"

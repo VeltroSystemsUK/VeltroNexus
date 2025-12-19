@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+      
+      - name: Security audit (production deps)
+        run: npm audit --audit-level=high --omit=dev
+      
+      - name: Check formatting
+        run: npx prettier --check "client/src/**/*.{ts,tsx}" "server/**/*.ts" "shared/**/*.ts"
+      
+      - name: Lint
+        run: npx eslint client/src server shared --max-warnings 0
+      
+      - name: Type check
+        run: npm run check
+      
+      - name: Run tests with coverage
+        run: npx vitest run --coverage
+      
+      - name: Check coverage threshold
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(node -p "JSON.parse(require('fs').readFileSync('coverage/coverage-summary.json')).total.statements.pct")
+            echo "Coverage: $COVERAGE%"
+            if [ $(node -p "$COVERAGE < 3") = "true" ]; then
+              echo "ERROR: Coverage below 3% baseline"
+              exit 1
+            fi
+          fi
