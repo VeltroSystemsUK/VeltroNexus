@@ -34,7 +34,8 @@ jobs:
               - package.json
               - package-lock.json
             src:
-              - 'client/src/**/*.{ts,tsx}'
+              - 'client/src/**/*.ts'
+              - 'client/src/**/*.tsx'
               - 'server/**/*.ts'
               - 'shared/**/*.ts'
       
@@ -57,55 +58,55 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
       
-      # SECURITY LAYER 1: npm audit (only when deps change)
+      # Only audit when deps change
       - name: Security audit
         if: steps.changed-files.outputs.deps_any_changed == 'true' || github.event_name == 'push'
         run: npm audit --audit-level=high --omit=dev
       
-      # SECURITY LAYER 2: Lockfile integrity
+      # Lockfile integrity on dep changes
       - name: Verify lockfile integrity
         if: steps.changed-files.outputs.deps_any_changed == 'true'
-        run: |
-          npm ci --ignore-scripts --dry-run 2>&1 | grep -q "up to date" || {
-            echo "ERROR: package-lock.json out of sync with package.json"
-            exit 1
-          }
-          echo "Lockfile integrity verified"
+        run: npm ci --ignore-scripts --dry-run
       
-      - name: Check formatting
-        if: steps.changed-files.outputs.src_any_changed == 'true'
-        run: npx prettier --check ${{ steps.changed-files.outputs.src_all_changed_files }}
+      # Format only changed files in PRs (use local binary)
+      - name: Check formatting (changed files)
+        if: steps.changed-files.outputs.src_any_changed == 'true' && github.event_name == 'pull_request'
+        run: ./node_modules/.bin/prettier --check ${{ steps.changed-files.outputs.src_all_changed_files }}
       
-      - name: Check formatting (full - push to main)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npx prettier --check "client/src/**/*.{ts,tsx}" "server/**/*.ts" "shared/**/*.ts"
+      # Full format check on push to main
+      - name: Check formatting (full)
+        if: github.event_name == 'push'
+        run: ./node_modules/.bin/prettier --check "client/src/**/*.{ts,tsx}" "server/**/*.ts" "shared/**/*.ts"
       
-      - name: Lint changed files
-        if: steps.changed-files.outputs.src_any_changed == 'true'
-        run: npx eslint ${{ steps.changed-files.outputs.src_all_changed_files }} --max-warnings 0
+      # Lint only changed files in PRs
+      - name: Lint (changed files)
+        if: steps.changed-files.outputs.src_any_changed == 'true' && github.event_name == 'pull_request'
+        run: ./node_modules/.bin/eslint ${{ steps.changed-files.outputs.src_all_changed_files }} --max-warnings 0
       
-      - name: Lint (full - push to main)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npx eslint client/src server shared --max-warnings 0
+      # Full lint on push to main
+      - name: Lint (full)
+        if: github.event_name == 'push'
+        run: ./node_modules/.bin/eslint client/src server shared --max-warnings 0
       
       - name: Type check
         run: npm run check
       
       - name: Run tests with coverage
-        run: npx vitest run --coverage
+        run: ./node_modules/.bin/vitest run --coverage
       
-      - name: Check coverage threshold
+      - name: Check coverage thresholds
         run: |
           if [ -f coverage/coverage-summary.json ]; then
-            COVERAGE=$(node -p "JSON.parse(require('fs').readFileSync('coverage/coverage-summary.json')).total.statements.pct")
-            echo "Coverage: $COVERAGE%"
-            if [ $(node -p "$COVERAGE < 3") = "true" ]; then
+            OVERALL=$(node -p "JSON.parse(require('fs').readFileSync('coverage/coverage-summary.json')).total.statements.pct")
+            echo "Overall coverage: $OVERALL%"
+            
+            # Minimum thresholds
+            if [ $(node -p "$OVERALL < 3") = "true" ]; then
               echo "ERROR: Coverage below 3% baseline"
               exit 1
             fi
           fi
 
-  # SECURITY LAYER 3: CodeQL static analysis
   codeql:
     runs-on: ubuntu-latest
     permissions:
