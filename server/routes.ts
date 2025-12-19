@@ -215,10 +215,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve public objects from object storage (logos, etc.)
+  // Serve public objects from object storage - restricted to allowed prefixes only
+  // Security: Only serve from allowlisted directories to prevent arbitrary file access
+  const ALLOWED_PUBLIC_PREFIXES = ['branding/'];
+  
   app.get('/public-objects/*', async (req, res) => {
     try {
       const filePath = req.params[0];
+      
+      // Security: Validate path is within allowed prefixes
+      const isAllowed = ALLOWED_PUBLIC_PREFIXES.some(prefix => filePath.startsWith(prefix));
+      if (!isAllowed) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Security: Prevent path traversal attacks
+      if (filePath.includes('..') || filePath.includes('//')) {
+        return res.status(400).json({ error: "Invalid path" });
+      }
+      
       const storagePath = `public/${filePath}`;
       
       const objectStorage = getObjectStorage();
@@ -236,8 +251,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const contentType = contentTypes[ext || ''] || 'application/octet-stream';
       
+      // Security headers
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'");
       res.send(Buffer.from(data));
     } catch (error: any) {
       console.error("Error serving public object:", error);
@@ -1664,6 +1682,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Credit Underwriting Routes (Premium Only)
+  // Note: These endpoints process financial documents via AI - users consent by uploading data
+  const MAX_CSV_SIZE = 500 * 1024; // 500KB limit for CSV data
+  
   app.post("/api/prospects/:prospectId/underwriting/analyze-csv", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1681,10 +1702,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       
-      const { csvData, loanAmount, monthlyRepayment } = req.body;
+      const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
       
       if (!csvData || !loanAmount || !monthlyRepayment) {
         return res.status(400).json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
+      }
+      
+      // Require explicit consent for AI processing of financial data
+      if (!consentToAiProcessing) {
+        return res.status(400).json({ error: "User consent required for AI processing of financial data" });
+      }
+      
+      // Enforce size limit
+      if (csvData.length > MAX_CSV_SIZE) {
+        return res.status(413).json({ error: "CSV data exceeds 500KB limit. Please use a smaller file." });
       }
       
       // Import and use gemini client
@@ -1712,6 +1743,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Analyze bank statement PDFs (alternative to CSV)
+  const MAX_PDF_TEXT_SIZE = 200 * 1024; // 200KB per PDF text
+  
   app.post("/api/prospects/:prospectId/underwriting/analyze-bank-pdfs", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1729,7 +1762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       
-      const { pdfTexts, loanAmount, monthlyRepayment } = req.body;
+      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
       
       if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
         return res.status(400).json({ error: "At least one bank statement PDF is required" });
@@ -1737,6 +1770,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (pdfTexts.length > 6) {
         return res.status(400).json({ error: "Maximum 6 bank statement PDFs allowed" });
+      }
+      
+      // Require explicit consent for AI processing of financial data
+      if (!consentToAiProcessing) {
+        return res.status(400).json({ error: "User consent required for AI processing of financial data" });
+      }
+      
+      // Enforce size limit per PDF text
+      for (const pdfText of pdfTexts) {
+        if (pdfText.text && pdfText.text.length > MAX_PDF_TEXT_SIZE) {
+          return res.status(413).json({ error: `PDF "${pdfText.fileName}" exceeds 200KB text limit.` });
+        }
       }
       
       if (!loanAmount || !monthlyRepayment) {
@@ -1790,10 +1835,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       
-      const { pdfTexts, loanAmount, monthlyRepayment } = req.body;
+      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
       
       if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
         return res.status(400).json({ error: "At least one PDF text with year is required" });
+      }
+      
+      // Require explicit consent for AI processing of financial data
+      if (!consentToAiProcessing) {
+        return res.status(400).json({ error: "User consent required for AI processing of financial data" });
+      }
+      
+      // Enforce size limit per PDF text (same as bank statements)
+      for (const pdfText of pdfTexts) {
+        if (pdfText.text && pdfText.text.length > MAX_PDF_TEXT_SIZE) {
+          return res.status(413).json({ error: `Accounts PDF exceeds 200KB text limit.` });
+        }
       }
       
       if (!loanAmount || !monthlyRepayment) {
@@ -1825,6 +1882,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Parse PDF file to text
+  // Note: 7.5MB decoded limit (base64 encoded ~10MB represents ~7.5MB binary)
+  const MAX_PDF_DECODED_SIZE = 7.5 * 1024 * 1024; // 7.5MB decoded binary limit
+  
   app.post("/api/parse-pdf", isAuthenticated, async (req: any, res) => {
     try {
       const { pdfBase64 } = req.body;
@@ -1838,6 +1898,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Convert base64 to buffer
       const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      
+      // Enforce size limit on decoded buffer (not base64 string)
+      if (pdfBuffer.length > MAX_PDF_DECODED_SIZE) {
+        return res.status(413).json({ error: "PDF exceeds 7.5MB limit. Please use a smaller file." });
+      }
       
       // Parse PDF using v2 API
       const parser = new PDFParse({ data: pdfBuffer });
@@ -4001,19 +4066,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // File upload endpoint for underwriting attachments
-  app.post("/api/underwriting/upload", isAuthenticated, async (req: any, res) => {
+  // File upload endpoint for underwriting attachments - requires submissionId and role authorization
+  app.post("/api/underwriting/upload/:submissionId", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const submissionId = parseInt(req.params.submissionId);
+      
+      if (isNaN(submissionId)) {
+        return res.status(400).json({ error: "Invalid submission ID" });
+      }
+      
+      // Verify user role (must be broker or underwriter)
+      const user = await storage.getUser(userId);
+      if (!user || !['broker', 'underwriter', 'sales_admin', 'super_admin'].includes(user.role)) {
+        return res.status(403).json({ error: "Access denied. Broker or Underwriter role required." });
+      }
+      
+      // Verify submission exists and user has access
+      const submission = await storage.getUnderwritingSubmission(submissionId);
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+      
+      // Only the broker who created it, assigned underwriter, or admins can upload
+      const isOwner = submission.brokerId === userId;
+      const isAssignedUnderwriter = submission.underwriterId === userId;
+      const isAdmin = ['sales_admin', 'super_admin'].includes(user.role);
+      
+      if (!isOwner && !isAssignedUnderwriter && !isAdmin) {
+        return res.status(403).json({ error: "Access denied. You don't have permission for this submission." });
+      }
+      
+      // Enforce file size limit (5MB per file, 20MB total per request)
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+      const MAX_TOTAL_SIZE = 20 * 1024 * 1024; // 20MB
+      let totalSize = 0;
+      let sizeLimitExceeded = false;
+      
       const chunks: Buffer[] = [];
       
       // Collect data from request
       req.on('data', (chunk: Buffer) => {
+        if (sizeLimitExceeded) return;
+        
+        totalSize += chunk.length;
+        if (totalSize > MAX_TOTAL_SIZE) {
+          sizeLimitExceeded = true;
+          chunks.length = 0; // Clear buffered data
+          // Don't destroy - let the stream complete so we can respond
+          return;
+        }
         chunks.push(chunk);
       });
 
       req.on('end', async () => {
         try {
+          if (sizeLimitExceeded) {
+            return res.status(413).json({ error: "Upload too large. Maximum 20MB per request." });
+          }
+          
           const body = Buffer.concat(chunks);
           const contentType = req.headers['content-type'];
           
@@ -4046,10 +4157,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const contentEnd = part.lastIndexOf('\r\n');
                 const fileContent = Buffer.from(part.slice(contentStart, contentEnd), 'binary');
                 
-                // Generate unique storage path
+                // Enforce per-file size limit
+                if (fileContent.length > MAX_FILE_SIZE) {
+                  return res.status(413).json({ error: `File "${fileName}" exceeds 5MB limit.` });
+                }
+                
+                // Generate unique storage path with submission context
                 const timestamp = Date.now();
                 const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-                const storagePath = `.private/underwriting/${userId}/${timestamp}_${sanitizedFileName}`;
+                const storagePath = `.private/underwriting/${submissionId}/${userId}/${timestamp}_${sanitizedFileName}`;
                 
                 // Upload to object storage
                 await getObjectStorage().uploadFromBytes(storagePath, fileContent);

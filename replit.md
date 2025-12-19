@@ -59,3 +59,26 @@ The application uses Drizzle ORM with Neon serverless PostgreSQL. The schema inc
 - **zod**: Schema validation.
 - **pdfkit**: PDF document generation.
 - **vite**: Frontend build tool.
+
+## Security Practices
+
+### Dependency Scanning
+Run `npm audit` regularly to check for vulnerabilities in dependencies:
+```bash
+npm audit                    # Check for vulnerabilities
+npm audit --fix             # Auto-fix where possible
+npm audit --audit-level=high # Only report high+ severity
+```
+
+### Security Measures Implemented
+- **CSRF Protection**: Session cookies use `sameSite=lax` and Origin/Referer validation on state-changing requests
+- **Webhook API Key Security**: API keys are stored as HMAC-SHA256 hashes, not plaintext
+- **Request Size Limits**: Global 5MB limit with per-route enforcement for high-cost operations
+- **Public Object Access Control**: Only allowlisted prefixes (branding/) can be served publicly
+- **AI Data Consent**: Financial document analysis requires explicit user consent
+- **Role-Based Authorization**: Underwriting uploads require submission ownership verification
+
+### Environment Variables (Security-Related)
+- `WEBHOOK_KEY_SECRET`: 32+ character secret for HMAC key hashing (required in production)
+- `SESSION_SECRET`: Secret for session encryption
+- `DATABASE_URL`: PostgreSQL connection string (treat as sensitive)
