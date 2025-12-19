@@ -55,6 +55,8 @@ const DEFAULT_SECTIONS: PDFSection[] = [
   { id: "contacts", label: "Key Contacts", enabled: true },
   { id: "activities", label: "Activities & Tasks", enabled: true },
   { id: "dueDiligence", label: "Due Diligence", enabled: true },
+  { id: "campari", label: "CAMPARI Analysis", enabled: true },
+  { id: "swotAnalysis", label: "SWOT Analysis", enabled: true },
 ];
 
 // Page dimensions
@@ -173,6 +175,26 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
           doc.addPage();
           pageNumber++;
           renderDueDiligence(doc, dueDiligence);
+        }
+        break;
+      case 'campari':
+        if (dueDiligence?.data) {
+          const ddData = dueDiligence.data as any;
+          if (ddData.creditUnderwriting?.adviserSummary) {
+            doc.addPage();
+            pageNumber++;
+            renderCampariSection(doc, ddData.creditUnderwriting.adviserSummary);
+          }
+        }
+        break;
+      case 'swotAnalysis':
+        if (dueDiligence?.data) {
+          const ddData = dueDiligence.data as any;
+          if (ddData.creditUnderwriting?.swotAnalysis) {
+            doc.addPage();
+            pageNumber++;
+            renderSwotSection(doc, ddData.creditUnderwriting.swotAnalysis);
+          }
         }
         break;
     }
@@ -455,6 +477,14 @@ function renderTableOfContents(doc: typeof PDFDocument.prototype, sections: PDFS
         break;
       case 'dueDiligence':
         shouldInclude = !!dueDiligence?.data;
+        break;
+      case 'campari':
+        const ddDataCampari = dueDiligence?.data as any;
+        shouldInclude = !!ddDataCampari?.creditUnderwriting?.adviserSummary;
+        break;
+      case 'swotAnalysis':
+        const ddDataSwot = dueDiligence?.data as any;
+        shouldInclude = !!ddDataSwot?.creditUnderwriting?.swotAnalysis;
         break;
     }
     
@@ -1999,6 +2029,227 @@ function getRiskGradeColor(grade: string): string {
     'E': COLORS.danger,
   };
   return gradeColors[grade] || COLORS.textSecondary;
+}
+
+// Standalone CAMPARI Analysis Section
+function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
+  renderSectionHeader(doc, 'CAMPARI Analysis', '15');
+  let y = doc.y + 10;
+  
+  // Header info
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
+  
+  const col1X = MARGIN + 15;
+  const col2X = MARGIN + CONTENT_WIDTH / 2;
+  let advY = y + 15;
+  
+  if (adviser.businessName) {
+    renderDetailRow(doc, col1X, advY, 'Business Name', adviser.businessName);
+  }
+  if (adviser.soarRef) {
+    renderDetailRow(doc, col2X, advY, 'Reference', adviser.soarRef);
+  }
+  advY += 30;
+  
+  if (adviser.product) {
+    renderDetailRow(doc, col1X, advY, 'Product', adviser.product);
+  }
+  if (adviser.amount) {
+    renderDetailRow(doc, col2X, advY, 'Amount', formatCurrency(adviser.amount * 100));
+  }
+  
+  y += 95;
+  
+  // CAMPARI sections
+  if (adviser.sections && typeof adviser.sections === 'object') {
+    const campariOrder = ['character', 'ability', 'margin', 'purpose', 'amount', 'repayment', 'insurance'];
+    const campariLabels: Record<string, string> = {
+      character: 'CHARACTER - Management & Background',
+      ability: 'ABILITY - Capacity to Repay',
+      margin: 'MARGIN - Return & Pricing',
+      purpose: 'PURPOSE - Loan Purpose & Rationale',
+      amount: 'AMOUNT - Funding Requirement',
+      repayment: 'REPAYMENT - Source & Terms',
+      insurance: 'INSURANCE - Security & Risk Mitigation',
+    };
+    
+    campariOrder.forEach((key) => {
+      const content = adviser.sections[key];
+      if (!content) return;
+      
+      if (y > PAGE_HEIGHT - 120) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
+      doc.rect(MARGIN, y, 4, 80).fill(COLORS.secondary);
+      
+      doc.fontSize(10).fillColor(COLORS.secondary).font('Helvetica-Bold');
+      doc.text(campariLabels[key] || key.toUpperCase(), MARGIN + 15, y + 12);
+      
+      doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+      doc.text(truncateText(content, 400), MARGIN + 15, y + 30, { width: CONTENT_WIDTH - 30 });
+      
+      y += 90;
+    });
+  }
+  
+  // Questionnaire
+  if (adviser.questionnaire && typeof adviser.questionnaire === 'object') {
+    if (y > PAGE_HEIGHT - 150) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    
+    doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('Credit Committee Questionnaire', MARGIN, y);
+    y += 25;
+    
+    const questions = Object.entries(adviser.questionnaire);
+    questions.forEach(([question, answer]) => {
+      if (y > PAGE_HEIGHT - 40) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      
+      const ansColor = answer === 'Yes' ? COLORS.success : answer === 'No' ? COLORS.danger : COLORS.textSecondary;
+      doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+      doc.text(`• ${question}`, MARGIN + 10, y, { width: CONTENT_WIDTH - 80 });
+      doc.fontSize(9).fillColor(ansColor).font('Helvetica-Bold');
+      doc.text(String(answer || 'N/A'), PAGE_WIDTH - MARGIN - 50, y);
+      y += 20;
+    });
+  }
+  
+  // Recommendation
+  if (adviser.recommendation) {
+    if (y > PAGE_HEIGHT - 100) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    
+    const recommendationLabels: Record<string, string> = {
+      'approve': 'Recommend Approval',
+      'approve_conditions': 'Approve with Conditions',
+      'refer': 'Refer to Credit Committee',
+      'decline': 'Recommend Decline',
+      'more_info': 'More Information Required',
+    };
+    
+    const recommendationColors: Record<string, string> = {
+      'approve': COLORS.success,
+      'approve_conditions': COLORS.warning,
+      'refer': COLORS.accent,
+      'decline': COLORS.danger,
+      'more_info': COLORS.textSecondary,
+    };
+    
+    const recColor = recommendationColors[adviser.recommendation] || COLORS.primary;
+    const recLabel = recommendationLabels[adviser.recommendation] || adviser.recommendation;
+    
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(recColor + '15', recColor);
+    doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('FINAL RECOMMENDATION', MARGIN + 15, y + 12);
+    doc.fontSize(16).fillColor(recColor).font('Helvetica-Bold');
+    doc.text(recLabel, MARGIN + 15, y + 35);
+  }
+}
+
+// Standalone SWOT Analysis Section
+function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
+  renderSectionHeader(doc, 'SWOT Analysis', '16');
+  let y = doc.y + 10;
+  
+  // Create 2x2 grid for SWOT
+  const boxWidth = (CONTENT_WIDTH - 15) / 2;
+  const boxHeight = 180;
+  
+  // Strengths (top-left)
+  doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.success + '10', COLORS.success);
+  doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.success);
+  doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+  doc.text('STRENGTHS', MARGIN + 10, y + 7);
+  
+  if (swot.strengths && Array.isArray(swot.strengths)) {
+    let sY = y + 35;
+    swot.strengths.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+      doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, sY, { width: boxWidth - 20 });
+      sY += 28;
+    });
+  }
+  
+  // Weaknesses (top-right)
+  doc.rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight).fillAndStroke(COLORS.warning + '10', COLORS.warning);
+  doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.warning);
+  doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+  doc.text('WEAKNESSES', MARGIN + boxWidth + 25, y + 7);
+  
+  if (swot.weaknesses && Array.isArray(swot.weaknesses)) {
+    let wY = y + 35;
+    swot.weaknesses.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+      doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, wY, { width: boxWidth - 20 });
+      wY += 28;
+    });
+  }
+  
+  y += boxHeight + 15;
+  
+  // Opportunities (bottom-left)
+  doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.accent + '10', COLORS.accent);
+  doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.accent);
+  doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+  doc.text('OPPORTUNITIES', MARGIN + 10, y + 7);
+  
+  if (swot.opportunities && Array.isArray(swot.opportunities)) {
+    let oY = y + 35;
+    swot.opportunities.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+      doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, oY, { width: boxWidth - 20 });
+      oY += 28;
+    });
+  }
+  
+  // Threats (bottom-right)
+  doc.rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight).fillAndStroke(COLORS.danger + '10', COLORS.danger);
+  doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.danger);
+  doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+  doc.text('THREATS', MARGIN + boxWidth + 25, y + 7);
+  
+  if (swot.threats && Array.isArray(swot.threats)) {
+    let tY = y + 35;
+    swot.threats.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+      doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, tY, { width: boxWidth - 20 });
+      tY += 28;
+    });
+  }
+  
+  y += boxHeight + 15;
+  
+  // SWOT Summary
+  if (swot.summary) {
+    if (y > PAGE_HEIGHT - 100) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
+    doc.rect(MARGIN, y, 4, 80).fill(COLORS.primary);
+    
+    doc.fontSize(10).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('SWOT SUMMARY', MARGIN + 15, y + 12);
+    
+    doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+    doc.text(truncateText(swot.summary, 400), MARGIN + 15, y + 32, { width: CONTENT_WIDTH - 30 });
+  }
 }
 
 // Helper function to truncate text

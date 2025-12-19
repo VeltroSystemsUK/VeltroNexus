@@ -72,6 +72,8 @@ const DEFAULT_PDF_SECTIONS = [
   { id: "contacts", label: "Key Contacts", enabled: true },
   { id: "activities", label: "Activities & Tasks", enabled: true },
   { id: "dueDiligence", label: "Due Diligence", enabled: true },
+  { id: "campari", label: "CAMPARI Analysis", enabled: true },
+  { id: "swotAnalysis", label: "SWOT Analysis", enabled: true },
 ];
 
 export default function Settings() {
