@@ -98,6 +98,7 @@ export const prospects = pgTable("prospects", {
   notes: text("notes"),
   savedAssociations: jsonb("saved_associations").default('[]'),
   queueOrder: integer("queue_order").notNull().default(0),
+  referralSource: text("referral_source"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
