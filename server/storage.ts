@@ -1270,27 +1270,30 @@ export class DatabaseStorage implements IStorage {
     return totalCredits;
   }
 
-  // Webhook API
-  async getUserByWebhookApiKey(apiKey: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.webhookApiKey, apiKey));
+  // Webhook API - stores only hashed keys for security
+  async getUserByWebhookApiKeyHash(keyHash: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.webhookApiKeyHash, keyHash));
     return user;
   }
 
   async generateWebhookApiKey(userId: string): Promise<string> {
-    // Generate a random API key
-    const crypto = await import('crypto');
-    const apiKey = `flwh_${crypto.randomBytes(32).toString('hex')}`;
+    const { generateWebhookApiKey, hashWebhookApiKey, getApiKeySuffix } = await import('./utils/webhookKeyHash');
+    
+    const rawApiKey = `flwh_${generateWebhookApiKey()}`;
+    const keyHash = hashWebhookApiKey(rawApiKey);
+    const keySuffix = getApiKeySuffix(rawApiKey);
     
     await db
       .update(users)
       .set({ 
-        webhookApiKey: apiKey,
+        webhookApiKeyHash: keyHash,
+        webhookApiKeySuffix: keySuffix,
         webhookApiKeyCreatedAt: new Date(),
         updatedAt: new Date()
       })
       .where(eq(users.id, userId));
     
-    return apiKey;
+    return rawApiKey;
   }
 
   async updateWebhookApiKeyLastUsed(userId: string): Promise<void> {

@@ -4474,7 +4474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get webhook API key status (not the actual key)
+  // Get webhook API key status (not the actual key, only suffix for identification)
   app.get("/api/user/webhook-key", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -4484,7 +4484,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json({
-        hasApiKey: !!user.webhookApiKey,
+        hasApiKey: !!user.webhookApiKeyHash,
+        suffix: user.webhookApiKeySuffix || null,
         createdAt: user.webhookApiKeyCreatedAt,
         lastUsedAt: user.webhookApiKeyLastUsedAt,
       });
@@ -4497,13 +4498,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Webhook endpoint to receive prospects from external applications
   app.post("/api/webhooks/prospects", async (req: any, res) => {
     try {
-      // Authenticate via API key header
+      // Authenticate via API key header using hash comparison
       const apiKey = req.headers["x-flowloan-api-key"];
       if (!apiKey || typeof apiKey !== "string") {
         return res.status(401).json({ error: "Missing API key" });
       }
 
-      const user = await storage.getUserByWebhookApiKey(apiKey);
+      // Hash the provided key and look up by hash
+      const { hashWebhookApiKey } = await import('./utils/webhookKeyHash');
+      const keyHash = hashWebhookApiKey(apiKey);
+      const user = await storage.getUserByWebhookApiKeyHash(keyHash);
       if (!user) {
         return res.status(401).json({ error: "Invalid API key" });
       }
