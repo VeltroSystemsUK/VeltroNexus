@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import busboy from "busboy";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated, csrfProtection } from "./replitAuth";
 import {
   insertCompanySchema,
   insertProspectSchema,
@@ -30,6 +30,9 @@ const require = createRequire(import.meta.url);
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication - Required for Replit Auth
   await setupAuth(app);
+  
+  // CSRF protection for all state-changing requests
+  app.use(csrfProtection);
 
   // Get object storage client lazily to avoid initialization errors
   const getObjectStorage = () => {

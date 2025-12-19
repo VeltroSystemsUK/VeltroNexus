@@ -37,8 +37,51 @@ export function getSession() {
       httpOnly: true,
       secure: isProduction, // Only require HTTPS in production
       maxAge: sessionTtl,
+      sameSite: "lax", // CSRF protection: prevent cross-site request forgery
     },
   });
+}
+
+// CSRF protection middleware for state-changing requests
+// Validates Origin/Referer header matches the host to prevent cross-site attacks
+export function csrfProtection(req: any, res: any, next: any) {
+  const unsafeMethods = ["POST", "PUT", "PATCH", "DELETE"];
+  
+  // Skip CSRF check for safe methods and webhook endpoints (authenticated via API key)
+  if (!unsafeMethods.includes(req.method) || req.path.startsWith("/api/webhooks/")) {
+    return next();
+  }
+  
+  // Get the origin or referer header
+  const origin = req.get("Origin") || req.get("Referer");
+  
+  // If no origin/referer, reject the request (could be a direct attack)
+  // Exception: Allow requests without origin for same-origin form submissions in older browsers
+  if (!origin) {
+    // Check if it's a fetch/XHR request (these should always have Origin)
+    const isXhr = req.xhr || (req.get("Content-Type") || "").includes("application/json");
+    if (isXhr) {
+      return res.status(403).json({ error: "CSRF validation failed: missing origin" });
+    }
+    // Allow form submissions without origin header (old browser compatibility)
+    return next();
+  }
+  
+  // Parse the origin and validate it matches the host
+  try {
+    const originUrl = new URL(origin);
+    const host = req.get("Host");
+    
+    // Check if origin matches the request host
+    if (originUrl.host !== host) {
+      console.warn(`CSRF blocked: origin ${originUrl.host} != host ${host}`);
+      return res.status(403).json({ error: "CSRF validation failed: origin mismatch" });
+    }
+  } catch (e) {
+    return res.status(403).json({ error: "CSRF validation failed: invalid origin" });
+  }
+  
+  next();
 }
 
 function updateUserSession(
