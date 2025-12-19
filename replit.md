@@ -101,20 +101,28 @@ npm audit --audit-level=high # Only report high+ severity
 
 ### Security Testing
 
-The project includes a comprehensive security test suite covering 5 security domains with 41 tests. Run tests using:
+The project includes a comprehensive test suite with **104 tests** across security, unit, and integration categories. Run tests using:
 
 ```bash
-# Run all security tests
+# Run all tests
 npx vitest run
 
 # Run with verbose output
 npx vitest run --reporter=verbose
 
-# Run CI script (lint + typecheck + tests)
+# Run with coverage
+npx vitest run --coverage
+
+# Run CI script (lint + typecheck + tests + coverage)
 ./scripts/ci.sh
 ```
 
-**Test Coverage:**
+**Test Suite Breakdown:**
+- **Security Integration Tests (41 tests)**: CSRF protection, webhook authentication, rate limiting, upload validation, AI data redaction
+- **Unit Tests (40 tests)**: Validators, error handling, redaction patterns, webhook key hashing
+- **Integration Tests (24 tests)**: API flows with real middleware, CSRF protection, authentication, error responses
+
+**Security Test Coverage:**
 - **CSRF Protection (11 tests)**: Origin/Referer validation, same-site cookies, webhook endpoint bypass
 - **Webhook Authentication (7 tests)**: HMAC key generation, timing-safe comparison, hash verification
 - **Rate Limiting (5 tests)**: Configuration validation, rule pattern matching, endpoint coverage
@@ -122,7 +130,10 @@ npx vitest run --reporter=verbose
 - **AI Data Redaction (9 tests)**: PII patterns (IBAN, sort codes, emails, phones, postcodes, NI numbers, credit cards)
 
 **Key Test Files:**
-- `server/__tests__/security.test.ts`: Main security integration tests
+- `server/__tests__/security.test.ts`: Security integration tests (41 tests)
+- `server/__tests__/validators.test.ts`: Unit tests for validators and utilities (40 tests)
+- `server/__tests__/integration.test.ts`: API integration tests with real middleware (24 tests)
+- `server/test/appFactory.ts`: DI-friendly test app factory for middleware testing
 - `vitest.config.ts`: Test configuration with path aliases
 - `scripts/ci.sh`: CI pipeline script
 
