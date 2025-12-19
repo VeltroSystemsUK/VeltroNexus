@@ -1,6 +1,76 @@
-node_modules
-dist
+# --- OS / Editor ---
 .DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# --- Node / Package managers ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+*.tgz
+
+# --- Env / Secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# --- Build outputs ---
+dist/
+build/
+out/
+.next/
+.vercel/
+.netlify/
+.svelte-kit/
+.turbo/
+
+# --- Vite / React ---
+.vite/
+*.local
+
+# --- TypeScript ---
+*.tsbuildinfo
+
+# --- Testing / Coverage ---
+coverage/
+.nyc_output/
+junit.xml
+test-results/
+playwright-report/
+cypress/videos/
+cypress/screenshots/
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Runtime / Uploads / Temp ---
+tmp/
+temp/
+uploads/
+storage/
+*.sqlite
+*.sqlite3
+
+# --- Replit / Workspace state ---
+.replit
+replit.nix
+.upm/
+.local/
+.local/state/
+.local/state/replit/
+.local/state/replit/agent/
+
+# --- Misc ---
+*.orig

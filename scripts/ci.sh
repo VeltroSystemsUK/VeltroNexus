@@ -55,10 +55,9 @@ echo ""
 
 echo "[6/7] Checking coverage threshold..."
 # Coverage report is generated in coverage/ directory
-# Initial baseline is 2% to prevent coverage regression; target is to incrementally increase
-# Note: Increase this threshold as more tests are added to server/ code
-COVERAGE_THRESHOLD=2  # Initial baseline based on current coverage
-COVERAGE_TARGET=50    # Target coverage to work towards
+# Baseline prevents regression; ratchet upward as more tests are added
+COVERAGE_THRESHOLD=3   # Current baseline (ratchet up as coverage improves)
+COVERAGE_TARGET=40     # Target coverage to work towards
 if [ -f coverage/coverage-summary.json ]; then
   COVERAGE=$(node -p "JSON.parse(require('fs').readFileSync('coverage/coverage-summary.json')).total.statements.pct")
   echo "Current statement coverage: $COVERAGE%"
