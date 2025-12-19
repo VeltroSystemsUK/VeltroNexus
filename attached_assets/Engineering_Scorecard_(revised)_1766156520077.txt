@@ -1,0 +1,25 @@
+Engineering Scorecard (revised)
+Category	Prior	Now	Notes
+Security	3.0	6.5	Big lift: removed response-body logging, hashed webhook keys, allowlisted public objects, CSRF + smaller limits; remaining concern: hand-rolled multipart + prod fallback secret
+Privacy / Data handling	4.0	4.5	Still sending full financial docs to LLM; needs governance/redaction
+Reliability	4.5	6.0	No more throw in error handler; request IDs + structured logging; rate limiting helps
+Performance	5.5	6.0	Some improvements (countProspects), but buffering multipart still costly
+Maintainability	6.0	6.5	Security utilities improved; still very large routes.ts and duplicated patterns
+Testing	2.0	2.0	Still no visible test harness/coverage gates
+Observability	4.0	5.5	Request IDs + structured logs help; still no metrics/tracing
+Delivery hygiene (CI/CD)	3.5	3.5	No clear changes visible here
+Documentation	4.0	4.5	Some security notes appear in replit.md
+
+Overall score (revised): 5.5 / 10 (meaningfully improved; now closer to “pre-production hardening” than “prototype,” but still blocked by multipart parsing + key-secret handling + LLM governance).
+
+The fastest “done” checklist from here
+
+Replace underwriting multipart parsing with busboy streaming (same pattern as logo).
+
+Make WEBHOOK_KEY_SECRET mandatory in production (fail startup if missing).
+
+Tighten CSRF policy (no silent Origin exceptions) or add CSRF tokens.
+
+Add helmet (or equivalent) globally, not just headers on /public-objects.
+
+Put a governance wrapper around AI endpoints (redaction + consent + logging policy).

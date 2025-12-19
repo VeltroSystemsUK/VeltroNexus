@@ -1,0 +1,30 @@
+Remaining high-impact findings (most important first)
+1) Multipart parsing is still hand-rolled in underwriting upload (High)
+
+Where: POST /api/underwriting/upload/:submissionId manually buffers and splits multipart data via body.toString('binary').split(...).
+Why it matters: This is brittle (boundary quirks, binary corruption, parser confusion bugs) and remains a DoS risk even with size caps; it’s also easier to accidentally mishandle filenames/headers.
+One-sentence fix: Replace this endpoint with busboy-based streaming parsing (like your logo upload) and enforce both per-file + total limits in the parser, not after string conversion.
+
+2) Webhook key hashing has a dangerous “production fallback secret” (High)
+
+Where: server/utils/webhookKeyHash.ts uses a hardcoded fallback secret if WEBHOOK_KEY_SECRET is missing/short.
+Why it matters: If prod ever boots without the env var, all webhook key hashes become predictable across environments (and rotation becomes messy).
+One-sentence fix: If NODE_ENV==="production" and WEBHOOK_KEY_SECRET is missing/short, fail fast at startup instead of falling back.
+
+3) CSRF middleware allows “no Origin/Referer” for some unsafe requests (Medium→High depending on clients)
+
+Where: csrfProtection() allows unsafe requests without Origin in certain non-XHR cases.
+Why it matters: You’re relying heavily on browser behavior + sameSite=Lax; edge clients/proxies or misconfig can re-open CSRF paths.
+One-sentence fix: Require Origin/Referer for all unsafe methods, and if you need legacy support, use explicit CSRF tokens rather than a silent exception.
+
+4) Sensitive operational logging still exists in hot paths (Medium)
+
+Where: getObjectStorage() logs “Object storage bucket ID” every time it’s called.
+Why it matters: Not a secret, but it’s noisy, can leak infra details, and makes log review harder during incidents.
+One-sentence fix: Remove or gate that log behind a debug flag and log it once at startup.
+
+5) LLM data handling remains a major privacy/compliance risk (Medium→High)
+
+Where: server/utils/geminiClient.ts prompts indicate full transaction/statement data is sent to the model.
+Why it matters: Even if technically secure, this is the highest “business risk” area: retention, DPA, customer consent, redaction, and auditability.
+One-sentence fix: Add a data-minimization layer (redact identifiers, limit fields, chunking) plus explicit user consent and a retention/audit policy.

@@ -27,7 +27,18 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle2, ListTodo, Video, Phone, FileText, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle2, ListTodo, Video, Phone, FileText, Plus, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -92,6 +103,9 @@ export default function ActivityCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [viewType, setViewType] = useState<ViewType>("monthly");
   const { toast } = useToast();
 
@@ -129,10 +143,10 @@ export default function ActivityCalendar() {
       
       const payload = {
         title: data.title,
-        description: data.description,
+        description: data.description ?? null,
         activityType: data.activityType,
         priority: data.priority,
-        prospectId: data.prospectId,
+        prospectId: data.prospectId ?? null,
         completed: data.completed,
         dueDate: combinedDateTime ? combinedDateTime.toISOString() : null,
       };
@@ -155,6 +169,110 @@ export default function ActivityCalendar() {
       });
     },
   });
+
+  const editForm = useForm<ActivityFormData>({
+    resolver: zodResolver(activityFormSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      activityType: "task",
+      priority: "medium",
+      dueDate: undefined,
+      dueTime: "",
+      completed: 0,
+    },
+  });
+
+  const updateActivityMutation = useMutation({
+    mutationFn: async (data: ActivityFormData & { id: number }) => {
+      let combinedDateTime = null;
+      if (data.dueDate) {
+        combinedDateTime = new Date(data.dueDate);
+        if (data.dueTime) {
+          const [hours, minutes] = data.dueTime.split(':');
+          combinedDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+      }
+      
+      const payload = {
+        title: data.title,
+        description: data.description ?? null,
+        activityType: data.activityType,
+        priority: data.priority,
+        prospectId: data.prospectId ?? null,
+        completed: data.completed,
+        dueDate: combinedDateTime ? combinedDateTime.toISOString() : null,
+      };
+      return await apiRequest(`/api/activities/${data.id}`, "PATCH", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({
+        title: "Activity updated",
+        description: "Your activity has been updated.",
+      });
+      setShowEditDialog(false);
+      setSelectedActivity(null);
+      editForm.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update activity",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteActivityMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest(`/api/activities/${id}`, "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({
+        title: "Activity deleted",
+        description: "Your activity has been removed.",
+      });
+      setShowEditDialog(false);
+      setShowDeleteConfirm(false);
+      setSelectedActivity(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to delete activity",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleActivityClick = (activity: Activity, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedActivity(activity);
+    
+    const activityDate = activity.dueDate ? new Date(activity.dueDate) : undefined;
+    const hasTime = activityDate && (activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0);
+    
+    editForm.reset({
+      title: activity.title,
+      description: activity.description || "",
+      activityType: activity.activityType as any,
+      priority: activity.priority as any,
+      dueDate: activityDate,
+      dueTime: hasTime ? format(activityDate, 'HH:mm') : "",
+      completed: activity.completed || 0,
+      prospectId: activity.prospectId || undefined,
+    });
+    
+    setShowEditDialog(true);
+  };
+
+  const onEditSubmit = (data: ActivityFormData) => {
+    if (selectedActivity) {
+      updateActivityMutation.mutate({ ...data, id: selectedActivity.id });
+    }
+  };
 
   const handleDateClick = (day: Date, time?: string, activityType?: string) => {
     setSelectedDate(day);
@@ -281,9 +399,10 @@ export default function ActivityCalendar() {
                     return (
                       <div
                         key={activity.id}
-                        className={`text-xs truncate px-1.5 py-0.5 rounded flex items-center gap-1 border-l-2 ${colorClass} ${priorityColor}`}
-                        title={`${activity.title}${hasTime ? ` - ${format(activityDate, 'HH:mm')}` : ''} [${activity.priority}]`}
-                        onClick={(e) => e.stopPropagation()}
+                        className={`text-xs truncate px-1.5 py-0.5 rounded flex items-center gap-1 border-l-2 cursor-pointer hover:opacity-80 ${colorClass} ${priorityColor}`}
+                        title={`${activity.title}${hasTime ? ` - ${format(activityDate, 'HH:mm')}` : ''} [${activity.priority}] - Click to edit`}
+                        onClick={(e) => handleActivityClick(activity, e)}
+                        data-testid={`calendar-activity-${activity.id}`}
                       >
                         <Icon className="h-3 w-3 flex-shrink-0" />
                         {activity.completed === 1 && (
@@ -297,7 +416,14 @@ export default function ActivityCalendar() {
                     );
                   })}
                   {dayActivities.length > 2 && (
-                    <div className="text-xs text-muted-foreground">
+                    <div 
+                      className="text-xs text-muted-foreground cursor-pointer hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentDate(day);
+                        setViewType("daily");
+                      }}
+                    >
                       +{dayActivities.length - 2} more
                     </div>
                   )}
@@ -349,9 +475,10 @@ export default function ActivityCalendar() {
                       return (
                         <div
                           key={activity.id}
-                          className={`text-xs truncate px-1 py-0.5 rounded flex items-center gap-1 mb-1 ${colorClass}`}
-                          title={activity.title}
-                          onClick={(e) => e.stopPropagation()}
+                          className={`text-xs truncate px-1 py-0.5 rounded flex items-center gap-1 mb-1 cursor-pointer hover:opacity-80 ${colorClass}`}
+                          title={`${activity.title} - Click to edit`}
+                          onClick={(e) => handleActivityClick(activity, e)}
+                          data-testid={`calendar-activity-weekly-${activity.id}`}
                         >
                           <Icon className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">{activity.title}</span>
@@ -402,8 +529,9 @@ export default function ActivityCalendar() {
                     return (
                       <div
                         key={activity.id}
-                        className={`text-sm px-2 py-1.5 rounded flex items-center gap-2 mb-1 border-l-2 ${colorClass} ${priorityColor}`}
-                        onClick={(e) => e.stopPropagation()}
+                        className={`text-sm px-2 py-1.5 rounded flex items-center gap-2 mb-1 border-l-2 cursor-pointer hover:opacity-80 ${colorClass} ${priorityColor}`}
+                        onClick={(e) => handleActivityClick(activity, e)}
+                        data-testid={`calendar-activity-daily-${activity.id}`}
                       >
                         <Icon className="h-4 w-4 flex-shrink-0" />
                         {activity.completed === 1 && (
@@ -769,6 +897,283 @@ export default function ActivityCalendar() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showEditDialog} onOpenChange={(open) => {
+        setShowEditDialog(open);
+        if (!open) {
+          setSelectedActivity(null);
+          editForm.reset();
+        }
+      }}>
+        <DialogContent data-testid="dialog-edit-activity" className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Activity</DialogTitle>
+            <DialogDescription>
+              Update details or change the date/time to move this activity
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="activityType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-activity-type">
+                          <SelectValue placeholder="Select activity type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="task">
+                          <div className="flex items-center gap-2">
+                            <ListTodo className="h-4 w-4" />
+                            Task
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="event">
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4" />
+                            Event
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="meeting">
+                          <div className="flex items-center gap-2">
+                            <Video className="h-4 w-4" />
+                            Meeting
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="call">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4" />
+                            Call
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="note">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Note
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-activity-priority">
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        value={field.value ? format(field.value, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                        data-testid="input-edit-activity-date"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="dueTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="time"
+                        data-testid="input-edit-activity-time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="e.g., Client meeting, Follow-up call"
+                        data-testid="input-edit-activity-title"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        value={field.value || ""}
+                        placeholder="Add details about this activity..."
+                        data-testid="input-edit-activity-description"
+                        rows={3}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="prospectId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Related Prospect (Optional)</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(parseInt(value))}
+                      value={field.value?.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-activity-prospect">
+                          <SelectValue placeholder="Select a prospect (optional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {prospects.map((prospect) => (
+                          <SelectItem key={prospect.id} value={prospect.id.toString()}>
+                            {prospect.company.companyName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="completed"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value === 1}
+                        onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+                        data-testid="checkbox-edit-activity-completed"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Mark as completed</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  data-testid="button-delete-activity"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowEditDialog(false);
+                      setSelectedActivity(null);
+                      editForm.reset();
+                    }}
+                    data-testid="button-cancel-edit-activity"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updateActivityMutation.isPending}
+                    data-testid="button-save-activity"
+                  >
+                    {updateActivityMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent data-testid="dialog-delete-activity-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Activity</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{selectedActivity?.title}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-activity">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => selectedActivity && deleteActivityMutation.mutate(selectedActivity.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-activity"
+            >
+              {deleteActivityMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
