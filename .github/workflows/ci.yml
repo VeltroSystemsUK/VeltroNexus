@@ -22,6 +22,21 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files_yaml: |
+            deps:
+              - package.json
+              - package-lock.json
+            src:
+              - 'client/src/**/*.{ts,tsx}'
+              - 'server/**/*.ts'
+              - 'shared/**/*.ts'
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -42,13 +57,35 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
       
-      - name: Security audit (hard gate)
+      # SECURITY LAYER 1: npm audit (only when deps change)
+      - name: Security audit
+        if: steps.changed-files.outputs.deps_any_changed == 'true' || github.event_name == 'push'
         run: npm audit --audit-level=high --omit=dev
       
+      # SECURITY LAYER 2: Lockfile integrity
+      - name: Verify lockfile integrity
+        if: steps.changed-files.outputs.deps_any_changed == 'true'
+        run: |
+          npm ci --ignore-scripts --dry-run 2>&1 | grep -q "up to date" || {
+            echo "ERROR: package-lock.json out of sync with package.json"
+            exit 1
+          }
+          echo "Lockfile integrity verified"
+      
       - name: Check formatting
+        if: steps.changed-files.outputs.src_any_changed == 'true'
+        run: npx prettier --check ${{ steps.changed-files.outputs.src_all_changed_files }}
+      
+      - name: Check formatting (full - push to main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: npx prettier --check "client/src/**/*.{ts,tsx}" "server/**/*.ts" "shared/**/*.ts"
       
-      - name: Lint
+      - name: Lint changed files
+        if: steps.changed-files.outputs.src_any_changed == 'true'
+        run: npx eslint ${{ steps.changed-files.outputs.src_all_changed_files }} --max-warnings 0
+      
+      - name: Lint (full - push to main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: npx eslint client/src server shared --max-warnings 0
       
       - name: Type check
@@ -67,3 +104,22 @@ jobs:
               exit 1
             fi
           fi
+
+  # SECURITY LAYER 3: CodeQL static analysis
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
