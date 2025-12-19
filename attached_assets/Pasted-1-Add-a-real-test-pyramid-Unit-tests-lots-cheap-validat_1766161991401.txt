@@ -1,0 +1,119 @@
+1) Add a real test pyramid
+
+Unit tests (lots, cheap): validators, auth helpers, CSRF/origin checker, rate-limit keying, AI governance redaction/minimization, storage key sanitizer.
+
+Integration tests (some): key API flows with supertest against an in-memory app.
+
+E2E smoke tests (few): login → create prospect → create submission → upload doc → run AI analysis (stubbed).
+
+What to do next (highest leverage):
+
+Add a server/test/appFactory.ts that builds the Express app with dependency injection (db/storage/redis mocked).
+
+Add coverage for negative paths (missing auth, wrong role, bad mime, over-limit file, CSRF failure).
+
+2) Make tests enforceable
+
+Run tests in CI (no skipping).
+
+Add --runInBand or stable config to avoid flakes.
+
+Add a “must pass” smoke test suite for deploys.
+
+3) Add coverage gate (light)
+
+Start with something realistic (e.g., 50% lines), then raise monthly.
+
+Gate only server/ first if client coverage is too costly.
+
+4) Test the hard stuff explicitly
+
+Uploads: file count/size, mime allowlist, rejection of unexpected multipart fields.
+
+Webhooks: auth + idempotency + rate limit.
+
+AI governance: consent required, redaction actually removes identifiers, max size enforced.
+
+Access control: user can’t read/update another user’s resources.
+
+Getting Documentation score up (practical docs that matter)
+
+1) Add “docs that prevent incidents” (highest value)
+Create a top-level docs/ folder with:
+
+docs/ARCHITECTURE.md – 1–2 pages: request flow, storage, DB, auth, rate limit, webhooks, AI flows.
+
+docs/SECURITY.md – guardrails and invariants:
+
+no body logging
+
+CSRF/origin rules
+
+upload limits + mime allowlist
+
+webhook auth + idempotency
+
+AI governance requirements
+
+docs/RUNBOOK.md – what to do when:
+
+Redis down (rate limiting behavior)
+
+object storage errors
+
+webhook failures
+
+high memory / upload abuse
+
+docs/ENV.md – every env var, purpose, example, production requirements (which are mandatory).
+
+docs/RELEASE.md – release gate checklist + rollback steps.
+
+2) Document the “why” next to critical code
+
+Add short comments near:
+
+CSRF middleware (why strict Origin/Referer)
+
+webhook auth (why HMAC/hash compare)
+
+upload limits (why parser-level)
+
+AI governance (why redaction/consent)
+This boosts maintainability and reviewer confidence.
+
+3) Add API reference for internal use
+
+Even a minimal docs/API.md listing routes, auth requirements, and example requests is huge.
+
+Include “sensitive endpoints” callouts (uploads, AI, webhooks).
+
+Concrete scoring targets (what typically moves the needle)
+
+Testing score to ~7+:
+
+20–40 meaningful unit tests
+
+10–15 integration tests on the key routes
+
+2–3 E2E smoke tests
+
+CI enforces tests + coverage baseline
+
+Documentation score to ~7+:
+
+Architecture + Security + Runbook + Env + Release docs
+
+Each kept short (1–2 pages) but current
+
+Linked from README and referenced in PR template
+
+Quick “next sprint” checklist (do these and your scores jump)
+
+Add docs/SECURITY.md, docs/RUNBOOK.md, docs/ENV.md, docs/RELEASE.md
+
+Add server/test/appFactory.ts (DI-friendly app builder)
+
+Add tests for uploads/webhooks/CSRF/AI governance
+
+Add a coverage gate for server/ and enforce via CI
