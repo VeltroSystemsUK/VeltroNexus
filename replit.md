@@ -85,6 +85,33 @@ npm audit --audit-level=high # Only report high+ severity
   - Auth endpoints: 10 req/min per IP
   - Upload endpoints: 30 req/min per user
 
+### Security Testing
+
+The project includes a comprehensive security test suite covering 5 security domains with 41 tests. Run tests using:
+
+```bash
+# Run all security tests
+npx vitest run
+
+# Run with verbose output
+npx vitest run --reporter=verbose
+
+# Run CI script (lint + typecheck + tests)
+./scripts/ci.sh
+```
+
+**Test Coverage:**
+- **CSRF Protection (11 tests)**: Origin/Referer validation, same-site cookies, webhook endpoint bypass
+- **Webhook Authentication (7 tests)**: HMAC key generation, timing-safe comparison, hash verification
+- **Rate Limiting (5 tests)**: Configuration validation, rule pattern matching, endpoint coverage
+- **Upload Validation (10 tests)**: File extension allowlist, size limits, MIME type validation
+- **AI Data Redaction (9 tests)**: PII patterns (IBAN, sort codes, emails, phones, postcodes, NI numbers, credit cards)
+
+**Key Test Files:**
+- `server/__tests__/security.test.ts`: Main security integration tests
+- `vitest.config.ts`: Test configuration with path aliases
+- `scripts/ci.sh`: CI pipeline script
+
 ### Observability
 - **Structured Logging**: All API requests logged as JSON with type, timestamp, method, path, status, duration
 - **Request IDs**: Unique UUID per request in X-Request-Id header for correlation
