@@ -377,6 +377,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         csvData,
         loanAmount: parseFloat(loanAmount),
         monthlyRepayment,
+        consentToAiProcessing: true,
       });
       return response.json();
     },
@@ -395,6 +396,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         pdfTexts,
         loanAmount: parseFloat(loanAmount),
         monthlyRepayment,
+        consentToAiProcessing: true,
       });
       return response.json();
     },
@@ -439,6 +441,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         pdfTexts,
         loanAmount: parseFloat(loanAmount),
         monthlyRepayment,
+        consentToAiProcessing: true,
       });
       return response.json();
     },
@@ -482,6 +485,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         financialSummary,
         companiesHouseData,
         bankAnalysisSummary,
+        consentToAiProcessing: true,
       });
       return response.json();
     },
@@ -530,6 +534,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         companiesHouseData,
         bankAnalysisSummary,
         accountsAnalysisSummary,
+        consentToAiProcessing: true,
       });
       return response.json();
     },
