@@ -1,0 +1,57 @@
+MUST (block production release)
+
+Uploads must not buffer whole files in RAM
+
+Gate: No route may use chunks[] + Buffer.concat(...) for user-supplied files.
+
+Pass criteria: Uploads are streamed to storage (or presigned URL direct-to-storage) with enforced per-file + total limits and MIME allowlists.
+
+CI must be enforced (not “best effort”)
+
+Gate: A real pipeline (GitHub Actions/Replit deployment hook) runs on every merge to main.
+
+Pass criteria: Pipeline fails if any of these fail: typecheck, tests, lint, formatting, build.
+
+Lint/format checks must not skip
+
+Gate: eslint + prettier are installed and invoked by CI.
+
+Pass criteria: eslint . and prettier --check . run and return 0.
+
+Operational health endpoint
+
+Gate: /healthz exists and checks core dependencies.
+
+Pass criteria: In the deployed environment, /healthz returns 200 only if DB + Redis + object storage are reachable; deployments roll back/stop if it fails.
+
+Security baseline remains intact
+
+Gate: No regression on earlier fixed issues.
+
+Pass criteria: Automated tests prove: CSRF enforcement, webhook auth, rate limiting on high-risk routes, no response-body logging.
+
+SHOULD (strongly recommended before public launch)
+
+CSP for the web app
+
+Gate: CSP is applied globally and reviewed.
+
+Pass criteria: CSP blocks inline scripts by default (or narrowly scoped exceptions), and app still works.
+
+Redis-backed rate limiting required in production
+
+Gate: No in-memory fallback in prod.
+
+Pass criteria: If NODE_ENV=production and Redis is missing, server fails fast or rate limiting refuses to start.
+
+AI governance policy is enforced + test-covered
+
+Gate: Consent + redaction + size limits are mandatory for all AI calls.
+
+Pass criteria: Tests show: requests without consent are rejected; redaction runs; payloads are capped.
+
+Dependency vulnerability gate
+
+Gate: No high/critical known vulnerabilities in production deps.
+
+Pass criteria: CI runs an audit step and blocks merges on high/critical issues (with an explicit documented exception process).

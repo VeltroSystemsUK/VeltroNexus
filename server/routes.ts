@@ -36,6 +36,59 @@ import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check endpoint - checks DB, Redis, and object storage
+  // Must be registered BEFORE auth middleware so it's always accessible
+  app.get('/healthz', async (req, res) => {
+    const checks: Record<string, { status: 'ok' | 'error'; latency?: number; error?: string }> = {};
+    let allHealthy = true;
+    
+    // Check database
+    const dbStart = Date.now();
+    try {
+      await storage.getUser('health-check-probe');
+      checks.database = { status: 'ok', latency: Date.now() - dbStart };
+    } catch (error: any) {
+      checks.database = { status: 'error', error: error.message, latency: Date.now() - dbStart };
+      allHealthy = false;
+    }
+    
+    // Check Redis (if configured)
+    const { getRateLimitStatus } = await import('./utils/rateLimit');
+    const rateLimitStatus = getRateLimitStatus();
+    if (rateLimitStatus.backend === 'redis') {
+      checks.redis = { status: 'ok' };
+    } else if (process.env.NODE_ENV === 'production' && process.env.REDIS_URL) {
+      checks.redis = { status: 'error', error: 'Redis configured but not connected' };
+      allHealthy = false;
+    } else {
+      checks.redis = { status: 'ok' }; // Memory fallback acceptable in dev
+    }
+    
+    // Check object storage
+    const storageStart = Date.now();
+    try {
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      if (bucketId) {
+        const client = new ObjectStorageClient({ bucketId });
+        await client.list({ prefix: 'health-check/', maxKeys: 1 });
+        checks.objectStorage = { status: 'ok', latency: Date.now() - storageStart };
+      } else {
+        checks.objectStorage = { status: 'error', error: 'Bucket not configured' };
+        allHealthy = false;
+      }
+    } catch (error: any) {
+      checks.objectStorage = { status: 'error', error: error.message, latency: Date.now() - storageStart };
+      allHealthy = false;
+    }
+    
+    const status = allHealthy ? 200 : 503;
+    res.status(status).json({
+      status: allHealthy ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      checks,
+    });
+  });
+  
   // Setup authentication - Required for Replit Auth
   await setupAuth(app);
   
@@ -132,9 +185,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload branding logo - uses busboy streaming multipart parser
-  // Note: Object storage SDK only supports uploadFromBytes (Buffer), so we must buffer the file.
-  // However, busboy provides early limit enforcement and avoids the previous binary string conversion.
+  // Upload branding logo - uses busboy + streaming upload to object storage
+  // No RAM buffering: files stream directly to storage via uploadFromStream
   const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB limit
   
   app.post('/api/user/branding/logo', isAuthenticated, (req: any, res) => {
@@ -164,39 +216,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
         
-        const chunks: Buffer[] = [];
-        let fileTruncated = false;
+        const timestamp = Date.now();
+        const extension = filename.split('.').pop() || 'png';
+        const logoFileName = `${userId}_logo_${timestamp}.${extension}`;
+        const storagePath = `public/branding/${logoFileName}`;
         
-        fileStream.on('data', (chunk: Buffer) => {
-          if (!fileTruncated) {
-            chunks.push(chunk);
-          }
-        });
-        
-        // Busboy enforces limit and emits this event when exceeded
-        fileStream.on('limit', () => {
-          fileTruncated = true;
-          validationError = "Logo file must be under 2MB";
-          chunks.length = 0; // Clear buffered data early
-        });
-        
-        fileStream.on('close', () => {
-          if (fileTruncated || validationError) return;
+        // Stream directly to storage - no RAM buffering
+        uploadPromise = (async () => {
+          // Create a PassThrough to handle limit event properly
+          const { PassThrough } = await import('stream');
+          const passThrough = new PassThrough();
+          let limitExceeded = false;
           
-          uploadPromise = (async () => {
-            const fileContent = Buffer.concat(chunks);
-            const timestamp = Date.now();
-            const extension = filename.split('.').pop() || 'png';
-            const logoFileName = `${userId}_logo_${timestamp}.${extension}`;
-            const storagePath = `public/branding/${logoFileName}`;
+          fileStream.on('limit', () => {
+            limitExceeded = true;
+            validationError = "Logo file must be under 2MB";
+            passThrough.destroy(new Error("File size limit exceeded"));
+          });
+          
+          fileStream.pipe(passThrough);
+          
+          try {
+            await getObjectStorage().uploadFromStream(storagePath, passThrough);
             
-            await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+            if (limitExceeded) {
+              // Clean up partial upload
+              try { await getObjectStorage().delete(storagePath); } catch {}
+              throw new Error("File size limit exceeded");
+            }
             
             const logoUrl = `/public-objects/branding/${logoFileName}`;
             await storage.updateUser(userId, { brandingLogoUrl: logoUrl });
             return logoUrl;
-          })();
-        });
+          } catch (err: any) {
+            if (limitExceeded) throw new Error("Logo file must be under 2MB");
+            throw err;
+          }
+        })();
       });
       
       bb.on('close', async () => {
@@ -4244,43 +4300,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
         
-        const chunks: Buffer[] = [];
-        let fileTruncated = false;
+        const timestamp = Date.now();
+        const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `.private/underwriting/${submissionId}/${userId}/${timestamp}_${sanitizedFileName}`;
         
-        fileStream.on('data', (chunk: Buffer) => {
-          if (!fileTruncated) {
-            chunks.push(chunk);
-          }
-        });
-        
-        fileStream.on('limit', () => {
-          fileTruncated = true;
-          validationError = `File "${filename}" exceeds 5MB limit`;
-          chunks.length = 0;
-        });
-        
-        fileStream.on('close', () => {
-          if (fileTruncated || validationError) return;
+        // Stream directly to storage - no RAM buffering
+        const uploadPromise = (async (): Promise<UnderwritingAttachment> => {
+          const { PassThrough } = await import('stream');
+          const passThrough = new PassThrough();
+          let limitExceeded = false;
+          let bytesWritten = 0;
           
-          const uploadPromise = (async (): Promise<UnderwritingAttachment> => {
-            const fileContent = Buffer.concat(chunks);
-            const timestamp = Date.now();
-            const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-            const storagePath = `.private/underwriting/${submissionId}/${userId}/${timestamp}_${sanitizedFileName}`;
+          fileStream.on('limit', () => {
+            limitExceeded = true;
+            validationError = `File "${filename}" exceeds 5MB limit`;
+            passThrough.destroy(new Error("File size limit exceeded"));
+          });
+          
+          fileStream.on('data', (chunk: Buffer) => {
+            bytesWritten += chunk.length;
+          });
+          
+          fileStream.pipe(passThrough);
+          
+          try {
+            await getObjectStorage().uploadFromStream(storagePath, passThrough);
             
-            await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+            if (limitExceeded) {
+              try { await getObjectStorage().delete(storagePath); } catch {}
+              throw new Error(`File "${filename}" exceeds 5MB limit`);
+            }
             
             return {
               fileName: filename,
               fileType: mimeType || 'application/octet-stream',
-              fileSize: fileContent.length,
+              fileSize: bytesWritten,
               storagePath,
               uploadedAt: new Date().toISOString(),
             };
-          })();
-          
-          uploadPromises.push(uploadPromise);
-        });
+          } catch (err: any) {
+            if (limitExceeded) throw new Error(`File "${filename}" exceeds 5MB limit`);
+            throw err;
+          }
+        })();
+        
+        uploadPromises.push(uploadPromise);
       });
       
       bb.on('close', async () => {
@@ -4572,46 +4636,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
         
-        const chunks: Buffer[] = [];
-        let fileTruncated = false;
+        const timestamp = Date.now();
+        const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `.private/documents/${prospectId}/${timestamp}_${sanitizedFileName}`;
         
-        fileStream.on('data', (chunk: Buffer) => {
-          if (!fileTruncated) {
-            chunks.push(chunk);
-          }
-        });
-        
-        fileStream.on('limit', () => {
-          fileTruncated = true;
-          validationError = `File "${filename}" exceeds 10MB limit`;
-          chunks.length = 0;
-        });
-        
-        fileStream.on('close', () => {
-          if (fileTruncated || validationError) return;
+        // Stream directly to storage - no RAM buffering
+        uploadPromise = (async () => {
+          const { PassThrough } = await import('stream');
+          const passThrough = new PassThrough();
+          let limitExceeded = false;
+          let bytesWritten = 0;
           
-          uploadPromise = (async () => {
-            const fileContent = Buffer.concat(chunks);
-            const timestamp = Date.now();
-            const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-            const storagePath = `.private/documents/${prospectId}/${timestamp}_${sanitizedFileName}`;
+          fileStream.on('limit', () => {
+            limitExceeded = true;
+            validationError = `File "${filename}" exceeds 10MB limit`;
+            passThrough.destroy(new Error("File size limit exceeded"));
+          });
+          
+          fileStream.on('data', (chunk: Buffer) => {
+            bytesWritten += chunk.length;
+          });
+          
+          fileStream.pipe(passThrough);
+          
+          try {
+            await getObjectStorage().uploadFromStream(storagePath, passThrough);
             
-            await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+            if (limitExceeded) {
+              try { await getObjectStorage().delete(storagePath); } catch {}
+              throw new Error(`File "${filename}" exceeds 10MB limit`);
+            }
             
             const document = await storage.createProspectDocument({
               prospectId,
               userId,
               fileName: filename,
               fileType: mimeType || 'application/octet-stream',
-              fileSize: fileContent.length,
+              fileSize: bytesWritten,
               storagePath,
               category,
               notes: notes || null,
             });
             
             return document;
-          })();
-        });
+          } catch (err: any) {
+            if (limitExceeded) throw new Error(`File "${filename}" exceeds 10MB limit`);
+            throw err;
+          }
+        })();
       });
       
       bb.on('close', async () => {

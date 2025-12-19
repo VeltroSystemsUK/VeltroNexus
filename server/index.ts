@@ -40,6 +40,26 @@ app.use((req, res, next) => {
   }
   // Permissions Policy (formerly Feature-Policy)
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  
+  // Content Security Policy - blocks inline scripts by default
+  // Only applied to HTML pages (not API routes or static assets)
+  if (!req.path.startsWith('/api') && !req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    const cspDirectives = [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'", // Allow inline styles for Tailwind
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://api.resend.com https://*.replit.dev wss://*.replit.dev",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ];
+    res.setHeader('Content-Security-Policy', cspDirectives.join('; '));
+  }
+  
   next();
 });
 
