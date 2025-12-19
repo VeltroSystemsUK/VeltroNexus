@@ -54,6 +54,7 @@
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
+    "@vitest/coverage-v8": "^4.0.16",
     "agentmail": "^0.1.4",
     "busboy": "^1.6.0",
     "class-variance-authority": "^0.7.1",

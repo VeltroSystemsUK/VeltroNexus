@@ -53,19 +53,32 @@ npx vitest run --reporter=verbose --coverage || {
 echo "All tests passed!"
 echo ""
 
-echo "[6/7] Checking coverage threshold (50% baseline)..."
+echo "[6/7] Checking coverage threshold..."
 # Coverage report is generated in coverage/ directory
-# For CI gates, we check the summary output
+# Initial baseline is 2% to prevent coverage regression; target is to incrementally increase
+# Note: Increase this threshold as more tests are added to server/ code
+COVERAGE_THRESHOLD=2  # Initial baseline based on current coverage
+COVERAGE_TARGET=50    # Target coverage to work towards
 if [ -f coverage/coverage-summary.json ]; then
   COVERAGE=$(node -p "JSON.parse(require('fs').readFileSync('coverage/coverage-summary.json')).total.statements.pct")
-  if [ $(echo "$COVERAGE < 30" | bc -l) -eq 1 ]; then
-    echo "WARNING: Statement coverage ($COVERAGE%) is below 30% baseline"
-    echo "Consider adding more tests to improve coverage"
+  echo "Current statement coverage: $COVERAGE%"
+  echo "Baseline threshold: $COVERAGE_THRESHOLD% | Target: $COVERAGE_TARGET%"
+  
+  # Check if coverage is below threshold (prevents regression)
+  IS_BELOW=$(node -p "$COVERAGE < $COVERAGE_THRESHOLD")
+  if [ "$IS_BELOW" = "true" ]; then
+    echo "ERROR: Statement coverage ($COVERAGE%) dropped below $COVERAGE_THRESHOLD% baseline"
+    echo "This indicates test coverage has regressed. Add more tests before committing."
+    exit 1
   else
-    echo "Coverage check passed: $COVERAGE% statements covered"
+    echo "Coverage baseline check passed: $COVERAGE% >= $COVERAGE_THRESHOLD%"
+    if [ $(node -p "$COVERAGE < $COVERAGE_TARGET") = "true" ]; then
+      echo "NOTE: Coverage is below $COVERAGE_TARGET% target. Consider adding more tests."
+    fi
   fi
 else
-  echo "Coverage summary not found - skipping threshold check"
+  echo "WARNING: Coverage summary not found at coverage/coverage-summary.json"
+  echo "Run 'npx vitest run --coverage' to generate coverage report"
 fi
 echo ""
 
