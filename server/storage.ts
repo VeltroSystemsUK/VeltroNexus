@@ -74,6 +74,7 @@ import { eq, sql, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 export interface IStorage {
   // Users - required for Replit Auth
   getUser(id: string): Promise<User | undefined>;
+  getUsersByIds(ids: string[]): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
@@ -86,8 +87,10 @@ export interface IStorage {
 
   // Prospects
   listProspects(userId: string): Promise<ProspectWithCompany[]>;
+  countProspects(userId: string): Promise<number>;
   getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined>;
   getProspectById(id: number): Promise<ProspectWithCompany | undefined>;
+  getProspectsByIds(ids: number[]): Promise<ProspectWithCompany[]>;
   createProspect(prospect: InsertProspect, userId: string): Promise<Prospect>;
   updateProspectStage(prospectId: number, userId: string, stage: string): Promise<Prospect | undefined>;
   updateProspect(id: number, userId: string, updates: Partial<InsertProspect>): Promise<Prospect | undefined>;
@@ -243,6 +246,12 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUsersByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    const result = await db.select().from(users).where(sql`${users.id} IN ${ids}`);
+    return result;
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     try {
       const [user] = await db
@@ -338,6 +347,14 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  async countProspects(userId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(prospects)
+      .where(eq(prospects.userId, userId));
+    return result?.count ?? 0;
+  }
+
   async getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined> {
     const [result] = await db
       .select()
@@ -366,6 +383,20 @@ export class DatabaseStorage implements IStorage {
       ...result.prospects,
       company: result.companies!,
     };
+  }
+
+  async getProspectsByIds(ids: number[]): Promise<ProspectWithCompany[]> {
+    if (ids.length === 0) return [];
+    const results = await db
+      .select()
+      .from(prospects)
+      .leftJoin(companies, eq(prospects.companyId, companies.id))
+      .where(sql`${prospects.id} IN ${ids}`);
+
+    return results.map((row) => ({
+      ...row.prospects,
+      company: row.companies!,
+    }));
   }
 
   async createProspect(insertProspect: InsertProspect, userId: string): Promise<Prospect> {

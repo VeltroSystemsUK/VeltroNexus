@@ -316,11 +316,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
       
-      const currentProspects = await storage.listProspects(userId);
-      if (currentProspects.length >= user.prospectLimit) {
+      const prospectCount = await storage.countProspects(userId);
+      if (prospectCount >= user.prospectLimit) {
         return res.status(403).json({ 
-          error: `Prospect limit reached. You have ${currentProspects.length} prospects and your ${user.subscriptionTier} plan allows ${user.prospectLimit}. Please upgrade your subscription to add more prospects.`,
-          prospectCount: currentProspects.length,
+          error: `Prospect limit reached. You have ${prospectCount} prospects and your ${user.subscriptionTier} plan allows ${user.prospectLimit}. Please upgrade your subscription to add more prospects.`,
+          prospectCount,
           prospectLimit: user.prospectLimit,
           subscriptionTier: user.subscriptionTier
         });
@@ -3351,8 +3351,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User not found" });
       }
 
-      const existingProspects = await storage.listProspects(userId);
-      if (existingProspects.length >= user.prospectLimit) {
+      const prospectCount = await storage.countProspects(userId);
+      if (prospectCount >= user.prospectLimit) {
         return res.status(403).json({ 
           error: `Prospect limit reached. Your ${user.subscriptionTier} plan allows ${user.prospectLimit} prospects.`
         });
@@ -3439,24 +3439,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
-  // Helper to enrich submissions with prospect and company details
+  // Helper to enrich submissions with prospect and company details (batch loaded)
   async function enrichSubmissions(submissions: any[]) {
-    const enriched = await Promise.all(
-      submissions.map(async (submission) => {
-        const prospectWithCompany = await storage.getProspectById(submission.prospectId);
-        const broker = await storage.getUser(submission.brokerId);
-        return {
-          ...submission,
-          prospect: prospectWithCompany || null,
-          broker: broker ? {
-            firstName: broker.firstName,
-            lastName: broker.lastName,
-            email: broker.email,
-          } : null,
-        };
-      })
-    );
-    return enriched;
+    if (submissions.length === 0) return [];
+    
+    // Collect unique IDs for batch loading
+    const prospectIds = [...new Set(submissions.map(s => s.prospectId).filter(Boolean))];
+    const brokerIds = [...new Set(submissions.map(s => s.brokerId).filter(Boolean))];
+    
+    // Batch load all prospects and brokers in single queries
+    const [prospectsArr, brokersArr] = await Promise.all([
+      storage.getProspectsByIds(prospectIds),
+      storage.getUsersByIds(brokerIds),
+    ]);
+    
+    // Create lookup maps
+    const prospectsMap = new Map(prospectsArr.map(p => [p.id, p]));
+    const brokersMap = new Map(brokersArr.map(b => [b.id, b]));
+    
+    // Enrich submissions using maps
+    return submissions.map(submission => {
+      const prospect = prospectsMap.get(submission.prospectId) || null;
+      const broker = brokersMap.get(submission.brokerId);
+      return {
+        ...submission,
+        prospect,
+        broker: broker ? {
+          firstName: broker.firstName,
+          lastName: broker.lastName,
+          email: broker.email,
+        } : null,
+      };
+    });
   }
 
   // Get all underwriting submissions (for underwriters)
@@ -4647,11 +4661,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payload = validationResult.data;
 
       // Check prospect limits
-      const existingProspects = await storage.listProspects(user.id);
+      const prospectCount = await storage.countProspects(user.id);
       const prospectCredits = await storage.getUserProspectCredits(user.id);
       const totalAllowedProspects = user.prospectLimit + prospectCredits;
       
-      if (existingProspects.length >= totalAllowedProspects) {
+      if (prospectCount >= totalAllowedProspects) {
         return res.status(403).json({ 
           error: "Prospect limit reached",
           message: "Upgrade your plan or purchase additional prospect credits."
