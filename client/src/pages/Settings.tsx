@@ -146,7 +146,16 @@ export default function Settings() {
       setDateFormat(user.dateFormat || "DD/MM/YYYY");
       setTheme(user.theme || "light");
       setStageNames(user.pipelineStageNames || DEFAULT_STAGE_NAMES);
-      setPdfSections(user.pdfLayoutPreferences?.sections || DEFAULT_PDF_SECTIONS);
+      
+      // Merge saved sections with defaults to include any new sections
+      const savedSections = user.pdfLayoutPreferences?.sections || [];
+      const savedIds = new Set(savedSections.map((s: any) => s.id));
+      const newSections = DEFAULT_PDF_SECTIONS.filter(s => !savedIds.has(s.id));
+      const mergedSections = savedSections.length > 0 
+        ? [...savedSections, ...newSections]
+        : DEFAULT_PDF_SECTIONS;
+      setPdfSections(mergedSections);
+      
       setBrandingPrimaryColor(user.brandingPrimaryColor || "");
       setBrandingAccentColor(user.brandingAccentColor || "");
       setLogoPreview(user.brandingLogoUrl || null);
