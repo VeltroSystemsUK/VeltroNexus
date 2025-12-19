@@ -110,19 +110,12 @@ export default function Profile() {
 
   const createBillingRequestMutation = useMutation({
     mutationFn: async (tier: string) => {
-      const response = await apiRequest("/api/gocardless/create-billing-request", "POST", {
-        tier,
-      });
-      return response as unknown as { billingRequestFlowUrl: string };
-    },
-    onSuccess: (data) => {
-      sessionStorage.setItem("selectedTier", selectedTier || "");
-      window.location.href = data.billingRequestFlowUrl;
+      throw new Error("Payment processing is temporarily unavailable. Please contact support.");
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to initiate payment flow",
+        title: "Subscription Unavailable",
+        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },
@@ -130,20 +123,12 @@ export default function Profile() {
 
   const cancelSubscriptionMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("/api/gocardless/cancel-subscription", "POST", {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      toast({
-        title: "Subscription Cancelled",
-        description: "Your subscription has been cancelled and you've been downgraded to the Free tier.",
-      });
-      setCancellationDialogOpen(false);
+      throw new Error("Subscription management is temporarily unavailable. Please contact support.");
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to cancel subscription",
+        description: error.message || "Subscription management is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },

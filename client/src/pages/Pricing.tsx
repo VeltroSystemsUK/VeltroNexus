@@ -119,18 +119,13 @@ export default function Pricing() {
 
   const createBillingRequestMutation = useMutation({
     mutationFn: async (tier: string) => {
-      sessionStorage.setItem('subscription_tier', tier);
-      const result = await apiRequest('/api/gocardless/create-billing-request', 'POST', { tier });
-      return result;
-    },
-    onSuccess: (data: any) => {
-      window.location.href = data.authorisationUrl;
+      throw new Error("Payment processing is temporarily unavailable. Please contact support.");
     },
     onError: (error: any) => {
       sessionStorage.removeItem('subscription_tier');
       toast({
-        title: "Subscription Error",
-        description: error.message || "Failed to initiate subscription. Please try again.",
+        title: "Subscription Unavailable",
+        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },

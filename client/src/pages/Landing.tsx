@@ -470,7 +470,7 @@ export default function Landing() {
               <div>
                 <h4 className="font-semibold mb-2 text-base">Subscription Management</h4>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Tiered plans with GoCardless Direct Debit.
+                  Tiered plans with flexible payment options.
                 </p>
               </div>
             </div>

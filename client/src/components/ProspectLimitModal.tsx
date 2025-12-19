@@ -68,18 +68,12 @@ export default function ProspectLimitModal({
 
   const purchasePackageMutation = useMutation({
     mutationFn: async (packageId: string) => {
-      const result = await apiRequest('/api/gocardless/create-package-payment', 'POST', { packageId });
-      return result;
-    },
-    onSuccess: (data: any) => {
-      if (data.authorisationUrl) {
-        window.location.href = data.authorisationUrl;
-      }
+      throw new Error("Payment processing is temporarily unavailable. Please contact support.");
     },
     onError: (error: Error) => {
       toast({
-        title: "Payment Error",
-        description: error.message,
+        title: "Payment Unavailable",
+        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },

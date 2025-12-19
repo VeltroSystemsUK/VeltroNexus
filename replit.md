@@ -20,8 +20,8 @@ The frontend is built with React, TypeScript, Vite, and Wouter for routing. TanS
 - **Due Diligence Tools**: Seven interactive tools, including a Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment, and an optional AI-powered Credit Underwriting tool (Premium tier).
 - **CRM Features**: Integrated Activity Calendar for managing tasks, events, meetings, calls, and notes, a ToDoList for task management, and Task Reminders for urgent tasks.
 - **Leads Import System**: Bulk import leads from CSV files with intelligent column mapping, a dedicated Leads page for tracking, and Companies House integration for prospect creation.
-- **Subscription System**: A tiered model (Free, Standard, Premium) with prospect count limits and GoCardless integration for Direct Debit payments.
-- **Add-Ons Marketplace**: Allows purchasing prospect packs and feature add-ons via GoCardless, managed by Super Admins.
+- **Subscription System**: A tiered model (Free, Standard, Premium) with prospect count limits.
+- **Add-Ons Marketplace**: Allows purchasing prospect packs and feature add-ons, managed by Super Admins.
 - **Profile and Settings**: Account information, subscription management, appearance customization (dark mode, colors), regional settings, customizable pipeline stage names, PDF report layout customization, and CSV data import.
 - **White Label Branding**: Upload custom logos and customize primary/accent theme colors.
 - **Role-Based Access Control (RBAC)**: A 4-role permission system (Super Admin, Sales Admin, Broker User, Underwriter) with a team management page and role-based navigation.
@@ -58,5 +58,4 @@ The application uses Drizzle ORM with Neon serverless PostgreSQL. The schema inc
 - **date-fns**: Date manipulation.
 - **zod**: Schema validation.
 - **pdfkit**: PDF document generation.
-- **gocardless-nodejs**: GoCardless SDK.
 - **vite**: Frontend build tool.

@@ -15,26 +15,14 @@ export default function SubscriptionComplete() {
 
   const completeSubscriptionMutation = useMutation({
     mutationFn: async (billingRequestFlowId: string) => {
-      const result = await apiRequest('/api/gocardless/complete-subscription', 'POST', {
-        billingRequestFlowId
-      });
-      return result;
-    },
-    onSuccess: () => {
-      setStatus('success');
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      sessionStorage.removeItem('subscription_tier');
-      toast({
-        title: "Subscription Activated!",
-        description: "Your subscription has been successfully set up.",
-      });
+      throw new Error("Payment processing is temporarily unavailable. Please contact support.");
     },
     onError: (error: any) => {
       setStatus('error');
       sessionStorage.removeItem('subscription_tier');
       toast({
-        title: "Subscription Failed",
-        description: error.message || "Failed to complete subscription. Please contact support.",
+        title: "Subscription Unavailable",
+        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },
