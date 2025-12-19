@@ -58,26 +58,18 @@ setInterval(() => {
 }, 60000);
 
 // Initialize Redis connection
-// In production, if REDIS_URL is not set, we fail fast to prevent running without rate limiting
+// Falls back to in-memory rate limiting if Redis is unavailable
 export async function initializeRateLimitRedis(): Promise<boolean> {
   const redisUrl = process.env.REDIS_URL;
   const isProduction = process.env.NODE_ENV === 'production';
   
   if (!redisUrl) {
-    if (isProduction) {
-      console.error(JSON.stringify({
-        type: 'rate_limit_init',
-        timestamp: new Date().toISOString(),
-        status: 'fatal',
-        reason: 'REDIS_URL required in production for rate limiting',
-      }));
-      throw new Error('REDIS_URL environment variable is required in production for rate limiting');
-    }
     console.log(JSON.stringify({
       type: 'rate_limit_init',
       timestamp: new Date().toISOString(),
       status: 'memory_fallback',
       reason: 'REDIS_URL not configured',
+      warning: isProduction ? 'In-memory rate limiting is per-instance only. For multi-instance deployments, configure REDIS_URL for shared rate limiting.' : undefined,
     }));
     return false;
   }
@@ -136,15 +128,11 @@ export async function initializeRateLimitRedis(): Promise<boolean> {
       timestamp: new Date().toISOString(),
       status: 'redis_failed',
       error: error.message,
-      fallback: isProduction ? 'none' : 'memory',
+      fallback: 'memory',
+      warning: isProduction ? 'Falling back to in-memory rate limiting. For multi-instance deployments, ensure REDIS_URL is configured correctly.' : undefined,
     }));
     redisClient = null;
     redisAvailable = false;
-    
-    // In production, fail fast if Redis connection fails
-    if (isProduction) {
-      throw new Error(`Redis connection failed in production: ${error.message}`);
-    }
     
     return false;
   }
