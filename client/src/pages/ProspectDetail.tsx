@@ -588,11 +588,12 @@ export default function ProspectDetail() {
 
       <main className="container mx-auto px-6 py-8">
         {/* Key Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
           <StageCard prospect={prospect} />
           <LoanAmountCard prospect={prospect} />
           <DateAddedCard prospect={prospect} />
           <PriorityCard prospect={prospect} />
+          <ReferralSourceCard prospect={prospect} />
         </div>
 
         {/* Company Overview */}
@@ -831,6 +832,89 @@ function PriorityCard({ prospect }: { prospect: ProspectWithCompany }) {
             </SelectItem>
           </SelectContent>
         </Select>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReferralSourceCard({ prospect }: { prospect: ProspectWithCompany }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [referralSource, setReferralSource] = useState(prospect.referralSource || "");
+
+  useEffect(() => {
+    setReferralSource(prospect.referralSource || "");
+  }, [prospect.referralSource]);
+
+  const updateReferralSourceMutation = useMutation({
+    mutationFn: (newReferralSource: string) =>
+      apiRequest(`/api/prospects/${prospect.id}`, "PATCH", { referralSource: newReferralSource }),
+    onSuccess: () => {
+      toast.success("Referral source updated");
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      setIsEditing(false);
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update referral source: ${error.message}`);
+    },
+  });
+
+  const handleSave = () => {
+    updateReferralSourceMutation.mutate(referralSource);
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-muted-foreground text-sm">Referral Source</Label>
+          <Network className="h-4 w-4 text-muted-foreground" />
+        </div>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={referralSource}
+              onChange={(e) => setReferralSource(e.target.value)}
+              placeholder="Enter referral source"
+              className="h-8 text-sm"
+              data-testid="input-referral-source"
+            />
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={handleSave}
+              disabled={updateReferralSourceMutation.isPending}
+              data-testid="button-save-referral-source"
+            >
+              <Save className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                setIsEditing(false);
+                setReferralSource(prospect.referralSource || "");
+              }}
+              data-testid="button-cancel-referral-source"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-base font-semibold" data-testid="text-referral-source">
+              {prospect.referralSource || "Not specified"}
+            </p>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setIsEditing(true)}
+              data-testid="button-edit-referral-source"
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
