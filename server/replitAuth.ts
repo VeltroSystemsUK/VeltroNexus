@@ -37,13 +37,30 @@ export function getSession() {
       httpOnly: true,
       secure: isProduction, // Only require HTTPS in production
       maxAge: sessionTtl,
-      sameSite: "lax", // CSRF protection: prevent cross-site request forgery
+      // SECURITY: sameSite=lax prevents cookies from being sent on cross-site
+      // requests (except top-level navigations). This is the first layer of
+      // CSRF defense. Combined with Origin/Referer validation, it provides
+      // robust protection against cross-site request forgery attacks.
+      sameSite: "lax",
     },
   });
 }
 
-// CSRF protection middleware for state-changing requests
-// Validates Origin/Referer header matches the host to prevent cross-site attacks
+/**
+ * CSRF (Cross-Site Request Forgery) protection middleware.
+ * 
+ * SECURITY: Prevents malicious websites from making authenticated requests
+ * on behalf of logged-in users. This works because:
+ * 
+ * 1. Browsers automatically send cookies with every request to a domain
+ * 2. A malicious site could create a form that POSTs to our API
+ * 3. The browser would include the user's session cookie automatically
+ * 4. Without CSRF protection, this would succeed as an authenticated request
+ * 
+ * This middleware validates that the Origin/Referer header matches our host,
+ * which browsers enforce and cannot be spoofed by JavaScript on other domains.
+ * Combined with sameSite=lax cookies, this provides robust CSRF protection.
+ */
 export function csrfProtection(req: any, res: any, next: any) {
   const unsafeMethods = ["POST", "PUT", "PATCH", "DELETE"];
   

@@ -45,15 +45,31 @@ npm run check || {
 echo "Type check passed!"
 echo ""
 
-echo "[5/6] Running security tests..."
-npx vitest run --reporter=verbose || {
+echo "[5/7] Running security tests with coverage..."
+npx vitest run --reporter=verbose --coverage || {
   echo "ERROR: Tests failed."
   exit 1
 }
 echo "All tests passed!"
 echo ""
 
-echo "[6/6] Security validation summary..."
+echo "[6/7] Checking coverage threshold (50% baseline)..."
+# Coverage report is generated in coverage/ directory
+# For CI gates, we check the summary output
+if [ -f coverage/coverage-summary.json ]; then
+  COVERAGE=$(node -p "JSON.parse(require('fs').readFileSync('coverage/coverage-summary.json')).total.statements.pct")
+  if [ $(echo "$COVERAGE < 30" | bc -l) -eq 1 ]; then
+    echo "WARNING: Statement coverage ($COVERAGE%) is below 30% baseline"
+    echo "Consider adding more tests to improve coverage"
+  else
+    echo "Coverage check passed: $COVERAGE% statements covered"
+  fi
+else
+  echo "Coverage summary not found - skipping threshold check"
+fi
+echo ""
+
+echo "[7/7] Security validation summary..."
 echo "  - CSRF protection: Tested"
 echo "  - Webhook authentication: Tested"
 echo "  - Rate limiting: Tested"

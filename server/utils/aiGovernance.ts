@@ -1,3 +1,18 @@
+/**
+ * AI Governance Framework
+ * 
+ * SECURITY: This module implements data governance for AI processing operations.
+ * 
+ * KEY CONTROLS:
+ * 1. Two-tier consent model: User-level consent in Settings + per-request consent
+ * 2. PII redaction: Sensitive data (IBANs, NI numbers, etc.) is redacted before AI processing
+ * 3. Audit logging: All AI operations are logged with structured JSON for compliance
+ * 4. Data minimization: Only necessary data is sent; excess columns are stripped
+ * 5. Size limits: Prevents resource exhaustion via configurable size thresholds
+ * 
+ * COMPLIANCE: These controls support GDPR Art. 25 (data protection by design)
+ * and demonstrate due diligence in protecting personal financial data.
+ */
 import { storage } from "../storage";
 
 // ============================================================================

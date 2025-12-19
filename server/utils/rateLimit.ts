@@ -1,7 +1,21 @@
+/**
+ * Rate Limiting Middleware
+ * 
+ * SECURITY: Rate limiting prevents abuse and denial-of-service attacks by limiting
+ * how many requests a client can make within a time window.
+ * 
+ * ARCHITECTURE: Uses Redis as the primary store for distributed rate limiting
+ * across multiple instances. Falls back to in-memory storage in development.
+ * 
+ * PRODUCTION REQUIREMENT: Redis is REQUIRED in production to ensure rate limits
+ * work correctly across multiple application instances. Without Redis, each
+ * instance would track limits independently, effectively multiplying the limit.
+ */
 import Redis from "ioredis";
 import { Request, Response, NextFunction } from "express";
 
 // Rate limit configuration constants with environment overrides
+// SECURITY: These limits are intentionally conservative to prevent abuse
 export const RATE_LIMIT_CONFIG = {
   // Webhooks: requests per minute per API key
   WEBHOOK_LIMIT: parseInt(process.env.RATE_LIMIT_WEBHOOK || "60"),
@@ -280,7 +294,8 @@ export function rateLimitMiddleware() {
         
         if (rule.keyType === 'apiKey') {
           const apiKey = req.headers['x-flowloan-api-key'];
-          // Use hash of API key for the rate limit key (don't store raw key)
+          // SECURITY: Hash the API key before using as rate limit key
+          // This prevents the raw API key from appearing in Redis keys or logs
           const keyHash = apiKey ? 
             require('crypto').createHash('sha256').update(apiKey).digest('hex').substring(0, 16) : 
             'none';
