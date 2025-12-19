@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import busboy from "busboy";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
@@ -95,88 +96,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload branding logo
-  app.post('/api/user/branding/logo', isAuthenticated, async (req: any, res) => {
+  // Upload branding logo - uses busboy streaming multipart parser
+  // Note: Object storage SDK only supports uploadFromBytes (Buffer), so we must buffer the file.
+  // However, busboy provides early limit enforcement and avoids the previous binary string conversion.
+  const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB limit
+  
+  app.post('/api/user/branding/logo', isAuthenticated, (req: any, res) => {
+    const userId = req.user.claims.sub;
+    
+    const contentType = req.headers['content-type'];
+    if (!contentType?.startsWith('multipart/form-data')) {
+      return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+    }
+    
+    let uploadPromise: Promise<string> | null = null;
+    let validationError: string | null = null;
+    
     try {
-      const userId = req.user.claims.sub;
-      
-      const chunks: Buffer[] = [];
-      
-      req.on('data', (chunk: Buffer) => {
-        chunks.push(chunk);
+      const bb = busboy({ 
+        headers: req.headers,
+        limits: { fileSize: MAX_LOGO_SIZE, files: 1 }
       });
-
-      req.on('end', async () => {
+      
+      bb.on('file', (fieldname, fileStream, info) => {
+        const { filename, mimeType } = info;
+        
+        // Early MIME type validation - drain stream immediately if invalid
+        if (!mimeType.startsWith('image/')) {
+          validationError = "Only image files are allowed for logos";
+          fileStream.resume();
+          return;
+        }
+        
+        const chunks: Buffer[] = [];
+        let fileTruncated = false;
+        
+        fileStream.on('data', (chunk: Buffer) => {
+          if (!fileTruncated) {
+            chunks.push(chunk);
+          }
+        });
+        
+        // Busboy enforces limit and emits this event when exceeded
+        fileStream.on('limit', () => {
+          fileTruncated = true;
+          validationError = "Logo file must be under 2MB";
+          chunks.length = 0; // Clear buffered data early
+        });
+        
+        fileStream.on('close', () => {
+          if (fileTruncated || validationError) return;
+          
+          uploadPromise = (async () => {
+            const fileContent = Buffer.concat(chunks);
+            const timestamp = Date.now();
+            const extension = filename.split('.').pop() || 'png';
+            const logoFileName = `${userId}_logo_${timestamp}.${extension}`;
+            const storagePath = `public/branding/${logoFileName}`;
+            
+            await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+            
+            const logoUrl = `/public-objects/branding/${logoFileName}`;
+            await storage.updateUser(userId, { brandingLogoUrl: logoUrl });
+            return logoUrl;
+          })();
+        });
+      });
+      
+      bb.on('close', async () => {
         try {
-          const body = Buffer.concat(chunks);
-          const contentType = req.headers['content-type'];
-          
-          if (!contentType?.startsWith('multipart/form-data')) {
-            return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+          if (validationError) {
+            return res.status(400).json({ error: validationError });
           }
           
-          const boundaryMatch = contentType.match(/boundary=(.+)/);
-          if (!boundaryMatch) {
-            return res.status(400).json({ error: "Missing boundary in multipart data" });
-          }
-          
-          const boundary = boundaryMatch[1];
-          const parts = body.toString('binary').split(`--${boundary}`);
-          
-          let logoUrl: string | null = null;
-          
-          for (const part of parts) {
-            if (part.includes('filename=')) {
-              const filenameMatch = part.match(/filename="([^"]+)"/);
-              const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/);
-              
-              if (filenameMatch) {
-                const fileName = filenameMatch[1];
-                const fileType = contentTypeMatch ? contentTypeMatch[1].trim() : 'image/png';
-                
-                // Validate it's an image
-                if (!fileType.startsWith('image/')) {
-                  return res.status(400).json({ error: "Only image files are allowed for logos" });
-                }
-                
-                const contentStart = part.indexOf('\r\n\r\n') + 4;
-                const contentEnd = part.lastIndexOf('\r\n');
-                const fileContent = Buffer.from(part.slice(contentStart, contentEnd), 'binary');
-                
-                // Max file size 2MB
-                if (fileContent.length > 2 * 1024 * 1024) {
-                  return res.status(400).json({ error: "Logo file must be under 2MB" });
-                }
-                
-                const timestamp = Date.now();
-                const extension = fileName.split('.').pop() || 'png';
-                const logoFileName = `${userId}_logo_${timestamp}.${extension}`;
-                const storagePath = `public/branding/${logoFileName}`;
-                
-                await getObjectStorage().uploadFromBytes(storagePath, fileContent);
-                
-                // Construct the public URL using the /public-objects endpoint
-                logoUrl = `/public-objects/branding/${logoFileName}`;
-                
-                // Update user with new logo URL
-                await storage.updateUser(userId, { brandingLogoUrl: logoUrl });
-              }
-            }
-          }
-          
-          if (!logoUrl) {
+          if (!uploadPromise) {
             return res.status(400).json({ error: "No logo file uploaded" });
           }
           
+          const logoUrl = await uploadPromise;
           res.json({ logoUrl, message: "Logo uploaded successfully" });
-        } catch (parseError: any) {
-          console.error("Error parsing logo upload:", parseError);
-          res.status(500).json({ error: parseError.message });
+        } catch (error: any) {
+          console.error("Error completing logo upload:", error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: error.message });
+          }
         }
       });
+      
+      bb.on('error', (error: any) => {
+        console.error("Busboy error:", error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: error.message });
+        }
+      });
+      
+      req.pipe(bb);
     } catch (error: any) {
       console.error("Error uploading logo:", error);
-      res.status(500).json({ error: error.message });
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message });
+      }
     }
   });
 
