@@ -34,14 +34,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // CSRF protection for all state-changing requests
   app.use(csrfProtection);
 
-  // Get object storage client lazily to avoid initialization errors
+  // Get object storage client - memoized to avoid repeated initialization and logging
+  let objectStorageClient: ObjectStorageClient | null = null;
   const getObjectStorage = () => {
+    if (objectStorageClient) {
+      return objectStorageClient;
+    }
     const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-    console.log("Object storage bucket ID:", bucketId);
     if (!bucketId) {
       throw new Error("Object storage bucket not configured");
     }
-    return new ObjectStorageClient({ bucketId });
+    console.info("Object storage initialized with bucket:", bucketId);
+    objectStorageClient = new ObjectStorageClient({ bucketId });
+    return objectStorageClient;
   };
 
   // Auth routes - Required for Replit Auth
@@ -73,6 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     brandingPrimaryColor: z.string().optional().nullable(),
     brandingAccentColor: z.string().optional().nullable(),
     brandingLogoUrl: z.string().optional().nullable(),
+    aiDataConsent: z.number().int().min(0).max(1).optional(),
   });
 
   app.patch('/api/user/settings', isAuthenticated, async (req: any, res) => {
@@ -85,7 +91,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: humanError.message });
       }
 
-      const updatedUser = await storage.updateUser(userId, result.data);
+      const updateData: any = { ...result.data };
+      
+      // Track consent timestamp when AI consent is granted
+      if (result.data.aiDataConsent === 1) {
+        const currentUser = await storage.getUser(userId);
+        if (currentUser && (currentUser as any).aiDataConsent !== 1) {
+          updateData.aiDataConsentAt = new Date();
+          console.info(JSON.stringify({
+            type: "ai_consent_granted",
+            userId,
+            timestamp: new Date().toISOString(),
+          }));
+        }
+      }
+
+      const updatedUser = await storage.updateUser(userId, updateData);
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -251,11 +272,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const contentType = contentTypes[ext || ''] || 'application/octet-stream';
       
-      // Security headers
+      // Set response headers for serving public objects
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=3600');
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'");
+      // Allow cross-origin embedding of images (important for logo display)
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.send(Buffer.from(data));
     } catch (error: any) {
       console.error("Error serving public object:", error);
@@ -1682,7 +1704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Credit Underwriting Routes (Premium Only)
-  // Note: These endpoints process financial documents via AI - users consent by uploading data
+  // Note: These endpoints process financial documents via AI - requires user consent and audit logging
   const MAX_CSV_SIZE = 500 * 1024; // 500KB limit for CSV data
   
   app.post("/api/prospects/:prospectId/underwriting/analyze-csv", isAuthenticated, async (req: any, res) => {
@@ -1694,6 +1716,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user || user.subscriptionTier !== 'premium') {
         return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
+      }
+      
+      // Verify user-level AI data consent
+      if (!(user as any).aiDataConsent) {
+        return res.status(403).json({ 
+          error: "AI data processing consent required. Please enable AI features in Settings.",
+          requiresConsent: true 
+        });
       }
       
       // Verify prospect belongs to user
@@ -1708,7 +1738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
       }
       
-      // Require explicit consent for AI processing of financial data
+      // Require explicit per-request consent for AI processing of financial data
       if (!consentToAiProcessing) {
         return res.status(400).json({ error: "User consent required for AI processing of financial data" });
       }
@@ -1717,6 +1747,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (csvData.length > MAX_CSV_SIZE) {
         return res.status(413).json({ error: "CSV data exceeds 500KB limit. Please use a smaller file." });
       }
+      
+      // Audit log AI operation
+      console.info(JSON.stringify({
+        type: "ai_operation",
+        operation: "analyze_csv",
+        userId,
+        prospectId,
+        dataSizeBytes: Buffer.byteLength(csvData, 'utf8'),
+        timestamp: new Date().toISOString(),
+      }));
       
       // Import and use gemini client
       const { analyzeFinancials } = await import("./utils/geminiClient");
@@ -1756,6 +1796,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
       }
       
+      // Verify user-level AI data consent
+      if (!(user as any).aiDataConsent) {
+        return res.status(403).json({ 
+          error: "AI data processing consent required. Please enable AI features in Settings.",
+          requiresConsent: true 
+        });
+      }
+      
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
@@ -1772,21 +1820,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Maximum 6 bank statement PDFs allowed" });
       }
       
-      // Require explicit consent for AI processing of financial data
+      // Require explicit per-request consent for AI processing of financial data
       if (!consentToAiProcessing) {
         return res.status(400).json({ error: "User consent required for AI processing of financial data" });
       }
       
       // Enforce size limit per PDF text
+      let totalDataSize = 0;
       for (const pdfText of pdfTexts) {
         if (pdfText.text && pdfText.text.length > MAX_PDF_TEXT_SIZE) {
           return res.status(413).json({ error: `PDF "${pdfText.fileName}" exceeds 200KB text limit.` });
         }
+        totalDataSize += Buffer.byteLength(pdfText.text || '', 'utf8');
       }
       
       if (!loanAmount || !monthlyRepayment) {
         return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
       }
+      
+      // Audit log AI operation
+      console.info(JSON.stringify({
+        type: "ai_operation",
+        operation: "analyze_bank_pdfs",
+        userId,
+        prospectId,
+        dataSizeBytes: totalDataSize,
+        fileCount: pdfTexts.length,
+        timestamp: new Date().toISOString(),
+      }));
       
       // Import and use gemini client
       const { analyzeFinancialsFromPdf } = await import("./utils/geminiClient");
@@ -1829,6 +1890,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
       }
       
+      // Verify user-level AI data consent
+      if (!(user as any).aiDataConsent) {
+        return res.status(403).json({ 
+          error: "AI data processing consent required. Please enable AI features in Settings.",
+          requiresConsent: true 
+        });
+      }
+      
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
@@ -1841,21 +1910,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "At least one PDF text with year is required" });
       }
       
-      // Require explicit consent for AI processing of financial data
+      // Require explicit per-request consent for AI processing of financial data
       if (!consentToAiProcessing) {
         return res.status(400).json({ error: "User consent required for AI processing of financial data" });
       }
       
       // Enforce size limit per PDF text (same as bank statements)
+      let totalDataSize = 0;
       for (const pdfText of pdfTexts) {
         if (pdfText.text && pdfText.text.length > MAX_PDF_TEXT_SIZE) {
           return res.status(413).json({ error: `Accounts PDF exceeds 200KB text limit.` });
         }
+        totalDataSize += Buffer.byteLength(pdfText.text || '', 'utf8');
       }
       
       if (!loanAmount || !monthlyRepayment) {
         return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
       }
+      
+      // Audit log AI operation
+      console.info(JSON.stringify({
+        type: "ai_operation",
+        operation: "analyze_accounts",
+        userId,
+        prospectId,
+        dataSizeBytes: totalDataSize,
+        fileCount: pdfTexts.length,
+        timestamp: new Date().toISOString(),
+      }));
       
       // Import and use gemini client
       const { analyzeAuditedAccounts } = await import("./utils/geminiClient");
@@ -1931,6 +2013,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
       }
       
+      // Verify user-level AI data consent
+      if (!(user as any).aiDataConsent) {
+        return res.status(403).json({ 
+          error: "AI data processing consent required. Please enable AI features in Settings.",
+          requiresConsent: true 
+        });
+      }
+      
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
@@ -1945,12 +2035,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         financialSummary,
         companiesHouseData,
         bankAnalysisSummary,
-        eligibilityNotes
+        eligibilityNotes,
+        consentToAiProcessing
       } = req.body;
       
       if (!companyName || !loanAmount) {
         return res.status(400).json({ error: "Missing required fields: companyName, loanAmount" });
       }
+      
+      // Require explicit per-request consent
+      if (!consentToAiProcessing) {
+        return res.status(400).json({ error: "User consent required for AI processing" });
+      }
+      
+      // Audit log AI operation
+      console.info(JSON.stringify({
+        type: "ai_operation",
+        operation: "swot_analysis",
+        userId,
+        prospectId,
+        timestamp: new Date().toISOString(),
+      }));
       
       // Import and use gemini client
       const { generateSwotAnalysis } = await import("./utils/geminiClient");
@@ -1997,6 +2102,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
       }
       
+      // Verify user-level AI data consent
+      if (!(user as any).aiDataConsent) {
+        return res.status(403).json({ 
+          error: "AI data processing consent required. Please enable AI features in Settings.",
+          requiresConsent: true 
+        });
+      }
+      
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
@@ -2012,11 +2125,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         financialSummary,
         companiesHouseData,
         bankAnalysisSummary,
-        accountsAnalysisSummary
+        accountsAnalysisSummary,
+        consentToAiProcessing
       } = req.body;
       
       if (!sectionKey || !companyName || !loanAmount) {
         return res.status(400).json({ error: "Missing required fields: sectionKey, companyName, loanAmount" });
+      }
+      
+      // Require explicit per-request consent
+      if (!consentToAiProcessing) {
+        return res.status(400).json({ error: "User consent required for AI processing" });
       }
       
       // Fetch uploaded documents for the prospect
@@ -2071,7 +2190,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`CAMPARI section ${sectionKey}: Found ${documentSummaries.length} parseable documents for prospect ${prospectId}`);
+      // Audit log AI operation
+      console.info(JSON.stringify({
+        type: "ai_operation",
+        operation: "campari_section",
+        sectionKey,
+        userId,
+        prospectId,
+        documentCount: documentSummaries.length,
+        timestamp: new Date().toISOString(),
+      }));
       
       // Import and use gemini client
       const { generateCampariSection } = await import("./utils/geminiClient");
@@ -4080,16 +4208,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // File upload endpoint for underwriting attachments - requires submissionId and role authorization
+  // File upload endpoint for underwriting attachments - uses busboy streaming parser
+  const MAX_UNDERWRITING_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
+  const MAX_UNDERWRITING_FILES = 10; // Maximum 10 files per request
+  
   app.post("/api/underwriting/upload/:submissionId", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const submissionId = parseInt(req.params.submissionId);
+    
+    if (isNaN(submissionId)) {
+      return res.status(400).json({ error: "Invalid submission ID" });
+    }
+    
     try {
-      const userId = req.user.claims.sub;
-      const submissionId = parseInt(req.params.submissionId);
-      
-      if (isNaN(submissionId)) {
-        return res.status(400).json({ error: "Invalid submission ID" });
-      }
-      
       // Verify user role (must be broker or underwriter)
       const user = await storage.getUser(userId);
       if (!user || !['broker', 'underwriter', 'sales_admin', 'super_admin'].includes(user.role)) {
@@ -4111,100 +4242,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied. You don't have permission for this submission." });
       }
       
-      // Enforce file size limit (5MB per file, 20MB total per request)
-      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-      const MAX_TOTAL_SIZE = 20 * 1024 * 1024; // 20MB
-      let totalSize = 0;
-      let sizeLimitExceeded = false;
+      const contentType = req.headers['content-type'];
+      if (!contentType?.startsWith('multipart/form-data')) {
+        return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+      }
       
-      const chunks: Buffer[] = [];
+      const uploadedFiles: UnderwritingAttachment[] = [];
+      const uploadPromises: Promise<UnderwritingAttachment>[] = [];
+      let validationError: string | null = null;
       
-      // Collect data from request
-      req.on('data', (chunk: Buffer) => {
-        if (sizeLimitExceeded) return;
+      const bb = busboy({
+        headers: req.headers,
+        limits: { fileSize: MAX_UNDERWRITING_FILE_SIZE, files: MAX_UNDERWRITING_FILES }
+      });
+      
+      bb.on('file', (fieldname, fileStream, info) => {
+        const { filename, mimeType } = info;
         
-        totalSize += chunk.length;
-        if (totalSize > MAX_TOTAL_SIZE) {
-          sizeLimitExceeded = true;
-          chunks.length = 0; // Clear buffered data
-          // Don't destroy - let the stream complete so we can respond
+        if (!filename) {
+          fileStream.resume();
           return;
         }
-        chunks.push(chunk);
+        
+        const chunks: Buffer[] = [];
+        let fileTruncated = false;
+        
+        fileStream.on('data', (chunk: Buffer) => {
+          if (!fileTruncated) {
+            chunks.push(chunk);
+          }
+        });
+        
+        fileStream.on('limit', () => {
+          fileTruncated = true;
+          validationError = `File "${filename}" exceeds 5MB limit`;
+          chunks.length = 0;
+        });
+        
+        fileStream.on('close', () => {
+          if (fileTruncated || validationError) return;
+          
+          const uploadPromise = (async (): Promise<UnderwritingAttachment> => {
+            const fileContent = Buffer.concat(chunks);
+            const timestamp = Date.now();
+            const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storagePath = `.private/underwriting/${submissionId}/${userId}/${timestamp}_${sanitizedFileName}`;
+            
+            await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+            
+            return {
+              fileName: filename,
+              fileType: mimeType || 'application/octet-stream',
+              fileSize: fileContent.length,
+              storagePath,
+              uploadedAt: new Date().toISOString(),
+            };
+          })();
+          
+          uploadPromises.push(uploadPromise);
+        });
       });
-
-      req.on('end', async () => {
+      
+      bb.on('close', async () => {
         try {
-          if (sizeLimitExceeded) {
-            return res.status(413).json({ error: "Upload too large. Maximum 20MB per request." });
+          if (validationError) {
+            return res.status(413).json({ error: validationError });
           }
           
-          const body = Buffer.concat(chunks);
-          const contentType = req.headers['content-type'];
-          
-          if (!contentType?.startsWith('multipart/form-data')) {
-            return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
-          }
-          
-          // Parse boundary from content-type
-          const boundaryMatch = contentType.match(/boundary=(.+)/);
-          if (!boundaryMatch) {
-            return res.status(400).json({ error: "Missing boundary in multipart data" });
-          }
-          
-          const boundary = boundaryMatch[1];
-          const parts = body.toString('binary').split(`--${boundary}`);
-          
-          const uploadedFiles: UnderwritingAttachment[] = [];
-          
-          for (const part of parts) {
-            if (part.includes('filename=')) {
-              const filenameMatch = part.match(/filename="([^"]+)"/);
-              const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/);
-              
-              if (filenameMatch) {
-                const fileName = filenameMatch[1];
-                const fileType = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
-                
-                // Extract file content (after double newline)
-                const contentStart = part.indexOf('\r\n\r\n') + 4;
-                const contentEnd = part.lastIndexOf('\r\n');
-                const fileContent = Buffer.from(part.slice(contentStart, contentEnd), 'binary');
-                
-                // Enforce per-file size limit
-                if (fileContent.length > MAX_FILE_SIZE) {
-                  return res.status(413).json({ error: `File "${fileName}" exceeds 5MB limit.` });
-                }
-                
-                // Generate unique storage path with submission context
-                const timestamp = Date.now();
-                const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-                const storagePath = `.private/underwriting/${submissionId}/${userId}/${timestamp}_${sanitizedFileName}`;
-                
-                // Upload to object storage
-                await getObjectStorage().uploadFromBytes(storagePath, fileContent);
-                
-                uploadedFiles.push({
-                  fileName,
-                  fileType,
-                  fileSize: fileContent.length,
-                  storagePath,
-                  uploadedAt: new Date().toISOString(),
-                });
-              }
-            }
-          }
-          
-          if (uploadedFiles.length === 0) {
+          if (uploadPromises.length === 0) {
             return res.status(400).json({ error: "No files uploaded" });
           }
           
-          res.json({ files: uploadedFiles });
-        } catch (parseError: any) {
-          console.error("Error parsing upload:", parseError);
-          res.status(500).json({ error: parseError.message });
+          const results = await Promise.all(uploadPromises);
+          res.json({ files: results });
+        } catch (error: any) {
+          console.error("Error completing underwriting upload:", error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: error.message });
+          }
         }
       });
+      
+      bb.on('error', (error: any) => {
+        console.error("Busboy error in underwriting upload:", error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: error.message });
+        }
+      });
+      
+      req.pipe(bb);
     } catch (error: any) {
       console.error("Error uploading file:", error);
       res.status(500).json({ error: error.message });
@@ -4421,103 +4547,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload document for a prospect
+  // Upload document for a prospect - uses busboy streaming parser
+  const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024; // 10MB per document
+  
   app.post("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const prospectId = parseInt(req.params.prospectId);
+    
     try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
       
-      const chunks: Buffer[] = [];
+      const contentType = req.headers['content-type'];
+      if (!contentType?.startsWith('multipart/form-data')) {
+        return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+      }
       
-      req.on('data', (chunk: Buffer) => {
-        chunks.push(chunk);
+      let category = 'general';
+      let notes = '';
+      let uploadPromise: Promise<any> | null = null;
+      let validationError: string | null = null;
+      
+      const bb = busboy({
+        headers: req.headers,
+        limits: { fileSize: MAX_DOCUMENT_FILE_SIZE, files: 1 }
       });
-
-      req.on('end', async () => {
+      
+      bb.on('field', (fieldname, value) => {
+        if (fieldname === 'category') {
+          category = value.trim() || 'general';
+        } else if (fieldname === 'notes') {
+          notes = value.trim();
+        }
+      });
+      
+      bb.on('file', (fieldname, fileStream, info) => {
+        const { filename, mimeType } = info;
+        
+        if (!filename) {
+          fileStream.resume();
+          return;
+        }
+        
+        const chunks: Buffer[] = [];
+        let fileTruncated = false;
+        
+        fileStream.on('data', (chunk: Buffer) => {
+          if (!fileTruncated) {
+            chunks.push(chunk);
+          }
+        });
+        
+        fileStream.on('limit', () => {
+          fileTruncated = true;
+          validationError = `File "${filename}" exceeds 10MB limit`;
+          chunks.length = 0;
+        });
+        
+        fileStream.on('close', () => {
+          if (fileTruncated || validationError) return;
+          
+          uploadPromise = (async () => {
+            const fileContent = Buffer.concat(chunks);
+            const timestamp = Date.now();
+            const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storagePath = `.private/documents/${prospectId}/${timestamp}_${sanitizedFileName}`;
+            
+            await getObjectStorage().uploadFromBytes(storagePath, fileContent);
+            
+            const document = await storage.createProspectDocument({
+              prospectId,
+              userId,
+              fileName: filename,
+              fileType: mimeType || 'application/octet-stream',
+              fileSize: fileContent.length,
+              storagePath,
+              category,
+              notes: notes || null,
+            });
+            
+            return document;
+          })();
+        });
+      });
+      
+      bb.on('close', async () => {
         try {
-          const body = Buffer.concat(chunks);
-          const contentType = req.headers['content-type'];
-          
-          if (!contentType?.startsWith('multipart/form-data')) {
-            return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
+          if (validationError) {
+            return res.status(413).json({ error: validationError });
           }
           
-          const boundaryMatch = contentType.match(/boundary=(.+)/);
-          if (!boundaryMatch) {
-            return res.status(400).json({ error: "Missing boundary in multipart data" });
-          }
-          
-          const boundary = boundaryMatch[1];
-          const parts = body.toString('binary').split(`--${boundary}`);
-          
-          let category = 'general';
-          let notes = '';
-          let uploadedDocument = null;
-          
-          for (const part of parts) {
-            // Parse category field
-            if (part.includes('name="category"') && !part.includes('filename=')) {
-              const contentStart = part.indexOf('\r\n\r\n') + 4;
-              const contentEnd = part.lastIndexOf('\r\n');
-              category = part.slice(contentStart, contentEnd).trim() || 'general';
-            }
-            
-            // Parse notes field
-            if (part.includes('name="notes"') && !part.includes('filename=')) {
-              const contentStart = part.indexOf('\r\n\r\n') + 4;
-              const contentEnd = part.lastIndexOf('\r\n');
-              notes = part.slice(contentStart, contentEnd).trim();
-            }
-            
-            // Parse file
-            if (part.includes('filename=')) {
-              const filenameMatch = part.match(/filename="([^"]+)"/);
-              const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/);
-              
-              if (filenameMatch) {
-                const fileName = filenameMatch[1];
-                const fileType = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
-                
-                const contentStart = part.indexOf('\r\n\r\n') + 4;
-                const contentEnd = part.lastIndexOf('\r\n');
-                const fileContent = Buffer.from(part.slice(contentStart, contentEnd), 'binary');
-                
-                const timestamp = Date.now();
-                const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-                const storagePath = `.private/documents/${prospectId}/${timestamp}_${sanitizedFileName}`;
-                
-                await getObjectStorage().uploadFromBytes(storagePath, fileContent);
-                
-                uploadedDocument = await storage.createProspectDocument({
-                  prospectId,
-                  userId,
-                  fileName,
-                  fileType,
-                  fileSize: fileContent.length,
-                  storagePath,
-                  category,
-                  notes: notes || null,
-                });
-              }
-            }
-          }
-          
-          if (!uploadedDocument) {
+          if (!uploadPromise) {
             return res.status(400).json({ error: "No file uploaded" });
           }
           
-          res.status(201).json(uploadedDocument);
-        } catch (parseError: any) {
-          console.error("Error parsing document upload:", parseError);
-          res.status(500).json({ error: parseError.message });
+          const document = await uploadPromise;
+          res.status(201).json(document);
+        } catch (error: any) {
+          console.error("Error completing document upload:", error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: error.message });
+          }
         }
       });
+      
+      bb.on('error', (error: any) => {
+        console.error("Busboy error in document upload:", error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: error.message });
+        }
+      });
+      
+      req.pipe(bb);
     } catch (error: any) {
       console.error("Error uploading document:", error);
       res.status(500).json({ error: error.message });

@@ -9,7 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet, ArrowLeft, Key, Copy, RefreshCw, Link2 } from "lucide-react";
+import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet, ArrowLeft, Key, Copy, RefreshCw, Link2, Shield, Brain } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -92,6 +93,7 @@ export default function Settings() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
+  const [aiDataConsent, setAiDataConsent] = useState<boolean>(false);
 
   const { data: user, isLoading: userLoading } = useQuery<any>({
     queryKey: ["/api/auth/user"],
@@ -159,6 +161,7 @@ export default function Settings() {
       setBrandingPrimaryColor(user.brandingPrimaryColor || "");
       setBrandingAccentColor(user.brandingAccentColor || "");
       setLogoPreview(user.brandingLogoUrl || null);
+      setAiDataConsent(user.aiDataConsent === 1);
     }
   }, [user]);
 
@@ -1190,6 +1193,61 @@ export default function Settings() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-ai-privacy">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" />
+            AI Data Processing
+          </CardTitle>
+          <CardDescription>Manage how your financial data is processed by AI features</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label className="text-base">Enable AI-Powered Analysis</Label>
+              <p className="text-sm text-muted-foreground">
+                Allow FlowLoan to use AI to analyze financial documents (bank statements, accounts) 
+                for credit underwriting, SWOT analysis, and CAMPARI assessments. 
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                <Shield className="h-3 w-3 inline mr-1" />
+                Your data is processed securely and never stored by our AI provider.
+              </p>
+            </div>
+            <Switch
+              checked={aiDataConsent}
+              onCheckedChange={(checked) => {
+                setAiDataConsent(checked);
+                updateSettingsMutation.mutate({
+                  aiDataConsent: checked ? 1 : 0,
+                });
+              }}
+              data-testid="switch-ai-consent"
+            />
+          </div>
+          
+          {user?.aiDataConsentAt && aiDataConsent && (
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-green-600" />
+                <span className="text-sm">
+                  AI processing enabled since {new Date(user.aiDataConsentAt).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {!aiDataConsent && (
+            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                AI features are currently disabled. Enable this setting to use AI-powered 
+                financial analysis, SWOT generation, and CAMPARI report auto-completion.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

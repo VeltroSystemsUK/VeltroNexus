@@ -42,6 +42,8 @@ export const users = pgTable("users", {
   webhookApiKeySuffix: varchar("webhook_api_key_suffix", { length: 8 }),
   webhookApiKeyCreatedAt: timestamp("webhook_api_key_created_at"),
   webhookApiKeyLastUsedAt: timestamp("webhook_api_key_last_used_at"),
+  aiDataConsent: integer("ai_data_consent").notNull().default(0),
+  aiDataConsentAt: timestamp("ai_data_consent_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

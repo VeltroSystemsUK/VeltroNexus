@@ -52,29 +52,25 @@ export function csrfProtection(req: any, res: any, next: any) {
     return next();
   }
   
-  // Get the origin or referer header
-  const origin = req.get("Origin") || req.get("Referer");
+  // Get the origin or referer header - require at least one for all unsafe methods
+  const origin = req.get("Origin");
+  const referer = req.get("Referer");
   
-  // If no origin/referer, reject the request (could be a direct attack)
-  // Exception: Allow requests without origin for same-origin form submissions in older browsers
-  if (!origin) {
-    // Check if it's a fetch/XHR request (these should always have Origin)
-    const isXhr = req.xhr || (req.get("Content-Type") || "").includes("application/json");
-    if (isXhr) {
-      return res.status(403).json({ error: "CSRF validation failed: missing origin" });
-    }
-    // Allow form submissions without origin header (old browser compatibility)
-    return next();
+  // Require Origin or Referer header for all unsafe methods (no exceptions)
+  if (!origin && !referer) {
+    console.warn(`CSRF blocked: missing Origin and Referer headers for ${req.method} ${req.path}`);
+    return res.status(403).json({ error: "CSRF validation failed: missing origin header" });
   }
   
-  // Parse the origin and validate it matches the host
+  // Parse the origin/referer and validate it matches the host
+  const sourceHeader = origin || referer;
   try {
-    const originUrl = new URL(origin);
+    const sourceUrl = new URL(sourceHeader);
     const host = req.get("Host");
     
-    // Check if origin matches the request host
-    if (originUrl.host !== host) {
-      console.warn(`CSRF blocked: origin ${originUrl.host} != host ${host}`);
+    // Check if origin/referer matches the request host
+    if (sourceUrl.host !== host) {
+      console.warn(`CSRF blocked: source ${sourceUrl.host} != host ${host}`);
       return res.status(403).json({ error: "CSRF validation failed: origin mismatch" });
     }
   } catch (e) {

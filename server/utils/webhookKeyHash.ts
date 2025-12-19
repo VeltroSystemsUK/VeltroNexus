@@ -2,13 +2,27 @@ import crypto from 'crypto';
 
 const WEBHOOK_KEY_LENGTH = 32;
 
+let cachedSecret: string | null = null;
+
 function getHashSecret(): string {
-  const secret = process.env.WEBHOOK_KEY_SECRET;
-  if (!secret || secret.length < 32) {
-    console.warn('WEBHOOK_KEY_SECRET not set or too short, using fallback. Set a 32+ character secret in production.');
-    return 'flowloan-webhook-key-secret-fallback-do-not-use-in-production';
+  if (cachedSecret) {
+    return cachedSecret;
   }
-  return secret;
+  
+  const secret = process.env.WEBHOOK_KEY_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (!secret || secret.length < 32) {
+    if (isProduction) {
+      throw new Error('WEBHOOK_KEY_SECRET must be set to a 32+ character secret in production');
+    }
+    console.warn('WEBHOOK_KEY_SECRET not set or too short. Using fallback for development only.');
+    cachedSecret = 'flowloan-webhook-key-secret-fallback-do-not-use-in-production';
+  } else {
+    cachedSecret = secret;
+  }
+  
+  return cachedSecret;
 }
 
 export function generateWebhookApiKey(): string {

@@ -75,7 +75,7 @@ npm audit --audit-level=high # Only report high+ severity
 - **Webhook API Key Security**: API keys are stored as HMAC-SHA256 hashes, not plaintext
 - **Request Size Limits**: Global 5MB limit with per-route enforcement for high-cost operations
 - **Public Object Access Control**: Only allowlisted prefixes (branding/) can be served publicly
-- **AI Data Consent**: Financial document analysis requires explicit user consent
+- **AI Governance Framework**: Two-tier consent model - user-level consent in Settings (aiDataConsent field) PLUS per-request consentToAiProcessing flag. All AI operations are audit logged with structured JSON (type, operation, userId, prospectId, dataSizeBytes, timestamp). Consent timestamp tracked in aiDataConsentAt field.
 - **Role-Based Authorization**: Underwriting uploads require submission ownership verification
 - **Rate Limiting**: Per-endpoint limits to prevent DoS and cost abuse:
   - Webhooks: 60 req/min per API key
