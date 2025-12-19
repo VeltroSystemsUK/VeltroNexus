@@ -65,7 +65,7 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[], us
     { width: 15 }, // Amount
     { width: 20 }, // Adviser
     { width: 20 }, // Referral
-    { width: 20 }, // Sector
+    { width: 45 }, // Sector (wider for SIC Code + Business Activity)
     { width: 12 }, // Postcode
     { width: 40 }, // Comments
   ];
@@ -138,10 +138,10 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[], us
       // Referral Source - from prospect
       dataRow.getCell(6).value = prospect.referralSource || '';
       
-      // Sector - SIC Code and description from company
+      // Sector - SIC Code and Business Activity from company
       const sicCode = prospect.company.sicCode || '';
-      const sicDescription = (prospect.company as any).sicDescription || '';
-      dataRow.getCell(7).value = sicCode && sicDescription ? `${sicCode} - ${sicDescription}` : sicCode;
+      const sicDescription = prospect.company.sicDescription || '';
+      dataRow.getCell(7).value = sicCode && sicDescription ? `${sicCode} - ${sicDescription}` : (sicCode || sicDescription || '');
       
       // Postcode - from company registered address
       dataRow.getCell(8).value = prospect.company.registeredAddress || '';
