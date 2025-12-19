@@ -77,6 +77,17 @@ npm audit --audit-level=high # Only report high+ severity
 - **Public Object Access Control**: Only allowlisted prefixes (branding/) can be served publicly
 - **AI Data Consent**: Financial document analysis requires explicit user consent
 - **Role-Based Authorization**: Underwriting uploads require submission ownership verification
+- **Rate Limiting**: Per-endpoint limits to prevent DoS and cost abuse:
+  - Webhooks: 60 req/min per API key
+  - PDF parsing: 30 req/min per user
+  - AI endpoints: 20 req/min per user
+  - Auth endpoints: 10 req/min per IP
+
+### Observability
+- **Structured Logging**: All API requests logged as JSON with type, timestamp, method, path, status, duration
+- **Request IDs**: Unique UUID per request in X-Request-Id header for correlation
+- **Error Logging**: Errors logged with request context and stack traces (dev only)
+- **Rate Limit Logging**: Rate limit violations logged with key and path for monitoring
 
 ### Environment Variables (Security-Related)
 - `WEBHOOK_KEY_SECRET`: 32+ character secret for HMAC key hashing (required in production)
