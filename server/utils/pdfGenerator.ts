@@ -172,9 +172,15 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
         break;
       case 'dueDiligence':
         if (dueDiligence?.data) {
-          doc.addPage();
-          pageNumber++;
-          renderDueDiligence(doc, dueDiligence);
+          const dd = dueDiligence.data as any;
+          // Only add page if there's substantive due diligence content (not just creditUnderwriting which has its own sections)
+          const hasSubstantiveContent = dd.checklist || dd.loanCalculator || dd.dscrCalculator || 
+                                        dd.affordabilityEstimator || dd.financialRatios || dd.characterAssessment;
+          if (hasSubstantiveContent) {
+            doc.addPage();
+            pageNumber++;
+            renderDueDiligence(doc, dueDiligence);
+          }
         }
         break;
       case 'campari':
@@ -301,95 +307,115 @@ function renderMetricBox(doc: typeof PDFDocument.prototype, x: number, y: number
 function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany, dueDiligence?: DueDiligence, companiesHouseData?: CompaniesHouseData | null) {
   renderSectionHeader(doc, 'Executive Summary', '01');
   
-  let y = doc.y + 20;
+  let y = doc.y + 15;
   
-  // Key Findings Box
-  doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
+  // Business Overview Box - Key company and loan info at a glance
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 90).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
   doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
-  doc.text('KEY FINDINGS', MARGIN + 15, y + 15);
+  doc.text('BUSINESS OVERVIEW', MARGIN + 15, y + 12);
   
-  doc.fontSize(10).fillColor(COLORS.text).font('Helvetica');
-  let findingsY = y + 35;
+  const col1X = MARGIN + 15;
+  const col2X = MARGIN + CONTENT_WIDTH / 2;
+  let overviewY = y + 32;
   
-  // Company status
-  const status = prospect.company.companyStatus || 'Unknown';
-  doc.text(`• Company Status: ${status.charAt(0).toUpperCase() + status.slice(1)}`, MARGIN + 15, findingsY);
-  findingsY += 18;
+  // Left column
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+  doc.text('Company', col1X, overviewY);
+  doc.fontSize(10).fillColor(COLORS.text).font('Helvetica-Bold');
+  doc.text(prospect.company.companyName || 'N/A', col1X, overviewY + 11, { width: CONTENT_WIDTH / 2 - 30 });
   
-  // Active officers count
-  if (companiesHouseData?.officers?.items) {
-    const activeOfficers = companiesHouseData.officers.items.filter((o: any) => !o.resigned_on).length;
-    doc.text(`• Active Directors/Officers: ${activeOfficers}`, MARGIN + 15, findingsY);
-    findingsY += 18;
+  // Right column - Sector/SIC
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+  doc.text('Sector/Industry', col2X, overviewY);
+  const sector = prospect.company.sicDescription || prospect.company.sicCode || 'N/A';
+  doc.fontSize(10).fillColor(COLORS.text).font('Helvetica-Bold');
+  doc.text(sector, col2X, overviewY + 11, { width: CONTENT_WIDTH / 2 - 30 });
+  
+  overviewY += 28;
+  
+  // Pipeline Stage and Referral Source
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+  doc.text('Pipeline Stage', col1X, overviewY);
+  doc.fontSize(10).fillColor(getStageColor(prospect.stage)).font('Helvetica-Bold');
+  doc.text(capitalizeStage(prospect.stage), col1X, overviewY + 11);
+  
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+  doc.text('Referral Source', col2X, overviewY);
+  doc.fontSize(10).fillColor(COLORS.text).font('Helvetica-Bold');
+  doc.text(prospect.referralSource || 'Direct', col2X, overviewY + 11);
+  
+  y += 105;
+  
+  // Loan Purpose Box - use loanRequirementNotes or fall back to notes
+  const loanPurposeText = prospect.loanRequirementNotes || prospect.notes;
+  if (loanPurposeText) {
+    const purposeHeight = 70;
+    doc.rect(MARGIN, y, CONTENT_WIDTH, purposeHeight).fillAndStroke(COLORS.white, COLORS.border);
+    doc.rect(MARGIN, y, 4, purposeHeight).fill(COLORS.accent);
+    
+    doc.fontSize(10).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('LOAN PURPOSE & REQUIREMENTS', MARGIN + 15, y + 12);
+    
+    doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+    doc.text(truncateText(loanPurposeText, 350), MARGIN + 15, y + 30, { width: CONTENT_WIDTH - 30 });
+    
+    y += purposeHeight + 10;
   }
   
-  // Outstanding charges
-  if (companiesHouseData?.charges?.items) {
-    const outstanding = companiesHouseData.charges.items.filter((c: any) => c.status === 'outstanding').length;
-    doc.text(`• Outstanding Charges: ${outstanding}`, MARGIN + 15, findingsY);
-  }
+  // Key Metrics Row - Loan Amount, Term, Rate, Priority
+  const metricWidth = (CONTENT_WIDTH - 30) / 4;
   
-  y += 120;
+  renderSmallMetricBox(doc, MARGIN, y, metricWidth, 'Loan Amount', 
+    prospect.loanAmount ? formatCurrency(prospect.loanAmount) : 'TBD');
+  renderSmallMetricBox(doc, MARGIN + metricWidth + 10, y, metricWidth, 'Term', 
+    prospect.term ? `${prospect.term} months` : 'TBD');
+  renderSmallMetricBox(doc, MARGIN + (metricWidth + 10) * 2, y, metricWidth, 'Interest Rate', 
+    prospect.interestRate ? `${prospect.interestRate}%` : 'TBD');
+  renderSmallMetricBox(doc, MARGIN + (metricWidth + 10) * 3, y, metricWidth, 'Priority', 
+    prospect.priority ? capitalizeStage(prospect.priority) : 'Normal');
   
-  // Financial Overview in two columns
+  y += 65;
+  
+  // Security Position
+  const totalSecurity = calculateTotalSecurity(prospect);
   const colWidth = (CONTENT_WIDTH - 20) / 2;
   
-  // Left column - Loan Details
-  doc.rect(MARGIN, y, colWidth, 140).fillAndStroke(COLORS.white, COLORS.border);
+  doc.rect(MARGIN, y, colWidth, 100).fillAndStroke(COLORS.white, COLORS.border);
   doc.fontSize(10).fillColor(COLORS.primary).font('Helvetica-Bold');
-  doc.text('LOAN DETAILS', MARGIN + 15, y + 12);
+  doc.text('SECURITY POSITION', MARGIN + 15, y + 12);
   
-  doc.fontSize(10).fillColor(COLORS.text).font('Helvetica');
-  let leftY = y + 35;
-  
-  renderKeyValue(doc, MARGIN + 15, leftY, 'Requested Amount', prospect.loanAmount ? formatCurrency(prospect.loanAmount) : 'TBD', colWidth - 30);
-  leftY += 22;
-  renderKeyValue(doc, MARGIN + 15, leftY, 'Term', prospect.term ? `${prospect.term} months` : 'TBD', colWidth - 30);
-  leftY += 22;
-  renderKeyValue(doc, MARGIN + 15, leftY, 'Interest Rate', prospect.interestRate ? `${prospect.interestRate}%` : 'TBD', colWidth - 30);
-  leftY += 22;
-  renderKeyValue(doc, MARGIN + 15, leftY, 'Priority', prospect.priority ? capitalizeStage(prospect.priority) : 'Normal', colWidth - 30);
-  
-  // Right column - Security Position
-  doc.rect(MARGIN + colWidth + 20, y, colWidth, 140).fillAndStroke(COLORS.white, COLORS.border);
-  doc.fontSize(10).fillColor(COLORS.primary).font('Helvetica-Bold');
-  doc.text('SECURITY POSITION', MARGIN + colWidth + 35, y + 12);
-  
-  let rightY = y + 35;
-  const totalSecurity = calculateTotalSecurity(prospect);
-  
-  renderKeyValue(doc, MARGIN + colWidth + 35, rightY, 'Total Security', formatCurrency(totalSecurity), colWidth - 30);
-  rightY += 22;
+  let secY = y + 35;
+  renderKeyValue(doc, MARGIN + 15, secY, 'Total Security', formatCurrency(totalSecurity), colWidth - 30);
+  secY += 22;
   
   if (prospect.loanAmount && totalSecurity > 0) {
     const ltv = ((prospect.loanAmount / totalSecurity) * 100).toFixed(1);
-    renderKeyValue(doc, MARGIN + colWidth + 35, rightY, 'Loan-to-Value', `${ltv}%`, colWidth - 30);
-    rightY += 22;
+    renderKeyValue(doc, MARGIN + 15, secY, 'Loan-to-Value', `${ltv}%`, colWidth - 30);
+    secY += 22;
   }
   
   const securityTypes = getSecurityTypes(prospect);
-  renderKeyValue(doc, MARGIN + colWidth + 35, rightY, 'Security Types', securityTypes.length > 0 ? securityTypes.join(', ') : 'None', colWidth - 30);
+  renderKeyValue(doc, MARGIN + 15, secY, 'Security Types', securityTypes.length > 0 ? securityTypes.slice(0, 3).join(', ') : 'None', colWidth - 30);
   
-  y += 160;
+  // Assessment Status Box
+  doc.rect(MARGIN + colWidth + 20, y, colWidth, 100).fillAndStroke(COLORS.white, COLORS.border);
+  doc.fontSize(10).fillColor(COLORS.primary).font('Helvetica-Bold');
+  doc.text('ASSESSMENT STATUS', MARGIN + colWidth + 35, y + 12);
   
-  // Risk Assessment Box (if due diligence data exists)
+  let statusY = y + 35;
+  
   if (dueDiligence?.data) {
     const ddData = dueDiligence.data as any;
     
-    doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
-    doc.fontSize(10).fillColor(COLORS.primary).font('Helvetica-Bold');
-    doc.text('ASSESSMENT STATUS', MARGIN + 15, y + 12);
-    
-    doc.fontSize(10).fillColor(COLORS.text).font('Helvetica');
-    let statusY = y + 35;
-    
     // Checklist progress
     if (ddData.checklist) {
-      const totalItems = Object.values(ddData.checklist).flat().length;
-      const completedItems = Object.values(ddData.checklist).flat().filter((item: any) => item.checked).length;
+      const allItems = Object.values(ddData.checklist).flat();
+      const totalItems = allItems.length;
+      const completedItems = allItems.filter((item: any) => item?.checked).length;
       const percentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
       
-      renderProgressBar(doc, MARGIN + 15, statusY, 200, 'Due Diligence Progress', percentage);
+      renderProgressBar(doc, MARGIN + colWidth + 35, statusY, colWidth - 80, 'Progress', percentage);
+      statusY += 30;
     }
     
     // DSCR if available
@@ -398,10 +424,53 @@ function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: Pro
       const dscrStatus = dscr >= 1.25 ? 'PASS' : dscr >= 1.0 ? 'CAUTION' : 'FAIL';
       const dscrColor = dscr >= 1.25 ? COLORS.success : dscr >= 1.0 ? COLORS.warning : COLORS.danger;
       
-      doc.fontSize(10).font('Helvetica');
-      doc.text('DSCR: ', MARGIN + 240, statusY, { continued: true });
-      doc.fillColor(dscrColor).font('Helvetica-Bold');
-      doc.text(`${dscr.toFixed(2)} (${dscrStatus})`, { continued: false });
+      doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+      doc.text('DSCR:', MARGIN + colWidth + 35, statusY);
+      doc.fontSize(11).fillColor(dscrColor).font('Helvetica-Bold');
+      doc.text(`${dscr.toFixed(2)} (${dscrStatus})`, MARGIN + colWidth + 70, statusY);
+    }
+    
+    // Risk Grade if available
+    if (ddData.creditUnderwriting?.riskGrade || ddData.creditUnderwriting?.finalRiskGrade) {
+      const grade = ddData.creditUnderwriting.finalRiskGrade || ddData.creditUnderwriting.riskGrade;
+      const gradeColor = getRiskGradeColor(grade);
+      statusY += 18;
+      doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+      doc.text('Risk Grade:', MARGIN + colWidth + 35, statusY);
+      doc.fontSize(11).fillColor(gradeColor).font('Helvetica-Bold');
+      doc.text(grade, MARGIN + colWidth + 95, statusY);
+    }
+  } else {
+    doc.fontSize(9).fillColor(COLORS.textSecondary).font('Helvetica');
+    doc.text('Due diligence not yet started', MARGIN + colWidth + 35, statusY);
+  }
+  
+  y += 115;
+  
+  // Key Findings if space available
+  if (y < PAGE_HEIGHT - 120) {
+    const status = prospect.company.companyStatus || 'Unknown';
+    const activeOfficers = companiesHouseData?.officers?.items?.filter((o: any) => !o.resigned_on).length || 0;
+    const outstanding = companiesHouseData?.charges?.items?.filter((c: any) => c.status === 'outstanding').length || 0;
+    
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    doc.fontSize(10).fillColor(COLORS.primary).font('Helvetica-Bold');
+    doc.text('KEY FINDINGS', MARGIN + 15, y + 12);
+    
+    doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+    let findingsY = y + 32;
+    
+    doc.text(`• Company Status: ${status.charAt(0).toUpperCase() + status.slice(1)}`, MARGIN + 15, findingsY);
+    doc.text(`• Active Officers: ${activeOfficers}`, MARGIN + 200, findingsY);
+    doc.text(`• Outstanding Charges: ${outstanding}`, MARGIN + 350, findingsY);
+    
+    findingsY += 16;
+    if (prospect.company.incorporationDate) {
+      const incDate = new Date(prospect.company.incorporationDate);
+      doc.text(`• Incorporated: ${incDate.toLocaleDateString('en-GB')}`, MARGIN + 15, findingsY);
+    }
+    if (prospect.company.postcode) {
+      doc.text(`• Location: ${prospect.company.postcode}`, MARGIN + 200, findingsY);
     }
   }
 }
@@ -1657,237 +1726,10 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
       y += 155;
     }
     
-    // 7.6 Adviser Summary (CAMPARI Framework)
-    if (cu.adviserSummary) {
-      const adviser = cu.adviserSummary;
-      
-      doc.addPage();
-      pageNumber++;
-      renderSectionHeader(doc, 'Adviser Summary - CAMPARI Framework', '15');
-      y = doc.y + 10;
-      
-      // Header info
-      doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
-      
-      const col1X = MARGIN + 15;
-      const col2X = MARGIN + CONTENT_WIDTH / 2;
-      let advY = y + 15;
-      
-      if (adviser.businessName) {
-        renderDetailRow(doc, col1X, advY, 'Business Name', adviser.businessName);
-      }
-      if (adviser.soarRef) {
-        renderDetailRow(doc, col2X, advY, 'Reference', adviser.soarRef);
-      }
-      advY += 30;
-      
-      if (adviser.product) {
-        renderDetailRow(doc, col1X, advY, 'Product', adviser.product);
-      }
-      if (adviser.amount) {
-        renderDetailRow(doc, col2X, advY, 'Amount', formatCurrency(adviser.amount * 100));
-      }
-      
-      y += 95;
-      
-      // CAMPARI sections
-      if (adviser.sections && typeof adviser.sections === 'object') {
-        const campariOrder = ['character', 'ability', 'margin', 'purpose', 'amount', 'repayment', 'insurance'];
-        const campariLabels: Record<string, string> = {
-          character: 'CHARACTER - Management & Background',
-          ability: 'ABILITY - Capacity to Repay',
-          margin: 'MARGIN - Return & Pricing',
-          purpose: 'PURPOSE - Loan Purpose & Rationale',
-          amount: 'AMOUNT - Funding Requirement',
-          repayment: 'REPAYMENT - Source & Terms',
-          insurance: 'INSURANCE - Security & Risk Mitigation',
-        };
-        
-        campariOrder.forEach((key) => {
-          const content = adviser.sections[key];
-          if (!content) return;
-          
-          if (y > PAGE_HEIGHT - 120) {
-            doc.addPage();
-            pageNumber++;
-            y = MARGIN + 20;
-          }
-          
-          doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
-          doc.rect(MARGIN, y, 4, 80).fill(COLORS.secondary);
-          
-          doc.fontSize(10).fillColor(COLORS.secondary).font('Helvetica-Bold');
-          doc.text(campariLabels[key] || key.toUpperCase(), MARGIN + 15, y + 12);
-          
-          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
-          doc.text(truncateText(content, 400), MARGIN + 15, y + 30, { width: CONTENT_WIDTH - 30 });
-          
-          y += 90;
-        });
-      }
-      
-      // Questionnaire
-      if (adviser.questionnaire && typeof adviser.questionnaire === 'object') {
-        if (y > PAGE_HEIGHT - 150) {
-          doc.addPage();
-          pageNumber++;
-          y = MARGIN + 20;
-        }
-        
-        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
-        doc.text('Credit Committee Questionnaire', MARGIN, y);
-        y += 25;
-        
-        const questions = Object.entries(adviser.questionnaire);
-        questions.forEach(([question, answer]) => {
-          if (y > PAGE_HEIGHT - 40) {
-            doc.addPage();
-            pageNumber++;
-            y = MARGIN + 20;
-          }
-          
-          const ansColor = answer === 'Yes' ? COLORS.success : answer === 'No' ? COLORS.danger : COLORS.textSecondary;
-          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
-          doc.text(`• ${question}`, MARGIN + 10, y, { width: CONTENT_WIDTH - 80 });
-          doc.fontSize(9).fillColor(ansColor).font('Helvetica-Bold');
-          doc.text(String(answer || 'N/A'), PAGE_WIDTH - MARGIN - 50, y);
-          y += 20;
-        });
-      }
-      
-      // Recommendation
-      if (adviser.recommendation) {
-        if (y > PAGE_HEIGHT - 100) {
-          doc.addPage();
-          pageNumber++;
-          y = MARGIN + 20;
-        }
-        
-        const recommendationLabels: Record<string, string> = {
-          'approve': 'Recommend Approval',
-          'approve_conditions': 'Approve with Conditions',
-          'refer': 'Refer to Credit Committee',
-          'decline': 'Recommend Decline',
-          'more_info': 'More Information Required',
-        };
-        
-        const recommendationColors: Record<string, string> = {
-          'approve': COLORS.success,
-          'approve_conditions': COLORS.warning,
-          'refer': COLORS.accent,
-          'decline': COLORS.danger,
-          'more_info': COLORS.textSecondary,
-        };
-        
-        const recColor = recommendationColors[adviser.recommendation] || COLORS.primary;
-        const recLabel = recommendationLabels[adviser.recommendation] || adviser.recommendation;
-        
-        doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(recColor + '15', recColor);
-        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
-        doc.text('FINAL RECOMMENDATION', MARGIN + 15, y + 12);
-        doc.fontSize(16).fillColor(recColor).font('Helvetica-Bold');
-        doc.text(recLabel, MARGIN + 15, y + 35);
-        
-        y += 85;
-      }
-    }
+    // Note: CAMPARI (adviserSummary) and SWOT Analysis are rendered as separate standalone sections
+    // to avoid duplication and allow user control via PDF Layout settings
     
-    // 7.7 SWOT Analysis
-    if (cu.swotAnalysis) {
-      const swot = cu.swotAnalysis;
-      
-      doc.addPage();
-      pageNumber++;
-      renderSectionHeader(doc, 'SWOT Analysis', '16');
-      y = doc.y + 10;
-      
-      // Create 2x2 grid for SWOT
-      const boxWidth = (CONTENT_WIDTH - 15) / 2;
-      const boxHeight = 180;
-      
-      // Strengths (top-left)
-      doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.success + '10', COLORS.success);
-      doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.success);
-      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
-      doc.text('STRENGTHS', MARGIN + 10, y + 7);
-      
-      if (swot.strengths && Array.isArray(swot.strengths)) {
-        let sY = y + 35;
-        swot.strengths.slice(0, 5).forEach((item: string) => {
-          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
-          doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, sY, { width: boxWidth - 20 });
-          sY += 28;
-        });
-      }
-      
-      // Weaknesses (top-right)
-      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight).fillAndStroke(COLORS.warning + '10', COLORS.warning);
-      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.warning);
-      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
-      doc.text('WEAKNESSES', MARGIN + boxWidth + 25, y + 7);
-      
-      if (swot.weaknesses && Array.isArray(swot.weaknesses)) {
-        let wY = y + 35;
-        swot.weaknesses.slice(0, 5).forEach((item: string) => {
-          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
-          doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, wY, { width: boxWidth - 20 });
-          wY += 28;
-        });
-      }
-      
-      y += boxHeight + 15;
-      
-      // Opportunities (bottom-left)
-      doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.accent + '10', COLORS.accent);
-      doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.accent);
-      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
-      doc.text('OPPORTUNITIES', MARGIN + 10, y + 7);
-      
-      if (swot.opportunities && Array.isArray(swot.opportunities)) {
-        let oY = y + 35;
-        swot.opportunities.slice(0, 5).forEach((item: string) => {
-          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
-          doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, oY, { width: boxWidth - 20 });
-          oY += 28;
-        });
-      }
-      
-      // Threats (bottom-right)
-      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight).fillAndStroke(COLORS.danger + '10', COLORS.danger);
-      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.danger);
-      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
-      doc.text('THREATS', MARGIN + boxWidth + 25, y + 7);
-      
-      if (swot.threats && Array.isArray(swot.threats)) {
-        let tY = y + 35;
-        swot.threats.slice(0, 5).forEach((item: string) => {
-          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
-          doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, tY, { width: boxWidth - 20 });
-          tY += 28;
-        });
-      }
-      
-      y += boxHeight + 20;
-      
-      // SWOT Summary
-      if (swot.summary) {
-        if (y > PAGE_HEIGHT - 100) {
-          doc.addPage();
-          pageNumber++;
-          y = MARGIN + 20;
-        }
-        
-        doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
-        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
-        doc.text('SWOT SUMMARY', MARGIN + 15, y + 12);
-        doc.fontSize(10).fillColor(COLORS.text).font('Helvetica');
-        doc.text(truncateText(swot.summary, 400), MARGIN + 15, y + 32, { width: CONTENT_WIDTH - 30 });
-        
-        y += 95;
-      }
-    }
-    
-    // 7.8 Audited Accounts Analysis
+    // 7.6 Audited Accounts Analysis
     if (cu.auditedAccountsAnalysis) {
       const accounts = cu.auditedAccountsAnalysis;
       
