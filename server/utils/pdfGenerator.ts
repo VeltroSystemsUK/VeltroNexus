@@ -1724,9 +1724,140 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
           y += 20;
         });
       }
+      
+      // Recommendation
+      if (adviser.recommendation) {
+        if (y > PAGE_HEIGHT - 100) {
+          doc.addPage();
+          pageNumber++;
+          y = MARGIN + 20;
+        }
+        
+        const recommendationLabels: Record<string, string> = {
+          'approve': 'Recommend Approval',
+          'approve_conditions': 'Approve with Conditions',
+          'refer': 'Refer to Credit Committee',
+          'decline': 'Recommend Decline',
+          'more_info': 'More Information Required',
+        };
+        
+        const recommendationColors: Record<string, string> = {
+          'approve': COLORS.success,
+          'approve_conditions': COLORS.warning,
+          'refer': COLORS.accent,
+          'decline': COLORS.danger,
+          'more_info': COLORS.textSecondary,
+        };
+        
+        const recColor = recommendationColors[adviser.recommendation] || COLORS.primary;
+        const recLabel = recommendationLabels[adviser.recommendation] || adviser.recommendation;
+        
+        doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(recColor + '15', recColor);
+        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+        doc.text('FINAL RECOMMENDATION', MARGIN + 15, y + 12);
+        doc.fontSize(16).fillColor(recColor).font('Helvetica-Bold');
+        doc.text(recLabel, MARGIN + 15, y + 35);
+        
+        y += 85;
+      }
     }
     
-    // 7.7 Audited Accounts Analysis
+    // 7.7 SWOT Analysis
+    if (cu.swotAnalysis) {
+      const swot = cu.swotAnalysis;
+      
+      doc.addPage();
+      pageNumber++;
+      renderSectionHeader(doc, 'SWOT Analysis', '16');
+      y = doc.y + 10;
+      
+      // Create 2x2 grid for SWOT
+      const boxWidth = (CONTENT_WIDTH - 15) / 2;
+      const boxHeight = 180;
+      
+      // Strengths (top-left)
+      doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.success + '10', COLORS.success);
+      doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.success);
+      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+      doc.text('STRENGTHS', MARGIN + 10, y + 7);
+      
+      if (swot.strengths && Array.isArray(swot.strengths)) {
+        let sY = y + 35;
+        swot.strengths.slice(0, 5).forEach((item: string) => {
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, sY, { width: boxWidth - 20 });
+          sY += 28;
+        });
+      }
+      
+      // Weaknesses (top-right)
+      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight).fillAndStroke(COLORS.warning + '10', COLORS.warning);
+      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.warning);
+      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+      doc.text('WEAKNESSES', MARGIN + boxWidth + 25, y + 7);
+      
+      if (swot.weaknesses && Array.isArray(swot.weaknesses)) {
+        let wY = y + 35;
+        swot.weaknesses.slice(0, 5).forEach((item: string) => {
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, wY, { width: boxWidth - 20 });
+          wY += 28;
+        });
+      }
+      
+      y += boxHeight + 15;
+      
+      // Opportunities (bottom-left)
+      doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.accent + '10', COLORS.accent);
+      doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.accent);
+      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+      doc.text('OPPORTUNITIES', MARGIN + 10, y + 7);
+      
+      if (swot.opportunities && Array.isArray(swot.opportunities)) {
+        let oY = y + 35;
+        swot.opportunities.slice(0, 5).forEach((item: string) => {
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, oY, { width: boxWidth - 20 });
+          oY += 28;
+        });
+      }
+      
+      // Threats (bottom-right)
+      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight).fillAndStroke(COLORS.danger + '10', COLORS.danger);
+      doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.danger);
+      doc.fontSize(11).fillColor(COLORS.white).font('Helvetica-Bold');
+      doc.text('THREATS', MARGIN + boxWidth + 25, y + 7);
+      
+      if (swot.threats && Array.isArray(swot.threats)) {
+        let tY = y + 35;
+        swot.threats.slice(0, 5).forEach((item: string) => {
+          doc.fontSize(9).fillColor(COLORS.text).font('Helvetica');
+          doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, tY, { width: boxWidth - 20 });
+          tY += 28;
+        });
+      }
+      
+      y += boxHeight + 20;
+      
+      // SWOT Summary
+      if (swot.summary) {
+        if (y > PAGE_HEIGHT - 100) {
+          doc.addPage();
+          pageNumber++;
+          y = MARGIN + 20;
+        }
+        
+        doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
+        doc.fontSize(11).fillColor(COLORS.primary).font('Helvetica-Bold');
+        doc.text('SWOT SUMMARY', MARGIN + 15, y + 12);
+        doc.fontSize(10).fillColor(COLORS.text).font('Helvetica');
+        doc.text(truncateText(swot.summary, 400), MARGIN + 15, y + 32, { width: CONTENT_WIDTH - 30 });
+        
+        y += 95;
+      }
+    }
+    
+    // 7.8 Audited Accounts Analysis
     if (cu.auditedAccountsAnalysis) {
       const accounts = cu.auditedAccountsAnalysis;
       
