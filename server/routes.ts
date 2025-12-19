@@ -25,6 +25,7 @@ import { generatePipelineExcel } from "./utils/excelExporter";
 import { getUncachableResendClient } from "./utils/resendClient";
 import { getSicDescription } from "./utils/sicCodeLookup";
 import { createErrorResponse } from "./utils/errorResponse";
+import { rateLimitMiddleware } from "./utils/rateLimit";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 
@@ -34,6 +35,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // CSRF protection for all state-changing requests
   app.use(csrfProtection);
+  
+  // Rate limiting middleware (Redis-backed with memory fallback)
+  // Applied after auth so req.user is available for user-keyed limits
+  app.use(rateLimitMiddleware());
 
   // Get object storage client - memoized to avoid repeated initialization and logging
   let objectStorageClient: ObjectStorageClient | null = null;

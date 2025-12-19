@@ -77,11 +77,12 @@ npm audit --audit-level=high # Only report high+ severity
 - **Public Object Access Control**: Only allowlisted prefixes (branding/) can be served publicly
 - **AI Governance Framework**: Two-tier consent model - user-level consent in Settings (aiDataConsent field) PLUS per-request consentToAiProcessing flag. All AI operations are audit logged with structured JSON (type, operation, userId, prospectId, dataSizeBytes, timestamp). Consent timestamp tracked in aiDataConsentAt field.
 - **Role-Based Authorization**: Underwriting uploads require submission ownership verification
-- **Rate Limiting**: Per-endpoint limits to prevent DoS and cost abuse:
-  - Webhooks: 60 req/min per API key
+- **Rate Limiting (Redis-backed)**: Production-grade rate limiting with Redis shared store (falls back to in-memory for development). See Rate Limiting Configuration section below.
+  - Webhooks: 60 req/min per API key hash
   - PDF parsing: 30 req/min per user
   - AI endpoints: 20 req/min per user
   - Auth endpoints: 10 req/min per IP
+  - Upload endpoints: 30 req/min per user
 
 ### Observability
 - **Structured Logging**: All API requests logged as JSON with type, timestamp, method, path, status, duration
@@ -90,7 +91,46 @@ npm audit --audit-level=high # Only report high+ severity
 - **Rate Limit Logging**: Rate limit violations logged with key and path for monitoring
 - **PII Protection**: Email addresses, phone numbers, and other personal data are not logged. Email operations log only structured metadata (type, IDs) without exposing addresses. AgentMail inbox operations log only inbox IDs.
 
+### Rate Limiting Configuration
+
+The rate limiting system uses Redis as a shared store for multi-instance deployments, with automatic fallback to in-memory storage for development.
+
+**Required Environment Variables:**
+- `REDIS_URL`: Redis connection string (e.g., `redis://user:password@host:port/db`). When not set, falls back to in-memory rate limiting.
+
+**Optional Environment Overrides (defaults in parentheses):**
+- `RATE_LIMIT_WEBHOOK`: Webhook requests per minute per API key (60)
+- `RATE_LIMIT_WEBHOOK_WINDOW_MS`: Webhook rate limit window in ms (60000)
+- `RATE_LIMIT_PDF_PARSE`: PDF parsing requests per minute per user (30)
+- `RATE_LIMIT_PDF_PARSE_WINDOW_MS`: PDF parsing window in ms (60000)
+- `RATE_LIMIT_AI`: AI endpoint requests per minute per user (20)
+- `RATE_LIMIT_AI_WINDOW_MS`: AI rate limit window in ms (60000)
+- `RATE_LIMIT_AUTH`: Auth endpoint requests per minute per IP (10)
+- `RATE_LIMIT_AUTH_WINDOW_MS`: Auth rate limit window in ms (60000)
+- `RATE_LIMIT_UPLOAD`: Upload requests per minute per user (30)
+- `RATE_LIMIT_UPLOAD_WINDOW_MS`: Upload rate limit window in ms (60000)
+
+**Keying Strategy:**
+- Authenticated routes: `user:{userId}:{path_prefix}`
+- Webhook routes: `apikey:{sha256_hash_prefix}:{path_prefix}`
+- Unauthenticated routes: `ip:{ip_address}:{path_prefix}`
+
+**Response Headers:**
+All rate-limited requests include:
+- `X-RateLimit-Limit`: Maximum requests allowed in window
+- `X-RateLimit-Remaining`: Requests remaining in current window
+- `X-RateLimit-Reset`: Unix timestamp when the window resets
+
+**Rate Limit Exceeded Response (HTTP 429):**
+```json
+{
+  "error": "Too many requests",
+  "retryAfter": 45
+}
+```
+
 ### Environment Variables (Security-Related)
 - `WEBHOOK_KEY_SECRET`: 32+ character secret for HMAC key hashing (required in production)
 - `SESSION_SECRET`: Secret for session encryption
 - `DATABASE_URL`: PostgreSQL connection string (treat as sensitive)
+- `REDIS_URL`: Redis connection string for rate limiting (optional, falls back to in-memory)
