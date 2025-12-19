@@ -69,7 +69,7 @@ import {
   addOnPurchases,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, or, ilike, gte, lte, desc } from "drizzle-orm";
+import { eq, sql, and, or, ilike, gte, lte, desc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Users - required for Replit Auth
@@ -248,7 +248,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUsersByIds(ids: string[]): Promise<User[]> {
     if (ids.length === 0) return [];
-    const result = await db.select().from(users).where(sql`${users.id} IN ${ids}`);
+    const result = await db.select().from(users).where(inArray(users.id, ids));
     return result;
   }
 
@@ -391,7 +391,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(prospects)
       .leftJoin(companies, eq(prospects.companyId, companies.id))
-      .where(sql`${prospects.id} IN ${ids}`);
+      .where(inArray(prospects.id, ids));
 
     return results.map((row) => ({
       ...row.prospects,
