@@ -26,6 +26,12 @@ import { getUncachableResendClient } from "./utils/resendClient";
 import { getSicDescription } from "./utils/sicCodeLookup";
 import { createErrorResponse } from "./utils/errorResponse";
 import { rateLimitMiddleware } from "./utils/rateLimit";
+import { 
+  wrapAiRequest, 
+  requirePremiumAndConsent, 
+  AI_GOVERNANCE_CONFIG,
+  redactSensitiveData
+} from "./utils/aiGovernance";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 
@@ -1713,25 +1719,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Credit Underwriting Routes (Premium Only)
   // Note: These endpoints process financial documents via AI - requires user consent and audit logging
-  const MAX_CSV_SIZE = 500 * 1024; // 500KB limit for CSV data
+  // Size limits are now managed by AI_GOVERNANCE_CONFIG
   
   app.post("/api/prospects/:prospectId/underwriting/analyze-csv", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
+      const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
       
-      // Check if user is premium
-      const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
-        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
-      }
-      
-      // Verify user-level AI data consent
-      if (!(user as any).aiDataConsent) {
-        return res.status(403).json({ 
-          error: "AI data processing consent required. Please enable AI features in Settings.",
-          requiresConsent: true 
-        });
+      if (!csvData || !loanAmount || !monthlyRepayment) {
+        return res.status(400).json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
       }
       
       // Verify prospect belongs to user
@@ -1740,35 +1737,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       
-      const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
-      
-      if (!csvData || !loanAmount || !monthlyRepayment) {
-        return res.status(400).json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
-      }
-      
-      // Require explicit per-request consent for AI processing of financial data
-      if (!consentToAiProcessing) {
-        return res.status(400).json({ error: "User consent required for AI processing of financial data" });
-      }
-      
-      // Enforce size limit
-      if (csvData.length > MAX_CSV_SIZE) {
-        return res.status(413).json({ error: "CSV data exceeds 500KB limit. Please use a smaller file." });
-      }
-      
-      // Audit log AI operation
-      console.info(JSON.stringify({
-        type: "ai_operation",
-        operation: "analyze_csv",
-        userId,
-        prospectId,
-        dataSizeBytes: Buffer.byteLength(csvData, 'utf8'),
-        timestamp: new Date().toISOString(),
-      }));
-      
-      // Import and use gemini client
+      // Use governance wrapper for consent, redaction, size limits, and audit logging
       const { analyzeFinancials } = await import("./utils/geminiClient");
-      const analysis = await analyzeFinancials(csvData, loanAmount, monthlyRepayment);
+      
+      const result = await wrapAiRequest(
+        {
+          userId,
+          prospectId,
+          operation: "analyze_csv",
+          dataType: "csv",
+          consentToAiProcessing: !!consentToAiProcessing,
+        },
+        csvData,
+        async (processedData) => analyzeFinancials(processedData, loanAmount, monthlyRepayment),
+        { maxSize: AI_GOVERNANCE_CONFIG.maxCsvSize }
+      );
+      
+      if ('error' in result) {
+        return res.status(result.code).json({ 
+          error: result.error,
+          requiresConsent: result.code === 403
+        });
+      }
       
       // Save to due diligence
       const existing = await storage.getDueDiligence(prospectId);
@@ -1777,13 +1767,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...existingData,
         underwriting: {
           ...(existingData.underwriting || {}),
-          financialAnalysis: analysis,
+          financialAnalysis: result.result,
           analyzedAt: new Date().toISOString()
         }
       };
       await storage.upsertDueDiligence(prospectId, mergedData);
       
-      res.json(analysis);
+      res.json(result.result);
     } catch (error: any) {
       console.error("CSV analysis error:", error);
       res.status(500).json({ error: error.message || "Failed to analyze CSV" });
@@ -1791,25 +1781,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Analyze bank statement PDFs (alternative to CSV)
-  const MAX_PDF_TEXT_SIZE = 200 * 1024; // 200KB per PDF text
-  
   app.post("/api/prospects/:prospectId/underwriting/analyze-bank-pdfs", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
+      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
       
-      // Check if user is premium
-      const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
-        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
+      if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
+        return res.status(400).json({ error: "At least one bank statement PDF is required" });
       }
       
-      // Verify user-level AI data consent
-      if (!(user as any).aiDataConsent) {
-        return res.status(403).json({ 
-          error: "AI data processing consent required. Please enable AI features in Settings.",
-          requiresConsent: true 
-        });
+      if (pdfTexts.length > AI_GOVERNANCE_CONFIG.maxPdfFiles) {
+        return res.status(400).json({ error: `Maximum ${AI_GOVERNANCE_CONFIG.maxPdfFiles} bank statement PDFs allowed` });
+      }
+      
+      if (!loanAmount || !monthlyRepayment) {
+        return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
       }
       
       // Verify prospect belongs to user
@@ -1818,48 +1805,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       
-      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
-      
-      if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
-        return res.status(400).json({ error: "At least one bank statement PDF is required" });
-      }
-      
-      if (pdfTexts.length > 6) {
-        return res.status(400).json({ error: "Maximum 6 bank statement PDFs allowed" });
-      }
-      
-      // Require explicit per-request consent for AI processing of financial data
-      if (!consentToAiProcessing) {
-        return res.status(400).json({ error: "User consent required for AI processing of financial data" });
-      }
-      
-      // Enforce size limit per PDF text
-      let totalDataSize = 0;
+      // Validate size and apply redaction to each PDF text
+      const processedPdfTexts: typeof pdfTexts = [];
       for (const pdfText of pdfTexts) {
-        if (pdfText.text && pdfText.text.length > MAX_PDF_TEXT_SIZE) {
-          return res.status(413).json({ error: `PDF "${pdfText.fileName}" exceeds 200KB text limit.` });
+        if (pdfText.text && Buffer.byteLength(pdfText.text, 'utf8') > AI_GOVERNANCE_CONFIG.maxPdfTextSize) {
+          return res.status(413).json({ error: `PDF "${pdfText.fileName}" exceeds ${Math.round(AI_GOVERNANCE_CONFIG.maxPdfTextSize / 1024)}KB text limit.` });
         }
-        totalDataSize += Buffer.byteLength(pdfText.text || '', 'utf8');
+        const { redacted } = redactSensitiveData(pdfText.text || '');
+        processedPdfTexts.push({ ...pdfText, text: redacted });
       }
       
-      if (!loanAmount || !monthlyRepayment) {
-        return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
-      }
+      // Combine all text for governance wrapper
+      const combinedText = processedPdfTexts.map(p => p.text).join('\n---\n');
       
-      // Audit log AI operation
-      console.info(JSON.stringify({
-        type: "ai_operation",
-        operation: "analyze_bank_pdfs",
-        userId,
-        prospectId,
-        dataSizeBytes: totalDataSize,
-        fileCount: pdfTexts.length,
-        timestamp: new Date().toISOString(),
-      }));
-      
-      // Import and use gemini client
+      // Use governance wrapper for consent, audit logging
       const { analyzeFinancialsFromPdf } = await import("./utils/geminiClient");
-      const analysis = await analyzeFinancialsFromPdf(pdfTexts, loanAmount, monthlyRepayment);
+      
+      const result = await wrapAiRequest(
+        {
+          userId,
+          prospectId,
+          operation: "analyze_bank_pdfs",
+          dataType: "pdf",
+          consentToAiProcessing: !!consentToAiProcessing,
+        },
+        combinedText,
+        async () => analyzeFinancialsFromPdf(processedPdfTexts, loanAmount, monthlyRepayment),
+        { skipRedaction: true } // Already redacted above
+      );
+      
+      if ('error' in result) {
+        return res.status(result.code).json({ 
+          error: result.error,
+          requiresConsent: result.code === 403
+        });
+      }
       
       // Save to due diligence with bank PDF file metadata
       const existing = await storage.getDueDiligence(prospectId);
@@ -1868,7 +1848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...existingData,
         underwriting: {
           ...(existingData.underwriting || {}),
-          financialAnalysis: analysis,
+          financialAnalysis: result.result,
           analyzedAt: new Date().toISOString(),
           bankPdfFiles: pdfTexts.map((p: { fileName: string; pages?: number }) => ({
             fileName: p.fileName,
@@ -1879,7 +1859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       await storage.upsertDueDiligence(prospectId, mergedData);
       
-      res.json(analysis);
+      res.json(result.result);
     } catch (error: any) {
       console.error("Bank PDF analysis error:", error);
       res.status(500).json({ error: error.message || "Failed to analyze bank statement PDFs" });
@@ -1891,19 +1871,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
+      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
       
-      // Check if user is premium
-      const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
-        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
+      if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
+        return res.status(400).json({ error: "At least one PDF text with year is required" });
       }
       
-      // Verify user-level AI data consent
-      if (!(user as any).aiDataConsent) {
-        return res.status(403).json({ 
-          error: "AI data processing consent required. Please enable AI features in Settings.",
-          requiresConsent: true 
-        });
+      if (!loanAmount || !monthlyRepayment) {
+        return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
       }
       
       // Verify prospect belongs to user
@@ -1912,44 +1887,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       
-      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
-      
-      if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
-        return res.status(400).json({ error: "At least one PDF text with year is required" });
-      }
-      
-      // Require explicit per-request consent for AI processing of financial data
-      if (!consentToAiProcessing) {
-        return res.status(400).json({ error: "User consent required for AI processing of financial data" });
-      }
-      
-      // Enforce size limit per PDF text (same as bank statements)
-      let totalDataSize = 0;
+      // Validate size and apply redaction to each PDF text
+      const processedPdfTexts: typeof pdfTexts = [];
       for (const pdfText of pdfTexts) {
-        if (pdfText.text && pdfText.text.length > MAX_PDF_TEXT_SIZE) {
-          return res.status(413).json({ error: `Accounts PDF exceeds 200KB text limit.` });
+        if (pdfText.text && Buffer.byteLength(pdfText.text, 'utf8') > AI_GOVERNANCE_CONFIG.maxPdfTextSize) {
+          return res.status(413).json({ error: `Accounts PDF exceeds ${Math.round(AI_GOVERNANCE_CONFIG.maxPdfTextSize / 1024)}KB text limit.` });
         }
-        totalDataSize += Buffer.byteLength(pdfText.text || '', 'utf8');
+        const { redacted } = redactSensitiveData(pdfText.text || '');
+        processedPdfTexts.push({ ...pdfText, text: redacted });
       }
       
-      if (!loanAmount || !monthlyRepayment) {
-        return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
-      }
+      // Combine all text for governance wrapper
+      const combinedText = processedPdfTexts.map(p => p.text).join('\n---\n');
       
-      // Audit log AI operation
-      console.info(JSON.stringify({
-        type: "ai_operation",
-        operation: "analyze_accounts",
-        userId,
-        prospectId,
-        dataSizeBytes: totalDataSize,
-        fileCount: pdfTexts.length,
-        timestamp: new Date().toISOString(),
-      }));
-      
-      // Import and use gemini client
+      // Use governance wrapper for consent, audit logging
       const { analyzeAuditedAccounts } = await import("./utils/geminiClient");
-      const analysis = await analyzeAuditedAccounts(pdfTexts, loanAmount, monthlyRepayment);
+      
+      const result = await wrapAiRequest(
+        {
+          userId,
+          prospectId,
+          operation: "analyze_accounts",
+          dataType: "pdf",
+          consentToAiProcessing: !!consentToAiProcessing,
+        },
+        combinedText,
+        async () => analyzeAuditedAccounts(processedPdfTexts, loanAmount, monthlyRepayment),
+        { skipRedaction: true } // Already redacted above
+      );
+      
+      if ('error' in result) {
+        return res.status(result.code).json({ 
+          error: result.error,
+          requiresConsent: result.code === 403
+        });
+      }
       
       // Save to due diligence
       const existing = await storage.getDueDiligence(prospectId);
@@ -1958,13 +1930,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...existingData,
         underwriting: {
           ...(existingData.underwriting || {}),
-          accountsAnalysis: analysis,
+          accountsAnalysis: result.result,
           accountsAnalyzedAt: new Date().toISOString()
         }
       };
       await storage.upsertDueDiligence(prospectId, mergedData);
       
-      res.json(analysis);
+      res.json(result.result);
     } catch (error: any) {
       console.error("Accounts analysis error:", error);
       res.status(500).json({ error: error.message || "Failed to analyze accounts" });
@@ -2015,26 +1987,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
       
-      // Check if user is premium
-      const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
-        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
-      }
-      
-      // Verify user-level AI data consent
-      if (!(user as any).aiDataConsent) {
-        return res.status(403).json({ 
-          error: "AI data processing consent required. Please enable AI features in Settings.",
-          requiresConsent: true 
-        });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
       const { 
         companyName, 
         sector, 
@@ -2051,32 +2003,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: companyName, loanAmount" });
       }
       
-      // Require explicit per-request consent
-      if (!consentToAiProcessing) {
-        return res.status(400).json({ error: "User consent required for AI processing" });
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
       }
       
-      // Audit log AI operation
-      console.info(JSON.stringify({
-        type: "ai_operation",
-        operation: "swot_analysis",
-        userId,
-        prospectId,
-        timestamp: new Date().toISOString(),
-      }));
-      
-      // Import and use gemini client
-      const { generateSwotAnalysis } = await import("./utils/geminiClient");
-      const analysis = await generateSwotAnalysis(
+      // Build context string for governance wrapper (no sensitive raw data)
+      const contextData = JSON.stringify({
         companyName,
-        sector || '',
+        sector: sector || '',
         loanAmount,
-        loanPurpose || '',
-        financialSummary || '',
-        companiesHouseData,
-        bankAnalysisSummary,
-        eligibilityNotes
+        loanPurpose: loanPurpose || '',
+        hasFinancialSummary: !!financialSummary,
+        hasCompaniesHouseData: !!companiesHouseData,
+        hasBankAnalysis: !!bankAnalysisSummary,
+      });
+      
+      // Use governance wrapper for consent, audit logging
+      const { generateSwotAnalysis } = await import("./utils/geminiClient");
+      
+      const result = await wrapAiRequest(
+        {
+          userId,
+          prospectId,
+          operation: "swot_analysis",
+          dataType: "structured",
+          consentToAiProcessing: !!consentToAiProcessing,
+        },
+        contextData,
+        async () => generateSwotAnalysis(
+          companyName,
+          sector || '',
+          loanAmount,
+          loanPurpose || '',
+          financialSummary || '',
+          companiesHouseData,
+          bankAnalysisSummary,
+          eligibilityNotes
+        ),
+        { skipRedaction: true } // Context data is already structured
       );
+      
+      if ('error' in result) {
+        return res.status(result.code).json({ 
+          error: result.error,
+          requiresConsent: result.code === 403
+        });
+      }
       
       // Save to due diligence
       const existing = await storage.getDueDiligence(prospectId);
@@ -2085,13 +2059,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...existingData,
         underwriting: {
           ...(existingData.underwriting || {}),
-          swotAnalysis: analysis,
+          swotAnalysis: result.result,
           swotAnalyzedAt: new Date().toISOString()
         }
       };
       await storage.upsertDueDiligence(prospectId, mergedData);
       
-      res.json(analysis);
+      res.json(result.result);
     } catch (error: any) {
       console.error("SWOT analysis error:", error);
       res.status(500).json({ error: error.message || "Failed to generate SWOT analysis" });
@@ -2103,26 +2077,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
-      
-      // Check if user is premium
-      const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
-        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
-      }
-      
-      // Verify user-level AI data consent
-      if (!(user as any).aiDataConsent) {
-        return res.status(403).json({ 
-          error: "AI data processing consent required. Please enable AI features in Settings.",
-          requiresConsent: true 
-        });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
       
       const { 
         sectionKey,
@@ -2141,88 +2095,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: sectionKey, companyName, loanAmount" });
       }
       
-      // Require explicit per-request consent
-      if (!consentToAiProcessing) {
-        return res.status(400).json({ error: "User consent required for AI processing" });
+      // Verify prospect belongs to user
+      const prospect = await storage.getProspect(prospectId, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
       }
       
       // Fetch uploaded documents for the prospect
       const documents = await storage.listProspectDocuments(prospectId);
       
       // Filter relevant document categories for CAMPARI analysis
-      // Include: business plans, financial docs, legal docs, CVs (identity), correspondence, and general/other documents
       const relevantCategories = ['business', 'financial', 'legal', 'identity', 'correspondence', 'general', 'other'];
       const relevantDocs = documents.filter(doc => relevantCategories.includes(doc.category || 'general'));
       
-      // Parse document contents
+      // Parse document contents with redaction
       const documentSummaries: { fileName: string; category: string; content: string }[] = [];
       const pdfParse = (await import("pdf-parse")).default;
       
-      for (const doc of relevantDocs.slice(0, 10)) { // Limit to 10 documents to avoid token limits
+      for (const doc of relevantDocs.slice(0, AI_GOVERNANCE_CONFIG.maxDocuments)) {
         try {
           const { data } = await getObjectStorage().downloadAsBytes(doc.storagePath);
           
           if (doc.fileType === 'application/pdf' || doc.fileName.toLowerCase().endsWith('.pdf')) {
-            // Parse PDF content
             const pdfData = await pdfParse(Buffer.from(data));
             const textContent = pdfData.text?.trim() || '';
-            if (textContent.length > 100) { // Only include if substantial content
-              // Truncate very long documents to avoid token limits
+            if (textContent.length > 100) {
               const truncatedContent = textContent.length > 15000 
                 ? textContent.substring(0, 15000) + '\n[... Document truncated ...]' 
                 : textContent;
+              // Apply redaction to document content
+              const { redacted } = redactSensitiveData(truncatedContent);
               documentSummaries.push({
                 fileName: doc.fileName,
                 category: doc.category || 'general',
-                content: truncatedContent
+                content: redacted
               });
             }
           } else if (doc.fileType === 'text/plain' || doc.fileName.toLowerCase().endsWith('.txt')) {
-            // Plain text files
             const textContent = Buffer.from(data).toString('utf-8').trim();
             if (textContent.length > 50) {
               const truncatedContent = textContent.length > 15000 
                 ? textContent.substring(0, 15000) + '\n[... Document truncated ...]' 
                 : textContent;
+              // Apply redaction to document content
+              const { redacted } = redactSensitiveData(truncatedContent);
               documentSummaries.push({
                 fileName: doc.fileName,
                 category: doc.category || 'general',
-                content: truncatedContent
+                content: redacted
               });
             }
           }
-          // Skip other file types (images, etc.) as they can't be parsed for text
         } catch (docError) {
           console.error(`Error parsing document ${doc.fileName}:`, docError);
-          // Continue with other documents
         }
       }
       
-      // Audit log AI operation
-      console.info(JSON.stringify({
-        type: "ai_operation",
-        operation: "campari_section",
-        sectionKey,
-        userId,
-        prospectId,
-        documentCount: documentSummaries.length,
-        timestamp: new Date().toISOString(),
-      }));
-      
-      // Import and use gemini client
-      const { generateCampariSection } = await import("./utils/geminiClient");
-      const content = await generateCampariSection(
+      // Build context string for governance wrapper
+      const contextData = JSON.stringify({
         sectionKey,
         companyName,
-        sector || '',
+        sector: sector || '',
         loanAmount,
-        loanPurpose || '',
-        financialSummary || '',
-        companiesHouseData,
-        bankAnalysisSummary,
-        accountsAnalysisSummary,
-        documentSummaries.length > 0 ? documentSummaries : undefined
+        loanPurpose: loanPurpose || '',
+        documentCount: documentSummaries.length,
+      });
+      
+      // Use governance wrapper for consent, audit logging
+      const { generateCampariSection } = await import("./utils/geminiClient");
+      
+      const result = await wrapAiRequest(
+        {
+          userId,
+          prospectId,
+          operation: `campari_section_${sectionKey}`,
+          dataType: "documents",
+          consentToAiProcessing: !!consentToAiProcessing,
+        },
+        contextData,
+        async () => generateCampariSection(
+          sectionKey,
+          companyName,
+          sector || '',
+          loanAmount,
+          loanPurpose || '',
+          financialSummary || '',
+          companiesHouseData,
+          bankAnalysisSummary,
+          accountsAnalysisSummary,
+          documentSummaries.length > 0 ? documentSummaries : undefined
+        ),
+        { skipRedaction: true } // Already redacted document content above
       );
+      
+      if ('error' in result) {
+        return res.status(result.code).json({ 
+          error: result.error,
+          requiresConsent: result.code === 403
+        });
+      }
       
       // Save to due diligence
       const existing = await storage.getDueDiligence(prospectId);
@@ -2236,14 +2207,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...(existingData.underwriting?.adviserSummary || {}),
             sections: {
               ...existingSections,
-              [sectionKey]: content
+              [sectionKey]: result.result
             }
           }
         }
       };
       await storage.upsertDueDiligence(prospectId, mergedData);
       
-      res.json({ sectionKey, content });
+      res.json({ sectionKey, content: result.result });
     } catch (error: any) {
       console.error("CAMPARI section generation error:", error);
       res.status(500).json({ error: error.message || "Failed to generate CAMPARI section" });
