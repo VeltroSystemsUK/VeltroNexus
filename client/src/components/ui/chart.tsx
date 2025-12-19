@@ -34,6 +34,54 @@ function useChart() {
   return context
 }
 
+function useChartColors(config: ChartConfig): React.CSSProperties {
+  const [isDark, setIsDark] = React.useState(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.classList.contains('dark')
+    }
+    return false
+  })
+  
+  React.useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'))
+    }
+    
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          checkDarkMode()
+        }
+      })
+    })
+    
+    observer.observe(document.documentElement, { attributes: true })
+    return () => observer.disconnect()
+  }, [])
+  
+  return React.useMemo(() => {
+    const colorConfig = Object.entries(config).filter(
+      ([, itemConfig]) => itemConfig.theme || itemConfig.color
+    )
+    
+    if (!colorConfig.length) {
+      return {}
+    }
+    
+    const theme = isDark ? 'dark' : 'light'
+    const cssVars: Record<string, string> = {}
+    
+    colorConfig.forEach(([key, itemConfig]) => {
+      const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color
+      if (color) {
+        cssVars[`--color-${key}`] = color
+      }
+    })
+    
+    return cssVars as React.CSSProperties
+  }, [config, isDark])
+}
+
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
@@ -42,9 +90,10 @@ const ChartContainer = React.forwardRef<
       typeof RechartsPrimitive.ResponsiveContainer
     >["children"]
   }
->(({ id, className, children, config, ...props }, ref) => {
+>(({ id, className, children, config, style, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
+  const chartColorStyles = useChartColors(config)
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -55,9 +104,9 @@ const ChartContainer = React.forwardRef<
           "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
           className
         )}
+        style={{ ...chartColorStyles, ...style }}
         {...props}
       >
-        <ChartStyle id={chartId} config={config} />
         <RechartsPrimitive.ResponsiveContainer>
           {children}
         </RechartsPrimitive.ResponsiveContainer>
@@ -67,37 +116,8 @@ const ChartContainer = React.forwardRef<
 })
 ChartContainer.displayName = "Chart"
 
-const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color
-  )
-
-  if (!colorConfig.length) {
-    return null
-  }
-
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
-}
-`
-          )
-          .join("\n"),
-      }}
-    />
-  )
+const ChartStyle = ({ id: _id, config: _config }: { id: string; config: ChartConfig }) => {
+  return null
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip

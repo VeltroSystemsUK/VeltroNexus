@@ -77,6 +77,7 @@ npm audit --audit-level=high # Only report high+ severity
 - **Public Object Access Control**: Only allowlisted prefixes (branding/) can be served publicly
 - **AI Governance Framework**: Two-tier consent model - user-level consent in Settings (aiDataConsent field) PLUS per-request consentToAiProcessing flag. All AI operations are audit logged with structured JSON (type, operation, userId, prospectId, dataSizeBytes, timestamp). Consent timestamp tracked in aiDataConsentAt field.
 - **Role-Based Authorization**: Underwriting uploads require submission ownership verification
+- **Safe CSS Variable Injection**: Chart component uses inline styles instead of dangerouslySetInnerHTML for CSS variables, eliminating CSS injection vectors while maintaining dark mode support
 - **Rate Limiting (Redis-backed)**: Production-grade rate limiting with Redis shared store (falls back to in-memory for development). See Rate Limiting Configuration section below.
   - Webhooks: 60 req/min per API key hash
   - PDF parsing: 30 req/min per user
