@@ -88,6 +88,7 @@ npm audit --audit-level=high # Only report high+ severity
 - **Request IDs**: Unique UUID per request in X-Request-Id header for correlation
 - **Error Logging**: Errors logged with request context and stack traces (dev only)
 - **Rate Limit Logging**: Rate limit violations logged with key and path for monitoring
+- **PII Protection**: Email addresses, phone numbers, and other personal data are not logged. Email operations log only structured metadata (type, IDs) without exposing addresses. AgentMail inbox operations log only inbox IDs.
 
 ### Environment Variables (Security-Related)
 - `WEBHOOK_KEY_SECRET`: 32+ character secret for HMAC key hashing (required in production)

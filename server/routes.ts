@@ -24,6 +24,7 @@ import { generateProspectReport } from "./utils/pdfGenerator";
 import { generatePipelineExcel } from "./utils/excelExporter";
 import { getUncachableResendClient } from "./utils/resendClient";
 import { getSicDescription } from "./utils/sicCodeLookup";
+import { createErrorResponse } from "./utils/errorResponse";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 
@@ -54,10 +55,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
+      // Add no-store cache header for sensitive auth data
+      res.setHeader('Cache-Control', 'no-store');
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      res.status(500).json(createErrorResponse(error as Error, 500, req.requestId, "Failed to fetch user"));
     }
   });
 
@@ -108,13 +111,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updatedUser = await storage.updateUser(userId, updateData);
       if (!updatedUser) {
-        return res.status(404).json({ error: "User not found" });
+        return res.status(404).json(createErrorResponse("User not found", 404, req.requestId));
       }
       
       res.json(updatedUser);
     } catch (error: any) {
       console.error("Error updating user settings:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json(createErrorResponse(error, 500, req.requestId, "Failed to update settings"));
     }
   });
 
@@ -2766,7 +2769,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const commentary = submissionInput.commentary || 'Please find attached the loan application for your review.';
         
-        console.log(`Sending email to lender: ${lender.email} from: ${fromEmail}`);
+        // Log email operation without PII
+        console.log(JSON.stringify({ type: 'email_send', lenderId: lender.id, prospectId: submissionInput.prospectId }));
         
         const emailResponse = await resendClient.emails.send({
           from: fromEmail,
@@ -2796,7 +2800,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ],
         });
         
-        console.log("Resend API response:", JSON.stringify(emailResponse));
+        // Log only email ID without sensitive response data
+        const emailId = emailResponse.data?.id;
         
         // Check for errors in the response
         if (emailResponse.error) {
@@ -2807,7 +2812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error('No email ID returned from Resend - email may not have been sent');
         }
         
-        console.log(`Email sent successfully with ID: ${emailResponse.data.id}`);
+        console.log(JSON.stringify({ type: 'email_sent', emailId }));
         emailSent = true;
       } catch (err: any) {
         const errMessage = (err as Error)?.message || 'Unknown error';
@@ -2896,7 +2901,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const listResponse = await client.inboxes.list();
             // The response is pageable - get the data from the body
             const listData = (listResponse as any).body || listResponse;
-            console.log("List response:", JSON.stringify(listData, null, 2));
             
             // Check if it has a data array (paginated response)
             const inboxes = listData.data || listData.items || (Array.isArray(listData) ? listData : []);
@@ -2904,7 +2908,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (inboxes.length > 0) {
               // Use the first available inbox
               agentMailInbox = inboxes[0];
-              console.log("Using existing AgentMail inbox:", agentMailInbox.id, agentMailInbox.emailAddress);
+              console.log(JSON.stringify({ type: 'agentmail_inbox_reused', inboxId: agentMailInbox.id }));
             }
           } catch (listError) {
             console.log("Could not list inboxes, will try to create:", listError);
@@ -2916,10 +2920,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const createResponse = await client.inboxes.create({
                 name: displayName,
               });
-              // Log the full response to understand structure
-              console.log("Create response raw:", JSON.stringify(createResponse, null, 2));
               agentMailInbox = (createResponse as any).body || createResponse;
-              console.log("Created new AgentMail inbox:", agentMailInbox?.id, agentMailInbox?.emailAddress);
+              console.log(JSON.stringify({ type: 'agentmail_inbox_created', inboxId: agentMailInbox?.id }));
             } catch (createError: any) {
               // If limit exceeded, we already checked for existing inboxes
               console.error("Error creating inbox:", createError);
@@ -3935,10 +3937,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
+      // No-store cache for sensitive auth data
+      res.setHeader('Cache-Control', 'no-store');
       res.json({ role: user?.role || 'broker' });
     } catch (error: any) {
       console.error("Error getting user role:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json(createErrorResponse(error, 500, req.requestId, "Failed to get user role"));
     }
   });
 

@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { createErrorResponse } from "./utils/errorResponse";
 import crypto from "crypto";
 
 const app = express();
@@ -52,6 +53,26 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false, limit: '5mb' }));
+
+// Security headers middleware
+const isProduction = process.env.NODE_ENV === 'production';
+app.use((req, res, next) => {
+  // Prevent clickjacking attacks
+  res.setHeader('X-Frame-Options', 'DENY');
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Enable browser XSS filter (legacy but still useful)
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Control referrer information
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Enforce HTTPS in production
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  // Permissions Policy (formerly Feature-Policy)
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
 
 // Request ID and structured logging middleware
 app.use((req: any, res, next) => {
@@ -151,21 +172,23 @@ app.use((req: any, res, next) => {
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const requestId = (req as any).requestId;
     
     // Log error with context but don't crash the process
+    // Never log error.message in production as it may contain sensitive info
     console.error(JSON.stringify({
       type: 'error',
       timestamp: new Date().toISOString(),
-      requestId: (req as any).requestId,
+      requestId,
       method: req.method,
       path: req.path,
       status,
-      error: message,
+      errorType: err.name || 'Error',
       stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
     }));
 
-    res.status(status).json({ message });
+    // Use sanitized error response
+    res.status(status).json(createErrorResponse(err, status, requestId));
     // Don't throw - just return to keep the process alive
   });
 
