@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import type { ProspectWithCompany } from '@shared/schema';
+import type { ProspectWithCompany, User } from '@shared/schema';
 
 interface ExportSection {
   title: string;
@@ -18,13 +18,13 @@ const SECTIONS: ExportSection[] = [
   {
     title: 'POST ENQUIRY STAGE - Receipt of Application form or Business Plan',
     headerLabel: 'Post Enquiry',
-    stages: ['qualified', 'due-diligence'],
+    stages: ['qualified', 'proposal', 'due-diligence'],
     startRow: 17,
   },
   {
     title: 'IN FLIGHT STAGE - Applications with MF',
     headerLabel: 'In Flight',
-    stages: ['proposal', 'submission'],
+    stages: ['submission'],
     startRow: 32,
   },
   {
@@ -32,6 +32,12 @@ const SECTIONS: ExportSection[] = [
     headerLabel: 'Pending Investment',
     stages: ['approved'],
     startRow: 47,
+  },
+  {
+    title: 'CLOSED DEALS - Declined or Withdrawn',
+    headerLabel: 'Closed Status',
+    stages: ['declined', 'withdrawn'],
+    startRow: 62,
   },
 ];
 
@@ -47,7 +53,7 @@ const COLUMN_HEADERS = [
   'Comments',
 ];
 
-export async function generatePipelineExcel(prospects: ProspectWithCompany[]): Promise<Buffer> {
+export async function generatePipelineExcel(prospects: ProspectWithCompany[], user?: User | null): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Pipeline');
 
@@ -125,20 +131,21 @@ export async function generatePipelineExcel(prospects: ProspectWithCompany[]): P
         dataRow.getCell(4).numFmt = '£#,##0';
       }
       
-      // Adviser - would need to be added to schema or left blank
-      dataRow.getCell(5).value = '';
+      // Adviser - User Name (first + last name)
+      const adviserName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
+      dataRow.getCell(5).value = adviserName || '';
       
-      // Referral Source - would need to be added to schema or left blank
-      dataRow.getCell(6).value = '';
+      // Referral Source - from prospect
+      dataRow.getCell(6).value = prospect.referralSource || '';
       
-      // Sector - could use company type or industry
-      dataRow.getCell(7).value = prospect.company.companyType || '';
+      // Sector - SIC Code from company
+      dataRow.getCell(7).value = prospect.company.sicCode || '';
       
       // Postcode - from company registered address
       dataRow.getCell(8).value = prospect.company.registeredAddress || '';
       
-      // Comments - could use prospect notes or leave blank
-      dataRow.getCell(9).value = '';
+      // Comments - prospect notes
+      dataRow.getCell(9).value = prospect.notes || '';
 
       // Add borders to all cells
       for (let col = 1; col <= 9; col++) {

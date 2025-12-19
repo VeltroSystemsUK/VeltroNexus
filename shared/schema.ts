@@ -73,6 +73,7 @@ export const companies = pgTable("companies", {
   incorporationDate: text("incorporation_date"),
   companyStatus: text("company_status"),
   companyType: text("company_type"),
+  sicCode: varchar("sic_code"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

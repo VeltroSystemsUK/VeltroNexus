@@ -239,8 +239,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const prospects = await storage.listProspects(userId);
+      const user = await storage.getUser(userId);
       
-      const excelBuffer = await generatePipelineExcel(prospects);
+      const excelBuffer = await generatePipelineExcel(prospects, user);
       
       const filename = `pipeline-export-${new Date().toISOString().split('T')[0]}.xlsx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
