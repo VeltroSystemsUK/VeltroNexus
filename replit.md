@@ -84,6 +84,20 @@ npm audit --audit-level=high # Only report high+ severity
   - AI endpoints: 20 req/min per user
   - Auth endpoints: 10 req/min per IP
   - Upload endpoints: 30 req/min per user
+- **Content Security Policy (CSP)**: Strict CSP headers for HTML pages blocking inline scripts, restricting sources
+- **Streaming File Uploads**: All file uploads use streaming via PassThrough to avoid RAM buffering
+
+### Production Readiness
+
+**Health Check Endpoint:**
+- `GET /healthz` - Returns JSON with health status of database, Redis, and object storage
+- Reports individual component latencies and error details
+- Returns HTTP 200 when healthy, HTTP 503 when degraded
+
+**Code Quality Tooling:**
+- ESLint with TypeScript rules (`eslint.config.mjs`)
+- Prettier formatting (`--check` in CI, `.prettierrc`)
+- CI pipeline enforces: npm audit, formatting, linting, types, tests
 
 ### Security Testing
 
