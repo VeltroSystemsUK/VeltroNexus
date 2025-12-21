@@ -598,9 +598,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
 
-      const contacts = await storage.listContacts(id);
-      const activities = await storage.listActivities(id);
-      const dueDiligence = await storage.getDueDiligence(id);
+      const contacts = await storage.listContacts(id, userId);
+      const activities = await storage.listActivities(id, userId);
+      const dueDiligence = await storage.getDueDiligence(id, userId);
 
       const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
       let companiesHouseData = null;
@@ -1941,7 +1941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId);
+      const existing = await storage.getDueDiligence(prospectId, userId);
       const existingData = (existing?.data || {}) as Record<string, any>;
       const mergedData = {
         ...existingData,
@@ -2022,7 +2022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Save to due diligence with bank PDF file metadata
-      const existing = await storage.getDueDiligence(prospectId);
+      const existing = await storage.getDueDiligence(prospectId, userId);
       const existingData = (existing?.data || {}) as Record<string, any>;
       const mergedData = {
         ...existingData,
@@ -2104,7 +2104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId);
+      const existing = await storage.getDueDiligence(prospectId, userId);
       const existingData = (existing?.data || {}) as Record<string, any>;
       const mergedData = {
         ...existingData,
@@ -2233,7 +2233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId);
+      const existing = await storage.getDueDiligence(prospectId, userId);
       const existingData = (existing?.data || {}) as Record<string, any>;
       const mergedData = {
         ...existingData,
@@ -2376,7 +2376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId);
+      const existing = await storage.getDueDiligence(prospectId, userId);
       const existingData = (existing?.data || {}) as Record<string, any>;
       const existingSections = existingData.underwriting?.adviserSummary?.sections || {};
       const mergedData = {
@@ -2435,7 +2435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId);
+      const existing = await storage.getDueDiligence(prospectId, userId);
       const existingData = (existing?.data || {}) as Record<string, any>;
       const mergedData = {
         ...existingData,
@@ -2876,9 +2876,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let pdfBuffer: Buffer;
       try {
         const [contacts, activities, dueDiligence, user] = await Promise.all([
-          storage.listContacts(submissionInput.prospectId),
-          storage.listActivities(submissionInput.prospectId),
-          storage.getDueDiligence(submissionInput.prospectId).catch(() => null),
+          storage.listContacts(submissionInput.prospectId, userId),
+          storage.listActivities(submissionInput.prospectId, userId),
+          storage.getDueDiligence(submissionInput.prospectId, userId).catch(() => null),
           storage.getUser(userId),
         ]);
         

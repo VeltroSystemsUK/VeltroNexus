@@ -31,6 +31,14 @@ function isSuperAdmin(role?: Role) {
   return role === "super_admin";
 }
 
+function isSalesAdmin(role?: Role) {
+  return role === "sales_admin";
+}
+
+function isAdmin(role?: Role) {
+  return isSuperAdmin(role) || isSalesAdmin(role);
+}
+
 function isUnderwriter(role?: Role) {
   return role === "underwriter";
 }
@@ -57,10 +65,13 @@ function canReadSubmission(
 }
 
 function canWriteSubmission(submission: UnderwritingSubmission, user: AuthUser) {
-  if (isSuperAdmin(user.role)) return true;
+  // Admins (super_admin and sales_admin) can update any submission
+  if (isAdmin(user.role)) return true;
 
+  // Brokers cannot write to submissions (they can only withdraw via separate path)
   if (submission.brokerId === user.id) return false;
 
+  // Underwriters can only write to submissions assigned to them
   return isUnderwriter(user.role) && submission.assignedUnderwriterId === user.id;
 }
 
