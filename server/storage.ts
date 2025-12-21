@@ -69,7 +69,7 @@ import {
   addOnPurchases,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, or, ilike, gte, lte, desc, inArray } from "drizzle-orm";
+import { eq, sql, and, or, ilike, gte, lte, desc, inArray, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // Users - required for Replit Auth
@@ -191,6 +191,7 @@ export interface IStorage {
 
   // Underwriting Submissions
   listUnderwritingSubmissions(filters?: { status?: string; assignedUnderwriterId?: string }): Promise<UnderwritingSubmission[]>;
+  listUnderwriterScopedSubmissions(underwriterId: string): Promise<UnderwritingSubmission[]>;
   listBrokerUnderwritingSubmissions(brokerId: string): Promise<UnderwritingSubmission[]>;
   getUnderwritingSubmission(id: number): Promise<UnderwritingSubmission | undefined>;
   createUnderwritingSubmission(submission: InsertUnderwritingSubmission, brokerId: string): Promise<UnderwritingSubmission>;
@@ -1149,6 +1150,23 @@ export class DatabaseStorage implements IStorage {
     }
     
     return await query.orderBy(underwritingSubmissions.submittedAt);
+  }
+
+  async listUnderwriterScopedSubmissions(underwriterId: string): Promise<UnderwritingSubmission[]> {
+    // Returns: queue (status='submitted' AND unassigned) + underwriter's assigned submissions
+    return await db
+      .select()
+      .from(underwritingSubmissions)
+      .where(
+        or(
+          and(
+            eq(underwritingSubmissions.status, 'submitted'),
+            isNull(underwritingSubmissions.assignedUnderwriterId)
+          ),
+          eq(underwritingSubmissions.assignedUnderwriterId, underwriterId)
+        )
+      )
+      .orderBy(underwritingSubmissions.submittedAt);
   }
 
   async listBrokerUnderwritingSubmissions(brokerId: string): Promise<UnderwritingSubmission[]> {

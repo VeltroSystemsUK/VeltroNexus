@@ -3776,17 +3776,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }
 
-  // Get all underwriting submissions (for underwriters)
-  app.get("/api/underwriting/submissions", isAuthenticated, isUnderwriter, async (req: any, res) => {
+  // Get underwriting submissions (scoped by role)
+  app.get("/api/underwriting/submissions", isAuthenticated, async (req: any, res) => {
     try {
-      const { status, assigned } = req.query;
       const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
       
-      const filters: { status?: string; assignedUnderwriterId?: string } = {};
-      if (status) filters.status = status;
-      if (assigned === 'me') filters.assignedUnderwriterId = userId;
+      let submissions;
+      if (user?.role === 'super_admin' || user?.role === 'sales_admin') {
+        // Admin roles see all submissions
+        const { status, assigned } = req.query;
+        const filters: { status?: string; assignedUnderwriterId?: string } = {};
+        if (status) filters.status = status;
+        if (assigned === 'me') filters.assignedUnderwriterId = userId;
+        submissions = await storage.listUnderwritingSubmissions(filters);
+      } else if (user?.role === 'underwriter') {
+        // Underwriter sees: queue (submitted + unassigned) + their assigned
+        submissions = await storage.listUnderwriterScopedSubmissions(userId);
+      } else {
+        // Non-underwriters/admins get 403
+        return res.status(403).json({ error: "Access denied" });
+      }
       
-      const submissions = await storage.listUnderwritingSubmissions(filters);
       const enrichedSubmissions = await enrichSubmissions(submissions);
       res.json(enrichedSubmissions);
     } catch (error: any) {
@@ -3913,65 +3924,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update submission (underwriter actions: approve, decline, query, add notes)
-  app.patch("/api/underwriting/submissions/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      const submission = await storage.getUnderwritingSubmission(id);
-      if (!submission) {
-        return res.status(404).json({ error: "Submission not found" });
-      }
-      
-      // Only underwriters can update, or brokers can withdraw their own
-      const isBroker = user?.role === 'broker';
-      const isOwner = submission.brokerId === userId;
-      const isUnderwriterRole = user?.role === 'underwriter';
-      
-      if (!isUnderwriterRole && !(isBroker && isOwner)) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      const { status, underwriterNotes, decisionReason } = req.body;
-      
-      // Brokers can only withdraw
-      if (isBroker && status && status !== 'withdrawn') {
-        return res.status(403).json({ error: "Brokers can only withdraw submissions" });
-      }
-      
-      const updates: any = {};
-      if (status) updates.status = status;
-      if (underwriterNotes) updates.underwriterNotes = underwriterNotes;
-      if (decisionReason) updates.decisionReason = decisionReason;
-      
-      const updated = await storage.updateUnderwritingSubmission(id, updates);
-      
-      // Create activity record for status changes
-      if (status) {
-        await storage.createUnderwritingActivity({
-          submissionId: id,
-          activityType: status,
-          content: decisionReason || `Status changed to ${status}`,
-        }, userId);
-        
-        // Update prospect stage based on decision
-        if (status === 'approved') {
-          await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'approved');
-        } else if (status === 'declined') {
-          await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'declined');
-        } else if (status === 'withdrawn') {
-          await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'due-diligence');
+  // Update submission (underwriter actions OR broker-withdraw)
+  app.patch(
+    "/api/underwriting/submissions/:id",
+    isAuthenticated,
+    async (req: any, res, next) => {
+      try {
+        const userId = req.user.claims.sub;
+        const user = await storage.getUser(userId);
+        const id = Number(req.params.id);
+
+        // Broker-withdraw path (owner only)
+        if (user?.role === "broker") {
+          const submission = await storage.getUnderwritingSubmission(id);
+          if (!submission) return res.status(404).json({ error: "Submission not found" });
+          if (submission.brokerId !== userId) return res.status(403).json({ error: "Access denied" });
+
+          const { status } = req.body;
+          if (status && status !== "withdrawn") {
+            return res.status(403).json({ error: "Brokers can only withdraw submissions" });
+          }
+
+          const updated = await storage.updateUnderwritingSubmission(id, { status: "withdrawn" });
+          
+          await storage.createUnderwritingActivity({
+            submissionId: id,
+            activityType: 'withdrawn',
+            content: 'Submission withdrawn by broker',
+          }, userId);
+          
+          await storage.updateProspectStage(submission.prospectId, userId, 'due-diligence');
+          
+          return res.json(updated);
         }
+
+        // Underwriter/admin path must be assignment-scoped
+        return requireSubmissionWriteAccess({ storage })(req, res, next);
+      } catch (e) {
+        next(e);
       }
-      
-      res.json(updated);
-    } catch (error: any) {
-      console.error("Error updating submission:", error);
-      res.status(500).json({ error: error.message });
+    },
+    async (req: any, res, next) => {
+      try {
+        const { submission, user } = req.ctx;
+        const { status, underwriterNotes, decisionReason } = req.body;
+
+        const updates: any = {};
+        if (status) updates.status = status;
+        if (underwriterNotes) updates.underwriterNotes = underwriterNotes;
+        if (decisionReason) updates.decisionReason = decisionReason;
+
+        const updated = await storage.updateUnderwritingSubmission(submission.id, updates);
+
+        if (status) {
+          await storage.createUnderwritingActivity(
+            { submissionId: submission.id, activityType: status, content: decisionReason || `Status changed to ${status}` },
+            user.id
+          );
+          
+          // Update prospect stage based on decision
+          if (status === 'approved') {
+            await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'approved');
+          } else if (status === 'declined') {
+            await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'declined');
+          }
+        }
+
+        res.json(updated);
+      } catch (e) {
+        next(e);
+      }
     }
-  });
+  );
 
   // Add comment to submission
   app.post(
@@ -4046,20 +4070,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.claims.sub;
-      
-      // Check prospect ownership
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        // Also check if user is underwriter
-        const user = await storage.getUser(userId);
-        if (user?.role !== 'underwriter') {
-          return res.status(404).json({ error: "Prospect not found" });
-        }
-      }
+      const user = await storage.getUser(userId);
       
       const submission = await storage.getUnderwritingSubmissionByProspect(prospectId);
       if (!submission) {
         return res.status(404).json({ error: "No submission found for this prospect" });
+      }
+      
+      // Apply same access control as requireSubmissionReadAccess
+      const isBrokerOwner = submission.brokerId === userId;
+      const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
+      const isSuperAdmin = user?.role === 'super_admin';
+      const isUnderwriterViewingQueue = user?.role === 'underwriter' && 
+        submission.status === 'submitted' && !submission.assignedUnderwriterId;
+      
+      if (!isBrokerOwner && !isAssignedUnderwriter && !isSuperAdmin && !isUnderwriterViewingQueue) {
+        return res.status(403).json({ error: "Access denied" });
       }
       
       res.json(submission);
