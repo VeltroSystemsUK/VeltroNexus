@@ -44,6 +44,7 @@ The application utilizes Drizzle ORM with Neon serverless PostgreSQL. The databa
   - 'any' type usage baseline tracking
   - Raw error.message exposure detection
 - **Technical Debt**: See `TECH_DEBT.md` for known TypeScript strict mode issues.
+- **Codebase Audit**: See `CODEBASE_AUDIT.md` for comprehensive quality metrics, security implementation details, and recommendations.
 
 ## External Dependencies
 
