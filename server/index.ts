@@ -41,15 +41,16 @@ app.use((req, res, next) => {
   // Permissions Policy (formerly Feature-Policy)
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
   
-  // Content Security Policy - blocks inline scripts by default
-  // Only applied to HTML pages (not API routes or static assets)
-  if (!req.path.startsWith('/api') && !req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+  // Content Security Policy
+  // Only applied to HTML pages in production (not API routes or static assets)
+  // In development, Vite injects inline scripts for HMR which CSP would block
+  if (isProduction && !req.path.startsWith('/api') && !req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
     const cspDirectives = [
       "default-src 'self'",
       "script-src 'self'",
-      "style-src 'self' 'unsafe-inline'", // Allow inline styles for Tailwind
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' https://api.resend.com https://*.replit.dev wss://*.replit.dev",
       "frame-ancestors 'none'",
       "base-uri 'self'",
