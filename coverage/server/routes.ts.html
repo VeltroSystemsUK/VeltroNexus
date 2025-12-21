@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/2335</span>
+                <span class='fraction'>0/2340</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/214</span>
+                <span class='fraction'>0/215</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/2287</span>
+                <span class='fraction'>0/2292</span>
             </div>
         
             
@@ -5515,7 +5515,24 @@
 <a name='L5450'></a><a href='#L5450'>5450</a>
 <a name='L5451'></a><a href='#L5451'>5451</a>
 <a name='L5452'></a><a href='#L5452'>5452</a>
-<a name='L5453'></a><a href='#L5453'>5453</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L5453'></a><a href='#L5453'>5453</a>
+<a name='L5454'></a><a href='#L5454'>5454</a>
+<a name='L5455'></a><a href='#L5455'>5455</a>
+<a name='L5456'></a><a href='#L5456'>5456</a>
+<a name='L5457'></a><a href='#L5457'>5457</a>
+<a name='L5458'></a><a href='#L5458'>5458</a>
+<a name='L5459'></a><a href='#L5459'>5459</a>
+<a name='L5460'></a><a href='#L5460'>5460</a>
+<a name='L5461'></a><a href='#L5461'>5461</a>
+<a name='L5462'></a><a href='#L5462'>5462</a>
+<a name='L5463'></a><a href='#L5463'>5463</a>
+<a name='L5464'></a><a href='#L5464'>5464</a>
+<a name='L5465'></a><a href='#L5465'>5465</a>
+<a name='L5466'></a><a href='#L5466'>5466</a>
+<a name='L5467'></a><a href='#L5467'>5467</a>
+<a name='L5468'></a><a href='#L5468'>5468</a>
+<a name='L5469'></a><a href='#L5469'>5469</a>
+<a name='L5470'></a><a href='#L5470'>5470</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -5556,6 +5573,23 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -11010,7 +11044,24 @@ import { Client as ObjectStorageClient } from "@replit/object-storage";
 const <span class="cstat-no" title="statement not covered" >require = createRequire(import.meta.url);</span>
 &nbsp;
 export async function <span class="fstat-no" title="function not covered" >registerRoutes(a</span>pp: Express): Promise&lt;Server&gt; {
-  // Health check endpoint - checks DB, Redis, and object storage
+  // Simple health check endpoint for load balancers
+<span class="cstat-no" title="statement not covered" >  app.get("/api/health", <span class="fstat-no" title="function not covered" >async (r</span>eq, res) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    try {</span>
+<span class="cstat-no" title="statement not covered" >      await storage.getUser("health-check-probe");</span>
+<span class="cstat-no" title="statement not covered" >      res.json({</span>
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+      });
+    } catch {
+<span class="cstat-no" title="statement not covered" >      res.status(503).json({</span>
+        status: "unhealthy",
+        error: "Database unavailable",
+      });
+    }
+  });
+&nbsp;
+  // Detailed health check endpoint - checks DB, Redis, and object storage
   // Must be registered BEFORE auth middleware so it's always accessible
 <span class="cstat-no" title="statement not covered" >  app.get("/healthz", <span class="fstat-no" title="function not covered" >async (r</span>eq, res) =&gt; {</span>
     const checks: Record&lt;string, { status: "ok" | "error"; latency?: number; error?: string }&gt; = <span class="cstat-no" title="statement not covered" >{};</span>
@@ -11044,7 +11095,7 @@ export async function <span class="fstat-no" title="function not covered" >regis
       const bucketId = <span class="cstat-no" title="statement not covered" >process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;</span>
 <span class="cstat-no" title="statement not covered" >      if (bucketId) {</span>
         const client = <span class="cstat-no" title="statement not covered" >new ObjectStorageClient({ bucketId });</span>
-<span class="cstat-no" title="statement not covered" >        await client.list({ prefix: "health-check/", maxKeys: 1 });</span>
+<span class="cstat-no" title="statement not covered" >        await client.list({ prefix: "health-check/" });</span>
 <span class="cstat-no" title="statement not covered" >        checks.objectStorage = { status: "ok", latency: Date.now() - storageStart };</span>
       } else {
 <span class="cstat-no" title="statement not covered" >        checks.objectStorage = { status: "error", error: "Bucket not configured" };</span>
@@ -16426,7 +16477,7 @@ export async function <span class="fstat-no" title="function not covered" >regis
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-21T13:36:40.983Z
+                at 2025-12-21T14:42:38.364Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -41,7 +41,24 @@ import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Health check endpoint - checks DB, Redis, and object storage
+  // Simple health check endpoint for load balancers
+  app.get("/api/health", async (req, res) => {
+    try {
+      await storage.getUser("health-check-probe");
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+      });
+    } catch {
+      res.status(503).json({
+        status: "unhealthy",
+        error: "Database unavailable",
+      });
+    }
+  });
+
+  // Detailed health check endpoint - checks DB, Redis, and object storage
   // Must be registered BEFORE auth middleware so it's always accessible
   app.get("/healthz", async (req, res) => {
     const checks: Record<string, { status: "ok" | "error"; latency?: number; error?: string }> = {};
@@ -75,7 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
       if (bucketId) {
         const client = new ObjectStorageClient({ bucketId });
-        await client.list({ prefix: "health-check/", maxKeys: 1 });
+        await client.list({ prefix: "health-check/" });
         checks.objectStorage = { status: "ok", latency: Date.now() - storageStart };
       } else {
         checks.objectStorage = { status: "error", error: "Bucket not configured" };

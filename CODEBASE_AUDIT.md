@@ -1,7 +1,7 @@
 # FlowLoan Codebase Audit
 
 **Last Updated:** December 21, 2025  
-**Version:** 1.1
+**Version:** 1.2
 
 ## Executive Summary
 
@@ -14,7 +14,7 @@ FlowLoan is a production-ready commercial lending workflow management platform w
 | Total Lines of Code | 46,871 |
 | Frontend Components | 91 (.tsx files) |
 | Backend Modules | 25 (.ts files) |
-| API Routes | 125 endpoints |
+| API Routes | 126 endpoints |
 | Database Tables | 22 |
 | UI Components | 19 |
 | Page Components | 17 |
@@ -279,6 +279,44 @@ See `TECH_DEBT.md` for detailed breakdown.
 └── .any-baseline                  # 'any' type count (186)
 ```
 
+## Health Check Endpoints
+
+### Simple Health Check: `/api/health`
+Quick database connectivity check for load balancers.
+
+**Response (200):**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-12-21T13:37:46.788Z",
+  "uptime": 123.456
+}
+```
+
+**Response (503):**
+```json
+{
+  "status": "unhealthy",
+  "error": "Database unavailable"
+}
+```
+
+### Detailed Health Check: `/healthz`
+Comprehensive check of all services (database, Redis, object storage).
+
+**Response (200):**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-12-21T13:37:46.788Z",
+  "checks": {
+    "database": { "status": "ok", "latency": 15 },
+    "redis": { "status": "ok" },
+    "objectStorage": { "status": "ok", "latency": 42 }
+  }
+}
+```
+
 ## Key Dependencies
 
 | Package | Purpose | Notes |
@@ -330,3 +368,4 @@ None required - CI is passing and all quality gates are active
 |------|---------|---------|---------|
 | Dec 21, 2025 | 1.0 | Agent | Initial audit, CI quality gates implemented |
 | Dec 21, 2025 | 1.1 | Agent | Added codebase statistics, detailed security docs, environment variables |
+| Dec 21, 2025 | 1.2 | Agent | Added health check endpoints documentation, fixed object storage check |
