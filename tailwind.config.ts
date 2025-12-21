@@ -29,27 +29,27 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary) / <alpha-value>)",
           foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
-          border: "hsl(var(--primary-border) / <alpha-value>)",
+          border: "var(--primary-border)",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
           foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
-          border: "hsl(var(--secondary-border) / <alpha-value>)",
+          border: "var(--secondary-border)",
         },
         muted: {
           DEFAULT: "hsl(var(--muted) / <alpha-value>)",
           foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
-          border: "hsl(var(--muted-border) / <alpha-value>)",
+          border: "var(--muted-border)",
         },
         accent: {
           DEFAULT: "hsl(var(--accent) / <alpha-value>)",
           foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
-          border: "hsl(var(--accent-border) / <alpha-value>)",
+          border: "var(--accent-border)",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
           foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
-          border: "hsl(var(--destructive-border) / <alpha-value>)",
+          border: "var(--destructive-border)",
         },
         ring: "hsl(var(--ring) / <alpha-value>)",
         chart: {
@@ -68,12 +68,12 @@ export default {
         "sidebar-primary": {
           DEFAULT: "hsl(var(--sidebar-primary) / <alpha-value>)",
           foreground: "hsl(var(--sidebar-primary-foreground) / <alpha-value>)",
-          border: "hsl(var(--sidebar-primary-border) / <alpha-value>)",
+          border: "var(--sidebar-primary-border)",
         },
         "sidebar-accent": {
           DEFAULT: "hsl(var(--sidebar-accent) / <alpha-value>)",
           foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
-          border: "hsl(var(--sidebar-accent-border) / <alpha-value>)"
+          border: "var(--sidebar-accent-border)"
         },
         status: {
           online: "rgb(34 197 94)",
