@@ -76,9 +76,13 @@ npm audit --audit-level=high # Only report high+ severity
 - **Request Size Limits**: Global 5MB limit with per-route enforcement for high-cost operations
 - **Public Object Access Control**: Only allowlisted prefixes (branding/) can be served publicly
 - **AI Governance Framework**: Two-tier consent model - user-level consent in Settings (aiDataConsent field) PLUS per-request consentToAiProcessing flag. All AI operations are audit logged with structured JSON (type, operation, userId, prospectId, dataSizeBytes, timestamp). Consent timestamp tracked in aiDataConsentAt field.
-- **Role-Based Authorization**: Underwriting uploads require submission ownership verification
+- **Role-Based Authorization**: Underwriting uploads require submission ownership verification (assignedUnderwriterId or submitting brokerId)
 - **Safe CSS Variable Injection**: Chart component uses inline styles instead of dangerouslySetInnerHTML for CSS variables, eliminating CSS injection vectors while maintaining dark mode support
 - **Rate Limiting (Redis-backed)**: Production-grade rate limiting with Redis shared store (falls back to in-memory for development). See Rate Limiting Configuration section below.
+- **IDOR Protection**: All storage methods for Contacts, Activities, Due Diligence, Lender Products, and Lender Interactions enforce user ownership via database joins (innerJoin to prospects/lenders with userId check)
+- **Header Injection Prevention**: All Content-Disposition headers use `encodeContentDisposition()` utility from `server/utils/security.ts` to sanitize filenames
+- **SVG XSS Prevention**: Logo uploads blocked for SVG MIME types and extensions (case-insensitive); public-objects serving uses allowlist (png, jpg, jpeg, gif, webp only); magic byte validation ensures file content matches claimed image format; continuous SVG pattern scanning on upload stream
+- **Rate Limits by Endpoint**:
   - Webhooks: 60 req/min per API key hash
   - PDF parsing: 30 req/min per user
   - AI endpoints: 20 req/min per user

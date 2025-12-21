@@ -97,23 +97,24 @@ export interface IStorage {
   deleteProspect(id: number, userId: string): Promise<void>;
   reorderProspects(userId: string, stage: string, orderedIds: number[]): Promise<void>;
 
-  // Contacts
-  listContacts(prospectId: number): Promise<Contact[]>;
-  getContact(id: number): Promise<Contact | undefined>;
-  createContact(contact: InsertContact): Promise<Contact>;
-  updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined>;
-  deleteContact(id: number): Promise<void>;
+  // Contacts (user-scoped via prospect ownership)
+  listContacts(prospectId: number, userId: string): Promise<Contact[]>;
+  getContact(id: number, userId: string): Promise<Contact | undefined>;
+  createContact(contact: InsertContact, userId: string): Promise<Contact | undefined>;
+  updateContact(id: number, userId: string, updates: Partial<InsertContact>): Promise<Contact | undefined>;
+  deleteContact(id: number, userId: string): Promise<boolean>;
 
-  // Activities
-  listActivities(prospectId: number): Promise<Activity[]>;
+  // Activities (user-scoped)
+  listActivities(prospectId: number, userId: string): Promise<Activity[]>;
   listAllUserActivities(userId: string): Promise<Activity[]>;
-  createActivity(activity: InsertActivity): Promise<Activity>;
-  updateActivity(id: number, updates: Partial<InsertActivity>): Promise<Activity | undefined>;
-  deleteActivity(id: number): Promise<void>;
+  getActivity(id: number, userId: string): Promise<Activity | undefined>;
+  createActivity(activity: InsertActivity, userId: string): Promise<Activity | undefined>;
+  updateActivity(id: number, userId: string, updates: Partial<InsertActivity>): Promise<Activity | undefined>;
+  deleteActivity(id: number, userId: string): Promise<boolean>;
 
-  // Due Diligence
-  getDueDiligence(prospectId: number): Promise<DueDiligence | undefined>;
-  upsertDueDiligence(prospectId: number, data: DueDiligenceData): Promise<DueDiligence>;
+  // Due Diligence (user-scoped via prospect ownership)
+  getDueDiligence(prospectId: number, userId: string): Promise<DueDiligence | undefined>;
+  upsertDueDiligence(prospectId: number, userId: string, data: DueDiligenceData): Promise<DueDiligence | undefined>;
 
   // Lenders
   listLenders(userId: string): Promise<Lender[]>;
@@ -133,20 +134,20 @@ export interface IStorage {
     panelStatus?: string;
   }): Promise<Lender[]>;
 
-  // Lender Products
-  listLenderProducts(lenderId: number): Promise<LenderProduct[]>;
-  getLenderProduct(id: number): Promise<LenderProduct | undefined>;
-  createLenderProduct(product: InsertLenderProduct): Promise<LenderProduct>;
-  updateLenderProduct(id: number, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined>;
-  deleteLenderProduct(id: number): Promise<void>;
+  // Lender Products (user-scoped via lender ownership)
+  listLenderProducts(lenderId: number, userId: string): Promise<LenderProduct[]>;
+  getLenderProduct(id: number, userId: string): Promise<LenderProduct | undefined>;
+  createLenderProduct(product: InsertLenderProduct, userId: string): Promise<LenderProduct | undefined>;
+  updateLenderProduct(id: number, userId: string, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined>;
+  deleteLenderProduct(id: number, userId: string): Promise<boolean>;
 
-  // Lender Interactions
-  listLenderInteractions(lenderId: number): Promise<LenderInteraction[]>;
+  // Lender Interactions (user-scoped)
+  listLenderInteractions(lenderId: number, userId: string): Promise<LenderInteraction[]>;
   listUserLenderInteractions(userId: string): Promise<LenderInteraction[]>;
-  getLenderInteraction(id: number): Promise<LenderInteraction | undefined>;
-  createLenderInteraction(interaction: InsertLenderInteraction): Promise<LenderInteraction>;
-  updateLenderInteraction(id: number, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined>;
-  deleteLenderInteraction(id: number): Promise<void>;
+  getLenderInteraction(id: number, userId: string): Promise<LenderInteraction | undefined>;
+  createLenderInteraction(interaction: InsertLenderInteraction, userId: string): Promise<LenderInteraction | undefined>;
+  updateLenderInteraction(id: number, userId: string, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined>;
+  deleteLenderInteraction(id: number, userId: string): Promise<boolean>;
 
   // Application Submissions
   listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]>;
@@ -447,23 +448,49 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async listContacts(prospectId: number): Promise<Contact[]> {
+  async listContacts(prospectId: number, userId: string): Promise<Contact[]> {
     return await db
-      .select()
+      .select({
+        id: contacts.id,
+        prospectId: contacts.prospectId,
+        name: contacts.name,
+        role: contacts.role,
+        email: contacts.email,
+        phone: contacts.phone,
+        notes: contacts.notes,
+        createdAt: contacts.createdAt,
+      })
       .from(contacts)
-      .where(eq(contacts.prospectId, prospectId))
+      .innerJoin(prospects, eq(contacts.prospectId, prospects.id))
+      .where(and(eq(contacts.prospectId, prospectId), eq(prospects.userId, userId)))
       .orderBy(contacts.createdAt);
   }
 
-  async getContact(id: number): Promise<Contact | undefined> {
+  async getContact(id: number, userId: string): Promise<Contact | undefined> {
     const [contact] = await db
-      .select()
+      .select({
+        id: contacts.id,
+        prospectId: contacts.prospectId,
+        name: contacts.name,
+        role: contacts.role,
+        email: contacts.email,
+        phone: contacts.phone,
+        notes: contacts.notes,
+        createdAt: contacts.createdAt,
+      })
       .from(contacts)
-      .where(eq(contacts.id, id));
+      .innerJoin(prospects, eq(contacts.prospectId, prospects.id))
+      .where(and(eq(contacts.id, id), eq(prospects.userId, userId)));
     return contact || undefined;
   }
 
-  async createContact(insertContact: InsertContact): Promise<Contact> {
+  async createContact(insertContact: InsertContact, userId: string): Promise<Contact | undefined> {
+    const [prospect] = await db
+      .select()
+      .from(prospects)
+      .where(and(eq(prospects.id, insertContact.prospectId), eq(prospects.userId, userId)));
+    if (!prospect) return undefined;
+    
     const [contact] = await db
       .insert(contacts)
       .values(insertContact as any)
@@ -471,7 +498,10 @@ export class DatabaseStorage implements IStorage {
     return contact;
   }
 
-  async updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined> {
+  async updateContact(id: number, userId: string, updates: Partial<InsertContact>): Promise<Contact | undefined> {
+    const existingContact = await this.getContact(id, userId);
+    if (!existingContact) return undefined;
+    
     const [contact] = await db
       .update(contacts)
       .set(updates)
@@ -480,15 +510,31 @@ export class DatabaseStorage implements IStorage {
     return contact || undefined;
   }
 
-  async deleteContact(id: number): Promise<void> {
+  async deleteContact(id: number, userId: string): Promise<boolean> {
+    const existingContact = await this.getContact(id, userId);
+    if (!existingContact) return false;
+    
     await db.delete(contacts).where(eq(contacts.id, id));
+    return true;
   }
 
-  async listActivities(prospectId: number): Promise<Activity[]> {
+  async listActivities(prospectId: number, userId: string): Promise<Activity[]> {
     return await db
-      .select()
+      .select({
+        id: activities.id,
+        prospectId: activities.prospectId,
+        userId: activities.userId,
+        type: activities.type,
+        title: activities.title,
+        description: activities.description,
+        dueDate: activities.dueDate,
+        completed: activities.completed,
+        createdAt: activities.createdAt,
+        updatedAt: activities.updatedAt,
+      })
       .from(activities)
-      .where(eq(activities.prospectId, prospectId))
+      .innerJoin(prospects, eq(activities.prospectId, prospects.id))
+      .where(and(eq(activities.prospectId, prospectId), eq(prospects.userId, userId)))
       .orderBy(activities.createdAt);
   }
 
@@ -500,36 +546,69 @@ export class DatabaseStorage implements IStorage {
       .orderBy(activities.dueDate);
   }
 
-  async createActivity(insertActivity: InsertActivity): Promise<Activity> {
+  async getActivity(id: number, userId: string): Promise<Activity | undefined> {
+    const [activity] = await db
+      .select()
+      .from(activities)
+      .where(and(eq(activities.id, id), eq(activities.userId, userId)));
+    return activity || undefined;
+  }
+
+  async createActivity(insertActivity: InsertActivity, userId: string): Promise<Activity | undefined> {
+    // SECURITY: Verify prospect belongs to user before creating activity
+    if (insertActivity.prospectId) {
+      const [prospect] = await db
+        .select()
+        .from(prospects)
+        .where(and(eq(prospects.id, insertActivity.prospectId), eq(prospects.userId, userId)));
+      if (!prospect) return undefined;
+    }
+    
     const [activity] = await db
       .insert(activities)
-      .values(insertActivity as any)
+      .values({ ...insertActivity, userId } as any)
       .returning();
     return activity;
   }
 
-  async updateActivity(id: number, updates: Partial<InsertActivity>): Promise<Activity | undefined> {
+  async updateActivity(id: number, userId: string, updates: Partial<InsertActivity>): Promise<Activity | undefined> {
     const [activity] = await db
       .update(activities)
       .set({ ...updates, updatedAt: sql`now()` })
-      .where(eq(activities.id, id))
+      .where(and(eq(activities.id, id), eq(activities.userId, userId)))
       .returning();
     return activity || undefined;
   }
 
-  async deleteActivity(id: number): Promise<void> {
-    await db.delete(activities).where(eq(activities.id, id));
+  async deleteActivity(id: number, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(activities)
+      .where(and(eq(activities.id, id), eq(activities.userId, userId)));
+    return true;
   }
 
-  async getDueDiligence(prospectId: number): Promise<DueDiligence | undefined> {
+  async getDueDiligence(prospectId: number, userId: string): Promise<DueDiligence | undefined> {
     const [result] = await db
-      .select()
+      .select({
+        id: dueDiligence.id,
+        prospectId: dueDiligence.prospectId,
+        data: dueDiligence.data,
+        createdAt: dueDiligence.createdAt,
+        updatedAt: dueDiligence.updatedAt,
+      })
       .from(dueDiligence)
-      .where(eq(dueDiligence.prospectId, prospectId));
+      .innerJoin(prospects, eq(dueDiligence.prospectId, prospects.id))
+      .where(and(eq(dueDiligence.prospectId, prospectId), eq(prospects.userId, userId)));
     return result || undefined;
   }
 
-  async upsertDueDiligence(prospectId: number, data: DueDiligenceData): Promise<DueDiligence> {
+  async upsertDueDiligence(prospectId: number, userId: string, data: DueDiligenceData): Promise<DueDiligence | undefined> {
+    const [prospect] = await db
+      .select()
+      .from(prospects)
+      .where(and(eq(prospects.id, prospectId), eq(prospects.userId, userId)));
+    if (!prospect) return undefined;
+    
     const [result] = await db
       .insert(dueDiligence)
       .values({
@@ -651,24 +730,66 @@ export class DatabaseStorage implements IStorage {
       .orderBy(lenders.institutionName);
   }
 
-  // Lender Products
-  async listLenderProducts(lenderId: number): Promise<LenderProduct[]> {
+  // Lender Products (user-scoped via lender ownership)
+  async listLenderProducts(lenderId: number, userId: string): Promise<LenderProduct[]> {
     return await db
-      .select()
+      .select({
+        id: lenderProducts.id,
+        lenderId: lenderProducts.lenderId,
+        productName: lenderProducts.productName,
+        productType: lenderProducts.productType,
+        minLoanAmount: lenderProducts.minLoanAmount,
+        maxLoanAmount: lenderProducts.maxLoanAmount,
+        minLtv: lenderProducts.minLtv,
+        maxLtv: lenderProducts.maxLtv,
+        minRate: lenderProducts.minRate,
+        maxRate: lenderProducts.maxRate,
+        arrangementFee: lenderProducts.arrangementFee,
+        exitFee: lenderProducts.exitFee,
+        term: lenderProducts.term,
+        notes: lenderProducts.notes,
+        createdAt: lenderProducts.createdAt,
+        updatedAt: lenderProducts.updatedAt,
+      })
       .from(lenderProducts)
-      .where(eq(lenderProducts.lenderId, lenderId))
+      .innerJoin(lenders, eq(lenderProducts.lenderId, lenders.id))
+      .where(and(eq(lenderProducts.lenderId, lenderId), eq(lenders.userId, userId)))
       .orderBy(lenderProducts.productName);
   }
 
-  async getLenderProduct(id: number): Promise<LenderProduct | undefined> {
+  async getLenderProduct(id: number, userId: string): Promise<LenderProduct | undefined> {
     const [product] = await db
-      .select()
+      .select({
+        id: lenderProducts.id,
+        lenderId: lenderProducts.lenderId,
+        productName: lenderProducts.productName,
+        productType: lenderProducts.productType,
+        minLoanAmount: lenderProducts.minLoanAmount,
+        maxLoanAmount: lenderProducts.maxLoanAmount,
+        minLtv: lenderProducts.minLtv,
+        maxLtv: lenderProducts.maxLtv,
+        minRate: lenderProducts.minRate,
+        maxRate: lenderProducts.maxRate,
+        arrangementFee: lenderProducts.arrangementFee,
+        exitFee: lenderProducts.exitFee,
+        term: lenderProducts.term,
+        notes: lenderProducts.notes,
+        createdAt: lenderProducts.createdAt,
+        updatedAt: lenderProducts.updatedAt,
+      })
       .from(lenderProducts)
-      .where(eq(lenderProducts.id, id));
+      .innerJoin(lenders, eq(lenderProducts.lenderId, lenders.id))
+      .where(and(eq(lenderProducts.id, id), eq(lenders.userId, userId)));
     return product || undefined;
   }
 
-  async createLenderProduct(product: InsertLenderProduct): Promise<LenderProduct> {
+  async createLenderProduct(product: InsertLenderProduct, userId: string): Promise<LenderProduct | undefined> {
+    const [lender] = await db
+      .select()
+      .from(lenders)
+      .where(and(eq(lenders.id, product.lenderId), eq(lenders.userId, userId)));
+    if (!lender) return undefined;
+    
     const [created] = await db
       .insert(lenderProducts)
       .values(product as any)
@@ -676,7 +797,10 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateLenderProduct(id: number, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined> {
+  async updateLenderProduct(id: number, userId: string, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined> {
+    const existingProduct = await this.getLenderProduct(id, userId);
+    if (!existingProduct) return undefined;
+    
     const [product] = await db
       .update(lenderProducts)
       .set({ ...updates, updatedAt: sql`now()` })
@@ -685,16 +809,35 @@ export class DatabaseStorage implements IStorage {
     return product || undefined;
   }
 
-  async deleteLenderProduct(id: number): Promise<void> {
+  async deleteLenderProduct(id: number, userId: string): Promise<boolean> {
+    const existingProduct = await this.getLenderProduct(id, userId);
+    if (!existingProduct) return false;
+    
     await db.delete(lenderProducts).where(eq(lenderProducts.id, id));
+    return true;
   }
 
-  // Lender Interactions
-  async listLenderInteractions(lenderId: number): Promise<LenderInteraction[]> {
+  // Lender Interactions (user-scoped via lender ownership)
+  async listLenderInteractions(lenderId: number, userId: string): Promise<LenderInteraction[]> {
     return await db
-      .select()
+      .select({
+        id: lenderInteractions.id,
+        lenderId: lenderInteractions.lenderId,
+        userId: lenderInteractions.userId,
+        prospectId: lenderInteractions.prospectId,
+        interactionType: lenderInteractions.interactionType,
+        subject: lenderInteractions.subject,
+        notes: lenderInteractions.notes,
+        outcome: lenderInteractions.outcome,
+        followUpDate: lenderInteractions.followUpDate,
+        sentAt: lenderInteractions.sentAt,
+        respondedAt: lenderInteractions.respondedAt,
+        createdAt: lenderInteractions.createdAt,
+        updatedAt: lenderInteractions.updatedAt,
+      })
       .from(lenderInteractions)
-      .where(eq(lenderInteractions.lenderId, lenderId))
+      .innerJoin(lenders, eq(lenderInteractions.lenderId, lenders.id))
+      .where(and(eq(lenderInteractions.lenderId, lenderId), eq(lenders.userId, userId)))
       .orderBy(desc(lenderInteractions.createdAt));
   }
 
@@ -706,33 +849,44 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(lenderInteractions.createdAt));
   }
 
-  async getLenderInteraction(id: number): Promise<LenderInteraction | undefined> {
+  async getLenderInteraction(id: number, userId: string): Promise<LenderInteraction | undefined> {
     const [interaction] = await db
       .select()
       .from(lenderInteractions)
-      .where(eq(lenderInteractions.id, id));
+      .where(and(eq(lenderInteractions.id, id), eq(lenderInteractions.userId, userId)));
     return interaction || undefined;
   }
 
-  async createLenderInteraction(interaction: InsertLenderInteraction): Promise<LenderInteraction> {
+  async createLenderInteraction(interaction: InsertLenderInteraction, userId: string): Promise<LenderInteraction | undefined> {
+    if (interaction.lenderId) {
+      const [lender] = await db
+        .select()
+        .from(lenders)
+        .where(and(eq(lenders.id, interaction.lenderId), eq(lenders.userId, userId)));
+      if (!lender) return undefined;
+    }
+    
     const [created] = await db
       .insert(lenderInteractions)
-      .values(interaction as any)
+      .values({ ...interaction, userId } as any)
       .returning();
     return created;
   }
 
-  async updateLenderInteraction(id: number, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined> {
+  async updateLenderInteraction(id: number, userId: string, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined> {
     const [interaction] = await db
       .update(lenderInteractions)
       .set({ ...updates, updatedAt: sql`now()` })
-      .where(eq(lenderInteractions.id, id))
+      .where(and(eq(lenderInteractions.id, id), eq(lenderInteractions.userId, userId)))
       .returning();
     return interaction || undefined;
   }
 
-  async deleteLenderInteraction(id: number): Promise<void> {
-    await db.delete(lenderInteractions).where(eq(lenderInteractions.id, id));
+  async deleteLenderInteraction(id: number, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(lenderInteractions)
+      .where(and(eq(lenderInteractions.id, id), eq(lenderInteractions.userId, userId)));
+    return true;
   }
 
   async listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]> {

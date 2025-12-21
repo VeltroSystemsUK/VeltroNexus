@@ -209,24 +209,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       bb.on('file', (fieldname, fileStream, info) => {
         const { filename, mimeType } = info;
         
+        // SECURITY: Normalize MIME type (lowercase, strip parameters like charset)
+        const normalizedMime = mimeType.toLowerCase().split(';')[0].trim();
+        
+        // SECURITY: Check file extension case-insensitively
+        const extension = (filename.split('.').pop() || '').toLowerCase();
+        const isSvgExtension = extension === 'svg' || extension === 'svgz';
+        const isSvgMime = normalizedMime === 'image/svg+xml';
+        
         // Early MIME type validation - drain stream immediately if invalid
-        if (!mimeType.startsWith('image/')) {
-          validationError = "Only image files are allowed for logos";
+        // SECURITY: Block SVG uploads - SVG can contain embedded JavaScript (XSS vector)
+        if (!normalizedMime.startsWith('image/') || isSvgMime || isSvgExtension) {
+          validationError = (isSvgMime || isSvgExtension)
+            ? "SVG files are not allowed for security reasons. Please use PNG, JPEG, or WebP."
+            : "Only image files are allowed for logos";
+          fileStream.resume();
+          return;
+        }
+        
+        // SECURITY: Only allow safe image extensions
+        const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+        if (!allowedExtensions.includes(extension)) {
+          validationError = `File extension '.${extension}' is not allowed. Please use PNG, JPEG, GIF, or WebP.`;
           fileStream.resume();
           return;
         }
         
         const timestamp = Date.now();
-        const extension = filename.split('.').pop() || 'png';
         const logoFileName = `${userId}_logo_${timestamp}.${extension}`;
         const storagePath = `public/branding/${logoFileName}`;
         
-        // Stream directly to storage - no RAM buffering
+        // Stream to storage with content validation
         uploadPromise = (async () => {
-          // Create a PassThrough to handle limit event properly
-          const { PassThrough } = await import('stream');
+          const { PassThrough, Transform } = await import('stream');
+          const { isSvgContent, hasValidImageMagicBytes } = await import('./utils/security');
+          
           const passThrough = new PassThrough();
           let limitExceeded = false;
+          let magicBytesValidated = false;
+          let accumulatedBuffer: Buffer = Buffer.alloc(0);
+          const MAX_VALIDATION_SIZE = 4096; // Accumulate up to 4KB for SVG pattern detection
           
           fileStream.on('limit', () => {
             limitExceeded = true;
@@ -234,15 +256,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
             passThrough.destroy(new Error("File size limit exceeded"));
           });
           
-          fileStream.pipe(passThrough);
+          // SECURITY: Create transform stream with robust validation
+          // Strategy: Validate magic bytes immediately, then continue scanning for SVG patterns
+          const validationTransform = new Transform({
+            transform(chunk, encoding, callback) {
+              // Always accumulate for ongoing SVG detection (up to limit)
+              if (accumulatedBuffer.length < MAX_VALIDATION_SIZE) {
+                accumulatedBuffer = Buffer.concat([accumulatedBuffer, chunk]);
+              }
+              
+              // SECURITY: Validate magic bytes FIRST (only needs first few bytes)
+              if (!magicBytesValidated && accumulatedBuffer.length >= 12) {
+                if (!hasValidImageMagicBytes(accumulatedBuffer)) {
+                  validationError = "Invalid image file - content does not match a recognized image format (PNG, JPEG, GIF, or WebP).";
+                  callback(new Error(validationError));
+                  return;
+                }
+                magicBytesValidated = true;
+              }
+              
+              // SECURITY: Continuously check for SVG patterns in accumulated buffer
+              // This catches split-chunk SVG attacks
+              if (isSvgContent(accumulatedBuffer)) {
+                validationError = "File content appears to be SVG disguised as another format. SVG files are not allowed.";
+                callback(new Error(validationError));
+                return;
+              }
+              
+              // Only pass through data after magic bytes validated
+              if (magicBytesValidated) {
+                callback(null, chunk);
+              } else {
+                callback();
+              }
+            },
+            flush(callback) {
+              // Final validation for small files
+              if (!magicBytesValidated && accumulatedBuffer.length > 0) {
+                if (!hasValidImageMagicBytes(accumulatedBuffer)) {
+                  validationError = "Invalid image file - content does not match a recognized image format.";
+                  callback(new Error(validationError));
+                  return;
+                }
+                // Final SVG check
+                if (isSvgContent(accumulatedBuffer)) {
+                  validationError = "File content appears to be SVG disguised as another format.";
+                  callback(new Error(validationError));
+                  return;
+                }
+                // Push buffered data for small files
+                this.push(accumulatedBuffer);
+              }
+              callback();
+            }
+          });
+          
+          fileStream.pipe(validationTransform).pipe(passThrough);
           
           try {
             await getObjectStorage().uploadFromStream(storagePath, passThrough);
             
-            if (limitExceeded) {
+            if (limitExceeded || validationError) {
               // Clean up partial upload
               try { await getObjectStorage().delete(storagePath); } catch {}
-              throw new Error("File size limit exceeded");
+              throw new Error(validationError || "File size limit exceeded");
             }
             
             const logoUrl = `/public-objects/branding/${logoFileName}`;
@@ -250,6 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return logoUrl;
           } catch (err: any) {
             if (limitExceeded) throw new Error("Logo file must be under 2MB");
+            if (validationError) throw new Error(validationError);
             throw err;
           }
         })();
@@ -331,16 +409,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { data } = await objectStorage.downloadAsBytes(storagePath);
       
       // Set appropriate content type based on file extension
-      const ext = filePath.split('.').pop()?.toLowerCase();
+      // SECURITY: SVG removed - can contain embedded JavaScript (XSS vector)
+      const ext = filePath.split('.').pop()?.toLowerCase() || '';
       const contentTypes: Record<string, string> = {
         'png': 'image/png',
         'jpg': 'image/jpeg',
         'jpeg': 'image/jpeg',
         'gif': 'image/gif',
-        'svg': 'image/svg+xml',
         'webp': 'image/webp',
       };
-      const contentType = contentTypes[ext || ''] || 'application/octet-stream';
+      
+      // SECURITY: Block serving SVG files (case-insensitive, including svgz)
+      if (ext === 'svg' || ext === 'svgz') {
+        return res.status(403).json({ error: "SVG files are not allowed for security reasons" });
+      }
+      
+      // SECURITY: Only serve files with known safe extensions (allowlist)
+      if (!contentTypes[ext]) {
+        return res.status(403).json({ error: "File type not allowed" });
+      }
+      
+      const contentType = contentTypes[ext];
       
       // Set response headers for serving public objects
       res.setHeader('Content-Type', contentType);
@@ -374,9 +463,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const excelBuffer = await generatePipelineExcel(prospects, user);
       
+      // SECURITY: Use sanitized filename to prevent header injection
+      const { encodeContentDisposition } = await import("./utils/security");
       const filename = `pipeline-export-${new Date().toISOString().split('T')[0]}.xlsx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Disposition', encodeContentDisposition(filename));
       res.send(excelBuffer);
     } catch (error: any) {
       console.error("Error generating Excel export:", error);
@@ -550,10 +641,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pdfLayoutPreferences: user?.pdfLayoutPreferences || null,
       });
 
+      // SECURITY: Use sanitized filename to prevent header injection
+      const { encodeContentDisposition } = await import("./utils/security");
       const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
       
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Disposition', encodeContentDisposition(filename));
       
       doc.pipe(res);
       doc.end();
@@ -1453,11 +1546,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return name;
   }
 
-  // Contacts API - Protected routes
-  app.get("/api/prospects/:prospectId/contacts", isAuthenticated, async (req, res) => {
+  // Contacts API - Protected routes (user-scoped via prospect ownership)
+  app.get("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const contacts = await storage.listContacts(prospectId);
+      const userId = req.user.claims.sub;
+      const contacts = await storage.listContacts(prospectId, userId);
       res.json(contacts);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1504,7 +1598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activeOfficers = officersData.items?.filter((o: any) => !o.resigned_on) || [];
       
       // Get existing contacts
-      const existingContacts = await storage.listContacts(prospectId);
+      const existingContacts = await storage.listContacts(prospectId, userId);
       const existingNames = new Set(existingContacts.map(c => c.name.toLowerCase().trim()));
       
       // Create contacts for officers not already in contacts
@@ -1517,13 +1611,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             prospectId,
             name: formattedName,
             role,
-          });
-          newContacts.push(contact);
+          }, userId);
+          if (contact) newContacts.push(contact);
         }
       }
       
       // Return all contacts
-      const allContacts = await storage.listContacts(prospectId);
+      const allContacts = await storage.listContacts(prospectId, userId);
       res.json({ 
         contacts: allContacts, 
         synced: newContacts.length,
@@ -1536,26 +1630,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/prospects/:prospectId/contacts", isAuthenticated, async (req, res) => {
+  app.post("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
+      const userId = req.user.claims.sub;
       const result = insertContactSchema.safeParse({ ...req.body, prospectId });
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
-      const contact = await storage.createContact(result.data);
-      res.json(contact);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.patch("/api/contacts/:id", isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const contact = await storage.updateContact(id, req.body);
+      const contact = await storage.createContact(result.data, userId);
       if (!contact) {
-        return res.status(404).json({ error: "Contact not found" });
+        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
       }
       res.json(contact);
     } catch (error: any) {
@@ -1563,10 +1648,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/contacts/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      await storage.deleteContact(id);
+      const userId = req.user.claims.sub;
+      const contact = await storage.updateContact(id, userId, req.body);
+      if (!contact) {
+        return res.status(404).json({ error: "Contact not found or access denied" });
+      }
+      res.json(contact);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteContact(id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Contact not found or access denied" });
+      }
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1579,17 +1682,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contactId = parseInt(req.params.id);
       const userId = req.user.claims.sub;
       
-      // Get the contact
-      const contact = await storage.getContact(contactId);
+      // Get the contact (already user-scoped via prospect ownership)
+      const contact = await storage.getContact(contactId, userId);
       if (!contact) {
-        return res.status(404).json({ error: "Contact not found" });
+        return res.status(404).json({ error: "Contact not found or access denied" });
       }
       
-      // Get the prospect and verify ownership (security check)
+      // Get the prospect
       const prospect = await storage.getProspect(contact.prospectId, userId);
       if (!prospect) {
-        // Either prospect doesn't exist or doesn't belong to user
-        return res.status(403).json({ error: "Access denied - you don't have permission to access this contact" });
+        return res.status(404).json({ error: "Prospect not found" });
       }
       
       // Get company name for search context
@@ -1690,21 +1792,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/activities", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const result = insertActivitySchema.safeParse(req.body);
+      // SECURITY: Strip userId from request body to prevent injection attacks
+      const { userId: _, ...safeBody } = req.body;
+      const result = insertActivitySchema.safeParse(safeBody);
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
-      const activity = await storage.createActivity({ ...result.data, userId });
+      const activity = await storage.createActivity(result.data, userId);
+      if (!activity) {
+        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
+      }
       res.json(activity);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/prospects/:prospectId/activities", isAuthenticated, async (req, res) => {
+  app.get("/api/prospects/:prospectId/activities", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const activities = await storage.listActivities(prospectId);
+      const userId = req.user.claims.sub;
+      const activities = await storage.listActivities(prospectId, userId);
       res.json(activities);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1715,23 +1823,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
-      const result = insertActivitySchema.safeParse({ ...req.body, prospectId });
+      // SECURITY: Strip userId from request body to prevent injection attacks
+      const { userId: _, ...safeBody } = req.body;
+      const result = insertActivitySchema.safeParse({ ...safeBody, prospectId });
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
-      const activity = await storage.createActivity({ ...result.data, userId });
-      res.json(activity);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.patch("/api/activities/:id", isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const activity = await storage.updateActivity(id, req.body);
+      const activity = await storage.createActivity(result.data, userId);
       if (!activity) {
-        return res.status(404).json({ error: "Activity not found" });
+        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
       }
       res.json(activity);
     } catch (error: any) {
@@ -1739,35 +1839,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/activities/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/activities/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      await storage.deleteActivity(id);
+      const userId = req.user.claims.sub;
+      const activity = await storage.updateActivity(id, userId, req.body);
+      if (!activity) {
+        return res.status(404).json({ error: "Activity not found or access denied" });
+      }
+      res.json(activity);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/activities/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      await storage.deleteActivity(id, userId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req, res) => {
+  app.get("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const dueDiligence = await storage.getDueDiligence(prospectId);
-      res.json(dueDiligence || { prospectId, data: {} });
+      const userId = req.user.claims.sub;
+      const dueDiligenceData = await storage.getDueDiligence(prospectId, userId);
+      res.json(dueDiligenceData || { prospectId, data: {} });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.patch("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req, res) => {
+  app.patch("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const existing = await storage.getDueDiligence(prospectId);
+      const userId = req.user.claims.sub;
+      const existing = await storage.getDueDiligence(prospectId, userId);
       const mergedData = (existing && existing.data) 
         ? { ...(existing.data as object), ...req.body }
         : req.body;
-      const dueDiligence = await storage.upsertDueDiligence(prospectId, mergedData);
-      res.json(dueDiligence);
+      const dueDiligenceData = await storage.upsertDueDiligence(prospectId, userId, mergedData);
+      if (!dueDiligenceData) {
+        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
+      }
+      res.json(dueDiligenceData);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -2529,11 +2649,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Lender Products API
+  // Lender Products API (user-scoped via lender ownership)
   app.get("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
-      const products = await storage.listLenderProducts(lenderId);
+      const userId = req.user.claims.sub;
+      const products = await storage.listLenderProducts(lenderId, userId);
       res.json(products);
     } catch (error) {
       console.error("Error fetching lender products:", error);
@@ -2544,8 +2665,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
+      const userId = req.user.claims.sub;
       const productData = { ...req.body, lenderId };
-      const product = await storage.createLenderProduct(productData);
+      const product = await storage.createLenderProduct(productData, userId);
+      if (!product) {
+        return res.status(403).json({ message: "Access denied - lender not found or not owned by user" });
+      }
       res.status(201).json(product);
     } catch (error) {
       console.error("Error creating lender product:", error);
@@ -2556,10 +2681,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
     try {
       const productId = parseInt(req.params.id);
-      const product = await storage.updateLenderProduct(productId, req.body);
+      const userId = req.user.claims.sub;
+      const product = await storage.updateLenderProduct(productId, userId, req.body);
       
       if (!product) {
-        return res.status(404).json({ message: "Product not found" });
+        return res.status(404).json({ message: "Product not found or access denied" });
       }
       
       res.json(product);
@@ -2572,7 +2698,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
     try {
       const productId = parseInt(req.params.id);
-      await storage.deleteLenderProduct(productId);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteLenderProduct(productId, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Product not found or access denied" });
+      }
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting lender product:", error);
@@ -2580,11 +2710,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Lender Interactions API
+  // Lender Interactions API (user-scoped via lender ownership)
   app.get("/api/lenders/:lenderId/interactions", isAuthenticated, async (req: any, res) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
-      const interactions = await storage.listLenderInteractions(lenderId);
+      const userId = req.user.claims.sub;
+      const interactions = await storage.listLenderInteractions(lenderId, userId);
       res.json(interactions);
     } catch (error) {
       console.error("Error fetching lender interactions:", error);
@@ -2609,11 +2740,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { sentAt, respondedAt, ...rest } = req.body;
       const interactionData = {
         ...rest,
-        userId,
         sentAt: sentAt ? new Date(sentAt) : new Date(),
         respondedAt: respondedAt ? new Date(respondedAt) : undefined,
       };
-      const interaction = await storage.createLenderInteraction(interactionData);
+      const interaction = await storage.createLenderInteraction(interactionData, userId);
+      if (!interaction) {
+        return res.status(403).json({ message: "Access denied - lender not found or not owned by user" });
+      }
       
       // Update lender's lastContactedAt
       if (interaction.lenderId) {
@@ -2632,10 +2765,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
     try {
       const interactionId = parseInt(req.params.id);
-      const interaction = await storage.updateLenderInteraction(interactionId, req.body);
+      const userId = req.user.claims.sub;
+      const interaction = await storage.updateLenderInteraction(interactionId, userId, req.body);
       
       if (!interaction) {
-        return res.status(404).json({ message: "Interaction not found" });
+        return res.status(404).json({ message: "Interaction not found or access denied" });
       }
       
       res.json(interaction);
@@ -2648,7 +2782,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
     try {
       const interactionId = parseInt(req.params.id);
-      await storage.deleteLenderInteraction(interactionId);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteLenderInteraction(interactionId, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Interaction not found or access denied" });
+      }
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting lender interaction:", error);
@@ -2862,7 +3000,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create an activity task to log this submission
       const activity = await storage.createActivity({
-        userId,
         activityType: "task",
         title: `Application ${emailSent ? 'sent' : 'submitted'} to ${lender.institutionName}`,
         description: `Loan application for ${prospect.company.companyName} ${emailSent ? 'emailed' : 'submitted'} to ${lender.institutionName}${emailSent ? '' : emailError ? ` (email failed: ${emailError})` : ' (email failed)'}`,
@@ -2870,7 +3007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority: "high",
         dueDate: null,
         completed: 1,
-      });
+      }, userId);
       
       res.status(201).json({ 
         submission: { ...submission, emailSent: emailSent ? 1 : 0, status: emailSent ? 'sent' : 'pending' }, 
@@ -4381,7 +4518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Download attachment endpoint
+  // Download attachment endpoint (SECURITY: requires assigned underwriter or submitting broker)
   app.get("/api/underwriting/download/:submissionId/:activityId/:fileIndex", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -4395,9 +4532,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Submission not found" });
       }
       
+      // SECURITY: Only allow the submitting broker OR the assigned underwriter
+      // Not just any user with role 'underwriter'
       const user = await storage.getUser(userId);
-      if (user?.role !== 'underwriter' && submission.brokerId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
+      const isSubmittingBroker = submission.brokerId === userId;
+      const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      if (!isSubmittingBroker && !isAssignedUnderwriter && !isSuperAdmin) {
+        return res.status(403).json({ error: "Access denied - you must be the submitting broker or assigned underwriter" });
       }
       
       // Get the activity and extract attachment
@@ -4418,8 +4561,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Download from object storage
       const { data } = await getObjectStorage().downloadAsBytes(attachment.storagePath);
       
+      // SECURITY: Use sanitized filename to prevent header injection
+      const { encodeContentDisposition } = await import("./utils/security");
       res.setHeader('Content-Type', attachment.fileType);
-      res.setHeader('Content-Disposition', `attachment; filename="${attachment.fileName}"`);
+      res.setHeader('Content-Disposition', encodeContentDisposition(attachment.fileName));
       res.send(Buffer.from(data));
     } catch (error: any) {
       console.error("Error downloading file:", error);
@@ -4740,8 +4885,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { data } = await getObjectStorage().downloadAsBytes(document.storagePath);
       
+      // SECURITY: Use sanitized filename to prevent header injection
+      const { encodeContentDisposition } = await import("./utils/security");
       res.setHeader('Content-Type', document.fileType);
-      res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+      res.setHeader('Content-Disposition', encodeContentDisposition(document.fileName));
       res.send(Buffer.from(data));
     } catch (error: any) {
       console.error("Error downloading document:", error);
@@ -4917,7 +5064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: contact.role || null,
             isPrimary: contact.isPrimary ? 1 : 0,
             notes: contact.notes || null,
-          });
+          }, user.id);
         }
       }
 
@@ -4931,12 +5078,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           financialRatios: payload.dueDiligence.financialRatios,
           character: payload.dueDiligence.character,
         };
-        await storage.upsertDueDiligence(prospect.id, dueDiligenceData);
+        await storage.upsertDueDiligence(prospect.id, user.id, dueDiligenceData);
       }
 
       // Log the webhook activity
       await storage.createActivity({
-        userId: user.id,
         prospectId: prospect.id,
         title: "Prospect created via webhook",
         description: payload.metadata?.sourceApp 
@@ -4944,7 +5090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : "Created via webhook API",
         activityType: "note",
         priority: "low",
-      });
+      }, user.id);
 
       res.status(201).json({
         success: true,

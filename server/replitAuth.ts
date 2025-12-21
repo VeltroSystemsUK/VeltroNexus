@@ -19,12 +19,13 @@ const getOidcConfig = memoize(
 );
 
 export function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds (for cookie)
+  const sessionTtlSeconds = Math.floor(sessionTtlMs / 1000); // convert to seconds for pg-store
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: sessionTtlSeconds, // connect-pg-simple expects seconds, not milliseconds
     tableName: "sessions",
   });
   const isProduction = process.env.NODE_ENV === "production";
@@ -36,7 +37,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: isProduction, // Only require HTTPS in production
-      maxAge: sessionTtl,
+      maxAge: sessionTtlMs, // cookie.maxAge is in milliseconds
       // SECURITY: sameSite=lax prevents cookies from being sent on cross-site
       // requests (except top-level navigations). This is the first layer of
       // CSRF defense. Combined with Origin/Referer validation, it provides

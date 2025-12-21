@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+
+# Node modules (should be installed fresh in container)
+node_modules
+
+# Development and test files
+.env
+.env.local
+.env.*.local
+*.test.ts
+*.spec.ts
+__tests__
+test
+coverage
+.nyc_output
+
+# Build artifacts (will be built in container)
+dist
+build
+.cache
+*.tsbuildinfo
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package manager cache
+.npm
+.config/npm/node_global
+
+# Documentation (not needed in production)
+*.md
+docs
+!README.md
+
+# Attached assets (development only)
+attached_assets
+
+# Audit and temporary files
+codebase_audit.txt
+/tmp
+
+# Replit specific
+.replit
+replit.nix
