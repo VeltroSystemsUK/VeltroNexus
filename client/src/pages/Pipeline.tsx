@@ -4,7 +4,10 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineColumn from "@/components/PipelineColumn";
-import ProspectCard, { type ProspectCardData, type UnderwritingStatus } from "@/components/ProspectCard";
+import ProspectCard, {
+  type ProspectCardData,
+  type UnderwritingStatus,
+} from "@/components/ProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
 import ThemeToggle from "@/components/ThemeToggle";
 import ActivityCalendar from "@/components/ActivityCalendar";
@@ -29,7 +32,16 @@ import { useEffect, useState, useMemo } from "react";
 import type { ProspectWithCompany } from "@shared/schema";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
 
-type Stage = "lead" | "contacted" | "qualified" | "proposal" | "due-diligence" | "submission" | "approved" | "declined" | "withdrawn";
+type Stage =
+  | "lead"
+  | "contacted"
+  | "qualified"
+  | "proposal"
+  | "due-diligence"
+  | "submission"
+  | "approved"
+  | "declined"
+  | "withdrawn";
 
 const PROSPECT_STAGES: { value: Stage; label: string }[] = [
   { value: "lead", label: "Lead" },
@@ -55,29 +67,33 @@ export default function Pipeline() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [showLimitModal, setShowLimitModal] = useState(false);
-  
+
   useEffect(() => {
-    const pendingTier = sessionStorage.getItem('subscription_tier');
+    const pendingTier = sessionStorage.getItem("subscription_tier");
     if (pendingTier && isAuthenticated) {
-      navigate('/pricing');
+      navigate("/pricing");
     }
   }, [isAuthenticated, navigate]);
-  
-  const { data: prospects = [], isLoading, error } = useQuery<ProspectWithCompany[]>({
+
+  const {
+    data: prospects = [],
+    isLoading,
+    error,
+  } = useQuery<ProspectWithCompany[]>({
     queryKey: ["/api/prospects"],
     queryFn: () => api.prospects.list(),
     enabled: isAuthenticated,
   });
-  
+
   const prospectLimit = (user as any)?.prospectLimit || 10;
   const subscriptionTier = (user as any)?.subscriptionTier || "free";
-  
+
   const sortedProspectIds = useMemo(() => {
     return prospects
       .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
-      .map(p => p.id);
+      .map((p) => p.id);
   }, [prospects]);
-  
+
   const isProspectOverLimit = (prospectId: number) => {
     const index = sortedProspectIds.indexOf(prospectId);
     return index >= prospectLimit;
@@ -128,8 +144,8 @@ export default function Pipeline() {
       const newOrder = [...stageProspects];
       const [removed] = newOrder.splice(source.index, 1);
       newOrder.splice(destination.index, 0, removed);
-      
-      const orderedIds = newOrder.map(p => p.id);
+
+      const orderedIds = newOrder.map((p) => p.id);
       reorderMutation.mutate({ stage: sourceStage, orderedIds });
       return;
     }
@@ -187,9 +203,7 @@ export default function Pipeline() {
           <p className="text-muted-foreground text-sm mb-4">
             {error instanceof Error ? error.message : "An unexpected error occurred"}
           </p>
-          <Button onClick={() => window.location.reload()}>
-            Reload Page
-          </Button>
+          <Button onClick={() => window.location.reload()}>Reload Page</Button>
         </div>
       </div>
     );
@@ -216,26 +230,48 @@ export default function Pipeline() {
                   <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />
                 </div>
                 <div>
-                  <h1 className="text-lg md:text-2xl font-bold tracking-tight" data-testid="text-app-title">FlowLoan</h1>
-                  <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Commercial Lending Platform</p>
+                  <h1
+                    className="text-lg md:text-2xl font-bold tracking-tight"
+                    data-testid="text-app-title"
+                  >
+                    FlowLoan
+                  </h1>
+                  <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
+                    Commercial Lending Platform
+                  </p>
                 </div>
               </>
             )}
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <Button size="icon" className="md:hidden h-9 w-9" onClick={() => navigate("/search")} data-testid="button-add-prospect-mobile">
+            <Button
+              size="icon"
+              className="md:hidden h-9 w-9"
+              onClick={() => navigate("/search")}
+              data-testid="button-add-prospect-mobile"
+            >
               <TrendingUp className="h-4 w-4" />
             </Button>
-            <Button size="lg" className="hidden md:flex" onClick={() => navigate("/search")} data-testid="button-add-prospect">
+            <Button
+              size="lg"
+              className="hidden md:flex"
+              onClick={() => navigate("/search")}
+              data-testid="button-add-prospect"
+            >
               Add Prospect
             </Button>
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-11 w-11" data-testid="button-user-menu">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11"
+                  data-testid="button-user-menu"
+                >
                   <Avatar className="h-10 w-10">
-                    <AvatarImage 
-                      src={user?.profileImageUrl || undefined} 
+                    <AvatarImage
+                      src={user?.profileImageUrl || undefined}
                       alt={user?.firstName || "User"}
                       style={{ objectFit: "cover" }}
                     />
@@ -247,40 +283,46 @@ export default function Pipeline() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
                 <div className="px-3 py-3">
-                  <p className="font-semibold text-base">{user?.firstName} {user?.lastName}</p>
+                  <p className="font-semibold text-base">
+                    {user?.firstName} {user?.lastName}
+                  </p>
                   <p className="text-muted-foreground text-sm">{user?.email}</p>
                 </div>
                 <DropdownMenuSeparator />
                 <div className="px-3 py-3">
-                  <p className="text-xs text-muted-foreground mb-1.5 uppercase tracking-wide font-medium">Subscription</p>
-                  <p className="font-semibold text-base capitalize">{user?.subscriptionTier || "Free"} Plan</p>
+                  <p className="text-xs text-muted-foreground mb-1.5 uppercase tracking-wide font-medium">
+                    Subscription
+                  </p>
+                  <p className="font-semibold text-base capitalize">
+                    {user?.subscriptionTier || "Free"} Plan
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     {prospects.length} / {user?.prospectLimit || 10} prospects used
                   </p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => navigate("/profile")}
                   className="py-2.5 text-base"
                   data-testid="menu-item-profile"
                 >
                   Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => navigate("/settings")}
                   className="py-2.5 text-base"
                   data-testid="menu-item-settings"
                 >
                   Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => navigate("/lenders")}
                   className="py-2.5 text-base"
                   data-testid="menu-item-lenders"
                 >
                   Lender Database
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => navigate("/submissions")}
                   className="py-2.5 text-base"
                   data-testid="menu-item-submissions"
@@ -288,8 +330,8 @@ export default function Pipeline() {
                   Submissions
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => window.location.href = "/api/logout"}
+                <DropdownMenuItem
+                  onClick={() => (window.location.href = "/api/logout")}
                   className="py-2.5 text-base"
                   data-testid="menu-item-logout"
                 >
@@ -302,8 +344,16 @@ export default function Pipeline() {
       </header>
       <main className="container mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="mb-6 md:mb-10">
-          <h2 className="md:text-4xl font-bold mb-2 md:mb-3 tracking-tight text-[32px]" data-testid="text-page-title">Pipeline Dashboard</h2>
-          <p className="text-sm md:text-lg text-muted-foreground" data-testid="text-page-description">
+          <h2
+            className="md:text-4xl font-bold mb-2 md:mb-3 tracking-tight text-[32px]"
+            data-testid="text-page-title"
+          >
+            Pipeline Dashboard
+          </h2>
+          <p
+            className="text-sm md:text-lg text-muted-foreground"
+            data-testid="text-page-description"
+          >
             Manage your commercial lending pipeline
           </p>
         </div>
@@ -312,18 +362,33 @@ export default function Pipeline() {
           <EmptyPipeline onAddProspect={() => navigate("/search")} />
         ) : (
           <Tabs defaultValue="dashboard" className="w-full" data-testid="tabs-main">
-            <TabsList className="grid w-full grid-cols-3 mb-6 md:mb-10 h-12 md:h-14" data-testid="tabs-list">
-              <TabsTrigger value="dashboard" className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5" data-testid="tab-dashboard">
+            <TabsList
+              className="grid w-full grid-cols-3 mb-6 md:mb-10 h-12 md:h-14"
+              data-testid="tabs-list"
+            >
+              <TabsTrigger
+                value="dashboard"
+                className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5"
+                data-testid="tab-dashboard"
+              >
                 <LayoutDashboard className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="hidden sm:inline">Dashboard</span>
                 <span className="sm:hidden">Home</span>
               </TabsTrigger>
-              <TabsTrigger value="prospect-pipeline" className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5" data-testid="tab-prospect-pipeline">
+              <TabsTrigger
+                value="prospect-pipeline"
+                className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5"
+                data-testid="tab-prospect-pipeline"
+              >
                 <Users className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="hidden sm:inline">Prospect Pipeline</span>
                 <span className="sm:hidden">Prospects</span>
               </TabsTrigger>
-              <TabsTrigger value="process-pipeline" className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5" data-testid="tab-process-pipeline">
+              <TabsTrigger
+                value="process-pipeline"
+                className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5"
+                data-testid="tab-process-pipeline"
+              >
                 <Send className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="hidden sm:inline">Process Pipeline</span>
                 <span className="sm:hidden">Process</span>
@@ -335,7 +400,9 @@ export default function Pipeline() {
               <div className="space-y-6 md:space-y-10">
                 {/* Headline Metrics */}
                 <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Overview</h3>
+                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
+                    Overview
+                  </h3>
                   <PipelineStats
                     totalProspects={prospects.length}
                     activeProspects={activeProspects}
@@ -346,7 +413,9 @@ export default function Pipeline() {
 
                 {/* CRM Features */}
                 <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Activity Management</h3>
+                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
+                    Activity Management
+                  </h3>
                   <div className="space-y-4 md:space-y-6">
                     <div className="w-full">
                       <ActivityCalendar />
@@ -360,20 +429,30 @@ export default function Pipeline() {
 
                 {/* Quick Stage Summary */}
                 <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Stage Summary</h3>
+                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
+                    Stage Summary
+                  </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-5">
-                    {ALL_STAGES.filter(s => !["approved", "declined", "withdrawn"].includes(s.value)).map((stage) => {
+                    {ALL_STAGES.filter(
+                      (s) => !["approved", "declined", "withdrawn"].includes(s.value)
+                    ).map((stage) => {
                       const count = getProspectsByStage(stage.value).length;
                       const totalValue = getTotalValueByStage(stage.value);
                       return (
                         <Card key={stage.value} className="hover-elevate">
                           <CardHeader className="pb-1 md:pb-2 pt-3 md:pt-5 px-3 md:px-5">
-                            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wide">{stage.label}</CardTitle>
+                            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                              {stage.label}
+                            </CardTitle>
                           </CardHeader>
                           <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
-                            <div className="text-2xl md:text-4xl font-bold tracking-tight">{count}</div>
+                            <div className="text-2xl md:text-4xl font-bold tracking-tight">
+                              {count}
+                            </div>
                             {totalValue && (
-                              <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2">{totalValue}</p>
+                              <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2">
+                                {totalValue}
+                              </p>
                             )}
                           </CardContent>
                         </Card>
@@ -388,7 +467,9 @@ export default function Pipeline() {
             <TabsContent value="prospect-pipeline" data-testid="content-prospect-pipeline">
               <div className="space-y-4 md:space-y-8">
                 <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">Early Stage Pipeline</h3>
+                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">
+                    Early Stage Pipeline
+                  </h3>
                   <p className="text-muted-foreground text-sm md:text-base">
                     Track prospects from lead to qualification
                   </p>
@@ -425,10 +506,7 @@ export default function Pipeline() {
                                       index={index}
                                     >
                                       {(provided, snapshot) => (
-                                        <div
-                                          ref={provided.innerRef}
-                                          {...provided.draggableProps}
-                                        >
+                                        <div ref={provided.innerRef} {...provided.draggableProps}>
                                           <ProspectCard
                                             prospect={cardData}
                                             dragHandleProps={provided.dragHandleProps}
@@ -465,7 +543,9 @@ export default function Pipeline() {
             <TabsContent value="process-pipeline" data-testid="content-process-pipeline">
               <div className="space-y-4 md:space-y-8">
                 <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">Application Processing</h3>
+                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">
+                    Application Processing
+                  </h3>
                   <p className="text-muted-foreground text-sm md:text-base">
                     Manage applications from proposal to submission
                   </p>
@@ -504,10 +584,7 @@ export default function Pipeline() {
                                         index={index}
                                       >
                                         {(provided, snapshot) => (
-                                          <div
-                                            ref={provided.innerRef}
-                                            {...provided.draggableProps}
-                                          >
+                                          <div ref={provided.innerRef} {...provided.draggableProps}>
                                             <ProspectCard
                                               prospect={cardData}
                                               dragHandleProps={provided.dragHandleProps}
@@ -539,7 +616,9 @@ export default function Pipeline() {
 
                     {/* Final Outcomes */}
                     <div>
-                      <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">Final Outcomes</h3>
+                      <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
+                        Final Outcomes
+                      </h3>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5">
                         {FINAL_STAGES.map((stage) => {
                           const stageProspects = getProspectsByStage(stage.value);
@@ -585,7 +664,9 @@ export default function Pipeline() {
                                                 onMove={(newStage) =>
                                                   handleStageChange(prospect.id, newStage as Stage)
                                                 }
-                                                underwritingStatus={underwritingStatuses[prospect.id]}
+                                                underwritingStatus={
+                                                  underwritingStatuses[prospect.id]
+                                                }
                                                 isOverLimit={isProspectOverLimit(prospect.id)}
                                                 onLimitClick={() => setShowLimitModal(true)}
                                                 queuePosition={index + 1}
@@ -611,7 +692,7 @@ export default function Pipeline() {
           </Tabs>
         )}
       </main>
-      
+
       <ProspectLimitModal
         open={showLimitModal}
         onOpenChange={setShowLimitModal}

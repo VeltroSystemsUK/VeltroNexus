@@ -26,10 +26,15 @@ export default function PipelineStats({
           </div>
         </CardHeader>
         <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
-          <div className="text-2xl md:text-4xl font-bold tracking-tight" data-testid="text-total-prospects">
+          <div
+            className="text-2xl md:text-4xl font-bold tracking-tight"
+            data-testid="text-total-prospects"
+          >
             {totalProspects}
           </div>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">Total in pipeline</p>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">
+            Total in pipeline
+          </p>
         </CardContent>
       </Card>
       <Card className="hover-elevate">
@@ -42,10 +47,15 @@ export default function PipelineStats({
           </div>
         </CardHeader>
         <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
-          <div className="text-2xl md:text-4xl font-bold tracking-tight" data-testid="text-active-prospects">
+          <div
+            className="text-2xl md:text-4xl font-bold tracking-tight"
+            data-testid="text-active-prospects"
+          >
             {activeProspects}
           </div>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">Currently processing</p>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">
+            Currently processing
+          </p>
         </CardContent>
       </Card>
       <Card className="hover-elevate">
@@ -58,10 +68,15 @@ export default function PipelineStats({
           </div>
         </CardHeader>
         <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
-          <div className="text-lg md:text-3xl font-bold tracking-tight" data-testid="text-pipeline-value">
+          <div
+            className="text-lg md:text-3xl font-bold tracking-tight"
+            data-testid="text-pipeline-value"
+          >
             {totalValue}
           </div>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">Total loan amount</p>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">
+            Total loan amount
+          </p>
         </CardContent>
       </Card>
       <Card className="hover-elevate">
@@ -74,10 +89,15 @@ export default function PipelineStats({
           </div>
         </CardHeader>
         <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
-          <div className="text-2xl md:text-4xl font-bold tracking-tight text-green-600 dark:text-green-400" data-testid="text-approved-count">
+          <div
+            className="text-2xl md:text-4xl font-bold tracking-tight text-green-600 dark:text-green-400"
+            data-testid="text-approved-count"
+          >
             {approvedCount}
           </div>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">Successfully closed</p>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 hidden sm:block">
+            Successfully closed
+          </p>
         </CardContent>
       </Card>
     </div>

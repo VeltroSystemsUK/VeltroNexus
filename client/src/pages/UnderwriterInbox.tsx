@@ -73,7 +73,9 @@ export default function UnderwriterInbox() {
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionWithDetails | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [decisionDialogOpen, setDecisionDialogOpen] = useState(false);
-  const [decisionType, setDecisionType] = useState<"approved" | "declined" | "queried" | null>(null);
+  const [decisionType, setDecisionType] = useState<"approved" | "declined" | "queried" | null>(
+    null
+  );
   const [decisionReason, setDecisionReason] = useState("");
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [newMessage, setNewMessage] = useState("");
@@ -101,7 +103,15 @@ export default function UnderwriterInbox() {
   });
 
   const decisionMutation = useMutation({
-    mutationFn: async ({ id, status, decisionReason }: { id: number; status: string; decisionReason: string }) => {
+    mutationFn: async ({
+      id,
+      status,
+      decisionReason,
+    }: {
+      id: number;
+      status: string;
+      decisionReason: string;
+    }) => {
       return apiRequest(`/api/underwriting/submissions/${id}`, "PATCH", { status, decisionReason });
     },
     onSuccess: () => {
@@ -117,12 +127,25 @@ export default function UnderwriterInbox() {
   });
 
   const messageMutation = useMutation({
-    mutationFn: async ({ id, message, setStatus }: { id: number; message: string; setStatus?: string }) => {
-      return apiRequest(`/api/underwriting/submissions/${id}/message`, "POST", { message, setStatus });
+    mutationFn: async ({
+      id,
+      message,
+      setStatus,
+    }: {
+      id: number;
+      message: string;
+      setStatus?: string;
+    }) => {
+      return apiRequest(`/api/underwriting/submissions/${id}/message`, "POST", {
+        message,
+        setStatus,
+      });
     },
     onSuccess: () => {
       if (selectedSubmission) {
-        queryClient.invalidateQueries({ queryKey: [`/api/underwriting/submissions/${selectedSubmission.id}/activities`] });
+        queryClient.invalidateQueries({
+          queryKey: [`/api/underwriting/submissions/${selectedSubmission.id}/activities`],
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] });
       setMessageDialogOpen(false);
@@ -140,13 +163,15 @@ export default function UnderwriterInbox() {
     messageMutation.mutate({
       id: selectedSubmission.id,
       message: newMessage,
-      setStatus: messageAsQuery ? 'queried' : undefined,
+      setStatus: messageAsQuery ? "queried" : undefined,
     });
   };
 
-  const queueSubmissions = submissions?.filter(s => s.status === "submitted") || [];
-  const inReviewSubmissions = submissions?.filter(s => s.status === "in_review" || s.status === "queried") || [];
-  const completedSubmissions = submissions?.filter(s => ["approved", "declined", "withdrawn"].includes(s.status)) || [];
+  const queueSubmissions = submissions?.filter((s) => s.status === "submitted") || [];
+  const inReviewSubmissions =
+    submissions?.filter((s) => s.status === "in_review" || s.status === "queried") || [];
+  const completedSubmissions =
+    submissions?.filter((s) => ["approved", "declined", "withdrawn"].includes(s.status)) || [];
 
   const handleClaim = (submission: UnderwritingSubmission) => {
     claimMutation.mutate(submission.id);
@@ -178,7 +203,10 @@ export default function UnderwriterInbox() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="font-semibold truncate" data-testid={`text-prospect-${submission.id}`}>
+              <span
+                className="font-semibold truncate"
+                data-testid={`text-prospect-${submission.id}`}
+              >
                 {submission.prospect?.company?.companyName || `Prospect #${submission.prospectId}`}
               </span>
             </div>
@@ -188,7 +216,10 @@ export default function UnderwriterInbox() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5">
-            <Badge className={statusColors[submission.status]} data-testid={`badge-status-${submission.id}`}>
+            <Badge
+              className={statusColors[submission.status]}
+              data-testid={`badge-status-${submission.id}`}
+            >
               {submission.status.replace("_", " ")}
             </Badge>
             <Badge variant="outline" className={priorityColors[submission.priority]}>
@@ -300,15 +331,15 @@ export default function UnderwriterInbox() {
           <h1 className="text-2xl md:text-3xl font-bold" data-testid="text-page-title">
             Underwriter Inbox
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Review and process loan applications
-          </p>
+          <p className="text-muted-foreground mt-1">Review and process loan applications</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] })}
+            onClick={() =>
+              queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] })
+            }
             data-testid="button-refresh"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -423,8 +454,8 @@ export default function UnderwriterInbox() {
                 decisionType === "approved"
                   ? "Optional notes for approval..."
                   : decisionType === "declined"
-                  ? "Please provide a reason for declining..."
-                  : "What information do you need from the broker?"
+                    ? "Please provide a reason for declining..."
+                    : "What information do you need from the broker?"
               }
               className="mt-2"
               rows={4}
@@ -437,13 +468,15 @@ export default function UnderwriterInbox() {
             </Button>
             <Button
               onClick={submitDecision}
-              disabled={decisionMutation.isPending || (decisionType !== "approved" && !decisionReason)}
+              disabled={
+                decisionMutation.isPending || (decisionType !== "approved" && !decisionReason)
+              }
               className={
                 decisionType === "approved"
                   ? "bg-green-600 hover:bg-green-700"
                   : decisionType === "declined"
-                  ? "bg-red-600 hover:bg-red-700"
-                  : ""
+                    ? "bg-red-600 hover:bg-red-700"
+                    : ""
               }
               data-testid="button-confirm-decision"
             >
@@ -464,11 +497,10 @@ export default function UnderwriterInbox() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
-              {selectedSubmission?.prospect?.company?.companyName || `Submission #${selectedSubmission?.id}`}
+              {selectedSubmission?.prospect?.company?.companyName ||
+                `Submission #${selectedSubmission?.id}`}
             </DialogTitle>
-            <DialogDescription>
-              Review details and communication history
-            </DialogDescription>
+            <DialogDescription>Review details and communication history</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-4 py-4">
@@ -477,7 +509,7 @@ export default function UnderwriterInbox() {
               <div>
                 <Label className="text-xs text-muted-foreground">Status</Label>
                 <div className="mt-1">
-                  <Badge className={statusColors[selectedSubmission?.status || 'submitted']}>
+                  <Badge className={statusColors[selectedSubmission?.status || "submitted"]}>
                     {selectedSubmission?.status?.replace("_", " ")}
                   </Badge>
                 </div>
@@ -485,7 +517,7 @@ export default function UnderwriterInbox() {
               <div>
                 <Label className="text-xs text-muted-foreground">Priority</Label>
                 <div className="mt-1">
-                  <Badge className={priorityColors[selectedSubmission?.priority || 'normal']}>
+                  <Badge className={priorityColors[selectedSubmission?.priority || "normal"]}>
                     {selectedSubmission?.priority}
                   </Badge>
                 </div>
@@ -493,7 +525,8 @@ export default function UnderwriterInbox() {
               <div>
                 <Label className="text-xs text-muted-foreground">Submitted</Label>
                 <p className="text-sm mt-1">
-                  {selectedSubmission?.submittedAt && format(new Date(selectedSubmission.submittedAt), "dd MMM yyyy HH:mm")}
+                  {selectedSubmission?.submittedAt &&
+                    format(new Date(selectedSubmission.submittedAt), "dd MMM yyyy HH:mm")}
                 </p>
               </div>
               <div>
@@ -519,23 +552,22 @@ export default function UnderwriterInbox() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <Label className="text-sm font-medium">Communication History</Label>
-                {selectedSubmission && (selectedSubmission.status === 'in_review' || selectedSubmission.status === 'queried') && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setMessageDialogOpen(true)}
-                    data-testid="button-send-message"
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Message
-                  </Button>
-                )}
+                {selectedSubmission &&
+                  (selectedSubmission.status === "in_review" ||
+                    selectedSubmission.status === "queried") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setMessageDialogOpen(true)}
+                      data-testid="button-send-message"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Send Message
+                    </Button>
+                  )}
               </div>
               {selectedSubmission && (
-                <ConversationThread 
-                  submissionId={selectedSubmission.id} 
-                  maxHeight="300px"
-                />
+                <ConversationThread submissionId={selectedSubmission.id} maxHeight="300px" />
               )}
             </div>
           </div>
@@ -545,7 +577,7 @@ export default function UnderwriterInbox() {
               Close
             </Button>
             <div className="flex gap-2">
-              {selectedSubmission?.status === 'in_review' && (
+              {selectedSubmission?.status === "in_review" && (
                 <>
                   <Button
                     variant="outline"

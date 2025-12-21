@@ -18,7 +18,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Building2, TrendingUp, Search, MapPin, Users, Hash, Briefcase, UserSearch, PenLine, Check } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  TrendingUp,
+  Search,
+  MapPin,
+  Users,
+  Hash,
+  Briefcase,
+  UserSearch,
+  PenLine,
+  Check,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -85,7 +97,7 @@ const NON_REGISTERED_TYPES = ["partnership", "sole-trader"];
 export default function CompanySearch() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<"search" | "manual" | "confirmation">("search");
-  
+
   // Search state
   const [searchType, setSearchType] = useState<SearchType>("company");
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,11 +105,11 @@ export default function CompanySearch() {
   const [selectedOfficer, setSelectedOfficer] = useState<OfficerSearchResult | null>(null);
   const [officerAppointments, setOfficerAppointments] = useState<OfficerAppointment[]>([]);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
-  
+
   // Search filters
   const [hideDissolvedCompanies, setHideDissolvedCompanies] = useState(true);
   const [searchLimit, setSearchLimit] = useState<string>("50");
-  
+
   // Form state (shared between search selection and manual entry)
   const [companyName, setCompanyName] = useState("");
   const [companyNumber, setCompanyNumber] = useState("");
@@ -110,14 +122,24 @@ export default function CompanySearch() {
   const [notes, setNotes] = useState("");
 
   // Company search query
-  const { data: companyResults, refetch: searchCompanies, isFetching: isSearchingCompanies } = useQuery<{ items: CompanySearchResult[] }>({
-    queryKey: ["/api/companies-house/search", searchQuery, searchType, hideDissolvedCompanies, searchLimit],
+  const {
+    data: companyResults,
+    refetch: searchCompanies,
+    isFetching: isSearchingCompanies,
+  } = useQuery<{ items: CompanySearchResult[] }>({
+    queryKey: [
+      "/api/companies-house/search",
+      searchQuery,
+      searchType,
+      hideDissolvedCompanies,
+      searchLimit,
+    ],
     queryFn: async () => {
       const limit = parseInt(searchLimit) || 50;
       const activeOnly = hideDissolvedCompanies ? "&active_only=true" : "";
-      
+
       let url = `/api/companies-house/search?q=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
-      
+
       // Add search type specific parameters
       if (searchType === "sic") {
         url = `/api/companies-house/advanced-search?sic_codes=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
@@ -126,7 +148,7 @@ export default function CompanySearch() {
       } else if (searchType === "postcode") {
         url = `/api/companies-house/advanced-search?postcode=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
       }
-      
+
       const response = await fetch(url, { credentials: "include" });
       if (!response.ok) {
         const error = await response.text();
@@ -138,7 +160,11 @@ export default function CompanySearch() {
   });
 
   // Officers search query
-  const { data: officerResults, refetch: searchOfficers, isFetching: isSearchingOfficers } = useQuery<{ items: OfficerSearchResult[] }>({
+  const {
+    data: officerResults,
+    refetch: searchOfficers,
+    isFetching: isSearchingOfficers,
+  } = useQuery<{ items: OfficerSearchResult[] }>({
     queryKey: ["/api/companies-house/search-officers", searchQuery],
     queryFn: async () => {
       const response = await fetch(
@@ -173,8 +199,8 @@ export default function CompanySearch() {
         const random = Math.random().toString(36).substring(2, 10);
         return `UNREG-${timestamp}-${random}`.toUpperCase();
       };
-      
-      const finalCompanyNumber = NON_REGISTERED_TYPES.includes(data.companyType || "") 
+
+      const finalCompanyNumber = NON_REGISTERED_TYPES.includes(data.companyType || "")
         ? generateUniqueId()
         : data.companyNumber;
 
@@ -215,7 +241,7 @@ export default function CompanySearch() {
       toast.error("Please enter a search term");
       return;
     }
-    
+
     try {
       if (searchType === "officers") {
         await searchOfficers();
@@ -233,7 +259,7 @@ export default function CompanySearch() {
     setCompanyNumber(company.company_number);
     setCompanyType(company.company_type || "ltd");
     setSicCodes(company.sic_codes || []);
-    
+
     // Build full address string from all available parts
     if (company.address) {
       const addressParts = [
@@ -252,7 +278,7 @@ export default function CompanySearch() {
       setRegisteredAddress(company.address_snippet);
       setPostcode("");
     }
-    
+
     // Switch to confirmation tab
     setActiveTab("confirmation");
     toast.success("Company selected - review and confirm details");
@@ -265,26 +291,26 @@ export default function CompanySearch() {
       toast.error("Unable to fetch director's companies");
       return;
     }
-    
+
     // Extract officer ID from path like /officers/abc123/appointments
-    const officerIdMatch = officerLink.match(/\/officers\/([^\/]+)/);
+    const officerIdMatch = officerLink.match(/\/officers\/([^/]+)/);
     const officerId = officerIdMatch ? officerIdMatch[1] : null;
-    
+
     if (!officerId) {
       toast.error("Unable to identify officer");
       return;
     }
-    
+
     setSelectedOfficer(officer);
     setIsLoadingAppointments(true);
     setOfficerAppointments([]);
-    
+
     try {
       const response = await fetch(
         `/api/companies-house/officer-appointments?officer_id=${encodeURIComponent(officerId)}`,
         { credentials: "include" }
       );
-      
+
       if (response.ok) {
         const data = await response.json();
         // Filter to only show active appointments (no resigned_on date)
@@ -292,7 +318,7 @@ export default function CompanySearch() {
           (apt: OfficerAppointment) => !apt.resigned_on
         );
         setOfficerAppointments(activeAppointments);
-        
+
         if (activeAppointments.length === 0) {
           toast.info("No active directorships found for this person");
         }
@@ -305,7 +331,7 @@ export default function CompanySearch() {
       setIsLoadingAppointments(false);
     }
   };
-  
+
   const handleSelectAppointmentCompany = async (appointment: OfficerAppointment) => {
     // Fetch the company details
     try {
@@ -332,7 +358,7 @@ export default function CompanySearch() {
       toast.error("Failed to fetch company details");
     }
   };
-  
+
   const clearOfficerSelection = () => {
     setSelectedOfficer(null);
     setOfficerAppointments([]);
@@ -383,33 +409,50 @@ export default function CompanySearch() {
 
   const getSearchPlaceholder = () => {
     switch (searchType) {
-      case "company": return "Enter company name or number...";
-      case "sic": return "Enter SIC code (e.g., 62020, 47110)...";
-      case "location": return "Enter town or city (e.g., Manchester, Leeds)...";
-      case "postcode": return "Enter postcode area (e.g., SW1A, M1, B15)...";
-      case "officers": return "Enter director/officer name...";
-      default: return "Search...";
+      case "company":
+        return "Enter company name or number...";
+      case "sic":
+        return "Enter SIC code (e.g., 62020, 47110)...";
+      case "location":
+        return "Enter town or city (e.g., Manchester, Leeds)...";
+      case "postcode":
+        return "Enter postcode area (e.g., SW1A, M1, B15)...";
+      case "officers":
+        return "Enter director/officer name...";
+      default:
+        return "Search...";
     }
   };
 
   const getSearchHint = () => {
     switch (searchType) {
-      case "sic": return "Enter a SIC code to find companies in that industry";
-      case "location": return "Search for companies by town or city name";
-      case "postcode": return "Enter a postcode to find companies in that area";
-      case "officers": return "Search by name, then click to see their companies";
-      default: return null;
+      case "sic":
+        return "Enter a SIC code to find companies in that industry";
+      case "location":
+        return "Search for companies by town or city name";
+      case "postcode":
+        return "Enter a postcode to find companies in that area";
+      case "officers":
+        return "Search by name, then click to see their companies";
+      default:
+        return null;
     }
   };
 
   const getSearchLabel = () => {
     switch (searchType) {
-      case "company": return "Company Name/Number";
-      case "sic": return "SIC Code";
-      case "location": return "Town/City";
-      case "postcode": return "Postcode";
-      case "officers": return "Director/Officer Name";
-      default: return "Search";
+      case "company":
+        return "Company Name/Number";
+      case "sic":
+        return "SIC Code";
+      case "location":
+        return "Town/City";
+      case "postcode":
+        return "Postcode";
+      case "officers":
+        return "Director/Officer Name";
+      default:
+        return "Search";
     }
   };
 
@@ -441,24 +484,41 @@ export default function CompanySearch() {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-3xl">
-        <Tabs value={activeTab} onValueChange={(v) => { 
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => {
             const newTab = v as "search" | "manual" | "confirmation";
             if (newTab !== "confirmation") {
               resetForm();
             }
-            setActiveTab(newTab); 
-          }}>
-          <TabsList className={`grid w-full mb-6 ${selectedCompany ? "grid-cols-3" : "grid-cols-2"}`}>
-            <TabsTrigger value="search" data-testid="tab-search" className="flex items-center gap-2">
+            setActiveTab(newTab);
+          }}
+        >
+          <TabsList
+            className={`grid w-full mb-6 ${selectedCompany ? "grid-cols-3" : "grid-cols-2"}`}
+          >
+            <TabsTrigger
+              value="search"
+              data-testid="tab-search"
+              className="flex items-center gap-2"
+            >
               <Search className="h-4 w-4" />
               Search Companies House
             </TabsTrigger>
-            <TabsTrigger value="manual" data-testid="tab-manual" className="flex items-center gap-2">
+            <TabsTrigger
+              value="manual"
+              data-testid="tab-manual"
+              className="flex items-center gap-2"
+            >
               <PenLine className="h-4 w-4" />
               Add Manually
             </TabsTrigger>
             {selectedCompany && (
-              <TabsTrigger value="confirmation" data-testid="tab-confirmation" className="flex items-center gap-2">
+              <TabsTrigger
+                value="confirmation"
+                data-testid="tab-confirmation"
+                className="flex items-center gap-2"
+              >
                 <Check className="h-4 w-4" />
                 Prospect Confirmation
               </TabsTrigger>
@@ -474,7 +534,8 @@ export default function CompanySearch() {
                   <CardTitle>Search Companies House</CardTitle>
                 </div>
                 <CardDescription>
-                  Search UK registered companies by name, SIC code, location, postcode, or director name
+                  Search UK registered companies by name, SIC code, location, postcode, or director
+                  name
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -484,7 +545,10 @@ export default function CompanySearch() {
                     type="button"
                     variant={searchType === "company" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSearchType("company"); setSearchQuery(""); }}
+                    onClick={() => {
+                      setSearchType("company");
+                      setSearchQuery("");
+                    }}
                     className="flex flex-col items-center gap-1 h-auto py-2"
                     data-testid="search-type-company"
                   >
@@ -495,7 +559,10 @@ export default function CompanySearch() {
                     type="button"
                     variant={searchType === "sic" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSearchType("sic"); setSearchQuery(""); }}
+                    onClick={() => {
+                      setSearchType("sic");
+                      setSearchQuery("");
+                    }}
                     className="flex flex-col items-center gap-1 h-auto py-2"
                     data-testid="search-type-sic"
                   >
@@ -506,7 +573,10 @@ export default function CompanySearch() {
                     type="button"
                     variant={searchType === "location" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSearchType("location"); setSearchQuery(""); }}
+                    onClick={() => {
+                      setSearchType("location");
+                      setSearchQuery("");
+                    }}
                     className="flex flex-col items-center gap-1 h-auto py-2"
                     data-testid="search-type-location"
                   >
@@ -517,7 +587,10 @@ export default function CompanySearch() {
                     type="button"
                     variant={searchType === "postcode" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSearchType("postcode"); setSearchQuery(""); }}
+                    onClick={() => {
+                      setSearchType("postcode");
+                      setSearchQuery("");
+                    }}
                     className="flex flex-col items-center gap-1 h-auto py-2"
                     data-testid="search-type-postcode"
                   >
@@ -528,7 +601,10 @@ export default function CompanySearch() {
                     type="button"
                     variant={searchType === "officers" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSearchType("officers"); setSearchQuery(""); }}
+                    onClick={() => {
+                      setSearchType("officers");
+                      setSearchQuery("");
+                    }}
                     className="flex flex-col items-center gap-1 h-auto py-2"
                     data-testid="search-type-officers"
                   >
@@ -549,8 +625,8 @@ export default function CompanySearch() {
                         data-testid="input-search-query"
                         className="flex-1"
                       />
-                      <Button 
-                        type="submit" 
+                      <Button
+                        type="submit"
                         disabled={isFetching || !searchQuery.trim()}
                         data-testid="button-search"
                       >
@@ -561,28 +637,31 @@ export default function CompanySearch() {
                       <p className="text-xs text-muted-foreground">{getSearchHint()}</p>
                     )}
                   </div>
-                  
+
                   {/* Search Filters */}
                   <div className="flex flex-wrap items-center gap-4 pt-2 border-t">
                     <div className="flex items-center space-x-2">
-                      <Checkbox 
+                      <Checkbox
                         id="hide-dissolved"
                         checked={hideDissolvedCompanies}
                         onCheckedChange={(checked) => setHideDissolvedCompanies(checked === true)}
                         data-testid="checkbox-hide-dissolved"
                       />
-                      <label 
-                        htmlFor="hide-dissolved" 
-                        className="text-sm cursor-pointer"
-                      >
+                      <label htmlFor="hide-dissolved" className="text-sm cursor-pointer">
                         Hide dissolved companies
                       </label>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="search-limit" className="text-sm whitespace-nowrap">Max results:</Label>
+                      <Label htmlFor="search-limit" className="text-sm whitespace-nowrap">
+                        Max results:
+                      </Label>
                       <Select value={searchLimit} onValueChange={setSearchLimit}>
-                        <SelectTrigger className="w-20 h-8" id="search-limit" data-testid="select-search-limit">
+                        <SelectTrigger
+                          className="w-20 h-8"
+                          id="search-limit"
+                          data-testid="select-search-limit"
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -596,103 +675,125 @@ export default function CompanySearch() {
                 </form>
 
                 {/* Company Search Results */}
-                {searchType !== "officers" && companyResults?.items && companyResults.items.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      {companyResults.items.length} {companyResults.items.length === 1 ? 'result' : 'results'} found
-                    </p>
-                    <div className="max-h-80 overflow-y-auto space-y-2">
-                      {companyResults.items.map((company) => (
-                        <Card
-                          key={company.company_number}
-                          className="hover-elevate cursor-pointer"
-                          onClick={() => handleSelectCompany(company)}
-                          data-testid={`company-result-${company.company_number}`}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-sm truncate">{company.title}</h3>
-                                <p className="text-xs text-muted-foreground font-mono">{company.company_number}</p>
-                                {company.address_snippet && (
-                                  <div className="flex items-start gap-1 mt-1">
-                                    <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                    <p className="text-xs text-muted-foreground line-clamp-1">{company.address_snippet}</p>
-                                  </div>
-                                )}
-                                {company.sic_codes && company.sic_codes.length > 0 && (
-                                  <p className="text-xs text-muted-foreground mt-1">SIC: {company.sic_codes.join(", ")}</p>
-                                )}
+                {searchType !== "officers" &&
+                  companyResults?.items &&
+                  companyResults.items.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {companyResults.items.length}{" "}
+                        {companyResults.items.length === 1 ? "result" : "results"} found
+                      </p>
+                      <div className="max-h-80 overflow-y-auto space-y-2">
+                        {companyResults.items.map((company) => (
+                          <Card
+                            key={company.company_number}
+                            className="hover-elevate cursor-pointer"
+                            onClick={() => handleSelectCompany(company)}
+                            data-testid={`company-result-${company.company_number}`}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-semibold text-sm truncate">
+                                    {company.title}
+                                  </h3>
+                                  <p className="text-xs text-muted-foreground font-mono">
+                                    {company.company_number}
+                                  </p>
+                                  {company.address_snippet && (
+                                    <div className="flex items-start gap-1 mt-1">
+                                      <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                      <p className="text-xs text-muted-foreground line-clamp-1">
+                                        {company.address_snippet}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {company.sic_codes && company.sic_codes.length > 0 && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      SIC: {company.sic_codes.join(", ")}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge variant="secondary" className="text-xs flex-shrink-0">
+                                  {company.company_status}
+                                </Badge>
                               </div>
-                              <Badge variant="secondary" className="text-xs flex-shrink-0">
-                                {company.company_status}
-                              </Badge>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Officers Search Results */}
-                {searchType === "officers" && !selectedOfficer && officerResults?.items && officerResults.items.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      {officerResults.items.length} {officerResults.items.length === 1 ? 'director' : 'directors'} found - click to view their companies
-                    </p>
-                    <div className="max-h-80 overflow-y-auto space-y-2">
-                      {officerResults.items.map((officer, idx) => (
-                        <Card
-                          key={`${officer.title}-${idx}`}
-                          className="hover-elevate cursor-pointer"
-                          onClick={() => handleSelectOfficer(officer)}
-                          data-testid={`officer-result-${idx}`}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <Users className="h-4 w-4 text-primary flex-shrink-0" />
-                                  <h3 className="font-semibold text-sm truncate">{officer.title}</h3>
-                                </div>
-                                {officer.address_snippet && (
-                                  <div className="flex items-start gap-1 mt-1 pl-6">
-                                    <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                    <p className="text-xs text-muted-foreground line-clamp-1">{officer.address_snippet}</p>
+                {searchType === "officers" &&
+                  !selectedOfficer &&
+                  officerResults?.items &&
+                  officerResults.items.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {officerResults.items.length}{" "}
+                        {officerResults.items.length === 1 ? "director" : "directors"} found - click
+                        to view their companies
+                      </p>
+                      <div className="max-h-80 overflow-y-auto space-y-2">
+                        {officerResults.items.map((officer, idx) => (
+                          <Card
+                            key={`${officer.title}-${idx}`}
+                            className="hover-elevate cursor-pointer"
+                            onClick={() => handleSelectOfficer(officer)}
+                            data-testid={`officer-result-${idx}`}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <Users className="h-4 w-4 text-primary flex-shrink-0" />
+                                    <h3 className="font-semibold text-sm truncate">
+                                      {officer.title}
+                                    </h3>
                                   </div>
-                                )}
+                                  {officer.address_snippet && (
+                                    <div className="flex items-start gap-1 mt-1 pl-6">
+                                      <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                      <p className="text-xs text-muted-foreground line-clamp-1">
+                                        {officer.address_snippet}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                <Badge variant="outline" className="text-xs flex-shrink-0">
+                                  Click to view companies
+                                </Badge>
                               </div>
-                              <Badge variant="outline" className="text-xs flex-shrink-0">
-                                Click to view companies
-                              </Badge>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                
+                  )}
+
                 {/* Selected Officer's Companies */}
                 {selectedOfficer && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-primary" />
-                        <span className="font-medium text-sm">{selectedOfficer.title}'s Companies</span>
+                        <span className="font-medium text-sm">
+                          {selectedOfficer.title}'s Companies
+                        </span>
                       </div>
                       <Button variant="ghost" size="sm" onClick={clearOfficerSelection}>
                         Back to results
                       </Button>
                     </div>
-                    
+
                     {isLoadingAppointments && (
                       <div className="text-center py-4">
                         <p className="text-sm text-muted-foreground">Loading companies...</p>
                       </div>
                     )}
-                    
+
                     {!isLoadingAppointments && officerAppointments.length > 0 && (
                       <div className="max-h-80 overflow-y-auto space-y-2">
                         {officerAppointments.map((apt, idx) => (
@@ -707,11 +808,17 @@ export default function CompanySearch() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
-                                    <h3 className="font-semibold text-sm truncate">{apt.appointed_to.company_name}</h3>
+                                    <h3 className="font-semibold text-sm truncate">
+                                      {apt.appointed_to.company_name}
+                                    </h3>
                                   </div>
                                   <div className="mt-1 pl-6">
-                                    <p className="text-xs text-muted-foreground font-mono">{apt.appointed_to.company_number}</p>
-                                    <p className="text-xs text-muted-foreground capitalize">Role: {apt.officer_role.replace(/-/g, ' ')}</p>
+                                    <p className="text-xs text-muted-foreground font-mono">
+                                      {apt.appointed_to.company_number}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground capitalize">
+                                      Role: {apt.officer_role.replace(/-/g, " ")}
+                                    </p>
                                   </div>
                                 </div>
                                 <Badge variant="secondary" className="text-xs flex-shrink-0">
@@ -723,7 +830,7 @@ export default function CompanySearch() {
                         ))}
                       </div>
                     )}
-                    
+
                     {!isLoadingAppointments && officerAppointments.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">
                         No active directorships found for this person.
@@ -734,7 +841,9 @@ export default function CompanySearch() {
 
                 {/* No Results */}
                 {((searchType !== "officers" && companyResults?.items?.length === 0) ||
-                  (searchType === "officers" && !selectedOfficer && officerResults?.items?.length === 0)) && (
+                  (searchType === "officers" &&
+                    !selectedOfficer &&
+                    officerResults?.items?.length === 0)) && (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     No results found. Try a different search term.
                   </p>
@@ -756,7 +865,14 @@ export default function CompanySearch() {
                         <CardDescription>Review and complete the prospect details</CardDescription>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => { resetForm(); setActiveTab("search"); }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        resetForm();
+                        setActiveTab("search");
+                      }}
+                    >
                       Start Over
                     </Button>
                   </div>
@@ -766,17 +882,33 @@ export default function CompanySearch() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Company Name</Label>
-                        <Input value={companyName} readOnly className="bg-muted" data-testid="input-company-name" />
+                        <Input
+                          value={companyName}
+                          readOnly
+                          className="bg-muted"
+                          data-testid="input-company-name"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Company Number</Label>
-                        <Input value={companyNumber} readOnly className="bg-muted" data-testid="input-company-number" />
+                        <Input
+                          value={companyNumber}
+                          readOnly
+                          className="bg-muted"
+                          data-testid="input-company-number"
+                        />
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <Label>Registered Address</Label>
-                      <Textarea value={registeredAddress} readOnly rows={2} className="bg-muted" data-testid="input-address" />
+                      <Textarea
+                        value={registeredAddress}
+                        readOnly
+                        rows={2}
+                        className="bg-muted"
+                        data-testid="input-address"
+                      />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -829,7 +961,12 @@ export default function CompanySearch() {
                       >
                         {createProspectMutation.isPending ? "Creating..." : "Create Prospect"}
                       </Button>
-                      <Button type="button" variant="outline" onClick={() => navigate("/")} data-testid="button-cancel">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigate("/")}
+                        data-testid="button-cancel"
+                      >
                         Cancel
                       </Button>
                     </div>
@@ -884,7 +1021,9 @@ export default function CompanySearch() {
                       id="companyName"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder={isUnregisteredType ? "e.g., Smith & Partners" : "e.g., Tech Innovations Ltd"}
+                      placeholder={
+                        isUnregisteredType ? "e.g., Smith & Partners" : "e.g., Tech Innovations Ltd"
+                      }
                       required
                       data-testid="input-company-name-manual"
                     />
@@ -962,7 +1101,11 @@ export default function CompanySearch() {
                   <div className="flex gap-3 pt-4">
                     <Button
                       type="submit"
-                      disabled={createProspectMutation.isPending || (!isUnregisteredType && !companyNumber.trim()) || !companyName.trim()}
+                      disabled={
+                        createProspectMutation.isPending ||
+                        (!isUnregisteredType && !companyNumber.trim()) ||
+                        !companyName.trim()
+                      }
                       className="flex-1"
                       data-testid="button-create-prospect-manual"
                     >

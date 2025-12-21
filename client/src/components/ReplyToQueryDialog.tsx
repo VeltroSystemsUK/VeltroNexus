@@ -1,12 +1,29 @@
 import { useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, X, FileText, File, Image, Loader2, Send, Paperclip, AlertCircle } from "lucide-react";
+import {
+  Upload,
+  X,
+  FileText,
+  File,
+  Image,
+  Loader2,
+  Send,
+  Paperclip,
+  AlertCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { UnderwritingAttachment } from "@shared/schema";
 
@@ -20,22 +37,34 @@ interface ReplyToQueryDialogProps {
 
 const FILE_SIZE_LIMIT = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [
-  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv',
-  'png', 'jpg', 'jpeg', 'gif', 'webp',
-  'txt', 'rtf', 'odt', 'ods'
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "csv",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "txt",
+  "rtf",
+  "odt",
+  "ods",
 ];
 
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return "0 Bytes";
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const sizes = ["Bytes", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
 function getFileIcon(fileType: string) {
-  if (fileType.startsWith('image/')) return Image;
-  if (fileType.includes('pdf')) return FileText;
+  if (fileType.startsWith("image/")) return Image;
+  if (fileType.includes("pdf")) return FileText;
   return File;
 }
 
@@ -55,25 +84,25 @@ export default function ReplyToQueryDialog({
   const uploadMutation = useMutation({
     mutationFn: async (files: FileList) => {
       const formData = new FormData();
-      Array.from(files).forEach(file => {
-        formData.append('files', file);
+      Array.from(files).forEach((file) => {
+        formData.append("files", file);
       });
-      
-      const response = await fetch('/api/underwriting/upload', {
-        method: 'POST',
-        credentials: 'include',
+
+      const response = await fetch("/api/underwriting/upload", {
+        method: "POST",
+        credentials: "include",
         body: formData,
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to upload files');
+        throw new Error(error.error || "Failed to upload files");
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
-      setAttachments(prev => [...prev, ...data.files]);
+      setAttachments((prev) => [...prev, ...data.files]);
       toast.success(`${data.files.length} file(s) uploaded successfully`);
     },
     onError: (error: Error) => {
@@ -84,25 +113,29 @@ export default function ReplyToQueryDialog({
   const submitMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(`/api/underwriting/submissions/${submissionId}/respond`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           message,
           attachments,
         }),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to submit response');
+        throw new Error(error.error || "Failed to submit response");
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/underwriting/prospects/${prospectId}/submission`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/underwriting/submissions/${submissionId}/activities`] });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/underwriting/prospects/${prospectId}/submission`],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/underwriting/submissions/${submissionId}/activities`],
+      });
       toast.success("Response submitted successfully");
       handleClose();
     },
@@ -118,7 +151,7 @@ export default function ReplyToQueryDialog({
   };
 
   const validateFile = (file: File): string | null => {
-    const extension = file.name.split('.').pop()?.toLowerCase();
+    const extension = file.name.split(".").pop()?.toLowerCase();
     if (!extension || !ALLOWED_EXTENSIONS.includes(extension)) {
       return `File type .${extension} is not allowed`;
     }
@@ -128,42 +161,48 @@ export default function ReplyToQueryDialog({
     return null;
   };
 
-  const handleFileSelect = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    
-    const validFiles: File[] = [];
-    const errors: string[] = [];
-    
-    Array.from(files).forEach(file => {
-      const error = validateFile(file);
-      if (error) {
-        errors.push(`${file.name}: ${error}`);
-      } else {
-        validFiles.push(file);
-      }
-    });
-    
-    if (errors.length > 0) {
-      toast.error(errors.join('\n'));
-    }
-    
-    if (validFiles.length > 0) {
-      setIsUploading(true);
-      try {
-        const dataTransfer = new DataTransfer();
-        validFiles.forEach(file => dataTransfer.items.add(file));
-        await uploadMutation.mutateAsync(dataTransfer.files);
-      } finally {
-        setIsUploading(false);
-      }
-    }
-  }, [uploadMutation]);
+  const handleFileSelect = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    handleFileSelect(e.dataTransfer.files);
-  }, [handleFileSelect]);
+      const validFiles: File[] = [];
+      const errors: string[] = [];
+
+      Array.from(files).forEach((file) => {
+        const error = validateFile(file);
+        if (error) {
+          errors.push(`${file.name}: ${error}`);
+        } else {
+          validFiles.push(file);
+        }
+      });
+
+      if (errors.length > 0) {
+        toast.error(errors.join("\n"));
+      }
+
+      if (validFiles.length > 0) {
+        setIsUploading(true);
+        try {
+          const dataTransfer = new DataTransfer();
+          validFiles.forEach((file) => dataTransfer.items.add(file));
+          await uploadMutation.mutateAsync(dataTransfer.files);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+    },
+    [uploadMutation]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      handleFileSelect(e.dataTransfer.files);
+    },
+    [handleFileSelect]
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -176,7 +215,7 @@ export default function ReplyToQueryDialog({
   }, []);
 
   const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = () => {
@@ -219,9 +258,7 @@ export default function ReplyToQueryDialog({
                     <p className="font-medium text-sm text-purple-900 dark:text-purple-100 mb-1">
                       Underwriter Query:
                     </p>
-                    <p className="text-sm text-purple-800 dark:text-purple-200">
-                      {queryMessage}
-                    </p>
+                    <p className="text-sm text-purple-800 dark:text-purple-200">{queryMessage}</p>
                   </div>
                 </div>
               </CardContent>
@@ -242,12 +279,12 @@ export default function ReplyToQueryDialog({
 
           <div className="space-y-3">
             <Label>Supporting Documents</Label>
-            
+
             <div
               className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                dragOver 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                dragOver
+                  ? "border-primary bg-primary/5"
+                  : "border-muted-foreground/25 hover:border-muted-foreground/50"
               }`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -256,7 +293,7 @@ export default function ReplyToQueryDialog({
               <input
                 type="file"
                 multiple
-                accept={ALLOWED_EXTENSIONS.map(ext => `.${ext}`).join(',')}
+                accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
                 onChange={(e) => handleFileSelect(e.target.files)}
                 className="hidden"
                 id="file-upload"
@@ -274,9 +311,7 @@ export default function ReplyToQueryDialog({
                 ) : (
                   <>
                     <Upload className="h-8 w-8 text-muted-foreground" />
-                    <span className="text-sm font-medium">
-                      Drop files here or click to upload
-                    </span>
+                    <span className="text-sm font-medium">Drop files here or click to upload</span>
                     <span className="text-xs text-muted-foreground">
                       PDF, Word, Excel, Images up to 10MB each
                     </span>
@@ -297,9 +332,7 @@ export default function ReplyToQueryDialog({
                       <div className="flex items-center gap-3 min-w-0">
                         <Icon className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {attachment.fileName}
-                          </p>
+                          <p className="text-sm font-medium truncate">{attachment.fileName}</p>
                           <p className="text-xs text-muted-foreground">
                             {formatFileSize(attachment.fileSize)}
                           </p>

@@ -39,7 +39,11 @@ export function EmailComposeDialog({
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState("");
 
-  const { data: inbox, isLoading: inboxLoading, error: inboxError } = useQuery<EmailInbox>({
+  const {
+    data: inbox,
+    isLoading: inboxLoading,
+    error: inboxError,
+  } = useQuery<EmailInbox>({
     queryKey: ["/api/email/inbox"],
     enabled: open,
   });
@@ -50,7 +54,13 @@ export function EmailComposeDialog({
   });
 
   const sendEmailMutation = useMutation({
-    mutationFn: async (data: { to: string; subject: string; body: string; contactId?: number; prospectId?: number }) => {
+    mutationFn: async (data: {
+      to: string;
+      subject: string;
+      body: string;
+      contactId?: number;
+      prospectId?: number;
+    }) => {
       const response = await apiRequest("/api/email/send", "POST", data);
       return response;
     },
@@ -106,7 +116,8 @@ export function EmailComposeDialog({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Email integration is not configured. Please connect AgentMail in your integrations to enable email functionality.
+              Email integration is not configured. Please connect AgentMail in your integrations to
+              enable email functionality.
             </AlertDescription>
           </Alert>
         ) : inboxLoading ? (
@@ -119,9 +130,9 @@ export function EmailComposeDialog({
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">From</Label>
-                <Input 
-                  value={inbox?.emailAddress || "Loading..."} 
-                  disabled 
+                <Input
+                  value={inbox?.emailAddress || "Loading..."}
+                  disabled
                   className="bg-muted"
                   data-testid="input-email-from"
                 />

@@ -2,7 +2,16 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar as CalendarIcon, AlertCircle, ListTodo, Video, Phone, FileText, Trash2 } from "lucide-react";
+import {
+  Bell,
+  Calendar as CalendarIcon,
+  AlertCircle,
+  ListTodo,
+  Video,
+  Phone,
+  FileText,
+  Trash2,
+} from "lucide-react";
 import { format, isPast, isToday, isTomorrow, differenceInDays } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -37,7 +46,7 @@ interface ProspectWithCompany {
 
 export default function TaskReminders() {
   const { toast } = useToast();
-  
+
   const { data: activities = [] } = useQuery<Activity[]>({
     queryKey: ["/api/activities"],
   });
@@ -80,7 +89,7 @@ export default function TaskReminders() {
     if (isPast(dueDate) && !isToday(dueDate)) {
       const days = Math.abs(differenceInDays(dueDate, new Date()));
       return {
-        label: `${days} day${days > 1 ? 's' : ''} overdue`,
+        label: `${days} day${days > 1 ? "s" : ""} overdue`,
         variant: "destructive" as const,
         icon: AlertCircle,
       };
@@ -139,9 +148,10 @@ export default function TaskReminders() {
               const activityDate = new Date(task.dueDate!);
               const { label, variant, icon: Icon } = getDueDateLabel(activityDate);
               const hasTime = activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0;
-              
-              const TypeIcon = activityTypeIcons[task.activityType as keyof typeof activityTypeIcons] || ListTodo;
-              
+
+              const TypeIcon =
+                activityTypeIcons[task.activityType as keyof typeof activityTypeIcons] || ListTodo;
+
               return (
                 <div
                   key={task.id}
@@ -150,13 +160,15 @@ export default function TaskReminders() {
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className={`
+                      <div
+                        className={`
                         flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold flex-shrink-0
-                        ${variant === 'destructive' ? 'bg-destructive text-destructive-foreground' : ''}
-                        ${variant === 'default' ? 'bg-primary text-primary-foreground' : ''}
-                        ${variant === 'secondary' ? 'bg-secondary text-secondary-foreground' : ''}
-                        ${variant === 'outline' ? 'bg-muted text-muted-foreground' : ''}
-                      `}>
+                        ${variant === "destructive" ? "bg-destructive text-destructive-foreground" : ""}
+                        ${variant === "default" ? "bg-primary text-primary-foreground" : ""}
+                        ${variant === "secondary" ? "bg-secondary text-secondary-foreground" : ""}
+                        ${variant === "outline" ? "bg-muted text-muted-foreground" : ""}
+                      `}
+                      >
                         {index + 1}
                       </div>
                       <TypeIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -196,10 +208,10 @@ export default function TaskReminders() {
                           task.priority === "urgent"
                             ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20"
                             : task.priority === "high"
-                            ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20"
-                            : task.priority === "medium"
-                            ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20"
-                            : "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
+                              ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20"
+                              : task.priority === "medium"
+                                ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20"
+                                : "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
                         }`}
                       >
                         {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}

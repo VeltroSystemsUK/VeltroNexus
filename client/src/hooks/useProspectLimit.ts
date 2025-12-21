@@ -22,7 +22,7 @@ interface ProspectLimitState {
 export function useProspectLimit(): ProspectLimitState {
   const { user, isAuthenticated } = useAuth();
   const [showLimitModal, setShowLimitModal] = useState(false);
-  
+
   const { data: prospects = [] } = useQuery<any[]>({
     queryKey: ["/api/prospects"],
     enabled: isAuthenticated,
@@ -35,13 +35,16 @@ export function useProspectLimit(): ProspectLimitState {
   const isAtLimit = currentCount >= limit;
   const isOverLimit = currentCount > limit;
 
-  const checkAndShowModal = useCallback((prospectIndex: number): boolean => {
-    if (prospectIndex >= limit) {
-      setShowLimitModal(true);
-      return true;
-    }
-    return false;
-  }, [limit]);
+  const checkAndShowModal = useCallback(
+    (prospectIndex: number): boolean => {
+      if (prospectIndex >= limit) {
+        setShowLimitModal(true);
+        return true;
+      }
+      return false;
+    },
+    [limit]
+  );
 
   return {
     isAtLimit,

@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/15</span>
+                <span class='fraction'>0/16</span>
             </div>
         
             
@@ -117,7 +117,9 @@
 <a name='L52'></a><a href='#L52'>52</a>
 <a name='L53'></a><a href='#L53'>53</a>
 <a name='L54'></a><a href='#L54'>54</a>
-<a name='L55'></a><a href='#L55'>55</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -144,6 +146,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -174,34 +178,36 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// AgentMail integration for email functionality
 // Documentation: https://docs.agentmail.to/api-reference
 &nbsp;
-import { AgentMailClient } from 'agentmail';
+import { AgentMailClient } from "agentmail";
 &nbsp;
 let connectionSettings: any;
 &nbsp;
 async function <span class="fstat-no" title="function not covered" >getCredentials() {</span>
   const hostname = <span class="cstat-no" title="statement not covered" >process.env.REPLIT_CONNECTORS_HOSTNAME;</span>
-  const xReplitToken = <span class="cstat-no" title="statement not covered" >process.env.REPL_IDENTITY </span>
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
+  const xReplitToken = <span class="cstat-no" title="statement not covered" >process.env.REPL_IDENTITY</span>
+    ? "repl " + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+      ? "depl " + process.env.WEB_REPL_RENEWAL
+      : null;
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  if (!xReplitToken) {</span>
-<span class="cstat-no" title="statement not covered" >    throw new Error('X_REPLIT_TOKEN not found for repl/depl');</span>
+<span class="cstat-no" title="statement not covered" >    throw new Error("X_REPLIT_TOKEN not found for repl/depl");</span>
   }
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  connectionSettings = await fetch(</span>
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&amp;connector_names=agentmail',
+    "https://" + hostname + "/api/v2/connection?include_secrets=true&amp;connector_names=agentmail",
     {
       headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
+        Accept: "application/json",
+        X_REPLIT_TOKEN: xReplitToken,
+      },
     }
-  ).then(<span class="fstat-no" title="function not covered" >res =&gt; <span class="cstat-no" title="statement not covered" >r</span>es.json())</span>.then(<span class="fstat-no" title="function not covered" >data =&gt; <span class="cstat-no" title="statement not covered" >d</span>ata.items?.[0])</span>;
+  )
+    .then(<span class="fstat-no" title="function not covered" >(r</span>es) =&gt; <span class="cstat-no" title="statement not covered" >res.json())</span>
+    .then(<span class="fstat-no" title="function not covered" >(d</span>ata) =&gt; <span class="cstat-no" title="statement not covered" >data.items?.[0])</span>;
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  if (!connectionSettings || !connectionSettings.settings.api_key) {</span>
-<span class="cstat-no" title="statement not covered" >    throw new Error('AgentMail not connected');</span>
+<span class="cstat-no" title="statement not covered" >    throw new Error("AgentMail not connected");</span>
   }
 <span class="cstat-no" title="statement not covered" >  return { apiKey: connectionSettings.settings.api_key };</span>
 }
@@ -212,7 +218,7 @@ async function <span class="fstat-no" title="function not covered" >getCredentia
 export async function <span class="fstat-no" title="function not covered" >getAgentMailClient(): Promise&lt;AgentMailClient&gt; {</span>
   const { apiKey } = <span class="cstat-no" title="statement not covered" >await getCredentials();</span>
 <span class="cstat-no" title="statement not covered" >  return new AgentMailClient({</span>
-    apiKey: apiKey
+    apiKey: apiKey,
   });
 }
 &nbsp;
@@ -232,7 +238,7 @@ export async function <span class="fstat-no" title="function not covered" >isAge
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-19T17:03:59.025Z
+                at 2025-12-21T13:36:40.983Z
             </div>
         <script src="../prettify.js"></script>
         <script>

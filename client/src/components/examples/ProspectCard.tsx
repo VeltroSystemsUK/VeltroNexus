@@ -1,4 +1,4 @@
-import ProspectCard from '../ProspectCard'
+import ProspectCard from "../ProspectCard";
 
 export default function ProspectCardExample() {
   const mockProspect = {
@@ -21,9 +21,9 @@ export default function ProspectCardExample() {
         prospect={mockProspect}
         currentStage="lead"
         availableStages={mockStages}
-        onClick={() => console.log('Prospect clicked')}
-        onMove={(stage) => console.log('Move to:', stage)}
+        onClick={() => console.log("Prospect clicked")}
+        onMove={(stage) => console.log("Move to:", stage)}
       />
     </div>
-  )
+  );
 }

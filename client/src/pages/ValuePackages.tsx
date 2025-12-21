@@ -1,4 +1,11 @@
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, ArrowLeft, Package, Sparkles } from "lucide-react";
@@ -74,7 +81,7 @@ export default function ValuePackages() {
   const { toast } = useToast();
 
   const { data: user } = useQuery({
-    queryKey: ['/api/auth/user'],
+    queryKey: ["/api/auth/user"],
     retry: false,
   });
 
@@ -82,12 +89,12 @@ export default function ValuePackages() {
   const planName = selectedPlan === "team" ? "Team" : "Starter";
   const basePrice = selectedPlan === "team" ? "£1.50" : "£2.00";
 
-  const handleSelectPackage = (pkg: typeof starterPackages[0]) => {
+  const handleSelectPackage = (pkg: (typeof starterPackages)[0]) => {
     if (!user) {
       window.location.href = "/api/login";
       return;
     }
-    
+
     toast({
       title: "Package Selected",
       description: `${pkg.name} will be added to your subscription. Contact us to complete your order.`,
@@ -109,18 +116,22 @@ export default function ValuePackages() {
             <Package className="w-3.5 h-3.5 mr-2" />
             {planName} Plan Add-ons
           </Badge>
-          <h1 className="text-4xl font-bold mb-4" data-testid="text-page-title">Value Packages</h1>
+          <h1 className="text-4xl font-bold mb-4" data-testid="text-page-title">
+            Value Packages
+          </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Save more when you buy additional prospects in bulk. All packages are billed monthly and can be cancelled anytime.
+            Save more when you buy additional prospects in bulk. All packages are billed monthly and
+            can be cancelled anytime.
           </p>
           <p className="text-sm text-muted-foreground mt-4">
-            Standard rate: <span className="font-semibold text-foreground">{basePrice}</span> per additional prospect
+            Standard rate: <span className="font-semibold text-foreground">{basePrice}</span> per
+            additional prospect
           </p>
         </div>
 
         <div className="flex justify-center gap-4 mb-8">
           <Link href="/value-packages?plan=starter">
-            <Button 
+            <Button
               variant={selectedPlan === "starter" ? "default" : "outline"}
               data-testid="button-tab-starter"
             >
@@ -128,7 +139,7 @@ export default function ValuePackages() {
             </Button>
           </Link>
           <Link href="/value-packages?plan=team">
-            <Button 
+            <Button
               variant={selectedPlan === "team" ? "default" : "outline"}
               data-testid="button-tab-team"
             >
@@ -154,14 +165,15 @@ export default function ValuePackages() {
               )}
               <CardHeader className="text-center pt-8">
                 <CardTitle className="text-xl">{pkg.name}</CardTitle>
-                <CardDescription>
-                  {pkg.prospects} additional prospects
-                </CardDescription>
+                <CardDescription>{pkg.prospects} additional prospects</CardDescription>
                 <div className="mt-4">
                   <span className="text-4xl font-bold">{pkg.price}</span>
                   <span className="text-muted-foreground ml-2">{pkg.period}</span>
                 </div>
-                <Badge variant="secondary" className="mt-3 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                <Badge
+                  variant="secondary"
+                  className="mt-3 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                >
                   {pkg.savings}
                 </Badge>
               </CardHeader>
@@ -219,7 +231,10 @@ export default function ValuePackages() {
 
         <div className="mt-12 text-center">
           <p className="text-sm text-muted-foreground">
-            Questions about packages? Email us at <a href="mailto:hello@flowloan.co.uk" className="text-primary hover:underline">hello@flowloan.co.uk</a>
+            Questions about packages? Email us at{" "}
+            <a href="mailto:hello@flowloan.co.uk" className="text-primary hover:underline">
+              hello@flowloan.co.uk
+            </a>
           </p>
         </div>
       </div>

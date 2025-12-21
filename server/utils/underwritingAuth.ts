@@ -19,11 +19,10 @@ export type Ctx = {
   submission: UnderwritingSubmission;
 };
 
-declare global {
-  namespace Express {
-    interface Request {
-      ctx?: Ctx;
-    }
+// Extend Express Request with ctx property via module augmentation
+declare module "express-serve-static-core" {
+  interface Request {
+    ctx?: Ctx;
   }
 }
 
@@ -75,10 +74,7 @@ function canWriteSubmission(submission: UnderwritingSubmission, user: AuthUser) 
   return isUnderwriter(user.role) && submission.assignedUnderwriterId === user.id;
 }
 
-export function requireSubmissionReadAccess(params: {
-  storage: any;
-  allowTriage?: boolean;
-}) {
+export function requireSubmissionReadAccess(params: { storage: any; allowTriage?: boolean }) {
   const { storage, allowTriage } = params;
 
   return async (req: Request, res: Response, next: NextFunction) => {

@@ -1,6 +1,17 @@
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Home, Search, User, Settings, Send, Building2, FileSpreadsheet, Inbox, Users, Shield } from "lucide-react";
+import {
+  Home,
+  Search,
+  User,
+  Settings,
+  Send,
+  Building2,
+  FileSpreadsheet,
+  Inbox,
+  Users,
+  Shield,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -47,7 +58,7 @@ export default function MobileNav() {
   });
 
   const role = roleData?.role || "broker";
-  
+
   const getNavItems = () => {
     switch (role) {
       case "super_admin":
@@ -60,7 +71,7 @@ export default function MobileNav() {
         return brokerNavItems;
     }
   };
-  
+
   const navItems = getNavItems();
 
   const isActive = (path: string) => {
@@ -76,24 +87,24 @@ export default function MobileNav() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
-          
+
           return (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full min-w-0 py-2 px-1 transition-colors",
-                active 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-foreground"
+                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
               data-testid={`mobile-nav-${item.label.toLowerCase()}`}
             >
               <Icon className={cn("h-5 w-5 mb-1", active && "stroke-[2.5px]")} />
-              <span className={cn(
-                "text-[10px] font-medium truncate max-w-full",
-                active && "font-semibold"
-              )}>
+              <span
+                className={cn(
+                  "text-[10px] font-medium truncate max-w-full",
+                  active && "font-semibold"
+                )}
+              >
                 {item.label}
               </span>
             </button>

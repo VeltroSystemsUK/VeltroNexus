@@ -5,7 +5,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -87,7 +94,10 @@ const INTERACTION_STATUSES = [
   { value: "completed", label: "Completed" },
 ];
 
-const PANEL_STATUSES: Record<string, { label: string; color: "default" | "secondary" | "destructive" }> = {
+const PANEL_STATUSES: Record<
+  string,
+  { label: string; color: "default" | "secondary" | "destructive" }
+> = {
   panel: { label: "On Panel", color: "default" },
   preferred: { label: "Preferred", color: "default" },
   market: { label: "Whole of Market", color: "secondary" },
@@ -132,18 +142,16 @@ function formatCurrency(amount: number | null | undefined): string {
 
 function RatingStars({ rating }: { rating: number | null | undefined }) {
   if (!rating) return <span className="text-muted-foreground text-sm">Not rated</span>;
-  
+
   const fullStars = Math.floor(rating);
-  
+
   return (
     <div className="flex items-center gap-0.5">
       {[...Array(5)].map((_, i) => (
         <Star
           key={i}
           className={`h-5 w-5 ${
-            i < fullStars
-              ? "fill-yellow-400 text-yellow-400"
-              : "text-muted-foreground/30"
+            i < fullStars ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
           }`}
         />
       ))}
@@ -199,7 +207,11 @@ export default function LenderDetail() {
 
   const lenderId = parseInt(params.id || "0");
 
-  const { data: lender, isLoading, error } = useQuery<LenderWithDetails>({
+  const {
+    data: lender,
+    isLoading,
+    error,
+  } = useQuery<LenderWithDetails>({
     queryKey: ["/api/lenders", lenderId, "full"],
     queryFn: async () => {
       const response = await fetch(`/api/lenders/${lenderId}/full`);
@@ -299,9 +311,7 @@ export default function LenderDetail() {
                 {lender.institutionName}
               </h1>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline">
-                  {LENDER_TYPES[lender.lenderType || ""] || "Lender"}
-                </Badge>
+                <Badge variant="outline">{LENDER_TYPES[lender.lenderType || ""] || "Lender"}</Badge>
                 <PanelBadge status={lender.panelStatus} />
               </div>
             </div>
@@ -346,12 +356,13 @@ export default function LenderDetail() {
                       <div className="flex items-center gap-2">
                         <PoundSterling className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">
-                          {formatCurrency(lender.minLoanAmount)} - {formatCurrency(lender.maxLoanAmount)}
+                          {formatCurrency(lender.minLoanAmount)} -{" "}
+                          {formatCurrency(lender.maxLoanAmount)}
                         </span>
                       </div>
                     </div>
                   )}
-                  
+
                   {(lender.typicalRateFrom || lender.typicalRateTo) && (
                     <div className="space-y-1">
                       <Label className="text-muted-foreground text-xs">Rate Range</Label>
@@ -363,7 +374,7 @@ export default function LenderDetail() {
                       </div>
                     </div>
                   )}
-                  
+
                   {(lender.minLtv || lender.maxLtv) && (
                     <div className="space-y-1">
                       <Label className="text-muted-foreground text-xs">LTV Range</Label>
@@ -375,7 +386,7 @@ export default function LenderDetail() {
                       </div>
                     </div>
                   )}
-                  
+
                   {lender.turnaroundDays && (
                     <div className="space-y-1">
                       <Label className="text-muted-foreground text-xs">Turnaround</Label>
@@ -436,15 +447,12 @@ export default function LenderDetail() {
                 </TabsTrigger>
                 <TabsTrigger value="notes">Notes & Assessment</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="interactions" className="mt-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
                     <CardTitle className="text-lg">Interaction Timeline</CardTitle>
-                    <Button
-                      size="sm"
-                      onClick={() => setIsInteractionDialogOpen(true)}
-                    >
+                    <Button size="sm" onClick={() => setIsInteractionDialogOpen(true)}>
                       <Plus className="h-4 w-4 mr-1" />
                       Log New
                     </Button>
@@ -478,11 +486,15 @@ export default function LenderDetail() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="font-medium">
-                                  {INTERACTION_TYPES.find(t => t.value === interaction.interactionType)?.label || interaction.interactionType}
+                                  {INTERACTION_TYPES.find(
+                                    (t) => t.value === interaction.interactionType
+                                  )?.label || interaction.interactionType}
                                 </span>
                                 {interaction.status && (
                                   <Badge variant="outline" className="text-xs">
-                                    {INTERACTION_STATUSES.find(s => s.value === interaction.status)?.label || interaction.status}
+                                    {INTERACTION_STATUSES.find(
+                                      (s) => s.value === interaction.status
+                                    )?.label || interaction.status}
                                   </Badge>
                                 )}
                               </div>
@@ -501,9 +513,7 @@ export default function LenderDetail() {
                                     {new Date(interaction.sentAt).toLocaleDateString()}
                                   </span>
                                 )}
-                                {interaction.outcome && (
-                                  <span>Outcome: {interaction.outcome}</span>
-                                )}
+                                {interaction.outcome && <span>Outcome: {interaction.outcome}</span>}
                               </div>
                             </div>
                           </div>
@@ -513,7 +523,7 @@ export default function LenderDetail() {
                   </CardContent>
                 </Card>
               </TabsContent>
-              
+
               <TabsContent value="notes" className="mt-4">
                 <Card>
                   <CardContent className="pt-6 space-y-6">
@@ -523,7 +533,7 @@ export default function LenderDetail() {
                         <p className="text-sm">{lender.creditAppetite}</p>
                       </div>
                     )}
-                    
+
                     {lender.keyStrengths && (
                       <div className="space-y-2">
                         <Label className="text-muted-foreground flex items-center gap-2">
@@ -533,7 +543,7 @@ export default function LenderDetail() {
                         <p className="text-sm">{lender.keyStrengths}</p>
                       </div>
                     )}
-                    
+
                     {lender.keyWeaknesses && (
                       <div className="space-y-2">
                         <Label className="text-muted-foreground flex items-center gap-2">
@@ -543,19 +553,22 @@ export default function LenderDetail() {
                         <p className="text-sm">{lender.keyWeaknesses}</p>
                       </div>
                     )}
-                    
+
                     {lender.notes && (
                       <div className="space-y-2">
                         <Label className="text-muted-foreground">General Notes</Label>
                         <p className="text-sm">{lender.notes}</p>
                       </div>
                     )}
-                    
-                    {!lender.creditAppetite && !lender.keyStrengths && !lender.keyWeaknesses && !lender.notes && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p>No notes or assessment recorded</p>
-                      </div>
-                    )}
+
+                    {!lender.creditAppetite &&
+                      !lender.keyStrengths &&
+                      !lender.keyWeaknesses &&
+                      !lender.notes && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p>No notes or assessment recorded</p>
+                        </div>
+                      )}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -572,7 +585,11 @@ export default function LenderDetail() {
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback>
-                        {lender.contactName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        {lender.contactName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
                     <div>
@@ -585,10 +602,7 @@ export default function LenderDetail() {
                 {lender.email && (
                   <div className="flex items-center gap-3">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a
-                      href={`mailto:${lender.email}`}
-                      className="text-sm hover:underline"
-                    >
+                    <a href={`mailto:${lender.email}`} className="text-sm hover:underline">
                       {lender.email}
                     </a>
                   </div>
@@ -597,10 +611,7 @@ export default function LenderDetail() {
                 {lender.phone && (
                   <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <a
-                      href={`tel:${lender.phone}`}
-                      className="text-sm hover:underline"
-                    >
+                    <a href={`tel:${lender.phone}`} className="text-sm hover:underline">
                       {lender.phone}
                     </a>
                   </div>
@@ -610,7 +621,11 @@ export default function LenderDetail() {
                   <div className="flex items-center gap-3">
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <a
-                      href={lender.website.startsWith("http") ? lender.website : `https://${lender.website}`}
+                      href={
+                        lender.website.startsWith("http")
+                          ? lender.website
+                          : `https://${lender.website}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm hover:underline flex items-center gap-1"
@@ -640,12 +655,18 @@ export default function LenderDetail() {
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
                         <AvatarFallback>
-                          {lender.bdmName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                          {lender.bdmName
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-medium">{lender.bdmName}</p>
-                        <p className="text-xs text-muted-foreground">Business Development Manager</p>
+                        <p className="text-xs text-muted-foreground">
+                          Business Development Manager
+                        </p>
                       </div>
                     </div>
                   )}
@@ -653,10 +674,7 @@ export default function LenderDetail() {
                   {lender.bdmEmail && (
                     <div className="flex items-center gap-3">
                       <Mail className="h-4 w-4 text-muted-foreground" />
-                      <a
-                        href={`mailto:${lender.bdmEmail}`}
-                        className="text-sm hover:underline"
-                      >
+                      <a href={`mailto:${lender.bdmEmail}`} className="text-sm hover:underline">
                         {lender.bdmEmail}
                       </a>
                     </div>
@@ -665,10 +683,7 @@ export default function LenderDetail() {
                   {lender.bdmPhone && (
                     <div className="flex items-center gap-3">
                       <Phone className="h-4 w-4 text-muted-foreground" />
-                      <a
-                        href={`tel:${lender.bdmPhone}`}
-                        className="text-sm hover:underline"
-                      >
+                      <a href={`tel:${lender.bdmPhone}`} className="text-sm hover:underline">
                         {lender.bdmPhone}
                       </a>
                     </div>
@@ -731,7 +746,10 @@ export default function LenderDetail() {
             </DialogDescription>
           </DialogHeader>
           <Form {...interactionForm}>
-            <form onSubmit={interactionForm.handleSubmit(handleLogInteraction)} className="space-y-4">
+            <form
+              onSubmit={interactionForm.handleSubmit(handleLogInteraction)}
+              className="space-y-4"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={interactionForm.control}
@@ -838,10 +856,7 @@ export default function LenderDetail() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={createInteractionMutation.isPending}
-                >
+                <Button type="submit" disabled={createInteractionMutation.isPending}>
                   {createInteractionMutation.isPending && (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   )}

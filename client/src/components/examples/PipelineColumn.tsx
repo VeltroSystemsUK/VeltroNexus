@@ -1,5 +1,5 @@
-import PipelineColumn from '../PipelineColumn'
-import ProspectCard from '../ProspectCard'
+import PipelineColumn from "../PipelineColumn";
+import ProspectCard from "../ProspectCard";
 
 export default function PipelineColumnExample() {
   const mockProspects = [
@@ -20,19 +20,15 @@ export default function PipelineColumnExample() {
 
   return (
     <div className="max-w-xs">
-      <PipelineColumn
-        title="Qualified"
-        count={2}
-        totalValue="£450,000"
-      >
+      <PipelineColumn title="Qualified" count={2} totalValue="£450,000">
         {mockProspects.map((prospect) => (
           <ProspectCard
             key={prospect.id}
             prospect={prospect}
-            onClick={() => console.log('Clicked:', prospect.companyName)}
+            onClick={() => console.log("Clicked:", prospect.companyName)}
           />
         ))}
       </PipelineColumn>
     </div>
-  )
+  );
 }

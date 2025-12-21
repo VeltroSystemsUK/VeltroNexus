@@ -27,7 +27,18 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle2, ListTodo, Video, Phone, FileText, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+  ListTodo,
+  Video,
+  Phone,
+  FileText,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -39,7 +50,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  isToday,
+  addMonths,
+  subMonths,
+  startOfWeek,
+  endOfWeek,
+  addWeeks,
+  subWeeks,
+  addDays,
+  subDays,
+} from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -136,11 +163,11 @@ export default function ActivityCalendar() {
       if (data.dueDate) {
         combinedDateTime = new Date(data.dueDate);
         if (data.dueTime) {
-          const [hours, minutes] = data.dueTime.split(':');
+          const [hours, minutes] = data.dueTime.split(":");
           combinedDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
         }
       }
-      
+
       const payload = {
         title: data.title,
         description: data.description ?? null,
@@ -189,11 +216,11 @@ export default function ActivityCalendar() {
       if (data.dueDate) {
         combinedDateTime = new Date(data.dueDate);
         if (data.dueTime) {
-          const [hours, minutes] = data.dueTime.split(':');
+          const [hours, minutes] = data.dueTime.split(":");
           combinedDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
         }
       }
-      
+
       const payload = {
         title: data.title,
         description: data.description ?? null,
@@ -250,21 +277,22 @@ export default function ActivityCalendar() {
   const handleActivityClick = (activity: Activity, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedActivity(activity);
-    
+
     const activityDate = activity.dueDate ? new Date(activity.dueDate) : undefined;
-    const hasTime = activityDate && (activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0);
-    
+    const hasTime =
+      activityDate && (activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0);
+
     editForm.reset({
       title: activity.title,
       description: activity.description || "",
       activityType: activity.activityType as any,
       priority: activity.priority as any,
       dueDate: activityDate,
-      dueTime: hasTime ? format(activityDate, 'HH:mm') : "",
+      dueTime: hasTime ? format(activityDate, "HH:mm") : "",
       completed: activity.completed || 0,
       prospectId: activity.prospectId || undefined,
     });
-    
+
     setShowEditDialog(true);
   };
 
@@ -312,13 +340,13 @@ export default function ActivityCalendar() {
     });
   };
 
-  const navigate = (direction: 'prev' | 'next') => {
+  const navigate = (direction: "prev" | "next") => {
     if (viewType === "monthly") {
-      setCurrentDate(direction === 'prev' ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
+      setCurrentDate(direction === "prev" ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
     } else if (viewType === "weekly") {
-      setCurrentDate(direction === 'prev' ? subWeeks(currentDate, 1) : addWeeks(currentDate, 1));
+      setCurrentDate(direction === "prev" ? subWeeks(currentDate, 1) : addWeeks(currentDate, 1));
     } else {
-      setCurrentDate(direction === 'prev' ? subDays(currentDate, 1) : addDays(currentDate, 1));
+      setCurrentDate(direction === "prev" ? subDays(currentDate, 1) : addDays(currentDate, 1));
     }
   };
 
@@ -347,22 +375,19 @@ export default function ActivityCalendar() {
     return (
       <div className="grid grid-cols-7 gap-1">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-          <div
-            key={day}
-            className="text-xs font-medium text-muted-foreground text-center p-2"
-          >
+          <div key={day} className="text-xs font-medium text-muted-foreground text-center p-2">
             {day}
           </div>
         ))}
-        
+
         {Array.from({ length: (monthStart.getDay() + 6) % 7 }).map((_, i) => (
           <div key={`empty-${i}`} className="p-2" />
         ))}
-        
+
         {days.map((day) => {
           const dayActivities = getActivitiesForDay(day);
           const hasActivities = dayActivities.length > 0;
-          
+
           return (
             <div
               key={day.toISOString()}
@@ -376,31 +401,37 @@ export default function ActivityCalendar() {
               data-testid={`calendar-day-${format(day, "yyyy-MM-dd")}`}
             >
               <div className="flex items-center justify-between mb-1">
-                <div className="text-xs font-medium">
-                  {format(day, "d")}
-                </div>
+                <div className="text-xs font-medium">{format(day, "d")}</div>
                 <Plus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
               </div>
               {hasActivities && (
                 <div className="space-y-1">
                   {dayActivities.slice(0, 2).map((activity) => {
-                    const Icon = activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] || ListTodo;
-                    const colorClass = activityTypeColors[activity.activityType as keyof typeof activityTypeColors] || activityTypeColors.task;
+                    const Icon =
+                      activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] ||
+                      ListTodo;
+                    const colorClass =
+                      activityTypeColors[
+                        activity.activityType as keyof typeof activityTypeColors
+                      ] || activityTypeColors.task;
                     const activityDate = activity.dueDate ? new Date(activity.dueDate) : null;
-                    const hasTime = activityDate && (activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0);
-                    const priorityColor = activity.priority === "urgent"
-                      ? "border-l-red-500"
-                      : activity.priority === "high"
-                      ? "border-l-orange-500"
-                      : activity.priority === "medium"
-                      ? "border-l-yellow-500"
-                      : "border-l-green-500";
-                    
+                    const hasTime =
+                      activityDate &&
+                      (activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0);
+                    const priorityColor =
+                      activity.priority === "urgent"
+                        ? "border-l-red-500"
+                        : activity.priority === "high"
+                          ? "border-l-orange-500"
+                          : activity.priority === "medium"
+                            ? "border-l-yellow-500"
+                            : "border-l-green-500";
+
                     return (
                       <div
                         key={activity.id}
                         className={`text-xs truncate px-1.5 py-0.5 rounded flex items-center gap-1 border-l-2 cursor-pointer hover:opacity-80 ${colorClass} ${priorityColor}`}
-                        title={`${activity.title}${hasTime ? ` - ${format(activityDate, 'HH:mm')}` : ''} [${activity.priority}] - Click to edit`}
+                        title={`${activity.title}${hasTime ? ` - ${format(activityDate, "HH:mm")}` : ""} [${activity.priority}] - Click to edit`}
                         onClick={(e) => handleActivityClick(activity, e)}
                         data-testid={`calendar-activity-${activity.id}`}
                       >
@@ -409,14 +440,14 @@ export default function ActivityCalendar() {
                           <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
                         )}
                         {hasTime && (
-                          <span className="font-medium">{format(activityDate, 'HH:mm')}</span>
+                          <span className="font-medium">{format(activityDate, "HH:mm")}</span>
                         )}
                         <span className="truncate">{activity.title}</span>
                       </div>
                     );
                   })}
                   {dayActivities.length > 2 && (
-                    <div 
+                    <div
                       className="text-xs text-muted-foreground cursor-pointer hover:underline"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -452,14 +483,19 @@ export default function ActivityCalendar() {
               className={`bg-background p-2 text-center sticky top-0 z-10 ${isToday(day) ? "bg-primary/10" : ""}`}
             >
               <div className="text-xs font-medium text-muted-foreground">{format(day, "EEE")}</div>
-              <div className={`text-sm font-semibold ${isToday(day) ? "text-primary" : ""}`}>{format(day, "d")}</div>
+              <div className={`text-sm font-semibold ${isToday(day) ? "text-primary" : ""}`}>
+                {format(day, "d")}
+              </div>
             </div>
           ))}
-          
+
           {HOURS.map((hour) => {
             const hourCells = [
-              <div key={`hour-label-${hour}`} className="bg-background p-2 text-xs text-muted-foreground border-t">
-                {hour.toString().padStart(2, '0')}:00
+              <div
+                key={`hour-label-${hour}`}
+                className="bg-background p-2 text-xs text-muted-foreground border-t"
+              >
+                {hour.toString().padStart(2, "0")}:00
               </div>,
               ...weekDays.map((day) => {
                 const hourActivities = getActivitiesForHour(day, hour);
@@ -467,11 +503,17 @@ export default function ActivityCalendar() {
                   <div
                     key={`${day.toISOString()}-${hour}`}
                     className={`bg-background p-1 border-t min-h-[40px] cursor-pointer hover:bg-muted/50 ${isToday(day) ? "bg-primary/5" : ""}`}
-                    onClick={() => handleDateClick(day, `${hour.toString().padStart(2, '0')}:00`)}
+                    onClick={() => handleDateClick(day, `${hour.toString().padStart(2, "0")}:00`)}
                   >
                     {hourActivities.map((activity) => {
-                      const Icon = activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] || ListTodo;
-                      const colorClass = activityTypeColors[activity.activityType as keyof typeof activityTypeColors] || activityTypeColors.task;
+                      const Icon =
+                        activityTypeIcons[
+                          activity.activityType as keyof typeof activityTypeIcons
+                        ] || ListTodo;
+                      const colorClass =
+                        activityTypeColors[
+                          activity.activityType as keyof typeof activityTypeColors
+                        ] || activityTypeColors.task;
                       return (
                         <div
                           key={activity.id}
@@ -487,7 +529,7 @@ export default function ActivityCalendar() {
                     })}
                   </div>
                 );
-              })
+              }),
             ];
             return hourCells;
           })}
@@ -508,24 +550,32 @@ export default function ActivityCalendar() {
               <div
                 key={hour}
                 className="flex border-t hover:bg-muted/30 cursor-pointer"
-                onClick={() => handleDateClick(currentDate, `${hour.toString().padStart(2, '0')}:00`)}
+                onClick={() =>
+                  handleDateClick(currentDate, `${hour.toString().padStart(2, "0")}:00`)
+                }
               >
                 <div className="w-16 flex-shrink-0 p-2 text-xs text-muted-foreground border-r">
-                  {hour.toString().padStart(2, '0')}:00
+                  {hour.toString().padStart(2, "0")}:00
                 </div>
                 <div className="flex-1 min-h-[50px] p-1">
                   {hourActivities.map((activity) => {
-                    const Icon = activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] || ListTodo;
-                    const colorClass = activityTypeColors[activity.activityType as keyof typeof activityTypeColors] || activityTypeColors.task;
-                    const priorityColor = activity.priority === "urgent"
-                      ? "border-l-red-500"
-                      : activity.priority === "high"
-                      ? "border-l-orange-500"
-                      : activity.priority === "medium"
-                      ? "border-l-yellow-500"
-                      : "border-l-green-500";
+                    const Icon =
+                      activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] ||
+                      ListTodo;
+                    const colorClass =
+                      activityTypeColors[
+                        activity.activityType as keyof typeof activityTypeColors
+                      ] || activityTypeColors.task;
+                    const priorityColor =
+                      activity.priority === "urgent"
+                        ? "border-l-red-500"
+                        : activity.priority === "high"
+                          ? "border-l-orange-500"
+                          : activity.priority === "medium"
+                            ? "border-l-yellow-500"
+                            : "border-l-green-500";
                     const activityDate = activity.dueDate ? new Date(activity.dueDate) : null;
-                    
+
                     return (
                       <div
                         key={activity.id}
@@ -540,11 +590,15 @@ export default function ActivityCalendar() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">{activity.title}</div>
                           {activity.description && (
-                            <div className="text-xs text-muted-foreground truncate">{activity.description}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {activity.description}
+                            </div>
                           )}
                         </div>
                         {activityDate && (
-                          <span className="text-xs text-muted-foreground">{format(activityDate, 'HH:mm')}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {format(activityDate, "HH:mm")}
+                          </span>
                         )}
                       </div>
                     );
@@ -554,7 +608,7 @@ export default function ActivityCalendar() {
             );
           })}
         </div>
-        
+
         {dayActivities.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -611,18 +665,13 @@ export default function ActivityCalendar() {
           </div>
           <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToToday}
-                data-testid="button-today"
-              >
+              <Button variant="outline" size="sm" onClick={goToToday} data-testid="button-today">
                 Today
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => navigate('prev')}
+                onClick={() => navigate("prev")}
                 data-testid="button-prev"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -630,22 +679,20 @@ export default function ActivityCalendar() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => navigate('next')}
+                onClick={() => navigate("next")}
                 data-testid="button-next"
               >
                 <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
-            <div className="text-base font-semibold">
-              {getDateRangeLabel()}
-            </div>
+            <div className="text-base font-semibold">{getDateRangeLabel()}</div>
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           {viewType === "monthly" && renderMonthlyView()}
           {viewType === "weekly" && renderWeeklyView()}
           {viewType === "daily" && renderDailyView()}
-          
+
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -706,10 +753,11 @@ export default function ActivityCalendar() {
           <DialogHeader>
             <DialogTitle>Create New Activity</DialogTitle>
             <DialogDescription>
-              Add a task, event, meeting, call, or note for {selectedDate && format(selectedDate, "MMMM d, yyyy")}
+              Add a task, event, meeting, call, or note for{" "}
+              {selectedDate && format(selectedDate, "MMMM d, yyyy")}
             </DialogDescription>
           </DialogHeader>
-          
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -718,10 +766,7 @@ export default function ActivityCalendar() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Type</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-activity-type">
                           <SelectValue placeholder="Select activity type" />
@@ -771,10 +816,7 @@ export default function ActivityCalendar() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-activity-priority">
                           <SelectValue placeholder="Select priority" />
@@ -799,11 +841,7 @@ export default function ActivityCalendar() {
                   <FormItem>
                     <FormLabel>Time (Optional)</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        type="time"
-                        data-testid="input-activity-time"
-                      />
+                      <Input {...field} type="time" data-testid="input-activity-time" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -898,13 +936,16 @@ export default function ActivityCalendar() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showEditDialog} onOpenChange={(open) => {
-        setShowEditDialog(open);
-        if (!open) {
-          setSelectedActivity(null);
-          editForm.reset();
-        }
-      }}>
+      <Dialog
+        open={showEditDialog}
+        onOpenChange={(open) => {
+          setShowEditDialog(open);
+          if (!open) {
+            setSelectedActivity(null);
+            editForm.reset();
+          }
+        }}
+      >
         <DialogContent data-testid="dialog-edit-activity" className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Activity</DialogTitle>
@@ -912,7 +953,7 @@ export default function ActivityCalendar() {
               Update details or change the date/time to move this activity
             </DialogDescription>
           </DialogHeader>
-          
+
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
               <FormField
@@ -921,10 +962,7 @@ export default function ActivityCalendar() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Type</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-activity-type">
                           <SelectValue placeholder="Select activity type" />
@@ -974,10 +1012,7 @@ export default function ActivityCalendar() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-activity-priority">
                           <SelectValue placeholder="Select priority" />
@@ -1004,8 +1039,10 @@ export default function ActivityCalendar() {
                     <FormControl>
                       <Input
                         type="date"
-                        value={field.value ? format(field.value, 'yyyy-MM-dd') : ''}
-                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                        value={field.value ? format(field.value, "yyyy-MM-dd") : ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value ? new Date(e.target.value) : undefined)
+                        }
                         data-testid="input-edit-activity-date"
                       />
                     </FormControl>
@@ -1021,11 +1058,7 @@ export default function ActivityCalendar() {
                   <FormItem>
                     <FormLabel>Time (Optional)</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        type="time"
-                        data-testid="input-edit-activity-time"
-                      />
+                      <Input {...field} type="time" data-testid="input-edit-activity-time" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1159,11 +1192,14 @@ export default function ActivityCalendar() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Activity</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{selectedActivity?.title}"? This action cannot be undone.
+              Are you sure you want to delete "{selectedActivity?.title}"? This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete-activity">Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete-activity">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => selectedActivity && deleteActivityMutation.mutate(selectedActivity.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

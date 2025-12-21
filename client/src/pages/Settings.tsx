@@ -4,12 +4,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Settings as SettingsIcon, Palette, Globe, Calendar as CalendarIcon, FileText, GripVertical, Upload, Check, AlertCircle, X, ExternalLink, FileDown, FileSpreadsheet, ArrowLeft, Key, Copy, RefreshCw, Link2, Shield, Brain } from "lucide-react";
+import {
+  Save,
+  Loader2,
+  Settings as SettingsIcon,
+  Palette,
+  Globe,
+  Calendar as CalendarIcon,
+  FileText,
+  GripVertical,
+  Upload,
+  Check,
+  AlertCircle,
+  X,
+  ExternalLink,
+  FileDown,
+  FileSpreadsheet,
+  ArrowLeft,
+  Key,
+  Copy,
+  RefreshCw,
+  Link2,
+  Shield,
+  Brain,
+} from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -85,7 +114,8 @@ export default function Settings() {
   const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
   const [theme, setTheme] = useState("light");
   const [stageNames, setStageNames] = useState<Record<string, string>>(DEFAULT_STAGE_NAMES);
-  const [pdfSections, setPdfSections] = useState<Array<{ id: string; label: string; enabled: boolean }>>(DEFAULT_PDF_SECTIONS);
+  const [pdfSections, setPdfSections] =
+    useState<Array<{ id: string; label: string; enabled: boolean }>>(DEFAULT_PDF_SECTIONS);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [brandingPrimaryColor, setBrandingPrimaryColor] = useState<string>("");
@@ -148,16 +178,15 @@ export default function Settings() {
       setDateFormat(user.dateFormat || "DD/MM/YYYY");
       setTheme(user.theme || "light");
       setStageNames(user.pipelineStageNames || DEFAULT_STAGE_NAMES);
-      
+
       // Merge saved sections with defaults to include any new sections
       const savedSections = user.pdfLayoutPreferences?.sections || [];
       const savedIds = new Set(savedSections.map((s: any) => s.id));
-      const newSections = DEFAULT_PDF_SECTIONS.filter(s => !savedIds.has(s.id));
-      const mergedSections = savedSections.length > 0 
-        ? [...savedSections, ...newSections]
-        : DEFAULT_PDF_SECTIONS;
+      const newSections = DEFAULT_PDF_SECTIONS.filter((s) => !savedIds.has(s.id));
+      const mergedSections =
+        savedSections.length > 0 ? [...savedSections, ...newSections] : DEFAULT_PDF_SECTIONS;
       setPdfSections(mergedSections);
-      
+
       setBrandingPrimaryColor(user.brandingPrimaryColor || "");
       setBrandingAccentColor(user.brandingAccentColor || "");
       setLogoPreview(user.brandingLogoUrl || null);
@@ -201,19 +230,19 @@ export default function Settings() {
   const uploadLogoMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
-      formData.append('logo', file);
-      
-      const response = await fetch('/api/user/branding/logo', {
-        method: 'POST',
+      formData.append("logo", file);
+
+      const response = await fetch("/api/user/branding/logo", {
+        method: "POST",
         body: formData,
-        credentials: 'include',
+        credentials: "include",
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to upload logo');
+        throw new Error(error.error || "Failed to upload logo");
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
@@ -236,16 +265,16 @@ export default function Settings() {
 
   const deleteLogoMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/user/branding/logo', {
-        method: 'DELETE',
-        credentials: 'include',
+      const response = await fetch("/api/user/branding/logo", {
+        method: "DELETE",
+        credentials: "include",
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to remove logo');
+        throw new Error(error.error || "Failed to remove logo");
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -268,7 +297,7 @@ export default function Settings() {
   const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
+      if (!file.type.startsWith("image/")) {
         toast({
           title: "Invalid File",
           description: "Please select an image file (PNG, JPG, etc.)",
@@ -373,7 +402,7 @@ export default function Settings() {
 
   const handleCsvUpload = () => {
     if (!csvFile) return;
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
@@ -403,7 +432,9 @@ export default function Settings() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold" data-testid="heading-settings">Settings</h1>
+            <h1 className="text-3xl font-bold" data-testid="heading-settings">
+              Settings
+            </h1>
             <p className="text-muted-foreground">Customize your FlowLoan experience</p>
           </div>
         </div>
@@ -457,7 +488,9 @@ export default function Settings() {
             <Palette className="h-5 w-5" />
             White Label Branding
           </CardTitle>
-          <CardDescription>Add your corporate logo and customize colors for a branded experience</CardDescription>
+          <CardDescription>
+            Add your corporate logo and customize colors for a branded experience
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Logo Upload */}
@@ -478,7 +511,10 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground">Powered by FlowLoan</p>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed rounded-lg p-8 text-center bg-muted/20" data-testid="logo-placeholder">
+                  <div
+                    className="border-2 border-dashed rounded-lg p-8 text-center bg-muted/20"
+                    data-testid="logo-placeholder"
+                  >
                     <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground">No logo uploaded</p>
                   </div>
@@ -528,7 +564,8 @@ export default function Settings() {
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Upload your company logo (PNG, JPG, SVG). Max 2MB. Your logo will appear in the header.
+                  Upload your company logo (PNG, JPG, SVG). Max 2MB. Your logo will appear in the
+                  header.
                 </p>
               </div>
             </div>
@@ -648,15 +685,17 @@ export default function Settings() {
               </SelectTrigger>
               <SelectContent>
                 {CURRENCIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value} data-testid={`option-currency-${c.value}`}>
+                  <SelectItem
+                    key={c.value}
+                    value={c.value}
+                    data-testid={`option-currency-${c.value}`}
+                  >
                     {c.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-sm text-muted-foreground">
-              Default currency for financial values
-            </p>
+            <p className="text-sm text-muted-foreground">Default currency for financial values</p>
           </div>
 
           <div className="space-y-2">
@@ -667,15 +706,17 @@ export default function Settings() {
               </SelectTrigger>
               <SelectContent>
                 {TIMEZONES.map((tz) => (
-                  <SelectItem key={tz.value} value={tz.value} data-testid={`option-timezone-${tz.value}`}>
+                  <SelectItem
+                    key={tz.value}
+                    value={tz.value}
+                    data-testid={`option-timezone-${tz.value}`}
+                  >
                     {tz.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-sm text-muted-foreground">
-              Your local timezone for dates and times
-            </p>
+            <p className="text-sm text-muted-foreground">Your local timezone for dates and times</p>
           </div>
 
           <div className="space-y-2">
@@ -686,7 +727,11 @@ export default function Settings() {
               </SelectTrigger>
               <SelectContent>
                 {DATE_FORMATS.map((df) => (
-                  <SelectItem key={df.value} value={df.value} data-testid={`option-date-format-${df.value}`}>
+                  <SelectItem
+                    key={df.value}
+                    value={df.value}
+                    data-testid={`option-date-format-${df.value}`}
+                  >
                     {df.label}
                   </SelectItem>
                 ))}
@@ -805,8 +850,8 @@ export default function Settings() {
           </div>
           <Separator />
           <p className="text-sm text-muted-foreground">
-            Customize stage names to match your workflow. These names will appear throughout the application
-            including the pipeline view, prospect details, and reports.
+            Customize stage names to match your workflow. These names will appear throughout the
+            application including the pipeline view, prospect details, and reports.
           </p>
         </CardContent>
       </Card>
@@ -819,7 +864,9 @@ export default function Settings() {
                 <FileText className="h-5 w-5" />
                 PDF Report Layout
               </CardTitle>
-              <CardDescription>Customize which sections appear in your PDF reports and their order</CardDescription>
+              <CardDescription>
+                Customize which sections appear in your PDF reports and their order
+              </CardDescription>
             </div>
             <Button
               variant="outline"
@@ -838,11 +885,7 @@ export default function Settings() {
           <DragDropContext onDragEnd={handlePdfSectionsReorder}>
             <Droppable droppableId="pdf-sections">
               {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="space-y-2"
-                >
+                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
                   {pdfSections.map((section, index) => (
                     <Draggable key={section.id} draggableId={section.id} index={index}>
                       {(provided, snapshot) => (
@@ -901,12 +944,12 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Download a complete Excel report of all your prospects including company details, loan information, 
-            pipeline stage, priority, and key dates.
+            Download a complete Excel report of all your prospects including company details, loan
+            information, pipeline stage, priority, and key dates.
           </p>
           <div className="flex items-center gap-4">
             <Button
-              onClick={() => window.open('/api/prospects/export/excel', '_blank')}
+              onClick={() => window.open("/api/prospects/export/excel", "_blank")}
               data-testid="button-download-pipeline-report"
             >
               <FileDown className="h-4 w-4 mr-2" />
@@ -925,14 +968,17 @@ export default function Settings() {
             <Upload className="h-5 w-5" />
             Data Import
           </CardTitle>
-          <CardDescription>Upload CSV files to bulk import company leads for prospecting</CardDescription>
+          <CardDescription>
+            Upload CSV files to bulk import company leads for prospecting
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-lg border-2 border-dashed p-6 text-center">
             <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
             <p className="text-sm font-medium mb-2">Upload a CSV file with company data</p>
             <p className="text-xs text-muted-foreground mb-4">
-              Required column: Company Name. Optional: Company Number, Contact Name, Email, Phone, Address, Postcode, SIC Code
+              Required column: Company Name. Optional: Company Number, Contact Name, Email, Phone,
+              Address, Postcode, SIC Code
             </p>
             <div className="flex flex-col items-center gap-2">
               <Input
@@ -978,15 +1024,17 @@ export default function Settings() {
           </div>
 
           {uploadResult && (
-            <div className={`p-4 rounded-lg ${uploadResult.status === 'failed' ? 'bg-destructive/10' : 'bg-green-500/10'}`}>
+            <div
+              className={`p-4 rounded-lg ${uploadResult.status === "failed" ? "bg-destructive/10" : "bg-green-500/10"}`}
+            >
               <div className="flex items-center gap-2 mb-2">
-                {uploadResult.status === 'failed' ? (
+                {uploadResult.status === "failed" ? (
                   <AlertCircle className="h-5 w-5 text-destructive" />
                 ) : (
                   <Check className="h-5 w-5 text-green-600" />
                 )}
                 <span className="font-medium">
-                  {uploadResult.status === 'failed' ? 'Upload Failed' : 'Upload Complete'}
+                  {uploadResult.status === "failed" ? "Upload Failed" : "Upload Complete"}
                 </span>
               </div>
               <div className="text-sm space-y-1">
@@ -1020,14 +1068,15 @@ export default function Settings() {
                       <div>
                         <p className="text-sm font-medium">{upload.fileName}</p>
                         <p className="text-xs text-muted-foreground">
-                          {upload.successRows} leads imported • {new Date(upload.createdAt).toLocaleDateString()}
+                          {upload.successRows} leads imported •{" "}
+                          {new Date(upload.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {upload.status === 'completed' ? (
+                      {upload.status === "completed" ? (
                         <Check className="h-4 w-4 text-green-600" />
-                      ) : upload.status === 'failed' ? (
+                      ) : upload.status === "failed" ? (
                         <AlertCircle className="h-4 w-4 text-destructive" />
                       ) : (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1060,7 +1109,9 @@ export default function Settings() {
             <Link2 className="h-5 w-5" />
             API Integration
           </CardTitle>
-          <CardDescription>Connect external applications to FlowLoan using the webhook API</CardDescription>
+          <CardDescription>
+            Connect external applications to FlowLoan using the webhook API
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
@@ -1156,7 +1207,9 @@ export default function Settings() {
                   <Button
                     size="icon"
                     variant="outline"
-                    onClick={() => copyToClipboard(`${window.location.origin}/api/webhooks/prospects`)}
+                    onClick={() =>
+                      copyToClipboard(`${window.location.origin}/api/webhooks/prospects`)
+                    }
                     data-testid="button-copy-endpoint"
                   >
                     <Copy className="h-4 w-4" />
@@ -1174,7 +1227,7 @@ export default function Settings() {
               <div>
                 <Label className="text-xs text-muted-foreground">Example Request Body</Label>
                 <pre className="bg-background px-3 py-2 rounded text-xs font-mono border mt-1 overflow-x-auto">
-{`{
+                  {`{
   "company": {
     "companyName": "Example Ltd",
     "companyNumber": "12345678"
@@ -1202,15 +1255,17 @@ export default function Settings() {
             <Brain className="h-5 w-5" />
             AI Data Processing
           </CardTitle>
-          <CardDescription>Manage how your financial data is processed by AI features</CardDescription>
+          <CardDescription>
+            Manage how your financial data is processed by AI features
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <Label className="text-base">Enable AI-Powered Analysis</Label>
               <p className="text-sm text-muted-foreground">
-                Allow FlowLoan to use AI to analyze financial documents (bank statements, accounts) 
-                for credit underwriting, SWOT analysis, and CAMPARI assessments. 
+                Allow FlowLoan to use AI to analyze financial documents (bank statements, accounts)
+                for credit underwriting, SWOT analysis, and CAMPARI assessments.
               </p>
               <p className="text-sm text-muted-foreground mt-2">
                 <Shield className="h-3 w-3 inline mr-1" />
@@ -1228,7 +1283,7 @@ export default function Settings() {
               data-testid="switch-ai-consent"
             />
           </div>
-          
+
           {user?.aiDataConsentAt && aiDataConsent && (
             <div className="bg-muted/50 rounded-lg p-4">
               <div className="flex items-center gap-2">
@@ -1239,12 +1294,12 @@ export default function Settings() {
               </div>
             </div>
           )}
-          
+
           {!aiDataConsent && (
             <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
               <p className="text-sm text-amber-800 dark:text-amber-200">
-                AI features are currently disabled. Enable this setting to use AI-powered 
-                financial analysis, SWOT generation, and CAMPARI report auto-completion.
+                AI features are currently disabled. Enable this setting to use AI-powered financial
+                analysis, SWOT generation, and CAMPARI report auto-completion.
               </p>
             </div>
           )}

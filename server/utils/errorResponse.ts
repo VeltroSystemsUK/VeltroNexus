@@ -3,18 +3,18 @@
  * Prevents internal error details from leaking in production.
  */
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = process.env.NODE_ENV === "production";
 
 // Generic safe error messages for production
 const SAFE_ERROR_MESSAGES: Record<number, string> = {
-  400: 'Invalid request',
-  401: 'Unauthorized',
-  403: 'Access denied',
-  404: 'Not found',
-  409: 'Conflict',
-  413: 'Request too large',
-  429: 'Too many requests',
-  500: 'Internal server error',
+  400: "Invalid request",
+  401: "Unauthorized",
+  403: "Access denied",
+  404: "Not found",
+  409: "Conflict",
+  413: "Request too large",
+  429: "Too many requests",
+  500: "Internal server error",
 };
 
 /**
@@ -32,11 +32,11 @@ export function sanitizeErrorMessage(
     return safeMessage;
   }
 
-  const errorMessage = typeof error === 'string' ? error : error.message;
+  const errorMessage = typeof error === "string" ? error : error.message;
 
   // In development, return the full error message
   if (!isProduction) {
-    return errorMessage || SAFE_ERROR_MESSAGES[statusCode] || 'An error occurred';
+    return errorMessage || SAFE_ERROR_MESSAGES[statusCode] || "An error occurred";
   }
 
   // In production, sanitize error messages
@@ -55,7 +55,7 @@ export function sanitizeErrorMessage(
     /enotfound/i,
     /memory/i,
     /stack/i,
-    /at \w+/,  // Stack trace patterns
+    /at \w+/, // Stack trace patterns
     /node_modules/i,
     /internal/i,
     /secret/i,
@@ -68,7 +68,7 @@ export function sanitizeErrorMessage(
   // Check if error message contains sensitive information
   for (const pattern of sensitivePatterns) {
     if (pattern.test(errorMessage)) {
-      return SAFE_ERROR_MESSAGES[statusCode] || 'An error occurred';
+      return SAFE_ERROR_MESSAGES[statusCode] || "An error occurred";
     }
   }
 
@@ -78,7 +78,7 @@ export function sanitizeErrorMessage(
   }
 
   // Long error messages might contain sensitive info, use generic message
-  return SAFE_ERROR_MESSAGES[statusCode] || 'An error occurred';
+  return SAFE_ERROR_MESSAGES[statusCode] || "An error occurred";
 }
 
 /**

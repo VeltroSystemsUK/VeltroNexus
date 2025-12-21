@@ -7,7 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Slider } from "@/components/ui/slider";
 import { CheckCircle2, AlertCircle, XCircle, Save } from "lucide-react";
 import { CHECKLIST_SECTIONS } from "@shared/checklistData";
@@ -30,7 +35,11 @@ interface DueDiligenceToolsProps {
   isSaving: boolean;
 }
 
-export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
+export function DueDiligenceChecklist({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
 
   useEffect(() => {
@@ -98,9 +107,7 @@ export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDilige
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
                     <span className="font-medium">{section.name}</span>
-                    <Badge variant={progress === 100 ? "default" : "secondary"}>
-                      {progress}%
-                    </Badge>
+                    <Badge variant={progress === 100 ? "default" : "secondary"}>{progress}%</Badge>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -134,7 +141,11 @@ export function DueDiligenceChecklist({ data, onSave, isSaving }: Omit<DueDilige
   );
 }
 
-export function LoanCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
+export function LoanCalculatorTool({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
   const [loanAmount, setLoanAmount] = useState("");
   const [interestRate, setInterestRate] = useState("");
   const [term, setTerm] = useState("");
@@ -145,16 +156,17 @@ export function LoanCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
     setTerm(data.loanCalculator?.term?.toString() || "");
   }, [data.loanCalculator]);
 
-  const calculation = loanAmount && interestRate && term
-    ? calculateLoan(parseFloat(loanAmount), parseFloat(interestRate), parseInt(term))
-    : null;
+  const calculation =
+    loanAmount && interestRate && term
+      ? calculateLoan(parseFloat(loanAmount), parseFloat(interestRate), parseInt(term))
+      : null;
 
   const handleSave = () => {
     onSave({
       loanCalculator: {
-        loanAmount: loanAmount ? parseFloat(loanAmount) : null,
-        interestRate: interestRate ? parseFloat(interestRate) : null,
-        term: term ? parseInt(term) : null,
+        loanAmount: loanAmount ? parseFloat(loanAmount) : undefined,
+        interestRate: interestRate ? parseFloat(interestRate) : undefined,
+        term: term ? parseInt(term) : undefined,
       },
     });
   };
@@ -217,15 +229,21 @@ export function LoanCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
               </div>
               <div className="p-4 bg-muted rounded-md">
                 <div className="text-sm text-muted-foreground">Total Interest</div>
-                <div className="text-lg font-semibold">{formatCurrency(calculation.totalInterest)}</div>
+                <div className="text-lg font-semibold">
+                  {formatCurrency(calculation.totalInterest)}
+                </div>
               </div>
               <div className="p-4 bg-muted rounded-md">
                 <div className="text-sm text-muted-foreground">Total Repayment</div>
-                <div className="text-lg font-semibold">{formatCurrency(calculation.totalRepayment)}</div>
+                <div className="text-lg font-semibold">
+                  {formatCurrency(calculation.totalRepayment)}
+                </div>
               </div>
               <div className="p-4 bg-muted rounded-md">
                 <div className="text-sm text-muted-foreground">Facility Fee (3.5%)</div>
-                <div className="text-lg font-semibold">{formatCurrency(calculation.facilityFee)}</div>
+                <div className="text-lg font-semibold">
+                  {formatCurrency(calculation.facilityFee)}
+                </div>
               </div>
             </div>
           )}
@@ -235,7 +253,11 @@ export function LoanCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
   );
 }
 
-export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
+export function DSCRCalculatorTool({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
   const [noi, setNoi] = useState("");
   const [debtService, setDebtService] = useState("");
   const [sensitivity, setSensitivity] = useState("-20");
@@ -246,16 +268,17 @@ export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
     setSensitivity(data.dscr?.sensitivityRevenue?.toString() || "-20");
   }, [data.dscr]);
 
-  const calculation = noi && debtService
-    ? calculateDSCR(parseFloat(noi), parseFloat(debtService), parseFloat(sensitivity))
-    : null;
+  const calculation =
+    noi && debtService
+      ? calculateDSCR(parseFloat(noi), parseFloat(debtService), parseFloat(sensitivity))
+      : null;
 
   const handleSave = () => {
     onSave({
       dscr: {
-        annualNetOperatingIncome: noi ? parseFloat(noi) : null,
-        annualDebtService: debtService ? parseFloat(debtService) : null,
-        sensitivityRevenue: sensitivity ? parseFloat(sensitivity) : null,
+        annualNetOperatingIncome: noi ? parseFloat(noi) : undefined,
+        annualDebtService: debtService ? parseFloat(debtService) : undefined,
+        sensitivityRevenue: sensitivity ? parseFloat(sensitivity) : undefined,
       },
     });
   };
@@ -324,7 +347,10 @@ export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
             <div className="space-y-3">
               <div className="p-4 bg-muted rounded-md">
                 <div className="text-sm text-muted-foreground">Base DSCR</div>
-                <div className={`text-2xl font-bold flex items-center gap-2 ${getStatusColor(calculation.status)}`} data-testid="text-dscr-ratio">
+                <div
+                  className={`text-2xl font-bold flex items-center gap-2 ${getStatusColor(calculation.status)}`}
+                  data-testid="text-dscr-ratio"
+                >
                   {getStatusIcon(calculation.status)}
                   {formatRatio(calculation.dscr)}×
                 </div>
@@ -339,7 +365,9 @@ export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
                   <div className="text-sm text-muted-foreground">
                     Sensitivity DSCR ({sensitivity}% revenue)
                   </div>
-                  <div className={`text-xl font-bold flex items-center gap-2 ${getStatusColor(calculation.sensitivityStatus)}`}>
+                  <div
+                    className={`text-xl font-bold flex items-center gap-2 ${getStatusColor(calculation.sensitivityStatus)}`}
+                  >
                     {getStatusIcon(calculation.sensitivityStatus)}
                     {formatRatio(calculation.sensitivityDSCR)}×
                   </div>
@@ -365,7 +393,11 @@ export function DSCRCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligence
   );
 }
 
-export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
+export function AffordabilityEstimatorTool({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
   const [income, setIncome] = useState("");
   const [commitments, setCommitments] = useState("");
   const [loanPayment, setLoanPayment] = useState("");
@@ -376,16 +408,17 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
     setLoanPayment(data.affordability?.loanPayment?.toString() || "");
   }, [data.affordability]);
 
-  const calculation = income && commitments && loanPayment
-    ? calculateAffordability(parseFloat(income), parseFloat(commitments), parseFloat(loanPayment))
-    : null;
+  const calculation =
+    income && commitments && loanPayment
+      ? calculateAffordability(parseFloat(income), parseFloat(commitments), parseFloat(loanPayment))
+      : null;
 
   const handleSave = () => {
     onSave({
       affordability: {
-        personalIncome: income ? parseFloat(income) : null,
-        monthlyCommitments: commitments ? parseFloat(commitments) : null,
-        loanPayment: loanPayment ? parseFloat(loanPayment) : null,
+        personalIncome: income ? parseFloat(income) : undefined,
+        monthlyCommitments: commitments ? parseFloat(commitments) : undefined,
+        loanPayment: loanPayment ? parseFloat(loanPayment) : undefined,
       },
     });
   };
@@ -432,7 +465,11 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
                 data-testid="input-loan-payment"
               />
             </div>
-            <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-affordability">
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              data-testid="button-save-affordability"
+            >
               <Save className="w-4 h-4 mr-2" />
               {isSaving ? "Saving..." : "Save Assessment"}
             </Button>
@@ -441,7 +478,10 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
             <div className="space-y-3">
               <div className="p-4 bg-muted rounded-md">
                 <div className="text-sm text-muted-foreground">Income vs Commitments Ratio</div>
-                <div className={`text-2xl font-bold flex items-center gap-2 ${calculation.status === "pass" ? "text-green-600" : "text-red-600"}`} data-testid="text-affordability-ratio">
+                <div
+                  className={`text-2xl font-bold flex items-center gap-2 ${calculation.status === "pass" ? "text-green-600" : "text-red-600"}`}
+                  data-testid="text-affordability-ratio"
+                >
                   {calculation.status === "pass" ? (
                     <CheckCircle2 className="w-5 h-5" />
                   ) : (
@@ -450,12 +490,16 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
                   {formatRatio(calculation.ratio)}×
                 </div>
                 <div className="text-xs mt-1">
-                  {calculation.status === "pass" ? "✓ Meets requirement (≥1.25×)" : "✗ Below minimum (<1.25×)"}
+                  {calculation.status === "pass"
+                    ? "✓ Meets requirement (≥1.25×)"
+                    : "✗ Below minimum (<1.25×)"}
                 </div>
               </div>
               <div className="p-4 bg-muted rounded-md">
                 <div className="text-sm text-muted-foreground">Disposable Income</div>
-                <div className={`text-lg font-semibold ${calculation.disposableIncome >= 0 ? "" : "text-red-600"}`}>
+                <div
+                  className={`text-lg font-semibold ${calculation.disposableIncome >= 0 ? "" : "text-red-600"}`}
+                >
                   {formatCurrency(calculation.disposableIncome)}
                 </div>
               </div>
@@ -465,7 +509,9 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
                   <div>Income: {formatCurrency(parseFloat(income))}</div>
                   <div>Existing: {formatCurrency(parseFloat(commitments))}</div>
                   <div>Loan: {formatCurrency(parseFloat(loanPayment))}</div>
-                  <div>Total: {formatCurrency(parseFloat(commitments) + parseFloat(loanPayment))}</div>
+                  <div>
+                    Total: {formatCurrency(parseFloat(commitments) + parseFloat(loanPayment))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -476,7 +522,11 @@ export function AffordabilityEstimatorTool({ data, onSave, isSaving }: Omit<DueD
   );
 }
 
-export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
+export function FinancialRatiosCalculatorTool({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
   const [revenue, setRevenue] = useState("");
   const [costs, setCosts] = useState("");
   const [currentAssets, setCurrentAssets] = useState("");
@@ -508,13 +558,13 @@ export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<D
   const handleSave = () => {
     onSave({
       financialRatios: {
-        revenue: revenue ? parseFloat(revenue) : null,
-        costs: costs ? parseFloat(costs) : null,
-        currentAssets: currentAssets ? parseFloat(currentAssets) : null,
-        currentLiabilities: currentLiabilities ? parseFloat(currentLiabilities) : null,
-        totalAssets: totalAssets ? parseFloat(totalAssets) : null,
-        totalLiabilities: totalLiabilities ? parseFloat(totalLiabilities) : null,
-        equity: equity ? parseFloat(equity) : null,
+        revenue: revenue ? parseFloat(revenue) : undefined,
+        costs: costs ? parseFloat(costs) : undefined,
+        currentAssets: currentAssets ? parseFloat(currentAssets) : undefined,
+        currentLiabilities: currentLiabilities ? parseFloat(currentLiabilities) : undefined,
+        totalAssets: totalAssets ? parseFloat(totalAssets) : undefined,
+        totalLiabilities: totalLiabilities ? parseFloat(totalLiabilities) : undefined,
+        equity: equity ? parseFloat(equity) : undefined,
       },
     });
   };
@@ -530,31 +580,80 @@ export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<D
           <div className="space-y-4">
             <div>
               <Label htmlFor="revenue">Annual Revenue (£)</Label>
-              <Input id="revenue" type="number" value={revenue} onChange={(e) => setRevenue(e.target.value)} placeholder="1000000" data-testid="input-revenue" />
+              <Input
+                id="revenue"
+                type="number"
+                value={revenue}
+                onChange={(e) => setRevenue(e.target.value)}
+                placeholder="1000000"
+                data-testid="input-revenue"
+              />
             </div>
             <div>
               <Label htmlFor="costs">Annual Costs (£)</Label>
-              <Input id="costs" type="number" value={costs} onChange={(e) => setCosts(e.target.value)} placeholder="750000" data-testid="input-costs" />
+              <Input
+                id="costs"
+                type="number"
+                value={costs}
+                onChange={(e) => setCosts(e.target.value)}
+                placeholder="750000"
+                data-testid="input-costs"
+              />
             </div>
             <div>
               <Label htmlFor="current-assets">Current Assets (£)</Label>
-              <Input id="current-assets" type="number" value={currentAssets} onChange={(e) => setCurrentAssets(e.target.value)} placeholder="200000" data-testid="input-current-assets" />
+              <Input
+                id="current-assets"
+                type="number"
+                value={currentAssets}
+                onChange={(e) => setCurrentAssets(e.target.value)}
+                placeholder="200000"
+                data-testid="input-current-assets"
+              />
             </div>
             <div>
               <Label htmlFor="current-liabilities">Current Liabilities (£)</Label>
-              <Input id="current-liabilities" type="number" value={currentLiabilities} onChange={(e) => setCurrentLiabilities(e.target.value)} placeholder="100000" data-testid="input-current-liabilities" />
+              <Input
+                id="current-liabilities"
+                type="number"
+                value={currentLiabilities}
+                onChange={(e) => setCurrentLiabilities(e.target.value)}
+                placeholder="100000"
+                data-testid="input-current-liabilities"
+              />
             </div>
             <div>
               <Label htmlFor="total-assets">Total Assets (£)</Label>
-              <Input id="total-assets" type="number" value={totalAssets} onChange={(e) => setTotalAssets(e.target.value)} placeholder="500000" data-testid="input-total-assets" />
+              <Input
+                id="total-assets"
+                type="number"
+                value={totalAssets}
+                onChange={(e) => setTotalAssets(e.target.value)}
+                placeholder="500000"
+                data-testid="input-total-assets"
+              />
             </div>
             <div>
               <Label htmlFor="total-liabilities">Total Liabilities (£)</Label>
-              <Input id="total-liabilities" type="number" value={totalLiabilities} onChange={(e) => setTotalLiabilities(e.target.value)} placeholder="200000" data-testid="input-total-liabilities" />
+              <Input
+                id="total-liabilities"
+                type="number"
+                value={totalLiabilities}
+                onChange={(e) => setTotalLiabilities(e.target.value)}
+                placeholder="200000"
+                data-testid="input-total-liabilities"
+              />
             </div>
             <div>
               <Label htmlFor="equity">Equity (£)</Label>
-              <Input id="equity" type="number" value={equity} onChange={(e) => setEquity(e.target.value)} placeholder="300000" data-testid="input-equity" />
+              <Input
+                id="equity"
+                type="number"
+                value={equity}
+                onChange={(e) => setEquity(e.target.value)}
+                placeholder="300000"
+                data-testid="input-equity"
+              />
             </div>
             <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-ratios">
               <Save className="w-4 h-4 mr-2" />
@@ -565,7 +664,9 @@ export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<D
             {ratios.currentRatio !== undefined && (
               <div className="p-4 bg-muted rounded-md">
                 <div className="text-sm text-muted-foreground">Current Ratio</div>
-                <div className="text-xl font-bold" data-testid="text-current-ratio">{formatRatio(ratios.currentRatio)}</div>
+                <div className="text-xl font-bold" data-testid="text-current-ratio">
+                  {formatRatio(ratios.currentRatio)}
+                </div>
                 <div className="text-xs text-muted-foreground">Target: &gt; 1.5</div>
               </div>
             )}
@@ -604,7 +705,11 @@ export function FinancialRatiosCalculatorTool({ data, onSave, isSaving }: Omit<D
   );
 }
 
-export function CharacterAssessmentTool({ data, onSave, isSaving }: Omit<DueDiligenceToolsProps, "prospectId">) {
+export function CharacterAssessmentTool({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
   const [managementExp, setManagementExp] = useState(3);
   const [creditHistory, setCreditHistory] = useState(3);
   const [bankConduct, setBankConduct] = useState(3);

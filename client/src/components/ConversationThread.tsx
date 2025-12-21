@@ -63,11 +63,11 @@ const activityLabels: Record<string, string> = {
 };
 
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return "0 Bytes";
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB'];
+  const sizes = ["Bytes", "KB", "MB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
 export default function ConversationThread({
@@ -102,13 +102,16 @@ export default function ConversationThread({
 
   const handleDownload = async (storagePath: string, fileName: string) => {
     try {
-      const response = await fetch(`/api/underwriting/attachments/download?path=${encodeURIComponent(storagePath)}`, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Download failed');
+      const response = await fetch(
+        `/api/underwriting/attachments/download?path=${encodeURIComponent(storagePath)}`,
+        {
+          credentials: "include",
+        }
+      );
+      if (!response.ok) throw new Error("Download failed");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = fileName;
       document.body.appendChild(a);
@@ -116,7 +119,7 @@ export default function ConversationThread({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Download failed:', error);
+      console.error("Download failed:", error);
     }
   };
 
@@ -127,24 +130,42 @@ export default function ConversationThread({
           const Icon = activityIcons[activity.activityType] || MessageSquare;
           const label = activityLabels[activity.activityType] || activity.activityType;
           const attachments = (activity.attachments as any[]) || [];
-          const isUnderwriter = activity.user?.role === 'underwriter' || 
-            ['queried', 'claimed', 'approved', 'declined', 'withdrawn'].includes(activity.activityType);
-          const senderName = activity.user?.firstName && activity.user?.lastName 
-            ? `${activity.user.firstName} ${activity.user.lastName}`
-            : isUnderwriter ? 'Underwriter' : 'Broker';
-          
+          const isUnderwriter =
+            activity.user?.role === "underwriter" ||
+            ["queried", "claimed", "approved", "declined", "withdrawn"].includes(
+              activity.activityType
+            );
+          const senderName =
+            activity.user?.firstName && activity.user?.lastName
+              ? `${activity.user.firstName} ${activity.user.lastName}`
+              : isUnderwriter
+                ? "Underwriter"
+                : "Broker";
+
           // Color coding: Blue for broker, Purple for underwriter
-          const rowColor = isUnderwriter 
-            ? 'border-l-2 border-l-purple-500 pl-2' 
-            : 'border-l-2 border-l-blue-500 pl-2';
+          const rowColor = isUnderwriter
+            ? "border-l-2 border-l-purple-500 pl-2"
+            : "border-l-2 border-l-blue-500 pl-2";
 
           return (
-            <div key={activity.id} className={`py-2 ${rowColor}`} data-testid={`activity-${activity.id}`}>
+            <div
+              key={activity.id}
+              className={`py-2 ${rowColor}`}
+              data-testid={`activity-${activity.id}`}
+            >
               {/* Row 1: Date/Time, Icon, Type, Sender */}
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-muted-foreground w-24 flex-shrink-0">{format(new Date(activity.createdAt), "dd MMM, HH:mm")}</span>
-                <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${isUnderwriter ? 'text-purple-600' : 'text-blue-600'}`} />
-                <span className={`font-medium ${isUnderwriter ? 'text-purple-700 dark:text-purple-400' : 'text-blue-700 dark:text-blue-400'}`}>{label}</span>
+                <span className="text-muted-foreground w-24 flex-shrink-0">
+                  {format(new Date(activity.createdAt), "dd MMM, HH:mm")}
+                </span>
+                <Icon
+                  className={`h-3.5 w-3.5 flex-shrink-0 ${isUnderwriter ? "text-purple-600" : "text-blue-600"}`}
+                />
+                <span
+                  className={`font-medium ${isUnderwriter ? "text-purple-700 dark:text-purple-400" : "text-blue-700 dark:text-blue-400"}`}
+                >
+                  {label}
+                </span>
                 <span className="text-muted-foreground">— {senderName}</span>
               </div>
               {/* Row 2: Content + Attachments */}

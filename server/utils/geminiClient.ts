@@ -37,8 +37,20 @@ export interface FinancialAnalysisResult {
   redFlags: { label: string; isActive: boolean }[];
   preliminaryFindings: {
     loans: { date: string; description: string; amount: number; type: string; details: string }[];
-    transfers: { date: string; description: string; amount: number; type: string; details: string }[];
-    anomalies: { date: string; description: string; amount: number; type: string; details: string }[];
+    transfers: {
+      date: string;
+      description: string;
+      amount: number;
+      type: string;
+      details: string;
+    }[];
+    anomalies: {
+      date: string;
+      description: string;
+      amount: number;
+      type: string;
+      details: string;
+    }[];
   };
 }
 
@@ -127,19 +139,19 @@ IMPORTANT:
       });
 
       const text = response.text || "";
-      
+
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error("Failed to extract JSON from AI response");
       }
 
       let jsonStr = jsonMatch[0];
-      
+
       // Try to repair truncated JSON by balancing brackets
       jsonStr = repairJson(jsonStr);
-      
+
       const result = JSON.parse(jsonStr) as FinancialAnalysisResult;
-      
+
       // Ensure required fields exist with defaults
       result.averageMonthlyRevenue = result.averageMonthlyRevenue || 0;
       result.averageMonthlyExpenses = result.averageMonthlyExpenses || 0;
@@ -147,11 +159,21 @@ IMPORTANT:
       result.monthlyBreakdown = result.monthlyBreakdown || [];
       result.transactionCount = result.transactionCount || 0;
       result.redFlags = result.redFlags || [];
-      result.preliminaryFindings = result.preliminaryFindings || { loans: [], transfers: [], anomalies: [] };
-      result.profitAndLoss = result.profitAndLoss || {
-        turnover: 0, costOfSales: 0, grossProfit: 0, expenses: {}, totalExpenses: 0, netProfit: 0, periodMonths: 0
+      result.preliminaryFindings = result.preliminaryFindings || {
+        loans: [],
+        transfers: [],
+        anomalies: [],
       };
-      
+      result.profitAndLoss = result.profitAndLoss || {
+        turnover: 0,
+        costOfSales: 0,
+        grossProfit: 0,
+        expenses: {},
+        totalExpenses: 0,
+        netProfit: 0,
+        periodMonths: 0,
+      };
+
       if (monthlyRepayment > 0) {
         result.dscr = result.netDisposableIncome / monthlyRepayment;
       }
@@ -160,13 +182,13 @@ IMPORTANT:
     } catch (error) {
       console.error(`Gemini analysis attempt ${attempt}/${maxRetries} error:`, error);
       lastError = error instanceof Error ? error : new Error(String(error));
-      
+
       if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
-  
+
   console.error("All Gemini analysis attempts failed");
   throw new Error("Failed to analyze financial data after multiple attempts");
 }
@@ -176,10 +198,10 @@ export async function analyzeFinancialsFromPdf(
   loanAmount: number,
   monthlyRepayment: number
 ): Promise<FinancialAnalysisResult> {
-  const combinedText = pdfTexts.map((p, i) => 
-    `\n=== BANK STATEMENT FILE ${i + 1}: ${p.fileName} ===\n${p.text}`
-  ).join('\n\n');
-  
+  const combinedText = pdfTexts
+    .map((p, i) => `\n=== BANK STATEMENT FILE ${i + 1}: ${p.fileName} ===\n${p.text}`)
+    .join("\n\n");
+
   const prompt = `You are a financial analyst specializing in commercial lending. Analyze these bank statements extracted from PDF documents (up to 6 months) and provide a comprehensive financial assessment.
 
 CRITICAL INSTRUCTIONS:
@@ -259,7 +281,7 @@ IMPORTANT:
       });
 
       const text = response.text || "";
-      
+
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error("Failed to extract JSON from AI response");
@@ -267,20 +289,30 @@ IMPORTANT:
 
       let jsonStr = jsonMatch[0];
       jsonStr = repairJson(jsonStr);
-      
+
       const result = JSON.parse(jsonStr) as FinancialAnalysisResult;
-      
+
       result.averageMonthlyRevenue = result.averageMonthlyRevenue || 0;
       result.averageMonthlyExpenses = result.averageMonthlyExpenses || 0;
       result.netDisposableIncome = result.netDisposableIncome || 0;
       result.monthlyBreakdown = result.monthlyBreakdown || [];
       result.transactionCount = result.transactionCount || 0;
       result.redFlags = result.redFlags || [];
-      result.preliminaryFindings = result.preliminaryFindings || { loans: [], transfers: [], anomalies: [] };
-      result.profitAndLoss = result.profitAndLoss || {
-        turnover: 0, costOfSales: 0, grossProfit: 0, expenses: {}, totalExpenses: 0, netProfit: 0, periodMonths: 0
+      result.preliminaryFindings = result.preliminaryFindings || {
+        loans: [],
+        transfers: [],
+        anomalies: [],
       };
-      
+      result.profitAndLoss = result.profitAndLoss || {
+        turnover: 0,
+        costOfSales: 0,
+        grossProfit: 0,
+        expenses: {},
+        totalExpenses: 0,
+        netProfit: 0,
+        periodMonths: 0,
+      };
+
       if (monthlyRepayment > 0) {
         result.dscr = result.netDisposableIncome / monthlyRepayment;
       }
@@ -289,30 +321,30 @@ IMPORTANT:
     } catch (error) {
       console.error(`Gemini PDF analysis attempt ${attempt}/${maxRetries} error:`, error);
       lastError = error instanceof Error ? error : new Error(String(error));
-      
+
       if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
-  
+
   console.error("All Gemini PDF analysis attempts failed");
   throw new Error("Failed to analyze bank statement PDFs after multiple attempts");
 }
 
 function repairJson(jsonStr: string): string {
   let result = jsonStr.trim();
-  
+
   // Remove any markdown code fences
-  result = result.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
-  result = result.replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-  
+  result = result.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
+  result = result.replace(/^```\s*/i, "").replace(/\s*```$/i, "");
+
   // Count brackets to check balance
   const openBraces = (result.match(/\{/g) || []).length;
   const closeBraces = (result.match(/\}/g) || []).length;
   const openBrackets = (result.match(/\[/g) || []).length;
   const closeBrackets = (result.match(/\]/g) || []).length;
-  
+
   // If unbalanced, try to fix by removing incomplete trailing data
   if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
     // Find the last complete property (ends with comma, closing bracket, or closing brace)
@@ -320,23 +352,23 @@ function repairJson(jsonStr: string): string {
     if (lastCompleteMatch) {
       result = lastCompleteMatch[1];
     }
-    
+
     // Remove trailing incomplete content after last valid structure
-    result = result.replace(/,\s*[^}\]]*$/, '');
+    result = result.replace(/,\s*[^}\]]*$/, "");
     result = result.replace(/:\s*"[^"]*$/, ': ""');
-    result = result.replace(/:\s*\[[^\]]*$/, ': []');
-    result = result.replace(/:\s*\{[^}]*$/, ': {}');
-    
+    result = result.replace(/:\s*\[[^\]]*$/, ": []");
+    result = result.replace(/:\s*\{[^}]*$/, ": {}");
+
     // Add missing closing brackets/braces
     const newOpenBraces = (result.match(/\{/g) || []).length;
     const newCloseBraces = (result.match(/\}/g) || []).length;
     const newOpenBrackets = (result.match(/\[/g) || []).length;
     const newCloseBrackets = (result.match(/\]/g) || []).length;
-    
-    result += ']'.repeat(Math.max(0, newOpenBrackets - newCloseBrackets));
-    result += '}'.repeat(Math.max(0, newOpenBraces - newCloseBraces));
+
+    result += "]".repeat(Math.max(0, newOpenBrackets - newCloseBrackets));
+    result += "}".repeat(Math.max(0, newOpenBraces - newCloseBraces));
   }
-  
+
   return result;
 }
 
@@ -345,14 +377,14 @@ export function calculateRiskGrade(
   redFlagsCount: number,
   netDisposable: number,
   isScenarioActive: boolean,
-  ddRisk: 'LOW' | 'MEDIUM' | 'HIGH'
+  ddRisk: "LOW" | "MEDIUM" | "HIGH"
 ): string {
-  if (dscr < 1.0 || ddRisk === 'HIGH') return 'E';
-  if (dscr < DSCR_THRESHOLD && redFlagsCount > 3) return 'D';
-  if (dscr < DSCR_THRESHOLD || ddRisk === 'MEDIUM') return 'C';
-  if (dscr >= 1.5 && redFlagsCount === 0 && ddRisk === 'LOW') return 'A';
-  if (dscr >= DSCR_THRESHOLD && redFlagsCount <= 2) return 'B';
-  return 'C';
+  if (dscr < 1.0 || ddRisk === "HIGH") return "E";
+  if (dscr < DSCR_THRESHOLD && redFlagsCount > 3) return "D";
+  if (dscr < DSCR_THRESHOLD || ddRisk === "MEDIUM") return "C";
+  if (dscr >= 1.5 && redFlagsCount === 0 && ddRisk === "LOW") return "A";
+  if (dscr >= DSCR_THRESHOLD && redFlagsCount <= 2) return "B";
+  return "C";
 }
 
 export interface AuditedAccountsAnalysisResult {
@@ -388,23 +420,29 @@ export interface AuditedAccountsAnalysisResult {
     turnoverGrowth: number[];
     profitGrowth: number[];
     netAssetGrowth: number[];
-    trend: 'improving' | 'stable' | 'declining';
+    trend: "improving" | "stable" | "declining";
     summary: string;
   };
   dscr: {
     historical: number[];
     average: number;
-    trend: 'improving' | 'stable' | 'declining';
+    trend: "improving" | "stable" | "declining";
   };
   concerns: {
-    category: 'going_concern' | 'contingent_liability' | 'related_party' | 'auditor_opinion' | 'subsequent_event' | 'other';
+    category:
+      | "going_concern"
+      | "contingent_liability"
+      | "related_party"
+      | "auditor_opinion"
+      | "subsequent_event"
+      | "other";
     description: string;
-    severity: 'low' | 'medium' | 'high';
+    severity: "low" | "medium" | "high";
     yearEnding: string;
   }[];
   auditorOpinion: string;
   summary: string;
-  riskAssessment: 'low' | 'medium' | 'high';
+  riskAssessment: "low" | "medium" | "high";
 }
 
 export async function analyzeAuditedAccounts(
@@ -412,8 +450,10 @@ export async function analyzeAuditedAccounts(
   loanAmount: number,
   monthlyRepayment: number
 ): Promise<AuditedAccountsAnalysisResult> {
-  const combinedText = pdfTexts.map(p => `\n=== ACCOUNTS FOR YEAR ENDING ${p.year} ===\n${p.text}`).join('\n\n');
-  
+  const combinedText = pdfTexts
+    .map((p) => `\n=== ACCOUNTS FOR YEAR ENDING ${p.year} ===\n${p.text}`)
+    .join("\n\n");
+
   const prompt = `You are a financial analyst specializing in commercial lending. Analyze these audited accounts (up to 3 years) extracted from PDF documents and provide a comprehensive credit assessment.
 
 CRITICAL INSTRUCTIONS:
@@ -506,7 +546,7 @@ IMPORTANT:
       });
 
       const text = response.text || "";
-      
+
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error("Failed to extract JSON from AI response");
@@ -514,27 +554,33 @@ IMPORTANT:
 
       let jsonStr = repairJson(jsonMatch[0]);
       const result = JSON.parse(jsonStr) as AuditedAccountsAnalysisResult;
-      
+
       // Ensure required fields exist with defaults
       result.years = result.years || [];
       result.ratios = result.ratios || [];
-      result.trends = result.trends || { turnoverGrowth: [], profitGrowth: [], netAssetGrowth: [], trend: 'stable', summary: '' };
-      result.dscr = result.dscr || { historical: [], average: 0, trend: 'stable' };
+      result.trends = result.trends || {
+        turnoverGrowth: [],
+        profitGrowth: [],
+        netAssetGrowth: [],
+        trend: "stable",
+        summary: "",
+      };
+      result.dscr = result.dscr || { historical: [], average: 0, trend: "stable" };
       result.concerns = result.concerns || [];
-      result.auditorOpinion = result.auditorOpinion || 'Not specified';
-      result.summary = result.summary || '';
-      result.riskAssessment = result.riskAssessment || 'medium';
+      result.auditorOpinion = result.auditorOpinion || "Not specified";
+      result.summary = result.summary || "";
+      result.riskAssessment = result.riskAssessment || "medium";
 
       return result;
     } catch (error) {
       console.error(`Audited accounts analysis attempt ${attempt}/${maxRetries} error:`, error);
-      
+
       if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
-  
+
   throw new Error("Failed to analyze audited accounts after multiple attempts");
 }
 
@@ -564,10 +610,10 @@ COMPANY DETAILS:
 - Loan Amount Requested: £${loanAmount.toLocaleString()}
 - Purpose of Finance: ${loanPurpose}
 
-${financialSummary ? `FINANCIAL SUMMARY:\n${financialSummary}\n` : ''}
-${companiesHouseData ? `COMPANIES HOUSE DATA:\n${companiesHouseData}\n` : ''}
-${bankAnalysisSummary ? `BANK STATEMENT ANALYSIS:\n${bankAnalysisSummary}\n` : ''}
-${eligibilityNotes ? `ELIGIBILITY NOTES:\n${eligibilityNotes}\n` : ''}
+${financialSummary ? `FINANCIAL SUMMARY:\n${financialSummary}\n` : ""}
+${companiesHouseData ? `COMPANIES HOUSE DATA:\n${companiesHouseData}\n` : ""}
+${bankAnalysisSummary ? `BANK STATEMENT ANALYSIS:\n${bankAnalysisSummary}\n` : ""}
+${eligibilityNotes ? `ELIGIBILITY NOTES:\n${eligibilityNotes}\n` : ""}
 
 Generate a SWOT analysis for this loan application. Consider:
 - Strengths: Internal positive attributes that support the loan (e.g., trading history, financial strength, management experience, industry expertise, cash flow stability)
@@ -600,7 +646,7 @@ IMPORTANT:
       });
 
       const text = response.text || "";
-      
+
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error("Failed to extract JSON from AI response");
@@ -608,24 +654,24 @@ IMPORTANT:
 
       let jsonStr = repairJson(jsonMatch[0]);
       const result = JSON.parse(jsonStr) as SwotAnalysisResult;
-      
+
       // Ensure required fields exist with defaults
       result.strengths = result.strengths || [];
       result.weaknesses = result.weaknesses || [];
       result.opportunities = result.opportunities || [];
       result.threats = result.threats || [];
-      result.summary = result.summary || '';
+      result.summary = result.summary || "";
 
       return result;
     } catch (error) {
       console.error(`SWOT analysis attempt ${attempt}/${maxRetries} error:`, error);
-      
+
       if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
-  
+
   throw new Error("Failed to generate SWOT analysis after multiple attempts");
 }
 
@@ -679,7 +725,7 @@ const CAMPARI_PROMPTS: Record<string, string> = {
 - Is insurance adequate for business risks?
 - Are there life/key person policies in place?
 - What mitigants exist for identified risks?
-- Is the security proportionate to the loan size?`
+- Is the security proportionate to the loan size?`,
 };
 
 export interface DocumentSummary {
@@ -706,18 +752,26 @@ export async function generateCampariSection(
   }
 
   // Build document content section
-  let documentContent = '';
+  let documentContent = "";
   if (documentSummaries && documentSummaries.length > 0) {
-    documentContent = 'UPLOADED DOCUMENTS:\n\n';
+    documentContent = "UPLOADED DOCUMENTS:\n\n";
     for (const doc of documentSummaries) {
-      const categoryLabel = doc.category === 'business' ? 'Business Plan' :
-                           doc.category === 'financial' ? 'Financial Document' :
-                           doc.category === 'legal' ? 'Legal Document' :
-                           doc.category === 'identity' ? 'CV / Identity Document' :
-                           doc.category === 'correspondence' ? 'Correspondence / Loan Application' :
-                           doc.category === 'property' ? 'Property Document' :
-                           doc.category === 'other' ? 'Supporting Document' :
-                           'Document';
+      const categoryLabel =
+        doc.category === "business"
+          ? "Business Plan"
+          : doc.category === "financial"
+            ? "Financial Document"
+            : doc.category === "legal"
+              ? "Legal Document"
+              : doc.category === "identity"
+                ? "CV / Identity Document"
+                : doc.category === "correspondence"
+                  ? "Correspondence / Loan Application"
+                  : doc.category === "property"
+                    ? "Property Document"
+                    : doc.category === "other"
+                      ? "Supporting Document"
+                      : "Document";
       documentContent += `--- ${categoryLabel}: ${doc.fileName} ---\n${doc.content}\n\n`;
     }
   }
@@ -730,10 +784,10 @@ COMPANY DETAILS:
 - Loan Amount Requested: £${loanAmount.toLocaleString()}
 - Purpose of Finance: ${loanPurpose}
 
-${financialSummary ? `FINANCIAL SUMMARY:\n${financialSummary}\n` : ''}
-${companiesHouseData ? `COMPANIES HOUSE DATA:\n${companiesHouseData}\n` : ''}
-${bankAnalysisSummary ? `BANK STATEMENT ANALYSIS:\n${bankAnalysisSummary}\n` : ''}
-${accountsAnalysisSummary ? `ACCOUNTS ANALYSIS:\n${accountsAnalysisSummary}\n` : ''}
+${financialSummary ? `FINANCIAL SUMMARY:\n${financialSummary}\n` : ""}
+${companiesHouseData ? `COMPANIES HOUSE DATA:\n${companiesHouseData}\n` : ""}
+${bankAnalysisSummary ? `BANK STATEMENT ANALYSIS:\n${bankAnalysisSummary}\n` : ""}
+${accountsAnalysisSummary ? `ACCOUNTS ANALYSIS:\n${accountsAnalysisSummary}\n` : ""}
 ${documentContent}
 
 TASK: Write a professional credit assessment for this CAMPARI section.
@@ -756,11 +810,11 @@ Focus on facts and evidence from the provided data. Where data is limited, note 
       });
 
       const text = response.text || "";
-      
+
       // Clean up the response
       const cleanedText = text
-        .replace(/^[\s\n]*/, '')  // Remove leading whitespace
-        .replace(/[\s\n]*$/, '')  // Remove trailing whitespace
+        .replace(/^[\s\n]*/, "") // Remove leading whitespace
+        .replace(/[\s\n]*$/, "") // Remove trailing whitespace
         .trim();
 
       if (cleanedText.length < 50) {
@@ -770,12 +824,12 @@ Focus on facts and evidence from the provided data. Where data is limited, note 
       return cleanedText;
     } catch (error) {
       console.error(`CAMPARI section generation attempt ${attempt}/${maxRetries} error:`, error);
-      
+
       if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
-  
+
   throw new Error("Failed to generate CAMPARI section after multiple attempts");
 }

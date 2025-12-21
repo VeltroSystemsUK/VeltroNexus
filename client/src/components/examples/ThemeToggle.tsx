@@ -1,5 +1,5 @@
-import ThemeToggle from '../ThemeToggle'
+import ThemeToggle from "../ThemeToggle";
 
 export default function ThemeToggleExample() {
-  return <ThemeToggle />
+  return <ThemeToggle />;
 }

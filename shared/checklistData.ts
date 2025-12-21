@@ -18,11 +18,13 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       },
       {
         id: "ec-2",
-        description: "Applicant/s live in or have business in E Mids and have lived in E Mids min 18 months or business located/to be located in MEIF LEP areas (see LEP postcode document or question which local authority business rates are paid to)",
+        description:
+          "Applicant/s live in or have business in E Mids and have lived in E Mids min 18 months or business located/to be located in MEIF LEP areas (see LEP postcode document or question which local authority business rates are paid to)",
       },
       {
         id: "ec-3",
-        description: "Loan amount criteria and security requirements met? (As per latest Loan Fund Update Document)",
+        description:
+          "Loan amount criteria and security requirements met? (As per latest Loan Fund Update Document)",
       },
       {
         id: "ec-4",
@@ -40,11 +42,13 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
     items: [
       {
         id: "cc-1",
-        description: "Before proceeding further – credit searches obtained on all applicants on all addresses revealed over the last 3 years. Must not be more than a month old.",
+        description:
+          "Before proceeding further – credit searches obtained on all applicants on all addresses revealed over the last 3 years. Must not be more than a month old.",
       },
       {
         id: "cc-2",
-        description: "If credit search reveals adverse information or not on voters roll then do not proceed further without investigating with applicant/s and obtaining a satisfactory explanation",
+        description:
+          "If credit search reveals adverse information or not on voters roll then do not proceed further without investigating with applicant/s and obtaining a satisfactory explanation",
       },
     ],
   },
@@ -54,15 +58,18 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
     items: [
       {
         id: "kyc-1",
-        description: "Copy photo ID - passport or if other ID obtain confirmation that UK citizen - certified by adviser or official that it is a copy of the original document",
+        description:
+          "Copy photo ID - passport or if other ID obtain confirmation that UK citizen - certified by adviser or official that it is a copy of the original document",
       },
       {
         id: "kyc-2",
-        description: "If non-EU, the passport must have written evidence of leave to remain in the UK for at least the term of the loan",
+        description:
+          "If non-EU, the passport must have written evidence of leave to remain in the UK for at least the term of the loan",
       },
       {
         id: "kyc-3",
-        description: "Copy utility bill evidencing current address (note mobile phone bill not acceptable). If no utility bill, then refer to the loan fund manager for an acceptable alternative and note here.",
+        description:
+          "Copy utility bill evidencing current address (note mobile phone bill not acceptable). If no utility bill, then refer to the loan fund manager for an acceptable alternative and note here.",
       },
     ],
   },
@@ -88,11 +95,13 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       },
       {
         id: "ad-5",
-        description: "Client details fully entered on the database and updated at each meeting (include Action Plan, notes, timesheet etc)",
+        description:
+          "Client details fully entered on the database and updated at each meeting (include Action Plan, notes, timesheet etc)",
       },
       {
         id: "ad-6",
-        description: "Client Contact Form/s signed and completed and held in loan file (mandatory for the initial meeting but either a signed CCF or signed Action Plan is acceptable evidence for every subsequent client meeting) Or Copies of email chains with the client.",
+        description:
+          "Client Contact Form/s signed and completed and held in loan file (mandatory for the initial meeting but either a signed CCF or signed Action Plan is acceptable evidence for every subsequent client meeting) Or Copies of email chains with the client.",
       },
       {
         id: "ad-7",
@@ -106,7 +115,8 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
     items: [
       {
         id: "cb-1",
-        description: "If the business is a Limited Co – then obtain a company search from Companies House. (Comment on results in adviser summary)",
+        description:
+          "If the business is a Limited Co – then obtain a company search from Companies House. (Comment on results in adviser summary)",
       },
       {
         id: "cb-2",
@@ -132,15 +142,18 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       },
       {
         id: "fd-3",
-        description: "If existing business - 3 years trading accounts (or current management accounts if not traded that long)",
+        description:
+          "If existing business - 3 years trading accounts (or current management accounts if not traded that long)",
       },
       {
         id: "fd-4",
-        description: "If existing business and no accounts available – recent copy tax return/s held to evidence turnover/drawings etc",
+        description:
+          "If existing business and no accounts available – recent copy tax return/s held to evidence turnover/drawings etc",
       },
       {
         id: "fd-5",
-        description: "Full latest 6 months bank statements held (on business account if an existing business or personal account/s of all applicants if start-up). (Comment on bank account operation in adviser summary)",
+        description:
+          "Full latest 6 months bank statements held (on business account if an existing business or personal account/s of all applicants if start-up). (Comment on bank account operation in adviser summary)",
       },
     ],
   },
@@ -150,7 +163,8 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
     items: [
       {
         id: "sr-1",
-        description: "If secured lending, then get mortgage statement to confirm borrowings against property offered",
+        description:
+          "If secured lending, then get mortgage statement to confirm borrowings against property offered",
       },
     ],
   },
@@ -160,7 +174,8 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
     items: [
       {
         id: "fs-1",
-        description: "Adviser summary form fully completed commenting on all the above – plus following attachments if RLS facility – Location Questionnaire and RLS Provisional Eligibility Assessment.",
+        description:
+          "Adviser summary form fully completed commenting on all the above – plus following attachments if RLS facility – Location Questionnaire and RLS Provisional Eligibility Assessment.",
       },
     ],
   },

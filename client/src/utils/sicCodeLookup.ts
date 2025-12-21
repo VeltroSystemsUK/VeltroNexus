@@ -362,7 +362,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "45310": "Wholesale trade of motor vehicle parts and accessories",
   "45320": "Retail trade of motor vehicle parts and accessories",
   "45400": "Sale, maintenance and repair of motorcycles and related parts and accessories",
-  "46110": "Agents involved in the sale of agricultural raw materials, live animals, textile raw materials and semi-finished goods",
+  "46110":
+    "Agents involved in the sale of agricultural raw materials, live animals, textile raw materials and semi-finished goods",
   "46120": "Agents involved in the sale of fuels, ores, metals and industrial chemicals",
   "46130": "Agents involved in the sale of timber and building materials",
   "46140": "Agents involved in the sale of machinery, industrial equipment, ships and aircraft",
@@ -387,7 +388,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "46390": "Non-specialised wholesale of food, beverages and tobacco",
   "46410": "Wholesale of textiles",
   "46420": "Wholesale of clothing and footwear",
-  "46431": "Wholesale of audio tapes, records, CDs and video tapes and the equipment on which these are played",
+  "46431":
+    "Wholesale of audio tapes, records, CDs and video tapes and the equipment on which these are played",
   "46439": "Wholesale of radio, television goods and electrical household appliances n.e.c.",
   "46440": "Wholesale of china and glassware and cleaning materials",
   "46450": "Wholesale of perfume and cosmetics",
@@ -419,7 +421,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "47210": "Retail sale of fruit and vegetables in specialised stores",
   "47220": "Retail sale of meat and meat products in specialised stores",
   "47230": "Retail sale of fish, crustaceans and molluscs in specialised stores",
-  "47240": "Retail sale of bread, cakes, flour confectionery and sugar confectionery in specialised stores",
+  "47240":
+    "Retail sale of bread, cakes, flour confectionery and sugar confectionery in specialised stores",
   "47250": "Retail sale of beverages in specialised stores",
   "47260": "Retail sale of tobacco products in specialised stores",
   "47290": "Other retail sale of food in specialised stores",
@@ -433,7 +436,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "47530": "Retail sale of carpets, rugs, wall and floor coverings in specialised stores",
   "47540": "Retail sale of electrical household appliances in specialised stores",
   "47591": "Retail sale of musical instruments and scores in specialised stores",
-  "47599": "Retail sale of furniture, lighting equipment and other household articles in specialised stores n.e.c.",
+  "47599":
+    "Retail sale of furniture, lighting equipment and other household articles in specialised stores n.e.c.",
   "47610": "Retail sale of books in specialised stores",
   "47620": "Retail sale of newspapers and stationery in specialised stores",
   "47630": "Retail sale of music and video recordings in specialised stores",
@@ -445,7 +449,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "47730": "Dispensing chemist in specialised stores",
   "47740": "Retail sale of medical and orthopaedic goods in specialised stores",
   "47750": "Retail sale of cosmetic and toilet articles in specialised stores",
-  "47760": "Retail sale of flowers, plants, seeds, fertilisers, pet animals and pet food in specialised stores",
+  "47760":
+    "Retail sale of flowers, plants, seeds, fertilisers, pet animals and pet food in specialised stores",
   "47770": "Retail sale of watches and jewellery in specialised stores",
   "47781": "Retail sale of hearing aids in specialised stores",
   "47782": "Retail sale by opticians",
@@ -459,7 +464,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "47990": "Other retail sale not in stores, stalls or markets",
   "49100": "Passenger rail transport, interurban",
   "49200": "Freight rail transport",
-  "49311": "Urban and suburban passenger railway transportation by underground, metro and similar systems",
+  "49311":
+    "Urban and suburban passenger railway transportation by underground, metro and similar systems",
   "49319": "Other urban and suburban passenger land transport",
   "49320": "Taxi operation",
   "49390": "Other passenger land transport n.e.c.",
@@ -551,7 +557,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "64305": "Activities of property unit trusts",
   "64306": "Activities of real estate investment trusts",
   "64910": "Financial leasing",
-  "64921": "Credit granting by non-deposit taking finance houses and other specialist consumer credit grantors",
+  "64921":
+    "Credit granting by non-deposit taking finance houses and other specialist consumer credit grantors",
   "64922": "Activities of mortgage finance companies",
   "64929": "Other credit granting n.e.c.",
   "64991": "Security dealing on own account",
@@ -651,7 +658,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "82920": "Packaging activities",
   "82990": "Other business support service activities n.e.c.",
   "84110": "General public administration activities",
-  "84120": "Regulation of the activities of providing health care, education, cultural services and other social services, excluding social security",
+  "84120":
+    "Regulation of the activities of providing health care, education, cultural services and other social services, excluding social security",
   "84130": "Regulation of and contribution to more efficient operation of businesses",
   "84210": "Foreign affairs",
   "84220": "Defence activities",
@@ -678,7 +686,8 @@ export const sicCodeDescriptions: Record<string, string> = {
   "86230": "Dental practice activities",
   "86900": "Other human health activities",
   "87100": "Residential nursing care activities",
-  "87200": "Residential care activities for learning disabilities, mental health and substance abuse",
+  "87200":
+    "Residential care activities for learning disabilities, mental health and substance abuse",
   "87300": "Residential care activities for the elderly and disabled",
   "87900": "Other residential care activities",
   "88100": "Social work activities without accommodation for the elderly and disabled",
@@ -724,7 +733,7 @@ export const sicCodeDescriptions: Record<string, string> = {
   "98000": "Undifferentiated goods-producing activities of private households for own use",
   "98200": "Undifferentiated service-producing activities of private households for own use",
   "99000": "Activities of extraterritorial organisations and bodies",
-  "99999": "Dormant Company"
+  "99999": "Dormant Company",
 };
 
 export function getSicDescription(sicCode: string): string {

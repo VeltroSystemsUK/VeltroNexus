@@ -7,10 +7,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState } from "react";
-import { Plus, Users, UserPlus, Trash2, Loader2, Building2, Shield, UserCog, Briefcase, ArrowLeft } from "lucide-react";
+import {
+  Plus,
+  Users,
+  UserPlus,
+  Trash2,
+  Loader2,
+  Building2,
+  Shield,
+  UserCog,
+  Briefcase,
+  ArrowLeft,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -96,7 +121,11 @@ export default function Teams() {
       setNewTeamDescription("");
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to create team", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create team",
+        variant: "destructive",
+      });
     },
   });
 
@@ -116,7 +145,11 @@ export default function Teams() {
       setSelectedMemberRole("member");
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to add team member", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add team member",
+        variant: "destructive",
+      });
     },
   });
 
@@ -129,7 +162,11 @@ export default function Teams() {
       toast({ title: "Member Removed", description: "Team member has been removed." });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to remove member", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove member",
+        variant: "destructive",
+      });
     },
   });
 
@@ -142,7 +179,9 @@ export default function Teams() {
           <CardContent className="py-12 text-center">
             <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-            <p className="text-muted-foreground">You need admin permissions to access team management.</p>
+            <p className="text-muted-foreground">
+              You need admin permissions to access team management.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -189,7 +228,9 @@ export default function Teams() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Team</DialogTitle>
-              <DialogDescription>Add a new team to organize your users and prospects.</DialogDescription>
+              <DialogDescription>
+                Add a new team to organize your users and prospects.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -214,7 +255,9 @@ export default function Teams() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                Cancel
+              </Button>
               <Button
                 onClick={() => createTeamMutation.mutate()}
                 disabled={!newTeamName.trim() || createTeamMutation.isPending}
@@ -258,7 +301,9 @@ export default function Teams() {
                     >
                       <div className="font-medium">{team.name}</div>
                       {team.description && (
-                        <div className="text-sm text-muted-foreground truncate">{team.description}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {team.description}
+                        </div>
                       )}
                     </button>
                   ))}
@@ -305,11 +350,16 @@ export default function Teams() {
                                 Loading users...
                               </SelectItem>
                             ) : users && users.length > 0 ? (
-                              users.filter(u => !selectedTeam?.members.some(m => m.userId === u.id)).map((user) => (
-                                <SelectItem key={user.id} value={user.id}>
-                                  {user.firstName || user.email?.split('@')[0]} {user.lastName || ''} - {user.email}
-                                </SelectItem>
-                              ))
+                              users
+                                .filter(
+                                  (u) => !selectedTeam?.members.some((m) => m.userId === u.id)
+                                )
+                                .map((user) => (
+                                  <SelectItem key={user.id} value={user.id}>
+                                    {user.firstName || user.email?.split("@")[0]}{" "}
+                                    {user.lastName || ""} - {user.email}
+                                  </SelectItem>
+                                ))
                             ) : (
                               <SelectItem value="no-users" disabled>
                                 No users available
@@ -332,13 +382,17 @@ export default function Teams() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setAddMemberDialogOpen(false)}>Cancel</Button>
+                      <Button variant="outline" onClick={() => setAddMemberDialogOpen(false)}>
+                        Cancel
+                      </Button>
                       <Button
                         onClick={() => addMemberMutation.mutate()}
                         disabled={!selectedUserId || addMemberMutation.isPending}
                         data-testid="button-submit-add-member"
                       >
-                        {addMemberMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        {addMemberMutation.isPending && (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        )}
                         Add Member
                       </Button>
                     </DialogFooter>
@@ -361,7 +415,8 @@ export default function Teams() {
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">
                             <AvatarFallback>
-                              {member.user?.firstName?.[0]}{member.user?.lastName?.[0]}
+                              {member.user?.firstName?.[0]}
+                              {member.user?.lastName?.[0]}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -369,7 +424,9 @@ export default function Teams() {
                               {member.user?.firstName} {member.user?.lastName}
                               {getRoleIcon(member.user?.role)}
                             </div>
-                            <div className="text-sm text-muted-foreground">{member.user?.email}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {member.user?.email}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -379,7 +436,12 @@ export default function Teams() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeMemberMutation.mutate({ teamId: selectedTeamId!, userId: member.userId })}
+                            onClick={() =>
+                              removeMemberMutation.mutate({
+                                teamId: selectedTeamId!,
+                                userId: member.userId,
+                              })
+                            }
                             disabled={removeMemberMutation.isPending}
                             data-testid={`button-remove-member-${member.userId}`}
                           >
@@ -401,7 +463,9 @@ export default function Teams() {
               <CardContent className="py-12 text-center">
                 <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Select a Team</h3>
-                <p className="text-muted-foreground">Choose a team from the list to view and manage its members.</p>
+                <p className="text-muted-foreground">
+                  Choose a team from the list to view and manage its members.
+                </p>
               </CardContent>
             </Card>
           )}

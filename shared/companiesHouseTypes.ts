@@ -99,35 +99,35 @@ export interface CompanyProfile {
   date_of_cessation?: string;
   jurisdiction: string;
   etag?: string;
-  
+
   registered_office_address?: CompanyAddress;
   registered_office_is_in_dispute?: boolean;
   undeliverable_registered_office_address?: boolean;
-  
+
   previous_company_names?: PreviousCompanyName[];
-  
+
   accounts?: Accounts;
   confirmation_statement?: ConfirmationStatement;
   annual_return?: ConfirmationStatement; // Legacy field
-  
+
   sic_codes?: string[];
   has_super_secure_pscs?: boolean;
   has_charges?: boolean;
   has_been_liquidated?: boolean;
   has_insolvency_history?: boolean;
-  
+
   branch_company_details?: BranchCompanyDetails;
   foreign_company_details?: ForeignCompanyDetails;
-  
+
   service_address?: CompanyAddress;
-  
+
   can_file?: boolean;
   is_community_interest_company?: boolean;
   subtype?: string;
   partial_data_available?: string;
   external_registration_number?: string;
   last_full_members_list_date?: string;
-  
+
   links?: CompanyLinks;
 }
 

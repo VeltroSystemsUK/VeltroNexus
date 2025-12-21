@@ -12,13 +12,15 @@ export const sessions = pgTable(
     sess: jsonb("sess").notNull(),
     expire: timestamp("expire").notNull(),
   },
-  (table) => [index("IDX_session_expire").on(table.expire)],
+  (table) => [index("IDX_session_expire").on(table.expire)]
 );
 
 // User storage table - required for Replit Auth
 // Roles: super_admin (all access), sales_admin (team access), broker (own prospects), underwriter (underwriting only)
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
@@ -33,8 +35,12 @@ export const users = pgTable("users", {
   timezone: varchar("timezone").notNull().default("Europe/London"),
   dateFormat: varchar("date_format").notNull().default("DD/MM/YYYY"),
   theme: varchar("theme").notNull().default("light"),
-  pipelineStageNames: jsonb("pipeline_stage_names").default(sql`'{"lead":"Lead","contacted":"Contacted","qualified":"Qualified","proposal":"Proposal","dueDiligence":"Due Diligence","approval":"Approval","approved":"Approved","declined":"Declined","withdrawn":"Withdrawn"}'::jsonb`),
-  pdfLayoutPreferences: jsonb("pdf_layout_preferences").default(sql`'{"sections":[{"id":"companyInfo","label":"Company Information","enabled":true},{"id":"officers","label":"Officers","enabled":true},{"id":"psc","label":"Persons with Significant Control","enabled":true},{"id":"charges","label":"Charges","enabled":true},{"id":"loanDetails","label":"Loan Details","enabled":true},{"id":"security","label":"Security & Collateral","enabled":true},{"id":"notes","label":"Notes","enabled":true},{"id":"contacts","label":"Key Contacts","enabled":true},{"id":"activities","label":"Activities & Tasks","enabled":true},{"id":"dueDiligence","label":"Due Diligence","enabled":true}]}'::jsonb`),
+  pipelineStageNames: jsonb("pipeline_stage_names").default(
+    sql`'{"lead":"Lead","contacted":"Contacted","qualified":"Qualified","proposal":"Proposal","dueDiligence":"Due Diligence","approval":"Approval","approved":"Approved","declined":"Declined","withdrawn":"Withdrawn"}'::jsonb`
+  ),
+  pdfLayoutPreferences: jsonb("pdf_layout_preferences").default(
+    sql`'{"sections":[{"id":"companyInfo","label":"Company Information","enabled":true},{"id":"officers","label":"Officers","enabled":true},{"id":"psc","label":"Persons with Significant Control","enabled":true},{"id":"charges","label":"Charges","enabled":true},{"id":"loanDetails","label":"Loan Details","enabled":true},{"id":"security","label":"Security & Collateral","enabled":true},{"id":"notes","label":"Notes","enabled":true},{"id":"contacts","label":"Key Contacts","enabled":true},{"id":"activities","label":"Activities & Tasks","enabled":true},{"id":"dueDiligence","label":"Due Diligence","enabled":true}]}'::jsonb`
+  ),
   brandingLogoUrl: varchar("branding_logo_url"),
   brandingPrimaryColor: varchar("branding_primary_color"),
   brandingAccentColor: varchar("branding_accent_color"),
@@ -53,7 +59,9 @@ export const teams = pgTable("teams", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: text("name").notNull(),
   description: text("description"),
-  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdBy: varchar("created_by")
+    .notNull()
+    .references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -62,8 +70,12 @@ export const teams = pgTable("teams", {
 // memberRole: admin (can manage team), member (regular access)
 export const teamMembers = pgTable("team_members", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  teamId: integer("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  teamId: integer("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   memberRole: varchar("member_role").notNull().default("member"), // admin, member
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -84,9 +96,13 @@ export const companies = pgTable("companies", {
 
 export const prospects = pgTable("prospects", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
   teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
-  companyId: integer("company_id").notNull().references(() => companies.id),
+  companyId: integer("company_id")
+    .notNull()
+    .references(() => companies.id),
   stage: text("stage").notNull().default("lead"),
   loanAmount: integer("loan_amount"),
   term: integer("term"),
@@ -102,7 +118,7 @@ export const prospects = pgTable("prospects", {
   loanRequirementNotes: text("loan_requirement_notes"),
   priority: text("priority"),
   notes: text("notes"),
-  savedAssociations: jsonb("saved_associations").default('[]'),
+  savedAssociations: jsonb("saved_associations").default("[]"),
   queueOrder: integer("queue_order").notNull().default(0),
   referralSource: text("referral_source"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -111,7 +127,9 @@ export const prospects = pgTable("prospects", {
 
 export const contacts = pgTable("contacts", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
+  prospectId: integer("prospect_id")
+    .notNull()
+    .references(() => prospects.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   email: varchar("email"),
   phone: varchar("phone"),
@@ -124,7 +142,9 @@ export const contacts = pgTable("contacts", {
 
 export const activities = pgTable("activities", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   prospectId: integer("prospect_id").references(() => prospects.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
@@ -138,15 +158,20 @@ export const activities = pgTable("activities", {
 
 export const dueDiligence = pgTable("due_diligence", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  prospectId: integer("prospect_id").notNull().unique().references(() => prospects.id, { onDelete: "cascade" }),
-  data: jsonb("data").notNull().default('{}'),
+  prospectId: integer("prospect_id")
+    .notNull()
+    .unique()
+    .references(() => prospects.id, { onDelete: "cascade" }),
+  data: jsonb("data").notNull().default("{}"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const lenders = pgTable("lenders", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   institutionName: text("institution_name").notNull(),
   contactName: text("contact_name"),
   email: varchar("email").notNull(),
@@ -155,7 +180,7 @@ export const lenders = pgTable("lenders", {
   website: varchar("website"),
   notes: text("notes"),
   lenderType: text("lender_type").default("bank"),
-  productTypes: jsonb("product_types").default('[]'),
+  productTypes: jsonb("product_types").default("[]"),
   minLoanAmount: integer("min_loan_amount"),
   maxLoanAmount: integer("max_loan_amount"),
   minTermMonths: integer("min_term_months"),
@@ -165,10 +190,10 @@ export const lenders = pgTable("lenders", {
   typicalRateFrom: text("typical_rate_from"),
   typicalRateTo: text("typical_rate_to"),
   arrangementFee: text("arrangement_fee"),
-  sectors: jsonb("sectors").default('[]'),
-  regions: jsonb("regions").default('[]'),
-  securityTypes: jsonb("security_types").default('[]'),
-  borrowerTypes: jsonb("borrower_types").default('[]'),
+  sectors: jsonb("sectors").default("[]"),
+  regions: jsonb("regions").default("[]"),
+  securityTypes: jsonb("security_types").default("[]"),
+  borrowerTypes: jsonb("borrower_types").default("[]"),
   minTradingYears: integer("min_trading_years"),
   minRevenue: integer("min_revenue"),
   turnaroundDays: integer("turnaround_days"),
@@ -194,7 +219,9 @@ export const lenders = pgTable("lenders", {
 
 export const lenderProducts = pgTable("lender_products", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  lenderId: integer("lender_id").notNull().references(() => lenders.id, { onDelete: "cascade" }),
+  lenderId: integer("lender_id")
+    .notNull()
+    .references(() => lenders.id, { onDelete: "cascade" }),
   productName: text("product_name").notNull(),
   productType: text("product_type").notNull(),
   description: text("description"),
@@ -209,8 +236,8 @@ export const lenderProducts = pgTable("lender_products", {
   arrangementFee: text("arrangement_fee"),
   exitFee: text("exit_fee"),
   securityRequirements: text("security_requirements"),
-  eligibilityCriteria: jsonb("eligibility_criteria").default('{}'),
-  features: jsonb("features").default('[]'),
+  eligibilityCriteria: jsonb("eligibility_criteria").default("{}"),
+  features: jsonb("features").default("[]"),
   isActive: integer("is_active").default(1),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -219,9 +246,13 @@ export const lenderProducts = pgTable("lender_products", {
 
 export const lenderInteractions = pgTable("lender_interactions", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  lenderId: integer("lender_id").notNull().references(() => lenders.id, { onDelete: "cascade" }),
+  lenderId: integer("lender_id")
+    .notNull()
+    .references(() => lenders.id, { onDelete: "cascade" }),
   prospectId: integer("prospect_id").references(() => prospects.id, { onDelete: "set null" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   interactionType: text("interaction_type").notNull(),
   channel: text("channel").default("email"),
   subject: text("subject"),
@@ -231,21 +262,27 @@ export const lenderInteractions = pgTable("lender_interactions", {
   respondedAt: timestamp("responded_at"),
   outcome: text("outcome"),
   followUpDate: timestamp("follow_up_date"),
-  attachments: jsonb("attachments").default('[]'),
+  attachments: jsonb("attachments").default("[]"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const applicationSubmissions = pgTable("application_submissions", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
-  lenderId: integer("lender_id").notNull().references(() => lenders.id, { onDelete: "restrict" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  prospectId: integer("prospect_id")
+    .notNull()
+    .references(() => prospects.id, { onDelete: "cascade" }),
+  lenderId: integer("lender_id")
+    .notNull()
+    .references(() => lenders.id, { onDelete: "restrict" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   commentary: text("commentary"),
   status: text("status").notNull().default("pending"),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
   responseNotes: text("response_notes"),
-  attachments: jsonb("attachments").default('[]'),
+  attachments: jsonb("attachments").default("[]"),
   emailSent: integer("email_sent").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -254,7 +291,9 @@ export const applicationSubmissions = pgTable("application_submissions", {
 // Email Inboxes - Each user gets their own AgentMail inbox
 export const emailInboxes = pgTable("email_inboxes", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   inboxId: varchar("inbox_id").notNull().unique(),
   emailAddress: varchar("email_address").notNull(),
   displayName: varchar("display_name"),
@@ -264,20 +303,22 @@ export const emailInboxes = pgTable("email_inboxes", {
 // Email Messages - Stored locally for quick access
 export const emailMessages = pgTable("email_messages", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  inboxId: integer("inbox_id").notNull().references(() => emailInboxes.id, { onDelete: "cascade" }),
+  inboxId: integer("inbox_id")
+    .notNull()
+    .references(() => emailInboxes.id, { onDelete: "cascade" }),
   messageId: varchar("message_id").notNull().unique(),
   threadId: varchar("thread_id"),
   contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
   prospectId: integer("prospect_id").references(() => prospects.id, { onDelete: "set null" }),
   fromAddress: varchar("from_address").notNull(),
-  toAddresses: jsonb("to_addresses").notNull().default('[]'),
-  ccAddresses: jsonb("cc_addresses").default('[]'),
+  toAddresses: jsonb("to_addresses").notNull().default("[]"),
+  ccAddresses: jsonb("cc_addresses").default("[]"),
   subject: text("subject"),
   textBody: text("text_body"),
   htmlBody: text("html_body"),
   direction: varchar("direction").notNull().default("inbound"),
   isRead: integer("is_read").default(0),
-  attachments: jsonb("attachments").default('[]'),
+  attachments: jsonb("attachments").default("[]"),
   sentAt: timestamp("sent_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -285,8 +326,12 @@ export const emailMessages = pgTable("email_messages", {
 // Prospect Documents - Uploaded files stored in object storage
 export const prospectDocuments = pgTable("prospect_documents", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  prospectId: integer("prospect_id")
+    .notNull()
+    .references(() => prospects.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
   fileName: text("file_name").notNull(),
   fileType: varchar("file_type").notNull(),
   fileSize: integer("file_size").notNull(),
@@ -427,20 +472,24 @@ export const emailMessagesRelations = relations(emailMessages, ({ one }) => ({
 // Lead Uploads - Track CSV upload history
 export const leadUploads = pgTable("lead_uploads", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   fileName: text("file_name").notNull(),
   status: varchar("status").notNull().default("processing"),
   totalRows: integer("total_rows").default(0),
   successRows: integer("success_rows").default(0),
   errorRows: integer("error_rows").default(0),
-  errors: jsonb("errors").default('[]'),
+  errors: jsonb("errors").default("[]"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Leads - Imported company leads from CSVs
 export const leads = pgTable("leads", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   uploadId: integer("upload_id").references(() => leadUploads.id, { onDelete: "set null" }),
   companyName: text("company_name").notNull(),
   companyNumber: varchar("company_number", { length: 20 }),
@@ -455,11 +504,13 @@ export const leads = pgTable("leads", {
   contactEmail: varchar("contact_email"),
   contactPhone: varchar("contact_phone"),
   notes: text("notes"),
-  rawData: jsonb("raw_data").default('{}'),
+  rawData: jsonb("raw_data").default("{}"),
   matchStatus: varchar("match_status").notNull().default("pending"),
   matchedCompanyNumber: varchar("matched_company_number"),
   matchConfidence: integer("match_confidence"),
-  linkedProspectId: integer("linked_prospect_id").references(() => prospects.id, { onDelete: "set null" }),
+  linkedProspectId: integer("linked_prospect_id").references(() => prospects.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -490,9 +541,15 @@ export const leadsRelations = relations(leads, ({ one }) => ({
 // Underwriting Submissions - Credit underwriter review queue
 export const underwritingSubmissions = pgTable("underwriting_submissions", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  prospectId: integer("prospect_id").notNull().references(() => prospects.id, { onDelete: "cascade" }),
-  brokerId: varchar("broker_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  assignedUnderwriterId: varchar("assigned_underwriter_id").references(() => users.id, { onDelete: "set null" }),
+  prospectId: integer("prospect_id")
+    .notNull()
+    .references(() => prospects.id, { onDelete: "cascade" }),
+  brokerId: varchar("broker_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  assignedUnderwriterId: varchar("assigned_underwriter_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   status: varchar("status").notNull().default("submitted"), // submitted, in_review, queried, approved, declined, withdrawn
   priority: varchar("priority").notNull().default("normal"), // low, normal, high, urgent
   brokerComments: text("broker_comments"),
@@ -508,29 +565,36 @@ export const underwritingSubmissions = pgTable("underwriting_submissions", {
 // Underwriting Activity - Track all activity on a submission
 export const underwritingActivity = pgTable("underwriting_activity", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  submissionId: integer("submission_id").notNull().references(() => underwritingSubmissions.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  submissionId: integer("submission_id")
+    .notNull()
+    .references(() => underwritingSubmissions.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   activityType: varchar("activity_type").notNull(), // submitted, claimed, queried, responded, approved, declined, withdrawn, comment
   content: text("content"),
-  attachments: jsonb("attachments").default('[]'), // Array of {fileName, fileType, fileSize, storagePath, uploadedAt}
+  attachments: jsonb("attachments").default("[]"), // Array of {fileName, fileType, fileSize, storagePath, uploadedAt}
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const underwritingSubmissionsRelations = relations(underwritingSubmissions, ({ one, many }) => ({
-  prospect: one(prospects, {
-    fields: [underwritingSubmissions.prospectId],
-    references: [prospects.id],
-  }),
-  broker: one(users, {
-    fields: [underwritingSubmissions.brokerId],
-    references: [users.id],
-  }),
-  assignedUnderwriter: one(users, {
-    fields: [underwritingSubmissions.assignedUnderwriterId],
-    references: [users.id],
-  }),
-  activities: many(underwritingActivity),
-}));
+export const underwritingSubmissionsRelations = relations(
+  underwritingSubmissions,
+  ({ one, many }) => ({
+    prospect: one(prospects, {
+      fields: [underwritingSubmissions.prospectId],
+      references: [prospects.id],
+    }),
+    broker: one(users, {
+      fields: [underwritingSubmissions.brokerId],
+      references: [users.id],
+    }),
+    assignedUnderwriter: one(users, {
+      fields: [underwritingSubmissions.assignedUnderwriterId],
+      references: [users.id],
+    }),
+    activities: many(underwritingActivity),
+  })
+);
 
 export const underwritingActivityRelations = relations(underwritingActivity, ({ one }) => ({
   submission: one(underwritingSubmissions, {
@@ -562,8 +626,12 @@ export const addOnProducts = pgTable("add_on_products", {
 // Add-On Purchases - User purchases of add-on products
 export const addOnPurchases = pgTable("add_on_purchases", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  addOnProductId: integer("add_on_product_id").notNull().references(() => addOnProducts.id),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  addOnProductId: integer("add_on_product_id")
+    .notNull()
+    .references(() => addOnProducts.id),
   status: varchar("status").notNull().default("pending"), // pending, completed, failed, refunded
   quantity: integer("quantity").notNull().default(1),
   totalPaidInPence: integer("total_paid_in_pence").notNull(),
@@ -633,13 +701,23 @@ export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
 export const insertProspectSchema = createInsertSchema(prospects, {
   companyId: z.union([
     z.number().int().positive(),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+    z
+      .string()
+      .trim()
+      .regex(/^[0-9]+$/)
+      .transform(Number),
   ]),
-  loanAmount: z.union([
-    z.number().int().min(0),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
-    z.null(),
-  ]).optional(),
+  loanAmount: z
+    .union([
+      z.number().int().min(0),
+      z
+        .string()
+        .trim()
+        .regex(/^[0-9]+$/)
+        .transform(Number),
+      z.null(),
+    ])
+    .optional(),
 }).omit({
   id: true,
   userId: true,
@@ -665,7 +743,11 @@ export const updateProspectStageSchema = z.object({
 export const insertContactSchema = createInsertSchema(contacts, {
   prospectId: z.union([
     z.number().int().positive(),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+    z
+      .string()
+      .trim()
+      .regex(/^[0-9]+$/)
+      .transform(Number),
   ]),
 }).omit({
   id: true,
@@ -673,17 +755,21 @@ export const insertContactSchema = createInsertSchema(contacts, {
 });
 
 export const insertActivitySchema = createInsertSchema(activities, {
-  prospectId: z.union([
-    z.number().int().positive(),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
-    z.null(),
-  ]).optional(),
+  prospectId: z
+    .union([
+      z.number().int().positive(),
+      z
+        .string()
+        .trim()
+        .regex(/^[0-9]+$/)
+        .transform(Number),
+      z.null(),
+    ])
+    .optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
-  dueDate: z.union([
-    z.date(),
-    z.string().transform((val) => (val ? new Date(val) : null)),
-    z.null(),
-  ]).optional(),
+  dueDate: z
+    .union([z.date(), z.string().transform((val) => (val ? new Date(val) : null)), z.null()])
+    .optional(),
 }).omit({
   id: true,
   userId: true,
@@ -724,11 +810,19 @@ export const insertLenderInteractionSchema = createInsertSchema(lenderInteractio
 export const insertApplicationSubmissionSchema = createInsertSchema(applicationSubmissions, {
   prospectId: z.union([
     z.number().int().positive(),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+    z
+      .string()
+      .trim()
+      .regex(/^[0-9]+$/)
+      .transform(Number),
   ]),
   lenderId: z.union([
     z.number().int().positive(),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+    z
+      .string()
+      .trim()
+      .regex(/^[0-9]+$/)
+      .transform(Number),
   ]),
   status: z.enum(["pending", "sent", "approved", "declined", "withdrawn"]).default("pending"),
 }).omit({
@@ -833,7 +927,7 @@ export const documentCategorySchema = z.enum([
   "property",
   "insurance",
   "correspondence",
-  "other"
+  "other",
 ]);
 
 export type InsertProspectDocument = z.infer<typeof insertProspectDocumentSchema>;
@@ -844,9 +938,15 @@ export type DocumentCategory = z.infer<typeof documentCategorySchema>;
 export const insertUnderwritingSubmissionSchema = createInsertSchema(underwritingSubmissions, {
   prospectId: z.union([
     z.number().int().positive(),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+    z
+      .string()
+      .trim()
+      .regex(/^[0-9]+$/)
+      .transform(Number),
   ]),
-  status: z.enum(["submitted", "in_review", "queried", "approved", "declined", "withdrawn"]).default("submitted"),
+  status: z
+    .enum(["submitted", "in_review", "queried", "approved", "declined", "withdrawn"])
+    .default("submitted"),
   priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
 }).omit({
   id: true,
@@ -857,7 +957,9 @@ export const insertUnderwritingSubmissionSchema = createInsertSchema(underwritin
 });
 
 export const updateUnderwritingSubmissionSchema = z.object({
-  status: z.enum(["submitted", "in_review", "queried", "approved", "declined", "withdrawn"]).optional(),
+  status: z
+    .enum(["submitted", "in_review", "queried", "approved", "declined", "withdrawn"])
+    .optional(),
   priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
   assignedUnderwriterId: z.string().nullable().optional(),
   underwriterNotes: z.string().optional(),
@@ -867,9 +969,22 @@ export const updateUnderwritingSubmissionSchema = z.object({
 export const insertUnderwritingActivitySchema = createInsertSchema(underwritingActivity, {
   submissionId: z.union([
     z.number().int().positive(),
-    z.string().trim().regex(/^[0-9]+$/).transform(Number),
+    z
+      .string()
+      .trim()
+      .regex(/^[0-9]+$/)
+      .transform(Number),
   ]),
-  activityType: z.enum(["submitted", "claimed", "queried", "responded", "approved", "declined", "withdrawn", "comment"]),
+  activityType: z.enum([
+    "submitted",
+    "claimed",
+    "queried",
+    "responded",
+    "approved",
+    "declined",
+    "withdrawn",
+    "comment",
+  ]),
 }).omit({
   id: true,
   userId: true,
@@ -919,69 +1034,99 @@ export const underwritingFinancialAnalysisSchema = z.object({
   averageMonthlyExpenses: z.number().optional(),
   netDisposableIncome: z.number().optional(),
   dscr: z.number().optional(),
-  riskScore: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
+  riskScore: z.enum(["A", "B", "C", "D", "E"]).optional(),
   summary: z.string().optional(),
-  monthlyBreakdown: z.array(z.object({
-    month: z.string(),
-    income: z.number(),
-    expenses: z.number(),
-    net: z.number(),
-    closingBalance: z.number(),
-  })).optional(),
+  monthlyBreakdown: z
+    .array(
+      z.object({
+        month: z.string(),
+        income: z.number(),
+        expenses: z.number(),
+        net: z.number(),
+        closingBalance: z.number(),
+      })
+    )
+    .optional(),
   transactionCount: z.number().optional(),
-  profitAndLoss: z.object({
-    turnover: z.number().optional(),
-    costOfSales: z.number().optional(),
-    grossProfit: z.number().optional(),
-    expenses: z.record(z.string(), z.number()).optional(),
-    totalExpenses: z.number().optional(),
-    netProfit: z.number().optional(),
-    periodMonths: z.number().optional(),
-  }).optional(),
+  profitAndLoss: z
+    .object({
+      turnover: z.number().optional(),
+      costOfSales: z.number().optional(),
+      grossProfit: z.number().optional(),
+      expenses: z.record(z.string(), z.number()).optional(),
+      totalExpenses: z.number().optional(),
+      netProfit: z.number().optional(),
+      periodMonths: z.number().optional(),
+    })
+    .optional(),
   excludedTransferValue: z.number().optional(),
   excludedTransferCount: z.number().optional(),
-  scenarioModeling: z.object({
-    refinanceAddBack: z.number().optional(),
-    projectedNewRevenue: z.number().optional(),
-  }).optional(),
-  redFlags: z.array(z.object({
-    label: z.string(),
-    isActive: z.boolean(),
-  })).optional(),
-  preliminaryFindings: z.object({
-    loans: z.array(z.object({
-      date: z.string(),
-      description: z.string(),
-      amount: z.number(),
-      type: z.string(),
-      details: z.string(),
-    })).optional(),
-    transfers: z.array(z.object({
-      date: z.string(),
-      description: z.string(),
-      amount: z.number(),
-      type: z.string(),
-      details: z.string(),
-    })).optional(),
-    anomalies: z.array(z.object({
-      date: z.string(),
-      description: z.string(),
-      amount: z.number(),
-      type: z.string(),
-      details: z.string(),
-    })).optional(),
-  }).optional(),
+  scenarioModeling: z
+    .object({
+      refinanceAddBack: z.number().optional(),
+      projectedNewRevenue: z.number().optional(),
+    })
+    .optional(),
+  redFlags: z
+    .array(
+      z.object({
+        label: z.string(),
+        isActive: z.boolean(),
+      })
+    )
+    .optional(),
+  preliminaryFindings: z
+    .object({
+      loans: z
+        .array(
+          z.object({
+            date: z.string(),
+            description: z.string(),
+            amount: z.number(),
+            type: z.string(),
+            details: z.string(),
+          })
+        )
+        .optional(),
+      transfers: z
+        .array(
+          z.object({
+            date: z.string(),
+            description: z.string(),
+            amount: z.number(),
+            type: z.string(),
+            details: z.string(),
+          })
+        )
+        .optional(),
+      anomalies: z
+        .array(
+          z.object({
+            date: z.string(),
+            description: z.string(),
+            amount: z.number(),
+            type: z.string(),
+            details: z.string(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export const underwritingAdverseMediaSchema = z.object({
   query: z.string().optional(),
-  results: z.array(z.object({
-    title: z.string(),
-    url: z.string(),
-    content: z.string(),
-    score: z.number(),
-  })).optional(),
-  riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+  results: z
+    .array(
+      z.object({
+        title: z.string(),
+        url: z.string(),
+        content: z.string(),
+        score: z.number(),
+      })
+    )
+    .optional(),
+  riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
   flags: z.array(z.string()).optional(),
   summary: z.string().optional(),
 });
@@ -997,7 +1142,7 @@ export const underwritingAdviserSummarySchema = z.object({
   sector: z.string().optional(),
   purpose: z.string().optional(),
   sections: z.record(z.string(), z.string()).optional(),
-  questionnaire: z.record(z.string(), z.enum(['Yes', 'No', 'N/A'])).optional(),
+  questionnaire: z.record(z.string(), z.enum(["Yes", "No", "N/A"])).optional(),
   recommendation: z.string().optional(),
   nextActions: z.array(z.string()).optional(),
 });
@@ -1010,55 +1155,78 @@ export const accountsPdfSchema = z.object({
 });
 
 export const accountsAnalysisSchema = z.object({
-  years: z.array(z.object({
-    yearEnding: z.string(),
-    turnover: z.number(),
-    grossProfit: z.number(),
-    netProfit: z.number(),
-    totalAssets: z.number(),
-    totalLiabilities: z.number(),
-    netAssets: z.number(),
-    shareholderFunds: z.number(),
-    cashAndEquivalents: z.number(),
-    debtors: z.number(),
-    creditors: z.number(),
-    bankLoans: z.number(),
-  })).optional(),
-  ratios: z.array(z.object({
-    year: z.string(),
-    ratios: z.object({
-      grossProfitMargin: z.number(),
-      netProfitMargin: z.number(),
-      currentRatio: z.number(),
-      quickRatio: z.number(),
-      debtToEquity: z.number(),
-      interestCover: z.number(),
-      debtorDays: z.number(),
-      creditorDays: z.number(),
-      returnOnCapitalEmployed: z.number(),
-    }),
-  })).optional(),
-  trends: z.object({
-    turnoverGrowth: z.array(z.number()).optional(),
-    profitGrowth: z.array(z.number()).optional(),
-    netAssetGrowth: z.array(z.number()).optional(),
-    trend: z.enum(['improving', 'stable', 'declining']).optional(),
-    summary: z.string().optional(),
-  }).optional(),
-  dscr: z.object({
-    historical: z.array(z.number()).optional(),
-    average: z.number().optional(),
-    trend: z.enum(['improving', 'stable', 'declining']).optional(),
-  }).optional(),
-  concerns: z.array(z.object({
-    category: z.enum(['going_concern', 'contingent_liability', 'related_party', 'auditor_opinion', 'subsequent_event', 'other']),
-    description: z.string(),
-    severity: z.enum(['low', 'medium', 'high']),
-    yearEnding: z.string(),
-  })).optional(),
+  years: z
+    .array(
+      z.object({
+        yearEnding: z.string(),
+        turnover: z.number(),
+        grossProfit: z.number(),
+        netProfit: z.number(),
+        totalAssets: z.number(),
+        totalLiabilities: z.number(),
+        netAssets: z.number(),
+        shareholderFunds: z.number(),
+        cashAndEquivalents: z.number(),
+        debtors: z.number(),
+        creditors: z.number(),
+        bankLoans: z.number(),
+      })
+    )
+    .optional(),
+  ratios: z
+    .array(
+      z.object({
+        year: z.string(),
+        ratios: z.object({
+          grossProfitMargin: z.number(),
+          netProfitMargin: z.number(),
+          currentRatio: z.number(),
+          quickRatio: z.number(),
+          debtToEquity: z.number(),
+          interestCover: z.number(),
+          debtorDays: z.number(),
+          creditorDays: z.number(),
+          returnOnCapitalEmployed: z.number(),
+        }),
+      })
+    )
+    .optional(),
+  trends: z
+    .object({
+      turnoverGrowth: z.array(z.number()).optional(),
+      profitGrowth: z.array(z.number()).optional(),
+      netAssetGrowth: z.array(z.number()).optional(),
+      trend: z.enum(["improving", "stable", "declining"]).optional(),
+      summary: z.string().optional(),
+    })
+    .optional(),
+  dscr: z
+    .object({
+      historical: z.array(z.number()).optional(),
+      average: z.number().optional(),
+      trend: z.enum(["improving", "stable", "declining"]).optional(),
+    })
+    .optional(),
+  concerns: z
+    .array(
+      z.object({
+        category: z.enum([
+          "going_concern",
+          "contingent_liability",
+          "related_party",
+          "auditor_opinion",
+          "subsequent_event",
+          "other",
+        ]),
+        description: z.string(),
+        severity: z.enum(["low", "medium", "high"]),
+        yearEnding: z.string(),
+      })
+    )
+    .optional(),
   auditorOpinion: z.string().optional(),
   summary: z.string().optional(),
-  riskAssessment: z.enum(['low', 'medium', 'high']).optional(),
+  riskAssessment: z.enum(["low", "medium", "high"]).optional(),
 });
 
 export const swotAnalysisSchema = z.object({
@@ -1070,7 +1238,7 @@ export const swotAnalysisSchema = z.object({
 });
 
 export const openBankingSchema = z.object({
-  status: z.enum(['not_sent', 'invited', 'connected', 'expired', 'error']).default('not_sent'),
+  status: z.enum(["not_sent", "invited", "connected", "expired", "error"]).default("not_sent"),
   invitedAt: z.string().optional(),
   connectedAt: z.string().optional(),
   customerEmail: z.string().optional(),
@@ -1078,17 +1246,21 @@ export const openBankingSchema = z.object({
 });
 
 export const managementAccountsSchema = z.object({
-  files: z.array(z.object({
-    fileName: z.string(),
-    text: z.string().optional(),
-    pages: z.number().optional(),
-  })).optional(),
+  files: z
+    .array(
+      z.object({
+        fileName: z.string(),
+        text: z.string().optional(),
+        pages: z.number().optional(),
+      })
+    )
+    .optional(),
   months: z.number().min(1).max(12).default(3),
   uploadedAt: z.string().optional(),
 });
 
 export const accountingSoftwareSchema = z.object({
-  status: z.enum(['not_linked', 'pending', 'connected', 'error']).default('not_linked'),
+  status: z.enum(["not_linked", "pending", "connected", "error"]).default("not_linked"),
   softwarePackage: z.string().optional(),
   linkedAt: z.string().optional(),
   customerEmail: z.string().optional(),
@@ -1096,12 +1268,14 @@ export const accountingSoftwareSchema = z.object({
 
 export const underwritingDataSchema = z.object({
   eligibility: underwritingEligibilitySchema.optional(),
-  loanDetails: z.object({
-    amount: z.number().optional(),
-    termMonths: z.number().optional(),
-    interestRate: z.number().optional(),
-    monthlyRepayment: z.number().optional(),
-  }).optional(),
+  loanDetails: z
+    .object({
+      amount: z.number().optional(),
+      termMonths: z.number().optional(),
+      interestRate: z.number().optional(),
+      monthlyRepayment: z.number().optional(),
+    })
+    .optional(),
   financialAnalysis: underwritingFinancialAnalysisSchema.optional(),
   csvFileName: z.string().optional(),
   analyzedAt: z.string().optional(),
@@ -1113,52 +1287,66 @@ export const underwritingDataSchema = z.object({
   swotAnalysis: swotAnalysisSchema.optional(),
   swotAnalyzedAt: z.string().optional(),
   adviserSummary: underwritingAdviserSummarySchema.optional(),
-  riskGrade: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
+  riskGrade: z.enum(["A", "B", "C", "D", "E"]).optional(),
   completedAt: z.string().optional(),
   openBanking: openBankingSchema.optional(),
-  bankPdfFiles: z.array(z.object({
-    fileName: z.string(),
-    text: z.string().optional(),
-    pages: z.number().optional(),
-  })).optional(),
-  analysisSource: z.enum(['csv', 'pdf', 'openbanking']).optional(),
+  bankPdfFiles: z
+    .array(
+      z.object({
+        fileName: z.string(),
+        text: z.string().optional(),
+        pages: z.number().optional(),
+      })
+    )
+    .optional(),
+  analysisSource: z.enum(["csv", "pdf", "openbanking"]).optional(),
   managementAccounts: managementAccountsSchema.optional(),
   accountingSoftware: accountingSoftwareSchema.optional(),
 });
 
 export const dueDiligenceDataSchema = z.object({
   checklist: z.array(checklistItemSchema).default([]),
-  loanCalculator: z.object({
-    loanAmount: z.number().optional(),
-    interestRate: z.number().optional(),
-    term: z.number().optional(),
-  }).optional(),
-  dscr: z.object({
-    annualNetOperatingIncome: z.number().optional(),
-    annualDebtService: z.number().optional(),
-    sensitivityRevenue: z.number().optional(),
-  }).optional(),
-  affordability: z.object({
-    personalIncome: z.number().optional(),
-    monthlyCommitments: z.number().optional(),
-    loanPayment: z.number().optional(),
-  }).optional(),
-  financialRatios: z.object({
-    revenue: z.number().optional(),
-    costs: z.number().optional(),
-    currentAssets: z.number().optional(),
-    currentLiabilities: z.number().optional(),
-    totalAssets: z.number().optional(),
-    totalLiabilities: z.number().optional(),
-    equity: z.number().optional(),
-  }).optional(),
-  character: z.object({
-    managementExperience: z.number().min(1).max(5).optional(),
-    creditHistory: z.number().min(1).max(5).optional(),
-    bankConduct: z.number().min(1).max(5).optional(),
-    contracts: z.number().min(1).max(5).optional(),
-    notes: z.string().optional(),
-  }).optional(),
+  loanCalculator: z
+    .object({
+      loanAmount: z.number().optional(),
+      interestRate: z.number().optional(),
+      term: z.number().optional(),
+    })
+    .optional(),
+  dscr: z
+    .object({
+      annualNetOperatingIncome: z.number().optional(),
+      annualDebtService: z.number().optional(),
+      sensitivityRevenue: z.number().optional(),
+    })
+    .optional(),
+  affordability: z
+    .object({
+      personalIncome: z.number().optional(),
+      monthlyCommitments: z.number().optional(),
+      loanPayment: z.number().optional(),
+    })
+    .optional(),
+  financialRatios: z
+    .object({
+      revenue: z.number().optional(),
+      costs: z.number().optional(),
+      currentAssets: z.number().optional(),
+      currentLiabilities: z.number().optional(),
+      totalAssets: z.number().optional(),
+      totalLiabilities: z.number().optional(),
+      equity: z.number().optional(),
+    })
+    .optional(),
+  character: z
+    .object({
+      managementExperience: z.number().min(1).max(5).optional(),
+      creditHistory: z.number().min(1).max(5).optional(),
+      bankConduct: z.number().min(1).max(5).optional(),
+      contracts: z.number().min(1).max(5).optional(),
+      notes: z.string().optional(),
+    })
+    .optional(),
   underwriting: underwritingDataSchema.optional(),
 });
 
@@ -1233,7 +1421,20 @@ export const webhookProspectSchema = z.object({
   loanAmount: z.number().positive().optional(),
   term: z.number().positive().optional(),
   interestRate: z.string().optional(),
-  stage: z.enum(["lead", "contacted", "qualified", "proposal", "dueDiligence", "approval", "approved", "declined", "withdrawn"]).optional().default("lead"),
+  stage: z
+    .enum([
+      "lead",
+      "contacted",
+      "qualified",
+      "proposal",
+      "dueDiligence",
+      "approval",
+      "approved",
+      "declined",
+      "withdrawn",
+    ])
+    .optional()
+    .default("lead"),
   priority: z.enum(["low", "medium", "high"]).optional(),
   notes: z.string().optional(),
   directorsGuarantee: z.number().optional(),
@@ -1256,40 +1457,52 @@ export const webhookContactSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const webhookDueDiligenceSchema = z.object({
-  loanCalculator: z.object({
-    loanAmount: z.number().optional(),
-    interestRate: z.number().optional(),
-    term: z.number().optional(),
-  }).optional(),
-  dscr: z.object({
-    annualNetOperatingIncome: z.number().optional(),
-    annualDebtService: z.number().optional(),
-    sensitivityRevenue: z.number().optional(),
-  }).optional(),
-  affordability: z.object({
-    personalIncome: z.number().optional(),
-    monthlyCommitments: z.number().optional(),
-    loanPayment: z.number().optional(),
-  }).optional(),
-  financialRatios: z.object({
-    revenue: z.number().optional(),
-    costs: z.number().optional(),
-    currentAssets: z.number().optional(),
-    currentLiabilities: z.number().optional(),
-    totalAssets: z.number().optional(),
-    totalLiabilities: z.number().optional(),
-    equity: z.number().optional(),
-  }).optional(),
-  character: z.object({
-    managementExperience: z.number().min(1).max(5).optional(),
-    creditHistory: z.number().min(1).max(5).optional(),
-    bankConduct: z.number().min(1).max(5).optional(),
-    contracts: z.number().min(1).max(5).optional(),
-    notes: z.string().optional(),
-  }).optional(),
-  checklist: z.array(checklistItemSchema).optional(),
-}).optional();
+export const webhookDueDiligenceSchema = z
+  .object({
+    loanCalculator: z
+      .object({
+        loanAmount: z.number().optional(),
+        interestRate: z.number().optional(),
+        term: z.number().optional(),
+      })
+      .optional(),
+    dscr: z
+      .object({
+        annualNetOperatingIncome: z.number().optional(),
+        annualDebtService: z.number().optional(),
+        sensitivityRevenue: z.number().optional(),
+      })
+      .optional(),
+    affordability: z
+      .object({
+        personalIncome: z.number().optional(),
+        monthlyCommitments: z.number().optional(),
+        loanPayment: z.number().optional(),
+      })
+      .optional(),
+    financialRatios: z
+      .object({
+        revenue: z.number().optional(),
+        costs: z.number().optional(),
+        currentAssets: z.number().optional(),
+        currentLiabilities: z.number().optional(),
+        totalAssets: z.number().optional(),
+        totalLiabilities: z.number().optional(),
+        equity: z.number().optional(),
+      })
+      .optional(),
+    character: z
+      .object({
+        managementExperience: z.number().min(1).max(5).optional(),
+        creditHistory: z.number().min(1).max(5).optional(),
+        bankConduct: z.number().min(1).max(5).optional(),
+        contracts: z.number().min(1).max(5).optional(),
+        notes: z.string().optional(),
+      })
+      .optional(),
+    checklist: z.array(checklistItemSchema).optional(),
+  })
+  .optional();
 
 export const webhookMetadataSchema = z.object({
   externalId: z.string().optional(),

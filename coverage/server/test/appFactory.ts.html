@@ -302,7 +302,10 @@
 <a name='L237'></a><a href='#L237'>237</a>
 <a name='L238'></a><a href='#L238'>238</a>
 <a name='L239'></a><a href='#L239'>239</a>
-<a name='L240'></a><a href='#L240'>240</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -525,6 +528,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -543,7 +549,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * App Factory for Testing
- * 
+ *
  * Creates a testable Express app with dependency injection for:
  * - Database/storage mocking
  * - Redis mocking
@@ -551,15 +557,15 @@
  * - Authentication mocking
  */
 &nbsp;
-import express, { Express, Request, Response, NextFunction } from 'express';
-import { createServer, Server } from 'http';
+import express, { Express, Request, Response, NextFunction } from "express";
+import { createServer, Server } from "http";
 &nbsp;
 export interface MockUser {
   id: string;
   email?: string;
   firstName?: string;
   lastName?: string;
-  role?: 'broker_user' | 'underwriter' | 'sales_admin' | 'super_admin';
+  role?: "broker_user" | "underwriter" | "sales_admin" | "super_admin";
 }
 &nbsp;
 export interface TestAppOptions {
@@ -591,21 +597,21 @@ export interface TestStorageMock {
  */
 export function createTestApp(options: TestAppOptions = {}): Express {
   const app = express();
-  
+&nbsp;
   // Body parsing
-  app.use(express.json({ limit: '5mb' }));
-  app.use(express.urlencoded({ extended: false, limit: '5mb' }));
-  
+  app.use(express.json({ limit: "5mb" }));
+  app.use(express.urlencoded({ extended: false, limit: "5mb" }));
+&nbsp;
   // Mock authentication middleware
   app.use((req: any, res, next) =&gt; {
     if (options.authenticatedUser) {
       req.user = {
         claims: {
           sub: options.authenticatedUser.id,
-          email: options.authenticatedUser.email || 'test@example.com',
-          first_name: options.authenticatedUser.firstName || 'Test',
-          last_name: options.authenticatedUser.lastName || 'User',
-        }
+          email: options.authenticatedUser.email || "test@example.com",
+          first_name: options.authenticatedUser.firstName || "Test",
+          last_name: options.authenticatedUser.lastName || "User",
+        },
       };
       req.isAuthenticated = () =&gt; true;
     } else {
@@ -613,53 +619,53 @@ export function createTestApp(options: TestAppOptions = {}): Express {
     }
     next();
   });
-  
+&nbsp;
   // Mock CSRF protection (skip if disabled)
   if (!options.skipCsrf) {
     app.use((req: any, res, next) =&gt; {
       // Simplified CSRF check for testing
       const method = req.method.toUpperCase();
-      <span class="missing-if-branch" title="else path not taken" >E</span>if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-        const origin = req.headers['origin'];
-        const referer = req.headers['referer'];
-        const host = req.headers['host'];
-        
+      <span class="missing-if-branch" title="else path not taken" >E</span>if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+        const origin = req.headers["origin"];
+        const referer = req.headers["referer"];
+        const host = req.headers["host"];
+&nbsp;
         if (!origin &amp;&amp; !referer) {
-          return res.status(403).json({ error: 'CSRF check failed' });
+          return res.status(403).json({ error: "CSRF check failed" });
         }
-        
-        const sourceHost = origin 
-          ? new URL(origin).hostname 
-          : <span class="branch-1 cbranch-no" title="branch not covered" >referer </span>
-            ? new URL(referer).hostname 
+&nbsp;
+        const sourceHost = origin
+          ? new URL(origin).hostname
+          : <span class="branch-1 cbranch-no" title="branch not covered" >referer</span>
+            ? new URL(referer).hostname
             : null;
-            
+&nbsp;
         <span class="missing-if-branch" title="if path not taken" >I</span>if (sourceHost &amp;&amp; host &amp;&amp; !host.includes(sourceHost)) {
-<span class="cstat-no" title="statement not covered" >          return res.status(403).json({ error: 'CSRF check failed' });</span>
+<span class="cstat-no" title="statement not covered" >          return res.status(403).json({ error: "CSRF check failed" });</span>
         }
       }
       next();
     });
   }
-  
+&nbsp;
   // Mock rate limiting (skip if disabled)
   <span class="missing-if-branch" title="else path not taken" >E</span>if (!options.skipRateLimit) {
     const rateLimitCounts = new Map&lt;string, number&gt;();
     app.use((req: any, res, next) =&gt; {
       const key = `${req.ip}:${req.path}`;
       const count = rateLimitCounts.get(key) || 0;
-      
+&nbsp;
       // Simple rate limit: 100 requests per path
       <span class="missing-if-branch" title="if path not taken" >I</span>if (count &gt;= 100) {
-<span class="cstat-no" title="statement not covered" >        return res.status(429).json({ error: 'Too many requests' });</span>
+<span class="cstat-no" title="statement not covered" >        return res.status(429).json({ error: "Too many requests" });</span>
       }
-      
+&nbsp;
       rateLimitCounts.set(key, count + 1);
-      res.setHeader('X-RateLimit-Remaining', String(100 - count - 1));
+      res.setHeader("X-RateLimit-Remaining", String(100 - count - 1));
       next();
     });
   }
-  
+&nbsp;
   return app;
 }
 &nbsp;
@@ -668,45 +674,45 @@ export function createTestApp(options: TestAppOptions = {}): Express {
  */
 export function createTestAppWithRoutes(options: TestAppOptions = {}): Express {
   const app = createTestApp(options);
-  
+&nbsp;
   // Test routes for exercising middleware
-  app.get('/api/test', (req: any, res) =&gt; {
-    res.json({ 
+  app.get("/api/test", (req: any, res) =&gt; {
+    res.json({
       authenticated: req.isAuthenticated?.() ?? <span class="branch-1 cbranch-no" title="branch not covered" >false,</span>
-      userId: req.user?.claims?.sub || <span class="branch-1 cbranch-no" title="branch not covered" >null </span>
+      userId: req.user?.claims?.sub || <span class="branch-1 cbranch-no" title="branch not covered" >null,</span>
     });
   });
-  
-  app.post('/api/test', (req: any, res) =&gt; {
+&nbsp;
+  app.post("/api/test", (req: any, res) =&gt; {
     if (!req.isAuthenticated?.()) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: "Unauthorized" });
     }
     res.json({ success: true, body: req.body });
   });
-  
-  app.put('/api/test/:id', <span class="fstat-no" title="function not covered" >(r</span>eq: any, res) =&gt; {
+&nbsp;
+  app.put("/api/test/:id", <span class="fstat-no" title="function not covered" >(r</span>eq: any, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    if (!req.isAuthenticated?.()) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(401).json({ error: 'Unauthorized' });</span>
+<span class="cstat-no" title="statement not covered" >      return res.status(401).json({ error: "Unauthorized" });</span>
     }
 <span class="cstat-no" title="statement not covered" >    res.json({ success: true, id: req.params.id, body: req.body });</span>
   });
-  
-  app.delete('/api/test/:id', <span class="fstat-no" title="function not covered" >(r</span>eq: any, res) =&gt; {
+&nbsp;
+  app.delete("/api/test/:id", <span class="fstat-no" title="function not covered" >(r</span>eq: any, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    if (!req.isAuthenticated?.()) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(401).json({ error: 'Unauthorized' });</span>
+<span class="cstat-no" title="statement not covered" >      return res.status(401).json({ error: "Unauthorized" });</span>
     }
 <span class="cstat-no" title="statement not covered" >    res.json({ success: true, deleted: req.params.id });</span>
   });
-  
+&nbsp;
   // Webhook test route (bypasses CSRF but requires API key)
-  app.post('/api/webhooks/test', (req: any, res) =&gt; {
-    const apiKey = req.headers['x-flowloan-api-key'];
+  app.post("/api/webhooks/test", (req: any, res) =&gt; {
+    const apiKey = req.headers["x-flowloan-api-key"];
     if (!apiKey) {
-      return res.status(401).json({ error: 'API key required' });
+      return res.status(401).json({ error: "API key required" });
     }
     res.json({ success: true, received: req.body });
   });
-  
+&nbsp;
   return app;
 }
 &nbsp;
@@ -719,7 +725,7 @@ export function <span class="fstat-no" title="function not covered" >createMockS
   const companies = <span class="cstat-no" title="statement not covered" >new Map&lt;number, any&gt;();</span>
   let prospectIdCounter = <span class="cstat-no" title="statement not covered" >1;</span>
   let companyIdCounter = <span class="cstat-no" title="statement not covered" >1;</span>
-  
+&nbsp;
 <span class="cstat-no" title="statement not covered" >  return {</span>
     getUser: <span class="fstat-no" title="function not covered" >async (i</span>d: string) =&gt; <span class="cstat-no" title="statement not covered" >users.get(id) || null,</span>
     upsertUser: <span class="fstat-no" title="function not covered" >async (u</span>ser: any) =&gt; {
@@ -727,7 +733,7 @@ export function <span class="fstat-no" title="function not covered" >createMockS
 <span class="cstat-no" title="statement not covered" >      return user;</span>
     },
     getProspects: <span class="fstat-no" title="function not covered" >async (u</span>serId: string) =&gt; {
-<span class="cstat-no" title="statement not covered" >      return Array.from(prospects.values()).filter(<span class="fstat-no" title="function not covered" >p =&gt; <span class="cstat-no" title="statement not covered" >p</span>.userId === userId)</span>;</span>
+<span class="cstat-no" title="statement not covered" >      return Array.from(prospects.values()).filter(<span class="fstat-no" title="function not covered" >(p</span>) =&gt; <span class="cstat-no" title="statement not covered" >p.userId === userId)</span>;</span>
     },
     getProspect: <span class="fstat-no" title="function not covered" >async (i</span>d: number) =&gt; <span class="cstat-no" title="statement not covered" >prospects.get(id) || null,</span>
     createProspect: <span class="fstat-no" title="function not covered" >async (d</span>ata: any) =&gt; {
@@ -738,7 +744,7 @@ export function <span class="fstat-no" title="function not covered" >createMockS
     },
     updateProspect: <span class="fstat-no" title="function not covered" >async (i</span>d: number, data: any) =&gt; {
       const existing = <span class="cstat-no" title="statement not covered" >prospects.get(id);</span>
-<span class="cstat-no" title="statement not covered" >      if (!existing) <span class="cstat-no" title="statement not covered" >throw new Error('Prospect not found');</span></span>
+<span class="cstat-no" title="statement not covered" >      if (!existing) <span class="cstat-no" title="statement not covered" >throw new Error("Prospect not found");</span></span>
       const updated = <span class="cstat-no" title="statement not covered" >{ ...existing, ...data };</span>
 <span class="cstat-no" title="statement not covered" >      prospects.set(id, updated);</span>
 <span class="cstat-no" title="statement not covered" >      return updated;</span>
@@ -747,7 +753,7 @@ export function <span class="fstat-no" title="function not covered" >createMockS
 <span class="cstat-no" title="statement not covered" >      prospects.delete(id);</span>
     },
     getCompanies: <span class="fstat-no" title="function not covered" >async (u</span>serId: string) =&gt; {
-<span class="cstat-no" title="statement not covered" >      return Array.from(companies.values()).filter(<span class="fstat-no" title="function not covered" >c =&gt; <span class="cstat-no" title="statement not covered" >c</span>.userId === userId)</span>;</span>
+<span class="cstat-no" title="statement not covered" >      return Array.from(companies.values()).filter(<span class="fstat-no" title="function not covered" >(c</span>) =&gt; <span class="cstat-no" title="statement not covered" >c.userId === userId)</span>;</span>
     },
     getCompany: <span class="fstat-no" title="function not covered" >async (i</span>d: number) =&gt; <span class="cstat-no" title="statement not covered" >companies.get(id) || null,</span>
     createCompany: <span class="fstat-no" title="function not covered" >async (d</span>ata: any) =&gt; {
@@ -765,19 +771,22 @@ export function <span class="fstat-no" title="function not covered" >createMockS
 export function <span class="fstat-no" title="function not covered" >withAuth(h</span>eaders: Record&lt;string, string&gt; = <span class="branch-0 cbranch-no" title="branch not covered" >{}): Record&lt;string, string&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  return {</span>
     ...headers,
-    'Origin': 'http://localhost:5000',
-    'Host': 'localhost:5000',
+    Origin: "http://localhost:5000",
+    Host: "localhost:5000",
   };
 }
 &nbsp;
 /**
  * Helper to make webhook test requests
  */
-export function <span class="fstat-no" title="function not covered" >withWebhookAuth(a</span>piKey: string, headers: Record&lt;string, string&gt; = <span class="branch-0 cbranch-no" title="branch not covered" >{}): Record&lt;string, string&gt; {</span>
+export function <span class="fstat-no" title="function not covered" >withWebhookAuth(</span>
+  apiKey: string,
+  headers: Record&lt;string, string&gt; = <span class="branch-0 cbranch-no" title="branch not covered" >{}</span>
+): Record&lt;string, string&gt; {
 <span class="cstat-no" title="statement not covered" >  return {</span>
     ...headers,
-    'X-FlowLoan-Api-Key': apiKey,
-    'Content-Type': 'application/json',
+    "X-FlowLoan-Api-Key": apiKey,
+    "Content-Type": "application/json",
   };
 }
 &nbsp;</pre></td></tr></table></pre>
@@ -787,7 +796,7 @@ export function <span class="fstat-no" title="function not covered" >withWebhook
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-19T17:03:59.025Z
+                at 2025-12-21T13:36:40.983Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

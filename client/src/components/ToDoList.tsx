@@ -29,7 +29,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ListTodo, Plus, Trash2, Calendar as CalendarIcon, Video, Phone, FileText } from "lucide-react";
+import {
+  ListTodo,
+  Plus,
+  Trash2,
+  Calendar as CalendarIcon,
+  Video,
+  Phone,
+  FileText,
+} from "lucide-react";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -193,10 +201,7 @@ export default function ToDoList() {
                           </FormControl>
                           <SelectContent>
                             {prospects.map((prospect) => (
-                              <SelectItem
-                                key={prospect.id}
-                                value={prospect.id.toString()}
-                              >
+                              <SelectItem key={prospect.id} value={prospect.id.toString()}>
                                 {prospect.company.companyName}
                               </SelectItem>
                             ))}
@@ -213,7 +218,11 @@ export default function ToDoList() {
                       <FormItem>
                         <FormLabel>Title</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Task title" data-testid="input-task-title" />
+                          <Input
+                            {...field}
+                            placeholder="Task title"
+                            data-testid="input-task-title"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -243,11 +252,7 @@ export default function ToDoList() {
                       <FormItem>
                         <FormLabel>Due Date</FormLabel>
                         <FormControl>
-                          <Input
-                            {...field}
-                            type="date"
-                            data-testid="input-task-due-date"
-                          />
+                          <Input {...field} type="date" data-testid="input-task-due-date" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -304,13 +309,14 @@ export default function ToDoList() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
                       {(() => {
-                        const Icon = activityTypeIcons[activity.activityType as keyof typeof activityTypeIcons] || ListTodo;
+                        const Icon =
+                          activityTypeIcons[
+                            activity.activityType as keyof typeof activityTypeIcons
+                          ] || ListTodo;
                         return <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
                       })()}
                       <h4
-                        className={`font-medium ${
-                          activity.completed === 1 ? "line-through" : ""
-                        }`}
+                        className={`font-medium ${activity.completed === 1 ? "line-through" : ""}`}
                       >
                         {activity.title}
                       </h4>
@@ -325,9 +331,7 @@ export default function ToDoList() {
                     </Button>
                   </div>
                   {activity.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {activity.description}
-                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
                   )}
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {activity.prospectId && (
@@ -335,17 +339,19 @@ export default function ToDoList() {
                         {getProspectName(activity.prospectId)}
                       </Badge>
                     )}
-                    {activity.dueDate && (() => {
-                      const activityDate = new Date(activity.dueDate);
-                      const hasTime = activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0;
-                      return (
-                        <Badge variant="secondary" className="text-xs">
-                          <CalendarIcon className="h-3 w-3 mr-1" />
-                          {format(activityDate, "MMM d, yyyy")}
-                          {hasTime && ` ${format(activityDate, "HH:mm")}`}
-                        </Badge>
-                      );
-                    })()}
+                    {activity.dueDate &&
+                      (() => {
+                        const activityDate = new Date(activity.dueDate);
+                        const hasTime =
+                          activityDate.getHours() !== 0 || activityDate.getMinutes() !== 0;
+                        return (
+                          <Badge variant="secondary" className="text-xs">
+                            <CalendarIcon className="h-3 w-3 mr-1" />
+                            {format(activityDate, "MMM d, yyyy")}
+                            {hasTime && ` ${format(activityDate, "HH:mm")}`}
+                          </Badge>
+                        );
+                      })()}
                     {activity.priority && (
                       <Badge
                         variant="outline"
@@ -353,10 +359,10 @@ export default function ToDoList() {
                           activity.priority === "urgent"
                             ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20"
                             : activity.priority === "high"
-                            ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20"
-                            : activity.priority === "medium"
-                            ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20"
-                            : "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
+                              ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20"
+                              : activity.priority === "medium"
+                                ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20"
+                                : "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
                         }`}
                       >
                         {activity.priority.charAt(0).toUpperCase() + activity.priority.slice(1)}

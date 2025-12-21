@@ -107,7 +107,9 @@
 <a name='L42'></a><a href='#L42'>42</a>
 <a name='L43'></a><a href='#L43'>43</a>
 <a name='L44'></a><a href='#L44'>44</a>
-<a name='L45'></a><a href='#L45'>45</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -118,6 +120,9 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -145,37 +150,39 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import ExcelJS from 'exceljs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import ExcelJS from "exceljs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 &nbsp;
 const <span class="cstat-no" title="statement not covered" >__filename = fileURLToPath(import.meta.url);</span>
 const <span class="cstat-no" title="statement not covered" >__dirname = dirname(__filename);</span>
 &nbsp;
 async function <span class="fstat-no" title="function not covered" >readTemplate() {</span>
   const workbook = <span class="cstat-no" title="statement not covered" >new ExcelJS.Workbook();</span>
-  const <span class="cstat-no" title="statement not covered" >templatePath = join(__dirname, '../../attached_assets/Pipeline Template_1763118738966.xlsx');</span>
-  
+  const <span class="cstat-no" title="statement not covered" >templatePath = join(</span>
+    __dirname,
+    "../../attached_assets/Pipeline Template_1763118738966.xlsx"
+  );
+&nbsp;
 <span class="cstat-no" title="statement not covered" >  try {</span>
 <span class="cstat-no" title="statement not covered" >    await workbook.xlsx.readFile(templatePath);</span>
-    
-<span class="cstat-no" title="statement not covered" >    console.log('\n=== Excel Template Structure ===\n');</span>
-    
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    console.log("\n=== Excel Template Structure ===\n");</span>
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    workbook.eachSheet(<span class="fstat-no" title="function not covered" >(w</span>orksheet, sheetId) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      console.log(`Sheet ${sheetId}: "${worksheet.name}"`);</span>
 <span class="cstat-no" title="statement not covered" >      console.log(`  Rows: ${worksheet.rowCount}, Columns: ${worksheet.columnCount}`);</span>
-      
+&nbsp;
       // Find all section headers
 <span class="cstat-no" title="statement not covered" >      for (let i = <span class="cstat-no" title="statement not covered" >1; i</span> &lt;= worksheet.rowCount; i++) {</span>
         const row = <span class="cstat-no" title="statement not covered" >worksheet.getRow(i);</span>
         const firstCell = <span class="cstat-no" title="statement not covered" >row.getCell(1).value;</span>
-<span class="cstat-no" title="statement not covered" >        if (firstCell &amp;&amp; typeof firstCell === 'string' &amp;&amp; firstCell.includes('STAGE')) {</span>
+<span class="cstat-no" title="statement not covered" >        if (firstCell &amp;&amp; typeof firstCell === "string" &amp;&amp; firstCell.includes("STAGE")) {</span>
 <span class="cstat-no" title="statement not covered" >          console.log(`  Row ${i}: ${firstCell}`);</span>
           // Print the next row (headers)
           const nextRow = <span class="cstat-no" title="statement not covered" >worksheet.getRow(i + 1);</span>
@@ -186,11 +193,10 @@ async function <span class="fstat-no" title="function not covered" >readTemplate
 <span class="cstat-no" title="statement not covered" >          console.log(`  Row ${i + 1}: ${JSON.stringify(headers)}`);</span>
         }
       }
-<span class="cstat-no" title="statement not covered" >      console.log('');</span>
+<span class="cstat-no" title="statement not covered" >      console.log("");</span>
     });
-    
   } catch (error) {
-<span class="cstat-no" title="statement not covered" >    console.error('Error reading template:', error);</span>
+<span class="cstat-no" title="statement not covered" >    console.error("Error reading template:", error);</span>
   }
 }
 &nbsp;
@@ -202,7 +208,7 @@ async function <span class="fstat-no" title="function not covered" >readTemplate
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-19T17:03:59.025Z
+                at 2025-12-21T13:36:40.983Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

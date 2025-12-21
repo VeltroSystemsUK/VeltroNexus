@@ -44,7 +44,7 @@ export default function Submissions() {
   const { data: user } = useQuery<any>({
     queryKey: ["/api/auth/user"],
   });
-  
+
   const { data: submissions = [], isLoading } = useQuery<SubmissionWithDetails[]>({
     queryKey: ["/api/submissions"],
   });
@@ -89,9 +89,11 @@ export default function Submissions() {
     }
   };
 
-  const pendingSubmissions = submissions.filter(s => s.status === "pending" || s.status === "sent");
-  const approvedSubmissions = submissions.filter(s => s.status === "approved");
-  const declinedSubmissions = submissions.filter(s => s.status === "declined");
+  const pendingSubmissions = submissions.filter(
+    (s) => s.status === "pending" || s.status === "sent"
+  );
+  const approvedSubmissions = submissions.filter((s) => s.status === "approved");
+  const declinedSubmissions = submissions.filter((s) => s.status === "declined");
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,7 +103,9 @@ export default function Submissions() {
             <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary">
               <TrendingUp className="h-5 w-5 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold" data-testid="text-app-title">FlowLoan</h1>
+            <h1 className="text-xl font-bold" data-testid="text-app-title">
+              FlowLoan
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -111,7 +115,8 @@ export default function Submissions() {
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.profileImageUrl || undefined} />
                     <AvatarFallback>
-                      {user?.firstName?.[0]}{user?.lastName?.[0]}
+                      {user?.firstName?.[0]}
+                      {user?.lastName?.[0]}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -131,7 +136,9 @@ export default function Submissions() {
                   <Link href="/dashboard">Dashboard</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout">Log out</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout">
+                  Log out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -140,8 +147,12 @@ export default function Submissions() {
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Application Submissions</h2>
-              <p className="text-muted-foreground">Track all your loan applications submitted to lenders</p>
+              <h2 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">
+                Application Submissions
+              </h2>
+              <p className="text-muted-foreground">
+                Track all your loan applications submitted to lenders
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -151,7 +162,9 @@ export default function Submissions() {
                   <Send className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-pending-count">{pendingSubmissions.length}</div>
+                  <div className="text-2xl font-bold" data-testid="text-pending-count">
+                    {pendingSubmissions.length}
+                  </div>
                   <p className="text-xs text-muted-foreground">Awaiting response</p>
                 </CardContent>
               </Card>
@@ -161,7 +174,9 @@ export default function Submissions() {
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-approved-count">{approvedSubmissions.length}</div>
+                  <div className="text-2xl font-bold" data-testid="text-approved-count">
+                    {approvedSubmissions.length}
+                  </div>
                   <p className="text-xs text-muted-foreground">Successfully approved</p>
                 </CardContent>
               </Card>
@@ -171,7 +186,9 @@ export default function Submissions() {
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-declined-count">{declinedSubmissions.length}</div>
+                  <div className="text-2xl font-bold" data-testid="text-declined-count">
+                    {declinedSubmissions.length}
+                  </div>
                   <p className="text-xs text-muted-foreground">Not approved</p>
                 </CardContent>
               </Card>
@@ -186,7 +203,9 @@ export default function Submissions() {
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <Send className="h-12 w-12 text-muted-foreground mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No submissions yet</h3>
-                  <p className="text-muted-foreground mb-4">Submit applications from the Pipeline view</p>
+                  <p className="text-muted-foreground mb-4">
+                    Submit applications from the Pipeline view
+                  </p>
                   <Link href="/pipeline">
                     <Button>Go to Pipeline</Button>
                   </Link>
@@ -231,12 +250,18 @@ export default function Submissions() {
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                             <span className="text-muted-foreground">Sent:</span>
-                            <span>{submission.sentAt ? format(new Date(submission.sentAt), "PPP") : 'Pending'}</span>
+                            <span>
+                              {submission.sentAt
+                                ? format(new Date(submission.sentAt), "PPP")
+                                : "Pending"}
+                            </span>
                           </div>
                           {submission.prospect.loanAmount && (
                             <div className="flex items-center gap-2 text-sm">
                               <span className="text-muted-foreground">Amount:</span>
-                              <span className="font-semibold">£{(submission.prospect.loanAmount / 100).toLocaleString()}</span>
+                              <span className="font-semibold">
+                                £{(submission.prospect.loanAmount / 100).toLocaleString()}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -249,7 +274,9 @@ export default function Submissions() {
                               )}
                               <div className="text-muted-foreground">{submission.lender.email}</div>
                               {submission.lender.phone && (
-                                <div className="text-muted-foreground">{submission.lender.phone}</div>
+                                <div className="text-muted-foreground">
+                                  {submission.lender.phone}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -273,15 +300,19 @@ export default function Submissions() {
                       )}
                       <div className="flex gap-2">
                         <Link href={`/prospect/${submission.prospectId}`}>
-                          <Button variant="outline" size="sm" data-testid={`button-view-prospect-${submission.id}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            data-testid={`button-view-prospect-${submission.id}`}
+                          >
                             View Prospect
                           </Button>
                         </Link>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               data-testid={`button-delete-submission-${submission.id}`}
                               disabled={deleteMutation.isPending}
                             >
@@ -293,11 +324,16 @@ export default function Submissions() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Submission?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to delete this submission to {submission.lender.institutionName}? This action cannot be undone.
+                                Are you sure you want to delete this submission to{" "}
+                                {submission.lender.institutionName}? This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel data-testid={`button-cancel-delete-${submission.id}`}>Cancel</AlertDialogCancel>
+                              <AlertDialogCancel
+                                data-testid={`button-cancel-delete-${submission.id}`}
+                              >
+                                Cancel
+                              </AlertDialogCancel>
                               <AlertDialogAction
                                 data-testid={`button-confirm-delete-${submission.id}`}
                                 onClick={() => deleteMutation.mutate(submission.id)}

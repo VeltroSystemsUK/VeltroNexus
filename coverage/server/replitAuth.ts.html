@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">24.67% </span>
+                <span class="strong">24.35% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>19/77</span>
+                <span class='fraction'>19/78</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">25.33% </span>
+                <span class="strong">25% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>19/75</span>
+                <span class='fraction'>19/76</span>
             </div>
         
             
@@ -281,8 +281,7 @@
 <a name='L216'></a><a href='#L216'>216</a>
 <a name='L217'></a><a href='#L217'>217</a>
 <a name='L218'></a><a href='#L218'>218</a>
-<a name='L219'></a><a href='#L219'>219</a>
-<a name='L220'></a><a href='#L220'>220</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L219'></a><a href='#L219'>219</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -303,6 +302,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -389,8 +389,6 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -522,12 +520,13 @@ const getOidcConfig = memoize(
 );
 &nbsp;
 export function <span class="fstat-no" title="function not covered" >getSession() {</span>
-  const sessionTtl = <span class="cstat-no" title="statement not covered" >7 * 24 * 60 * 60 * 1000; // 1 week</span>
+  const sessionTtlMs = <span class="cstat-no" title="statement not covered" >7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds (for cookie)</span>
+  const sessionTtlSeconds = <span class="cstat-no" title="statement not covered" >Math.floor(sessionTtlMs / 1000); // convert to seconds for pg-store</span>
   const <span class="cstat-no" title="statement not covered" >pgStore = connectPg(session);</span>
   const sessionStore = <span class="cstat-no" title="statement not covered" >new pgStore({</span>
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: sessionTtlSeconds, // connect-pg-simple expects seconds, not milliseconds
     tableName: "sessions",
   });
   const isProduction = <span class="cstat-no" title="statement not covered" >process.env.NODE_ENV === "production";</span>
@@ -539,7 +538,7 @@ export function <span class="fstat-no" title="function not covered" >getSession(
     cookie: {
       httpOnly: true,
       secure: isProduction, // Only require HTTPS in production
-      maxAge: sessionTtl,
+      maxAge: sessionTtlMs, // cookie.maxAge is in milliseconds
       // SECURITY: sameSite=lax prevents cookies from being sent on cross-site
       // requests (except top-level navigations). This is the first layer of
       // CSRF defense. Combined with Origin/Referer validation, it provides
@@ -551,43 +550,43 @@ export function <span class="fstat-no" title="function not covered" >getSession(
 &nbsp;
 /**
  * CSRF (Cross-Site Request Forgery) protection middleware.
- * 
+ *
  * SECURITY: Prevents malicious websites from making authenticated requests
  * on behalf of logged-in users. This works because:
- * 
+ *
  * 1. Browsers automatically send cookies with every request to a domain
  * 2. A malicious site could create a form that POSTs to our API
  * 3. The browser would include the user's session cookie automatically
  * 4. Without CSRF protection, this would succeed as an authenticated request
- * 
+ *
  * This middleware validates that the Origin/Referer header matches our host,
  * which browsers enforce and cannot be spoofed by JavaScript on other domains.
  * Combined with sameSite=lax cookies, this provides robust CSRF protection.
  */
 export function csrfProtection(req: any, res: any, next: any) {
   const unsafeMethods = ["POST", "PUT", "PATCH", "DELETE"];
-  
+&nbsp;
   // Skip CSRF check for safe methods and webhook endpoints (authenticated via API key)
   if (!unsafeMethods.includes(req.method) || req.path.startsWith("/api/webhooks/")) {
     return next();
   }
-  
+&nbsp;
   // Get the origin or referer header - require at least one for all unsafe methods
   const origin = req.get("Origin");
   const referer = req.get("Referer");
-  
+&nbsp;
   // Require Origin or Referer header for all unsafe methods (no exceptions)
   if (!origin &amp;&amp; !referer) {
     console.warn(`CSRF blocked: missing Origin and Referer headers for ${req.method} ${req.path}`);
     return res.status(403).json({ error: "CSRF validation failed: missing origin header" });
   }
-  
+&nbsp;
   // Parse the origin/referer and validate it matches the host
   const sourceHeader = origin || referer;
   try {
     const sourceUrl = new URL(sourceHeader);
     const host = req.get("Host");
-    
+&nbsp;
     // Check if origin/referer matches the request host
     if (sourceUrl.host !== host) {
       console.warn(`CSRF blocked: source ${sourceUrl.host} != host ${host}`);
@@ -596,7 +595,7 @@ export function csrfProtection(req: any, res: any, next: any) {
   } catch (e) {
     return res.status(403).json({ error: "CSRF validation failed: invalid origin" });
   }
-  
+&nbsp;
   next();
 }
 &nbsp;
@@ -610,9 +609,7 @@ function <span class="fstat-no" title="function not covered" >updateUserSession(
 <span class="cstat-no" title="statement not covered" >  user.expires_at = user.claims?.exp;</span>
 }
 &nbsp;
-async function <span class="fstat-no" title="function not covered" >upsertUser(</span>
-  claims: any,
-) {
+async function <span class="fstat-no" title="function not covered" >upsertUser(c</span>laims: any) {
 <span class="cstat-no" title="statement not covered" >  await storage.upsertUser({</span>
     id: claims["sub"],
     email: claims["email"],
@@ -654,7 +651,7 @@ export async function <span class="fstat-no" title="function not covered" >setup
           scope: "openid email profile offline_access",
           callbackURL: `https://${domain}/api/callback`,
         },
-        verify,
+        verify
       );
 <span class="cstat-no" title="statement not covered" >      passport.use(strategy);</span>
 <span class="cstat-no" title="statement not covered" >      registeredStrategies.add(strategyName);</span>
@@ -727,7 +724,7 @@ export const isAuthenticated: RequestHandler = <span class="fstat-no" title="fun
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-19T17:03:59.025Z
+                at 2025-12-21T13:36:40.983Z
             </div>
         <script src="../prettify.js"></script>
         <script>

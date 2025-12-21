@@ -4,7 +4,14 @@ import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -206,10 +213,10 @@ function formatCurrency(amount: number | null | undefined): string {
 
 function RatingStars({ rating }: { rating: number | null | undefined }) {
   if (!rating) return <span className="text-muted-foreground text-sm">Not rated</span>;
-  
+
   const fullStars = Math.floor(rating);
   const hasHalf = rating % 1 >= 0.5;
-  
+
   return (
     <div className="flex items-center gap-0.5">
       {[...Array(5)].map((_, i) => (
@@ -219,8 +226,8 @@ function RatingStars({ rating }: { rating: number | null | undefined }) {
             i < fullStars
               ? "fill-yellow-400 text-yellow-400"
               : i === fullStars && hasHalf
-              ? "fill-yellow-400/50 text-yellow-400"
-              : "text-muted-foreground/30"
+                ? "fill-yellow-400/50 text-yellow-400"
+                : "text-muted-foreground/30"
           }`}
         />
       ))}
@@ -230,7 +237,7 @@ function RatingStars({ rating }: { rating: number | null | undefined }) {
 }
 
 function PanelBadge({ status }: { status: string | null | undefined }) {
-  const panel = PANEL_STATUSES.find(p => p.value === status) || PANEL_STATUSES[2];
+  const panel = PANEL_STATUSES.find((p) => p.value === status) || PANEL_STATUSES[2];
   return (
     <Badge variant={panel.color} className="text-xs">
       {status === "panel" && <CheckCircle2 className="h-3 w-3 mr-1" />}
@@ -253,7 +260,11 @@ export default function Lenders() {
   const [filterLenderType, setFilterLenderType] = useState<string>("all");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
-  const { data: lenders = [], isLoading, error } = useQuery<Lender[]>({
+  const {
+    data: lenders = [],
+    isLoading,
+    error,
+  } = useQuery<Lender[]>({
     queryKey: ["/api/lenders"],
     enabled: isAuthenticated,
   });
@@ -277,8 +288,7 @@ export default function Lenders() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: ExtendedLenderForm) =>
-      apiRequest("/api/lenders", "POST", data),
+    mutationFn: (data: ExtendedLenderForm) => apiRequest("/api/lenders", "POST", data),
     onSuccess: () => {
       toast.success("Lender created successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/lenders"] });
@@ -306,8 +316,7 @@ export default function Lenders() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiRequest(`/api/lenders/${id}`, "DELETE"),
+    mutationFn: (id: number) => apiRequest(`/api/lenders/${id}`, "DELETE"),
     onSuccess: () => {
       toast.success("Lender deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/lenders"] });
@@ -406,16 +415,20 @@ export default function Lenders() {
 
   const filteredLenders = lenders
     .filter((lender) => {
-      const matchesSearch = searchQuery === "" || 
+      const matchesSearch =
+        searchQuery === "" ||
         lender.institutionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lender.contactName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lender.bdmName?.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesPanelStatus = filterPanelStatus === "all" || lender.panelStatus === filterPanelStatus;
-      const matchesLenderType = filterLenderType === "all" || lender.lenderType === filterLenderType;
-      const matchesProducts = selectedProducts.length === 0 || 
-        selectedProducts.some(p => (lender.productTypes as string[])?.includes(p));
-      
+
+      const matchesPanelStatus =
+        filterPanelStatus === "all" || lender.panelStatus === filterPanelStatus;
+      const matchesLenderType =
+        filterLenderType === "all" || lender.lenderType === filterLenderType;
+      const matchesProducts =
+        selectedProducts.length === 0 ||
+        selectedProducts.some((p) => (lender.productTypes as string[])?.includes(p));
+
       return matchesSearch && matchesPanelStatus && matchesLenderType && matchesProducts;
     })
     .sort((a, b) => {
@@ -427,8 +440,10 @@ export default function Lenders() {
       return a.institutionName.localeCompare(b.institutionName);
     });
 
-  const panelLenders = lenders.filter(l => l.panelStatus === "panel" || l.panelStatus === "preferred");
-  const marketLenders = lenders.filter(l => l.panelStatus === "market");
+  const panelLenders = lenders.filter(
+    (l) => l.panelStatus === "panel" || l.panelStatus === "preferred"
+  );
+  const marketLenders = lenders.filter((l) => l.panelStatus === "market");
 
   if (!isAuthenticated) {
     return null;
@@ -568,9 +583,7 @@ export default function Lenders() {
               ) : (
                 <>
                   <h3 className="text-lg font-semibold mb-2">No matching lenders</h3>
-                  <p className="text-muted-foreground">
-                    Try adjusting your search or filters
-                  </p>
+                  <p className="text-muted-foreground">Try adjusting your search or filters</p>
                 </>
               )}
             </CardContent>
@@ -587,12 +600,11 @@ export default function Lenders() {
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg truncate">
-                        {lender.institutionName}
-                      </CardTitle>
+                      <CardTitle className="text-lg truncate">{lender.institutionName}</CardTitle>
                       <CardDescription className="flex items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-xs">
-                          {LENDER_TYPES.find(t => t.value === lender.lenderType)?.label || "Lender"}
+                          {LENDER_TYPES.find((t) => t.value === lender.lenderType)?.label ||
+                            "Lender"}
                         </Badge>
                         <PanelBadge status={lender.panelStatus} />
                       </CardDescription>
@@ -604,23 +616,41 @@ export default function Lenders() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/lenders/${lender.id}`); }}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/lenders/${lender.id}`);
+                          }}
+                        >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(lender); }}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(lender);
+                          }}
+                        >
                           <Pencil className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
                         {lender.email && (
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${lender.email}`; }}>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.location.href = `mailto:${lender.email}`;
+                            }}
+                          >
                             <Mail className="h-4 w-4 mr-2" />
                             Email
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={(e) => { e.stopPropagation(); setDeletingLender(lender); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingLender(lender);
+                          }}
                           className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
@@ -632,16 +662,17 @@ export default function Lenders() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <RatingStars rating={lender.rating} />
-                  
+
                   {(lender.minLoanAmount || lender.maxLoanAmount) && (
                     <div className="flex items-center gap-2 text-sm">
                       <PoundSterling className="h-4 w-4 text-muted-foreground" />
                       <span>
-                        {formatCurrency(lender.minLoanAmount)} - {formatCurrency(lender.maxLoanAmount)}
+                        {formatCurrency(lender.minLoanAmount)} -{" "}
+                        {formatCurrency(lender.maxLoanAmount)}
                       </span>
                     </div>
                   )}
-                  
+
                   {(lender.typicalRateFrom || lender.typicalRateTo) && (
                     <div className="flex items-center gap-2 text-sm">
                       <Percent className="h-4 w-4 text-muted-foreground" />
@@ -650,15 +681,15 @@ export default function Lenders() {
                       </span>
                     </div>
                   )}
-                  
+
                   {lender.turnaroundDays && (
                     <div className="flex items-center gap-2 text-sm">
                       <Clock className="h-4 w-4 text-muted-foreground" />
                       <span>{lender.turnaroundDays} days turnaround</span>
                     </div>
                   )}
-                  
-                  {((lender.productTypes as string[])?.length > 0) && (
+
+                  {(lender.productTypes as string[])?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {(lender.productTypes as string[]).slice(0, 3).map((product) => (
                         <Badge key={product} variant="secondary" className="text-xs">
@@ -684,9 +715,7 @@ export default function Lenders() {
                     {lender.lastContactedAt && (
                       <div className="flex items-center gap-1 ml-auto">
                         <Calendar className="h-3 w-3" />
-                        <span>
-                          {new Date(lender.lastContactedAt).toLocaleDateString()}
-                        </span>
+                        <span>{new Date(lender.lastContactedAt).toLocaleDateString()}</span>
                       </div>
                     )}
                   </div>
@@ -694,19 +723,27 @@ export default function Lenders() {
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <Switch
                         checked={!!lender.isFavourite}
-                        onCheckedChange={(checked) => toggleFavouriteMutation.mutate({ id: lender.id, isFavourite: checked })}
+                        onCheckedChange={(checked) =>
+                          toggleFavouriteMutation.mutate({ id: lender.id, isFavourite: checked })
+                        }
                         data-testid={`switch-favourite-${lender.id}`}
                       />
-                      <Star className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`} />
+                      <Star
+                        className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
+                      />
                     </div>
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <span className="text-xs text-muted-foreground">Introducer Agreement</span>
                       <Switch
                         checked={!!lender.introducerAgreementSigned}
-                        onCheckedChange={(checked) => toggleAgreementMutation.mutate({ id: lender.id, signed: checked })}
+                        onCheckedChange={(checked) =>
+                          toggleAgreementMutation.mutate({ id: lender.id, signed: checked })
+                        }
                         data-testid={`switch-agreement-${lender.id}`}
                       />
-                      <CheckCircle2 className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`} />
+                      <CheckCircle2
+                        className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`}
+                      />
                     </div>
                   </div>
                 </CardFooter>
@@ -741,10 +778,17 @@ export default function Lenders() {
                         <div className="flex items-center gap-1">
                           <Switch
                             checked={!!lender.isFavourite}
-                            onCheckedChange={(checked) => toggleFavouriteMutation.mutate({ id: lender.id, isFavourite: checked })}
+                            onCheckedChange={(checked) =>
+                              toggleFavouriteMutation.mutate({
+                                id: lender.id,
+                                isFavourite: checked,
+                              })
+                            }
                             data-testid={`table-switch-favourite-${lender.id}`}
                           />
-                          <Star className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`} />
+                          <Star
+                            className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
+                          />
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">
@@ -755,14 +799,16 @@ export default function Lenders() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          {LENDER_TYPES.find(t => t.value === lender.lenderType)?.label || "Lender"}
+                          {LENDER_TYPES.find((t) => t.value === lender.lenderType)?.label ||
+                            "Lender"}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <PanelBadge status={lender.panelStatus} />
                       </TableCell>
                       <TableCell>
-                        {formatCurrency(lender.minLoanAmount)} - {formatCurrency(lender.maxLoanAmount)}
+                        {formatCurrency(lender.minLoanAmount)} -{" "}
+                        {formatCurrency(lender.maxLoanAmount)}
                       </TableCell>
                       <TableCell>
                         <RatingStars rating={lender.rating} />
@@ -771,10 +817,14 @@ export default function Lenders() {
                         <div className="flex items-center gap-1">
                           <Switch
                             checked={!!lender.introducerAgreementSigned}
-                            onCheckedChange={(checked) => toggleAgreementMutation.mutate({ id: lender.id, signed: checked })}
+                            onCheckedChange={(checked) =>
+                              toggleAgreementMutation.mutate({ id: lender.id, signed: checked })
+                            }
                             data-testid={`table-switch-agreement-${lender.id}`}
                           />
-                          <CheckCircle2 className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`} />
+                          <CheckCircle2
+                            className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`}
+                          />
                         </div>
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -807,11 +857,12 @@ export default function Lenders() {
       </main>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden" data-testid="dialog-lender">
+        <DialogContent
+          className="max-w-4xl max-h-[90vh] overflow-hidden"
+          data-testid="dialog-lender"
+        >
           <DialogHeader>
-            <DialogTitle>
-              {editingLender ? "Edit Lender" : "Add New Lender"}
-            </DialogTitle>
+            <DialogTitle>{editingLender ? "Edit Lender" : "Add New Lender"}</DialogTitle>
             <DialogDescription>
               {editingLender
                 ? "Update lender information and criteria"
@@ -828,7 +879,7 @@ export default function Lenders() {
                     <TabsTrigger value="contacts">Contacts</TabsTrigger>
                     <TabsTrigger value="notes">Notes & Rating</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="basic" className="space-y-4 mt-4">
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -873,7 +924,7 @@ export default function Lenders() {
                         )}
                       />
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
@@ -949,7 +1000,10 @@ export default function Lenders() {
                               onClick={() => {
                                 const current = form.getValues("productTypes") || [];
                                 if (isSelected) {
-                                  form.setValue("productTypes", current.filter(p => p !== product));
+                                  form.setValue(
+                                    "productTypes",
+                                    current.filter((p) => p !== product)
+                                  );
                                 } else {
                                   form.setValue("productTypes", [...current, product]);
                                 }
@@ -962,7 +1016,7 @@ export default function Lenders() {
                       </div>
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="criteria" className="space-y-4 mt-4">
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -1130,7 +1184,10 @@ export default function Lenders() {
                               onClick={() => {
                                 const current = form.getValues("sectors") || [];
                                 if (isSelected) {
-                                  form.setValue("sectors", current.filter(s => s !== sector));
+                                  form.setValue(
+                                    "sectors",
+                                    current.filter((s) => s !== sector)
+                                  );
                                 } else {
                                   form.setValue("sectors", [...current, sector]);
                                 }
@@ -1156,7 +1213,10 @@ export default function Lenders() {
                               onClick={() => {
                                 const current = form.getValues("regions") || [];
                                 if (isSelected) {
-                                  form.setValue("regions", current.filter(r => r !== region));
+                                  form.setValue(
+                                    "regions",
+                                    current.filter((r) => r !== region)
+                                  );
                                 } else {
                                   form.setValue("regions", [...current, region]);
                                 }
@@ -1169,7 +1229,7 @@ export default function Lenders() {
                       </div>
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="contacts" className="space-y-4 mt-4">
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -1276,7 +1336,7 @@ export default function Lenders() {
                       )}
                     />
                   </TabsContent>
-                  
+
                   <TabsContent value="notes" className="space-y-4 mt-4">
                     <FormField
                       control={form.control}
@@ -1433,15 +1493,12 @@ export default function Lenders() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Lender?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete{" "}
-              <strong>{deletingLender?.institutionName}</strong>? This action cannot be
-              undone.
+              Are you sure you want to delete <strong>{deletingLender?.institutionName}</strong>?
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingLender && deleteMutation.mutate(deletingLender.id)}
               disabled={deleteMutation.isPending}

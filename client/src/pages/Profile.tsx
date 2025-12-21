@@ -1,15 +1,54 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useState } from "react";
-import { Crown, Mail, Calendar, TrendingUp, CreditCard, CheckCircle, Loader2, Users, Briefcase, Shield, UserCog, ArrowLeft, ShoppingBag, Package, Plus, History } from "lucide-react";
+import {
+  Crown,
+  Mail,
+  Calendar,
+  TrendingUp,
+  CreditCard,
+  CheckCircle,
+  Loader2,
+  Users,
+  Briefcase,
+  Shield,
+  UserCog,
+  ArrowLeft,
+  ShoppingBag,
+  Package,
+  Plus,
+  History,
+} from "lucide-react";
 import { useLocation } from "wouter";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Profile() {
@@ -115,7 +154,8 @@ export default function Profile() {
     onError: (error: any) => {
       toast({
         title: "Subscription Unavailable",
-        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
+        description:
+          error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },
@@ -123,12 +163,16 @@ export default function Profile() {
 
   const cancelSubscriptionMutation = useMutation({
     mutationFn: async () => {
-      throw new Error("Subscription management is temporarily unavailable. Please contact support.");
+      throw new Error(
+        "Subscription management is temporarily unavailable. Please contact support."
+      );
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Subscription management is temporarily unavailable. Please contact support.",
+        description:
+          error.message ||
+          "Subscription management is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },
@@ -216,15 +260,12 @@ export default function Profile() {
   return (
     <div className="container max-w-6xl mx-auto p-6 space-y-6 pb-24">
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/")}
-          data-testid="button-back"
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate("/")} data-testid="button-back">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-3xl font-bold" data-testid="heading-profile">Profile & Subscription</h1>
+        <h1 className="text-3xl font-bold" data-testid="heading-profile">
+          Profile & Subscription
+        </h1>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -281,7 +322,9 @@ export default function Profile() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Price</span>
-              <span className="font-semibold" data-testid="text-current-price">{currentTierInfo.price}</span>
+              <span className="font-semibold" data-testid="text-current-price">
+                {currentTierInfo.price}
+              </span>
             </div>
             <Separator />
             <div className="space-y-2">
@@ -322,27 +365,35 @@ export default function Profile() {
             <Users className="h-5 w-5" />
             Role Switcher
           </CardTitle>
-          <CardDescription>Switch between roles for testing (in production, only admins can change roles)</CardDescription>
+          <CardDescription>
+            Switch between roles for testing (in production, only admins can change roles)
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              {roleData?.role === 'super_admin' && <Shield className="h-5 w-5 text-red-500" />}
-              {roleData?.role === 'sales_admin' && <UserCog className="h-5 w-5 text-orange-500" />}
-              {roleData?.role === 'broker' && <Briefcase className="h-5 w-5 text-primary" />}
-              {roleData?.role === 'underwriter' && <Users className="h-5 w-5 text-purple-500" />}
+              {roleData?.role === "super_admin" && <Shield className="h-5 w-5 text-red-500" />}
+              {roleData?.role === "sales_admin" && <UserCog className="h-5 w-5 text-orange-500" />}
+              {roleData?.role === "broker" && <Briefcase className="h-5 w-5 text-primary" />}
+              {roleData?.role === "underwriter" && <Users className="h-5 w-5 text-purple-500" />}
               <div>
-                <p className="font-medium">Current Role: {roleData?.role?.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+                <p className="font-medium">
+                  Current Role:{" "}
+                  {roleData?.role?.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  {roleData?.role === 'super_admin' && 'Full platform access, manage users and teams'}
-                  {roleData?.role === 'sales_admin' && 'Team-level prospect oversight and management'}
-                  {roleData?.role === 'broker' && 'Manage prospects and submit for review'}
-                  {roleData?.role === 'underwriter' && 'Review and approve underwriting submissions'}
+                  {roleData?.role === "super_admin" &&
+                    "Full platform access, manage users and teams"}
+                  {roleData?.role === "sales_admin" &&
+                    "Team-level prospect oversight and management"}
+                  {roleData?.role === "broker" && "Manage prospects and submit for review"}
+                  {roleData?.role === "underwriter" &&
+                    "Review and approve underwriting submissions"}
                 </p>
               </div>
             </div>
             <Select
-              value={roleData?.role || 'broker'}
+              value={roleData?.role || "broker"}
               onValueChange={(value) => switchRoleMutation.mutate(value)}
               disabled={switchRoleMutation.isPending}
             >
@@ -398,7 +449,9 @@ export default function Profile() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-xl">Standard</CardTitle>
-                    <div className="text-3xl font-bold">£29<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                    <div className="text-3xl font-bold">
+                      £29<span className="text-sm font-normal text-muted-foreground">/month</span>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {tierInfo.standard.features.map((feature, i) => (
@@ -428,7 +481,9 @@ export default function Profile() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-xl">Premium</CardTitle>
-                  <div className="text-3xl font-bold">£49<span className="text-sm font-normal text-muted-foreground">/month</span></div>
+                  <div className="text-3xl font-bold">
+                    £49<span className="text-sm font-normal text-muted-foreground">/month</span>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {tierInfo.premium.features.map((feature, i) => (
@@ -481,7 +536,9 @@ export default function Profile() {
                   <p className="text-sm text-muted-foreground">From purchased add-on packs</p>
                 </div>
               </div>
-              <Badge className="text-lg px-4 py-1" data-testid="badge-credits">{creditsData.credits}</Badge>
+              <Badge className="text-lg px-4 py-1" data-testid="badge-credits">
+                {creditsData.credits}
+              </Badge>
             </div>
           )}
 
@@ -493,7 +550,11 @@ export default function Profile() {
           ) : addOnProducts && addOnProducts.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {addOnProducts.map((product) => (
-                <Card key={product.id} className="relative" data-testid={`card-product-${product.id}`}>
+                <Card
+                  key={product.id}
+                  className="relative"
+                  data-testid={`card-product-${product.id}`}
+                >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-lg">{product.title}</CardTitle>
@@ -555,7 +616,8 @@ export default function Profile() {
           {!user?.gocardlessMandateId && (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                <strong>Payment method required:</strong> Set up a subscription first to enable one-click purchases.
+                <strong>Payment method required:</strong> Set up a subscription first to enable
+                one-click purchases.
               </p>
             </div>
           )}
@@ -619,8 +681,10 @@ export default function Profile() {
             <AlertDialogTitle>Confirm Upgrade</AlertDialogTitle>
             <AlertDialogDescription>
               You will be redirected to GoCardless to set up your Direct Debit payment for the{" "}
-              <span className="font-semibold">{selectedTier === "standard" ? "Standard" : "Premium"}</span> plan.
-              Your subscription will start immediately after authorization.
+              <span className="font-semibold">
+                {selectedTier === "standard" ? "Standard" : "Premium"}
+              </span>{" "}
+              plan. Your subscription will start immediately after authorization.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -637,12 +701,14 @@ export default function Profile() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Subscription</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel your subscription? You will be downgraded to the Free tier
-              and your prospect limit will be reduced to 10.
+              Are you sure you want to cancel your subscription? You will be downgraded to the Free
+              tier and your prospect limit will be reduced to 10.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-cancellation">No, Keep Subscription</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-cancellation">
+              No, Keep Subscription
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmCancellation}
               data-testid="button-confirm-cancellation"
@@ -662,12 +728,24 @@ export default function Profile() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to purchase <span className="font-semibold">{selectedProduct?.title}</span> for{" "}
-              <span className="font-semibold">£{selectedProduct ? (selectedProduct.priceInPence / 100).toFixed(2) : "0.00"}</span>.
+              You are about to purchase{" "}
+              <span className="font-semibold">{selectedProduct?.title}</span> for{" "}
+              <span className="font-semibold">
+                £{selectedProduct ? (selectedProduct.priceInPence / 100).toFixed(2) : "0.00"}
+              </span>
+              .
               {selectedProduct?.category === "prospects" && selectedProduct?.quantityIncluded && (
-                <> This will add <span className="font-semibold">{selectedProduct.quantityIncluded} prospect credits</span> to your account.</>
+                <>
+                  {" "}
+                  This will add{" "}
+                  <span className="font-semibold">
+                    {selectedProduct.quantityIncluded} prospect credits
+                  </span>{" "}
+                  to your account.
+                </>
               )}
-              <br /><br />
+              <br />
+              <br />
               The payment will be collected via your existing Direct Debit mandate.
             </AlertDialogDescription>
           </AlertDialogHeader>

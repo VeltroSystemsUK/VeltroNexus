@@ -2,11 +2,29 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  TrendingUp, Building2, Users, FileCheck, Shield, BarChart3,
-  Zap, Brain, CheckCircle2, ArrowRight, Sparkles, Clock, 
-  LineChart, Lock, Layers, Bot, FileText, CreditCard,
-  ChevronRight, Star, Target, Workflow
+import {
+  TrendingUp,
+  Building2,
+  Users,
+  FileCheck,
+  Shield,
+  BarChart3,
+  Zap,
+  Brain,
+  CheckCircle2,
+  ArrowRight,
+  Sparkles,
+  Clock,
+  LineChart,
+  Lock,
+  Layers,
+  Bot,
+  FileText,
+  CreditCard,
+  ChevronRight,
+  Star,
+  Target,
+  Workflow,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
@@ -47,7 +65,7 @@ function useCountUp(end: number, duration: number = 2000, startOnView: boolean =
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const progress = Math.min((timestamp - startTime) / duration, 1);
-      
+
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
       setCount(Math.floor(easeOutQuart * end));
 
@@ -80,19 +98,27 @@ function StatsSection() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
           <div className="text-center" ref={stat1.ref}>
             <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat1.count}x</div>
-            <p className="text-sm md:text-base text-muted-foreground font-medium">Faster Processing</p>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">
+              Faster Processing
+            </p>
           </div>
           <div className="text-center" ref={stat2.ref}>
             <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat2.count}%</div>
-            <p className="text-sm md:text-base text-muted-foreground font-medium">Automation Rate</p>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">
+              Automation Rate
+            </p>
           </div>
           <div className="text-center" ref={stat3.ref}>
             <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat3.count}s</div>
-            <p className="text-sm md:text-base text-muted-foreground font-medium">AI Credit Decisions</p>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">
+              AI Credit Decisions
+            </p>
           </div>
           <div className="text-center" ref={stat4.ref}>
             <div className="text-4xl md:text-5xl font-bold text-primary mb-3">{stat4.count}/7</div>
-            <p className="text-sm md:text-base text-muted-foreground font-medium">Automated Workflow</p>
+            <p className="text-sm md:text-base text-muted-foreground font-medium">
+              Automated Workflow
+            </p>
           </div>
         </div>
       </div>
@@ -114,12 +140,29 @@ export default function Landing() {
             <div className="h-10 w-10 bg-primary rounded-md flex items-center justify-center">
               <TrendingUp className="h-6 w-6 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold" data-testid="text-app-title">FlowLoan</h1>
+            <h1 className="text-2xl font-bold" data-testid="text-app-title">
+              FlowLoan
+            </h1>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold">Features</a>
-            <a href="#ai-powered" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold">AI Automation</a>
-            <a href="#workflow" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold">Workflow</a>
+            <a
+              href="#features"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold"
+            >
+              Features
+            </a>
+            <a
+              href="#ai-powered"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold"
+            >
+              AI Automation
+            </a>
+            <a
+              href="#workflow"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold"
+            >
+              Workflow
+            </a>
           </nav>
           <div className="flex items-center gap-2">
             <Link href="/pricing">
@@ -127,7 +170,12 @@ export default function Landing() {
                 Pricing
               </Button>
             </Link>
-            <Button variant="ghost" className="font-semibold" onClick={handleLogin} data-testid="button-sign-in">
+            <Button
+              variant="ghost"
+              className="font-semibold"
+              onClick={handleLogin}
+              data-testid="button-sign-in"
+            >
               Sign In
             </Button>
             <Button className="font-semibold" onClick={handleLogin} data-testid="button-sign-up">
@@ -142,29 +190,46 @@ export default function Landing() {
         <section className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-50" />
-          
+
           <div className="container mx-auto px-6 md:px-8 py-16 md:py-24 lg:py-32 relative">
             <div className="max-w-4xl mx-auto text-center">
               <Badge variant="secondary" className="mb-8 px-4 py-2">
                 <Sparkles className="h-4 w-4 mr-2" />
                 <span className="text-sm font-medium">Commercial Lending Workflow Platform</span>
               </Badge>
-              
-              <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight" data-testid="text-hero-title">
-                Better Decisions.{" "}
-                <span className="text-primary">Faster Outcomes.</span>
+
+              <h2
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight"
+                data-testid="text-hero-title"
+              >
+                Better Decisions. <span className="text-primary">Faster Outcomes.</span>
               </h2>
-              
-              <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed" data-testid="text-hero-description">
-                AI-assisted tools for credit analysis, risk assessment, and document processing — empowering commercial finance brokers to prioritize better sales opportunities.
+
+              <p
+                className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed"
+                data-testid="text-hero-description"
+              >
+                AI-assisted tools for credit analysis, risk assessment, and document processing —
+                empowering commercial finance brokers to prioritize better sales opportunities.
               </p>
-              
+
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-                <Button size="lg" onClick={handleLogin} className="gap-2 text-base px-8 h-12 font-semibold" data-testid="button-get-started">
+                <Button
+                  size="lg"
+                  onClick={handleLogin}
+                  className="gap-2 text-base px-8 h-12 font-semibold"
+                  data-testid="button-get-started"
+                >
                   Start Free Trial
                   <ArrowRight className="h-5 w-5" />
                 </Button>
-                <Button size="lg" variant="outline" onClick={handleLogin} className="gap-2 h-12 font-medium" data-testid="button-demo">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={handleLogin}
+                  className="gap-2 h-12 font-medium"
+                  data-testid="button-demo"
+                >
                   <Bot className="h-5 w-5" />
                   See AI in Action
                 </Button>
@@ -203,7 +268,8 @@ export default function Landing() {
               AI Tools That Support Your Decisions
             </h3>
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              AI assists with credit analysis, document processing, and risk assessment. You review the outputs and make the final call — combining speed with human judgement.
+              AI assists with credit analysis, document processing, and risk assessment. You review
+              the outputs and make the final call — combining speed with human judgement.
             </p>
           </div>
 
@@ -216,7 +282,8 @@ export default function Landing() {
                 </div>
                 <h4 className="text-lg md:text-xl font-semibold mb-3">AI Credit Underwriting</h4>
                 <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed">
-                  Machine learning analyzes bank statements, financial data, and company profiles to deliver instant credit recommendations.
+                  Machine learning analyzes bank statements, financial data, and company profiles to
+                  deliver instant credit recommendations.
                 </p>
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-center gap-3">
@@ -243,7 +310,8 @@ export default function Landing() {
                 </div>
                 <h4 className="text-lg md:text-xl font-semibold mb-3">Smart Document Analysis</h4>
                 <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed">
-                  Upload bank statements and financial documents. Our AI extracts key metrics and flags anomalies automatically.
+                  Upload bank statements and financial documents. Our AI extracts key metrics and
+                  flags anomalies automatically.
                 </p>
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-center gap-3">
@@ -270,7 +338,8 @@ export default function Landing() {
                 </div>
                 <h4 className="text-lg md:text-xl font-semibold mb-3">Adverse Media Search</h4>
                 <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed">
-                  AI-powered web search scans for adverse media, legal issues, and reputational risks associated with borrowers.
+                  AI-powered web search scans for adverse media, legal issues, and reputational
+                  risks associated with borrowers.
                 </p>
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-center gap-3">
@@ -303,24 +372,25 @@ export default function Landing() {
                 Visual Pipeline Management
               </h3>
               <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                Drag-and-drop your prospects through 9 customizable stages. See exactly where every deal stands at a glance.
+                Drag-and-drop your prospects through 9 customizable stages. See exactly where every
+                deal stands at a glance.
               </p>
             </div>
 
             <div className="flex flex-wrap justify-center gap-3 mb-12 md:mb-16">
               {[
-                { stage: 'Lead', color: 'bg-slate-500 dark:bg-slate-600' },
-                { stage: 'Contacted', color: 'bg-blue-500 dark:bg-blue-600' },
-                { stage: 'Qualified', color: 'bg-indigo-500 dark:bg-indigo-600' },
-                { stage: 'Proposal', color: 'bg-violet-500 dark:bg-violet-600' },
-                { stage: 'Due Diligence', color: 'bg-purple-500 dark:bg-purple-600' },
-                { stage: 'Approval', color: 'bg-amber-500 dark:bg-amber-600' },
-                { stage: 'Approved', color: 'bg-green-500 dark:bg-green-600' },
-                { stage: 'Declined', color: 'bg-red-500 dark:bg-red-600' },
-                { stage: 'Withdrawn', color: 'bg-gray-400 dark:bg-gray-500' },
+                { stage: "Lead", color: "bg-slate-500 dark:bg-slate-600" },
+                { stage: "Contacted", color: "bg-blue-500 dark:bg-blue-600" },
+                { stage: "Qualified", color: "bg-indigo-500 dark:bg-indigo-600" },
+                { stage: "Proposal", color: "bg-violet-500 dark:bg-violet-600" },
+                { stage: "Due Diligence", color: "bg-purple-500 dark:bg-purple-600" },
+                { stage: "Approval", color: "bg-amber-500 dark:bg-amber-600" },
+                { stage: "Approved", color: "bg-green-500 dark:bg-green-600" },
+                { stage: "Declined", color: "bg-red-500 dark:bg-red-600" },
+                { stage: "Withdrawn", color: "bg-gray-400 dark:bg-gray-500" },
               ].map(({ stage, color }, i) => (
                 <div key={stage} className="flex items-center gap-2">
-                  <Badge 
+                  <Badge
                     className={`whitespace-nowrap inline-flex items-center rounded-md border px-3 py-1 font-medium transition-colors border-transparent text-white shadow-sm text-xs ${color}`}
                   >
                     {stage}
@@ -398,7 +468,8 @@ export default function Landing() {
               Everything You Need to Scale
             </h3>
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Built specifically for commercial lending teams. No bloat, no complexity — just powerful tools that work.
+              Built specifically for commercial lending teams. No bloat, no complexity — just
+              powerful tools that work.
             </p>
           </div>
 
@@ -489,7 +560,8 @@ export default function Landing() {
                 Broker & Underwriter Collaboration
               </h3>
               <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                Streamlined internal credit review with dedicated queues, two-way messaging, and complete audit trails.
+                Streamlined internal credit review with dedicated queues, two-way messaging, and
+                complete audit trails.
               </p>
             </div>
 
@@ -508,19 +580,27 @@ export default function Landing() {
                   <ul className="space-y-4">
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Submit prospects for internal underwriting review</span>
+                      <span className="text-sm leading-relaxed">
+                        Submit prospects for internal underwriting review
+                      </span>
                     </li>
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Set priority levels and add submission notes</span>
+                      <span className="text-sm leading-relaxed">
+                        Set priority levels and add submission notes
+                      </span>
                     </li>
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Reply to underwriter queries with attachments</span>
+                      <span className="text-sm leading-relaxed">
+                        Reply to underwriter queries with attachments
+                      </span>
                     </li>
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Track submission status with visual badges</span>
+                      <span className="text-sm leading-relaxed">
+                        Track submission status with visual badges
+                      </span>
                     </li>
                   </ul>
                 </CardContent>
@@ -540,19 +620,27 @@ export default function Landing() {
                   <ul className="space-y-4">
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Dedicated inbox with prioritized submission queue</span>
+                      <span className="text-sm leading-relaxed">
+                        Dedicated inbox with prioritized submission queue
+                      </span>
                     </li>
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Claim cases and manage workload efficiently</span>
+                      <span className="text-sm leading-relaxed">
+                        Claim cases and manage workload efficiently
+                      </span>
                     </li>
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Query brokers for additional information</span>
+                      <span className="text-sm leading-relaxed">
+                        Query brokers for additional information
+                      </span>
                     </li>
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm leading-relaxed">Approve, Decline, Query, or Withdraw</span>
+                      <span className="text-sm leading-relaxed">
+                        Approve, Decline, Query, or Withdraw
+                      </span>
                     </li>
                   </ul>
                 </CardContent>
@@ -574,7 +662,8 @@ export default function Landing() {
                   Bank-Grade Security & Compliance
                 </h3>
                 <p className="text-base md:text-lg text-muted-foreground mb-8 leading-relaxed">
-                  Your data is protected with enterprise-grade security. Full audit trails, role-based access, and GDPR compliance built-in.
+                  Your data is protected with enterprise-grade security. Full audit trails,
+                  role-based access, and GDPR compliance built-in.
                 </p>
                 <ul className="space-y-4">
                   <li className="flex items-center gap-4">
@@ -647,7 +736,8 @@ export default function Landing() {
                 ))}
               </div>
               <blockquote className="text-xl md:text-2xl lg:text-3xl font-medium mb-6 leading-relaxed">
-                "FlowLoan transformed how we manage our lending pipeline. The AI credit underwriting alone saves us hours every week."
+                "FlowLoan transformed how we manage our lending pipeline. The AI credit underwriting
+                alone saves us hours every week."
               </blockquote>
               <p className="text-primary-foreground/80 text-base">
                 — Commercial Finance Broker, UK
@@ -667,10 +757,16 @@ export default function Landing() {
               Ready to Transform Your Lending Workflow?
             </h3>
             <p className="text-base md:text-lg text-muted-foreground mb-10 leading-relaxed">
-              Start with 10 free prospects. No credit card required. Upgrade anytime to unlock AI-powered credit underwriting.
+              Start with 10 free prospects. No credit card required. Upgrade anytime to unlock
+              AI-powered credit underwriting.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" onClick={handleLogin} className="gap-2 text-base px-8 h-12 font-semibold" data-testid="button-sign-up-cta">
+              <Button
+                size="lg"
+                onClick={handleLogin}
+                className="gap-2 text-base px-8 h-12 font-semibold"
+                data-testid="button-sign-up-cta"
+              >
                 Start Free Trial
                 <ArrowRight className="h-5 w-5" />
               </Button>
@@ -695,14 +791,18 @@ export default function Landing() {
             </div>
             <div className="flex items-center gap-8 text-sm text-muted-foreground">
               <Link href="/pricing">
-                <span className="hover:text-foreground transition-colors cursor-pointer font-medium">Pricing</span>
+                <span className="hover:text-foreground transition-colors cursor-pointer font-medium">
+                  Pricing
+                </span>
               </Link>
-              <span className="hover:text-foreground transition-colors cursor-pointer">Privacy Policy</span>
-              <span className="hover:text-foreground transition-colors cursor-pointer">Terms of Service</span>
+              <span className="hover:text-foreground transition-colors cursor-pointer">
+                Privacy Policy
+              </span>
+              <span className="hover:text-foreground transition-colors cursor-pointer">
+                Terms of Service
+              </span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              © 2024 FlowLoan. All rights reserved.
-            </p>
+            <p className="text-sm text-muted-foreground">© 2024 FlowLoan. All rights reserved.</p>
           </div>
         </div>
       </footer>

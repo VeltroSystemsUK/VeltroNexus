@@ -27,19 +27,76 @@ interface ProspectLimitModalProps {
 
 const valuePackages = {
   free: [
-    { id: "free-10", name: "10 Extra Prospects", prospects: 10, price: 15, pricePerProspect: "£1.50" },
-    { id: "free-25", name: "25 Extra Prospects", prospects: 25, price: 30, pricePerProspect: "£1.20", popular: true },
-    { id: "free-50", name: "50 Extra Prospects", prospects: 50, price: 50, pricePerProspect: "£1.00" },
+    {
+      id: "free-10",
+      name: "10 Extra Prospects",
+      prospects: 10,
+      price: 15,
+      pricePerProspect: "£1.50",
+    },
+    {
+      id: "free-25",
+      name: "25 Extra Prospects",
+      prospects: 25,
+      price: 30,
+      pricePerProspect: "£1.20",
+      popular: true,
+    },
+    {
+      id: "free-50",
+      name: "50 Extra Prospects",
+      prospects: 50,
+      price: 50,
+      pricePerProspect: "£1.00",
+    },
   ],
   starter: [
-    { id: "starter-10", name: "10 Extra Prospects", prospects: 10, price: 10, pricePerProspect: "£1.00" },
-    { id: "starter-30", name: "30 Extra Prospects", prospects: 30, price: 25, pricePerProspect: "£0.83", popular: true },
-    { id: "starter-100", name: "100 Extra Prospects", prospects: 100, price: 49, pricePerProspect: "£0.49" },
+    {
+      id: "starter-10",
+      name: "10 Extra Prospects",
+      prospects: 10,
+      price: 10,
+      pricePerProspect: "£1.00",
+    },
+    {
+      id: "starter-30",
+      name: "30 Extra Prospects",
+      prospects: 30,
+      price: 25,
+      pricePerProspect: "£0.83",
+      popular: true,
+    },
+    {
+      id: "starter-100",
+      name: "100 Extra Prospects",
+      prospects: 100,
+      price: 49,
+      pricePerProspect: "£0.49",
+    },
   ],
   team: [
-    { id: "team-100", name: "100 Extra Prospects", prospects: 100, price: 50, pricePerProspect: "£0.50" },
-    { id: "team-250", name: "250 Extra Prospects", prospects: 250, price: 75, pricePerProspect: "£0.30", popular: true },
-    { id: "team-500", name: "500 Extra Prospects", prospects: 500, price: 99, pricePerProspect: "£0.20" },
+    {
+      id: "team-100",
+      name: "100 Extra Prospects",
+      prospects: 100,
+      price: 50,
+      pricePerProspect: "£0.50",
+    },
+    {
+      id: "team-250",
+      name: "250 Extra Prospects",
+      prospects: 250,
+      price: 75,
+      pricePerProspect: "£0.30",
+      popular: true,
+    },
+    {
+      id: "team-500",
+      name: "500 Extra Prospects",
+      prospects: 500,
+      price: 99,
+      pricePerProspect: "£0.20",
+    },
   ],
 };
 
@@ -58,10 +115,11 @@ export default function ProspectLimitModal({
 }: ProspectLimitModalProps) {
   const { toast } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
-  
-  const packages = valuePackages[subscriptionTier as keyof typeof valuePackages] || valuePackages.free;
+
+  const packages =
+    valuePackages[subscriptionTier as keyof typeof valuePackages] || valuePackages.free;
   const upgrade = upgradeOptions[subscriptionTier as keyof typeof upgradeOptions];
-  
+
   const usagePercent = Math.min((currentCount / limit) * 100, 100);
   const isAtLimit = currentCount >= limit;
   const overLimit = currentCount - limit;
@@ -73,7 +131,8 @@ export default function ProspectLimitModal({
     onError: (error: Error) => {
       toast({
         title: "Payment Unavailable",
-        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
+        description:
+          error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },
@@ -113,7 +172,7 @@ export default function ProspectLimitModal({
               <Progress value={usagePercent} className="h-2" />
               {isAtLimit && overLimit > 0 && (
                 <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                  You have {overLimit} prospect{overLimit > 1 ? 's' : ''} over your limit
+                  You have {overLimit} prospect{overLimit > 1 ? "s" : ""} over your limit
                 </p>
               )}
             </CardContent>
@@ -126,10 +185,10 @@ export default function ProspectLimitModal({
             </h3>
             <div className="grid gap-3">
               {packages.map((pkg) => (
-                <Card 
-                  key={pkg.id} 
+                <Card
+                  key={pkg.id}
                   className={`cursor-pointer transition-all hover-elevate ${
-                    pkg.popular ? 'border-primary' : ''
+                    pkg.popular ? "border-primary" : ""
                   }`}
                   onClick={() => handlePurchasePackage(pkg.id)}
                   data-testid={`button-package-${pkg.id}`}
@@ -144,7 +203,9 @@ export default function ProspectLimitModal({
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{pkg.name}</span>
                             {pkg.popular && (
-                              <Badge variant="secondary" className="text-xs">Best Value</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                Best Value
+                              </Badge>
                             )}
                           </div>
                           <span className="text-sm text-muted-foreground">
@@ -166,7 +227,7 @@ export default function ProspectLimitModal({
           {upgrade && (
             <>
               <Separator />
-              
+
               <div className="space-y-4">
                 <h3 className="font-semibold flex items-center gap-2">
                   <Zap className="h-4 w-4" />
@@ -226,7 +287,11 @@ export default function ProspectLimitModal({
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-close-limit-modal">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              data-testid="button-close-limit-modal"
+            >
               Close
             </Button>
             <Link href="/value-packages">

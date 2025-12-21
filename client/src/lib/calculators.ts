@@ -32,7 +32,7 @@ export function calculateLoan(
   termMonths: number
 ): LoanCalculation {
   const facilityFee = loanAmount * 0.035;
-  
+
   if (interestRate === 0) {
     return {
       monthlyPayment: loanAmount / termMonths,
@@ -64,7 +64,7 @@ export function calculateDSCR(
   sensitivityRevenuePercent?: number
 ): DSCRCalculation {
   const dscr = annualNetOperatingIncome / annualDebtService;
-  
+
   let status: "pass" | "warning" | "fail";
   if (dscr >= 1.5) {
     status = "pass";
@@ -77,7 +77,7 @@ export function calculateDSCR(
   if (sensitivityRevenuePercent !== undefined) {
     const adjustedIncome = annualNetOperatingIncome * (1 + sensitivityRevenuePercent / 100);
     const sensitivityDSCR = adjustedIncome / annualDebtService;
-    
+
     let sensitivityStatus: "pass" | "warning" | "fail";
     if (sensitivityDSCR >= 1.5) {
       sensitivityStatus = "pass";

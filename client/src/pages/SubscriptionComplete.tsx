@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function SubscriptionComplete() {
   const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
+  const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -18,11 +18,12 @@ export default function SubscriptionComplete() {
       throw new Error("Payment processing is temporarily unavailable. Please contact support.");
     },
     onError: (error: any) => {
-      setStatus('error');
-      sessionStorage.removeItem('subscription_tier');
+      setStatus("error");
+      sessionStorage.removeItem("subscription_tier");
       toast({
         title: "Subscription Unavailable",
-        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
+        description:
+          error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },
@@ -30,10 +31,10 @@ export default function SubscriptionComplete() {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const billingRequestFlowId = urlParams.get('billing_request_flow_id');
+    const billingRequestFlowId = urlParams.get("billing_request_flow_id");
 
     if (!billingRequestFlowId) {
-      setStatus('error');
+      setStatus("error");
       toast({
         title: "Invalid Request",
         description: "Missing billing request flow information.",
@@ -49,29 +50,28 @@ export default function SubscriptionComplete() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="max-w-md w-full" data-testid="subscription-complete-card">
         <CardHeader className="text-center">
-          {status === 'processing' && (
+          {status === "processing" && (
             <>
               <div className="flex justify-center mb-4">
                 <Loader2 className="w-16 h-16 text-primary animate-spin" />
               </div>
               <CardTitle>Processing Your Subscription</CardTitle>
-              <CardDescription>
-                Please wait while we set up your subscription...
-              </CardDescription>
+              <CardDescription>Please wait while we set up your subscription...</CardDescription>
             </>
           )}
-          {status === 'success' && (
+          {status === "success" && (
             <>
               <div className="flex justify-center mb-4">
                 <CheckCircle className="w-16 h-16 text-green-500" data-testid="icon-success" />
               </div>
               <CardTitle>Subscription Activated!</CardTitle>
               <CardDescription>
-                Your subscription has been successfully activated. You can now access all premium features.
+                Your subscription has been successfully activated. You can now access all premium
+                features.
               </CardDescription>
             </>
           )}
-          {status === 'error' && (
+          {status === "error" && (
             <>
               <div className="flex justify-center mb-4">
                 <XCircle className="w-16 h-16 text-destructive" data-testid="icon-error" />
@@ -84,20 +84,20 @@ export default function SubscriptionComplete() {
           )}
         </CardHeader>
         <CardContent>
-          {status === 'success' && (
+          {status === "success" && (
             <Button
               className="w-full"
-              onClick={() => setLocation('/pipeline')}
+              onClick={() => setLocation("/pipeline")}
               data-testid="button-go-to-pipeline"
             >
               Go to Pipeline
             </Button>
           )}
-          {status === 'error' && (
+          {status === "error" && (
             <div className="space-y-2">
               <Button
                 className="w-full"
-                onClick={() => setLocation('/pricing')}
+                onClick={() => setLocation("/pricing")}
                 data-testid="button-try-again"
               >
                 Try Again
@@ -105,7 +105,7 @@ export default function SubscriptionComplete() {
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => setLocation('/pipeline')}
+                onClick={() => setLocation("/pipeline")}
                 data-testid="button-back-to-pipeline"
               >
                 Back to Pipeline

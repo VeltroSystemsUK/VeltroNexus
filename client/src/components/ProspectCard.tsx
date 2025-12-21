@@ -43,30 +43,55 @@ interface ProspectCardProps {
 
 const priorityColors = {
   high: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 border-red-200 dark:border-red-800",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border-amber-200 dark:border-amber-800",
+  medium:
+    "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border-amber-200 dark:border-amber-800",
   low: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 border-blue-200 dark:border-blue-800",
 };
 
 const stageColors: Record<string, string> = {
-  "lead": "border-l-4 border-l-slate-400 dark:border-l-slate-500",
-  "contacted": "border-l-4 border-l-blue-400 dark:border-l-blue-500",
-  "qualified": "border-l-4 border-l-cyan-400 dark:border-l-cyan-500",
-  "proposal": "border-l-4 border-l-purple-400 dark:border-l-purple-500",
+  lead: "border-l-4 border-l-slate-400 dark:border-l-slate-500",
+  contacted: "border-l-4 border-l-blue-400 dark:border-l-blue-500",
+  qualified: "border-l-4 border-l-cyan-400 dark:border-l-cyan-500",
+  proposal: "border-l-4 border-l-purple-400 dark:border-l-purple-500",
   "due-diligence": "border-l-4 border-l-amber-400 dark:border-l-amber-500",
-  "submission": "border-l-4 border-l-orange-400 dark:border-l-orange-500",
-  "approved": "border-l-4 border-l-green-500 dark:border-l-green-600",
-  "declined": "border-l-4 border-l-red-500 dark:border-l-red-600",
-  "withdrawn": "border-l-4 border-l-gray-400 dark:border-l-gray-500",
+  submission: "border-l-4 border-l-orange-400 dark:border-l-orange-500",
+  approved: "border-l-4 border-l-green-500 dark:border-l-green-600",
+  declined: "border-l-4 border-l-red-500 dark:border-l-red-600",
+  withdrawn: "border-l-4 border-l-gray-400 dark:border-l-gray-500",
 };
 
 // Underwriting status display labels and colors
 const underwritingStatusConfig: Record<string, { label: string; className: string }> = {
-  submitted: { label: "Submitted", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 border-blue-200 dark:border-blue-800" },
-  in_review: { label: "In Review", className: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 border-purple-200 dark:border-purple-800" },
-  queried: { label: "Queried", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border-amber-200 dark:border-amber-800" },
-  approved: { label: "Approved", className: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200 border-green-200 dark:border-green-800" },
-  declined: { label: "Declined", className: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 border-red-200 dark:border-red-800" },
-  withdrawn: { label: "Withdrawn", className: "bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200 border-gray-200 dark:border-gray-800" },
+  submitted: {
+    label: "Submitted",
+    className:
+      "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 border-blue-200 dark:border-blue-800",
+  },
+  in_review: {
+    label: "In Review",
+    className:
+      "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 border-purple-200 dark:border-purple-800",
+  },
+  queried: {
+    label: "Queried",
+    className:
+      "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border-amber-200 dark:border-amber-800",
+  },
+  approved: {
+    label: "Approved",
+    className:
+      "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200 border-green-200 dark:border-green-800",
+  },
+  declined: {
+    label: "Declined",
+    className:
+      "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 border-red-200 dark:border-red-800",
+  },
+  withdrawn: {
+    label: "Withdrawn",
+    className:
+      "bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200 border-gray-200 dark:border-gray-800",
+  },
 };
 
 export default function ProspectCard({
@@ -91,7 +116,7 @@ export default function ProspectCard({
       onClick?.();
     }
   };
-  
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -127,7 +152,7 @@ export default function ProspectCard({
         <div className="flex items-start justify-between mb-3 gap-2">
           <div className="flex items-center gap-1 flex-shrink-0">
             {queuePosition !== undefined && (
-              <div 
+              <div
                 className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold"
                 data-testid={`queue-position-${prospect.id}`}
               >
@@ -144,22 +169,36 @@ export default function ProspectCard({
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-base truncate leading-tight" data-testid={`text-company-name-${prospect.id}`}>
+            <h4
+              className="font-semibold text-base truncate leading-tight"
+              data-testid={`text-company-name-${prospect.id}`}
+            >
               {prospect.companyName}
             </h4>
-            <p className="text-sm text-muted-foreground font-mono mt-1" data-testid={`text-company-number-${prospect.id}`}>
+            <p
+              className="text-sm text-muted-foreground font-mono mt-1"
+              data-testid={`text-company-number-${prospect.id}`}
+            >
               {prospect.companyNumber}
             </p>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="icon" className="h-8 w-8 -mr-1" data-testid={`button-menu-${prospect.id}`}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 -mr-1"
+                data-testid={`button-menu-${prospect.id}`}
+              >
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onClick?.(); }} 
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClick?.();
+                }}
                 className="py-2.5 text-base"
                 data-testid={`menu-view-${prospect.id}`}
               >
@@ -185,7 +224,10 @@ export default function ProspectCard({
         </div>
 
         {prospect.loanAmount && (
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3" data-testid={`text-loan-amount-${prospect.id}`}>
+          <div
+            className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3"
+            data-testid={`text-loan-amount-${prospect.id}`}
+          >
             <Ticket className="h-4 w-4" />
             <span className="font-medium">{formatCurrency(prospect.loanAmount)}</span>
           </div>
@@ -201,7 +243,7 @@ export default function ProspectCard({
               {prospect.priority.charAt(0).toUpperCase() + prospect.priority.slice(1)}
             </Badge>
           )}
-          
+
           {underwritingStatus && (
             <Badge
               variant="outline"
@@ -212,7 +254,7 @@ export default function ProspectCard({
               {underwritingStatusConfig[underwritingStatus.status]?.label || "Submitted"}
             </Badge>
           )}
-          
+
           {isSubmissionStage && (
             <Button
               size="sm"
@@ -229,7 +271,7 @@ export default function ProspectCard({
           )}
         </div>
       </CardContent>
-      
+
       <SubmitApplicationDialog
         open={submitDialogOpen}
         onOpenChange={setSubmitDialogOpen}

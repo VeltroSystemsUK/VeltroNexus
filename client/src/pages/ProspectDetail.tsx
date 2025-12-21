@@ -8,8 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,12 +36,42 @@ import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { 
-  ArrowLeft, Building2, PoundSterling, Calendar, Target,
-  Users, FileText, TrendingUp, CheckSquare, Calculator,
-  Mail, Phone, User, Plus, Trash2, Edit2, Save, X, AlertCircle, FileDown,
-  Network, Search, ExternalLink, Loader2, UserPlus, RefreshCw, Pencil, Send,
-  CheckCircle2, XCircle, MessageSquare, Clock, Reply, ClipboardList, Shield
+import {
+  ArrowLeft,
+  Building2,
+  PoundSterling,
+  Calendar,
+  Target,
+  Users,
+  FileText,
+  TrendingUp,
+  CheckSquare,
+  Calculator,
+  Mail,
+  Phone,
+  User,
+  Plus,
+  Trash2,
+  Edit2,
+  Save,
+  X,
+  AlertCircle,
+  FileDown,
+  Network,
+  Search,
+  ExternalLink,
+  Loader2,
+  UserPlus,
+  RefreshCw,
+  Pencil,
+  Send,
+  CheckCircle2,
+  XCircle,
+  MessageSquare,
+  Clock,
+  Reply,
+  ClipboardList,
+  Shield,
 } from "lucide-react";
 import {
   Dialog,
@@ -43,7 +84,15 @@ import {
 } from "@/components/ui/dialog";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect, useRef, useMemo } from "react";
-import type { Prospect, ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData, UnderwritingSubmission } from "@shared/schema";
+import type {
+  Prospect,
+  ProspectWithCompany,
+  Contact,
+  Activity,
+  DueDiligence,
+  DueDiligenceData,
+  UnderwritingSubmission,
+} from "@shared/schema";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
@@ -78,15 +127,21 @@ const STAGES = [
 
 const priorityConfig = {
   high: { badge: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", dot: "bg-red-500" },
-  medium: { badge: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", dot: "bg-amber-500" },
-  low: { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", dot: "bg-blue-500" },
+  medium: {
+    badge: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+    dot: "bg-amber-500",
+  },
+  low: {
+    badge: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    dot: "bg-blue-500",
+  },
 };
 
-function UnderwritingStatusBanner({ 
-  submission, 
-  onReplyClick 
-}: { 
-  submission: UnderwritingSubmission; 
+function UnderwritingStatusBanner({
+  submission,
+  onReplyClick,
+}: {
+  submission: UnderwritingSubmission;
   onReplyClick?: () => void;
 }) {
   const [showConversation, setShowConversation] = useState(false);
@@ -107,12 +162,15 @@ function UnderwritingStatusBanner({
 
     setIsSendingMessage(true);
     try {
-      const response = await fetch(`/api/underwriting/submissions/${submission.id}/broker-message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageText }),
-        credentials: "include",
-      });
+      const response = await fetch(
+        `/api/underwriting/submissions/${submission.id}/broker-message`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: messageText }),
+          credentials: "include",
+        }
+      );
 
       if (!response.ok) {
         const data = await response.json();
@@ -123,12 +181,14 @@ function UnderwritingStatusBanner({
         title: "Message Sent",
         description: "Your message has been sent to the underwriter.",
       });
-      
+
       setMessageText("");
       setShowMessageDialog(false);
-      
+
       // Invalidate activities query to refresh conversation
-      queryClient.invalidateQueries({ queryKey: [`/api/underwriting/submissions/${submission.id}/activities`] });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/underwriting/submissions/${submission.id}/activities`],
+      });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -139,14 +199,24 @@ function UnderwritingStatusBanner({
       setIsSendingMessage(false);
     }
   };
-  const statusConfig: Record<string, { bg: string; border: string; icon: typeof Clock; iconColor: string; title: string; description: string }> = {
+  const statusConfig: Record<
+    string,
+    {
+      bg: string;
+      border: string;
+      icon: typeof Clock;
+      iconColor: string;
+      title: string;
+      description: string;
+    }
+  > = {
     submitted: {
       bg: "bg-blue-50 dark:bg-blue-950",
       border: "border-blue-200 dark:border-blue-800",
       icon: Clock,
       iconColor: "text-blue-600 dark:text-blue-400",
       title: "Submitted for Review",
-      description: "This prospect has been submitted to the underwriting team for review."
+      description: "This prospect has been submitted to the underwriting team for review.",
     },
     in_review: {
       bg: "bg-amber-50 dark:bg-amber-950",
@@ -154,7 +224,7 @@ function UnderwritingStatusBanner({
       icon: FileText,
       iconColor: "text-amber-600 dark:text-amber-400",
       title: "Under Review",
-      description: "An underwriter is currently reviewing this submission."
+      description: "An underwriter is currently reviewing this submission.",
     },
     queried: {
       bg: "bg-purple-50 dark:bg-purple-950",
@@ -162,7 +232,7 @@ function UnderwritingStatusBanner({
       icon: MessageSquare,
       iconColor: "text-purple-600 dark:text-purple-400",
       title: "Query from Underwriter",
-      description: "The underwriter has requested additional information."
+      description: "The underwriter has requested additional information.",
     },
     approved: {
       bg: "bg-green-50 dark:bg-green-950",
@@ -170,7 +240,7 @@ function UnderwritingStatusBanner({
       icon: CheckCircle2,
       iconColor: "text-green-600 dark:text-green-400",
       title: "Approved",
-      description: "This submission has been approved by the underwriting team."
+      description: "This submission has been approved by the underwriting team.",
     },
     declined: {
       bg: "bg-red-50 dark:bg-red-950",
@@ -178,7 +248,7 @@ function UnderwritingStatusBanner({
       icon: XCircle,
       iconColor: "text-red-600 dark:text-red-400",
       title: "Declined",
-      description: "This submission has been declined by the underwriting team."
+      description: "This submission has been declined by the underwriting team.",
     },
     withdrawn: {
       bg: "bg-gray-50 dark:bg-gray-950",
@@ -186,7 +256,7 @@ function UnderwritingStatusBanner({
       icon: XCircle,
       iconColor: "text-gray-600 dark:text-gray-400",
       title: "Withdrawn",
-      description: "This submission has been withdrawn."
+      description: "This submission has been withdrawn.",
     },
   };
 
@@ -210,7 +280,7 @@ function UnderwritingStatusBanner({
               </Badge>
             </div>
             <p className="text-muted-foreground text-sm mb-2">{config.description}</p>
-            
+
             {submission.decisionReason && (
               <Card className="mt-3 border-2">
                 <CardContent className="p-4">
@@ -218,9 +288,13 @@ function UnderwritingStatusBanner({
                     <MessageSquare className={`h-5 w-5 mt-0.5 ${config.iconColor} flex-shrink-0`} />
                     <div>
                       <p className="font-medium text-sm mb-1">
-                        {submission.status === 'queried' ? 'Underwriter Query:' : 
-                         submission.status === 'approved' ? 'Approval Notes:' :
-                         submission.status === 'declined' ? 'Decline Reason:' : 'Notes:'}
+                        {submission.status === "queried"
+                          ? "Underwriter Query:"
+                          : submission.status === "approved"
+                            ? "Approval Notes:"
+                            : submission.status === "declined"
+                              ? "Decline Reason:"
+                              : "Notes:"}
                       </p>
                       <p className="text-sm" data-testid="text-decision-reason">
                         {submission.decisionReason}
@@ -245,7 +319,7 @@ function UnderwritingStatusBanner({
             )}
 
             <div className="flex items-center gap-3 mt-4 flex-wrap">
-              {submission.status === 'queried' && onReplyClick && (
+              {submission.status === "queried" && onReplyClick && (
                 <Button
                   onClick={onReplyClick}
                   className="bg-purple-600 hover:bg-purple-700"
@@ -256,7 +330,7 @@ function UnderwritingStatusBanner({
                 </Button>
               )}
               {/* Show Send Message for active submissions (not final states) */}
-              {!['approved', 'declined', 'withdrawn'].includes(submission.status) && (
+              {!["approved", "declined", "withdrawn"].includes(submission.status) && (
                 <Button
                   variant="outline"
                   onClick={() => setShowMessageDialog(true)}
@@ -282,7 +356,8 @@ function UnderwritingStatusBanner({
                 <DialogHeader>
                   <DialogTitle>Send Message to Underwriter</DialogTitle>
                   <DialogDescription>
-                    Send a message or additional information to the underwriter reviewing this submission.
+                    Send a message or additional information to the underwriter reviewing this
+                    submission.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -295,10 +370,7 @@ function UnderwritingStatusBanner({
                   />
                 </div>
                 <DialogFooter className="gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowMessageDialog(false)}
-                  >
+                  <Button variant="outline" onClick={() => setShowMessageDialog(false)}>
                     Cancel
                   </Button>
                   <Button
@@ -332,16 +404,10 @@ function UnderwritingStatusBanner({
                   </DialogTitle>
                 </DialogHeader>
                 <div className="flex-1 overflow-y-auto min-h-[400px] max-h-[70vh] border rounded-md p-3 bg-muted/20">
-                  <ConversationThread 
-                    submissionId={submission.id}
-                  />
+                  <ConversationThread submissionId={submission.id} />
                 </div>
                 <DialogFooter className="pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowConversation(false)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setShowConversation(false)}>
                     Close
                   </Button>
                 </DialogFooter>
@@ -365,22 +431,22 @@ export default function ProspectDetail() {
     queryKey: [`/api/prospects/${prospectId}`],
     enabled: prospectId > 0,
   });
-  
+
   const { data: allProspects = [] } = useQuery<ProspectWithCompany[]>({
     queryKey: ["/api/prospects"],
   });
-  
+
   const prospectLimit = (user as any)?.prospectLimit || 10;
   const subscriptionTier = (user as any)?.subscriptionTier || "free";
-  
+
   const isOverLimit = useMemo(() => {
     const sortedIds = allProspects
       .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
-      .map(p => p.id);
+      .map((p) => p.id);
     const index = sortedIds.indexOf(prospectId);
     return index >= prospectLimit;
   }, [allProspects, prospectId, prospectLimit]);
-  
+
   useEffect(() => {
     if (isOverLimit && allProspects.length > 0) {
       setShowLimitModal(true);
@@ -418,9 +484,9 @@ export default function ProspectDetail() {
     const companyId = prospect?.company?.id;
     if (!companyProfile || !companyId) return;
     if (syncedCompanyRef.current === companyId) return; // Already synced this company
-    
+
     const updates: Record<string, string> = {};
-    
+
     // Sync incorporation date if missing
     if (!prospect.company.incorporationDate && companyProfile.date_of_creation) {
       updates.incorporationDate = companyProfile.date_of_creation;
@@ -429,16 +495,16 @@ export default function ProspectDetail() {
     if (!prospect.company.companyStatus && companyProfile.company_status) {
       updates.companyStatus = companyProfile.company_status;
     }
-    
+
     if (Object.keys(updates).length > 0) {
       syncedCompanyRef.current = companyId; // Mark as syncing
-      
+
       (async () => {
         try {
           const res = await fetch(`/api/companies/${companyId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify(updates),
           });
           if (res.ok) {
@@ -447,12 +513,18 @@ export default function ProspectDetail() {
             syncedCompanyRef.current = null; // Reset on failure to allow retry
           }
         } catch (error) {
-          console.error('Failed to sync company data:', error);
+          console.error("Failed to sync company data:", error);
           syncedCompanyRef.current = null; // Reset on failure to allow retry
         }
       })();
     }
-  }, [companyProfile, prospectId, prospect?.company?.id, prospect?.company?.incorporationDate, prospect?.company?.companyStatus]);
+  }, [
+    companyProfile,
+    prospectId,
+    prospect?.company?.id,
+    prospect?.company?.incorporationDate,
+    prospect?.company?.companyStatus,
+  ]);
 
   const deleteProspectMutation = useMutation({
     mutationFn: () => apiRequest(`/api/prospects/${prospectId}`, "DELETE"),
@@ -467,7 +539,7 @@ export default function ProspectDetail() {
   });
 
   const handleDownloadReport = () => {
-    window.open(`/api/prospects/${prospectId}/report`, '_blank');
+    window.open(`/api/prospects/${prospectId}/report`, "_blank");
     toast.success("Generating report...");
   };
 
@@ -525,21 +597,35 @@ export default function ProspectDetail() {
                   <h1 className="text-xl font-bold" data-testid="text-company-name">
                     {prospect.company.companyName}
                   </h1>
-                  <p className="text-sm text-muted-foreground font-mono" data-testid="text-company-number">
+                  <p
+                    className="text-sm text-muted-foreground font-mono"
+                    data-testid="text-company-number"
+                  >
                     {prospect.company.companyNumber}
                   </p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => navigate("/")} data-testid="link-view-directory">
+              <Button
+                variant="outline"
+                onClick={() => navigate("/")}
+                data-testid="link-view-directory"
+              >
                 View in Directory
               </Button>
-              <Button variant="outline" onClick={handleDownloadReport} data-testid="button-download-report">
+              <Button
+                variant="outline"
+                onClick={handleDownloadReport}
+                data-testid="button-download-report"
+              >
                 <FileDown className="h-4 w-4 mr-2" />
                 Download Report
               </Button>
-              <Button onClick={() => setShowUnderwritingDialog(true)} data-testid="button-submit-underwriting">
+              <Button
+                onClick={() => setShowUnderwritingDialog(true)}
+                data-testid="button-submit-underwriting"
+              >
                 <Send className="h-4 w-4 mr-2" />
                 Submit for Underwriting
               </Button>
@@ -554,9 +640,10 @@ export default function ProspectDetail() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete Prospect?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete this prospect for {prospect.company.companyName}? 
-                      This action cannot be undone and will permanently remove all associated contacts, 
-                      activities, and due diligence data.
+                      Are you sure you want to delete this prospect for{" "}
+                      {prospect.company.companyName}? This action cannot be undone and will
+                      permanently remove all associated contacts, activities, and due diligence
+                      data.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -580,8 +667,8 @@ export default function ProspectDetail() {
 
       {/* Underwriting Status Banner */}
       {underwritingSubmission && (
-        <UnderwritingStatusBanner 
-          submission={underwritingSubmission} 
+        <UnderwritingStatusBanner
+          submission={underwritingSubmission}
           onReplyClick={() => setShowReplyDialog(true)}
         />
       )}
@@ -601,27 +688,52 @@ export default function ProspectDetail() {
 
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
-          <TabsList className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-6" : user?.subscriptionTier === "premium" ? "grid-cols-8" : "grid-cols-7"} mb-8`}>
-            <TabsTrigger value="contacts" data-testid="tab-contacts">Contacts</TabsTrigger>
-            <TabsTrigger value="company" data-testid="tab-company">Company</TabsTrigger>
-            <TabsTrigger value="loan" data-testid="tab-loan">Requirement</TabsTrigger>
-            <TabsTrigger value="documents" data-testid="tab-documents">Documents</TabsTrigger>
-            <TabsTrigger value="activity" data-testid="tab-activity">Activity</TabsTrigger>
+          <TabsList
+            className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-6" : user?.subscriptionTier === "premium" ? "grid-cols-8" : "grid-cols-7"} mb-8`}
+          >
+            <TabsTrigger value="contacts" data-testid="tab-contacts">
+              Contacts
+            </TabsTrigger>
+            <TabsTrigger value="company" data-testid="tab-company">
+              Company
+            </TabsTrigger>
+            <TabsTrigger value="loan" data-testid="tab-loan">
+              Requirement
+            </TabsTrigger>
+            <TabsTrigger value="documents" data-testid="tab-documents">
+              Documents
+            </TabsTrigger>
+            <TabsTrigger value="activity" data-testid="tab-activity">
+              Activity
+            </TabsTrigger>
             {user?.subscriptionTier !== "free" && (
-              <TabsTrigger value="diligence" data-testid="tab-diligence">Credit</TabsTrigger>
+              <TabsTrigger value="diligence" data-testid="tab-diligence">
+                Credit
+              </TabsTrigger>
             )}
             {user?.subscriptionTier === "premium" && (
-              <TabsTrigger value="associations" data-testid="tab-associations">Associations</TabsTrigger>
+              <TabsTrigger value="associations" data-testid="tab-associations">
+                Associations
+              </TabsTrigger>
             )}
-            <TabsTrigger value="summary" data-testid="tab-summary">Summary</TabsTrigger>
+            <TabsTrigger value="summary" data-testid="tab-summary">
+              Summary
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="contacts">
-            <ContactsTab prospectId={prospectId} contacts={contacts} companyNumber={prospect.company.companyNumber} />
+            <ContactsTab
+              prospectId={prospectId}
+              contacts={contacts}
+              companyNumber={prospect.company.companyNumber}
+            />
           </TabsContent>
 
           <TabsContent value="company">
-            <CompanyInformationTab companyNumber={prospect.company.companyNumber} companyId={prospect.company.id} />
+            <CompanyInformationTab
+              companyNumber={prospect.company.companyNumber}
+              companyId={prospect.company.id}
+            />
           </TabsContent>
 
           <TabsContent value="loan">
@@ -670,7 +782,7 @@ export default function ProspectDetail() {
           queryMessage={underwritingSubmission.decisionReason || undefined}
         />
       )}
-      
+
       <ProspectLimitModal
         open={showLimitModal}
         onOpenChange={(open) => {
@@ -695,7 +807,7 @@ function StageCard({ prospect }: { prospect: ProspectWithCompany }) {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ stage }),
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
@@ -977,13 +1089,21 @@ function CompanyOverview({ prospect }: { prospect: ProspectWithCompany }) {
   );
 }
 
-function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: number; contacts: Contact[]; companyNumber: string }) {
+function ContactsTab({
+  prospectId,
+  contacts,
+  companyNumber,
+}: {
+  prospectId: number;
+  contacts: Contact[];
+  companyNumber: string;
+}) {
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
-  
+
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
@@ -1015,7 +1135,7 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
       fetch(`/api/prospects/${prospectId}/sync-officers`, {
         method: "POST",
         credentials: "include",
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
       if (data.synced > 0) {
@@ -1029,7 +1149,12 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
 
   // Auto-sync officers when component mounts (only once if no contacts exist)
   useEffect(() => {
-    if (companyNumber && contacts.length === 0 && !hasSyncedRef.current && !syncOfficersMutation.isPending) {
+    if (
+      companyNumber &&
+      contacts.length === 0 &&
+      !hasSyncedRef.current &&
+      !syncOfficersMutation.isPending
+    ) {
       hasSyncedRef.current = true;
       syncOfficersMutation.mutate();
     }
@@ -1037,7 +1162,13 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
 
   // Edit contact mutation
   const editContactMutation = useMutation({
-    mutationFn: (updates: { id: number; name?: string; email?: string; phone?: string; role?: string }) =>
+    mutationFn: (updates: {
+      id: number;
+      name?: string;
+      email?: string;
+      phone?: string;
+      role?: string;
+    }) =>
       fetch(`/api/contacts/${updates.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1048,7 +1179,7 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
           phone: updates.phone || null,
           role: updates.role || null,
         }),
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
       toast.success("Contact updated");
@@ -1072,14 +1203,14 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
     const trimmedEmail = editEmail.trim();
     const trimmedPhone = editPhone.trim();
     const trimmedRole = editRole.trim();
-    
+
     if (!editingContact) return;
-    
+
     if (!trimmedName) {
       toast.error("Name is required");
       return;
     }
-    
+
     editContactMutation.mutate({
       id: editingContact.id,
       name: trimmedName,
@@ -1096,7 +1227,7 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(contact),
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
       toast.success("Contact added");
@@ -1113,7 +1244,7 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
       fetch(`/api/contacts/${contactId}`, {
         method: "DELETE",
         credentials: "include",
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
       toast.success("Contact deleted");
@@ -1129,13 +1260,15 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
             <CardDescription>Company officers and contacts</CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => syncOfficersMutation.mutate()}
               disabled={syncOfficersMutation.isPending}
               data-testid="button-sync-officers"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncOfficersMutation.isPending ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${syncOfficersMutation.isPending ? "animate-spin" : ""}`}
+              />
               Sync Officers
             </Button>
             <Button onClick={() => setIsAdding(true)} data-testid="button-add-contact">
@@ -1194,7 +1327,14 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
               </div>
               <div className="flex gap-3">
                 <Button
-                  onClick={() => addContactMutation.mutate({ name, email: email || undefined, phone: phone || undefined, role: role || undefined })}
+                  onClick={() =>
+                    addContactMutation.mutate({
+                      name,
+                      email: email || undefined,
+                      phone: phone || undefined,
+                      role: role || undefined,
+                    })
+                  }
                   disabled={!name || addContactMutation.isPending}
                   data-testid="button-save-contact"
                 >
@@ -1267,7 +1407,7 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
               <Button variant="outline" onClick={() => setEditingContact(null)}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleSaveEdit}
                 disabled={!editName || editContactMutation.isPending}
                 data-testid="button-save-edit-contact"
@@ -1282,7 +1422,9 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
           <div className="text-center py-12">
             <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No contacts yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Click "Sync Officers" to import company officers</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Click "Sync Officers" to import company officers
+            </p>
             <Button
               variant="outline"
               className="mt-4"
@@ -1290,7 +1432,9 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
               disabled={syncOfficersMutation.isPending}
               data-testid="button-sync-officers-empty"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncOfficersMutation.isPending ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${syncOfficersMutation.isPending ? "animate-spin" : ""}`}
+              />
               Sync Officers
             </Button>
           </div>
@@ -1310,7 +1454,10 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
                         <User className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold" data-testid={`text-contact-name-${contact.id}`}>
+                        <p
+                          className="font-semibold"
+                          data-testid={`text-contact-name-${contact.id}`}
+                        >
                           {contact.name}
                         </p>
                         {contact.role && (
@@ -1320,7 +1467,9 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
                           {contact.email ? (
                             <div className="flex items-center gap-2 text-sm">
                               <Mail className="h-4 w-4 text-muted-foreground" />
-                              <a href={`mailto:${contact.email}`} className="hover:underline">{contact.email}</a>
+                              <a href={`mailto:${contact.email}`} className="hover:underline">
+                                {contact.email}
+                              </a>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground italic">
@@ -1331,7 +1480,9 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
                           {contact.phone ? (
                             <div className="flex items-center gap-2 text-sm">
                               <Phone className="h-4 w-4 text-muted-foreground" />
-                              <a href={`tel:${contact.phone}`} className="hover:underline">{contact.phone}</a>
+                              <a href={`tel:${contact.phone}`} className="hover:underline">
+                                {contact.phone}
+                              </a>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground italic">
@@ -1407,7 +1558,9 @@ function ContactsTab({ prospectId, contacts, companyNumber }: { prospectId: numb
 }
 
 function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
-  const [loanAmount, setLoanAmount] = useState(prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "");
+  const [loanAmount, setLoanAmount] = useState(
+    prospect.loanAmount ? (prospect.loanAmount / 100).toString() : ""
+  );
   const [term, setTerm] = useState(prospect.term?.toString() || "");
   const [interestRate, setInterestRate] = useState(prospect.interestRate || "");
   const [directorsGuarantee, setDirectorsGuarantee] = useState(!!prospect.directorsGuarantee);
@@ -1415,9 +1568,13 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
   const [homeEquity, setHomeEquity] = useState(!!prospect.homeEquity);
   const [propertyOther, setPropertyOther] = useState(!!prospect.propertyOther);
   const [debenture, setDebenture] = useState(!!prospect.debenture);
-  const [parentCompanyGuarantee, setParentCompanyGuarantee] = useState(!!prospect.parentCompanyGuarantee);
+  const [parentCompanyGuarantee, setParentCompanyGuarantee] = useState(
+    !!prospect.parentCompanyGuarantee
+  );
   const [collateral, setCollateral] = useState(!!prospect.collateral);
-  const [crossCompanyGuarantee, setCrossCompanyGuarantee] = useState(!!prospect.crossCompanyGuarantee);
+  const [crossCompanyGuarantee, setCrossCompanyGuarantee] = useState(
+    !!prospect.crossCompanyGuarantee
+  );
   const [notes, setNotes] = useState(prospect.loanRequirementNotes || "");
 
   useEffect(() => {
@@ -1442,7 +1599,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(updates),
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
       toast.success("Loan requirements saved");
@@ -1472,8 +1629,9 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
     const monthlyRate = parseFloat(interestRate) / 100 / 12;
     const numPayments = parseInt(term);
     if (monthlyRate === 0) return principal / numPayments;
-    const payment = (principal * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
-                    (Math.pow(1 + monthlyRate, numPayments) - 1);
+    const payment =
+      (principal * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+      (Math.pow(1 + monthlyRate, numPayments) - 1);
     return Math.round(payment * 100) / 100;
   };
 
@@ -1652,7 +1810,11 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
           </CardContent>
         </Card>
 
-        <Button onClick={handleSave} disabled={saveLoanRequirementMutation.isPending} data-testid="button-save-loan-requirements">
+        <Button
+          onClick={handleSave}
+          disabled={saveLoanRequirementMutation.isPending}
+          data-testid="button-save-loan-requirements"
+        >
           {saveLoanRequirementMutation.isPending ? "Saving..." : "Save Loan Requirements"}
         </Button>
       </CardContent>
@@ -1661,10 +1823,26 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
 }
 
 const activityTypeConfig = {
-  task: { label: "Task", icon: CheckSquare, color: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
-  call: { label: "Call", icon: Phone, color: "bg-orange-500/10 text-orange-700 dark:text-orange-300" },
-  meeting: { label: "Meeting", icon: Users, color: "bg-green-500/10 text-green-700 dark:text-green-300" },
-  event: { label: "Event", icon: Calendar, color: "bg-purple-500/10 text-purple-700 dark:text-purple-300" },
+  task: {
+    label: "Task",
+    icon: CheckSquare,
+    color: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  },
+  call: {
+    label: "Call",
+    icon: Phone,
+    color: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  },
+  meeting: {
+    label: "Meeting",
+    icon: Users,
+    color: "bg-green-500/10 text-green-700 dark:text-green-300",
+  },
+  event: {
+    label: "Event",
+    icon: Calendar,
+    color: "bg-purple-500/10 text-purple-700 dark:text-purple-300",
+  },
   note: { label: "Note", icon: FileText, color: "bg-gray-500/10 text-gray-700 dark:text-gray-300" },
 };
 
@@ -1675,7 +1853,13 @@ const activityPriorityConfig = {
   urgent: { label: "Urgent", color: "bg-red-500/10 text-red-700 dark:text-red-300" },
 };
 
-function SalesActivityTab({ prospectId, activities }: { prospectId: number; activities: Activity[] }) {
+function SalesActivityTab({
+  prospectId,
+  activities,
+}: {
+  prospectId: number;
+  activities: Activity[];
+}) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -1695,9 +1879,9 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
   };
 
   const addActivityMutation = useMutation({
-    mutationFn: (activity: { 
-      title: string; 
-      description?: string; 
+    mutationFn: (activity: {
+      title: string;
+      description?: string;
       activityType: string;
       priority: string;
       dueDate?: string;
@@ -1707,7 +1891,7 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(activity),
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
@@ -1723,7 +1907,7 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ completed }),
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
@@ -1735,7 +1919,7 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
       fetch(`/api/activities/${id}`, {
         method: "DELETE",
         credentials: "include",
-      }).then(r => r.json()),
+      }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
@@ -1748,7 +1932,7 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
     if (dueDate) {
       const dateObj = new Date(dueDate);
       if (dueTime) {
-        const [hours, minutes] = dueTime.split(':');
+        const [hours, minutes] = dueTime.split(":");
         dateObj.setHours(parseInt(hours), parseInt(minutes));
       }
       formattedDueDate = dateObj.toISOString();
@@ -1766,7 +1950,11 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
   const formatDueDate = (date: Date | string | null) => {
     if (!date) return null;
     const d = new Date(date);
-    const dateStr = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    const dateStr = d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
     const timeStr = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     return { dateStr, timeStr, hasTime: d.getHours() !== 0 || d.getMinutes() !== 0 };
   };
@@ -1876,11 +2064,7 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
                 >
                   {addActivityMutation.isPending ? "Saving..." : "Save Activity"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={resetForm}
-                  data-testid="button-cancel-activity"
-                >
+                <Button variant="outline" onClick={resetForm} data-testid="button-cancel-activity">
                   Cancel
                 </Button>
               </div>
@@ -1904,9 +2088,13 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
         ) : (
           <div className="space-y-3">
             {activities.map((activity) => {
-              const typeConfig = activityTypeConfig[activity.activityType as keyof typeof activityTypeConfig] || activityTypeConfig.task;
+              const typeConfig =
+                activityTypeConfig[activity.activityType as keyof typeof activityTypeConfig] ||
+                activityTypeConfig.task;
               const TypeIcon = typeConfig.icon;
-              const prioConfig = activityPriorityConfig[activity.priority as keyof typeof activityPriorityConfig] || activityPriorityConfig.medium;
+              const prioConfig =
+                activityPriorityConfig[activity.priority as keyof typeof activityPriorityConfig] ||
+                activityPriorityConfig.medium;
               const dueDateInfo = formatDueDate(activity.dueDate);
               const overdue = !activity.completed && isOverdue(activity.dueDate);
 
@@ -1917,7 +2105,10 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
                       <Checkbox
                         checked={!!activity.completed}
                         onCheckedChange={(checked) =>
-                          toggleActivityMutation.mutate({ id: activity.id, completed: checked ? 1 : 0 })
+                          toggleActivityMutation.mutate({
+                            id: activity.id,
+                            completed: checked ? 1 : 0,
+                          })
                         }
                         data-testid={`checkbox-activity-${activity.id}`}
                       />
@@ -1936,15 +2127,22 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
                             </Badge>
                           )}
                         </div>
-                        <p className={`font-semibold ${activity.completed ? "line-through text-muted-foreground" : ""}`} data-testid={`text-activity-title-${activity.id}`}>
+                        <p
+                          className={`font-semibold ${activity.completed ? "line-through text-muted-foreground" : ""}`}
+                          data-testid={`text-activity-title-${activity.id}`}
+                        >
                           {activity.title}
                         </p>
                         {activity.description && (
-                          <p className="text-sm text-muted-foreground mt-1">{activity.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {activity.description}
+                          </p>
                         )}
                         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                           {dueDateInfo && (
-                            <span className={`flex items-center gap-1 ${overdue ? "text-red-500" : ""}`}>
+                            <span
+                              className={`flex items-center gap-1 ${overdue ? "text-red-500" : ""}`}
+                            >
                               <Clock className="h-3 w-3" />
                               {dueDateInfo.dateStr}
                               {dueDateInfo.hasTime && ` at ${dueDateInfo.timeStr}`}
@@ -1979,51 +2177,62 @@ function SalesActivityTab({ prospectId, activities }: { prospectId: number; acti
 type CreditTool = "loan-calc" | "dscr" | "affordability" | "ratios" | "character" | null;
 
 const creditToolsConfig = [
-  { 
-    id: "loan-calc" as CreditTool, 
-    label: "Calculator", 
+  {
+    id: "loan-calc" as CreditTool,
+    label: "Calculator",
     shortLabel: "Calc",
-    icon: Calculator, 
+    icon: Calculator,
     color: "bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700",
-    activeColor: "bg-blue-600 dark:bg-blue-700 ring-2 ring-blue-400 ring-offset-2 ring-offset-background"
+    activeColor:
+      "bg-blue-600 dark:bg-blue-700 ring-2 ring-blue-400 ring-offset-2 ring-offset-background",
   },
-  { 
-    id: "dscr" as CreditTool, 
-    label: "DSCR Estimator", 
+  {
+    id: "dscr" as CreditTool,
+    label: "DSCR Estimator",
     shortLabel: "DSCR",
-    icon: TrendingUp, 
+    icon: TrendingUp,
     color: "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700",
-    activeColor: "bg-emerald-600 dark:bg-emerald-700 ring-2 ring-emerald-400 ring-offset-2 ring-offset-background"
+    activeColor:
+      "bg-emerald-600 dark:bg-emerald-700 ring-2 ring-emerald-400 ring-offset-2 ring-offset-background",
   },
-  { 
-    id: "affordability" as CreditTool, 
-    label: "Affordability Check", 
+  {
+    id: "affordability" as CreditTool,
+    label: "Affordability Check",
     shortLabel: "Afford",
-    icon: Target, 
+    icon: Target,
     color: "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700",
-    activeColor: "bg-amber-600 dark:bg-amber-700 ring-2 ring-amber-400 ring-offset-2 ring-offset-background"
+    activeColor:
+      "bg-amber-600 dark:bg-amber-700 ring-2 ring-amber-400 ring-offset-2 ring-offset-background",
   },
-  { 
-    id: "ratios" as CreditTool, 
-    label: "Financial Ratios", 
+  {
+    id: "ratios" as CreditTool,
+    label: "Financial Ratios",
     shortLabel: "Ratios",
-    icon: FileText, 
+    icon: FileText,
     color: "bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700",
-    activeColor: "bg-purple-600 dark:bg-purple-700 ring-2 ring-purple-400 ring-offset-2 ring-offset-background"
+    activeColor:
+      "bg-purple-600 dark:bg-purple-700 ring-2 ring-purple-400 ring-offset-2 ring-offset-background",
   },
-  { 
-    id: "character" as CreditTool, 
-    label: "Character", 
+  {
+    id: "character" as CreditTool,
+    label: "Character",
     shortLabel: "Char",
-    icon: User, 
+    icon: User,
     color: "bg-rose-500 hover:bg-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700",
-    activeColor: "bg-rose-600 dark:bg-rose-700 ring-2 ring-rose-400 ring-offset-2 ring-offset-background"
+    activeColor:
+      "bg-rose-600 dark:bg-rose-700 ring-2 ring-rose-400 ring-offset-2 ring-offset-background",
   },
 ];
 
-function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany; userTier: string }) {
+function DueDiligenceTab({
+  prospect,
+  userTier,
+}: {
+  prospect: ProspectWithCompany;
+  userTier: string;
+}) {
   const [activeTool, setActiveTool] = useState<CreditTool>(null);
-  
+
   const { data: dueDiligence } = useQuery<DueDiligence>({
     queryKey: [`/api/prospects/${prospect.id}/due-diligence`],
   });
@@ -2113,14 +2322,17 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
           <Calculator className="h-4 w-4 mr-2" />
           Credit Tools
         </TabsTrigger>
-        <TabsTrigger 
-          value="underwriting" 
+        <TabsTrigger
+          value="underwriting"
           data-testid="tab-credit-underwriting"
           className="relative"
         >
           <Shield className="h-4 w-4 mr-2" />
           Pre-Underwriting
-          <Badge variant="outline" className="ml-2 text-xs bg-primary/10 text-primary border-primary/20">
+          <Badge
+            variant="outline"
+            className="ml-2 text-xs bg-primary/10 text-primary border-primary/20"
+          >
             Premium
           </Badge>
         </TabsTrigger>
@@ -2142,7 +2354,7 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
                 {creditToolsConfig.map((tool) => {
                   const Icon = tool.icon;
                   const isActive = activeTool === tool.id;
-                  
+
                   return (
                     <button
                       key={tool.id}
@@ -2155,7 +2367,9 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
                       `}
                       data-testid={`button-tool-${tool.id}`}
                     >
-                      <Icon className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`} />
+                      <Icon
+                        className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`}
+                      />
                       <span>{tool.label}</span>
                     </button>
                   );
@@ -2164,7 +2378,7 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
 
               <div className="flex-1 min-w-0">
                 {activeTool ? (
-                  <div 
+                  <div
                     className="p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-left-2 duration-300"
                     data-testid={`content-tool-${activeTool}`}
                   >
@@ -2172,7 +2386,9 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-full min-h-[200px] border rounded-lg bg-muted/30">
-                    <p className="text-muted-foreground">Select a tool from the left to get started</p>
+                    <p className="text-muted-foreground">
+                      Select a tool from the left to get started
+                    </p>
                   </div>
                 )}
               </div>
@@ -2208,9 +2424,17 @@ function DueDiligenceTab({ prospect, userTier }: { prospect: ProspectWithCompany
   );
 }
 
-function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWithCompany; contacts: Contact[]; activities: Activity[] }) {
+function SummaryTab({
+  prospect,
+  contacts,
+  activities,
+}: {
+  prospect: ProspectWithCompany;
+  contacts: Contact[];
+  activities: Activity[];
+}) {
   const { user } = useAuth();
-  
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -2239,7 +2463,9 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
   });
 
   const { data: pscData, isLoading: isLoadingPSC } = useQuery<any>({
-    queryKey: [`/api/companies-house/company/${prospect.company.companyNumber}/persons-with-significant-control`],
+    queryKey: [
+      `/api/companies-house/company/${prospect.company.companyNumber}/persons-with-significant-control`,
+    ],
     enabled: !!prospect.company.companyNumber,
   });
 
@@ -2253,18 +2479,21 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
     enabled: prospect.id > 0,
   });
 
-  const dueDiligenceData = (dueDiligence?.data || {}) as DueDiligenceData & { characterAssessment?: { notes?: string } };
-  const completedActivities = activities.filter(a => a.completed).length;
+  const dueDiligenceData = (dueDiligence?.data || {}) as DueDiligenceData & {
+    characterAssessment?: { notes?: string };
+  };
+  const completedActivities = activities.filter((a) => a.completed).length;
   const savedAssociations = (prospect.savedAssociations || []) as any[];
 
   const handleDownloadReport = () => {
-    window.open(`/api/prospects/${prospect.id}/report`, '_blank');
+    window.open(`/api/prospects/${prospect.id}/report`, "_blank");
     toast.success("Generating comprehensive report...");
   };
 
   const activeOfficers = officers?.items?.filter((o: any) => !o.resigned_on) || [];
   const activePSC = pscData?.items?.filter((p: any) => !p.ceased_on) || [];
-  const outstandingCharges = chargesData?.items?.filter((c: any) => c.status === 'outstanding') || [];
+  const outstandingCharges =
+    chargesData?.items?.filter((c: any) => c.status === "outstanding") || [];
 
   const checklistProgress = () => {
     if (!dueDiligenceData.checklist || dueDiligenceData.checklist.length === 0) return null;
@@ -2289,15 +2518,27 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                 Full overview of all prospect information, Companies House data, and due diligence
               </CardDescription>
             </div>
-            <Button size="lg" onClick={handleDownloadReport} data-testid="button-download-summary-report">
+            <Button
+              size="lg"
+              onClick={handleDownloadReport}
+              data-testid="button-download-summary-report"
+            >
               <FileDown className="h-5 w-5 mr-2" />
               Download Full Report
             </Button>
           </div>
         </CardHeader>
       </Card>
-      <Accordion type="multiple" defaultValue={["company", "loan", "diligence", "associations"]} className="space-y-4">
-        <AccordionItem value="company" className="border rounded-lg" data-testid="accordion-summary-company">
+      <Accordion
+        type="multiple"
+        defaultValue={["company", "loan", "diligence", "associations"]}
+        className="space-y-4"
+      >
+        <AccordionItem
+          value="company"
+          className="border rounded-lg"
+          data-testid="accordion-summary-company"
+        >
           <AccordionTrigger className="px-6 hover:no-underline">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -2320,25 +2561,37 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Company Number:</span>
-                      <span className="text-sm font-mono font-medium">{prospect.company.companyNumber}</span>
+                      <span className="text-sm font-mono font-medium">
+                        {prospect.company.companyNumber}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Status:</span>
-                      <Badge variant={prospect.company.companyStatus === "active" ? "default" : "secondary"}>
+                      <Badge
+                        variant={
+                          prospect.company.companyStatus === "active" ? "default" : "secondary"
+                        }
+                      >
                         {prospect.company.companyStatus || "Active"}
                       </Badge>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Company Type:</span>
-                      <span className="text-sm font-medium uppercase">{prospect.company.companyType || "Ltd"}</span>
+                      <span className="text-sm font-medium uppercase">
+                        {prospect.company.companyType || "Ltd"}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Incorporated:</span>
-                      <span className="text-sm font-medium">{formatDate(prospect.company.incorporationDate)}</span>
+                      <span className="text-sm font-medium">
+                        {formatDate(prospect.company.incorporationDate)}
+                      </span>
                     </div>
                     {prospect.company.registeredAddress && (
                       <div>
-                        <span className="text-sm text-muted-foreground block mb-1">Registered Address:</span>
+                        <span className="text-sm text-muted-foreground block mb-1">
+                          Registered Address:
+                        </span>
                         <span className="text-sm">{prospect.company.registeredAddress}</span>
                       </div>
                     )}
@@ -2364,12 +2617,14 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                             <div key={idx} className="flex items-center justify-between text-sm">
                               <span className="font-medium">{officer.name}</span>
                               <Badge variant="secondary" className="text-xs">
-                                {officer.officer_role?.replace(/-/g, ' ')}
+                                {officer.officer_role?.replace(/-/g, " ")}
                               </Badge>
                             </div>
                           ))}
                           {activeOfficers.length > 5 && (
-                            <p className="text-xs text-muted-foreground">+{activeOfficers.length - 5} more officers</p>
+                            <p className="text-xs text-muted-foreground">
+                              +{activeOfficers.length - 5} more officers
+                            </p>
                           )}
                         </div>
                       ) : (
@@ -2397,7 +2652,7 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                               <span className="font-medium">{psc.name}</span>
                               {psc.natures_of_control && psc.natures_of_control.length > 0 && (
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                  {psc.natures_of_control[0]?.replace(/-/g, ' ')}
+                                  {psc.natures_of_control[0]?.replace(/-/g, " ")}
                                 </p>
                               )}
                             </div>
@@ -2429,7 +2684,9 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                     <div className="space-y-2">
                       {outstandingCharges.map((charge: any, idx: number) => (
                         <div key={idx} className="text-sm border-l-2 border-amber-500 pl-3">
-                          <span className="font-medium">{charge.persons_entitled?.[0]?.name || 'Unknown Lender'}</span>
+                          <span className="font-medium">
+                            {charge.persons_entitled?.[0]?.name || "Unknown Lender"}
+                          </span>
                           <p className="text-xs text-muted-foreground">
                             Created: {formatDate(charge.created_on)}
                           </p>
@@ -2445,7 +2702,11 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="loan" className="border rounded-lg" data-testid="accordion-summary-loan">
+        <AccordionItem
+          value="loan"
+          className="border rounded-lg"
+          data-testid="accordion-summary-loan"
+        >
           <AccordionTrigger className="px-6 hover:no-underline">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-lg bg-green-500/10 flex items-center justify-center">
@@ -2463,12 +2724,20 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                 <CardContent className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Current Stage:</span>
-                    <Badge>{STAGES.find(s => s.value === prospect.stage)?.label}</Badge>
+                    <Badge>{STAGES.find((s) => s.value === prospect.stage)?.label}</Badge>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Priority:</span>
-                    <Badge variant={prospect.priority === 'high' ? 'destructive' : prospect.priority === 'medium' ? 'secondary' : 'outline'}>
-                      {prospect.priority || 'Medium'} Priority
+                    <Badge
+                      variant={
+                        prospect.priority === "high"
+                          ? "destructive"
+                          : prospect.priority === "medium"
+                            ? "secondary"
+                            : "outline"
+                      }
+                    >
+                      {prospect.priority || "Medium"} Priority
                     </Badge>
                   </div>
                   <div className="flex justify-between">
@@ -2500,36 +2769,50 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                   {prospect.directorsGuarantee && prospect.directorsGuarantee > 0 && (
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Directors Guarantee:</span>
-                      <span className="text-sm font-medium">{formatCurrency(prospect.directorsGuarantee)}</span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(prospect.directorsGuarantee)}
+                      </span>
                     </div>
                   )}
                   {prospect.commercialProperty && prospect.commercialProperty > 0 && (
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Commercial Property:</span>
-                      <span className="text-sm font-medium">{formatCurrency(prospect.commercialProperty)}</span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(prospect.commercialProperty)}
+                      </span>
                     </div>
                   )}
                   {prospect.homeEquity && prospect.homeEquity > 0 && (
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Home Equity:</span>
-                      <span className="text-sm font-medium">{formatCurrency(prospect.homeEquity)}</span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(prospect.homeEquity)}
+                      </span>
                     </div>
                   )}
                   {prospect.debenture && prospect.debenture > 0 && (
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Debenture:</span>
-                      <span className="text-sm font-medium">{formatCurrency(prospect.debenture)}</span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(prospect.debenture)}
+                      </span>
                     </div>
                   )}
                   {prospect.collateral && prospect.collateral > 0 && (
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Other Collateral:</span>
-                      <span className="text-sm font-medium">{formatCurrency(prospect.collateral)}</span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(prospect.collateral)}
+                      </span>
                     </div>
                   )}
-                  {!prospect.directorsGuarantee && !prospect.commercialProperty && !prospect.homeEquity && !prospect.debenture && !prospect.collateral && (
-                    <p className="text-sm text-muted-foreground">No collateral specified</p>
-                  )}
+                  {!prospect.directorsGuarantee &&
+                    !prospect.commercialProperty &&
+                    !prospect.homeEquity &&
+                    !prospect.debenture &&
+                    !prospect.collateral && (
+                      <p className="text-sm text-muted-foreground">No collateral specified</p>
+                    )}
                 </CardContent>
               </Card>
             </div>
@@ -2561,7 +2844,11 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="diligence" className="border rounded-lg" data-testid="accordion-summary-diligence">
+        <AccordionItem
+          value="diligence"
+          className="border rounded-lg"
+          data-testid="accordion-summary-diligence"
+        >
           <AccordionTrigger className="px-6 hover:no-underline">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -2569,165 +2856,201 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
               </div>
               <span className="text-lg font-semibold">Due Diligence</span>
               {user?.subscriptionTier === "free" && (
-                <Badge variant="secondary" className="text-xs">View Only</Badge>
+                <Badge variant="secondary" className="text-xs">
+                  View Only
+                </Badge>
               )}
             </div>
           </AccordionTrigger>
-            <AccordionContent className="px-6 pb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Card className="bg-muted/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <CheckSquare className="h-4 w-4" />
-                      Checklist Progress
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {checklistProgress() ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-2xl font-bold">{checklistProgress()!.percentage}%</span>
-                          <span className="text-sm text-muted-foreground">
-                            {checklistProgress()!.completed}/{checklistProgress()!.total} items
-                          </span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-green-500 transition-all"
-                            style={{ width: `${checklistProgress()!.percentage}%` }}
-                          />
-                        </div>
+          <AccordionContent className="px-6 pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Card className="bg-muted/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <CheckSquare className="h-4 w-4" />
+                    Checklist Progress
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {checklistProgress() ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-2xl font-bold">
+                          {checklistProgress()!.percentage}%
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {checklistProgress()!.completed}/{checklistProgress()!.total} items
+                        </span>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No checklist data</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-muted/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Calculator className="h-4 w-4" />
-                      Loan Calculator
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {dueDiligenceData.loanCalculator?.loanAmount ? (
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Principal:</span>
-                          <span className="font-medium">{formatCurrency((dueDiligenceData.loanCalculator.loanAmount || 0) * 100)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Rate:</span>
-                          <span className="font-medium">{dueDiligenceData.loanCalculator.interestRate}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Term:</span>
-                          <span className="font-medium">{dueDiligenceData.loanCalculator.term} months</span>
-                        </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 transition-all"
+                          style={{ width: `${checklistProgress()!.percentage}%` }}
+                        />
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Not calculated</p>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No checklist data</p>
+                  )}
+                </CardContent>
+              </Card>
 
-                <Card className="bg-muted/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4" />
-                      DSCR Analysis
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {dueDiligenceData.dscr?.annualNetOperatingIncome ? (
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Net Operating Income:</span>
-                          <span className="font-medium">{formatCurrency((dueDiligenceData.dscr.annualNetOperatingIncome || 0) * 100)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Debt Service:</span>
-                          <span className="font-medium">{formatCurrency((dueDiligenceData.dscr.annualDebtService || 0) * 100)}</span>
-                        </div>
+              <Card className="bg-muted/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Calculator className="h-4 w-4" />
+                    Loan Calculator
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {dueDiligenceData.loanCalculator?.loanAmount ? (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Principal:</span>
+                        <span className="font-medium">
+                          {formatCurrency((dueDiligenceData.loanCalculator.loanAmount || 0) * 100)}
+                        </span>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Not calculated</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-muted/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Calculator className="h-4 w-4" />
-                      Affordability
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {dueDiligenceData.affordability?.personalIncome ? (
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Personal Income:</span>
-                          <span className="font-medium">{formatCurrency((dueDiligenceData.affordability.personalIncome || 0) * 100)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Commitments:</span>
-                          <span className="font-medium">{formatCurrency((dueDiligenceData.affordability.monthlyCommitments || 0) * 100)}</span>
-                        </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Rate:</span>
+                        <span className="font-medium">
+                          {dueDiligenceData.loanCalculator.interestRate}%
+                        </span>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Not calculated</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-muted/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4" />
-                      Financial Ratios
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {dueDiligenceData.financialRatios?.revenue ? (
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Revenue:</span>
-                          <span className="font-medium">{formatCurrency((dueDiligenceData.financialRatios.revenue || 0) * 100)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Current Assets:</span>
-                          <span className="font-medium">{formatCurrency((dueDiligenceData.financialRatios.currentAssets || 0) * 100)}</span>
-                        </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Term:</span>
+                        <span className="font-medium">
+                          {dueDiligenceData.loanCalculator.term} months
+                        </span>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Not calculated</p>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not calculated</p>
+                  )}
+                </CardContent>
+              </Card>
 
-                <Card className="bg-muted/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Character Assessment
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {dueDiligenceData.characterAssessment?.notes ? (
-                      <p className="text-sm line-clamp-3">{dueDiligenceData.characterAssessment.notes}</p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Not assessed</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
+              <Card className="bg-muted/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    DSCR Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {dueDiligenceData.dscr?.annualNetOperatingIncome ? (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Net Operating Income:</span>
+                        <span className="font-medium">
+                          {formatCurrency(
+                            (dueDiligenceData.dscr.annualNetOperatingIncome || 0) * 100
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Debt Service:</span>
+                        <span className="font-medium">
+                          {formatCurrency((dueDiligenceData.dscr.annualDebtService || 0) * 100)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not calculated</p>
+                  )}
+                </CardContent>
+              </Card>
 
-        <AccordionItem value="associations" className="border rounded-lg" data-testid="accordion-summary-associations">
+              <Card className="bg-muted/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Calculator className="h-4 w-4" />
+                    Affordability
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {dueDiligenceData.affordability?.personalIncome ? (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Personal Income:</span>
+                        <span className="font-medium">
+                          {formatCurrency(
+                            (dueDiligenceData.affordability.personalIncome || 0) * 100
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Commitments:</span>
+                        <span className="font-medium">
+                          {formatCurrency(
+                            (dueDiligenceData.affordability.monthlyCommitments || 0) * 100
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not calculated</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-muted/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Financial Ratios
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {dueDiligenceData.financialRatios?.revenue ? (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Revenue:</span>
+                        <span className="font-medium">
+                          {formatCurrency((dueDiligenceData.financialRatios.revenue || 0) * 100)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Current Assets:</span>
+                        <span className="font-medium">
+                          {formatCurrency(
+                            (dueDiligenceData.financialRatios.currentAssets || 0) * 100
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not calculated</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-muted/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Character Assessment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {dueDiligenceData.characterAssessment?.notes ? (
+                    <p className="text-sm line-clamp-3">
+                      {dueDiligenceData.characterAssessment.notes}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not assessed</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem
+          value="associations"
+          className="border rounded-lg"
+          data-testid="accordion-summary-associations"
+        >
           <AccordionTrigger className="px-6 hover:no-underline">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
@@ -2742,30 +3065,41 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
           <AccordionContent className="px-6 pb-6">
             {savedAssociations.length > 0 ? (
               <div className="space-y-4">
-                {['officer', 'psc', 'address'].map((type) => {
-                  const typeAssociations = savedAssociations.filter((a: any) => a.associationType === type);
+                {["officer", "psc", "address"].map((type) => {
+                  const typeAssociations = savedAssociations.filter(
+                    (a: any) => a.associationType === type
+                  );
                   if (typeAssociations.length === 0) return null;
-                  
+
                   const typeLabels: { [key: string]: string } = {
-                    officer: 'Common Directors',
-                    psc: 'Common Ownership',
-                    address: 'Same Registered Address'
+                    officer: "Common Directors",
+                    psc: "Common Ownership",
+                    address: "Same Registered Address",
                   };
 
                   return (
                     <Card key={type} className="bg-muted/30">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">{typeLabels[type]} ({typeAssociations.length})</CardTitle>
+                        <CardTitle className="text-base">
+                          {typeLabels[type]} ({typeAssociations.length})
+                        </CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
                           {typeAssociations.map((company: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between text-sm border-l-2 border-purple-500 pl-3">
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between text-sm border-l-2 border-purple-500 pl-3"
+                            >
                               <div>
                                 <span className="font-medium">{company.company_name}</span>
-                                <span className="text-muted-foreground ml-2 font-mono text-xs">({company.company_number})</span>
+                                <span className="text-muted-foreground ml-2 font-mono text-xs">
+                                  ({company.company_number})
+                                </span>
                               </div>
-                              <Badge variant="outline" className="text-xs">{company.company_status}</Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {company.company_status}
+                              </Badge>
                             </div>
                           ))}
                         </div>
@@ -2786,7 +3120,11 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="contacts" className="border rounded-lg" data-testid="accordion-summary-contacts">
+        <AccordionItem
+          value="contacts"
+          className="border rounded-lg"
+          data-testid="accordion-summary-contacts"
+        >
           <AccordionTrigger className="px-6 hover:no-underline">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
@@ -2814,10 +3152,18 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm">{contact.name}</span>
-                              {contact.isPrimary === 1 && <Badge variant="default" className="text-xs">Primary</Badge>}
+                              {contact.isPrimary === 1 && (
+                                <Badge variant="default" className="text-xs">
+                                  Primary
+                                </Badge>
+                              )}
                             </div>
-                            {contact.role && <p className="text-xs text-muted-foreground">{contact.role}</p>}
-                            {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
+                            {contact.role && (
+                              <p className="text-xs text-muted-foreground">{contact.role}</p>
+                            )}
+                            {contact.email && (
+                              <p className="text-xs text-muted-foreground">{contact.email}</p>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -2840,16 +3186,25 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Completed:</span>
-                      <span className="text-sm font-medium text-green-600">{completedActivities}</span>
+                      <span className="text-sm font-medium text-green-600">
+                        {completedActivities}
+                      </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Pending:</span>
-                      <span className="text-sm font-medium text-amber-600">{activities.length - completedActivities}</span>
+                      <span className="text-sm font-medium text-amber-600">
+                        {activities.length - completedActivities}
+                      </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden mt-2">
-                      <div 
+                      <div
                         className="h-full bg-green-500 transition-all"
-                        style={{ width: activities.length > 0 ? `${(completedActivities / activities.length) * 100}%` : '0%' }}
+                        style={{
+                          width:
+                            activities.length > 0
+                              ? `${(completedActivities / activities.length) * 100}%`
+                              : "0%",
+                        }}
                       />
                     </div>
                   </div>
@@ -2863,10 +3218,20 @@ function SummaryTab({ prospect, contacts, activities }: { prospect: ProspectWith
   );
 }
 
-function CompanyInformationTab({ companyNumber, companyId }: { companyNumber: string; companyId: number }) {
+function CompanyInformationTab({
+  companyNumber,
+  companyId,
+}: {
+  companyNumber: string;
+  companyId: number;
+}) {
   const [isSyncing, setIsSyncing] = useState(false);
-  
-  const { data: companyProfile, isLoading, error } = useQuery<CompanyProfile>({
+
+  const {
+    data: companyProfile,
+    isLoading,
+    error,
+  } = useQuery<CompanyProfile>({
     queryKey: [`/api/companies-house/company/${companyNumber}`],
     enabled: !!companyNumber,
   });
@@ -2875,20 +3240,20 @@ function CompanyInformationTab({ companyNumber, companyId }: { companyNumber: st
     setIsSyncing(true);
     try {
       const response = await fetch(`/api/companies/${companyId}/sync-companies-house`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to sync company data');
+        throw new Error(errorData.error || "Failed to sync company data");
       }
-      
+
       const updatedCompany = await response.json();
-      toast.success('Company data synced from Companies House');
-      queryClient.invalidateQueries({ queryKey: ['/api/prospects'] });
+      toast.success("Company data synced from Companies House");
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
     } catch (error: any) {
-      toast.error(error.message || 'Failed to sync company data');
+      toast.error(error.message || "Failed to sync company data");
     } finally {
       setIsSyncing(false);
     }
@@ -2917,7 +3282,8 @@ function CompanyInformationTab({ companyNumber, companyId }: { companyNumber: st
             <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
             <h3 className="font-semibold mb-2">Failed to Load Company Information</h3>
             <p className="text-sm text-muted-foreground">
-              {(error as Error).message || "An error occurred while fetching company data from Companies House"}
+              {(error as Error).message ||
+                "An error occurred while fetching company data from Companies House"}
             </p>
           </div>
         </CardContent>
@@ -2948,7 +3314,7 @@ function CompanyInformationTab({ companyNumber, companyId }: { companyNumber: st
           variant="outline"
           size="sm"
           onClick={handleSyncCompanyData}
-          disabled={isSyncing || companyNumber.startsWith('UNREG-')}
+          disabled={isSyncing || companyNumber.startsWith("UNREG-")}
           data-testid="button-sync-companies-house"
         >
           {isSyncing ? (
@@ -2984,11 +3350,11 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
       const response = await fetch(`/api/prospects/${prospect.id}/associated-companies`, {
         credentials: "include",
       });
-      
+
       if (!response.ok) {
         throw new Error(await response.text());
       }
-      
+
       const data = await response.json();
       setAssociatedCompanies(data);
     } catch (error: any) {
@@ -3001,11 +3367,11 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
   const toggleAssociation = (company: any, type: string) => {
     const association = { ...company, associationType: type };
     const key = `${company.company_number}-${type}`;
-    
-    setSelectedAssociations(prev => {
-      const exists = prev.find(a => `${a.company_number}-${a.associationType}` === key);
+
+    setSelectedAssociations((prev) => {
+      const exists = prev.find((a) => `${a.company_number}-${a.associationType}` === key);
       if (exists) {
-        return prev.filter(a => `${a.company_number}-${a.associationType}` !== key);
+        return prev.filter((a) => `${a.company_number}-${a.associationType}` !== key);
       } else {
         return [...prev, association];
       }
@@ -3014,7 +3380,7 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
 
   const isSelected = (companyNumber: string, type: string) => {
     const key = `${companyNumber}-${type}`;
-    return selectedAssociations.some(a => `${a.company_number}-${a.associationType}` === key);
+    return selectedAssociations.some((a) => `${a.company_number}-${a.associationType}` === key);
   };
 
   const saveSelectedAssociations = async () => {
@@ -3026,9 +3392,9 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
     setIsSavingAssociations(true);
     try {
       await apiRequest(`/api/prospects/${prospect.id}/save-associations`, "POST", {
-        associations: selectedAssociations
+        associations: selectedAssociations,
       });
-      
+
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
       toast.success(`Saved ${selectedAssociations.length} association(s)`);
       setSelectedAssociations([]);
@@ -3091,20 +3457,30 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               </h3>
               <div className="space-y-2">
                 {savedAssociations.map((company: any, index: number) => (
-                  <Card key={index} className="bg-background" data-testid={`card-saved-association-${index}`}>
+                  <Card
+                    key={index}
+                    className="bg-background"
+                    data-testid={`card-saved-association-${index}`}
+                  >
                     <CardContent className="p-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-medium text-sm">{company.company_name}</h4>
-                            <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {company.company_number}
+                            </Badge>
                             {company.company_status && (
-                              <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {company.company_status}
+                              </Badge>
                             )}
                             <Badge className="text-xs capitalize">{company.associationType}</Badge>
                           </div>
                           {company.officer_name && (
-                            <p className="text-xs text-muted-foreground">Director: {company.officer_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Director: {company.officer_name}
+                            </p>
                           )}
                           {company.psc_name && (
                             <p className="text-xs text-muted-foreground">PSC: {company.psc_name}</p>
@@ -3115,7 +3491,11 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <Button variant="ghost" size="icon" data-testid={`button-view-saved-${index}`}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            data-testid={`button-view-saved-${index}`}
+                          >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         </a>
@@ -3139,13 +3519,19 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
           {!isLoadingAssociations && associatedCompanies && (
             <div className="space-y-6">
               {/* Save Selected Button */}
-              {(associatedCompanies.officers.length > 0 || associatedCompanies.psc.length > 0 || associatedCompanies.sameAddress.length > 0) && (
+              {(associatedCompanies.officers.length > 0 ||
+                associatedCompanies.psc.length > 0 ||
+                associatedCompanies.sameAddress.length > 0) && (
                 <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                   <div className="text-sm">
                     {selectedAssociations.length > 0 ? (
-                      <span className="font-medium">{selectedAssociations.length} company/companies selected</span>
+                      <span className="font-medium">
+                        {selectedAssociations.length} company/companies selected
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground">Select companies to save to this prospect</span>
+                      <span className="text-muted-foreground">
+                        Select companies to save to this prospect
+                      </span>
                     )}
                   </div>
                   <Button
@@ -3162,32 +3548,44 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               {/* Companies via Common Officers */}
               {associatedCompanies.officers.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-3">Companies with Common Directors ({associatedCompanies.officers.length})</h3>
+                  <h3 className="font-semibold mb-3">
+                    Companies with Common Directors ({associatedCompanies.officers.length})
+                  </h3>
                   <div className="space-y-2">
                     {associatedCompanies.officers.map((company: any, index: number) => (
-                      <Card key={index} className="hover-elevate" data-testid={`card-officer-company-${index}`}>
+                      <Card
+                        key={index}
+                        className="hover-elevate"
+                        data-testid={`card-officer-company-${index}`}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start gap-4">
                             <Checkbox
-                              checked={isSelected(company.company_number, 'officer')}
-                              onCheckedChange={() => toggleAssociation(company, 'officer')}
+                              checked={isSelected(company.company_number, "officer")}
+                              onCheckedChange={() => toggleAssociation(company, "officer")}
                               data-testid={`checkbox-officer-${index}`}
                             />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-medium">{company.company_name}</h4>
-                                <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {company.company_number}
+                                </Badge>
                                 {company.company_status && (
-                                  <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {company.company_status}
+                                  </Badge>
                                 )}
                               </div>
                               <p className="text-sm text-muted-foreground">
-                                Common Director: <span className="font-medium">{company.officer_name}</span>
+                                Common Director:{" "}
+                                <span className="font-medium">{company.officer_name}</span>
                                 {company.officer_role && ` (${company.officer_role})`}
                               </p>
                               {company.appointed_on && (
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Appointed: {new Date(company.appointed_on).toLocaleDateString("en-GB")}
+                                  Appointed:{" "}
+                                  {new Date(company.appointed_on).toLocaleDateString("en-GB")}
                                 </p>
                               )}
                             </div>
@@ -3196,7 +3594,11 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              <Button variant="ghost" size="icon" data-testid={`button-view-officer-company-${index}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`button-view-officer-company-${index}`}
+                              >
                                 <ExternalLink className="h-4 w-4" />
                               </Button>
                             </a>
@@ -3211,30 +3613,42 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               {/* Companies via Common PSC */}
               {associatedCompanies.psc.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-3">Companies with Common Ownership ({associatedCompanies.psc.length})</h3>
+                  <h3 className="font-semibold mb-3">
+                    Companies with Common Ownership ({associatedCompanies.psc.length})
+                  </h3>
                   <div className="space-y-2">
                     {associatedCompanies.psc.map((company: any, index: number) => (
-                      <Card key={index} className="hover-elevate" data-testid={`card-psc-company-${index}`}>
+                      <Card
+                        key={index}
+                        className="hover-elevate"
+                        data-testid={`card-psc-company-${index}`}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start gap-4">
                             <Checkbox
-                              checked={isSelected(company.company_number, 'psc')}
-                              onCheckedChange={() => toggleAssociation(company, 'psc')}
+                              checked={isSelected(company.company_number, "psc")}
+                              onCheckedChange={() => toggleAssociation(company, "psc")}
                               data-testid={`checkbox-psc-${index}`}
                             />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-medium">{company.company_name}</h4>
-                                <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {company.company_number}
+                                </Badge>
                                 {company.company_status && (
-                                  <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {company.company_status}
+                                  </Badge>
                                 )}
                               </div>
                               <p className="text-sm text-muted-foreground">
                                 Common PSC: <span className="font-medium">{company.psc_name}</span>
                               </p>
                               {company.address_snippet && (
-                                <p className="text-xs text-muted-foreground mt-1">{company.address_snippet}</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {company.address_snippet}
+                                </p>
                               )}
                             </div>
                             <a
@@ -3242,7 +3656,11 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              <Button variant="ghost" size="icon" data-testid={`button-view-psc-company-${index}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`button-view-psc-company-${index}`}
+                              >
                                 <ExternalLink className="h-4 w-4" />
                               </Button>
                             </a>
@@ -3257,27 +3675,39 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               {/* Companies at Same Address */}
               {associatedCompanies.sameAddress.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-3">Companies at Same Registered Address ({associatedCompanies.sameAddress.length})</h3>
+                  <h3 className="font-semibold mb-3">
+                    Companies at Same Registered Address ({associatedCompanies.sameAddress.length})
+                  </h3>
                   <div className="space-y-2">
                     {associatedCompanies.sameAddress.map((company: any, index: number) => (
-                      <Card key={index} className="hover-elevate" data-testid={`card-address-company-${index}`}>
+                      <Card
+                        key={index}
+                        className="hover-elevate"
+                        data-testid={`card-address-company-${index}`}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start gap-4">
                             <Checkbox
-                              checked={isSelected(company.company_number, 'address')}
-                              onCheckedChange={() => toggleAssociation(company, 'address')}
+                              checked={isSelected(company.company_number, "address")}
+                              onCheckedChange={() => toggleAssociation(company, "address")}
                               data-testid={`checkbox-address-${index}`}
                             />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-medium">{company.company_name}</h4>
-                                <Badge variant="outline" className="text-xs">{company.company_number}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {company.company_number}
+                                </Badge>
                                 {company.company_status && (
-                                  <Badge variant="secondary" className="text-xs">{company.company_status}</Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {company.company_status}
+                                  </Badge>
                                 )}
                               </div>
                               {company.address_snippet && (
-                                <p className="text-sm text-muted-foreground">{company.address_snippet}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {company.address_snippet}
+                                </p>
                               )}
                             </div>
                             <a
@@ -3285,7 +3715,11 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              <Button variant="ghost" size="icon" data-testid={`button-view-address-company-${index}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`button-view-address-company-${index}`}
+                              >
                                 <ExternalLink className="h-4 w-4" />
                               </Button>
                             </a>
@@ -3297,17 +3731,17 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                 </div>
               )}
 
-              {associatedCompanies.officers.length === 0 && 
-               associatedCompanies.psc.length === 0 && 
-               associatedCompanies.sameAddress.length === 0 && (
-                <div className="text-center py-8">
-                  <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="font-semibold mb-2">No Associated Companies Found</h3>
-                  <p className="text-sm text-muted-foreground">
-                    No companies found with common directors, ownership, or registered address.
-                  </p>
-                </div>
-              )}
+              {associatedCompanies.officers.length === 0 &&
+                associatedCompanies.psc.length === 0 &&
+                associatedCompanies.sameAddress.length === 0 && (
+                  <div className="text-center py-8">
+                    <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="font-semibold mb-2">No Associated Companies Found</h3>
+                    <p className="text-sm text-muted-foreground">
+                      No companies found with common directors, ownership, or registered address.
+                    </p>
+                  </div>
+                )}
             </div>
           )}
 
@@ -3316,7 +3750,8 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               <Network className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-semibold mb-2">Find Associated Companies</h3>
               <p className="text-sm text-muted-foreground">
-                Click "Find Associations" to search for companies linked to {prospect.company.companyName}
+                Click "Find Associations" to search for companies linked to{" "}
+                {prospect.company.companyName}
               </p>
             </div>
           )}
@@ -3333,7 +3768,8 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                 AI Web Search
               </CardTitle>
               <CardDescription>
-                Search the web for news, information, and media coverage about {prospect.company.companyName}
+                Search the web for news, information, and media coverage about{" "}
+                {prospect.company.companyName}
               </CardDescription>
             </div>
             <Button
@@ -3374,10 +3810,16 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               {/* Search Results */}
               {webSearchResults.results && webSearchResults.results.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-3">Web Results ({webSearchResults.results.length})</h3>
+                  <h3 className="font-semibold mb-3">
+                    Web Results ({webSearchResults.results.length})
+                  </h3>
                   <div className="space-y-3">
                     {webSearchResults.results.map((result: any, index: number) => (
-                      <Card key={index} className="hover-elevate" data-testid={`card-search-result-${index}`}>
+                      <Card
+                        key={index}
+                        className="hover-elevate"
+                        data-testid={`card-search-result-${index}`}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
@@ -3393,15 +3835,16 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                                 {result.content}
                               </p>
                               <p className="text-xs text-muted-foreground mt-2">
-                                {new URL(result.url).hostname} • Score: {result.score?.toFixed(2) || 'N/A'}
+                                {new URL(result.url).hostname} • Score:{" "}
+                                {result.score?.toFixed(2) || "N/A"}
                               </p>
                             </div>
-                            <a
-                              href={result.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Button variant="ghost" size="icon" data-testid={`button-view-result-${index}`}>
+                            <a href={result.url} target="_blank" rel="noopener noreferrer">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`button-view-result-${index}`}
+                              >
                                 <ExternalLink className="h-4 w-4" />
                               </Button>
                             </a>
@@ -3557,12 +4000,13 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
     return "FILE";
   };
 
-  const filteredDocuments = filterCategory === "all" 
-    ? documents 
-    : documents.filter(doc => doc.category === filterCategory);
+  const filteredDocuments =
+    filterCategory === "all"
+      ? documents
+      : documents.filter((doc) => doc.category === filterCategory);
 
   const getCategoryLabel = (value: string) => {
-    return DOCUMENT_CATEGORIES.find(c => c.value === value)?.label || value;
+    return DOCUMENT_CATEGORIES.find((c) => c.value === value)?.label || value;
   };
 
   return (
@@ -3583,8 +4027,10 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {DOCUMENT_CATEGORIES.map(cat => (
-                  <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                {DOCUMENT_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -3606,8 +4052,10 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {DOCUMENT_CATEGORIES.map(cat => (
-                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                    {DOCUMENT_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -3631,7 +4079,7 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                   className="hidden"
                   data-testid="input-file-upload"
                 />
-                <Button 
+                <Button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadMutation.isPending}
                   data-testid="button-select-file"
@@ -3648,7 +4096,11 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                     </>
                   )}
                 </Button>
-                <Button variant="outline" onClick={() => setIsUploading(false)} data-testid="button-cancel-upload">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsUploading(false)}
+                  data-testid="button-cancel-upload"
+                >
                   Cancel
                 </Button>
               </div>
@@ -3665,7 +4117,7 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="font-semibold mb-2">No Documents</h3>
             <p className="text-sm text-muted-foreground">
-              {filterCategory !== "all" 
+              {filterCategory !== "all"
                 ? `No documents in the ${getCategoryLabel(filterCategory)} category`
                 : "Upload documents to keep everything organized"}
             </p>
@@ -3673,7 +4125,7 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
         ) : (
           <div className="space-y-2">
             {filteredDocuments.map((doc) => (
-              <div 
+              <div
                 key={doc.id}
                 className="flex items-center justify-between p-4 border rounded-lg hover-elevate"
                 data-testid={`document-row-${doc.id}`}
@@ -3683,15 +4135,17 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                     {getFileIcon(doc.fileType)}
                   </div>
                   <div>
-                    <p className="font-medium text-sm" data-testid={`text-document-name-${doc.id}`}>{doc.fileName}</p>
+                    <p className="font-medium text-sm" data-testid={`text-document-name-${doc.id}`}>
+                      {doc.fileName}
+                    </p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" className="text-xs">{getCategoryLabel(doc.category)}</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {getCategoryLabel(doc.category)}
+                      </Badge>
                       <span>{formatFileSize(doc.fileSize)}</span>
                       <span>{format(new Date(doc.createdAt), "MMM d, yyyy")}</span>
                     </div>
-                    {doc.notes && (
-                      <p className="text-xs text-muted-foreground mt-1">{doc.notes}</p>
-                    )}
+                    {doc.notes && <p className="text-xs text-muted-foreground mt-1">{doc.notes}</p>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -3705,11 +4159,7 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        data-testid={`button-delete-${doc.id}`}
-                      >
+                      <Button variant="ghost" size="icon" data-testid={`button-delete-${doc.id}`}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </AlertDialogTrigger>
@@ -3717,7 +4167,8 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Document</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete "{doc.fileName}"? This action cannot be undone.
+                          Are you sure you want to delete "{doc.fileName}"? This action cannot be
+                          undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

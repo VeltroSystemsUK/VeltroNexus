@@ -5,24 +5,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Loader2, 
-  Search, 
-  Building2, 
-  ExternalLink, 
-  Plus, 
-  Trash2, 
-  Check, 
-  X, 
+import {
+  Loader2,
+  Search,
+  Building2,
+  ExternalLink,
+  Plus,
+  Trash2,
+  Check,
+  X,
   RefreshCw,
   FileText,
   Phone,
   Mail,
   MapPin,
-  User
+  User,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
@@ -53,7 +66,10 @@ export default function Leads() {
   const [isSearching, setIsSearching] = useState(false);
 
   const { data: leads, isLoading } = useQuery<Lead[]>({
-    queryKey: ["/api/leads", { search: searchTerm, matchStatus: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: [
+      "/api/leads",
+      { search: searchTerm, matchStatus: statusFilter !== "all" ? statusFilter : undefined },
+    ],
   });
 
   const { data: uploads } = useQuery<any[]>({
@@ -93,7 +109,7 @@ export default function Leads() {
         companyName,
         companyData,
       });
-      return response;
+      return response as { prospect: { id: number } };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
@@ -141,9 +157,7 @@ export default function Leads() {
     if (!selectedLead) return;
 
     try {
-      const profileResponse = await fetch(
-        `/api/companies-house/company/${company.company_number}`
-      );
+      const profileResponse = await fetch(`/api/companies-house/company/${company.company_number}`);
       const companyData = profileResponse.ok ? await profileResponse.json() : null;
 
       createProspectMutation.mutate({
@@ -162,22 +176,24 @@ export default function Leads() {
     }
   };
 
-  const filteredLeads = leads?.filter(lead => {
-    const matchesSearch = !searchTerm || 
-      lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.companyNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.contactName?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || lead.matchStatus === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  }) || [];
+  const filteredLeads =
+    leads?.filter((lead) => {
+      const matchesSearch =
+        !searchTerm ||
+        lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.companyNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.contactName?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = statusFilter === "all" || lead.matchStatus === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    }) || [];
 
   const stats = {
     total: leads?.length || 0,
-    pending: leads?.filter(l => l.matchStatus === "pending").length || 0,
-    added: leads?.filter(l => l.matchStatus === "prospect_created").length || 0,
-    ignored: leads?.filter(l => l.matchStatus === "ignored").length || 0,
+    pending: leads?.filter((l) => l.matchStatus === "pending").length || 0,
+    added: leads?.filter((l) => l.matchStatus === "prospect_created").length || 0,
+    ignored: leads?.filter((l) => l.matchStatus === "ignored").length || 0,
   };
 
   if (isLoading) {
@@ -192,7 +208,9 @@ export default function Leads() {
     <div className="container max-w-7xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="text-leads-title">Leads</h1>
+          <h1 className="text-3xl font-bold" data-testid="text-leads-title">
+            Leads
+          </h1>
           <p className="text-muted-foreground">Imported company leads ready for prospecting</p>
         </div>
         <div className="flex items-center gap-2">
@@ -237,7 +255,9 @@ export default function Leads() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <CardTitle>All Leads</CardTitle>
-              <CardDescription>Click a lead to search Companies House and add to your pipeline</CardDescription>
+              <CardDescription>
+                Click a lead to search Companies House and add to your pipeline
+              </CardDescription>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
@@ -271,8 +291,8 @@ export default function Leads() {
               <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No Leads Found</h3>
               <p className="text-muted-foreground mb-4">
-                {searchTerm || statusFilter !== "all" 
-                  ? "Try adjusting your search or filters" 
+                {searchTerm || statusFilter !== "all"
+                  ? "Try adjusting your search or filters"
                   : "Upload a CSV file in Settings to import leads"}
               </p>
               <Button asChild>
@@ -401,7 +421,7 @@ export default function Leads() {
               )}
             </DialogDescription>
           </DialogHeader>
-          
+
           {isSearching ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -434,7 +454,9 @@ export default function Leads() {
                       )}
                     </div>
                     {company.address_snippet && (
-                      <p className="text-sm text-muted-foreground mt-1">{company.address_snippet}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {company.address_snippet}
+                      </p>
                     )}
                   </div>
                   <Button size="sm" disabled={createProspectMutation.isPending}>

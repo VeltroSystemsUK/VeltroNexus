@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +14,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useMutation } from "@tanstack/react-query";
@@ -73,9 +86,12 @@ const STEPS = [
 ];
 
 function calculateMonthlyPayment(amount: number, rate: number, termMonths: number): number {
-  const monthlyRate = (rate / 100) / 12;
+  const monthlyRate = rate / 100 / 12;
   if (monthlyRate === 0) return amount / termMonths;
-  return amount * (monthlyRate * Math.pow(1 + monthlyRate, termMonths)) / (Math.pow(1 + monthlyRate, termMonths) - 1);
+  return (
+    (amount * (monthlyRate * Math.pow(1 + monthlyRate, termMonths))) /
+    (Math.pow(1 + monthlyRate, termMonths) - 1)
+  );
 }
 
 function formatCurrency(value: number): string {
@@ -89,7 +105,7 @@ function formatCurrency(value: number): string {
 
 interface OpenBankingSectionProps {
   openBanking?: {
-    status: 'not_sent' | 'invited' | 'connected' | 'expired' | 'error';
+    status: "not_sent" | "invited" | "connected" | "expired" | "error";
     invitedAt?: string;
     connectedAt?: string;
     customerEmail?: string;
@@ -100,40 +116,69 @@ interface OpenBankingSectionProps {
   isSaving: boolean;
 }
 
-function OpenBankingSection({ openBanking, existingUnderwriting, onSave, isSaving }: OpenBankingSectionProps) {
-  const [email, setEmail] = useState(openBanking?.customerEmail || '');
+function OpenBankingSection({
+  openBanking,
+  existingUnderwriting,
+  onSave,
+  isSaving,
+}: OpenBankingSectionProps) {
+  const [email, setEmail] = useState(openBanking?.customerEmail || "");
   const [isSending, setIsSending] = useState(false);
-  
-  const status = openBanking?.status || 'not_sent';
-  
+
+  const status = openBanking?.status || "not_sent";
+
   const getStatusBadge = () => {
     switch (status) {
-      case 'connected':
-        return <Badge className="bg-green-500 text-white text-xs"><Check className="h-3 w-3 mr-1" />Connected</Badge>;
-      case 'invited':
-        return <Badge className="bg-amber-500 text-white text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
-      case 'expired':
-        return <Badge variant="destructive" className="text-xs"><AlertCircle className="h-3 w-3 mr-1" />Expired</Badge>;
-      case 'error':
-        return <Badge variant="destructive" className="text-xs"><XCircle className="h-3 w-3 mr-1" />Error</Badge>;
+      case "connected":
+        return (
+          <Badge className="bg-green-500 text-white text-xs">
+            <Check className="h-3 w-3 mr-1" />
+            Connected
+          </Badge>
+        );
+      case "invited":
+        return (
+          <Badge className="bg-amber-500 text-white text-xs">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </Badge>
+        );
+      case "expired":
+        return (
+          <Badge variant="destructive" className="text-xs">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Expired
+          </Badge>
+        );
+      case "error":
+        return (
+          <Badge variant="destructive" className="text-xs">
+            <XCircle className="h-3 w-3 mr-1" />
+            Error
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary" className="text-xs">Not Sent</Badge>;
+        return (
+          <Badge variant="secondary" className="text-xs">
+            Not Sent
+          </Badge>
+        );
     }
   };
-  
+
   const handleSendLink = async () => {
     if (!email) {
       toast.error("Please enter a customer email address");
       return;
     }
-    
+
     setIsSending(true);
     try {
       onSave({
         underwriting: {
           ...existingUnderwriting,
           openBanking: {
-            status: 'invited',
+            status: "invited",
             invitedAt: new Date().toISOString(),
             customerEmail: email,
             linkId: `ob_${Date.now()}`,
@@ -147,45 +192,57 @@ function OpenBankingSection({ openBanking, existingUnderwriting, onSave, isSavin
       setIsSending(false);
     }
   };
-  
-  if (status === 'connected') {
+
+  if (status === "connected") {
     return (
       <div className="text-center space-y-2">
         <Link className="h-8 w-8 mx-auto text-green-500" />
         {getStatusBadge()}
         <p className="text-xs text-muted-foreground">
-          {openBanking?.connectedAt ? `Connected ${new Date(openBanking.connectedAt).toLocaleDateString()}` : 'Bank linked'}
+          {openBanking?.connectedAt
+            ? `Connected ${new Date(openBanking.connectedAt).toLocaleDateString()}`
+            : "Bank linked"}
         </p>
       </div>
     );
   }
-  
-  if (status === 'invited') {
+
+  if (status === "invited") {
     return (
       <div className="text-center space-y-2">
         <Mail className="h-8 w-8 mx-auto text-amber-500" />
         {getStatusBadge()}
         <p className="text-xs text-muted-foreground truncate">{openBanking?.customerEmail}</p>
-        <Button variant="outline" size="sm" onClick={handleSendLink} disabled={isSending || isSaving}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSendLink}
+          disabled={isSending || isSaving}
+        >
           Resend
         </Button>
       </div>
     );
   }
-  
-  if (status === 'expired' || status === 'error') {
+
+  if (status === "expired" || status === "error") {
     return (
       <div className="text-center space-y-2">
         <AlertCircle className="h-8 w-8 mx-auto text-destructive" />
         {getStatusBadge()}
         <p className="text-xs text-muted-foreground truncate">{openBanking?.customerEmail}</p>
-        <Button variant="outline" size="sm" onClick={handleSendLink} disabled={isSending || isSaving}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSendLink}
+          disabled={isSending || isSaving}
+        >
           Retry
         </Button>
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-2 text-center">
       <Link className="h-8 w-8 mx-auto text-muted-foreground" />
@@ -198,14 +255,32 @@ function OpenBankingSection({ openBanking, existingUnderwriting, onSave, isSavin
         className="h-8 text-xs"
         data-testid="input-openbanking-email"
       />
-      <Button size="sm" onClick={handleSendLink} disabled={isSending || isSaving || !email} className="w-full" data-testid="button-send-openbanking">
-        {isSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Send className="h-3 w-3 mr-1" />Send Link</>}
+      <Button
+        size="sm"
+        onClick={handleSendLink}
+        disabled={isSending || isSaving || !email}
+        className="w-full"
+        data-testid="button-send-openbanking"
+      >
+        {isSending ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <>
+            <Send className="h-3 w-3 mr-1" />
+            Send Link
+          </>
+        )}
       </Button>
     </div>
   );
 }
 
-export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: CreditUnderwritingToolProps) {
+export function CreditUnderwritingTool({
+  prospect,
+  data,
+  onSave,
+  isSaving,
+}: CreditUnderwritingToolProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const underwriting = (data.underwriting || {}) as UnderwritingData;
 
@@ -213,8 +288,8 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     underwriting.eligibility?.answers || {}
   );
   const [loanAmount, setLoanAmount] = useState(
-    underwriting.loanDetails?.amount?.toString() || 
-    (prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "")
+    underwriting.loanDetails?.amount?.toString() ||
+      (prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "")
   );
   const [termMonths, setTermMonths] = useState(
     underwriting.loanDetails?.termMonths?.toString() || DEFAULT_TERM_MONTHS.toString()
@@ -234,9 +309,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     text: string;
     pages?: number;
   }
-  const [accountsPdfs, setAccountsPdfs] = useState<AccountsPdf[]>(
-    underwriting.accountsPdfs || []
-  );
+  const [accountsPdfs, setAccountsPdfs] = useState<AccountsPdf[]>(underwriting.accountsPdfs || []);
   const pdfInputRef1 = useRef<HTMLInputElement>(null);
   const pdfInputRef2 = useRef<HTMLInputElement>(null);
   const pdfInputRef3 = useRef<HTMLInputElement>(null);
@@ -270,14 +343,14 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   const [parsingManagementAccounts, setParsingManagementAccounts] = useState(false);
 
   // Accounting software state
-  const [accountingSoftwareStatus, setAccountingSoftwareStatus] = useState<'not_linked' | 'pending' | 'connected' | 'error'>(
-    underwriting.accountingSoftware?.status || 'not_linked'
-  );
+  const [accountingSoftwareStatus, setAccountingSoftwareStatus] = useState<
+    "not_linked" | "pending" | "connected" | "error"
+  >(underwriting.accountingSoftware?.status || "not_linked");
   const [accountingSoftwarePackage, setAccountingSoftwarePackage] = useState(
-    underwriting.accountingSoftware?.softwarePackage || ''
+    underwriting.accountingSoftware?.softwarePackage || ""
   );
   const [accountingSoftwareEmail, setAccountingSoftwareEmail] = useState(
-    underwriting.accountingSoftware?.customerEmail || ''
+    underwriting.accountingSoftware?.customerEmail || ""
   );
 
   // Sync management accounts state when underwriting data changes
@@ -288,25 +361,27 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
   // Sync accounting software state when underwriting data changes
   useEffect(() => {
-    setAccountingSoftwareStatus(underwriting.accountingSoftware?.status || 'not_linked');
-    setAccountingSoftwarePackage(underwriting.accountingSoftware?.softwarePackage || '');
-    setAccountingSoftwareEmail(underwriting.accountingSoftware?.customerEmail || '');
+    setAccountingSoftwareStatus(underwriting.accountingSoftware?.status || "not_linked");
+    setAccountingSoftwarePackage(underwriting.accountingSoftware?.softwarePackage || "");
+    setAccountingSoftwareEmail(underwriting.accountingSoftware?.customerEmail || "");
   }, [underwriting.accountingSoftware]);
 
-  const [adviserSummary, setAdviserSummary] = useState(underwriting.adviserSummary || {
-    businessName: prospect.company.companyName || "",
-    product: "RGF",
-    amount: parseFloat(loanAmount) || 0,
-    term: parseInt(termMonths) || DEFAULT_TERM_MONTHS,
-    region: "England",
-    legalStructure: prospect.company.companyType || "ltd",
-    sector: "Professional Services",
-    purpose: "",
-    sections: {},
-    questionnaire: {},
-    recommendation: "",
-    nextActions: [],
-  });
+  const [adviserSummary, setAdviserSummary] = useState(
+    underwriting.adviserSummary || {
+      businessName: prospect.company.companyName || "",
+      product: "RGF",
+      amount: parseFloat(loanAmount) || 0,
+      term: parseInt(termMonths) || DEFAULT_TERM_MONTHS,
+      region: "England",
+      legalStructure: prospect.company.companyType || "ltd",
+      sector: "Professional Services",
+      purpose: "",
+      sections: {},
+      questionnaire: {},
+      recommendation: "",
+      nextActions: [],
+    }
+  );
 
   const [refinanceAddBack, setRefinanceAddBack] = useState(
     underwriting.financialAnalysis?.scenarioModeling?.refinanceAddBack?.toString() || "0"
@@ -315,9 +390,14 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     underwriting.financialAnalysis?.scenarioModeling?.projectedNewRevenue?.toString() || "0"
   );
 
-  const monthlyRepayment = loanAmount && termMonths && interestRate
-    ? calculateMonthlyPayment(parseFloat(loanAmount), parseFloat(interestRate), parseInt(termMonths))
-    : 0;
+  const monthlyRepayment =
+    loanAmount && termMonths && interestRate
+      ? calculateMonthlyPayment(
+          parseFloat(loanAmount),
+          parseFloat(interestRate),
+          parseInt(termMonths)
+        )
+      : 0;
 
   const checkEligibility = (): { isEligible: boolean; reasons: string[] } => {
     const reasons: string[] = [];
@@ -331,10 +411,10 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         continue;
       }
 
-      if (question.category === 'eligibility' && answer !== question.requiredAnswer) {
+      if (question.category === "eligibility" && answer !== question.requiredAnswer) {
         reasons.push(`Failed: ${question.text}`);
         isEligible = false;
-      } else if (question.category === 'exclusion' && answer === true) {
+      } else if (question.category === "exclusion" && answer === true) {
         reasons.push(`Exclusion: ${question.text}`);
         isEligible = false;
       }
@@ -373,12 +453,16 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
   const analyzeCsvMutation = useMutation({
     mutationFn: async (csvData: string) => {
-      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/analyze-csv`, "POST", {
-        csvData,
-        loanAmount: parseFloat(loanAmount),
-        monthlyRepayment,
-        consentToAiProcessing: true,
-      });
+      const response = await apiRequest(
+        `/api/prospects/${prospect.id}/underwriting/analyze-csv`,
+        "POST",
+        {
+          csvData,
+          loanAmount: parseFloat(loanAmount),
+          monthlyRepayment,
+          consentToAiProcessing: true,
+        }
+      );
       return response.json();
     },
     onSuccess: (result) => {
@@ -392,12 +476,16 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
   const analyzeBankPdfsMutation = useMutation({
     mutationFn: async (pdfTexts: { fileName: string; text: string; pages?: number }[]) => {
-      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/analyze-bank-pdfs`, "POST", {
-        pdfTexts,
-        loanAmount: parseFloat(loanAmount),
-        monthlyRepayment,
-        consentToAiProcessing: true,
-      });
+      const response = await apiRequest(
+        `/api/prospects/${prospect.id}/underwriting/analyze-bank-pdfs`,
+        "POST",
+        {
+          pdfTexts,
+          loanAmount: parseFloat(loanAmount),
+          monthlyRepayment,
+          consentToAiProcessing: true,
+        }
+      );
       return response.json();
     },
     onSuccess: (result) => {
@@ -405,8 +493,8 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         underwriting: {
           ...underwriting,
           financialAnalysis: result,
-          bankPdfFiles: bankStatementPdfs.map(p => ({ fileName: p.fileName, pages: p.pages })),
-          analysisSource: 'pdf',
+          bankPdfFiles: bankStatementPdfs.map((p) => ({ fileName: p.fileName, pages: p.pages })),
+          analysisSource: "pdf",
           analyzedAt: new Date().toISOString(),
         },
       });
@@ -420,10 +508,14 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
   const adverseMediaMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/adverse-media`, "POST", {
-        companyName: prospect.company.companyName,
-        companyNumber: prospect.company.companyNumber,
-      });
+      const response = await apiRequest(
+        `/api/prospects/${prospect.id}/underwriting/adverse-media`,
+        "POST",
+        {
+          companyName: prospect.company.companyName,
+          companyNumber: prospect.company.companyNumber,
+        }
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -437,12 +529,16 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
   const analyzeAccountsMutation = useMutation({
     mutationFn: async (pdfTexts: { year: string; text: string }[]) => {
-      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/analyze-accounts`, "POST", {
-        pdfTexts,
-        loanAmount: parseFloat(loanAmount),
-        monthlyRepayment,
-        consentToAiProcessing: true,
-      });
+      const response = await apiRequest(
+        `/api/prospects/${prospect.id}/underwriting/analyze-accounts`,
+        "POST",
+        {
+          pdfTexts,
+          loanAmount: parseFloat(loanAmount),
+          monthlyRepayment,
+          consentToAiProcessing: true,
+        }
+      );
       return response.json();
     },
     onSuccess: (result) => {
@@ -466,27 +562,31 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     mutationFn: async () => {
       const financialAnalysis = underwriting.financialAnalysis;
       const accountsAnalysis = underwriting.accountsAnalysis;
-      
-      const financialSummary = financialAnalysis 
-        ? `Risk Score: ${financialAnalysis.riskScore}, DSCR: ${financialAnalysis.dscr?.toFixed(2) || 'N/A'}, Monthly Revenue: £${financialAnalysis.averageMonthlyRevenue?.toLocaleString() || '0'}, Net Disposable Income: £${financialAnalysis.netDisposableIncome?.toLocaleString() || '0'}`
-        : '';
-      
-      const bankAnalysisSummary = financialAnalysis?.summary || '';
-      
-      const companiesHouseData = prospect.company 
-        ? `Incorporated: ${prospect.company.incorporationDate || 'Unknown'}, Status: ${prospect.company.companyStatus || 'Unknown'}, Type: ${prospect.company.companyType || 'Unknown'}`
-        : '';
-      
-      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/swot-analysis`, "POST", {
-        companyName: prospect.company.companyName,
-        sector: adviserSummary.sector,
-        loanAmount: parseFloat(loanAmount),
-        loanPurpose: adviserSummary.purpose,
-        financialSummary,
-        companiesHouseData,
-        bankAnalysisSummary,
-        consentToAiProcessing: true,
-      });
+
+      const financialSummary = financialAnalysis
+        ? `Risk Score: ${financialAnalysis.riskScore}, DSCR: ${financialAnalysis.dscr?.toFixed(2) || "N/A"}, Monthly Revenue: £${financialAnalysis.averageMonthlyRevenue?.toLocaleString() || "0"}, Net Disposable Income: £${financialAnalysis.netDisposableIncome?.toLocaleString() || "0"}`
+        : "";
+
+      const bankAnalysisSummary = financialAnalysis?.summary || "";
+
+      const companiesHouseData = prospect.company
+        ? `Incorporated: ${prospect.company.incorporationDate || "Unknown"}, Status: ${prospect.company.companyStatus || "Unknown"}, Type: ${prospect.company.companyType || "Unknown"}`
+        : "";
+
+      const response = await apiRequest(
+        `/api/prospects/${prospect.id}/underwriting/swot-analysis`,
+        "POST",
+        {
+          companyName: prospect.company.companyName,
+          sector: adviserSummary.sector,
+          loanAmount: parseFloat(loanAmount),
+          loanPurpose: adviserSummary.purpose,
+          financialSummary,
+          companiesHouseData,
+          bankAnalysisSummary,
+          consentToAiProcessing: true,
+        }
+      );
       return response.json();
     },
     onSuccess: (result) => {
@@ -512,40 +612,44 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
       setGeneratingSection(sectionKey);
       const financialAnalysis = underwriting.financialAnalysis;
       const accountsAnalysis = underwriting.accountsAnalysis;
-      
-      const financialSummary = financialAnalysis 
-        ? `Risk Score: ${financialAnalysis.riskScore}, DSCR: ${financialAnalysis.dscr?.toFixed(2) || 'N/A'}, Monthly Revenue: £${financialAnalysis.averageMonthlyRevenue?.toLocaleString() || '0'}, Net Disposable Income: £${financialAnalysis.netDisposableIncome?.toLocaleString() || '0'}`
-        : '';
-      
-      const bankAnalysisSummary = financialAnalysis?.summary || '';
-      const accountsAnalysisSummary = accountsAnalysis?.summary || '';
-      
-      const companiesHouseData = prospect.company 
-        ? `Incorporated: ${prospect.company.incorporationDate || 'Unknown'}, Status: ${prospect.company.companyStatus || 'Unknown'}, Type: ${prospect.company.companyType || 'Unknown'}`
-        : '';
-      
-      const response = await apiRequest(`/api/prospects/${prospect.id}/underwriting/campari-section`, "POST", {
-        sectionKey,
-        companyName: prospect.company.companyName,
-        sector: adviserSummary.sector,
-        loanAmount: parseFloat(loanAmount),
-        loanPurpose: adviserSummary.purpose,
-        financialSummary,
-        companiesHouseData,
-        bankAnalysisSummary,
-        accountsAnalysisSummary,
-        consentToAiProcessing: true,
-      });
+
+      const financialSummary = financialAnalysis
+        ? `Risk Score: ${financialAnalysis.riskScore}, DSCR: ${financialAnalysis.dscr?.toFixed(2) || "N/A"}, Monthly Revenue: £${financialAnalysis.averageMonthlyRevenue?.toLocaleString() || "0"}, Net Disposable Income: £${financialAnalysis.netDisposableIncome?.toLocaleString() || "0"}`
+        : "";
+
+      const bankAnalysisSummary = financialAnalysis?.summary || "";
+      const accountsAnalysisSummary = accountsAnalysis?.summary || "";
+
+      const companiesHouseData = prospect.company
+        ? `Incorporated: ${prospect.company.incorporationDate || "Unknown"}, Status: ${prospect.company.companyStatus || "Unknown"}, Type: ${prospect.company.companyType || "Unknown"}`
+        : "";
+
+      const response = await apiRequest(
+        `/api/prospects/${prospect.id}/underwriting/campari-section`,
+        "POST",
+        {
+          sectionKey,
+          companyName: prospect.company.companyName,
+          sector: adviserSummary.sector,
+          loanAmount: parseFloat(loanAmount),
+          loanPurpose: adviserSummary.purpose,
+          financialSummary,
+          companiesHouseData,
+          bankAnalysisSummary,
+          accountsAnalysisSummary,
+          consentToAiProcessing: true,
+        }
+      );
       return response.json();
     },
     onSuccess: (result) => {
       const updatedSections = {
         ...adviserSummary.sections,
-        [result.sectionKey]: result.content
+        [result.sectionKey]: result.content,
       };
       const updatedAdviserSummary = {
         ...adviserSummary,
-        sections: updatedSections
+        sections: updatedSections,
       };
       setAdviserSummary(updatedAdviserSummary);
       onSave({
@@ -555,7 +659,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         },
       });
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
-      toast.success(`${result.sectionKey.charAt(0).toUpperCase() + result.sectionKey.slice(1)} section generated`);
+      toast.success(
+        `${result.sectionKey.charAt(0).toUpperCase() + result.sectionKey.slice(1)} section generated`
+      );
       setGeneratingSection(null);
     },
     onError: (error: any) => {
@@ -568,7 +674,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
       toast.error("Please upload a PDF file");
       return;
     }
@@ -580,34 +686,34 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
       reader.onload = async (e) => {
         const arrayBuffer = e.target?.result as ArrayBuffer;
         const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
         );
-        
+
         try {
           const response = await apiRequest("/api/parse-pdf", "POST", { pdfBase64: base64 });
           const data = await response.json();
-          
+
           const currentYear = new Date().getFullYear();
           const yearLabels = [`${currentYear - 1}`, `${currentYear - 2}`, `${currentYear - 3}`];
-          
+
           const newPdf: AccountsPdf = {
             year: yearLabels[yearIndex] || `Year ${yearIndex + 1}`,
             fileName: file.name,
             text: data.text,
             pages: data.pages,
           };
-          
+
           const updatedPdfs = [...accountsPdfs];
           updatedPdfs[yearIndex] = newPdf;
           setAccountsPdfs(updatedPdfs);
-          
+
           onSave({
             underwriting: {
               ...underwriting,
               accountsPdfs: updatedPdfs,
             },
           });
-          
+
           toast.success(`Parsed ${file.name} (${data.pages} pages)`);
         } catch (error: any) {
           toast.error(error.message || "Failed to parse PDF");
@@ -623,7 +729,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   };
 
   const handleAnalyzeAccounts = () => {
-    const validPdfs = accountsPdfs.filter(pdf => pdf && pdf.text);
+    const validPdfs = accountsPdfs.filter((pdf) => pdf && pdf.text);
     if (validPdfs.length === 0) {
       toast.error("Please upload at least one year of accounts");
       return;
@@ -632,14 +738,14 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
       toast.error("Please enter a valid loan amount");
       return;
     }
-    analyzeAccountsMutation.mutate(validPdfs.map(pdf => ({ year: pdf.year, text: pdf.text })));
+    analyzeAccountsMutation.mutate(validPdfs.map((pdf) => ({ year: pdf.year, text: pdf.text })));
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv')) {
+    if (!file.name.endsWith(".csv")) {
       toast.error("Please upload a CSV file");
       return;
     }
@@ -686,14 +792,14 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
       const parsedPdfs: BankStatementPdf[] = [];
 
       for (const file of Array.from(files)) {
-        if (!file.name.toLowerCase().endsWith('.pdf')) {
+        if (!file.name.toLowerCase().endsWith(".pdf")) {
           toast.error(`${file.name} is not a PDF file`);
           continue;
         }
 
         const arrayBuffer = await file.arrayBuffer();
         const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
         );
 
         try {
@@ -715,10 +821,12 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         onSave({
           underwriting: {
             ...underwriting,
-            bankPdfFiles: parsedPdfs.map(p => ({ fileName: p.fileName, pages: p.pages })),
+            bankPdfFiles: parsedPdfs.map((p) => ({ fileName: p.fileName, pages: p.pages })),
           },
         });
-        toast.success(`Parsed ${parsedPdfs.length} bank statement${parsedPdfs.length > 1 ? 's' : ''}`);
+        toast.success(
+          `Parsed ${parsedPdfs.length} bank statement${parsedPdfs.length > 1 ? "s" : ""}`
+        );
       }
     } catch (error: any) {
       toast.error("Failed to process PDF files");
@@ -728,7 +836,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   };
 
   const handleAnalyzeBankPdfs = () => {
-    const pdfsWithText = bankStatementPdfs.filter((pdf): pdf is BankStatementPdf & { text: string } => !!pdf.text);
+    const pdfsWithText = bankStatementPdfs.filter(
+      (pdf): pdf is BankStatementPdf & { text: string } => !!pdf.text
+    );
     if (pdfsWithText.length === 0) {
       toast.error("Please upload at least one bank statement PDF");
       return;
@@ -743,7 +853,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   const clearBankPdfs = () => {
     setBankStatementPdfs([]);
     if (bankPdfInputRef.current) {
-      bankPdfInputRef.current.value = '';
+      bankPdfInputRef.current.value = "";
     }
   };
 
@@ -780,7 +890,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return Object.keys(eligibilityAnswers).length === ELIGIBILITY_QUESTIONS.length && isEligible;
+        return (
+          Object.keys(eligibilityAnswers).length === ELIGIBILITY_QUESTIONS.length && isEligible
+        );
       case 2:
         return csvText.length > 0 || !!financialAnalysis;
       case 3:
@@ -816,18 +928,15 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             {STEPS.map((step, index) => (
-              <div
-                key={step.id}
-                className="flex items-center"
-              >
+              <div key={step.id} className="flex items-center">
                 <button
                   onClick={() => setCurrentStep(step.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                     currentStep === step.id
                       ? "bg-primary text-primary-foreground"
                       : currentStep > step.id
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-muted text-muted-foreground"
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-muted text-muted-foreground"
                   }`}
                   data-testid={`button-step-${step.id}`}
                 >
@@ -900,8 +1009,12 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                   <div className="flex items-center gap-4 text-sm">
                     <span className="text-muted-foreground">Monthly Repayment:</span>
                     <span className="font-semibold">{formatCurrency(monthlyRepayment)}</span>
-                    <span className="text-muted-foreground">Arrangement Fee ({ARRANGEMENT_FEE_PERCENT}%):</span>
-                    <span className="font-semibold">{formatCurrency(parseFloat(loanAmount) * (ARRANGEMENT_FEE_PERCENT / 100))}</span>
+                    <span className="text-muted-foreground">
+                      Arrangement Fee ({ARRANGEMENT_FEE_PERCENT}%):
+                    </span>
+                    <span className="font-semibold">
+                      {formatCurrency(parseFloat(loanAmount) * (ARRANGEMENT_FEE_PERCENT / 100))}
+                    </span>
                   </div>
                 )}
               </div>
@@ -918,11 +1031,17 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     <div className="flex-1">
                       <p className="text-sm font-medium">{question.text}</p>
                       <Badge variant="outline" className="mt-1 text-xs">
-                        {question.category === 'eligibility' ? 'Must be Yes' : 'Must be No'}
+                        {question.category === "eligibility" ? "Must be Yes" : "Must be No"}
                       </Badge>
                     </div>
                     <RadioGroup
-                      value={eligibilityAnswers[question.id] === true ? "yes" : eligibilityAnswers[question.id] === false ? "no" : ""}
+                      value={
+                        eligibilityAnswers[question.id] === true
+                          ? "yes"
+                          : eligibilityAnswers[question.id] === false
+                            ? "no"
+                            : ""
+                      }
                       onValueChange={(value) => {
                         setEligibilityAnswers((prev) => ({
                           ...prev,
@@ -933,11 +1052,15 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     >
                       <div className="flex items-center gap-2">
                         <RadioGroupItem value="yes" id={`${question.id}-yes`} />
-                        <Label htmlFor={`${question.id}-yes`} className="cursor-pointer">Yes</Label>
+                        <Label htmlFor={`${question.id}-yes`} className="cursor-pointer">
+                          Yes
+                        </Label>
                       </div>
                       <div className="flex items-center gap-2">
                         <RadioGroupItem value="no" id={`${question.id}-no`} />
-                        <Label htmlFor={`${question.id}-no`} className="cursor-pointer">No</Label>
+                        <Label htmlFor={`${question.id}-no`} className="cursor-pointer">
+                          No
+                        </Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -1021,13 +1144,28 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     <div className="space-y-2 text-center">
                       <FileText className="h-8 w-8 mx-auto text-green-500" />
                       <p className="text-xs font-medium truncate">{csvFileName}</p>
-                      <p className="text-xs text-muted-foreground">{csvText.split("\n").length} rows</p>
+                      <p className="text-xs text-muted-foreground">
+                        {csvText.split("\n").length} rows
+                      </p>
                       <div className="flex gap-2 justify-center flex-wrap">
-                        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
                           Replace
                         </Button>
-                        <Button size="sm" onClick={handleAnalyze} disabled={analyzeCsvMutation.isPending} data-testid="button-analyze-csv">
-                          {analyzeCsvMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Analyze"}
+                        <Button
+                          size="sm"
+                          onClick={handleAnalyze}
+                          disabled={analyzeCsvMutation.isPending}
+                          data-testid="button-analyze-csv"
+                        >
+                          {analyzeCsvMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            "Analyze"
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -1067,11 +1205,24 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                   ) : bankStatementPdfs.length > 0 ? (
                     <div className="space-y-2 text-center">
                       <FileText className="h-8 w-8 mx-auto text-green-500" />
-                      <p className="text-xs font-medium">{bankStatementPdfs.length} PDF{bankStatementPdfs.length > 1 ? 's' : ''}</p>
+                      <p className="text-xs font-medium">
+                        {bankStatementPdfs.length} PDF{bankStatementPdfs.length > 1 ? "s" : ""}
+                      </p>
                       <div className="flex gap-2 justify-center flex-wrap">
-                        <Button variant="outline" size="sm" onClick={clearBankPdfs}>Clear</Button>
-                        <Button size="sm" onClick={handleAnalyzeBankPdfs} disabled={analyzeBankPdfsMutation.isPending} data-testid="button-analyze-bank-pdfs">
-                          {analyzeBankPdfsMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Analyze"}
+                        <Button variant="outline" size="sm" onClick={clearBankPdfs}>
+                          Clear
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleAnalyzeBankPdfs}
+                          disabled={analyzeBankPdfsMutation.isPending}
+                          data-testid="button-analyze-bank-pdfs"
+                        >
+                          {analyzeBankPdfsMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            "Analyze"
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -1111,28 +1262,50 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold">Last Three Years Financial Accounts</CardTitle>
+                  <CardTitle className="text-base font-semibold">
+                    Last Three Years Financial Accounts
+                  </CardTitle>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
-                      <p className="text-sm">Upload the last 3 years of audited or filed accounts in PDF format. <strong>Must include notes to the accounts</strong> for complete financial analysis including depreciation, director loans, and related party transactions.</p>
+                      <p className="text-sm">
+                        Upload the last 3 years of audited or filed accounts in PDF format.{" "}
+                        <strong>Must include notes to the accounts</strong> for complete financial
+                        analysis including depreciation, director loans, and related party
+                        transactions.
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <CardDescription>Upload audited accounts with notes for trend analysis, credit ratios, and DSCR calculation</CardDescription>
+                <CardDescription>
+                  Upload audited accounts with notes for trend analysis, credit ratios, and DSCR
+                  calculation
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[0, 1, 2].map((yearIndex) => {
                     const currentYear = new Date().getFullYear();
-                    const yearLabels = [`${currentYear - 1}`, `${currentYear - 2}`, `${currentYear - 3}`];
-                    const pdfRef = yearIndex === 0 ? pdfInputRef1 : yearIndex === 1 ? pdfInputRef2 : pdfInputRef3;
+                    const yearLabels = [
+                      `${currentYear - 1}`,
+                      `${currentYear - 2}`,
+                      `${currentYear - 3}`,
+                    ];
+                    const pdfRef =
+                      yearIndex === 0
+                        ? pdfInputRef1
+                        : yearIndex === 1
+                          ? pdfInputRef2
+                          : pdfInputRef3;
                     const pdf = accountsPdfs[yearIndex];
-                    
+
                     return (
-                      <div key={yearIndex} className="border-2 border-dashed rounded-lg p-4 text-center">
+                      <div
+                        key={yearIndex}
+                        className="border-2 border-dashed rounded-lg p-4 text-center"
+                      >
                         <input
                           type="file"
                           ref={pdfRef}
@@ -1141,7 +1314,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                           className="hidden"
                           data-testid={`input-pdf-upload-${yearIndex}`}
                         />
-                        <p className="text-sm font-medium mb-2">Year Ending {yearLabels[yearIndex]}</p>
+                        <p className="text-sm font-medium mb-2">
+                          Year Ending {yearLabels[yearIndex]}
+                        </p>
                         {parsingPdf === yearIndex ? (
                           <div className="space-y-2">
                             <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
@@ -1177,7 +1352,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                   })}
                 </div>
 
-                {accountsPdfs.filter(p => p?.text).length > 0 && (
+                {accountsPdfs.filter((p) => p?.text).length > 0 && (
                   <div className="flex justify-center mt-4">
                     <Button
                       onClick={handleAnalyzeAccounts}
@@ -1192,7 +1367,8 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                       ) : (
                         <>
                           <TrendingUp className="h-4 w-4 mr-2" />
-                          Analyze {accountsPdfs.filter(p => p?.text).length} Year{accountsPdfs.filter(p => p?.text).length > 1 ? 's' : ''} of Accounts
+                          Analyze {accountsPdfs.filter((p) => p?.text).length} Year
+                          {accountsPdfs.filter((p) => p?.text).length > 1 ? "s" : ""} of Accounts
                         </>
                       )}
                     </Button>
@@ -1205,11 +1381,15 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                       <CheckCircle2 className="h-5 w-5" />
                       <span className="font-medium">Accounts Analysis Complete</span>
                       {accountsAnalysis.riskAssessment && (
-                        <Badge className={
-                          accountsAnalysis.riskAssessment === 'low' ? 'bg-green-500 text-white' :
-                          accountsAnalysis.riskAssessment === 'medium' ? 'bg-yellow-500 text-white' :
-                          'bg-red-500 text-white'
-                        }>
+                        <Badge
+                          className={
+                            accountsAnalysis.riskAssessment === "low"
+                              ? "bg-green-500 text-white"
+                              : accountsAnalysis.riskAssessment === "medium"
+                                ? "bg-yellow-500 text-white"
+                                : "bg-red-500 text-white"
+                          }
+                        >
                           {accountsAnalysis.riskAssessment.toUpperCase()} Risk
                         </Badge>
                       )}
@@ -1217,29 +1397,46 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     {accountsAnalysis.summary && (
                       <p className="text-sm">{accountsAnalysis.summary}</p>
                     )}
-                    
+
                     {accountsAnalysis.trends?.trend && (
                       <div className="text-sm">
                         <span className="font-medium">Trend: </span>
-                        <Badge variant={accountsAnalysis.trends.trend === 'improving' ? 'default' : accountsAnalysis.trends.trend === 'stable' ? 'secondary' : 'destructive'}>
-                          {accountsAnalysis.trends.trend.charAt(0).toUpperCase() + accountsAnalysis.trends.trend.slice(1)}
+                        <Badge
+                          variant={
+                            accountsAnalysis.trends.trend === "improving"
+                              ? "default"
+                              : accountsAnalysis.trends.trend === "stable"
+                                ? "secondary"
+                                : "destructive"
+                          }
+                        >
+                          {accountsAnalysis.trends.trend.charAt(0).toUpperCase() +
+                            accountsAnalysis.trends.trend.slice(1)}
                         </Badge>
                       </div>
                     )}
-                    
-                    {accountsAnalysis.dscr?.average !== undefined && accountsAnalysis.dscr.average > 0 && (
-                      <div className="text-sm">
-                        <span className="font-medium">Avg Historical DSCR: </span>
-                        <span className={accountsAnalysis.dscr.average >= 1.25 ? 'text-green-600' : 'text-red-600'}>
-                          {accountsAnalysis.dscr.average.toFixed(2)}x
-                        </span>
-                      </div>
-                    )}
-                    
+
+                    {accountsAnalysis.dscr?.average !== undefined &&
+                      accountsAnalysis.dscr.average > 0 && (
+                        <div className="text-sm">
+                          <span className="font-medium">Avg Historical DSCR: </span>
+                          <span
+                            className={
+                              accountsAnalysis.dscr.average >= 1.25
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {accountsAnalysis.dscr.average.toFixed(2)}x
+                          </span>
+                        </div>
+                      )}
+
                     {accountsAnalysis.concerns && accountsAnalysis.concerns.length > 0 && (
                       <div className="text-sm">
                         <span className="font-medium text-amber-600 dark:text-amber-400">
-                          {accountsAnalysis.concerns.length} Concern{accountsAnalysis.concerns.length > 1 ? 's' : ''} Identified
+                          {accountsAnalysis.concerns.length} Concern
+                          {accountsAnalysis.concerns.length > 1 ? "s" : ""} Identified
                         </span>
                       </div>
                     )}
@@ -1252,25 +1449,38 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
             <Card className="mt-4">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold">Latest Management Accounts</CardTitle>
+                  <CardTitle className="text-base font-semibold">
+                    Latest Management Accounts
+                  </CardTitle>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
-                      <p className="text-sm">Upload the most recent management accounts showing Profit & Loss and Balance Sheet. This provides up-to-date financial performance since the last filed accounts.</p>
+                      <p className="text-sm">
+                        Upload the most recent management accounts showing Profit & Loss and Balance
+                        Sheet. This provides up-to-date financial performance since the last filed
+                        accounts.
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <CardDescription>Upload recent management accounts for current trading performance</CardDescription>
+                <CardDescription>
+                  Upload recent management accounts for current trading performance
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col md:flex-row gap-4 items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-4">
-                      <Label htmlFor="management-months" className="text-sm font-medium whitespace-nowrap">Number of months:</Label>
-                      <Select 
-                        value={managementAccountsMonths.toString()} 
+                      <Label
+                        htmlFor="management-months"
+                        className="text-sm font-medium whitespace-nowrap"
+                      >
+                        Number of months:
+                      </Label>
+                      <Select
+                        value={managementAccountsMonths.toString()}
                         onValueChange={(val) => {
                           setManagementAccountsMonths(parseInt(val));
                           onSave({
@@ -1289,7 +1499,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                         </SelectTrigger>
                         <SelectContent>
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
-                            <SelectItem key={m} value={m.toString()}>{m} month{m > 1 ? 's' : ''}</SelectItem>
+                            <SelectItem key={m} value={m.toString()}>
+                              {m} month{m > 1 ? "s" : ""}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1325,13 +1537,18 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                             underwriting: {
                               ...underwriting,
                               managementAccounts: {
-                                files: parsedFiles.map(p => ({ fileName: p.fileName, pages: p.pages })),
+                                files: parsedFiles.map((p) => ({
+                                  fileName: p.fileName,
+                                  pages: p.pages,
+                                })),
                                 months: managementAccountsMonths,
                                 uploadedAt: new Date().toISOString(),
                               },
                             },
                           });
-                          toast.success(`Uploaded ${parsedFiles.length} management account file${parsedFiles.length > 1 ? 's' : ''}`);
+                          toast.success(
+                            `Uploaded ${parsedFiles.length} management account file${parsedFiles.length > 1 ? "s" : ""}`
+                          );
                         } catch (error) {
                           toast.error("Failed to parse management accounts");
                         } finally {
@@ -1350,16 +1567,29 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                       ) : managementAccountFiles.length > 0 ? (
                         <div className="space-y-2">
                           <FileText className="h-8 w-8 mx-auto text-green-500" />
-                          <p className="text-sm font-medium">{managementAccountFiles.length} file{managementAccountFiles.length > 1 ? 's' : ''} uploaded</p>
-                          <p className="text-xs text-muted-foreground">{managementAccountFiles.map(f => f.fileName).join(', ')}</p>
-                          <Button variant="outline" size="sm" onClick={() => managementAccountsInputRef.current?.click()}>
+                          <p className="text-sm font-medium">
+                            {managementAccountFiles.length} file
+                            {managementAccountFiles.length > 1 ? "s" : ""} uploaded
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {managementAccountFiles.map((f) => f.fileName).join(", ")}
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => managementAccountsInputRef.current?.click()}
+                          >
                             Replace Files
                           </Button>
                         </div>
                       ) : (
                         <div className="space-y-2">
                           <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
-                          <Button variant="outline" size="sm" onClick={() => managementAccountsInputRef.current?.click()}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => managementAccountsInputRef.current?.click()}
+                          >
                             Upload Management Accounts
                           </Button>
                           <p className="text-xs text-muted-foreground">PDF format</p>
@@ -1375,24 +1605,37 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
             <Card className="mt-4">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold">Link to Accounting Software</CardTitle>
+                  <CardTitle className="text-base font-semibold">
+                    Link to Accounting Software
+                  </CardTitle>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
-                      <p className="text-sm">Connect directly to the customer's accounting software (Xero, QuickBooks, Sage, FreeAgent, etc.) to automatically retrieve financial data. This provides real-time access to the most current financial information.</p>
+                      <p className="text-sm">
+                        Connect directly to the customer's accounting software (Xero, QuickBooks,
+                        Sage, FreeAgent, etc.) to automatically retrieve financial data. This
+                        provides real-time access to the most current financial information.
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <CardDescription>Connect to accounting software for real-time financial data</CardDescription>
+                <CardDescription>
+                  Connect to accounting software for real-time financial data
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <Label htmlFor="accounting-software" className="text-sm font-medium whitespace-nowrap">Software Package:</Label>
-                    <Select 
-                      value={accountingSoftwarePackage} 
+                    <Label
+                      htmlFor="accounting-software"
+                      className="text-sm font-medium whitespace-nowrap"
+                    >
+                      Software Package:
+                    </Label>
+                    <Select
+                      value={accountingSoftwarePackage}
                       onValueChange={(val) => {
                         setAccountingSoftwarePackage(val);
                         onSave({
@@ -1401,7 +1644,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                             accountingSoftware: {
                               ...underwriting.accountingSoftware,
                               softwarePackage: val,
-                              status: underwriting.accountingSoftware?.status || 'not_linked',
+                              status: underwriting.accountingSoftware?.status || "not_linked",
                             },
                           },
                         });
@@ -1424,7 +1667,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
                   {accountingSoftwarePackage && (
                     <div className="border rounded-lg p-4">
-                      {accountingSoftwareStatus === 'not_linked' && (
+                      {accountingSoftwareStatus === "not_linked" && (
                         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
                           <div className="flex-1">
                             <Input
@@ -1442,12 +1685,12 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                                 toast.error("Please enter a customer email");
                                 return;
                               }
-                              setAccountingSoftwareStatus('pending');
+                              setAccountingSoftwareStatus("pending");
                               onSave({
                                 underwriting: {
                                   ...underwriting,
                                   accountingSoftware: {
-                                    status: 'pending',
+                                    status: "pending",
                                     softwarePackage: accountingSoftwarePackage,
                                     customerEmail: accountingSoftwareEmail,
                                     linkedAt: new Date().toISOString(),
@@ -1465,29 +1708,33 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                         </div>
                       )}
 
-                      {accountingSoftwareStatus === 'pending' && (
+                      {accountingSoftwareStatus === "pending" && (
                         <div className="flex items-center gap-3">
                           <Clock className="h-5 w-5 text-amber-500" />
                           <div className="flex-1">
                             <p className="text-sm font-medium">Awaiting customer connection</p>
-                            <p className="text-xs text-muted-foreground">Sent to {accountingSoftwareEmail}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Sent to {accountingSoftwareEmail}
+                            </p>
                           </div>
                           <Badge variant="secondary">Pending</Badge>
                         </div>
                       )}
 
-                      {accountingSoftwareStatus === 'connected' && (
+                      {accountingSoftwareStatus === "connected" && (
                         <div className="flex items-center gap-3">
                           <CheckCircle2 className="h-5 w-5 text-green-500" />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">Connected to {accountingSoftwarePackage}</p>
+                            <p className="text-sm font-medium">
+                              Connected to {accountingSoftwarePackage}
+                            </p>
                             <p className="text-xs text-muted-foreground">Financial data synced</p>
                           </div>
                           <Badge className="bg-green-500 text-white">Connected</Badge>
                         </div>
                       )}
 
-                      {accountingSoftwareStatus === 'error' && (
+                      {accountingSoftwareStatus === "error" && (
                         <div className="flex items-center gap-3">
                           <XCircle className="h-5 w-5 text-red-500" />
                           <div className="flex-1">
@@ -1497,7 +1744,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setAccountingSoftwareStatus('not_linked')}
+                            onClick={() => setAccountingSoftwareStatus("not_linked")}
                           >
                             Retry
                           </Button>
@@ -1534,31 +1781,45 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
               <>
                 <Card className="overflow-hidden border-0 shadow-md">
                   <div className="bg-[#1e3a5f] text-white px-4 py-3">
-                    <h4 className="font-semibold text-sm uppercase tracking-wide">Base Affordability (Historic)</h4>
+                    <h4 className="font-semibold text-sm uppercase tracking-wide">
+                      Base Affordability (Historic)
+                    </h4>
                   </div>
                   <CardContent className="p-0">
                     <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border">
                       <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Avg Monthly Rev</div>
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Avg Monthly Rev
+                        </div>
                         <div className="text-xl font-bold text-foreground">
                           {formatCurrency(financialAnalysis.averageMonthlyRevenue || 0)}
                         </div>
                       </div>
                       <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Avg Monthly Exp</div>
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Avg Monthly Exp
+                        </div>
                         <div className="text-xl font-bold text-foreground">
                           {formatCurrency(financialAnalysis.averageMonthlyExpenses || 0)}
                         </div>
                       </div>
                       <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Net Disposable</div>
-                        <div className={`text-xl font-bold ${(financialAnalysis.netDisposableIncome || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Net Disposable
+                        </div>
+                        <div
+                          className={`text-xl font-bold ${(financialAnalysis.netDisposableIncome || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
+                        >
                           {formatCurrency(financialAnalysis.netDisposableIncome || 0)}
                         </div>
                       </div>
                       <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Base DSCR</div>
-                        <div className={`text-xl font-bold ${(financialAnalysis.dscr || 0) >= DSCR_THRESHOLD ? 'text-green-600' : 'text-red-600'}`}>
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Base DSCR
+                        </div>
+                        <div
+                          className={`text-xl font-bold ${(financialAnalysis.dscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}
+                        >
                           {(financialAnalysis.dscr || 0).toFixed(2)}x
                         </div>
                       </div>
@@ -1580,13 +1841,17 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 <div className="grid md:grid-cols-2 gap-4">
                   <Card className="overflow-hidden border-0 shadow-md">
                     <div className="bg-[#1e3a5f] text-white px-4 py-3 flex items-center justify-between gap-2">
-                      <h4 className="font-semibold text-sm uppercase tracking-wide">Adjustments & Projections</h4>
+                      <h4 className="font-semibold text-sm uppercase tracking-wide">
+                        Adjustments & Projections
+                      </h4>
                     </div>
                     <CardContent className="p-4 space-y-4">
                       <div>
                         <Label htmlFor="refinance-addback" className="text-sm font-medium">
                           Refinance Add-Back (Monthly £)
-                          <span className="text-xs text-muted-foreground ml-2">- Debt being consolidated</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            - Debt being consolidated
+                          </span>
                         </Label>
                         <Input
                           id="refinance-addback"
@@ -1616,7 +1881,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                       <div>
                         <Label htmlFor="projected-revenue" className="text-sm font-medium">
                           Projected New Revenue (Monthly £)
-                          <span className="text-xs text-muted-foreground ml-2">- Conservative estimate</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            - Conservative estimate
+                          </span>
                         </Label>
                         <Input
                           id="projected-revenue"
@@ -1648,7 +1915,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
                   <Card className="overflow-hidden border-0 shadow-md">
                     <div className="bg-[#1e3a5f] text-white px-4 py-3">
-                      <h4 className="font-semibold text-sm uppercase tracking-wide">Scenario Modeling</h4>
+                      <h4 className="font-semibold text-sm uppercase tracking-wide">
+                        Scenario Modeling
+                      </h4>
                     </div>
                     <CardContent className="p-4 space-y-3">
                       {(() => {
@@ -1657,30 +1926,38 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                         const newRevenue = parseFloat(projectedNewRevenue) || 0;
                         const adjustedDisposable = baseDisposable + refinance + newRevenue;
                         const newLoanRepayment = monthlyRepayment;
-                        const adjustedDscr = newLoanRepayment > 0 ? adjustedDisposable / newLoanRepayment : 0;
-                        
+                        const adjustedDscr =
+                          newLoanRepayment > 0 ? adjustedDisposable / newLoanRepayment : 0;
+
                         return (
                           <>
                             <div className="flex justify-between items-center py-2 border-b">
-                              <span className="text-sm text-muted-foreground">Adjusted Disposable Income:</span>
-                              <span 
-                                className={`font-bold ${adjustedDisposable >= 0 ? 'text-foreground' : 'text-red-600'}`}
+                              <span className="text-sm text-muted-foreground">
+                                Adjusted Disposable Income:
+                              </span>
+                              <span
+                                className={`font-bold ${adjustedDisposable >= 0 ? "text-foreground" : "text-red-600"}`}
                                 data-testid="text-adjusted-disposable"
                               >
                                 {formatCurrency(adjustedDisposable)}
                               </span>
                             </div>
                             <div className="flex justify-between items-center py-2 border-b">
-                              <span className="text-sm text-muted-foreground">New Loan Repayment:</span>
-                              <span className="font-bold text-foreground" data-testid="text-new-loan-repayment">
+                              <span className="text-sm text-muted-foreground">
+                                New Loan Repayment:
+                              </span>
+                              <span
+                                className="font-bold text-foreground"
+                                data-testid="text-new-loan-repayment"
+                              >
                                 {formatCurrency(newLoanRepayment)}
                               </span>
                             </div>
                             <div className="flex justify-between items-center py-2">
                               <span className="text-sm font-medium">Adjusted DSCR:</span>
                               <div className="text-right">
-                                <span 
-                                  className={`text-xl font-bold ${adjustedDscr >= DSCR_THRESHOLD ? 'text-green-600' : 'text-red-600'}`}
+                                <span
+                                  className={`text-xl font-bold ${adjustedDscr >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}
                                   data-testid="text-adjusted-dscr"
                                 >
                                   {adjustedDscr.toFixed(2)}x
@@ -1727,23 +2004,33 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                           <div className="grid grid-cols-2 gap-4">
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Turnover</span>
-                              <span className="font-medium">{formatCurrency(financialAnalysis.profitAndLoss.turnover || 0)}</span>
+                              <span className="font-medium">
+                                {formatCurrency(financialAnalysis.profitAndLoss.turnover || 0)}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Cost of Sales</span>
-                              <span className="font-medium">{formatCurrency(financialAnalysis.profitAndLoss.costOfSales || 0)}</span>
+                              <span className="font-medium">
+                                {formatCurrency(financialAnalysis.profitAndLoss.costOfSales || 0)}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Gross Profit</span>
-                              <span className="font-medium">{formatCurrency(financialAnalysis.profitAndLoss.grossProfit || 0)}</span>
+                              <span className="font-medium">
+                                {formatCurrency(financialAnalysis.profitAndLoss.grossProfit || 0)}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Total Expenses</span>
-                              <span className="font-medium">{formatCurrency(financialAnalysis.profitAndLoss.totalExpenses || 0)}</span>
+                              <span className="font-medium">
+                                {formatCurrency(financialAnalysis.profitAndLoss.totalExpenses || 0)}
+                              </span>
                             </div>
                             <div className="flex justify-between col-span-2 pt-2 border-t">
                               <span className="font-medium">Net Profit</span>
-                              <span className={`font-bold ${(financialAnalysis.profitAndLoss.netProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              <span
+                                className={`font-bold ${(financialAnalysis.profitAndLoss.netProfit || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
+                              >
                                 {formatCurrency(financialAnalysis.profitAndLoss.netProfit || 0)}
                               </span>
                             </div>
@@ -1754,7 +2041,8 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                   </TabsContent>
 
                   <TabsContent value="monthly">
-                    {financialAnalysis.monthlyBreakdown && financialAnalysis.monthlyBreakdown.length > 0 ? (
+                    {financialAnalysis.monthlyBreakdown &&
+                    financialAnalysis.monthlyBreakdown.length > 0 ? (
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
@@ -1770,19 +2058,29 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                             {financialAnalysis.monthlyBreakdown.map((month, idx) => (
                               <tr key={idx} className="border-b">
                                 <td className="py-2 px-3 font-medium">{month.month}</td>
-                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(month.income)}</td>
-                                <td className="py-2 px-3 text-right text-red-600">{formatCurrency(month.expenses)}</td>
-                                <td className={`py-2 px-3 text-right font-medium ${month.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                <td className="py-2 px-3 text-right text-green-600">
+                                  {formatCurrency(month.income)}
+                                </td>
+                                <td className="py-2 px-3 text-right text-red-600">
+                                  {formatCurrency(month.expenses)}
+                                </td>
+                                <td
+                                  className={`py-2 px-3 text-right font-medium ${month.net >= 0 ? "text-green-600" : "text-red-600"}`}
+                                >
                                   {formatCurrency(month.net)}
                                 </td>
-                                <td className="py-2 px-3 text-right">{formatCurrency(month.closingBalance)}</td>
+                                <td className="py-2 px-3 text-right">
+                                  {formatCurrency(month.closingBalance)}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
                     ) : (
-                      <p className="text-muted-foreground text-center py-8">No monthly breakdown available</p>
+                      <p className="text-muted-foreground text-center py-8">
+                        No monthly breakdown available
+                      </p>
                     )}
                   </TabsContent>
 
@@ -1800,12 +2098,17 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                             <CardContent>
                               <div className="space-y-2">
                                 {financialAnalysis.preliminaryFindings.loans?.map((loan, idx) => (
-                                  <div key={idx} className="flex justify-between items-center p-2 bg-muted rounded">
+                                  <div
+                                    key={idx}
+                                    className="flex justify-between items-center p-2 bg-muted rounded"
+                                  >
                                     <div>
                                       <p className="font-medium text-sm">{loan.description}</p>
                                       <p className="text-xs text-muted-foreground">{loan.date}</p>
                                     </div>
-                                    <span className="font-semibold text-red-600">{formatCurrency(loan.amount)}</span>
+                                    <span className="font-semibold text-red-600">
+                                      {formatCurrency(loan.amount)}
+                                    </span>
                                   </div>
                                 ))}
                               </div>
@@ -1823,12 +2126,19 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                             </CardHeader>
                             <CardContent>
                               <div className="space-y-2">
-                                {financialAnalysis.preliminaryFindings.anomalies?.map((item, idx) => (
-                                  <div key={idx} className="p-2 bg-yellow-50 dark:bg-yellow-950/30 rounded border border-yellow-200 dark:border-yellow-800">
-                                    <p className="font-medium text-sm">{item.description}</p>
-                                    <p className="text-xs text-muted-foreground">{item.details}</p>
-                                  </div>
-                                ))}
+                                {financialAnalysis.preliminaryFindings.anomalies?.map(
+                                  (item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="p-2 bg-yellow-50 dark:bg-yellow-950/30 rounded border border-yellow-200 dark:border-yellow-800"
+                                    >
+                                      <p className="font-medium text-sm">{item.description}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {item.details}
+                                      </p>
+                                    </div>
+                                  )
+                                )}
                               </div>
                             </CardContent>
                           </Card>
@@ -1854,14 +2164,22 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                             ) : (
                               <CheckCircle2 className="h-5 w-5 text-green-500" />
                             )}
-                            <span className={flag.isActive ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}>
+                            <span
+                              className={
+                                flag.isActive
+                                  ? "text-red-700 dark:text-red-400"
+                                  : "text-muted-foreground"
+                              }
+                            >
                               {flag.label}
                             </span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-muted-foreground text-center py-8">No risk flags detected</p>
+                      <p className="text-muted-foreground text-center py-8">
+                        No risk flags detected
+                      </p>
                     )}
                   </TabsContent>
                 </Tabs>
@@ -1913,8 +2231,12 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Status</span>
-                      <Badge variant={prospect.company.companyStatus === 'active' ? 'default' : 'secondary'}>
-                        {prospect.company.companyStatus || 'Active'}
+                      <Badge
+                        variant={
+                          prospect.company.companyStatus === "active" ? "default" : "secondary"
+                        }
+                      >
+                        {prospect.company.companyStatus || "Active"}
                       </Badge>
                     </div>
                   </div>
@@ -1922,7 +2244,12 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     variant="outline"
                     size="sm"
                     className="w-full"
-                    onClick={() => window.open(`https://find-and-update.company-information.service.gov.uk/company/${prospect.company.companyNumber}`, '_blank')}
+                    onClick={() =>
+                      window.open(
+                        `https://find-and-update.company-information.service.gov.uk/company/${prospect.company.companyNumber}`,
+                        "_blank"
+                      )
+                    }
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     View on Companies House
@@ -1942,17 +2269,24 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Risk Level</span>
-                        <Badge variant={
-                          adverseMedia.riskLevel === 'HIGH' ? 'destructive' :
-                          adverseMedia.riskLevel === 'MEDIUM' ? 'secondary' : 'default'
-                        }>
+                        <Badge
+                          variant={
+                            adverseMedia.riskLevel === "HIGH"
+                              ? "destructive"
+                              : adverseMedia.riskLevel === "MEDIUM"
+                                ? "secondary"
+                                : "default"
+                          }
+                        >
                           {adverseMedia.riskLevel}
                         </Badge>
                       </div>
                       <p className="text-sm">{adverseMedia.summary}</p>
                       {adverseMedia.results && adverseMedia.results.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-xs text-muted-foreground">{adverseMedia.results.length} sources found</p>
+                          <p className="text-xs text-muted-foreground">
+                            {adverseMedia.results.length} sources found
+                          </p>
                           {adverseMedia.results.slice(0, 3).map((result, idx) => (
                             <a
                               key={idx}
@@ -1973,7 +2307,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                         onClick={() => adverseMediaMutation.mutate()}
                         disabled={adverseMediaMutation.isPending}
                       >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${adverseMediaMutation.isPending ? 'animate-spin' : ''}`} />
+                        <RefreshCw
+                          className={`h-4 w-4 mr-2 ${adverseMediaMutation.isPending ? "animate-spin" : ""}`}
+                        />
                         Refresh Search
                       </Button>
                     </div>
@@ -2064,11 +2400,15 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                   <Separator />
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Monthly Repayment</span>
-                    <span className="font-bold text-primary">{formatCurrency(monthlyRepayment)}</span>
+                    <span className="font-bold text-primary">
+                      {formatCurrency(monthlyRepayment)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Arrangement Fee</span>
-                    <span className="font-medium">{formatCurrency(parseFloat(loanAmount) * (ARRANGEMENT_FEE_PERCENT / 100))}</span>
+                    <span className="font-medium">
+                      {formatCurrency(parseFloat(loanAmount) * (ARRANGEMENT_FEE_PERCENT / 100))}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -2081,7 +2421,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">DSCR</span>
                     <div className="flex items-center gap-2">
-                      <span className={`font-bold ${(financialAnalysis?.dscr || 0) >= DSCR_THRESHOLD ? 'text-green-600' : 'text-red-600'}`}>
+                      <span
+                        className={`font-bold ${(financialAnalysis?.dscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}
+                      >
                         {(financialAnalysis?.dscr || 0).toFixed(2)}x
                       </span>
                       {(financialAnalysis?.dscr || 0) >= DSCR_THRESHOLD ? (
@@ -2097,23 +2439,28 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Eligibility</span>
-                    <Badge variant={isEligible ? 'default' : 'destructive'}>
-                      {isEligible ? 'Eligible' : 'Not Eligible'}
+                    <Badge variant={isEligible ? "default" : "destructive"}>
+                      {isEligible ? "Eligible" : "Not Eligible"}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Adverse Media</span>
-                    <Badge variant={
-                      adverseMedia?.riskLevel === 'HIGH' ? 'destructive' :
-                      adverseMedia?.riskLevel === 'MEDIUM' ? 'secondary' : 'default'
-                    }>
-                      {adverseMedia?.riskLevel || 'Not Checked'}
+                    <Badge
+                      variant={
+                        adverseMedia?.riskLevel === "HIGH"
+                          ? "destructive"
+                          : adverseMedia?.riskLevel === "MEDIUM"
+                            ? "secondary"
+                            : "default"
+                      }
+                    >
+                      {adverseMedia?.riskLevel || "Not Checked"}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Red Flags</span>
                     <span className="font-medium">
-                      {financialAnalysis?.redFlags?.filter(f => f.isActive).length || 0} active
+                      {financialAnalysis?.redFlags?.filter((f) => f.isActive).length || 0} active
                     </span>
                   </div>
                 </CardContent>
@@ -2125,7 +2472,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 <CardTitle className="text-base">Decision Summary</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm">{financialAnalysis?.summary || 'No analysis summary available.'}</p>
+                <p className="text-sm">
+                  {financialAnalysis?.summary || "No analysis summary available."}
+                </p>
               </CardContent>
             </Card>
 
@@ -2154,7 +2503,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 <Label htmlFor="product">Product</Label>
                 <Select
                   value={adviserSummary.product}
-                  onValueChange={(value) => setAdviserSummary({ ...adviserSummary, product: value })}
+                  onValueChange={(value) =>
+                    setAdviserSummary({ ...adviserSummary, product: value })
+                  }
                 >
                   <SelectTrigger id="product">
                     <SelectValue />
@@ -2217,7 +2568,7 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 <TabsList className="flex-wrap gap-1 h-auto">
                   {SUMMARY_SECTIONS.slice(2, 9).map((section) => (
                     <TabsTrigger key={section.key} value={section.key} className="text-xs">
-                      {section.title.split('–')[0]}
+                      {section.title.split("–")[0]}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -2250,21 +2601,23 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                         </div>
                         {CAMPARI_QUESTIONS[section.key] && (
                           <CardDescription>
-                            Consider: {CAMPARI_QUESTIONS[section.key].slice(0, 2).join(' ')}
+                            Consider: {CAMPARI_QUESTIONS[section.key].slice(0, 2).join(" ")}
                           </CardDescription>
                         )}
                       </CardHeader>
                       <CardContent>
                         <Textarea
-                          value={adviserSummary.sections?.[section.key] || ''}
-                          onChange={(e) => setAdviserSummary({
-                            ...adviserSummary,
-                            sections: {
-                              ...adviserSummary.sections,
-                              [section.key]: e.target.value
-                            }
-                          })}
-                          placeholder={`Enter ${section.title.split('–')[1]?.trim() || section.key} assessment...`}
+                          value={adviserSummary.sections?.[section.key] || ""}
+                          onChange={(e) =>
+                            setAdviserSummary({
+                              ...adviserSummary,
+                              sections: {
+                                ...adviserSummary.sections,
+                                [section.key]: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder={`Enter ${section.title.split("–")[1]?.trim() || section.key} assessment...`}
                           rows={5}
                           data-testid={`textarea-${section.key}`}
                         />
@@ -2306,7 +2659,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">Strengths</CardTitle>
+                      <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">
+                        Strengths
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="list-disc list-inside space-y-1 text-sm">
@@ -2319,7 +2674,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
                   <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">Weaknesses</CardTitle>
+                      <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                        Weaknesses
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="list-disc list-inside space-y-1 text-sm">
@@ -2332,7 +2689,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
                   <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">Opportunities</CardTitle>
+                      <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                        Opportunities
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="list-disc list-inside space-y-1 text-sm">
@@ -2345,7 +2704,9 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
 
                   <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-red-700 dark:text-red-400">Threats</CardTitle>
+                      <CardTitle className="text-sm font-medium text-red-700 dark:text-red-400">
+                        Threats
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="list-disc list-inside space-y-1 text-sm">
@@ -2361,14 +2722,18 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
               {underwriting.swotAnalysis?.summary && (
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm font-medium mb-1">Summary</p>
-                  <p className="text-sm text-muted-foreground">{underwriting.swotAnalysis.summary}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {underwriting.swotAnalysis.summary}
+                  </p>
                 </div>
               )}
 
               {!underwriting.swotAnalysis && (
                 <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
                   <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Click "AI Auto Write" to generate a SWOT analysis based on your application data</p>
+                  <p className="text-sm">
+                    Click "AI Auto Write" to generate a SWOT analysis based on your application data
+                  </p>
                 </div>
               )}
             </div>
@@ -2378,8 +2743,10 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
             <div>
               <Label htmlFor="recommendation">Final Recommendation</Label>
               <Select
-                value={adviserSummary.recommendation || ''}
-                onValueChange={(value) => setAdviserSummary({ ...adviserSummary, recommendation: value })}
+                value={adviserSummary.recommendation || ""}
+                onValueChange={(value) =>
+                  setAdviserSummary({ ...adviserSummary, recommendation: value })
+                }
               >
                 <SelectTrigger id="recommendation">
                   <SelectValue placeholder="Select recommendation" />
@@ -2398,7 +2765,11 @@ export function CreditUnderwritingTool({ prospect, data, onSave, isSaving }: Cre
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
-              <Button onClick={saveAdviserSummary} disabled={isSaving} data-testid="button-save-summary">
+              <Button
+                onClick={saveAdviserSummary}
+                disabled={isSaving}
+                data-testid="button-save-summary"
+              >
                 <Save className="h-4 w-4 mr-2" />
                 {isSaving ? "Saving..." : "Save Underwriting Assessment"}
               </Button>

@@ -2,16 +2,24 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Building2, Calendar, MapPin, FileText, Users, 
-  AlertCircle, CheckCircle2, XCircle,
-  TrendingUp, Shield, Briefcase
+import {
+  Building2,
+  Calendar,
+  MapPin,
+  FileText,
+  Users,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  TrendingUp,
+  Shield,
+  Briefcase,
 } from "lucide-react";
-import type { 
-  CompanyProfile, 
-  OfficersResponse, 
-  PSCResponse, 
-  ChargesResponse 
+import type {
+  CompanyProfile,
+  OfficersResponse,
+  PSCResponse,
+  ChargesResponse,
 } from "@shared/companiesHouseTypes";
 import { format } from "date-fns";
 import { getSicDescription } from "@/utils/sicCodeLookup";
@@ -24,19 +32,31 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
   const companyNumber = companyProfile.company_number;
 
   // Fetch Officers
-  const { data: officers, isLoading: officersLoading, error: officersError } = useQuery<OfficersResponse>({
+  const {
+    data: officers,
+    isLoading: officersLoading,
+    error: officersError,
+  } = useQuery<OfficersResponse>({
     queryKey: [`/api/companies-house/company/${companyNumber}/officers`],
     enabled: !!companyNumber,
   });
 
   // Fetch PSC
-  const { data: psc, isLoading: pscLoading, error: pscError } = useQuery<PSCResponse>({
+  const {
+    data: psc,
+    isLoading: pscLoading,
+    error: pscError,
+  } = useQuery<PSCResponse>({
     queryKey: [`/api/companies-house/company/${companyNumber}/persons-with-significant-control`],
     enabled: !!companyNumber,
   });
 
   // Fetch Charges
-  const { data: charges, isLoading: chargesLoading, error: chargesError } = useQuery<ChargesResponse>({
+  const {
+    data: charges,
+    isLoading: chargesLoading,
+    error: chargesError,
+  } = useQuery<ChargesResponse>({
     queryKey: [`/api/companies-house/company/${companyNumber}/charges`],
     enabled: !!companyNumber,
   });
@@ -59,7 +79,7 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
       address.locality,
       address.region,
       address.postal_code,
-      address.country
+      address.country,
     ].filter(Boolean);
     return parts.join(", ");
   };
@@ -67,21 +87,21 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
   const getStatusColor = (status: string) => {
     const lowercaseStatus = status.toLowerCase();
     if (lowercaseStatus === "active") return "default";
-    if (lowercaseStatus.includes("dissolved") || lowercaseStatus.includes("liquidation")) return "destructive";
+    if (lowercaseStatus.includes("dissolved") || lowercaseStatus.includes("liquidation"))
+      return "destructive";
     return "secondary";
   };
 
   const getStatusIcon = (status: string) => {
     const lowercaseStatus = status.toLowerCase();
     if (lowercaseStatus === "active") return <CheckCircle2 className="w-4 h-4" />;
-    if (lowercaseStatus.includes("dissolved") || lowercaseStatus.includes("liquidation")) return <XCircle className="w-4 h-4" />;
+    if (lowercaseStatus.includes("dissolved") || lowercaseStatus.includes("liquidation"))
+      return <XCircle className="w-4 h-4" />;
     return <AlertCircle className="w-4 h-4" />;
   };
 
   const formatNatureOfControl = (nature: string) => {
-    return nature
-      .replace(/-/g, " ")
-      .replace(/\b\w/g, (l) => l.toUpperCase());
+    return nature.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   return (
@@ -111,7 +131,9 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
             </div>
             <div className="space-y-1">
               <div className="text-sm text-muted-foreground">Jurisdiction</div>
-              <div className="font-medium capitalize">{companyProfile.jurisdiction?.replace(/-/g, " ") || "N/A"}</div>
+              <div className="font-medium capitalize">
+                {companyProfile.jurisdiction?.replace(/-/g, " ") || "N/A"}
+              </div>
             </div>
             <div className="space-y-1">
               <div className="text-sm text-muted-foreground flex items-center gap-1">
@@ -143,9 +165,17 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
           <CardContent>
             <div className="space-y-2">
               {companyProfile.sic_codes.map((sicCode, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md" data-testid={`sic-code-${idx}`}>
-                  <Badge variant="outline" className="font-mono">{sicCode}</Badge>
-                  <span className="text-sm text-muted-foreground">{getSicDescription(sicCode)}</span>
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 p-2 bg-muted/50 rounded-md"
+                  data-testid={`sic-code-${idx}`}
+                >
+                  <Badge variant="outline" className="font-mono">
+                    {sicCode}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {getSicDescription(sicCode)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -184,7 +214,8 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
           <CardTitle className="flex items-center gap-2 text-base">
             <Users className="w-4 h-4" />
             Officers
-            {officers && ` (${officers.active_count || 0} active, ${officers.resigned_count || 0} resigned)`}
+            {officers &&
+              ` (${officers.active_count || 0} active, ${officers.resigned_count || 0} resigned)`}
           </CardTitle>
           <CardDescription>Directors and company secretaries</CardDescription>
         </CardHeader>
@@ -201,7 +232,9 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                 <div key={idx} className="border-b pb-4 last:border-0 last:pb-0">
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <h4 className="font-semibold" data-testid={`officer-name-${idx}`}>{officer.name}</h4>
+                      <h4 className="font-semibold" data-testid={`officer-name-${idx}`}>
+                        {officer.name}
+                      </h4>
                       <p className="text-sm text-muted-foreground capitalize">
                         {officer.officer_role?.replace(/-/g, " ")}
                       </p>
@@ -254,15 +287,13 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
             Persons with Significant Control
             {psc && ` (${psc.active_count || 0} active)`}
           </CardTitle>
-          <CardDescription>Individuals or entities with significant influence over the company</CardDescription>
+          <CardDescription>
+            Individuals or entities with significant influence over the company
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {pscLoading && (
-            <p className="text-sm text-muted-foreground">Loading PSC data...</p>
-          )}
-          {pscError && (
-            <p className="text-sm text-muted-foreground">No PSC data available</p>
-          )}
+          {pscLoading && <p className="text-sm text-muted-foreground">Loading PSC data...</p>}
+          {pscError && <p className="text-sm text-muted-foreground">No PSC data available</p>}
           {psc && psc.total_results > 0 && (
             <div className="space-y-4">
               {psc.items.map((person, idx) => (
@@ -331,7 +362,8 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
             {charges && ` (${charges.total_count})`}
           </CardTitle>
           <CardDescription>
-            {charges && `${charges.satisfied_count || 0} satisfied, ${(charges.total_count - (charges.satisfied_count || 0))} outstanding`}
+            {charges &&
+              `${charges.satisfied_count || 0} satisfied, ${charges.total_count - (charges.satisfied_count || 0)} outstanding`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -351,10 +383,10 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                         <h4 className="font-semibold" data-testid={`charge-number-${idx}`}>
                           Charge #{charge.charge_number || idx + 1}
                         </h4>
-                        <Badge 
+                        <Badge
                           variant={
-                            charge.status?.toLowerCase().includes("satisfied") 
-                              ? "outline" 
+                            charge.status?.toLowerCase().includes("satisfied")
+                              ? "outline"
                               : "destructive"
                           }
                         >
@@ -387,20 +419,26 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                   {charge.persons_entitled && charge.persons_entitled.length > 0 && (
                     <div className="text-sm mb-2">
                       <span className="text-muted-foreground">Entitled to: </span>
-                      <span>{charge.persons_entitled.map(p => p.name).join(", ")}</span>
+                      <span>{charge.persons_entitled.map((p) => p.name).join(", ")}</span>
                     </div>
                   )}
 
                   {charge.particulars && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {charge.particulars.contains_fixed_charge && (
-                        <Badge variant="outline" className="text-xs">Fixed Charge</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Fixed Charge
+                        </Badge>
                       )}
                       {charge.particulars.contains_floating_charge && (
-                        <Badge variant="outline" className="text-xs">Floating Charge</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Floating Charge
+                        </Badge>
                       )}
                       {charge.particulars.contains_negative_pledge && (
-                        <Badge variant="outline" className="text-xs">Negative Pledge</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Negative Pledge
+                        </Badge>
                       )}
                     </div>
                   )}
@@ -447,7 +485,8 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
               <div className="space-y-1">
                 <div className="text-sm text-muted-foreground">Accounting Reference Date</div>
                 <div className="font-medium">
-                  {companyProfile.accounts.accounting_reference_date.day}/{companyProfile.accounts.accounting_reference_date.month}
+                  {companyProfile.accounts.accounting_reference_date.day}/
+                  {companyProfile.accounts.accounting_reference_date.month}
                 </div>
               </div>
             )}
@@ -458,12 +497,16 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">Last Accounts Made Up To</div>
-                  <div className="font-medium">{formatDate(companyProfile.accounts.last_accounts.made_up_to)}</div>
+                  <div className="font-medium">
+                    {formatDate(companyProfile.accounts.last_accounts.made_up_to)}
+                  </div>
                 </div>
                 {companyProfile.accounts.last_accounts.type && (
                   <div className="space-y-1">
                     <div className="text-sm text-muted-foreground">Type</div>
-                    <div className="font-medium capitalize">{companyProfile.accounts.last_accounts.type}</div>
+                    <div className="font-medium capitalize">
+                      {companyProfile.accounts.last_accounts.type}
+                    </div>
                   </div>
                 )}
               </div>
@@ -478,14 +521,18 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                     <div className="font-medium flex items-center gap-2">
                       {formatDate(companyProfile.accounts.next_accounts.due_on)}
                       {companyProfile.accounts.next_accounts.overdue && (
-                        <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                        <Badge variant="destructive" className="text-xs">
+                          Overdue
+                        </Badge>
                       )}
                     </div>
                   </div>
                   {companyProfile.accounts.next_accounts.period_end_on && (
                     <div className="space-y-1">
                       <div className="text-sm text-muted-foreground">Period End</div>
-                      <div className="font-medium">{formatDate(companyProfile.accounts.next_accounts.period_end_on)}</div>
+                      <div className="font-medium">
+                        {formatDate(companyProfile.accounts.next_accounts.period_end_on)}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -509,7 +556,9 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
               {companyProfile.confirmation_statement.last_made_up_to && (
                 <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">Last Made Up To</div>
-                  <div className="font-medium">{formatDate(companyProfile.confirmation_statement.last_made_up_to)}</div>
+                  <div className="font-medium">
+                    {formatDate(companyProfile.confirmation_statement.last_made_up_to)}
+                  </div>
                 </div>
               )}
               {companyProfile.confirmation_statement.next_due && (
@@ -518,7 +567,9 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
                   <div className="font-medium flex items-center gap-2">
                     {formatDate(companyProfile.confirmation_statement.next_due)}
                     {companyProfile.confirmation_statement.overdue && (
-                      <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                      <Badge variant="destructive" className="text-xs">
+                        Overdue
+                      </Badge>
                     )}
                   </div>
                 </div>
@@ -540,26 +591,37 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center justify-between">
               <span className="text-sm">Has Charges</span>
-              <Badge variant={companyProfile.has_charges ? "secondary" : "outline"} className="text-xs">
+              <Badge
+                variant={companyProfile.has_charges ? "secondary" : "outline"}
+                className="text-xs"
+              >
                 {companyProfile.has_charges ? "Yes" : "No"}
               </Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm">Insolvency History</span>
-              <Badge variant={companyProfile.has_insolvency_history ? "destructive" : "outline"} className="text-xs">
+              <Badge
+                variant={companyProfile.has_insolvency_history ? "destructive" : "outline"}
+                className="text-xs"
+              >
                 {companyProfile.has_insolvency_history ? "Yes" : "No"}
               </Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm">Been Liquidated</span>
-              <Badge variant={companyProfile.has_been_liquidated ? "destructive" : "outline"} className="text-xs">
+              <Badge
+                variant={companyProfile.has_been_liquidated ? "destructive" : "outline"}
+                className="text-xs"
+              >
                 {companyProfile.has_been_liquidated ? "Yes" : "No"}
               </Badge>
             </div>
             {companyProfile.is_community_interest_company && (
               <div className="flex items-center justify-between">
                 <span className="text-sm">Community Interest Co.</span>
-                <Badge variant="default" className="text-xs">Yes</Badge>
+                <Badge variant="default" className="text-xs">
+                  Yes
+                </Badge>
               </div>
             )}
           </div>
@@ -567,28 +629,32 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
       </Card>
 
       {/* Previous Names */}
-      {companyProfile.previous_company_names && companyProfile.previous_company_names.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="w-4 h-4" />
-              Previous Company Names
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {companyProfile.previous_company_names.map((prevName, idx) => (
-                <div key={idx} className="flex items-center justify-between text-sm border-b pb-2 last:border-0">
-                  <span className="font-medium">{prevName.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {formatDate(prevName.effective_from)} - {formatDate(prevName.ceased_on)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {companyProfile.previous_company_names &&
+        companyProfile.previous_company_names.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="w-4 h-4" />
+                Previous Company Names
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {companyProfile.previous_company_names.map((prevName, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between text-sm border-b pb-2 last:border-0"
+                  >
+                    <span className="font-medium">{prevName.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {formatDate(prevName.effective_from)} - {formatDate(prevName.ceased_on)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

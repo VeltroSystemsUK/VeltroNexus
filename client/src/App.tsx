@@ -69,7 +69,7 @@ function Router() {
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
-  
+
   return (
     <>
       <Router />

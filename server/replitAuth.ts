@@ -49,43 +49,43 @@ export function getSession() {
 
 /**
  * CSRF (Cross-Site Request Forgery) protection middleware.
- * 
+ *
  * SECURITY: Prevents malicious websites from making authenticated requests
  * on behalf of logged-in users. This works because:
- * 
+ *
  * 1. Browsers automatically send cookies with every request to a domain
  * 2. A malicious site could create a form that POSTs to our API
  * 3. The browser would include the user's session cookie automatically
  * 4. Without CSRF protection, this would succeed as an authenticated request
- * 
+ *
  * This middleware validates that the Origin/Referer header matches our host,
  * which browsers enforce and cannot be spoofed by JavaScript on other domains.
  * Combined with sameSite=lax cookies, this provides robust CSRF protection.
  */
 export function csrfProtection(req: any, res: any, next: any) {
   const unsafeMethods = ["POST", "PUT", "PATCH", "DELETE"];
-  
+
   // Skip CSRF check for safe methods and webhook endpoints (authenticated via API key)
   if (!unsafeMethods.includes(req.method) || req.path.startsWith("/api/webhooks/")) {
     return next();
   }
-  
+
   // Get the origin or referer header - require at least one for all unsafe methods
   const origin = req.get("Origin");
   const referer = req.get("Referer");
-  
+
   // Require Origin or Referer header for all unsafe methods (no exceptions)
   if (!origin && !referer) {
     console.warn(`CSRF blocked: missing Origin and Referer headers for ${req.method} ${req.path}`);
     return res.status(403).json({ error: "CSRF validation failed: missing origin header" });
   }
-  
+
   // Parse the origin/referer and validate it matches the host
   const sourceHeader = origin || referer;
   try {
     const sourceUrl = new URL(sourceHeader);
     const host = req.get("Host");
-    
+
     // Check if origin/referer matches the request host
     if (sourceUrl.host !== host) {
       console.warn(`CSRF blocked: source ${sourceUrl.host} != host ${host}`);
@@ -94,7 +94,7 @@ export function csrfProtection(req: any, res: any, next: any) {
   } catch (e) {
     return res.status(403).json({ error: "CSRF validation failed: invalid origin" });
   }
-  
+
   next();
 }
 
@@ -108,9 +108,7 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
-async function upsertUser(
-  claims: any,
-) {
+async function upsertUser(claims: any) {
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
@@ -152,7 +150,7 @@ export async function setupAuth(app: Express) {
           scope: "openid email profile offline_access",
           callbackURL: `https://${domain}/api/callback`,
         },
-        verify,
+        verify
       );
       passport.use(strategy);
       registeredStrategies.add(strategyName);

@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +88,12 @@ export function ContactEnrichmentDialog({
   });
 
   const updateContactMutation = useMutation({
-    mutationFn: async (updates: { email?: string; phone?: string; profilePicture?: string; notes?: string }) => {
+    mutationFn: async (updates: {
+      email?: string;
+      phone?: string;
+      profilePicture?: string;
+      notes?: string;
+    }) => {
       const response = await apiRequest(`/api/contacts/${contact.id}`, "PATCH", updates);
       return response.json();
     },
@@ -117,8 +128,8 @@ export function ContactEnrichmentDialog({
     }
     // Always append search notes when applying any changes
     if (result?.searchNotes) {
-      const existingNotes = result.contact.currentNotes || '';
-      updates.notes = existingNotes 
+      const existingNotes = result.contact.currentNotes || "";
+      updates.notes = existingNotes
         ? `${existingNotes}\n\n${result.searchNotes}`
         : result.searchNotes;
     }
@@ -147,8 +158,8 @@ export function ContactEnrichmentDialog({
           {!result && !enrichMutation.isPending && (
             <div className="text-center py-8">
               <p className="text-muted-foreground mb-4">
-                Click the button below to search for publicly available email addresses, 
-                phone numbers, and LinkedIn profiles for this contact.
+                Click the button below to search for publicly available email addresses, phone
+                numbers, and LinkedIn profiles for this contact.
               </p>
               <Button onClick={handleSearch} data-testid="button-start-enrichment">
                 <Search className="h-4 w-4 mr-2" />
@@ -267,12 +278,15 @@ export function ContactEnrichmentDialog({
                       onClick={() => {
                         // Strip all legal suffixes from company name
                         const companyName = result.companyName
-                          .replace(/\s*(limited|ltd\.?|plc|llp|llc|inc\.?|corp\.?|corporation|company|co\.?|&\s*co\.?)\s*$/gi, '')
+                          .replace(
+                            /\s*(limited|ltd\.?|plc|llp|llc|inc\.?|corp\.?|corporation|company|co\.?|&\s*co\.?)\s*$/gi,
+                            ""
+                          )
                           .trim();
                         // Use LinkedIn Companies search specifically
                         window.open(
                           `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(companyName)}&origin=SWITCH_SEARCH_VERTICAL&sid=rGI`,
-                          '_blank'
+                          "_blank"
                         );
                       }}
                       data-testid="button-linkedin-company-search"
@@ -287,12 +301,13 @@ export function ContactEnrichmentDialog({
                       onClick={() => {
                         // Extract just First Name and Last Name (no middle names)
                         const nameParts = contact.name.trim().split(/\s+/);
-                        const firstName = nameParts[0] || '';
-                        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+                        const firstName = nameParts[0] || "";
+                        const lastName =
+                          nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
                         const searchName = `${firstName} ${lastName}`.trim();
                         window.open(
                           `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchName)}`,
-                          '_blank'
+                          "_blank"
                         );
                       }}
                       data-testid="button-linkedin-person-search"
@@ -345,7 +360,11 @@ export function ContactEnrichmentDialog({
                               ? "border-primary bg-primary/10"
                               : "border-transparent hover:border-muted-foreground/30"
                           }`}
-                          onClick={() => setSelectedProfileImage(selectedProfileImage === imageUrl ? null : imageUrl)}
+                          onClick={() =>
+                            setSelectedProfileImage(
+                              selectedProfileImage === imageUrl ? null : imageUrl
+                            )
+                          }
                           data-testid={`profile-image-${i}`}
                         >
                           <Avatar className="h-16 w-16">

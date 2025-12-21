@@ -4,7 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState } from "react";
 import { Users, Shield, UserCog, Briefcase, Loader2, ArrowLeft, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -66,9 +72,7 @@ export default function Admin() {
           <CardContent className="py-12 text-center">
             <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-            <p className="text-muted-foreground mb-4">
-              Only Super Admins can access this page.
-            </p>
+            <p className="text-muted-foreground mb-4">Only Super Admins can access this page.</p>
             <Button onClick={() => navigate("/")} data-testid="button-go-home">
               Go to Dashboard
             </Button>
@@ -104,11 +108,13 @@ export default function Admin() {
     }
   };
 
-  const filteredUsers = users?.filter(user => 
-    user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredUsers =
+    users?.filter(
+      (user) =>
+        user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || [];
 
   return (
     <div className="container mx-auto p-6 space-y-6 pb-24">
@@ -140,31 +146,37 @@ export default function Admin() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Super Admins</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Super Admins
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {users?.filter(u => u.role === "super_admin").length || 0}
+              {users?.filter((u) => u.role === "super_admin").length || 0}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Sales Admins</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Sales Admins
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {users?.filter(u => u.role === "sales_admin").length || 0}
+              {users?.filter((u) => u.role === "sales_admin").length || 0}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Underwriters</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Underwriters
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">
-              {users?.filter(u => u.role === "underwriter").length || 0}
+              {users?.filter((u) => u.role === "underwriter").length || 0}
             </div>
           </CardContent>
         </Card>
@@ -195,9 +207,7 @@ export default function Admin() {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No users found
-            </div>
+            <div className="text-center py-8 text-muted-foreground">No users found</div>
           ) : (
             <div className="space-y-2">
               {filteredUsers.map((user) => (

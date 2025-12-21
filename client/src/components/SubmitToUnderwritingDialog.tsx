@@ -103,7 +103,8 @@ export default function SubmitToUnderwritingDialog({
         <DialogHeader>
           <DialogTitle>Submit for Underwriting</DialogTitle>
           <DialogDescription>
-            Submit <span className="font-medium">{companyName}</span> to the credit underwriting team for review.
+            Submit <span className="font-medium">{companyName}</span> to the credit underwriting
+            team for review.
           </DialogDescription>
         </DialogHeader>
 
@@ -112,7 +113,8 @@ export default function SubmitToUnderwritingDialog({
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Once submitted, a Credit Underwriter will review this application and make a decision.
+                Once submitted, a Credit Underwriter will review this application and make a
+                decision.
               </AlertDescription>
             </Alert>
 

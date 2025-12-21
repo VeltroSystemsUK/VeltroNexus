@@ -1,4 +1,11 @@
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Calendar, Phone, Package, Plus, Minus, ShoppingCart, Sparkles } from "lucide-react";
@@ -92,14 +99,58 @@ const pricingTiers = [
 
 const valuePackages = {
   starter: [
-    { id: "starter-10", name: "10 Extra Prospects", prospects: 10, price: 10, pricePerProspect: "£1.00", savings: "50%" },
-    { id: "starter-30", name: "30 Extra Prospects", prospects: 30, price: 25, pricePerProspect: "£0.83", savings: "58%", popular: true },
-    { id: "starter-100", name: "100 Extra Prospects", prospects: 100, price: 49, pricePerProspect: "£0.49", savings: "76%" },
+    {
+      id: "starter-10",
+      name: "10 Extra Prospects",
+      prospects: 10,
+      price: 10,
+      pricePerProspect: "£1.00",
+      savings: "50%",
+    },
+    {
+      id: "starter-30",
+      name: "30 Extra Prospects",
+      prospects: 30,
+      price: 25,
+      pricePerProspect: "£0.83",
+      savings: "58%",
+      popular: true,
+    },
+    {
+      id: "starter-100",
+      name: "100 Extra Prospects",
+      prospects: 100,
+      price: 49,
+      pricePerProspect: "£0.49",
+      savings: "76%",
+    },
   ],
   team: [
-    { id: "team-100", name: "100 Extra Prospects", prospects: 100, price: 50, pricePerProspect: "£0.50", savings: "67%" },
-    { id: "team-250", name: "250 Extra Prospects", prospects: 250, price: 75, pricePerProspect: "£0.30", savings: "80%", popular: true },
-    { id: "team-500", name: "500 Extra Prospects", prospects: 500, price: 99, pricePerProspect: "£0.20", savings: "87%" },
+    {
+      id: "team-100",
+      name: "100 Extra Prospects",
+      prospects: 100,
+      price: 50,
+      pricePerProspect: "£0.50",
+      savings: "67%",
+    },
+    {
+      id: "team-250",
+      name: "250 Extra Prospects",
+      prospects: 250,
+      price: 75,
+      pricePerProspect: "£0.30",
+      savings: "80%",
+      popular: true,
+    },
+    {
+      id: "team-500",
+      name: "500 Extra Prospects",
+      prospects: 500,
+      price: 99,
+      pricePerProspect: "£0.20",
+      savings: "87%",
+    },
   ],
 };
 
@@ -113,7 +164,7 @@ export default function Pricing() {
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
 
   const { data: user } = useQuery({
-    queryKey: ['/api/auth/user'],
+    queryKey: ["/api/auth/user"],
     retry: false,
   });
 
@@ -122,25 +173,26 @@ export default function Pricing() {
       throw new Error("Payment processing is temporarily unavailable. Please contact support.");
     },
     onError: (error: any) => {
-      sessionStorage.removeItem('subscription_tier');
+      sessionStorage.removeItem("subscription_tier");
       toast({
         title: "Subscription Unavailable",
-        description: error.message || "Payment processing is temporarily unavailable. Please contact support.",
+        description:
+          error.message || "Payment processing is temporarily unavailable. Please contact support.",
         variant: "destructive",
       });
     },
   });
 
   useEffect(() => {
-    const pendingTier = sessionStorage.getItem('subscription_tier');
-    if (pendingTier && user && pendingTier === 'starter') {
+    const pendingTier = sessionStorage.getItem("subscription_tier");
+    if (pendingTier && user && pendingTier === "starter") {
       createBillingRequestMutation.mutate(pendingTier);
     }
   }, [user]);
 
-  const handleSelectPlan = (plan: typeof pricingTiers[0]) => {
+  const handleSelectPlan = (plan: (typeof pricingTiers)[0]) => {
     setSelectedPlan(plan.tier);
-    
+
     if (plan.ctaType === "trial") {
       // Broker Starter: Show checkout dialog with optional value packages
       setSelectedPackage(null);
@@ -159,18 +211,18 @@ export default function Pricing() {
       tier: selectedPlan,
       valuePackage: selectedPackage,
     };
-    
+
     if (!user) {
-      sessionStorage.setItem('subscription_tier', selectedPlan);
+      sessionStorage.setItem("subscription_tier", selectedPlan);
       if (selectedPackage) {
-        sessionStorage.setItem('value_package', selectedPackage);
+        sessionStorage.setItem("value_package", selectedPackage);
       }
       window.location.href = "/api/login";
     } else {
       // Start trial - redirect to pipeline
       toast({
         title: "Welcome to FlowLoan!",
-        description: selectedPackage 
+        description: selectedPackage
           ? "Your 14-day free trial has started with your value package. Explore your pipeline!"
           : "Your 14-day free trial has started. Explore your pipeline!",
       });
@@ -182,15 +234,17 @@ export default function Pricing() {
   const getSelectedPackageDetails = () => {
     if (!selectedPackage || !selectedPlan) return null;
     const packages = valuePackages[selectedPlan as keyof typeof valuePackages];
-    return packages?.find(p => p.id === selectedPackage);
+    return packages?.find((p) => p.id === selectedPackage);
   };
 
-  const currentPlanDetails = pricingTiers.find(p => p.tier === selectedPlan);
-  const availablePackages = selectedPlan ? valuePackages[selectedPlan as keyof typeof valuePackages] : [];
+  const currentPlanDetails = pricingTiers.find((p) => p.tier === selectedPlan);
+  const availablePackages = selectedPlan
+    ? valuePackages[selectedPlan as keyof typeof valuePackages]
+    : [];
   const selectedPackageDetails = getSelectedPackageDetails();
 
   const calculateTotal = () => {
-    const basePrice = currentPlanDetails ? parseInt(currentPlanDetails.price.replace('£', '')) : 0;
+    const basePrice = currentPlanDetails ? parseInt(currentPlanDetails.price.replace("£", "")) : 0;
     const packagePrice = selectedPackageDetails?.price || 0;
     return basePrice + packagePrice;
   };
@@ -201,7 +255,8 @@ export default function Pricing() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Start managing your commercial lending pipeline with FlowLoan. Select the plan that fits your needs.
+            Start managing your commercial lending pipeline with FlowLoan. Select the plan that fits
+            your needs.
           </p>
         </div>
 
@@ -227,7 +282,9 @@ export default function Pricing() {
                   <span className="text-muted-foreground ml-2">{plan.period}</span>
                 </div>
                 <div className="mt-2 text-sm text-muted-foreground">
-                  {typeof plan.prospects === "number" ? `${plan.prospects} prospects included` : plan.prospects + " prospects"}
+                  {typeof plan.prospects === "number"
+                    ? `${plan.prospects} prospects included`
+                    : plan.prospects + " prospects"}
                 </div>
                 {plan.highlight && (
                   <Badge variant="secondary" className="mt-3">
@@ -238,9 +295,15 @@ export default function Pricing() {
               <CardContent className="space-y-4">
                 {plan.additionalCost && (
                   <div className="text-sm text-muted-foreground text-center border-t border-b py-3">
-                    <div>Additional prospects: <span className="font-semibold text-foreground">{plan.additionalCost}</span> each</div>
+                    <div>
+                      Additional prospects:{" "}
+                      <span className="font-semibold text-foreground">{plan.additionalCost}</span>{" "}
+                      each
+                    </div>
                     <Link href={`/value-packages?plan=${plan.tier}`}>
-                      <span className="text-xs text-primary hover:underline cursor-pointer mt-1 inline-block">Value Packages Available</span>
+                      <span className="text-xs text-primary hover:underline cursor-pointer mt-1 inline-block">
+                        Value Packages Available
+                      </span>
                     </Link>
                   </div>
                 )}
@@ -263,8 +326,8 @@ export default function Pricing() {
                 >
                   {plan.ctaType === "demo" && <Calendar className="w-4 h-4 mr-2" />}
                   {plan.ctaType === "consultation" && <Phone className="w-4 h-4 mr-2" />}
-                  {createBillingRequestMutation.isPending && selectedPlan === plan.tier 
-                    ? "Processing..." 
+                  {createBillingRequestMutation.isPending && selectedPlan === plan.tier
+                    ? "Processing..."
                     : plan.ctaText}
                 </Button>
               </CardFooter>
@@ -274,10 +337,14 @@ export default function Pricing() {
 
         <div className="mt-16 text-center">
           <p className="text-sm text-muted-foreground">
-            All plans include access to Companies House integration, contact management, and activity tracking.
+            All plans include access to Companies House integration, contact management, and
+            activity tracking.
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            Questions? Email us at <a href="mailto:hello@flowloan.co.uk" className="text-primary hover:underline">hello@flowloan.co.uk</a>
+            Questions? Email us at{" "}
+            <a href="mailto:hello@flowloan.co.uk" className="text-primary hover:underline">
+              hello@flowloan.co.uk
+            </a>
           </p>
         </div>
       </div>
@@ -291,7 +358,8 @@ export default function Pricing() {
               Book a Team Demo
             </DialogTitle>
             <DialogDescription>
-              Our team will set up your account, invite your team members, and guide you through a 14-day pilot.
+              Our team will set up your account, invite your team members, and guide you through a
+              14-day pilot.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -317,10 +385,11 @@ export default function Pricing() {
               </ul>
             </div>
             <div className="flex flex-col gap-3">
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 onClick={() => {
-                  window.location.href = "mailto:sales@flowloan.co.uk?subject=Team%20Demo%20Request&body=Hi%2C%0A%0AI%27d%20like%20to%20book%20a%20demo%20for%20the%20Team%20plan.%0A%0ACompany%3A%20%0ATeam%20size%3A%20%0APreferred%20time%3A%20%0A%0AThanks!";
+                  window.location.href =
+                    "mailto:sales@flowloan.co.uk?subject=Team%20Demo%20Request&body=Hi%2C%0A%0AI%27d%20like%20to%20book%20a%20demo%20for%20the%20Team%20plan.%0A%0ACompany%3A%20%0ATeam%20size%3A%20%0APreferred%20time%3A%20%0A%0AThanks!";
                 }}
                 data-testid="button-email-demo"
               >
@@ -344,7 +413,8 @@ export default function Pricing() {
               Request Lender Access
             </DialogTitle>
             <DialogDescription>
-              Our enterprise team will discuss your requirements and provide a tailored solution for your credit team.
+              Our enterprise team will discuss your requirements and provide a tailored solution for
+              your credit team.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -374,10 +444,11 @@ export default function Pricing() {
               </ul>
             </div>
             <div className="flex flex-col gap-3">
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 onClick={() => {
-                  window.location.href = "mailto:enterprise@flowloan.co.uk?subject=Lender%20Plan%20Enquiry&body=Hi%2C%0A%0AI%27d%20like%20to%20discuss%20the%20Lender%20plan%20for%20our%20credit%20team.%0A%0AOrganisation%3A%20%0ATeam%20size%3A%20%0ACurrent%20lending%20volume%3A%20%0A%0AThanks!";
+                  window.location.href =
+                    "mailto:enterprise@flowloan.co.uk?subject=Lender%20Plan%20Enquiry&body=Hi%2C%0A%0AI%27d%20like%20to%20discuss%20the%20Lender%20plan%20for%20our%20credit%20team.%0A%0AOrganisation%3A%20%0ATeam%20size%3A%20%0ACurrent%20lending%20volume%3A%20%0A%0AThanks!";
                 }}
                 data-testid="button-email-consultation"
               >
@@ -429,33 +500,38 @@ export default function Pricing() {
               <div className="flex items-center gap-2 mb-3">
                 <Package className="h-4 w-4 text-primary" />
                 <h4 className="font-medium">Add a Value Package</h4>
-                <Badge variant="outline" className="text-xs">Optional</Badge>
+                <Badge variant="outline" className="text-xs">
+                  Optional
+                </Badge>
               </div>
               <div className="space-y-2">
                 {availablePackages.map((pkg) => (
                   <div
                     key={pkg.id}
                     className={`relative border rounded-lg p-3 cursor-pointer transition-colors hover-elevate ${
-                      selectedPackage === pkg.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border"
+                      selectedPackage === pkg.id ? "border-primary bg-primary/5" : "border-border"
                     }`}
                     onClick={() => setSelectedPackage(selectedPackage === pkg.id ? null : pkg.id)}
                     data-testid={`checkout-package-${pkg.id}`}
                   >
                     {pkg.popular && (
-                      <Badge variant="default" className="absolute -top-2 right-2 text-xs px-2 py-0">
+                      <Badge
+                        variant="default"
+                        className="absolute -top-2 right-2 text-xs px-2 py-0"
+                      >
                         <Sparkles className="w-3 h-3 mr-1" />
                         Best Value
                       </Badge>
                     )}
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                          selectedPackage === pkg.id
-                            ? "border-primary bg-primary"
-                            : "border-muted-foreground"
-                        }`}>
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedPackage === pkg.id
+                              ? "border-primary bg-primary"
+                              : "border-muted-foreground"
+                          }`}
+                        >
                           {selectedPackage === pkg.id && (
                             <Check className="w-3 h-3 text-primary-foreground" />
                           )}
@@ -469,7 +545,10 @@ export default function Pricing() {
                       </div>
                       <div className="text-right">
                         <div className="font-semibold">£{pkg.price}</div>
-                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                        >
                           Save {pkg.savings}
                         </Badge>
                       </div>

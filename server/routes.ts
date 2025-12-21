@@ -19,18 +19,19 @@ import {
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
-import { createRequire } from 'module';
+import { createRequire } from "module";
 import { generateProspectReport } from "./utils/pdfGenerator";
 import { generatePipelineExcel } from "./utils/excelExporter";
 import { getUncachableResendClient } from "./utils/resendClient";
 import { getSicDescription } from "./utils/sicCodeLookup";
 import { createErrorResponse } from "./utils/errorResponse";
+import { handleApiError, logUnderwritingAudit } from "./utils/errorHandler";
 import { rateLimitMiddleware } from "./utils/rateLimit";
-import { 
-  wrapAiRequest, 
-  requirePremiumAndConsent, 
+import {
+  wrapAiRequest,
+  requirePremiumAndConsent,
   AI_GOVERNANCE_CONFIG,
-  redactSensitiveData
+  redactSensitiveData,
 } from "./utils/aiGovernance";
 import {
   requireSubmissionReadAccess,
@@ -42,63 +43,67 @@ const require = createRequire(import.meta.url);
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint - checks DB, Redis, and object storage
   // Must be registered BEFORE auth middleware so it's always accessible
-  app.get('/healthz', async (req, res) => {
-    const checks: Record<string, { status: 'ok' | 'error'; latency?: number; error?: string }> = {};
+  app.get("/healthz", async (req, res) => {
+    const checks: Record<string, { status: "ok" | "error"; latency?: number; error?: string }> = {};
     let allHealthy = true;
-    
+
     // Check database
     const dbStart = Date.now();
     try {
-      await storage.getUser('health-check-probe');
-      checks.database = { status: 'ok', latency: Date.now() - dbStart };
+      await storage.getUser("health-check-probe");
+      checks.database = { status: "ok", latency: Date.now() - dbStart };
     } catch (error: any) {
-      checks.database = { status: 'error', error: error.message, latency: Date.now() - dbStart };
+      checks.database = { status: "error", error: error.message, latency: Date.now() - dbStart };
       allHealthy = false;
     }
-    
+
     // Check Redis (if configured)
-    const { getRateLimitStatus } = await import('./utils/rateLimit');
+    const { getRateLimitStatus } = await import("./utils/rateLimit");
     const rateLimitStatus = getRateLimitStatus();
-    if (rateLimitStatus.backend === 'redis') {
-      checks.redis = { status: 'ok' };
-    } else if (process.env.NODE_ENV === 'production' && process.env.REDIS_URL) {
-      checks.redis = { status: 'error', error: 'Redis configured but not connected' };
+    if (rateLimitStatus.backend === "redis") {
+      checks.redis = { status: "ok" };
+    } else if (process.env.NODE_ENV === "production" && process.env.REDIS_URL) {
+      checks.redis = { status: "error", error: "Redis configured but not connected" };
       allHealthy = false;
     } else {
-      checks.redis = { status: 'ok' }; // Memory fallback acceptable in dev
+      checks.redis = { status: "ok" }; // Memory fallback acceptable in dev
     }
-    
+
     // Check object storage
     const storageStart = Date.now();
     try {
       const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
       if (bucketId) {
         const client = new ObjectStorageClient({ bucketId });
-        await client.list({ prefix: 'health-check/', maxKeys: 1 });
-        checks.objectStorage = { status: 'ok', latency: Date.now() - storageStart };
+        await client.list({ prefix: "health-check/", maxKeys: 1 });
+        checks.objectStorage = { status: "ok", latency: Date.now() - storageStart };
       } else {
-        checks.objectStorage = { status: 'error', error: 'Bucket not configured' };
+        checks.objectStorage = { status: "error", error: "Bucket not configured" };
         allHealthy = false;
       }
     } catch (error: any) {
-      checks.objectStorage = { status: 'error', error: error.message, latency: Date.now() - storageStart };
+      checks.objectStorage = {
+        status: "error",
+        error: error.message,
+        latency: Date.now() - storageStart,
+      };
       allHealthy = false;
     }
-    
+
     const status = allHealthy ? 200 : 503;
     res.status(status).json({
-      status: allHealthy ? 'healthy' : 'unhealthy',
+      status: allHealthy ? "healthy" : "unhealthy",
       timestamp: new Date().toISOString(),
       checks,
     });
   });
-  
+
   // Setup authentication - Required for Replit Auth
   await setupAuth(app);
-  
+
   // CSRF protection for all state-changing requests
   app.use(csrfProtection);
-  
+
   // Rate limiting middleware (Redis-backed with memory fallback)
   // Applied after auth so req.user is available for user-keyed limits
   app.use(rateLimitMiddleware());
@@ -119,16 +124,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Auth routes - Required for Replit Auth
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       // Add no-store cache header for sensitive auth data
-      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader("Cache-Control", "no-store");
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
-      res.status(500).json(createErrorResponse(error as Error, 500, req.requestId, "Failed to fetch user"));
+      res
+        .status(500)
+        .json(createErrorResponse(error as Error, 500, req.requestId, "Failed to fetch user"));
     }
   });
 
@@ -139,41 +146,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dateFormat: z.string().optional(),
     theme: z.string().optional(),
     pipelineStageNames: z.record(z.string()).optional(),
-    pdfLayoutPreferences: z.object({
-      sections: z.array(z.object({
-        id: z.string(),
-        label: z.string(),
-        enabled: z.boolean(),
-      })),
-    }).optional(),
+    pdfLayoutPreferences: z
+      .object({
+        sections: z.array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            enabled: z.boolean(),
+          })
+        ),
+      })
+      .optional(),
     brandingPrimaryColor: z.string().optional().nullable(),
     brandingAccentColor: z.string().optional().nullable(),
     brandingLogoUrl: z.string().optional().nullable(),
     aiDataConsent: z.number().int().min(0).max(1).optional(),
   });
 
-  app.patch('/api/user/settings', isAuthenticated, async (req: any, res) => {
+  app.patch("/api/user/settings", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const result = updateUserSettingsSchema.safeParse(req.body);
-      
+
       if (!result.success) {
         const humanError = fromZodError(result.error);
         return res.status(400).json({ error: humanError.message });
       }
 
       const updateData: any = { ...result.data };
-      
+
       // Track consent timestamp when AI consent is granted
       if (result.data.aiDataConsent === 1) {
         const currentUser = await storage.getUser(userId);
         if (currentUser && (currentUser as any).aiDataConsent !== 1) {
           updateData.aiDataConsentAt = new Date();
-          console.info(JSON.stringify({
-            type: "ai_consent_granted",
-            userId,
-            timestamp: new Date().toISOString(),
-          }));
+          console.info(
+            JSON.stringify({
+              type: "ai_consent_granted",
+              userId,
+              timestamp: new Date().toISOString(),
+            })
+          );
         }
       }
 
@@ -181,85 +194,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!updatedUser) {
         return res.status(404).json(createErrorResponse("User not found", 404, req.requestId));
       }
-      
+
       res.json(updatedUser);
     } catch (error: any) {
       console.error("Error updating user settings:", error);
-      res.status(500).json(createErrorResponse(error, 500, req.requestId, "Failed to update settings"));
+      res
+        .status(500)
+        .json(createErrorResponse(error, 500, req.requestId, "Failed to update settings"));
     }
   });
 
   // Upload branding logo - uses busboy + streaming upload to object storage
   // No RAM buffering: files stream directly to storage via uploadFromStream
   const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB limit
-  
-  app.post('/api/user/branding/logo', isAuthenticated, (req: any, res) => {
+
+  app.post("/api/user/branding/logo", isAuthenticated, (req: any, res) => {
     const userId = req.user.claims.sub;
-    
-    const contentType = req.headers['content-type'];
-    if (!contentType?.startsWith('multipart/form-data')) {
+
+    const contentType = req.headers["content-type"];
+    if (!contentType?.startsWith("multipart/form-data")) {
       return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
     }
-    
+
     let uploadPromise: Promise<string> | null = null;
     let validationError: string | null = null;
-    
+
     try {
-      const bb = busboy({ 
+      const bb = busboy({
         headers: req.headers,
-        limits: { fileSize: MAX_LOGO_SIZE, files: 1 }
+        limits: { fileSize: MAX_LOGO_SIZE, files: 1 },
       });
-      
-      bb.on('file', (fieldname, fileStream, info) => {
+
+      bb.on("file", (fieldname, fileStream, info) => {
         const { filename, mimeType } = info;
-        
+
         // SECURITY: Normalize MIME type (lowercase, strip parameters like charset)
-        const normalizedMime = mimeType.toLowerCase().split(';')[0].trim();
-        
+        const normalizedMime = mimeType.toLowerCase().split(";")[0].trim();
+
         // SECURITY: Check file extension case-insensitively
-        const extension = (filename.split('.').pop() || '').toLowerCase();
-        const isSvgExtension = extension === 'svg' || extension === 'svgz';
-        const isSvgMime = normalizedMime === 'image/svg+xml';
-        
+        const extension = (filename.split(".").pop() || "").toLowerCase();
+        const isSvgExtension = extension === "svg" || extension === "svgz";
+        const isSvgMime = normalizedMime === "image/svg+xml";
+
         // Early MIME type validation - drain stream immediately if invalid
         // SECURITY: Block SVG uploads - SVG can contain embedded JavaScript (XSS vector)
-        if (!normalizedMime.startsWith('image/') || isSvgMime || isSvgExtension) {
-          validationError = (isSvgMime || isSvgExtension)
-            ? "SVG files are not allowed for security reasons. Please use PNG, JPEG, or WebP."
-            : "Only image files are allowed for logos";
+        if (!normalizedMime.startsWith("image/") || isSvgMime || isSvgExtension) {
+          validationError =
+            isSvgMime || isSvgExtension
+              ? "SVG files are not allowed for security reasons. Please use PNG, JPEG, or WebP."
+              : "Only image files are allowed for logos";
           fileStream.resume();
           return;
         }
-        
+
         // SECURITY: Only allow safe image extensions
-        const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+        const allowedExtensions = ["png", "jpg", "jpeg", "gif", "webp"];
         if (!allowedExtensions.includes(extension)) {
           validationError = `File extension '.${extension}' is not allowed. Please use PNG, JPEG, GIF, or WebP.`;
           fileStream.resume();
           return;
         }
-        
+
         const timestamp = Date.now();
         const logoFileName = `${userId}_logo_${timestamp}.${extension}`;
         const storagePath = `public/branding/${logoFileName}`;
-        
+
         // Stream to storage with content validation
         uploadPromise = (async () => {
-          const { PassThrough, Transform } = await import('stream');
-          const { isSvgContent, hasValidImageMagicBytes } = await import('./utils/security');
-          
+          const { PassThrough, Transform } = await import("stream");
+          const { isSvgContent, hasValidImageMagicBytes } = await import("./utils/security");
+
           const passThrough = new PassThrough();
           let limitExceeded = false;
           let magicBytesValidated = false;
           let accumulatedBuffer: Buffer = Buffer.alloc(0);
           const MAX_VALIDATION_SIZE = 4096; // Accumulate up to 4KB for SVG pattern detection
-          
-          fileStream.on('limit', () => {
+
+          fileStream.on("limit", () => {
             limitExceeded = true;
             validationError = "Logo file must be under 2MB";
             passThrough.destroy(new Error("File size limit exceeded"));
           });
-          
+
           // SECURITY: Create transform stream with robust validation
           // Strategy: Validate magic bytes immediately, then continue scanning for SVG patterns
           const validationTransform = new Transform({
@@ -268,25 +284,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (accumulatedBuffer.length < MAX_VALIDATION_SIZE) {
                 accumulatedBuffer = Buffer.concat([accumulatedBuffer, chunk]);
               }
-              
+
               // SECURITY: Validate magic bytes FIRST (only needs first few bytes)
               if (!magicBytesValidated && accumulatedBuffer.length >= 12) {
                 if (!hasValidImageMagicBytes(accumulatedBuffer)) {
-                  validationError = "Invalid image file - content does not match a recognized image format (PNG, JPEG, GIF, or WebP).";
+                  validationError =
+                    "Invalid image file - content does not match a recognized image format (PNG, JPEG, GIF, or WebP).";
                   callback(new Error(validationError));
                   return;
                 }
                 magicBytesValidated = true;
               }
-              
+
               // SECURITY: Continuously check for SVG patterns in accumulated buffer
               // This catches split-chunk SVG attacks
               if (isSvgContent(accumulatedBuffer)) {
-                validationError = "File content appears to be SVG disguised as another format. SVG files are not allowed.";
+                validationError =
+                  "File content appears to be SVG disguised as another format. SVG files are not allowed.";
                 callback(new Error(validationError));
                 return;
               }
-              
+
               // Only pass through data after magic bytes validated
               if (magicBytesValidated) {
                 callback(null, chunk);
@@ -298,7 +316,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Final validation for small files
               if (!magicBytesValidated && accumulatedBuffer.length > 0) {
                 if (!hasValidImageMagicBytes(accumulatedBuffer)) {
-                  validationError = "Invalid image file - content does not match a recognized image format.";
+                  validationError =
+                    "Invalid image file - content does not match a recognized image format.";
                   callback(new Error(validationError));
                   return;
                 }
@@ -312,20 +331,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 this.push(accumulatedBuffer);
               }
               callback();
-            }
+            },
           });
-          
+
           fileStream.pipe(validationTransform).pipe(passThrough);
-          
+
           try {
             await getObjectStorage().uploadFromStream(storagePath, passThrough);
-            
+
             if (limitExceeded || validationError) {
               // Clean up partial upload
-              try { await getObjectStorage().delete(storagePath); } catch {}
+              try {
+                await getObjectStorage().delete(storagePath);
+              } catch {
+                // Ignore cleanup errors
+              }
               throw new Error(validationError || "File size limit exceeded");
             }
-            
+
             const logoUrl = `/public-objects/branding/${logoFileName}`;
             await storage.updateUser(userId, { brandingLogoUrl: logoUrl });
             return logoUrl;
@@ -336,111 +359,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         })();
       });
-      
-      bb.on('close', async () => {
+
+      bb.on("close", async () => {
         try {
           if (validationError) {
             return res.status(400).json({ error: validationError });
           }
-          
+
           if (!uploadPromise) {
             return res.status(400).json({ error: "No logo file uploaded" });
           }
-          
+
           const logoUrl = await uploadPromise;
           res.json({ logoUrl, message: "Logo uploaded successfully" });
         } catch (error: any) {
           console.error("Error completing logo upload:", error);
           if (!res.headersSent) {
-            res.status(500).json({ error: error.message });
+            handleApiError(res, error, "api-error");
           }
         }
       });
-      
-      bb.on('error', (error: any) => {
+
+      bb.on("error", (error: any) => {
         console.error("Busboy error:", error);
         if (!res.headersSent) {
-          res.status(500).json({ error: error.message });
+          handleApiError(res, error, "api-error");
         }
       });
-      
+
       req.pipe(bb);
     } catch (error: any) {
       console.error("Error uploading logo:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: error.message });
+        handleApiError(res, error, "api-error");
       }
     }
   });
 
   // Delete branding logo
-  app.delete('/api/user/branding/logo', isAuthenticated, async (req: any, res) => {
+  app.delete("/api/user/branding/logo", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      
+
       // Clear the logo URL from user settings
       await storage.updateUser(userId, { brandingLogoUrl: null });
-      
+
       res.json({ message: "Logo removed successfully" });
-    } catch (error: any) {
-      console.error("Error deleting logo:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Serve public objects from object storage - restricted to allowed prefixes only
   // Security: Only serve from allowlisted directories to prevent arbitrary file access
-  const ALLOWED_PUBLIC_PREFIXES = ['branding/'];
-  
-  app.get('/public-objects/*', async (req, res) => {
+  const ALLOWED_PUBLIC_PREFIXES = ["branding/"];
+
+  app.get("/public-objects/*", async (req, res) => {
     try {
       const filePath = req.params[0];
-      
+
       // Security: Validate path is within allowed prefixes
-      const isAllowed = ALLOWED_PUBLIC_PREFIXES.some(prefix => filePath.startsWith(prefix));
+      const isAllowed = ALLOWED_PUBLIC_PREFIXES.some((prefix) => filePath.startsWith(prefix));
       if (!isAllowed) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
+
       // Security: Prevent path traversal attacks
-      if (filePath.includes('..') || filePath.includes('//')) {
+      if (filePath.includes("..") || filePath.includes("//")) {
         return res.status(400).json({ error: "Invalid path" });
       }
-      
+
       const storagePath = `public/${filePath}`;
-      
+
       const objectStorage = getObjectStorage();
       const { data } = await objectStorage.downloadAsBytes(storagePath);
-      
+
       // Set appropriate content type based on file extension
       // SECURITY: SVG removed - can contain embedded JavaScript (XSS vector)
-      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      const ext = filePath.split(".").pop()?.toLowerCase() || "";
       const contentTypes: Record<string, string> = {
-        'png': 'image/png',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'gif': 'image/gif',
-        'webp': 'image/webp',
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        gif: "image/gif",
+        webp: "image/webp",
       };
-      
+
       // SECURITY: Block serving SVG files (case-insensitive, including svgz)
-      if (ext === 'svg' || ext === 'svgz') {
+      if (ext === "svg" || ext === "svgz") {
         return res.status(403).json({ error: "SVG files are not allowed for security reasons" });
       }
-      
+
       // SECURITY: Only serve files with known safe extensions (allowlist)
       if (!contentTypes[ext]) {
         return res.status(403).json({ error: "File type not allowed" });
       }
-      
+
       const contentType = contentTypes[ext];
-      
+
       // Set response headers for serving public objects
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("X-Content-Type-Options", "nosniff");
       // Allow cross-origin embedding of images (important for logo display)
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader("Access-Control-Allow-Origin", "*");
       res.send(Buffer.from(data));
     } catch (error: any) {
       console.error("Error serving public object:", error);
@@ -454,8 +476,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const prospects = await storage.listProspects(userId);
       res.json(prospects);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -464,18 +486,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const prospects = await storage.listProspects(userId);
       const user = await storage.getUser(userId);
-      
+
       const excelBuffer = await generatePipelineExcel(prospects, user);
-      
+
       // SECURITY: Use sanitized filename to prevent header injection
       const { encodeContentDisposition } = await import("./utils/security");
-      const filename = `pipeline-export-${new Date().toISOString().split('T')[0]}.xlsx`;
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', encodeContentDisposition(filename));
+      const filename = `pipeline-export-${new Date().toISOString().split("T")[0]}.xlsx`;
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", encodeContentDisposition(filename));
       res.send(excelBuffer);
-    } catch (error: any) {
-      console.error("Error generating Excel export:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -488,39 +512,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       res.json(prospect);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   app.post("/api/prospects", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      
+
       // Check prospect limit based on subscription tier
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
       const prospectCount = await storage.countProspects(userId);
       if (prospectCount >= user.prospectLimit) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: `Prospect limit reached. You have ${prospectCount} prospects and your ${user.subscriptionTier} plan allows ${user.prospectLimit}. Please upgrade your subscription to add more prospects.`,
           prospectCount,
           prospectLimit: user.prospectLimit,
-          subscriptionTier: user.subscriptionTier
+          subscriptionTier: user.subscriptionTier,
         });
       }
-      
+
       const result = insertProspectSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
       const prospect = await storage.createProspect(result.data, userId);
       res.json(prospect);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -528,9 +552,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.id);
-      const result = updateProspectStageSchema.safeParse({ 
-        prospectId, 
-        stage: req.body.stage 
+      const result = updateProspectStageSchema.safeParse({
+        prospectId,
+        stage: req.body.stage,
       });
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
@@ -540,8 +564,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
       res.json(prospect);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -549,15 +573,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const { stage, orderedIds } = req.body;
-      
+
       if (!stage || !Array.isArray(orderedIds)) {
         return res.status(400).json({ error: "Stage and orderedIds array are required" });
       }
-      
+
       await storage.reorderProspects(userId, stage, orderedIds);
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -565,14 +589,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      
+
       const prospect = await storage.updateProspect(id, userId, req.body);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
       res.json(prospect);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -580,11 +604,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      
+
       await storage.deleteProspect(id, userId);
       res.status(204).send();
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -592,7 +616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      
+
       const prospect = await storage.getProspect(id, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
@@ -604,30 +628,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
       let companiesHouseData = null;
-      
+
       if (apiKey && prospect.company.companyNumber) {
         try {
           const trimmedApiKey = apiKey.trim();
           const authString = `${trimmedApiKey}:`;
-          const base64Auth = Buffer.from(authString).toString('base64');
+          const base64Auth = Buffer.from(authString).toString("base64");
           const companyNumber = prospect.company.companyNumber;
-          
+
           const [officersRes, pscRes, chargesRes] = await Promise.all([
-            fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, {
-              headers: { 'Authorization': `Basic ${base64Auth}` }
-            }).catch(() => null),
-            fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, {
-              headers: { 'Authorization': `Basic ${base64Auth}` }
-            }).catch(() => null),
-            fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`, {
-              headers: { 'Authorization': `Basic ${base64Auth}` }
-            }).catch(() => null)
+            fetch(
+              `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
+              {
+                headers: { Authorization: `Basic ${base64Auth}` },
+              }
+            ).catch(() => null),
+            fetch(
+              `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
+              {
+                headers: { Authorization: `Basic ${base64Auth}` },
+              }
+            ).catch(() => null),
+            fetch(
+              `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
+              {
+                headers: { Authorization: `Basic ${base64Auth}` },
+              }
+            ).catch(() => null),
           ]);
 
           companiesHouseData = {
             officers: officersRes && officersRes.ok ? await officersRes.json() : null,
             psc: pscRes && pscRes.ok ? await pscRes.json() : null,
-            charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null
+            charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null,
           };
         } catch (error) {
           console.error("Error fetching Companies House data for report:", error);
@@ -635,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.getUser(userId);
-      
+
       const doc = generateProspectReport({
         prospect,
         contacts,
@@ -647,16 +680,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // SECURITY: Use sanitized filename to prevent header injection
       const { encodeContentDisposition } = await import("./utils/security");
-      const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', encodeContentDisposition(filename));
-      
+      const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`;
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", encodeContentDisposition(filename));
+
       doc.pipe(res);
       doc.end();
-    } catch (error: any) {
-      console.error("Error generating prospect report:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -666,7 +698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const query = req.query.q as string;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100); // Max 100 per API
       const activeOnly = req.query.active_only === "true";
-      
+
       if (!query || query.trim().length === 0) {
         return res.status(400).json({ error: "Search query is required" });
       }
@@ -679,19 +711,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Trim any whitespace from API key
       const trimmedApiKey = apiKey.trim();
-      
+
       // Call Companies House API
       // API key is used as username with empty password in Basic Auth
       const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString('base64');
-      
-      console.log(`Searching Companies House for: "${query}" (limit: ${limit}, activeOnly: ${activeOnly})`);
-      
+      const base64Auth = Buffer.from(authString).toString("base64");
+
+      console.log(
+        `Searching Companies House for: "${query}" (limit: ${limit}, activeOnly: ${activeOnly})`
+      );
+
       const response = await fetch(
         `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(query)}&items_per_page=${limit}`,
         {
           headers: {
-            'Authorization': `Basic ${base64Auth}`,
+            Authorization: `Basic ${base64Auth}`,
           },
         }
       );
@@ -699,27 +733,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Companies House API error:", response.status, errorText);
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
+        return res.status(response.status).json({
+          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}`,
         });
       }
 
       const data = await response.json();
-      
+
       // Filter out dissolved companies if activeOnly is true
       if (activeOnly && data.items) {
-        data.items = data.items.filter((company: any) => 
-          company.company_status !== "dissolved" && 
-          company.company_status !== "removed" &&
-          company.company_status !== "closed"
+        data.items = data.items.filter(
+          (company: any) =>
+            company.company_status !== "dissolved" &&
+            company.company_status !== "removed" &&
+            company.company_status !== "closed"
         );
       }
-      
+
       console.log(`Found ${data.items?.length || 0} companies`);
       res.json(data);
-    } catch (error: any) {
-      console.error("Error searching Companies House:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -729,33 +763,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { sic_codes, location, postcode } = req.query;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const activeOnly = req.query.active_only === "true";
-      
+
       const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
 
       const trimmedApiKey = apiKey.trim();
-      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString('base64');
+      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
 
       // Use Advanced Search API which supports proper filtering
       // Documentation: https://developer-specs.company-information.service.gov.uk/companies-house-public-data-api/reference/search/advanced-company-search
       const params = new URLSearchParams();
-      params.append('size', limit.toString());
-      
+      params.append("size", limit.toString());
+
       if (sic_codes) {
         // Filter by SIC code
-        params.append('sic_codes', sic_codes as string);
+        params.append("sic_codes", sic_codes as string);
         console.log(`Advanced search by SIC code: ${sic_codes} (limit: ${limit})`);
       } else if (location) {
         // Filter by location (town/city in registered address)
-        params.append('location', location as string);
+        params.append("location", location as string);
         console.log(`Advanced search by location: ${location} (limit: ${limit})`);
       } else if (postcode) {
         // Filter by postcode (registered office address)
         // Format postcode: remove spaces and convert to uppercase
-        const formattedPostcode = (postcode as string).replace(/\s+/g, '').toUpperCase();
-        params.append('location', formattedPostcode);
+        const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
+        params.append("location", formattedPostcode);
         console.log(`Advanced search by postcode: ${formattedPostcode} (limit: ${limit})`);
       } else {
         return res.status(400).json({ error: "At least one search parameter required" });
@@ -763,20 +797,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Only search active companies if filter is enabled
       if (activeOnly) {
-        params.append('company_status', 'active');
+        params.append("company_status", "active");
       }
-      
+
       const url = `https://api.company-information.service.gov.uk/advanced-search/companies?${params.toString()}`;
       console.log(`Advanced search URL: ${url}`);
-      
+
       const response = await fetch(url, {
-        headers: { 'Authorization': `Basic ${base64Auth}` },
+        headers: { Authorization: `Basic ${base64Auth}` },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Companies House Advanced Search API error:", response.status, errorText);
-        
+
         // If advanced search fails (e.g., not available on free tier), fall back to basic search
         if (response.status === 403 || response.status === 401) {
           console.log("Falling back to basic company search...");
@@ -784,55 +818,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const fallbackResponse = await fetch(
             `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(fallbackQuery as string)}&items_per_page=20`,
             {
-              headers: { 'Authorization': `Basic ${base64Auth}` },
+              headers: { Authorization: `Basic ${base64Auth}` },
             }
           );
-          
+
           if (fallbackResponse.ok) {
             const fallbackData = await fallbackResponse.json();
             console.log(`Fallback search found ${fallbackData.items?.length || 0} companies`);
             return res.json(fallbackData);
           }
         }
-        
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}` 
+
+        return res.status(response.status).json({
+          error: `Companies House API returned ${response.status}`,
         });
       }
 
       const data = await response.json();
       // Advanced search returns slightly different format, normalize it
       const normalizedData = {
-        items: data.items?.map((item: any) => {
-          const addr = item.registered_office_address;
-          return {
-            title: item.company_name,
-            company_number: item.company_number,
-            company_status: item.company_status,
-            company_type: item.company_type,
-            address_snippet: addr ? 
-              [
-                addr.premises,
-                addr.address_line_1,
-                addr.address_line_2,
-                addr.locality,
-                addr.region,
-                addr.postal_code,
-                addr.country
-              ].filter(Boolean).join(', ') : undefined,
-            address: addr,
-            date_of_creation: item.date_of_creation,
-            sic_codes: item.sic_codes
-          };
-        }) || [],
-        total_results: data.total_results || data.hits
+        items:
+          data.items?.map((item: any) => {
+            const addr = item.registered_office_address;
+            return {
+              title: item.company_name,
+              company_number: item.company_number,
+              company_status: item.company_status,
+              company_type: item.company_type,
+              address_snippet: addr
+                ? [
+                    addr.premises,
+                    addr.address_line_1,
+                    addr.address_line_2,
+                    addr.locality,
+                    addr.region,
+                    addr.postal_code,
+                    addr.country,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")
+                : undefined,
+              address: addr,
+              date_of_creation: item.date_of_creation,
+              sic_codes: item.sic_codes,
+            };
+          }) || [],
+        total_results: data.total_results || data.hits,
       };
-      
+
       console.log(`Advanced search found ${normalizedData.items.length} companies`);
       res.json(normalizedData);
-    } catch (error: any) {
-      console.error("Error in advanced search:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -850,31 +887,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const trimmedApiKey = apiKey.trim();
-      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString('base64');
+      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
 
       console.log(`Searching officers for: "${query}"`);
-      
+
       const response = await fetch(
         `https://api.company-information.service.gov.uk/search/officers?q=${encodeURIComponent(query)}&items_per_page=20`,
         {
-          headers: { 'Authorization': `Basic ${base64Auth}` },
+          headers: { Authorization: `Basic ${base64Auth}` },
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Companies House API error:", response.status, errorText);
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}` 
+        return res.status(response.status).json({
+          error: `Companies House API returned ${response.status}`,
         });
       }
 
       const data = await response.json();
       console.log(`Found ${data.items?.length || 0} officers`);
       res.json(data);
-    } catch (error: any) {
-      console.error("Error searching officers:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -892,31 +928,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const trimmedApiKey = apiKey.trim();
-      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString('base64');
+      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
 
       console.log(`Fetching appointments for officer: "${officerId}"`);
-      
+
       const response = await fetch(
         `https://api.company-information.service.gov.uk/officers/${encodeURIComponent(officerId)}/appointments`,
         {
-          headers: { 'Authorization': `Basic ${base64Auth}` },
+          headers: { Authorization: `Basic ${base64Auth}` },
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Companies House API error:", response.status, errorText);
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}` 
+        return res.status(response.status).json({
+          error: `Companies House API returned ${response.status}`,
         });
       }
 
       const data = await response.json();
       console.log(`Found ${data.items?.length || 0} appointments`);
       res.json(data);
-    } catch (error: any) {
-      console.error("Error fetching officer appointments:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -936,18 +971,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Trim any whitespace from API key
       const trimmedApiKey = apiKey.trim();
-      
+
       // API key is used as username with empty password in Basic Auth
       const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString('base64');
-      
+      const base64Auth = Buffer.from(authString).toString("base64");
+
       console.log(`Fetching company profile for: "${companyNumber}"`);
-      
+
       const response = await fetch(
         `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}`,
         {
           headers: {
-            'Authorization': `Basic ${base64Auth}`,
+            Authorization: `Basic ${base64Auth}`,
           },
         }
       );
@@ -958,417 +993,452 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (response.status === 404) {
           return res.status(404).json({ error: "Company not found" });
         }
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
+        return res.status(response.status).json({
+          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}`,
         });
       }
 
       const data = await response.json();
       console.log(`Retrieved company profile for ${companyNumber}`);
       res.json(data);
-    } catch (error: any) {
-      console.error("Error fetching company profile:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Companies House Officers API - Protected route
-  app.get("/api/companies-house/company/:companyNumber/officers", isAuthenticated, async (req, res) => {
-    try {
-      const companyNumber = req.params.companyNumber;
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: "Companies House API key not configured" });
-      }
-
-      const trimmedApiKey = apiKey.trim();
-      const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString('base64');
-      
-      console.log(`Fetching officers for: "${companyNumber}"`);
-      
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
-        {
-          headers: {
-            'Authorization': `Basic ${base64Auth}`,
-          },
+  app.get(
+    "/api/companies-house/company/:companyNumber/officers",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const companyNumber = req.params.companyNumber;
+        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+        if (!apiKey) {
+          return res.status(500).json({ error: "Companies House API key not configured" });
         }
-      );
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          return res.status(404).json({ error: "Officers not found" });
+        const trimmedApiKey = apiKey.trim();
+        const authString = `${trimmedApiKey}:`;
+        const base64Auth = Buffer.from(authString).toString("base64");
+
+        console.log(`Fetching officers for: "${companyNumber}"`);
+
+        const response = await fetch(
+          `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
+          {
+            headers: {
+              Authorization: `Basic ${base64Auth}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            return res.status(404).json({ error: "Officers not found" });
+          }
+          const errorText = await response.text();
+          console.error("Companies House API error:", response.status, errorText);
+          return res.status(response.status).json({
+            error: `Companies House API returned ${response.status}: ${errorText || response.statusText}`,
+          });
         }
-        const errorText = await response.text();
-        console.error("Companies House API error:", response.status, errorText);
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
-        });
-      }
 
-      const data = await response.json();
-      console.log(`Retrieved ${data.items?.length || 0} officers for ${companyNumber}`);
-      res.json(data);
-    } catch (error: any) {
-      console.error("Error fetching officers:", error);
-      res.status(500).json({ error: error.message });
+        const data = await response.json();
+        console.log(`Retrieved ${data.items?.length || 0} officers for ${companyNumber}`);
+        res.json(data);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
 
   // Companies House PSC API - Protected route
-  app.get("/api/companies-house/company/:companyNumber/persons-with-significant-control", isAuthenticated, async (req, res) => {
-    try {
-      const companyNumber = req.params.companyNumber;
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: "Companies House API key not configured" });
-      }
-
-      const trimmedApiKey = apiKey.trim();
-      const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString('base64');
-      
-      console.log(`Fetching PSC for: "${companyNumber}"`);
-      
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
-        {
-          headers: {
-            'Authorization': `Basic ${base64Auth}`,
-          },
+  app.get(
+    "/api/companies-house/company/:companyNumber/persons-with-significant-control",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const companyNumber = req.params.companyNumber;
+        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+        if (!apiKey) {
+          return res.status(500).json({ error: "Companies House API key not configured" });
         }
-      );
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          return res.status(404).json({ error: "PSC data not found" });
+        const trimmedApiKey = apiKey.trim();
+        const authString = `${trimmedApiKey}:`;
+        const base64Auth = Buffer.from(authString).toString("base64");
+
+        console.log(`Fetching PSC for: "${companyNumber}"`);
+
+        const response = await fetch(
+          `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
+          {
+            headers: {
+              Authorization: `Basic ${base64Auth}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            return res.status(404).json({ error: "PSC data not found" });
+          }
+          const errorText = await response.text();
+          console.error("Companies House API error:", response.status, errorText);
+          return res.status(response.status).json({
+            error: `Companies House API returned ${response.status}: ${errorText || response.statusText}`,
+          });
         }
-        const errorText = await response.text();
-        console.error("Companies House API error:", response.status, errorText);
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
-        });
-      }
 
-      const data = await response.json();
-      console.log(`Retrieved ${data.items?.length || 0} PSCs for ${companyNumber}`);
-      res.json(data);
-    } catch (error: any) {
-      console.error("Error fetching PSC:", error);
-      res.status(500).json({ error: error.message });
+        const data = await response.json();
+        console.log(`Retrieved ${data.items?.length || 0} PSCs for ${companyNumber}`);
+        res.json(data);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
 
   // Companies House Charges API - Protected route
-  app.get("/api/companies-house/company/:companyNumber/charges", isAuthenticated, async (req, res) => {
-    try {
-      const companyNumber = req.params.companyNumber;
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: "Companies House API key not configured" });
-      }
-
-      const trimmedApiKey = apiKey.trim();
-      const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString('base64');
-      
-      console.log(`Fetching charges for: "${companyNumber}"`);
-      
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
-        {
-          headers: {
-            'Authorization': `Basic ${base64Auth}`,
-          },
+  app.get(
+    "/api/companies-house/company/:companyNumber/charges",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const companyNumber = req.params.companyNumber;
+        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+        if (!apiKey) {
+          return res.status(500).json({ error: "Companies House API key not configured" });
         }
-      );
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          // 404 means no charges, return empty data
-          return res.json({ total_count: 0, items: [] });
+        const trimmedApiKey = apiKey.trim();
+        const authString = `${trimmedApiKey}:`;
+        const base64Auth = Buffer.from(authString).toString("base64");
+
+        console.log(`Fetching charges for: "${companyNumber}"`);
+
+        const response = await fetch(
+          `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
+          {
+            headers: {
+              Authorization: `Basic ${base64Auth}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            // 404 means no charges, return empty data
+            return res.json({ total_count: 0, items: [] });
+          }
+          const errorText = await response.text();
+          console.error("Companies House API error:", response.status, errorText);
+          return res.status(response.status).json({
+            error: `Companies House API returned ${response.status}: ${errorText || response.statusText}`,
+          });
         }
-        const errorText = await response.text();
-        console.error("Companies House API error:", response.status, errorText);
-        return res.status(response.status).json({ 
-          error: `Companies House API returned ${response.status}: ${errorText || response.statusText}` 
-        });
-      }
 
-      const data = await response.json();
-      console.log(`Retrieved ${data.total_count || 0} charges for ${companyNumber}`);
-      res.json(data);
-    } catch (error: any) {
-      console.error("Error fetching charges:", error);
-      res.status(500).json({ error: error.message });
+        const data = await response.json();
+        console.log(`Retrieved ${data.total_count || 0} charges for ${companyNumber}`);
+        res.json(data);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
 
   // Associated companies search - Premium feature
-  app.get("/api/prospects/:prospectId/associated-companies", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      
-      // Check user subscription - Premium only
-      const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
-        return res.status(403).json({ error: "This feature is only available for Premium users" });
-      }
-      
-      // Get prospect and company info
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      const companyNumber = prospect.company.companyNumber;
-      if (!companyNumber) {
-        return res.json({ officers: [], psc: [], sameAddress: [] });
-      }
-      
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: "Companies House API key not configured" });
-      }
-      
-      const trimmedApiKey = apiKey.trim();
-      const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString('base64');
-      
-      // Fetch officers and PSC for the company
-      const [officersRes, pscRes] = await Promise.all([
-        fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, {
-          headers: { 'Authorization': `Basic ${base64Auth}` }
-        }).catch(() => null),
-        fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, {
-          headers: { 'Authorization': `Basic ${base64Auth}` }
-        }).catch(() => null)
-      ]);
-      
-      const officers = officersRes && officersRes.ok ? await officersRes.json() : { items: [] };
-      const psc = pscRes && pscRes.ok ? await pscRes.json() : { items: [] };
-      
-      // Find companies with common officers
-      const officerNames = officers.items?.filter((o: any) => !o.resigned_on).map((o: any) => o.name) || [];
-      const companiesViaOfficers: any[] = [];
-      
-      for (const officerName of officerNames.slice(0, 5)) { // Limit to prevent too many API calls
-        try {
-          const searchRes = await fetch(
-            `https://api.company-information.service.gov.uk/search/officers?q=${encodeURIComponent(officerName)}&items_per_page=5`,
-            { headers: { 'Authorization': `Basic ${base64Auth}` } }
-          );
-          
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            for (const item of searchData.items || []) {
-              if (item.links?.officer?.appointments) {
-                const appointmentsRes = await fetch(
-                  `https://api.company-information.service.gov.uk${item.links.officer.appointments}`,
-                  { headers: { 'Authorization': `Basic ${base64Auth}` } }
-                );
-                
-                if (appointmentsRes.ok) {
-                  const appointments = await appointmentsRes.json();
-                  for (const appointment of appointments.items || []) {
-                    if (appointment.appointed_to?.company_number !== companyNumber && !appointment.resigned_on) {
-                      companiesViaOfficers.push({
-                        company_number: appointment.appointed_to?.company_number,
-                        company_name: appointment.appointed_to?.company_name,
-                        company_status: appointment.appointed_to?.company_status,
-                        officer_name: officerName,
-                        officer_role: appointment.officer_role,
-                        appointed_on: appointment.appointed_on
-                      });
+  app.get(
+    "/api/prospects/:prospectId/associated-companies",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+
+        // Check user subscription - Premium only
+        const user = await storage.getUser(userId);
+        if (!user || user.subscriptionTier !== "premium") {
+          return res
+            .status(403)
+            .json({ error: "This feature is only available for Premium users" });
+        }
+
+        // Get prospect and company info
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        const companyNumber = prospect.company.companyNumber;
+        if (!companyNumber) {
+          return res.json({ officers: [], psc: [], sameAddress: [] });
+        }
+
+        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+        if (!apiKey) {
+          return res.status(500).json({ error: "Companies House API key not configured" });
+        }
+
+        const trimmedApiKey = apiKey.trim();
+        const authString = `${trimmedApiKey}:`;
+        const base64Auth = Buffer.from(authString).toString("base64");
+
+        // Fetch officers and PSC for the company
+        const [officersRes, pscRes] = await Promise.all([
+          fetch(
+            `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
+            {
+              headers: { Authorization: `Basic ${base64Auth}` },
+            }
+          ).catch(() => null),
+          fetch(
+            `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
+            {
+              headers: { Authorization: `Basic ${base64Auth}` },
+            }
+          ).catch(() => null),
+        ]);
+
+        const officers = officersRes && officersRes.ok ? await officersRes.json() : { items: [] };
+        const psc = pscRes && pscRes.ok ? await pscRes.json() : { items: [] };
+
+        // Find companies with common officers
+        const officerNames =
+          officers.items?.filter((o: any) => !o.resigned_on).map((o: any) => o.name) || [];
+        const companiesViaOfficers: any[] = [];
+
+        for (const officerName of officerNames.slice(0, 5)) {
+          // Limit to prevent too many API calls
+          try {
+            const searchRes = await fetch(
+              `https://api.company-information.service.gov.uk/search/officers?q=${encodeURIComponent(officerName)}&items_per_page=5`,
+              { headers: { Authorization: `Basic ${base64Auth}` } }
+            );
+
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              for (const item of searchData.items || []) {
+                if (item.links?.officer?.appointments) {
+                  const appointmentsRes = await fetch(
+                    `https://api.company-information.service.gov.uk${item.links.officer.appointments}`,
+                    { headers: { Authorization: `Basic ${base64Auth}` } }
+                  );
+
+                  if (appointmentsRes.ok) {
+                    const appointments = await appointmentsRes.json();
+                    for (const appointment of appointments.items || []) {
+                      if (
+                        appointment.appointed_to?.company_number !== companyNumber &&
+                        !appointment.resigned_on
+                      ) {
+                        companiesViaOfficers.push({
+                          company_number: appointment.appointed_to?.company_number,
+                          company_name: appointment.appointed_to?.company_name,
+                          company_status: appointment.appointed_to?.company_status,
+                          officer_name: officerName,
+                          officer_role: appointment.officer_role,
+                          appointed_on: appointment.appointed_on,
+                        });
+                      }
                     }
                   }
                 }
               }
             }
+          } catch (err) {
+            console.error(`Error searching for officer ${officerName}:`, err);
           }
-        } catch (err) {
-          console.error(`Error searching for officer ${officerName}:`, err);
         }
-      }
-      
-      // Find companies with common PSC
-      const pscNames = psc.items?.filter((p: any) => !p.ceased_on).map((p: any) => p.name) || [];
-      const companiesViaPSC: any[] = [];
-      
-      for (const pscName of pscNames.slice(0, 3)) {
-        try {
-          const searchRes = await fetch(
-            `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(pscName)}&items_per_page=10`,
-            { headers: { 'Authorization': `Basic ${base64Auth}` } }
-          );
-          
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            for (const company of searchData.items || []) {
-              if (company.company_number !== companyNumber) {
-                companiesViaPSC.push({
-                  company_number: company.company_number,
-                  company_name: company.title,
-                  company_status: company.company_status,
-                  psc_name: pscName,
-                  address_snippet: company.address_snippet
-                });
+
+        // Find companies with common PSC
+        const pscNames = psc.items?.filter((p: any) => !p.ceased_on).map((p: any) => p.name) || [];
+        const companiesViaPSC: any[] = [];
+
+        for (const pscName of pscNames.slice(0, 3)) {
+          try {
+            const searchRes = await fetch(
+              `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(pscName)}&items_per_page=10`,
+              { headers: { Authorization: `Basic ${base64Auth}` } }
+            );
+
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              for (const company of searchData.items || []) {
+                if (company.company_number !== companyNumber) {
+                  companiesViaPSC.push({
+                    company_number: company.company_number,
+                    company_name: company.title,
+                    company_status: company.company_status,
+                    psc_name: pscName,
+                    address_snippet: company.address_snippet,
+                  });
+                }
               }
             }
+          } catch (err) {
+            console.error(`Error searching for PSC ${pscName}:`, err);
           }
-        } catch (err) {
-          console.error(`Error searching for PSC ${pscName}:`, err);
         }
-      }
-      
-      // Find companies at same registered address
-      const companiesSameAddress: any[] = [];
-      const address = prospect.company.registeredAddress;
-      if (address) {
-        try {
-          const addressQuery = `${address}`.substring(0, 100);
-          const searchRes = await fetch(
-            `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(addressQuery)}&items_per_page=10`,
-            { headers: { 'Authorization': `Basic ${base64Auth}` } }
-          );
-          
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            for (const company of searchData.items || []) {
-              if (company.company_number !== companyNumber && company.address_snippet?.includes(addressQuery.substring(0, 20))) {
-                companiesSameAddress.push({
-                  company_number: company.company_number,
-                  company_name: company.title,
-                  company_status: company.company_status,
-                  address_snippet: company.address_snippet
-                });
+
+        // Find companies at same registered address
+        const companiesSameAddress: any[] = [];
+        const address = prospect.company.registeredAddress;
+        if (address) {
+          try {
+            const addressQuery = `${address}`.substring(0, 100);
+            const searchRes = await fetch(
+              `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(addressQuery)}&items_per_page=10`,
+              { headers: { Authorization: `Basic ${base64Auth}` } }
+            );
+
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              for (const company of searchData.items || []) {
+                if (
+                  company.company_number !== companyNumber &&
+                  company.address_snippet?.includes(addressQuery.substring(0, 20))
+                ) {
+                  companiesSameAddress.push({
+                    company_number: company.company_number,
+                    company_name: company.title,
+                    company_status: company.company_status,
+                    address_snippet: company.address_snippet,
+                  });
+                }
               }
             }
+          } catch (err) {
+            console.error("Error searching for companies at same address:", err);
           }
-        } catch (err) {
-          console.error("Error searching for companies at same address:", err);
         }
+
+        // Remove duplicates and limit results
+        const uniqueOfficers = Array.from(
+          new Map(companiesViaOfficers.map((c) => [c.company_number, c])).values()
+        ).slice(0, 10);
+        const uniquePSC = Array.from(
+          new Map(companiesViaPSC.map((c) => [c.company_number, c])).values()
+        ).slice(0, 10);
+        const uniqueAddress = Array.from(
+          new Map(companiesSameAddress.map((c) => [c.company_number, c])).values()
+        ).slice(0, 10);
+
+        res.json({
+          officers: uniqueOfficers,
+          psc: uniquePSC,
+          sameAddress: uniqueAddress,
+        });
+      } catch (error) {
+        handleApiError(res, error, "api-error");
       }
-      
-      // Remove duplicates and limit results
-      const uniqueOfficers = Array.from(new Map(companiesViaOfficers.map(c => [c.company_number, c])).values()).slice(0, 10);
-      const uniquePSC = Array.from(new Map(companiesViaPSC.map(c => [c.company_number, c])).values()).slice(0, 10);
-      const uniqueAddress = Array.from(new Map(companiesSameAddress.map(c => [c.company_number, c])).values()).slice(0, 10);
-      
-      res.json({
-        officers: uniqueOfficers,
-        psc: uniquePSC,
-        sameAddress: uniqueAddress
-      });
-    } catch (error: any) {
-      console.error("Error finding associated companies:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // AI web search for company - Premium feature
   app.post("/api/prospects/:prospectId/web-search", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
-      
+
       // Check user subscription - Premium only
       const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
+      if (!user || user.subscriptionTier !== "premium") {
         return res.status(403).json({ error: "This feature is only available for Premium users" });
       }
-      
+
       // Get prospect and company info
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
-      
+
       const tavilyApiKey = process.env.TAVILY_API_KEY;
       if (!tavilyApiKey) {
         return res.status(500).json({ error: "Tavily API key not configured" });
       }
-      
+
       const companyName = prospect.company.companyName;
       const searchQuery = `${companyName} UK company news information`;
-      
+
       console.log(`Searching web for company: ${companyName}`);
-      
-      const tavilyResponse = await fetch('https://api.tavily.com/search', {
-        method: 'POST',
+
+      const tavilyResponse = await fetch("https://api.tavily.com/search", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           api_key: tavilyApiKey,
           query: searchQuery,
-          search_depth: 'basic',
+          search_depth: "basic",
           include_answer: true,
           include_raw_content: false,
           max_results: 10,
           include_domains: [],
-          exclude_domains: []
-        })
+          exclude_domains: [],
+        }),
       });
-      
+
       if (!tavilyResponse.ok) {
         const errorText = await tavilyResponse.text();
         console.error("Tavily API error:", tavilyResponse.status, errorText);
-        return res.status(tavilyResponse.status).json({ 
-          error: `Tavily API returned ${tavilyResponse.status}: ${errorText || tavilyResponse.statusText}` 
+        return res.status(tavilyResponse.status).json({
+          error: `Tavily API returned ${tavilyResponse.status}: ${errorText || tavilyResponse.statusText}`,
         });
       }
-      
+
       const data = await tavilyResponse.json();
       console.log(`Found ${data.results?.length || 0} web results for ${companyName}`);
-      
+
       res.json({
-        answer: data.answer || '',
+        answer: data.answer || "",
         results: data.results || [],
-        query: searchQuery
+        query: searchQuery,
       });
-    } catch (error: any) {
-      console.error("Error searching web for company:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Save selected associations
-  app.post("/api/prospects/:prospectId/save-associations", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      const { associations } = req.body;
-      
-      // Validate associations is an array
-      if (!Array.isArray(associations)) {
-        return res.status(400).json({ error: "Associations must be an array" });
+  app.post(
+    "/api/prospects/:prospectId/save-associations",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+        const { associations } = req.body;
+
+        // Validate associations is an array
+        if (!Array.isArray(associations)) {
+          return res.status(400).json({ error: "Associations must be an array" });
+        }
+
+        // Limit to 50 associations maximum
+        if (associations.length > 50) {
+          return res.status(400).json({ error: "Maximum 50 associations allowed" });
+        }
+
+        // Verify prospect ownership
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        // Update prospect with saved associations
+        const updated = await storage.updateProspect(prospectId, userId, {
+          savedAssociations: associations,
+        });
+
+        res.json(updated);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
       }
-      
-      // Limit to 50 associations maximum
-      if (associations.length > 50) {
-        return res.status(400).json({ error: "Maximum 50 associations allowed" });
-      }
-      
-      // Verify prospect ownership
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      // Update prospect with saved associations
-      const updated = await storage.updateProspect(prospectId, userId, {
-        savedAssociations: associations
-      });
-      
-      res.json(updated);
-    } catch (error: any) {
-      console.error("Error saving associations:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Companies API - Protected routes
   app.get("/api/companies/:number", isAuthenticated, async (req, res) => {
@@ -1378,8 +1448,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Company not found" });
       }
       res.json(company);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1389,22 +1459,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
       }
-      
+
       const existingCompany = await storage.getCompanyByNumber(result.data.companyNumber);
       if (existingCompany) {
         return res.json(existingCompany);
       }
-      
+
       // Add SIC description if sicCode is provided
       const companyData = {
         ...result.data,
         sicDescription: result.data.sicCode ? getSicDescription(result.data.sicCode) : null,
       };
-      
+
       const company = await storage.createCompany(companyData);
       res.json(company);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1416,28 +1486,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid company ID" });
       }
 
-      const { incorporationDate, companyStatus, registeredAddress, postcode, sicCode, sicDescription } = req.body;
-      
+      const {
+        incorporationDate,
+        companyStatus,
+        registeredAddress,
+        postcode,
+        sicCode,
+        sicDescription,
+      } = req.body;
+
       // Build update object with only provided fields
-      const updates: Partial<{ incorporationDate: string; companyStatus: string; registeredAddress: string; postcode: string; sicCode: string; sicDescription: string }> = {};
+      const updates: Partial<{
+        incorporationDate: string;
+        companyStatus: string;
+        registeredAddress: string;
+        postcode: string;
+        sicCode: string;
+        sicDescription: string;
+      }> = {};
       if (incorporationDate !== undefined) updates.incorporationDate = incorporationDate;
       if (companyStatus !== undefined) updates.companyStatus = companyStatus;
       if (registeredAddress !== undefined) updates.registeredAddress = registeredAddress;
       if (postcode !== undefined) updates.postcode = postcode;
       if (sicCode !== undefined) updates.sicCode = sicCode;
       if (sicDescription !== undefined) updates.sicDescription = sicDescription;
-      
+
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: "No fields to update" });
       }
 
       const company = await storage.updateCompany(companyId, updates);
       res.json(company);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Sync company data from Companies House (SIC codes, postcode, etc.)
   app.post("/api/companies/:id/sync-companies-house", isAuthenticated, async (req, res) => {
     try {
@@ -1445,48 +1529,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(companyId)) {
         return res.status(400).json({ error: "Invalid company ID" });
       }
-      
+
       // Get the company to find the company number
       const companyRecord = await storage.getCompanyById(companyId);
       if (!companyRecord) {
         return res.status(404).json({ error: "Company not found" });
       }
-      
+
       // Skip non-registered companies
-      if (companyRecord.companyNumber.startsWith('UNREG-')) {
+      if (companyRecord.companyNumber.startsWith("UNREG-")) {
         return res.status(400).json({ error: "Cannot sync unregistered companies" });
       }
-      
+
       const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
-      
+
       // Fetch company profile from Companies House
       const trimmedApiKey = apiKey.trim();
       const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString('base64');
-      
+      const base64Auth = Buffer.from(authString).toString("base64");
+
       const response = await fetch(
         `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyRecord.companyNumber)}`,
-        { headers: { 'Authorization': `Basic ${base64Auth}` } }
+        { headers: { Authorization: `Basic ${base64Auth}` } }
       );
-      
+
       if (!response.ok) {
-        return res.status(response.status).json({ error: "Failed to fetch company data from Companies House" });
+        return res
+          .status(response.status)
+          .json({ error: "Failed to fetch company data from Companies House" });
       }
-      
+
       const chData = await response.json();
-      
+
       // Build update object
-      const updates: Partial<{ sicCode: string; sicDescription: string; postcode: string; registeredAddress: string; companyStatus: string; incorporationDate: string }> = {};
-      
+      const updates: Partial<{
+        sicCode: string;
+        sicDescription: string;
+        postcode: string;
+        registeredAddress: string;
+        companyStatus: string;
+        incorporationDate: string;
+      }> = {};
+
       // Extract SIC code
       if (chData.sic_codes && chData.sic_codes.length > 0) {
         updates.sicCode = chData.sic_codes[0];
         updates.sicDescription = getSicDescription(chData.sic_codes[0]);
       }
-      
+
       // Extract postcode and address
       if (chData.registered_office_address) {
         const addr = chData.registered_office_address;
@@ -1507,7 +1600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updates.registeredAddress = addressParts.join(", ");
         }
       }
-      
+
       // Extract status and incorporation date
       if (chData.company_status) {
         updates.companyStatus = chData.company_status;
@@ -1515,35 +1608,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (chData.date_of_creation) {
         updates.incorporationDate = chData.date_of_creation;
       }
-      
+
       if (Object.keys(updates).length === 0) {
         return res.json({ message: "No updates available", company: companyRecord });
       }
-      
+
       const updatedCompany = await storage.updateCompany(companyId, updates);
       res.json(updatedCompany);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Helper function to format officer name from "SURNAME, First Middle" to "First Middle Surname"
   function formatOfficerName(name: string): string {
     if (!name) return name;
-    
+
     // Check if name contains a comma (Companies House format: "SURNAME, First Middle")
-    if (name.includes(',')) {
-      const parts = name.split(',').map(p => p.trim());
+    if (name.includes(",")) {
+      const parts = name.split(",").map((p) => p.trim());
       if (parts.length >= 2) {
         const surname = parts[0];
-        const firstNames = parts.slice(1).join(' ');
+        const firstNames = parts.slice(1).join(" ");
         // Convert to proper case
-        const formatWord = (word: string) => 
+        const formatWord = (word: string) =>
           word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-        
-        const formattedSurname = surname.split(/[\s-]+/).map(formatWord).join(surname.includes('-') ? '-' : ' ');
-        const formattedFirstNames = firstNames.split(/\s+/).map(formatWord).join(' ');
-        
+
+        const formattedSurname = surname
+          .split(/[\s-]+/)
+          .map(formatWord)
+          .join(surname.includes("-") ? "-" : " ");
+        const formattedFirstNames = firstNames.split(/\s+/).map(formatWord).join(" ");
+
         return `${formattedFirstNames} ${formattedSurname}`.trim();
       }
     }
@@ -1557,8 +1653,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const contacts = await storage.listContacts(prospectId, userId);
       res.json(contacts);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1567,24 +1663,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.claims.sub;
-      
+
       // Get the prospect to find the company number
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
-      
+
       const companyNumber = prospect.company.companyNumber;
       if (!companyNumber) {
         return res.status(400).json({ error: "No company number available" });
       }
-      
+
       // Fetch officers from Companies House
       const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
-      
+
       const officersResponse = await fetch(
         `https://api.company-information.service.gov.uk/company/${companyNumber}/officers`,
         {
@@ -1593,44 +1689,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         }
       );
-      
+
       if (!officersResponse.ok) {
         return res.status(officersResponse.status).json({ error: "Failed to fetch officers" });
       }
-      
+
       const officersData = await officersResponse.json();
       const activeOfficers = officersData.items?.filter((o: any) => !o.resigned_on) || [];
-      
+
       // Get existing contacts
       const existingContacts = await storage.listContacts(prospectId, userId);
-      const existingNames = new Set(existingContacts.map(c => c.name.toLowerCase().trim()));
-      
+      const existingNames = new Set(existingContacts.map((c) => c.name.toLowerCase().trim()));
+
       // Create contacts for officers not already in contacts
       const newContacts = [];
       for (const officer of activeOfficers) {
         const formattedName = formatOfficerName(officer.name);
         if (!existingNames.has(formattedName.toLowerCase().trim())) {
-          const role = officer.officer_role?.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Officer';
-          const contact = await storage.createContact({
-            prospectId,
-            name: formattedName,
-            role,
-          }, userId);
+          const role =
+            officer.officer_role
+              ?.replace(/-/g, " ")
+              .replace(/\b\w/g, (l: string) => l.toUpperCase()) || "Officer";
+          const contact = await storage.createContact(
+            {
+              prospectId,
+              name: formattedName,
+              role,
+            },
+            userId
+          );
           if (contact) newContacts.push(contact);
         }
       }
-      
+
       // Return all contacts
       const allContacts = await storage.listContacts(prospectId, userId);
-      res.json({ 
-        contacts: allContacts, 
+      res.json({
+        contacts: allContacts,
         synced: newContacts.length,
-        message: newContacts.length > 0 
-          ? `Synced ${newContacts.length} officer(s)` 
-          : "All officers already synced"
+        message:
+          newContacts.length > 0
+            ? `Synced ${newContacts.length} officer(s)`
+            : "All officers already synced",
       });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1644,11 +1747,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const contact = await storage.createContact(result.data, userId);
       if (!contact) {
-        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
+        return res
+          .status(403)
+          .json({ error: "Access denied - prospect not found or not owned by user" });
       }
       res.json(contact);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1661,8 +1766,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Contact not found or access denied" });
       }
       res.json(contact);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1675,8 +1780,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Contact not found or access denied" });
       }
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1685,27 +1790,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const contactId = parseInt(req.params.id);
       const userId = req.user.claims.sub;
-      
+
       // Get the contact (already user-scoped via prospect ownership)
       const contact = await storage.getContact(contactId, userId);
       if (!contact) {
         return res.status(404).json({ error: "Contact not found or access denied" });
       }
-      
+
       // Get the prospect
       const prospect = await storage.getProspect(contact.prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
-      
+
       // Get company name for search context
       const company = await storage.getCompany(prospect.companyId);
-      const companyName = company?.companyName || '';
-      
+      const companyName = company?.companyName || "";
+
       // Search the web for contact info using Tavily
       const { searchContactInfo } = await import("./utils/tavilyClient");
       const webResults = await searchContactInfo(contact.name, companyName);
-      
+
       // Search email inbox for related emails
       let emailResults: any[] = [];
       try {
@@ -1716,44 +1821,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (contact.email) {
             searchTerms.push(contact.email);
           }
-          
+
           const messages = await storage.getEmailMessagesByInbox(inbox.id);
-          emailResults = messages.filter((msg: any) => {
-            const content = `${msg.subject} ${msg.textBody || ''} ${msg.fromAddress} ${msg.toAddresses?.join(' ') || ''}`.toLowerCase();
-            return searchTerms.some(term => content.includes(term.toLowerCase()));
-          }).map((msg: any) => ({
-            subject: msg.subject,
-            from: msg.fromAddress,
-            to: msg.toAddresses,
-            date: msg.sentAt,
-            snippet: msg.textBody?.substring(0, 200) || ''
-          }));
+          emailResults = messages
+            .filter((msg: any) => {
+              const content =
+                `${msg.subject} ${msg.textBody || ""} ${msg.fromAddress} ${msg.toAddresses?.join(" ") || ""}`.toLowerCase();
+              return searchTerms.some((term) => content.includes(term.toLowerCase()));
+            })
+            .map((msg: any) => ({
+              subject: msg.subject,
+              from: msg.fromAddress,
+              to: msg.toAddresses,
+              date: msg.sentAt,
+              snippet: msg.textBody?.substring(0, 200) || "",
+            }));
         }
       } catch (emailError) {
         console.log("Could not search email inbox:", emailError);
       }
-      
+
       // Build search notes from all results
-      const searchDate = new Date().toISOString().split('T')[0];
+      const searchDate = new Date().toISOString().split("T")[0];
       let searchNotes = `--- Web Search Results (${searchDate}) ---\n`;
       searchNotes += `Search: "${contact.name}" at "${companyName}"\n\n`;
-      
+
       if (webResults.emails.length > 0) {
-        searchNotes += `Found Emails:\n${webResults.emails.map(e => `  - ${e}`).join('\n')}\n\n`;
+        searchNotes += `Found Emails:\n${webResults.emails.map((e) => `  - ${e}`).join("\n")}\n\n`;
       }
       if (webResults.phones.length > 0) {
-        searchNotes += `Found Phone Numbers:\n${webResults.phones.map(p => `  - ${p}`).join('\n')}\n\n`;
+        searchNotes += `Found Phone Numbers:\n${webResults.phones.map((p) => `  - ${p}`).join("\n")}\n\n`;
       }
       if (webResults.linkedinUrls.length > 0) {
-        searchNotes += `LinkedIn Profiles:\n${webResults.linkedinUrls.map(l => `  - ${l}`).join('\n')}\n\n`;
+        searchNotes += `LinkedIn Profiles:\n${webResults.linkedinUrls.map((l) => `  - ${l}`).join("\n")}\n\n`;
       }
       if (webResults.sources.length > 0) {
-        searchNotes += `Sources:\n${webResults.sources.slice(0, 5).map(s => `  - ${s.title}: ${s.url}`).join('\n')}\n\n`;
+        searchNotes += `Sources:\n${webResults.sources
+          .slice(0, 5)
+          .map((s) => `  - ${s.title}: ${s.url}`)
+          .join("\n")}\n\n`;
       }
       if (emailResults.length > 0) {
-        searchNotes += `Related Emails in Inbox:\n${emailResults.slice(0, 5).map(e => `  - ${e.subject} (from: ${e.from})`).join('\n')}\n`;
+        searchNotes += `Related Emails in Inbox:\n${emailResults
+          .slice(0, 5)
+          .map((e) => `  - ${e.subject} (from: ${e.from})`)
+          .join("\n")}\n`;
       }
-      
+
       res.json({
         contact: {
           id: contact.id,
@@ -1761,7 +1875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentEmail: contact.email,
           currentPhone: contact.phone,
           currentProfilePicture: contact.profilePicture,
-          currentNotes: contact.notes
+          currentNotes: contact.notes,
         },
         companyName: companyName,
         searchNotes: searchNotes,
@@ -1770,15 +1884,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           phones: webResults.phones,
           linkedinUrls: webResults.linkedinUrls,
           profileImages: webResults.profileImages,
-          sources: webResults.sources
+          sources: webResults.sources,
         },
         emailSearch: {
-          relatedEmails: emailResults.slice(0, 10)
-        }
+          relatedEmails: emailResults.slice(0, 10),
+        },
       });
-    } catch (error: any) {
-      console.error("Contact enrichment error:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1788,8 +1901,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const activities = await storage.listAllUserActivities(userId);
       res.json(activities);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1804,11 +1917,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const activity = await storage.createActivity(result.data, userId);
       if (!activity) {
-        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
+        return res
+          .status(403)
+          .json({ error: "Access denied - prospect not found or not owned by user" });
       }
       res.json(activity);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1818,8 +1933,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const activities = await storage.listActivities(prospectId, userId);
       res.json(activities);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1835,11 +1950,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const activity = await storage.createActivity(result.data, userId);
       if (!activity) {
-        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
+        return res
+          .status(403)
+          .json({ error: "Access denied - prospect not found or not owned by user" });
       }
       res.json(activity);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1852,8 +1969,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Activity not found or access denied" });
       }
       res.json(activity);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1863,8 +1980,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       await storage.deleteActivity(id, userId);
       res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1874,8 +1991,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const dueDiligenceData = await storage.getDueDiligence(prospectId, userId);
       res.json(dueDiligenceData || { prospectId, data: {} });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -1884,584 +2001,651 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.claims.sub;
       const existing = await storage.getDueDiligence(prospectId, userId);
-      const mergedData = (existing && existing.data) 
-        ? { ...(existing.data as object), ...req.body }
-        : req.body;
+      const mergedData =
+        existing && existing.data ? { ...(existing.data as object), ...req.body } : req.body;
       const dueDiligenceData = await storage.upsertDueDiligence(prospectId, userId, mergedData);
       if (!dueDiligenceData) {
-        return res.status(403).json({ error: "Access denied - prospect not found or not owned by user" });
+        return res
+          .status(403)
+          .json({ error: "Access denied - prospect not found or not owned by user" });
       }
       res.json(dueDiligenceData);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Credit Underwriting Routes (Premium Only)
   // Note: These endpoints process financial documents via AI - requires user consent and audit logging
   // Size limits are now managed by AI_GOVERNANCE_CONFIG
-  
-  app.post("/api/prospects/:prospectId/underwriting/analyze-csv", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
-      
-      if (!csvData || !loanAmount || !monthlyRepayment) {
-        return res.status(400).json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      // Use governance wrapper for consent, redaction, size limits, and audit logging
-      const { analyzeFinancials } = await import("./utils/geminiClient");
-      
-      const result = await wrapAiRequest(
-        {
-          userId,
-          prospectId,
-          operation: "analyze_csv",
-          dataType: "csv",
-          consentToAiProcessing: !!consentToAiProcessing,
-        },
-        csvData,
-        async (processedData) => analyzeFinancials(processedData, loanAmount, monthlyRepayment),
-        { maxSize: AI_GOVERNANCE_CONFIG.maxCsvSize }
-      );
-      
-      if ('error' in result) {
-        return res.status(result.code).json({ 
-          error: result.error,
-          requiresConsent: result.code === 403
-        });
-      }
-      
-      // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId, userId);
-      const existingData = (existing?.data || {}) as Record<string, any>;
-      const mergedData = {
-        ...existingData,
-        underwriting: {
-          ...(existingData.underwriting || {}),
-          financialAnalysis: result.result,
-          analyzedAt: new Date().toISOString()
+
+  app.post(
+    "/api/prospects/:prospectId/underwriting/analyze-csv",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+        const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
+
+        if (!csvData || !loanAmount || !monthlyRepayment) {
+          return res
+            .status(400)
+            .json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
         }
-      };
-      await storage.upsertDueDiligence(prospectId, mergedData);
-      
-      res.json(result.result);
-    } catch (error: any) {
-      console.error("CSV analysis error:", error);
-      res.status(500).json({ error: error.message || "Failed to analyze CSV" });
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        // Use governance wrapper for consent, redaction, size limits, and audit logging
+        const { analyzeFinancials } = await import("./utils/geminiClient");
+
+        const result = await wrapAiRequest(
+          {
+            userId,
+            prospectId,
+            operation: "analyze_csv",
+            dataType: "csv",
+            consentToAiProcessing: !!consentToAiProcessing,
+          },
+          csvData,
+          async (processedData) => analyzeFinancials(processedData, loanAmount, monthlyRepayment),
+          { maxSize: AI_GOVERNANCE_CONFIG.maxCsvSize }
+        );
+
+        if ("error" in result) {
+          return res.status(result.code).json({
+            error: result.error,
+            requiresConsent: result.code === 403,
+          });
+        }
+
+        // Save to due diligence
+        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const mergedData = {
+          ...existingData,
+          underwriting: {
+            ...(existingData.underwriting || {}),
+            financialAnalysis: result.result,
+            analyzedAt: new Date().toISOString(),
+          },
+        };
+        await storage.upsertDueDiligence(prospectId, mergedData);
+
+        res.json(result.result);
+      } catch (error: any) {
+        console.error("CSV analysis error:", error);
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
 
   // Analyze bank statement PDFs (alternative to CSV)
-  app.post("/api/prospects/:prospectId/underwriting/analyze-bank-pdfs", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
-      
-      if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
-        return res.status(400).json({ error: "At least one bank statement PDF is required" });
-      }
-      
-      if (pdfTexts.length > AI_GOVERNANCE_CONFIG.maxPdfFiles) {
-        return res.status(400).json({ error: `Maximum ${AI_GOVERNANCE_CONFIG.maxPdfFiles} bank statement PDFs allowed` });
-      }
-      
-      if (!loanAmount || !monthlyRepayment) {
-        return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      // Validate size and apply redaction to each PDF text
-      const processedPdfTexts: typeof pdfTexts = [];
-      for (const pdfText of pdfTexts) {
-        if (pdfText.text && Buffer.byteLength(pdfText.text, 'utf8') > AI_GOVERNANCE_CONFIG.maxPdfTextSize) {
-          return res.status(413).json({ error: `PDF "${pdfText.fileName}" exceeds ${Math.round(AI_GOVERNANCE_CONFIG.maxPdfTextSize / 1024)}KB text limit.` });
+  app.post(
+    "/api/prospects/:prospectId/underwriting/analyze-bank-pdfs",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+        const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
+
+        if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
+          return res.status(400).json({ error: "At least one bank statement PDF is required" });
         }
-        const { redacted } = redactSensitiveData(pdfText.text || '');
-        processedPdfTexts.push({ ...pdfText, text: redacted });
-      }
-      
-      // Combine all text for governance wrapper
-      const combinedText = processedPdfTexts.map(p => p.text).join('\n---\n');
-      
-      // Use governance wrapper for consent, audit logging
-      const { analyzeFinancialsFromPdf } = await import("./utils/geminiClient");
-      
-      const result = await wrapAiRequest(
-        {
-          userId,
-          prospectId,
-          operation: "analyze_bank_pdfs",
-          dataType: "pdf",
-          consentToAiProcessing: !!consentToAiProcessing,
-        },
-        combinedText,
-        async () => analyzeFinancialsFromPdf(processedPdfTexts, loanAmount, monthlyRepayment),
-        { skipRedaction: true } // Already redacted above
-      );
-      
-      if ('error' in result) {
-        return res.status(result.code).json({ 
-          error: result.error,
-          requiresConsent: result.code === 403
-        });
-      }
-      
-      // Save to due diligence with bank PDF file metadata
-      const existing = await storage.getDueDiligence(prospectId, userId);
-      const existingData = (existing?.data || {}) as Record<string, any>;
-      const mergedData = {
-        ...existingData,
-        underwriting: {
-          ...(existingData.underwriting || {}),
-          financialAnalysis: result.result,
-          analyzedAt: new Date().toISOString(),
-          bankPdfFiles: pdfTexts.map((p: { fileName: string; pages?: number }) => ({
-            fileName: p.fileName,
-            pages: p.pages || 0
-          })),
-          analysisSource: 'pdf'
+
+        if (pdfTexts.length > AI_GOVERNANCE_CONFIG.maxPdfFiles) {
+          return res.status(400).json({
+            error: `Maximum ${AI_GOVERNANCE_CONFIG.maxPdfFiles} bank statement PDFs allowed`,
+          });
         }
-      };
-      await storage.upsertDueDiligence(prospectId, mergedData);
-      
-      res.json(result.result);
-    } catch (error: any) {
-      console.error("Bank PDF analysis error:", error);
-      res.status(500).json({ error: error.message || "Failed to analyze bank statement PDFs" });
+
+        if (!loanAmount || !monthlyRepayment) {
+          return res
+            .status(400)
+            .json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
+        }
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        // Validate size and apply redaction to each PDF text
+        const processedPdfTexts: typeof pdfTexts = [];
+        for (const pdfText of pdfTexts) {
+          if (
+            pdfText.text &&
+            Buffer.byteLength(pdfText.text, "utf8") > AI_GOVERNANCE_CONFIG.maxPdfTextSize
+          ) {
+            return res.status(413).json({
+              error: `PDF "${pdfText.fileName}" exceeds ${Math.round(AI_GOVERNANCE_CONFIG.maxPdfTextSize / 1024)}KB text limit.`,
+            });
+          }
+          const { redacted } = redactSensitiveData(pdfText.text || "");
+          processedPdfTexts.push({ ...pdfText, text: redacted });
+        }
+
+        // Combine all text for governance wrapper
+        const combinedText = processedPdfTexts.map((p) => p.text).join("\n---\n");
+
+        // Use governance wrapper for consent, audit logging
+        const { analyzeFinancialsFromPdf } = await import("./utils/geminiClient");
+
+        const result = await wrapAiRequest(
+          {
+            userId,
+            prospectId,
+            operation: "analyze_bank_pdfs",
+            dataType: "pdf",
+            consentToAiProcessing: !!consentToAiProcessing,
+          },
+          combinedText,
+          async () => analyzeFinancialsFromPdf(processedPdfTexts, loanAmount, monthlyRepayment),
+          { skipRedaction: true } // Already redacted above
+        );
+
+        if ("error" in result) {
+          return res.status(result.code).json({
+            error: result.error,
+            requiresConsent: result.code === 403,
+          });
+        }
+
+        // Save to due diligence with bank PDF file metadata
+        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const mergedData = {
+          ...existingData,
+          underwriting: {
+            ...(existingData.underwriting || {}),
+            financialAnalysis: result.result,
+            analyzedAt: new Date().toISOString(),
+            bankPdfFiles: pdfTexts.map((p: { fileName: string; pages?: number }) => ({
+              fileName: p.fileName,
+              pages: p.pages || 0,
+            })),
+            analysisSource: "pdf",
+          },
+        };
+        await storage.upsertDueDiligence(prospectId, mergedData);
+
+        res.json(result.result);
+      } catch (error: any) {
+        console.error("Bank PDF analysis error:", error);
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
 
   // Analyze audited accounts PDFs
-  app.post("/api/prospects/:prospectId/underwriting/analyze-accounts", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
-      
-      if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
-        return res.status(400).json({ error: "At least one PDF text with year is required" });
-      }
-      
-      if (!loanAmount || !monthlyRepayment) {
-        return res.status(400).json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      // Validate size and apply redaction to each PDF text
-      const processedPdfTexts: typeof pdfTexts = [];
-      for (const pdfText of pdfTexts) {
-        if (pdfText.text && Buffer.byteLength(pdfText.text, 'utf8') > AI_GOVERNANCE_CONFIG.maxPdfTextSize) {
-          return res.status(413).json({ error: `Accounts PDF exceeds ${Math.round(AI_GOVERNANCE_CONFIG.maxPdfTextSize / 1024)}KB text limit.` });
+  app.post(
+    "/api/prospects/:prospectId/underwriting/analyze-accounts",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+        const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
+
+        if (!pdfTexts || !Array.isArray(pdfTexts) || pdfTexts.length === 0) {
+          return res.status(400).json({ error: "At least one PDF text with year is required" });
         }
-        const { redacted } = redactSensitiveData(pdfText.text || '');
-        processedPdfTexts.push({ ...pdfText, text: redacted });
-      }
-      
-      // Combine all text for governance wrapper
-      const combinedText = processedPdfTexts.map(p => p.text).join('\n---\n');
-      
-      // Use governance wrapper for consent, audit logging
-      const { analyzeAuditedAccounts } = await import("./utils/geminiClient");
-      
-      const result = await wrapAiRequest(
-        {
-          userId,
-          prospectId,
-          operation: "analyze_accounts",
-          dataType: "pdf",
-          consentToAiProcessing: !!consentToAiProcessing,
-        },
-        combinedText,
-        async () => analyzeAuditedAccounts(processedPdfTexts, loanAmount, monthlyRepayment),
-        { skipRedaction: true } // Already redacted above
-      );
-      
-      if ('error' in result) {
-        return res.status(result.code).json({ 
-          error: result.error,
-          requiresConsent: result.code === 403
-        });
-      }
-      
-      // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId, userId);
-      const existingData = (existing?.data || {}) as Record<string, any>;
-      const mergedData = {
-        ...existingData,
-        underwriting: {
-          ...(existingData.underwriting || {}),
-          accountsAnalysis: result.result,
-          accountsAnalyzedAt: new Date().toISOString()
+
+        if (!loanAmount || !monthlyRepayment) {
+          return res
+            .status(400)
+            .json({ error: "Missing required fields: loanAmount, monthlyRepayment" });
         }
-      };
-      await storage.upsertDueDiligence(prospectId, mergedData);
-      
-      res.json(result.result);
-    } catch (error: any) {
-      console.error("Accounts analysis error:", error);
-      res.status(500).json({ error: error.message || "Failed to analyze accounts" });
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        // Validate size and apply redaction to each PDF text
+        const processedPdfTexts: typeof pdfTexts = [];
+        for (const pdfText of pdfTexts) {
+          if (
+            pdfText.text &&
+            Buffer.byteLength(pdfText.text, "utf8") > AI_GOVERNANCE_CONFIG.maxPdfTextSize
+          ) {
+            return res.status(413).json({
+              error: `Accounts PDF exceeds ${Math.round(AI_GOVERNANCE_CONFIG.maxPdfTextSize / 1024)}KB text limit.`,
+            });
+          }
+          const { redacted } = redactSensitiveData(pdfText.text || "");
+          processedPdfTexts.push({ ...pdfText, text: redacted });
+        }
+
+        // Combine all text for governance wrapper
+        const combinedText = processedPdfTexts.map((p) => p.text).join("\n---\n");
+
+        // Use governance wrapper for consent, audit logging
+        const { analyzeAuditedAccounts } = await import("./utils/geminiClient");
+
+        const result = await wrapAiRequest(
+          {
+            userId,
+            prospectId,
+            operation: "analyze_accounts",
+            dataType: "pdf",
+            consentToAiProcessing: !!consentToAiProcessing,
+          },
+          combinedText,
+          async () => analyzeAuditedAccounts(processedPdfTexts, loanAmount, monthlyRepayment),
+          { skipRedaction: true } // Already redacted above
+        );
+
+        if ("error" in result) {
+          return res.status(result.code).json({
+            error: result.error,
+            requiresConsent: result.code === 403,
+          });
+        }
+
+        // Save to due diligence
+        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const mergedData = {
+          ...existingData,
+          underwriting: {
+            ...(existingData.underwriting || {}),
+            accountsAnalysis: result.result,
+            accountsAnalyzedAt: new Date().toISOString(),
+          },
+        };
+        await storage.upsertDueDiligence(prospectId, mergedData);
+
+        res.json(result.result);
+      } catch (error: any) {
+        console.error("Accounts analysis error:", error);
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
 
   // Parse PDF file to text
   // Note: 7.5MB decoded limit (base64 encoded ~10MB represents ~7.5MB binary)
   const MAX_PDF_DECODED_SIZE = 7.5 * 1024 * 1024; // 7.5MB decoded binary limit
-  
+
   app.post("/api/parse-pdf", isAuthenticated, async (req: any, res) => {
     try {
       const { pdfBase64 } = req.body;
-      
+
       if (!pdfBase64) {
         return res.status(400).json({ error: "PDF data is required" });
       }
-      
+
       // Import pdf-parse
       const { PDFParse } = await import("pdf-parse");
-      
+
       // Convert base64 to buffer
-      const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-      
+      const pdfBuffer = Buffer.from(pdfBase64, "base64");
+
       // Enforce size limit on decoded buffer (not base64 string)
       if (pdfBuffer.length > MAX_PDF_DECODED_SIZE) {
-        return res.status(413).json({ error: "PDF exceeds 7.5MB limit. Please use a smaller file." });
+        return res
+          .status(413)
+          .json({ error: "PDF exceeds 7.5MB limit. Please use a smaller file." });
       }
-      
+
       // Parse PDF using v2 API
       const parser = new PDFParse({ data: pdfBuffer });
       const result = await parser.getText();
-      
-      res.json({ 
+
+      res.json({
         text: result.text,
         pages: result.totalPages,
-        info: {}
+        info: {},
       });
     } catch (error: any) {
       console.error("PDF parsing error:", error);
-      res.status(500).json({ error: error.message || "Failed to parse PDF" });
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Generate SWOT analysis
-  app.post("/api/prospects/:prospectId/underwriting/swot-analysis", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      
-      const { 
-        companyName, 
-        sector, 
-        loanAmount, 
-        loanPurpose, 
-        financialSummary,
-        companiesHouseData,
-        bankAnalysisSummary,
-        eligibilityNotes,
-        consentToAiProcessing
-      } = req.body;
-      
-      if (!companyName || !loanAmount) {
-        return res.status(400).json({ error: "Missing required fields: companyName, loanAmount" });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      // Build context string for governance wrapper (no sensitive raw data)
-      const contextData = JSON.stringify({
-        companyName,
-        sector: sector || '',
-        loanAmount,
-        loanPurpose: loanPurpose || '',
-        hasFinancialSummary: !!financialSummary,
-        hasCompaniesHouseData: !!companiesHouseData,
-        hasBankAnalysis: !!bankAnalysisSummary,
-      });
-      
-      // Use governance wrapper for consent, audit logging
-      const { generateSwotAnalysis } = await import("./utils/geminiClient");
-      
-      const result = await wrapAiRequest(
-        {
-          userId,
-          prospectId,
-          operation: "swot_analysis",
-          dataType: "structured",
-          consentToAiProcessing: !!consentToAiProcessing,
-        },
-        contextData,
-        async () => generateSwotAnalysis(
+  app.post(
+    "/api/prospects/:prospectId/underwriting/swot-analysis",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+
+        const {
           companyName,
-          sector || '',
+          sector,
           loanAmount,
-          loanPurpose || '',
-          financialSummary || '',
+          loanPurpose,
+          financialSummary,
           companiesHouseData,
           bankAnalysisSummary,
-          eligibilityNotes
-        ),
-        { skipRedaction: true } // Context data is already structured
-      );
-      
-      if ('error' in result) {
-        return res.status(result.code).json({ 
-          error: result.error,
-          requiresConsent: result.code === 403
-        });
-      }
-      
-      // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId, userId);
-      const existingData = (existing?.data || {}) as Record<string, any>;
-      const mergedData = {
-        ...existingData,
-        underwriting: {
-          ...(existingData.underwriting || {}),
-          swotAnalysis: result.result,
-          swotAnalyzedAt: new Date().toISOString()
+          eligibilityNotes,
+          consentToAiProcessing,
+        } = req.body;
+
+        if (!companyName || !loanAmount) {
+          return res
+            .status(400)
+            .json({ error: "Missing required fields: companyName, loanAmount" });
         }
-      };
-      await storage.upsertDueDiligence(prospectId, mergedData);
-      
-      res.json(result.result);
-    } catch (error: any) {
-      console.error("SWOT analysis error:", error);
-      res.status(500).json({ error: error.message || "Failed to generate SWOT analysis" });
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        // Build context string for governance wrapper (no sensitive raw data)
+        const contextData = JSON.stringify({
+          companyName,
+          sector: sector || "",
+          loanAmount,
+          loanPurpose: loanPurpose || "",
+          hasFinancialSummary: !!financialSummary,
+          hasCompaniesHouseData: !!companiesHouseData,
+          hasBankAnalysis: !!bankAnalysisSummary,
+        });
+
+        // Use governance wrapper for consent, audit logging
+        const { generateSwotAnalysis } = await import("./utils/geminiClient");
+
+        const result = await wrapAiRequest(
+          {
+            userId,
+            prospectId,
+            operation: "swot_analysis",
+            dataType: "structured",
+            consentToAiProcessing: !!consentToAiProcessing,
+          },
+          contextData,
+          async () =>
+            generateSwotAnalysis(
+              companyName,
+              sector || "",
+              loanAmount,
+              loanPurpose || "",
+              financialSummary || "",
+              companiesHouseData,
+              bankAnalysisSummary,
+              eligibilityNotes
+            ),
+          { skipRedaction: true } // Context data is already structured
+        );
+
+        if ("error" in result) {
+          return res.status(result.code).json({
+            error: result.error,
+            requiresConsent: result.code === 403,
+          });
+        }
+
+        // Save to due diligence
+        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const mergedData = {
+          ...existingData,
+          underwriting: {
+            ...(existingData.underwriting || {}),
+            swotAnalysis: result.result,
+            swotAnalyzedAt: new Date().toISOString(),
+          },
+        };
+        await storage.upsertDueDiligence(prospectId, mergedData);
+
+        res.json(result.result);
+      } catch (error: any) {
+        console.error("SWOT analysis error:", error);
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
 
   // CAMPARI section AI generation
-  app.post("/api/prospects/:prospectId/underwriting/campari-section", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      
-      const { 
-        sectionKey,
-        companyName, 
-        sector, 
-        loanAmount, 
-        loanPurpose, 
-        financialSummary,
-        companiesHouseData,
-        bankAnalysisSummary,
-        accountsAnalysisSummary,
-        consentToAiProcessing
-      } = req.body;
-      
-      if (!sectionKey || !companyName || !loanAmount) {
-        return res.status(400).json({ error: "Missing required fields: sectionKey, companyName, loanAmount" });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      // Fetch uploaded documents for the prospect
-      const documents = await storage.listProspectDocuments(prospectId);
-      
-      // Filter relevant document categories for CAMPARI analysis
-      const relevantCategories = ['business', 'financial', 'legal', 'identity', 'correspondence', 'general', 'other'];
-      const relevantDocs = documents.filter(doc => relevantCategories.includes(doc.category || 'general'));
-      
-      // Parse document contents with redaction
-      const documentSummaries: { fileName: string; category: string; content: string }[] = [];
-      const pdfParse = (await import("pdf-parse")).default;
-      
-      for (const doc of relevantDocs.slice(0, AI_GOVERNANCE_CONFIG.maxDocuments)) {
-        try {
-          const { data } = await getObjectStorage().downloadAsBytes(doc.storagePath);
-          
-          if (doc.fileType === 'application/pdf' || doc.fileName.toLowerCase().endsWith('.pdf')) {
-            const pdfData = await pdfParse(Buffer.from(data));
-            const textContent = pdfData.text?.trim() || '';
-            if (textContent.length > 100) {
-              const truncatedContent = textContent.length > 15000 
-                ? textContent.substring(0, 15000) + '\n[... Document truncated ...]' 
-                : textContent;
-              // Apply redaction to document content
-              const { redacted } = redactSensitiveData(truncatedContent);
-              documentSummaries.push({
-                fileName: doc.fileName,
-                category: doc.category || 'general',
-                content: redacted
-              });
-            }
-          } else if (doc.fileType === 'text/plain' || doc.fileName.toLowerCase().endsWith('.txt')) {
-            const textContent = Buffer.from(data).toString('utf-8').trim();
-            if (textContent.length > 50) {
-              const truncatedContent = textContent.length > 15000 
-                ? textContent.substring(0, 15000) + '\n[... Document truncated ...]' 
-                : textContent;
-              // Apply redaction to document content
-              const { redacted } = redactSensitiveData(truncatedContent);
-              documentSummaries.push({
-                fileName: doc.fileName,
-                category: doc.category || 'general',
-                content: redacted
-              });
-            }
-          }
-        } catch (docError) {
-          console.error(`Error parsing document ${doc.fileName}:`, docError);
-        }
-      }
-      
-      // Build context string for governance wrapper
-      const contextData = JSON.stringify({
-        sectionKey,
-        companyName,
-        sector: sector || '',
-        loanAmount,
-        loanPurpose: loanPurpose || '',
-        documentCount: documentSummaries.length,
-      });
-      
-      // Use governance wrapper for consent, audit logging
-      const { generateCampariSection } = await import("./utils/geminiClient");
-      
-      const result = await wrapAiRequest(
-        {
-          userId,
-          prospectId,
-          operation: `campari_section_${sectionKey}`,
-          dataType: "documents",
-          consentToAiProcessing: !!consentToAiProcessing,
-        },
-        contextData,
-        async () => generateCampariSection(
+  app.post(
+    "/api/prospects/:prospectId/underwriting/campari-section",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+
+        const {
           sectionKey,
           companyName,
-          sector || '',
+          sector,
           loanAmount,
-          loanPurpose || '',
-          financialSummary || '',
+          loanPurpose,
+          financialSummary,
           companiesHouseData,
           bankAnalysisSummary,
           accountsAnalysisSummary,
-          documentSummaries.length > 0 ? documentSummaries : undefined
-        ),
-        { skipRedaction: true } // Already redacted document content above
-      );
-      
-      if ('error' in result) {
-        return res.status(result.code).json({ 
-          error: result.error,
-          requiresConsent: result.code === 403
-        });
-      }
-      
-      // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId, userId);
-      const existingData = (existing?.data || {}) as Record<string, any>;
-      const existingSections = existingData.underwriting?.adviserSummary?.sections || {};
-      const mergedData = {
-        ...existingData,
-        underwriting: {
-          ...(existingData.underwriting || {}),
-          adviserSummary: {
-            ...(existingData.underwriting?.adviserSummary || {}),
-            sections: {
-              ...existingSections,
-              [sectionKey]: result.result
+          consentToAiProcessing,
+        } = req.body;
+
+        if (!sectionKey || !companyName || !loanAmount) {
+          return res
+            .status(400)
+            .json({ error: "Missing required fields: sectionKey, companyName, loanAmount" });
+        }
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        // Fetch uploaded documents for the prospect
+        const documents = await storage.listProspectDocuments(prospectId);
+
+        // Filter relevant document categories for CAMPARI analysis
+        const relevantCategories = [
+          "business",
+          "financial",
+          "legal",
+          "identity",
+          "correspondence",
+          "general",
+          "other",
+        ];
+        const relevantDocs = documents.filter((doc) =>
+          relevantCategories.includes(doc.category || "general")
+        );
+
+        // Parse document contents with redaction
+        const documentSummaries: { fileName: string; category: string; content: string }[] = [];
+        const pdfParse = (await import("pdf-parse")).default;
+
+        for (const doc of relevantDocs.slice(0, AI_GOVERNANCE_CONFIG.maxDocuments)) {
+          try {
+            const { data } = await getObjectStorage().downloadAsBytes(doc.storagePath);
+
+            if (doc.fileType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf")) {
+              const pdfData = await pdfParse(Buffer.from(data));
+              const textContent = pdfData.text?.trim() || "";
+              if (textContent.length > 100) {
+                const truncatedContent =
+                  textContent.length > 15000
+                    ? textContent.substring(0, 15000) + "\n[... Document truncated ...]"
+                    : textContent;
+                // Apply redaction to document content
+                const { redacted } = redactSensitiveData(truncatedContent);
+                documentSummaries.push({
+                  fileName: doc.fileName,
+                  category: doc.category || "general",
+                  content: redacted,
+                });
+              }
+            } else if (
+              doc.fileType === "text/plain" ||
+              doc.fileName.toLowerCase().endsWith(".txt")
+            ) {
+              const textContent = Buffer.from(data).toString("utf-8").trim();
+              if (textContent.length > 50) {
+                const truncatedContent =
+                  textContent.length > 15000
+                    ? textContent.substring(0, 15000) + "\n[... Document truncated ...]"
+                    : textContent;
+                // Apply redaction to document content
+                const { redacted } = redactSensitiveData(truncatedContent);
+                documentSummaries.push({
+                  fileName: doc.fileName,
+                  category: doc.category || "general",
+                  content: redacted,
+                });
+              }
             }
+          } catch (docError) {
+            console.error(`Error parsing document ${doc.fileName}:`, docError);
           }
         }
-      };
-      await storage.upsertDueDiligence(prospectId, mergedData);
-      
-      res.json({ sectionKey, content: result.result });
-    } catch (error: any) {
-      console.error("CAMPARI section generation error:", error);
-      res.status(500).json({ error: error.message || "Failed to generate CAMPARI section" });
-    }
-  });
 
-  app.post("/api/prospects/:prospectId/underwriting/adverse-media", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      
-      // Check if user is premium
-      const user = await storage.getUser(userId);
-      if (!user || user.subscriptionTier !== 'premium') {
-        return res.status(403).json({ error: "Premium subscription required for Credit Underwriting" });
-      }
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
-      }
-      
-      const { companyName, companyNumber } = req.body;
-      
-      if (!companyName) {
-        return res.status(400).json({ error: "Company name is required" });
-      }
-      
-      // Import and use tavily client
-      const { searchAdverseMedia, assessAdverseMediaRisk } = await import("./utils/tavilyClient");
-      const searchResults = await searchAdverseMedia(companyName, companyNumber);
-      const assessment = assessAdverseMediaRisk(searchResults.results);
-      
-      const result = {
-        ...searchResults,
-        ...assessment
-      };
-      
-      // Save to due diligence
-      const existing = await storage.getDueDiligence(prospectId, userId);
-      const existingData = (existing?.data || {}) as Record<string, any>;
-      const mergedData = {
-        ...existingData,
-        underwriting: {
-          ...(existingData.underwriting || {}),
-          adverseMedia: result,
-          adverseMediaSearchedAt: new Date().toISOString()
+        // Build context string for governance wrapper
+        const contextData = JSON.stringify({
+          sectionKey,
+          companyName,
+          sector: sector || "",
+          loanAmount,
+          loanPurpose: loanPurpose || "",
+          documentCount: documentSummaries.length,
+        });
+
+        // Use governance wrapper for consent, audit logging
+        const { generateCampariSection } = await import("./utils/geminiClient");
+
+        const result = await wrapAiRequest(
+          {
+            userId,
+            prospectId,
+            operation: `campari_section_${sectionKey}`,
+            dataType: "documents",
+            consentToAiProcessing: !!consentToAiProcessing,
+          },
+          contextData,
+          async () =>
+            generateCampariSection(
+              sectionKey,
+              companyName,
+              sector || "",
+              loanAmount,
+              loanPurpose || "",
+              financialSummary || "",
+              companiesHouseData,
+              bankAnalysisSummary,
+              accountsAnalysisSummary,
+              documentSummaries.length > 0 ? documentSummaries : undefined
+            ),
+          { skipRedaction: true } // Already redacted document content above
+        );
+
+        if ("error" in result) {
+          return res.status(result.code).json({
+            error: result.error,
+            requiresConsent: result.code === 403,
+          });
         }
-      };
-      await storage.upsertDueDiligence(prospectId, mergedData);
-      
-      res.json(result);
-    } catch (error: any) {
-      console.error("Adverse media search error:", error);
-      res.status(500).json({ error: error.message || "Failed to search adverse media" });
+
+        // Save to due diligence
+        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const existingSections = existingData.underwriting?.adviserSummary?.sections || {};
+        const mergedData = {
+          ...existingData,
+          underwriting: {
+            ...(existingData.underwriting || {}),
+            adviserSummary: {
+              ...(existingData.underwriting?.adviserSummary || {}),
+              sections: {
+                ...existingSections,
+                [sectionKey]: result.result,
+              },
+            },
+          },
+        };
+        await storage.upsertDueDiligence(prospectId, mergedData);
+
+        res.json({ sectionKey, content: result.result });
+      } catch (error: any) {
+        console.error("CAMPARI section generation error:", error);
+        handleApiError(res, error, "api-error");
+      }
     }
-  });
+  );
+
+  app.post(
+    "/api/prospects/:prospectId/underwriting/adverse-media",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+
+        // Check if user is premium
+        const user = await storage.getUser(userId);
+        if (!user || user.subscriptionTier !== "premium") {
+          return res
+            .status(403)
+            .json({ error: "Premium subscription required for Credit Underwriting" });
+        }
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        const { companyName, companyNumber } = req.body;
+
+        if (!companyName) {
+          return res.status(400).json({ error: "Company name is required" });
+        }
+
+        // Import and use tavily client
+        const { searchAdverseMedia, assessAdverseMediaRisk } = await import("./utils/tavilyClient");
+        const searchResults = await searchAdverseMedia(companyName, companyNumber);
+        const assessment = assessAdverseMediaRisk(searchResults.results);
+
+        const result = {
+          ...searchResults,
+          ...assessment,
+        };
+
+        // Save to due diligence
+        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const mergedData = {
+          ...existingData,
+          underwriting: {
+            ...(existingData.underwriting || {}),
+            adverseMedia: result,
+            adverseMediaSearchedAt: new Date().toISOString(),
+          },
+        };
+        await storage.upsertDueDiligence(prospectId, mergedData);
+
+        res.json(result);
+      } catch (error: any) {
+        console.error("Adverse media search error:", error);
+        handleApiError(res, error, "api-error");
+      }
+    }
+  );
 
   // Add-On Products API - Marketplace for prospect packs and feature add-ons
   app.get("/api/add-ons", isAuthenticated, async (req: any, res) => {
     try {
       const products = await storage.listAddOnProducts(true);
       res.json(products);
-    } catch (error: any) {
-      console.error("Error fetching add-on products:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -2470,9 +2654,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const purchases = await storage.listUserAddOnPurchases(userId);
       res.json(purchases);
-    } catch (error: any) {
-      console.error("Error fetching purchases:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -2481,17 +2664,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const credits = await storage.getUserProspectCredits(userId);
       res.json({ credits });
-    } catch (error: any) {
-      console.error("Error fetching credits:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Purchase an add-on - payment processing temporarily unavailable
   app.post("/api/add-ons/purchase", isAuthenticated, async (req: any, res) => {
-    return res.status(503).json({ 
+    return res.status(503).json({
       error: "Payment processing is temporarily unavailable. Please contact support.",
-      unavailable: true 
+      unavailable: true,
     });
   });
 
@@ -2500,13 +2682,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      
-      if (user?.role !== 'super_admin') {
+
+      if (user?.role !== "super_admin") {
         return res.status(403).json({ error: "Super Admin access required" });
       }
 
-      const { title, description, category, quantityIncluded, featureKey, priceInPence, currency } = req.body;
-      
+      const { title, description, category, quantityIncluded, featureKey, priceInPence, currency } =
+        req.body;
+
       const product = await storage.createAddOnProduct({
         title,
         description,
@@ -2520,9 +2703,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.status(201).json(product);
-    } catch (error: any) {
-      console.error("Error creating add-on product:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -2543,11 +2725,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const lenderId = parseInt(req.params.id);
       const lender = await storage.getLender(lenderId, userId);
-      
+
       if (!lender) {
         return res.status(404).json({ message: "Lender not found" });
       }
-      
+
       res.json(lender);
     } catch (error) {
       console.error("Error fetching lender:", error);
@@ -2559,12 +2741,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const result = insertLenderSchema.safeParse(req.body);
-      
+
       if (!result.success) {
         const validationError = fromZodError(result.error);
         return res.status(400).json({ message: validationError.toString() });
       }
-      
+
       const lender = await storage.createLender(result.data, userId);
       res.status(201).json(lender);
     } catch (error) {
@@ -2578,18 +2760,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const lenderId = parseInt(req.params.id);
       const result = insertLenderSchema.partial().safeParse(req.body);
-      
+
       if (!result.success) {
         const validationError = fromZodError(result.error);
         return res.status(400).json({ message: validationError.toString() });
       }
-      
+
       const lender = await storage.updateLender(lenderId, userId, result.data);
-      
+
       if (!lender) {
         return res.status(404).json({ message: "Lender not found" });
       }
-      
+
       res.json(lender);
     } catch (error) {
       console.error("Error updating lender:", error);
@@ -2601,7 +2783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const lenderId = parseInt(req.params.id);
-      
+
       await storage.deleteLender(lenderId, userId);
       res.status(204).send();
     } catch (error) {
@@ -2638,14 +2820,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const lenderId = parseInt(req.params.id);
       const lender = await storage.getLenderWithProducts(lenderId, userId);
-      
+
       if (!lender) {
         return res.status(404).json({ message: "Lender not found" });
       }
-      
+
       // Also get interactions (user-scoped)
       const interactions = await storage.listLenderInteractions(lenderId, userId);
-      
+
       res.json({ ...lender, interactions });
     } catch (error) {
       console.error("Error fetching lender details:", error);
@@ -2673,7 +2855,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const productData = { ...req.body, lenderId };
       const product = await storage.createLenderProduct(productData, userId);
       if (!product) {
-        return res.status(403).json({ message: "Access denied - lender not found or not owned by user" });
+        return res
+          .status(403)
+          .json({ message: "Access denied - lender not found or not owned by user" });
       }
       res.status(201).json(product);
     } catch (error) {
@@ -2687,11 +2871,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const productId = parseInt(req.params.id);
       const userId = req.user.claims.sub;
       const product = await storage.updateLenderProduct(productId, userId, req.body);
-      
+
       if (!product) {
         return res.status(404).json({ message: "Product not found or access denied" });
       }
-      
+
       res.json(product);
     } catch (error) {
       console.error("Error updating lender product:", error);
@@ -2749,16 +2933,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const interaction = await storage.createLenderInteraction(interactionData, userId);
       if (!interaction) {
-        return res.status(403).json({ message: "Access denied - lender not found or not owned by user" });
+        return res
+          .status(403)
+          .json({ message: "Access denied - lender not found or not owned by user" });
       }
-      
+
       // Update lender's lastContactedAt
       if (interaction.lenderId) {
         await storage.updateLender(interaction.lenderId, userId, {
           lastContactedAt: new Date(),
         } as any);
       }
-      
+
       res.status(201).json(interaction);
     } catch (error) {
       console.error("Error creating lender interaction:", error);
@@ -2771,11 +2957,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const interactionId = parseInt(req.params.id);
       const userId = req.user.claims.sub;
       const interaction = await storage.updateLenderInteraction(interactionId, userId, req.body);
-      
+
       if (!interaction) {
         return res.status(404).json({ message: "Interaction not found or access denied" });
       }
-      
+
       res.json(interaction);
     } catch (error) {
       console.error("Error updating lender interaction:", error);
@@ -2803,7 +2989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const submissions = await storage.listApplicationSubmissions(userId);
-      
+
       // Enrich submissions with prospect and lender details
       const enrichedSubmissions = await Promise.all(
         submissions.map(async (submission) => {
@@ -2811,7 +2997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             storage.getProspect(submission.prospectId, userId),
             storage.getLender(submission.lenderId, userId),
           ]);
-          
+
           return {
             ...submission,
             prospect,
@@ -2819,7 +3005,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json(enrichedSubmissions);
     } catch (error) {
       console.error("Error fetching submissions:", error);
@@ -2831,35 +3017,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const result = insertApplicationSubmissionSchema.safeParse(req.body);
-      
+
       if (!result.success) {
         const validationError = fromZodError(result.error);
         return res.status(400).json({ message: validationError.toString() });
       }
-      
+
       // Type-narrow the parsed data
       const submissionInput: InsertApplicationSubmission = result.data;
-      
+
       // Validate that the prospect belongs to the user
       const prospect = await storage.getProspect(submissionInput.prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ message: "Prospect not found" });
       }
-      
+
       // Validate that the lender belongs to the user
       const lender = await storage.getLender(submissionInput.lenderId, userId);
       if (!lender) {
         console.error("Lender not found");
         return res.status(404).json({ message: "Lender not found" });
       }
-      
+
       // Validate lender email before proceeding
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!lender.email || !emailRegex.test(lender.email)) {
         console.error("Invalid lender email");
         return res.status(400).json({ message: "Lender has invalid email address" });
       }
-      
+
       // Validate Resend configuration before proceeding
       let resendClient, fromEmail;
       try {
@@ -2867,11 +3053,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resendClient = resendConfig.client;
         fromEmail = resendConfig.fromEmail;
       } catch (resendError: any) {
-        const errMessage = (resendError as Error)?.message || 'Unknown error';
+        const errMessage = (resendError as Error)?.message || "Unknown error";
         console.error("Resend configuration error");
         return res.status(500).json({ message: `Email service not configured: ${errMessage}` });
       }
-      
+
       // Generate PDF report before creating submission
       let pdfBuffer: Buffer;
       try {
@@ -2881,7 +3067,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storage.getDueDiligence(submissionInput.prospectId, userId).catch(() => null),
           storage.getUser(userId),
         ]);
-        
+
         // Fetch Companies House data (officers, PSC, charges) if available
         let companiesHouseData: any = null;
         const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
@@ -2889,31 +3075,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             const trimmedApiKey = apiKey.trim();
             const authString = `${trimmedApiKey}:`;
-            const base64Auth = Buffer.from(authString).toString('base64');
+            const base64Auth = Buffer.from(authString).toString("base64");
             const companyNumber = prospect.company.companyNumber;
-            
+
             const [officersRes, pscRes, chargesRes] = await Promise.all([
-              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, {
-                headers: { 'Authorization': `Basic ${base64Auth}` }
-              }).catch(() => null),
-              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, {
-                headers: { 'Authorization': `Basic ${base64Auth}` }
-              }).catch(() => null),
-              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`, {
-                headers: { 'Authorization': `Basic ${base64Auth}` }
-              }).catch(() => null)
+              fetch(
+                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
+                {
+                  headers: { Authorization: `Basic ${base64Auth}` },
+                }
+              ).catch(() => null),
+              fetch(
+                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
+                {
+                  headers: { Authorization: `Basic ${base64Auth}` },
+                }
+              ).catch(() => null),
+              fetch(
+                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
+                {
+                  headers: { Authorization: `Basic ${base64Auth}` },
+                }
+              ).catch(() => null),
             ]);
 
             companiesHouseData = {
               officers: officersRes && officersRes.ok ? await officersRes.json() : null,
               psc: pscRes && pscRes.ok ? await pscRes.json() : null,
-              charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null
+              charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null,
             };
           } catch (error) {
             console.error("Error fetching Companies House data for submission report");
           }
         }
-        
+
         const reportDoc = generateProspectReport({
           prospect,
           contacts,
@@ -2922,30 +3117,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           companiesHouseData: companiesHouseData || undefined,
           pdfLayoutPreferences: user?.pdfLayoutPreferences as any,
         });
-        
+
         const chunks: Buffer[] = [];
-        reportDoc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        reportDoc.on("data", (chunk: Buffer) => chunks.push(chunk));
         await new Promise<void>((resolve, reject) => {
-          reportDoc.on('end', () => resolve());
-          reportDoc.on('error', reject);
+          reportDoc.on("end", () => resolve());
+          reportDoc.on("error", reject);
           reportDoc.end();
         });
         pdfBuffer = Buffer.concat(chunks);
       } catch (pdfError: any) {
-        const errMessage = (pdfError as Error)?.message || 'Unknown error';
+        const errMessage = (pdfError as Error)?.message || "Unknown error";
         console.error("PDF generation error");
         return res.status(500).json({ message: `Failed to generate PDF report: ${errMessage}` });
       }
-      
+
       // Send email with PDF attachment
       let emailSent = false;
       let emailError: string | null = null;
       try {
-        const commentary = submissionInput.commentary || 'Please find attached the loan application for your review.';
-        
+        const commentary =
+          submissionInput.commentary ||
+          "Please find attached the loan application for your review.";
+
         // Log email operation without PII
-        console.log(JSON.stringify({ type: 'email_send', lenderId: lender.id, prospectId: submissionInput.prospectId }));
-        
+        console.log(
+          JSON.stringify({
+            type: "email_send",
+            lenderId: lender.id,
+            prospectId: submissionInput.prospectId,
+          })
+        );
+
         const emailResponse = await resendClient.emails.send({
           from: fromEmail,
           to: lender.email,
@@ -2953,14 +3156,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #3b82f6;">Loan Application Submission</h2>
-              <p>Dear ${lender.contactName || 'Lender'},</p>
+              <p>Dear ${lender.contactName || "Lender"},</p>
               <p>${commentary}</p>
               <h3 style="color: #1f2937;">Application Details:</h3>
               <ul style="line-height: 1.8;">
                 <li><strong>Company:</strong> ${prospect.company.companyName}</li>
-                <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : 'TBC'}</li>
-                <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : 'TBC'}</li>
-                ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ''}
+                <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : "TBC"}</li>
+                <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : "TBC"}</li>
+                ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ""}
               </ul>
               <p>Please find the complete application details in the attached PDF report.</p>
               <p style="margin-top: 30px;">Best regards,<br/>FlowLoan Application</p>
@@ -2968,56 +3171,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `,
           attachments: [
             {
-              filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
-              content: pdfBuffer.toString('base64'),
-            }
+              filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, "-")}.pdf`,
+              content: pdfBuffer.toString("base64"),
+            },
           ],
         });
-        
+
         // Log only email ID without sensitive response data
         const emailId = emailResponse.data?.id;
-        
+
         // Check for errors in the response
         if (emailResponse.error) {
-          throw new Error(emailResponse.error.message || 'Resend returned an error');
+          throw new Error(emailResponse.error.message || "Resend returned an error");
         }
-        
+
         if (!emailResponse.data?.id) {
-          throw new Error('No email ID returned from Resend - email may not have been sent');
+          throw new Error("No email ID returned from Resend - email may not have been sent");
         }
-        
-        console.log(JSON.stringify({ type: 'email_sent', emailId }));
+
+        console.log(JSON.stringify({ type: "email_sent", emailId }));
         emailSent = true;
       } catch (err: any) {
-        const errMessage = (err as Error)?.message || 'Unknown error';
+        const errMessage = (err as Error)?.message || "Unknown error";
         emailError = errMessage;
         console.error("Email send error:", errMessage);
       }
-      
+
       // Create the submission only after successful PDF generation
       const submission = await storage.createApplicationSubmission(submissionInput, userId);
-      
+
       // Update submission status based on email result
       if (emailSent) {
-        await storage.updateApplicationSubmission(submission.id, userId, { emailSent: 1, status: 'sent' });
+        await storage.updateApplicationSubmission(submission.id, userId, {
+          emailSent: 1,
+          status: "sent",
+        });
       }
-      
+
       // Create an activity task to log this submission
-      const activity = await storage.createActivity({
-        activityType: "task",
-        title: `Application ${emailSent ? 'sent' : 'submitted'} to ${lender.institutionName}`,
-        description: `Loan application for ${prospect.company.companyName} ${emailSent ? 'emailed' : 'submitted'} to ${lender.institutionName}${emailSent ? '' : emailError ? ` (email failed: ${emailError})` : ' (email failed)'}`,
-        prospectId: submissionInput.prospectId,
-        priority: "high",
-        dueDate: null,
-        completed: 1,
-      }, userId);
-      
-      res.status(201).json({ 
-        submission: { ...submission, emailSent: emailSent ? 1 : 0, status: emailSent ? 'sent' : 'pending' }, 
-        activity, 
+      const activity = await storage.createActivity(
+        {
+          activityType: "task",
+          title: `Application ${emailSent ? "sent" : "submitted"} to ${lender.institutionName}`,
+          description: `Loan application for ${prospect.company.companyName} ${emailSent ? "emailed" : "submitted"} to ${lender.institutionName}${emailSent ? "" : emailError ? ` (email failed: ${emailError})` : " (email failed)"}`,
+          prospectId: submissionInput.prospectId,
+          priority: "high",
+          dueDate: null,
+          completed: 1,
+        },
+        userId
+      );
+
+      res.status(201).json({
+        submission: {
+          ...submission,
+          emailSent: emailSent ? 1 : 0,
+          status: emailSent ? "sent" : "pending",
+        },
+        activity,
         emailSent,
-        emailError: emailError || undefined
+        emailError: emailError || undefined,
       });
     } catch (error) {
       console.error("Error creating submission:", error);
@@ -3029,17 +3242,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const submissionId = parseInt(req.params.id);
-      
+
       if (isNaN(submissionId)) {
         return res.status(400).json({ message: "Invalid submission ID" });
       }
-      
+
       // Verify submission exists and belongs to user before deleting
       const submission = await storage.getApplicationSubmission(submissionId, userId);
       if (!submission) {
         return res.status(404).json({ message: "Submission not found" });
       }
-      
+
       await storage.deleteApplicationSubmission(submissionId, userId);
       res.status(204).send();
     } catch (error) {
@@ -3049,44 +3262,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ====== EMAIL INBOX API (AgentMail Integration) ======
-  
+
   // Get or create user's email inbox
   app.get("/api/email/inbox", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       let inbox = await storage.getEmailInbox(userId);
-      
+
       if (!inbox) {
         // Create or retrieve inbox for this user using AgentMail
         try {
           const { getAgentMailClient } = await import("./agentmail");
           const client = await getAgentMailClient();
-          
+
           const user = await storage.getUser(userId);
-          const displayName = user?.firstName 
-            ? `${user.firstName} ${user.lastName || ''}`.trim() 
-            : 'FlowLoan User';
-          
+          const displayName = user?.firstName
+            ? `${user.firstName} ${user.lastName || ""}`.trim()
+            : "FlowLoan User";
+
           let agentMailInbox: any = null;
-          
+
           // First try to list existing inboxes
           try {
             const listResponse = await client.inboxes.list();
             // The response is pageable - get the data from the body
             const listData = (listResponse as any).body || listResponse;
-            
+
             // Check if it has a data array (paginated response)
-            const inboxes = listData.data || listData.items || (Array.isArray(listData) ? listData : []);
-            
+            const inboxes =
+              listData.data || listData.items || (Array.isArray(listData) ? listData : []);
+
             if (inboxes.length > 0) {
               // Use the first available inbox
               agentMailInbox = inboxes[0];
-              console.log(JSON.stringify({ type: 'agentmail_inbox_reused', inboxId: agentMailInbox.id }));
+              console.log(
+                JSON.stringify({ type: "agentmail_inbox_reused", inboxId: agentMailInbox.id })
+              );
             }
           } catch (listError) {
             console.log("Could not list inboxes, will try to create:", listError);
           }
-          
+
           // If no existing inbox, try to create one
           if (!agentMailInbox) {
             try {
@@ -3094,20 +3310,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 name: displayName,
               });
               agentMailInbox = (createResponse as any).body || createResponse;
-              console.log(JSON.stringify({ type: 'agentmail_inbox_created', inboxId: agentMailInbox?.id }));
+              console.log(
+                JSON.stringify({ type: "agentmail_inbox_created", inboxId: agentMailInbox?.id })
+              );
             } catch (createError: any) {
               // If limit exceeded, we already checked for existing inboxes
               console.error("Error creating inbox:", createError);
-              return res.status(500).json({ error: "Failed to create email inbox. AgentMail inbox limit may be exceeded." });
+              return res.status(500).json({
+                error: "Failed to create email inbox. AgentMail inbox limit may be exceeded.",
+              });
             }
           }
-          
+
           // Validate we have the required fields
           if (!agentMailInbox?.id) {
             console.error("AgentMail inbox missing id:", agentMailInbox);
             return res.status(500).json({ error: "Failed to get inbox details from AgentMail." });
           }
-          
+
           // Save inbox to our database
           inbox = await storage.createEmailInbox({
             userId,
@@ -3117,17 +3337,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         } catch (error) {
           console.error("Error setting up AgentMail inbox:", error);
-          return res.status(500).json({ error: "Failed to set up email inbox. Please ensure AgentMail is configured." });
+          return res.status(500).json({
+            error: "Failed to set up email inbox. Please ensure AgentMail is configured.",
+          });
         }
       }
-      
+
       res.json(inbox);
-    } catch (error: any) {
-      console.error("Error getting inbox:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Check if AgentMail is configured
   app.get("/api/email/status", isAuthenticated, async (req: any, res) => {
     try {
@@ -3138,24 +3359,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ configured: false });
     }
   });
-  
+
   // Sync messages from AgentMail to local database
   app.post("/api/email/sync", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const inbox = await storage.getEmailInbox(userId);
-      
+
       if (!inbox) {
         return res.status(404).json({ error: "No inbox found. Create one first." });
       }
-      
+
       const { getAgentMailClient } = await import("./agentmail");
       const client = await getAgentMailClient();
-      
+
       // Fetch messages from AgentMail
       const messagesResponse = await client.inboxes.messages.list(inbox.inboxId);
       const messages = messagesResponse.body;
-      
+
       // Sync each message to our database
       let syncedCount = 0;
       for (const message of messages.data || []) {
@@ -3166,13 +3387,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             inboxId: inbox.id,
             messageId: message.id,
             threadId: message.threadId || null,
-            fromAddress: message.from?.address || 'unknown',
+            fromAddress: message.from?.address || "unknown",
             toAddresses: message.to?.map((t: any) => t.address) || [],
             ccAddresses: message.cc?.map((c: any) => c.address) || [],
-            subject: message.subject || '',
+            subject: message.subject || "",
             textBody: message.bodyText || null,
             htmlBody: message.bodyHtml || null,
-            direction: message.direction || 'inbound',
+            direction: message.direction || "inbound",
             isRead: 0,
             attachments: message.attachments || [],
             sentAt: new Date(message.createdAt),
@@ -3180,82 +3401,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
           syncedCount++;
         }
       }
-      
+
       res.json({ synced: syncedCount, total: messages.data?.length || 0 });
-    } catch (error: any) {
-      console.error("Error syncing messages:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Get all messages for user's inbox
   app.get("/api/email/messages", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const inbox = await storage.getEmailInbox(userId);
-      
+
       if (!inbox) {
         return res.json([]);
       }
-      
+
       const messages = await storage.listEmailMessages(inbox.id);
       res.json(messages);
-    } catch (error: any) {
-      console.error("Error listing messages:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Get a single message
   app.get("/api/email/messages/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const messageId = parseInt(req.params.id);
-      
+
       const inbox = await storage.getEmailInbox(userId);
       if (!inbox) {
         return res.status(404).json({ error: "No inbox found" });
       }
-      
+
       const message = await storage.getEmailMessage(messageId);
       if (!message || message.inboxId !== inbox.id) {
         return res.status(404).json({ error: "Message not found" });
       }
-      
+
       // Mark as read
       if (!message.isRead) {
         await storage.markEmailAsRead(messageId);
       }
-      
+
       res.json(message);
-    } catch (error: any) {
-      console.error("Error getting message:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Send an email
   app.post("/api/email/send", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { to, cc, subject, body, contactId, prospectId, replyToMessageId } = req.body;
-      
+
       if (!to || !subject) {
         return res.status(400).json({ error: "To address and subject are required" });
       }
-      
+
       const inbox = await storage.getEmailInbox(userId);
       if (!inbox) {
         return res.status(404).json({ error: "No inbox found. Create one first." });
       }
-      
+
       const { getAgentMailClient } = await import("./agentmail");
       const client = await getAgentMailClient();
-      
+
       // Prepare recipients
       const toAddresses = Array.isArray(to) ? to : [to];
       const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
-      
+
       // Send the email via AgentMail
       const sendResponse = await client.inboxes.messages.create(inbox.inboxId, {
         to: toAddresses.map((addr: string) => ({ address: addr })),
@@ -3265,7 +3483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         replyToMessageId: replyToMessageId || undefined,
       });
       const sentMessage = sendResponse.body;
-      
+
       // Save to our database
       const savedMessage = await storage.createEmailMessage({
         inboxId: inbox.id,
@@ -3279,97 +3497,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         subject,
         textBody: body,
         htmlBody: null,
-        direction: 'outbound',
+        direction: "outbound",
         isRead: 1,
         attachments: [],
         sentAt: new Date(),
       });
-      
+
       res.status(201).json(savedMessage);
-    } catch (error: any) {
-      console.error("Error sending email:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Link a message to a contact/prospect
   app.patch("/api/email/messages/:id/link", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const messageId = parseInt(req.params.id);
       const { contactId, prospectId } = req.body;
-      
+
       const inbox = await storage.getEmailInbox(userId);
       if (!inbox) {
         return res.status(404).json({ error: "No inbox found" });
       }
-      
+
       const message = await storage.getEmailMessage(messageId);
       if (!message || message.inboxId !== inbox.id) {
         return res.status(404).json({ error: "Message not found" });
       }
-      
+
       const updated = await storage.updateEmailMessageLink(messageId, {
         contactId: contactId ? parseInt(contactId) : null,
         prospectId: prospectId ? parseInt(prospectId) : null,
       });
-      
+
       res.json(updated);
-    } catch (error: any) {
-      console.error("Error linking message:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Get messages for a specific contact
   app.get("/api/email/contact/:contactId/messages", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const contactId = parseInt(req.params.contactId);
-      
+
       const inbox = await storage.getEmailInbox(userId);
       if (!inbox) {
         return res.json([]);
       }
-      
+
       const messages = await storage.getEmailMessagesForContact(inbox.id, contactId);
       res.json(messages);
-    } catch (error: any) {
-      console.error("Error getting contact messages:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
-  
+
   // Get messages for a specific prospect
   app.get("/api/email/prospect/:prospectId/messages", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
-      
+
       const inbox = await storage.getEmailInbox(userId);
       if (!inbox) {
         return res.json([]);
       }
-      
+
       const messages = await storage.getEmailMessagesForProspect(inbox.id, prospectId);
       res.json(messages);
-    } catch (error: any) {
-      console.error("Error getting prospect messages:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // ============= LEADS API =============
-  
+
   // Get all lead uploads for the user
   app.get("/api/leads/uploads", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const uploads = await storage.listLeadUploads(userId);
       res.json(uploads);
-    } catch (error: any) {
-      console.error("Error fetching lead uploads:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3378,7 +3591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const { fileName, csvData } = req.body;
-      
+
       if (!fileName || !csvData) {
         return res.status(400).json({ error: "fileName and csvData are required" });
       }
@@ -3392,7 +3605,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Row limit: 10,000 max
       const lineCount = (csvData.match(/\n/g) || []).length + 1;
       if (lineCount > 10001) {
-        return res.status(400).json({ error: "CSV file has too many rows. Maximum is 10,000 rows." });
+        return res
+          .status(400)
+          .json({ error: "CSV file has too many rows. Maximum is 10,000 rows." });
       }
 
       // Create the upload record
@@ -3407,63 +3622,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Parse CSV data
-      const lines = csvData.split('\n').filter((line: string) => line.trim());
+      const lines = csvData.split("\n").filter((line: string) => line.trim());
       if (lines.length < 2) {
         await storage.updateLeadUpload(upload.id, userId, {
           status: "failed",
           errors: [{ row: 0, message: "CSV must have a header row and at least one data row" }],
         });
-        return res.status(400).json({ error: "CSV must have a header row and at least one data row" });
+        return res
+          .status(400)
+          .json({ error: "CSV must have a header row and at least one data row" });
       }
 
       // Parse headers
       const headerLine = lines[0];
-      const headers = parseCSVLine(headerLine).map((h: string) => h.toLowerCase().trim().replace(/[^a-z0-9_]/g, '_'));
-      
+      const headers = parseCSVLine(headerLine).map((h: string) =>
+        h
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9_]/g, "_")
+      );
+
       // Map common column names to our schema
       const columnMapping: Record<string, string> = {
-        'company_name': 'companyName',
-        'companyname': 'companyName',
-        'company': 'companyName',
-        'name': 'companyName',
-        'business_name': 'companyName',
-        'businessname': 'companyName',
-        'company_number': 'companyNumber',
-        'companynumber': 'companyNumber',
-        'crn': 'companyNumber',
-        'registration_number': 'companyNumber',
-        'trading_name': 'tradingName',
-        'tradingname': 'tradingName',
-        'trading_as': 'tradingName',
-        'website': 'website',
-        'url': 'website',
-        'web': 'website',
-        'email': 'email',
-        'company_email': 'email',
-        'phone': 'phone',
-        'telephone': 'phone',
-        'tel': 'phone',
-        'contact_phone': 'phone',
-        'address': 'address',
-        'registered_address': 'address',
-        'postcode': 'postcode',
-        'post_code': 'postcode',
-        'zip': 'postcode',
-        'zipcode': 'postcode',
-        'sic_code': 'sicCode',
-        'siccode': 'sicCode',
-        'sic': 'sicCode',
-        'contact_name': 'contactName',
-        'contactname': 'contactName',
-        'contact': 'contactName',
-        'contact_person': 'contactName',
-        'contact_email': 'contactEmail',
-        'contactemail': 'contactEmail',
-        'contact_phone': 'contactPhone',
-        'contactphone': 'contactPhone',
-        'notes': 'notes',
-        'note': 'notes',
-        'comments': 'notes',
+        company_name: "companyName",
+        companyname: "companyName",
+        company: "companyName",
+        name: "companyName",
+        business_name: "companyName",
+        businessname: "companyName",
+        company_number: "companyNumber",
+        companynumber: "companyNumber",
+        crn: "companyNumber",
+        registration_number: "companyNumber",
+        trading_name: "tradingName",
+        tradingname: "tradingName",
+        trading_as: "tradingName",
+        website: "website",
+        url: "website",
+        web: "website",
+        email: "email",
+        company_email: "email",
+        phone: "phone",
+        telephone: "phone",
+        tel: "phone",
+        contact_phone: "phone",
+        address: "address",
+        registered_address: "address",
+        postcode: "postcode",
+        post_code: "postcode",
+        zip: "postcode",
+        zipcode: "postcode",
+        sic_code: "sicCode",
+        siccode: "sicCode",
+        sic: "sicCode",
+        contact_name: "contactName",
+        contactname: "contactName",
+        contact: "contactName",
+        contact_person: "contactName",
+        contact_email: "contactEmail",
+        contactemail: "contactEmail",
+        contactphone: "contactPhone",
+        contact_tel: "contactPhone",
+        notes: "notes",
+        note: "notes",
+        comments: "notes",
       };
 
       const leadsToCreate: any[] = [];
@@ -3477,7 +3699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Map values to columns
         for (let j = 0; j < headers.length && j < values.length; j++) {
           const header = headers[j];
-          const value = values[j]?.trim() || '';
+          const value = values[j]?.trim() || "";
           rawData[header] = value;
 
           const mappedKey = columnMapping[header];
@@ -3496,7 +3718,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Clean up company number (remove spaces, uppercase)
         if (leadData.companyNumber) {
-          leadData.companyNumber = leadData.companyNumber.toString().replace(/\s/g, '').toUpperCase();
+          leadData.companyNumber = leadData.companyNumber
+            .toString()
+            .replace(/\s/g, "")
+            .toUpperCase();
         }
 
         leadsToCreate.push(leadData);
@@ -3518,21 +3743,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updatedUpload = await storage.getLeadUpload(upload.id, userId);
       res.status(201).json(updatedUpload);
-    } catch (error: any) {
-      console.error("Error uploading leads CSV:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Helper function to parse CSV line (handles quoted values)
   function parseCSVLine(line: string): string[] {
     const result: string[] = [];
-    let current = '';
+    let current = "";
     let inQuotes = false;
-    
+
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
-      
+
       if (char === '"') {
         if (inQuotes && line[i + 1] === '"') {
           current += '"';
@@ -3540,9 +3764,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === "," && !inQuotes) {
         result.push(current);
-        current = '';
+        current = "";
       } else {
         current += char;
       }
@@ -3556,17 +3780,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const { uploadId, matchStatus, search } = req.query;
-      
+
       const filters: { uploadId?: number; matchStatus?: string; search?: string } = {};
       if (uploadId) filters.uploadId = parseInt(uploadId);
       if (matchStatus) filters.matchStatus = matchStatus;
       if (search) filters.search = search;
-      
+
       const leads = await storage.listLeads(userId, filters);
       res.json(leads);
-    } catch (error: any) {
-      console.error("Error fetching leads:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3575,16 +3798,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      
+
       const lead = await storage.getLead(id, userId);
       if (!lead) {
         return res.status(404).json({ error: "Lead not found" });
       }
-      
+
       res.json(lead);
-    } catch (error: any) {
-      console.error("Error fetching lead:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3593,16 +3815,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      
+
       const lead = await storage.updateLead(id, userId, req.body);
       if (!lead) {
         return res.status(404).json({ error: "Lead not found" });
       }
-      
+
       res.json(lead);
-    } catch (error: any) {
-      console.error("Error updating lead:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3611,12 +3832,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      
+
       await storage.deleteLead(id, userId);
       res.status(204).send();
-    } catch (error: any) {
-      console.error("Error deleting lead:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3625,14 +3845,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      
+
       // First delete all leads from this upload
       await storage.deleteLeadsByUpload(id, userId);
-      
+
       res.status(204).send();
-    } catch (error: any) {
-      console.error("Error deleting upload leads:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3642,7 +3861,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const leadId = parseInt(req.params.id);
       const { companyNumber, companyName, companyData } = req.body;
-      
+
       const lead = await storage.getLead(leadId, userId);
       if (!lead) {
         return res.status(404).json({ error: "Lead not found" });
@@ -3656,14 +3875,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const prospectCount = await storage.countProspects(userId);
       if (prospectCount >= user.prospectLimit) {
-        return res.status(403).json({ 
-          error: `Prospect limit reached. Your ${user.subscriptionTier} plan allows ${user.prospectLimit} prospects.`
+        return res.status(403).json({
+          error: `Prospect limit reached. Your ${user.subscriptionTier} plan allows ${user.prospectLimit} prospects.`,
         });
       }
 
       // Check if company already exists
       let company = await storage.getCompanyByNumber(companyNumber);
-      
+
       if (!company && companyData) {
         // Create new company from Companies House data
         const sicCode = companyData.sic_codes?.[0] || null;
@@ -3671,7 +3890,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         company = await storage.createCompany({
           companyName: companyData.company_name || companyName,
           companyNumber: companyNumber,
-          registeredAddress: companyData.registered_office_address ? formatAddress(companyData.registered_office_address) : null,
+          registeredAddress: companyData.registered_office_address
+            ? formatAddress(companyData.registered_office_address)
+            : null,
           incorporationDate: companyData.date_of_creation || null,
           companyStatus: companyData.company_status || null,
           companyType: companyData.type || null,
@@ -3691,10 +3912,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create prospect
-      const prospect = await storage.createProspect({
-        companyId: company.id,
-        stage: "lead",
-      }, userId);
+      const prospect = await storage.createProspect(
+        {
+          companyId: company.id,
+          stage: "lead",
+        },
+        userId
+      );
 
       // Update lead with linked prospect
       await storage.updateLead(leadId, userId, {
@@ -3709,13 +3933,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error.message?.includes("unique constraint")) {
         return res.status(409).json({ error: "A prospect for this company already exists" });
       }
-      res.status(500).json({ error: error.message });
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Helper to format address
   function formatAddress(address: any): string {
-    if (!address) return '';
+    if (!address) return "";
     const parts = [
       address.premises,
       address.address_line_1,
@@ -3723,9 +3947,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       address.locality,
       address.region,
       address.postal_code,
-      address.country
+      address.country,
     ].filter(Boolean);
-    return parts.join(', ');
+    return parts.join(", ");
   }
 
   // ============= UNDERWRITING SUBMISSIONS =============
@@ -3736,7 +3960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ error: "Not authenticated" });
     }
     const user = await storage.getUser(req.user.claims.sub);
-    if (!user || user.role !== 'underwriter') {
+    if (!user || user.role !== "underwriter") {
       return res.status(403).json({ error: "Access denied. Underwriter role required." });
     }
     next();
@@ -3745,33 +3969,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper to enrich submissions with prospect and company details (batch loaded)
   async function enrichSubmissions(submissions: any[]) {
     if (submissions.length === 0) return [];
-    
+
     // Collect unique IDs for batch loading
-    const prospectIds = [...new Set(submissions.map(s => s.prospectId).filter(Boolean))];
-    const brokerIds = [...new Set(submissions.map(s => s.brokerId).filter(Boolean))];
-    
+    const prospectIds = [...new Set(submissions.map((s) => s.prospectId).filter(Boolean))];
+    const brokerIds = [...new Set(submissions.map((s) => s.brokerId).filter(Boolean))];
+
     // Batch load all prospects and brokers in single queries
     const [prospectsArr, brokersArr] = await Promise.all([
       storage.getProspectsByIds(prospectIds),
       storage.getUsersByIds(brokerIds),
     ]);
-    
+
     // Create lookup maps
-    const prospectsMap = new Map(prospectsArr.map(p => [p.id, p]));
-    const brokersMap = new Map(brokersArr.map(b => [b.id, b]));
-    
+    const prospectsMap = new Map(prospectsArr.map((p) => [p.id, p]));
+    const brokersMap = new Map(brokersArr.map((b) => [b.id, b]));
+
     // Enrich submissions using maps
-    return submissions.map(submission => {
+    return submissions.map((submission) => {
       const prospect = prospectsMap.get(submission.prospectId) || null;
       const broker = brokersMap.get(submission.brokerId);
       return {
         ...submission,
         prospect,
-        broker: broker ? {
-          firstName: broker.firstName,
-          lastName: broker.lastName,
-          email: broker.email,
-        } : null,
+        broker: broker
+          ? {
+              firstName: broker.firstName,
+              lastName: broker.lastName,
+              email: broker.email,
+            }
+          : null,
       };
     });
   }
@@ -3781,28 +4007,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      
+
       let submissions;
-      if (user?.role === 'super_admin' || user?.role === 'sales_admin') {
+      if (user?.role === "super_admin" || user?.role === "sales_admin") {
         // Admin roles see all submissions
         const { status, assigned } = req.query;
         const filters: { status?: string; assignedUnderwriterId?: string } = {};
         if (status) filters.status = status;
-        if (assigned === 'me') filters.assignedUnderwriterId = userId;
+        if (assigned === "me") filters.assignedUnderwriterId = userId;
         submissions = await storage.listUnderwritingSubmissions(filters);
-      } else if (user?.role === 'underwriter') {
+      } else if (user?.role === "underwriter") {
         // Underwriter sees: queue (submitted + unassigned) + their assigned
         submissions = await storage.listUnderwriterScopedSubmissions(userId);
       } else {
         // Non-underwriters/admins get 403
         return res.status(403).json({ error: "Access denied" });
       }
-      
+
       const enrichedSubmissions = await enrichSubmissions(submissions);
       res.json(enrichedSubmissions);
-    } catch (error: any) {
-      console.error("Error listing underwriting submissions:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3813,9 +4038,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
       const enrichedSubmissions = await enrichSubmissions(submissions);
       res.json(enrichedSubmissions);
-    } catch (error: any) {
-      console.error("Error listing broker submissions:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3824,7 +4048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
-      
+
       // Return a map of prospectId -> status
       const statusMap: Record<number, { status: string; submittedAt: Date | null }> = {};
       for (const submission of submissions) {
@@ -3834,9 +4058,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
       res.json(statusMap);
-    } catch (error: any) {
-      console.error("Error getting underwriting status:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -3856,73 +4079,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const { prospectId, priority, brokerComments } = req.body;
-      
+
       if (!prospectId) {
         return res.status(400).json({ error: "prospectId is required" });
       }
-      
+
       // Check if prospect exists and belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
-      
+
       // Check if there's already an active submission for this prospect
       const existingSubmission = await storage.getUnderwritingSubmissionByProspect(prospectId);
-      if (existingSubmission && !['approved', 'declined', 'withdrawn'].includes(existingSubmission.status)) {
-        return res.status(409).json({ error: "This prospect already has an active underwriting submission" });
+      if (
+        existingSubmission &&
+        !["approved", "declined", "withdrawn"].includes(existingSubmission.status)
+      ) {
+        return res
+          .status(409)
+          .json({ error: "This prospect already has an active underwriting submission" });
       }
-      
+
       // Create the submission
-      const submission = await storage.createUnderwritingSubmission({
-        prospectId,
-        priority: priority || 'normal',
-        brokerComments,
-      }, userId);
-      
+      const submission = await storage.createUnderwritingSubmission(
+        {
+          prospectId,
+          priority: priority || "normal",
+          brokerComments,
+        },
+        userId
+      );
+
       // Create activity record
-      await storage.createUnderwritingActivity({
-        submissionId: submission.id,
-        activityType: 'submitted',
-        content: brokerComments || 'Submitted for underwriting review',
-      }, userId);
-      
+      await storage.createUnderwritingActivity(
+        {
+          submissionId: submission.id,
+          activityType: "submitted",
+          content: brokerComments || "Submitted for underwriting review",
+        },
+        userId
+      );
+
       // Update prospect stage to submission
-      await storage.updateProspectStage(prospectId, userId, 'submission');
-      
+      await storage.updateProspectStage(prospectId, userId, "submission");
+
       res.status(201).json(submission);
-    } catch (error: any) {
-      console.error("Error creating underwriting submission:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Claim a submission (underwriter takes ownership) - atomic to prevent race conditions
-  app.post("/api/underwriting/submissions/:id/claim", isAuthenticated, isUnderwriter, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
-      
-      // Atomic claim: only succeeds if status='submitted' AND assignedUnderwriterId IS NULL
-      const updated = await storage.claimUnderwritingSubmission(id, userId);
-      
-      if (!updated) {
-        return res.status(409).json({ error: "Submission already claimed or not available" });
+  app.post(
+    "/api/underwriting/submissions/:id/claim",
+    isAuthenticated,
+    isUnderwriter,
+    async (req: any, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const userId = req.user.claims.sub;
+
+        // Atomic claim: only succeeds if status='submitted' AND assignedUnderwriterId IS NULL
+        const updated = await storage.claimUnderwritingSubmission(id, userId);
+
+        if (!updated) {
+          return res.status(409).json({ error: "Submission already claimed or not available" });
+        }
+
+        // Create activity record
+        await storage.createUnderwritingActivity(
+          {
+            submissionId: id,
+            activityType: "claimed",
+            content: "Claimed for review",
+          },
+          userId
+        );
+
+        const user = await storage.getUser(userId);
+        logUnderwritingAudit({
+          action: "claim",
+          submissionId: id,
+          userId,
+          role: user?.role,
+          fromStatus: "submitted",
+          toStatus: "in_review",
+          sourceIp: req.ip,
+        });
+
+        res.json(updated);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
       }
-      
-      // Create activity record
-      await storage.createUnderwritingActivity({
-        submissionId: id,
-        activityType: 'claimed',
-        content: 'Claimed for review',
-      }, userId);
-      
-      res.json(updated);
-    } catch (error: any) {
-      console.error("Error claiming submission:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Update submission (underwriter actions OR broker-withdraw)
   app.patch(
@@ -3938,23 +4189,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (user?.role === "broker") {
           const submission = await storage.getUnderwritingSubmission(id);
           if (!submission) return res.status(404).json({ error: "Submission not found" });
-          if (submission.brokerId !== userId) return res.status(403).json({ error: "Access denied" });
+          if (submission.brokerId !== userId)
+            return res.status(403).json({ error: "Access denied" });
 
           const { status } = req.body;
           if (status && status !== "withdrawn") {
             return res.status(403).json({ error: "Brokers can only withdraw submissions" });
           }
 
+          const fromStatus = submission.status;
           const updated = await storage.updateUnderwritingSubmission(id, { status: "withdrawn" });
-          
-          await storage.createUnderwritingActivity({
+
+          await storage.createUnderwritingActivity(
+            {
+              submissionId: id,
+              activityType: "withdrawn",
+              content: "Submission withdrawn by broker",
+            },
+            userId
+          );
+
+          await storage.updateProspectStage(submission.prospectId, userId, "due-diligence");
+
+          logUnderwritingAudit({
+            action: "withdraw",
             submissionId: id,
-            activityType: 'withdrawn',
-            content: 'Submission withdrawn by broker',
-          }, userId);
-          
-          await storage.updateProspectStage(submission.prospectId, userId, 'due-diligence');
-          
+            userId,
+            role: "broker",
+            fromStatus,
+            toStatus: "withdrawn",
+            sourceIp: req.ip,
+          });
+
           return res.json(updated);
         }
 
@@ -3974,20 +4240,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (underwriterNotes) updates.underwriterNotes = underwriterNotes;
         if (decisionReason) updates.decisionReason = decisionReason;
 
+        const fromStatus = submission.status;
         const updated = await storage.updateUnderwritingSubmission(submission.id, updates);
 
         if (status) {
           await storage.createUnderwritingActivity(
-            { submissionId: submission.id, activityType: status, content: decisionReason || `Status changed to ${status}` },
+            {
+              submissionId: submission.id,
+              activityType: status,
+              content: decisionReason || `Status changed to ${status}`,
+            },
             user.id
           );
-          
+
           // Update prospect stage based on decision
-          if (status === 'approved') {
-            await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'approved');
-          } else if (status === 'declined') {
-            await storage.updateProspectStage(submission.prospectId, submission.brokerId, 'declined');
+          if (status === "approved") {
+            await storage.updateProspectStage(
+              submission.prospectId,
+              submission.brokerId,
+              "approved"
+            );
+          } else if (status === "declined") {
+            await storage.updateProspectStage(
+              submission.prospectId,
+              submission.brokerId,
+              "declined"
+            );
           }
+
+          logUnderwritingAudit({
+            action: status,
+            submissionId: submission.id,
+            userId: user.id,
+            role: user.role,
+            fromStatus,
+            toStatus: status,
+            sourceIp: req.ip,
+            details: decisionReason ? { decisionReason } : undefined,
+          });
         }
 
         res.json(updated);
@@ -4006,25 +4296,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { submission, user } = req.ctx;
         const { content } = req.body;
-        
+
         if (!content) {
           return res.status(400).json({ error: "Content is required" });
         }
-        
+
         // Determine if this is a response to a query
-        const activityType = user.role === 'broker' && submission.status === 'queried' ? 'responded' : 'comment';
-        
-        const activity = await storage.createUnderwritingActivity({
-          submissionId: submission.id,
-          activityType,
-          content,
-        }, user.id);
-        
+        const activityType =
+          user.role === "broker" && submission.status === "queried" ? "responded" : "comment";
+
+        const activity = await storage.createUnderwritingActivity(
+          {
+            submissionId: submission.id,
+            activityType,
+            content,
+          },
+          user.id
+        );
+
         // If broker responded to query, update status back to in_review
-        if (activityType === 'responded') {
-          await storage.updateUnderwritingSubmission(submission.id, { status: 'in_review' });
+        if (activityType === "responded") {
+          await storage.updateUnderwritingSubmission(submission.id, { status: "in_review" });
         }
-        
+
         res.status(201).json(activity);
       } catch (error: any) {
         next(error);
@@ -4041,23 +4335,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { submission } = req.ctx;
         const activities = await storage.listUnderwritingActivities(submission.id);
-        
+
         // Enrich activities with user info
         const enrichedActivities = await Promise.all(
           activities.map(async (activity) => {
             const activityUser = await storage.getUser(activity.userId);
             return {
               ...activity,
-              user: activityUser ? {
-                firstName: activityUser.firstName,
-                lastName: activityUser.lastName,
-                email: activityUser.email,
-                role: activityUser.role,
-              } : null,
+              user: activityUser
+                ? {
+                    firstName: activityUser.firstName,
+                    lastName: activityUser.lastName,
+                    email: activityUser.email,
+                    role: activityUser.role,
+                  }
+                : null,
             };
           })
         );
-        
+
         res.json(enrichedActivities);
       } catch (error: any) {
         next(error);
@@ -4066,34 +4362,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Get underwriting submission for a specific prospect
-  app.get("/api/underwriting/prospects/:prospectId/submission", isAuthenticated, async (req: any, res) => {
-    try {
-      const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      const submission = await storage.getUnderwritingSubmissionByProspect(prospectId);
-      if (!submission) {
-        return res.status(404).json({ error: "No submission found for this prospect" });
+  app.get(
+    "/api/underwriting/prospects/:prospectId/submission",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const prospectId = parseInt(req.params.prospectId);
+        const userId = req.user.claims.sub;
+        const user = await storage.getUser(userId);
+
+        const submission = await storage.getUnderwritingSubmissionByProspect(prospectId);
+        if (!submission) {
+          return res.status(404).json({ error: "No submission found for this prospect" });
+        }
+
+        // Apply same access control as requireSubmissionReadAccess
+        const isBrokerOwner = submission.brokerId === userId;
+        const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
+        const isSuperAdmin = user?.role === "super_admin";
+        const isUnderwriterViewingQueue =
+          user?.role === "underwriter" &&
+          submission.status === "submitted" &&
+          !submission.assignedUnderwriterId;
+
+        if (
+          !isBrokerOwner &&
+          !isAssignedUnderwriter &&
+          !isSuperAdmin &&
+          !isUnderwriterViewingQueue
+        ) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        res.json(submission);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
       }
-      
-      // Apply same access control as requireSubmissionReadAccess
-      const isBrokerOwner = submission.brokerId === userId;
-      const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
-      const isSuperAdmin = user?.role === 'super_admin';
-      const isUnderwriterViewingQueue = user?.role === 'underwriter' && 
-        submission.status === 'submitted' && !submission.assignedUnderwriterId;
-      
-      if (!isBrokerOwner && !isAssignedUnderwriter && !isSuperAdmin && !isUnderwriterViewingQueue) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      res.json(submission);
-    } catch (error: any) {
-      console.error("Error getting prospect submission:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Get current user role
   app.get("/api/auth/role", isAuthenticated, async (req: any, res) => {
@@ -4101,11 +4407,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       // No-store cache for sensitive auth data
-      res.setHeader('Cache-Control', 'no-store');
-      res.json({ role: user?.role || 'broker' });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ role: user?.role || "broker" });
     } catch (error: any) {
       console.error("Error getting user role:", error);
-      res.status(500).json(createErrorResponse(error, 500, req.requestId, "Failed to get user role"));
+      res
+        .status(500)
+        .json(createErrorResponse(error, 500, req.requestId, "Failed to get user role"));
     }
   });
 
@@ -4117,38 +4425,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { role, targetUserId } = req.body;
       const currentUser = await storage.getUser(userId);
-      
-      const validRoles = ['super_admin', 'sales_admin', 'broker', 'underwriter'];
+
+      const validRoles = ["super_admin", "sales_admin", "broker", "underwriter"];
       if (!role || !validRoles.includes(role)) {
-        return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+        return res
+          .status(400)
+          .json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
       }
-      
+
       // Check if testing mode is enabled
-      const testingModeEnabled = process.env.NODE_ENV === 'development';
-      
+      const testingModeEnabled = process.env.NODE_ENV === "development";
+
       // If changing another user's role, must be super_admin
       if (targetUserId && targetUserId !== userId) {
-        if (currentUser?.role !== 'super_admin') {
+        if (currentUser?.role !== "super_admin") {
           return res.status(403).json({ error: "Only Super Admin can change other users' roles" });
         }
         await storage.updateUser(targetUserId, { role });
         return res.json({ role, message: `User role updated to ${role}` });
       }
-      
+
       // Self role switching - only allowed for super_admin OR in testing mode
-      if (currentUser?.role !== 'super_admin') {
+      if (currentUser?.role !== "super_admin") {
         if (!testingModeEnabled) {
           return res.status(403).json({ error: "Only Super Admin can change roles" });
         }
         // In development mode, allow self-switching with a warning
-        console.warn(`[DEV MODE] User ${userId} switching own role to ${role} - disabled in production`);
+        console.warn(
+          `[DEV MODE] User ${userId} switching own role to ${role} - disabled in production`
+        );
       }
-      
+
       await storage.updateUser(userId, { role });
       res.json({ role, message: `Role updated to ${role}` });
-    } catch (error: any) {
-      console.error("Error updating user role:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4159,16 +4470,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const currentUser = await storage.getUser(userId);
-      
+
       if (!currentUser || currentUser.role !== "super_admin") {
         return res.status(403).json({ error: "Only super admins can access this endpoint" });
       }
-      
+
       const users = await storage.getAllUsers();
       res.json(users);
-    } catch (error: any) {
-      console.error("Error listing users:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4177,16 +4487,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      
-      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+
+      if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
         return res.status(403).json({ error: "Access denied. Admin role required." });
       }
-      
-      const teams = await storage.getTeams(user.role === 'super_admin' ? undefined : userId);
+
+      const teams = await storage.getTeams(user.role === "super_admin" ? undefined : userId);
       res.json(teams);
-    } catch (error: any) {
-      console.error("Error fetching teams:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4195,21 +4504,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      
-      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+
+      if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
         return res.status(403).json({ error: "Access denied. Admin role required." });
       }
-      
+
       const { name, description } = req.body;
       if (!name) {
         return res.status(400).json({ error: "Team name is required" });
       }
-      
+
       const team = await storage.createTeam({ name, description }, userId);
       res.status(201).json(team);
-    } catch (error: any) {
-      console.error("Error creating team:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4219,29 +4527,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       const teamId = parseInt(req.params.id);
-      
-      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+
+      if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
         return res.status(403).json({ error: "Access denied. Admin role required." });
       }
-      
+
       const team = await storage.getTeamWithMembers(teamId);
       if (!team) {
         return res.status(404).json({ error: "Team not found" });
       }
-      
+
       // Sales admin can only access teams they created or are admin of
-      if (user.role === 'sales_admin') {
+      if (user.role === "sales_admin") {
         const isOwner = team.createdBy === userId;
-        const isTeamAdmin = team.members.some(m => m.userId === userId && m.memberRole === 'admin');
+        const isTeamAdmin = team.members.some(
+          (m) => m.userId === userId && m.memberRole === "admin"
+        );
         if (!isOwner && !isTeamAdmin) {
           return res.status(403).json({ error: "You don't have permission to view this team" });
         }
       }
-      
+
       res.json(team);
-    } catch (error: any) {
-      console.error("Error fetching team:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4251,38 +4560,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       const teamId = parseInt(req.params.id);
-      
-      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+
+      if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
         return res.status(403).json({ error: "Access denied. Admin role required." });
       }
-      
+
       // Verify team ownership for sales_admin
-      if (user.role === 'sales_admin') {
+      if (user.role === "sales_admin") {
         const team = await storage.getTeamWithMembers(teamId);
         if (!team) {
           return res.status(404).json({ error: "Team not found" });
         }
         const isOwner = team.createdBy === userId;
-        const isTeamAdmin = team.members.some(m => m.userId === userId && m.memberRole === 'admin');
+        const isTeamAdmin = team.members.some(
+          (m) => m.userId === userId && m.memberRole === "admin"
+        );
         if (!isOwner && !isTeamAdmin) {
           return res.status(403).json({ error: "You don't have permission to modify this team" });
         }
       }
-      
+
       const { userId: memberUserId, memberRole } = req.body;
       if (!memberUserId) {
         return res.status(400).json({ error: "User ID is required" });
       }
-      
+
       const member = await storage.addTeamMember({
         teamId,
         userId: memberUserId,
-        memberRole: memberRole || 'member',
+        memberRole: memberRole || "member",
       });
       res.status(201).json(member);
-    } catch (error: any) {
-      console.error("Error adding team member:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4293,29 +4603,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(currentUserId);
       const teamId = parseInt(req.params.teamId);
       const memberUserId = req.params.userId;
-      
-      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+
+      if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
         return res.status(403).json({ error: "Access denied. Admin role required." });
       }
-      
+
       // Verify team ownership for sales_admin
-      if (user.role === 'sales_admin') {
+      if (user.role === "sales_admin") {
         const team = await storage.getTeamWithMembers(teamId);
         if (!team) {
           return res.status(404).json({ error: "Team not found" });
         }
         const isOwner = team.createdBy === currentUserId;
-        const isTeamAdmin = team.members.some(m => m.userId === currentUserId && m.memberRole === 'admin');
+        const isTeamAdmin = team.members.some(
+          (m) => m.userId === currentUserId && m.memberRole === "admin"
+        );
         if (!isOwner && !isTeamAdmin) {
           return res.status(403).json({ error: "You don't have permission to modify this team" });
         }
       }
-      
+
       await storage.removeTeamMember(teamId, memberUserId);
       res.json({ message: "Member removed from team" });
-    } catch (error: any) {
-      console.error("Error removing team member:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4325,9 +4636,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const teams = await storage.getUserTeams(userId);
       res.json(teams);
-    } catch (error: any) {
-      console.error("Error fetching user teams:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4336,16 +4646,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      
-      if (!user || !['super_admin', 'sales_admin'].includes(user.role)) {
+
+      if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
         return res.status(403).json({ error: "Access denied. Admin role required." });
       }
-      
+
       const users = await storage.getAllUsers();
       res.json(users);
-    } catch (error: any) {
-      console.error("Error fetching users:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4354,117 +4663,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const currentUserId = req.user.claims.sub;
       const currentUser = await storage.getUser(currentUserId);
-      
-      if (!currentUser || currentUser.role !== 'super_admin') {
+
+      if (!currentUser || currentUser.role !== "super_admin") {
         return res.status(403).json({ error: "Access denied. Super Admin role required." });
       }
-      
+
       const targetUserId = req.params.id;
       const { role } = req.body;
-      
-      const validRoles = ['super_admin', 'sales_admin', 'broker', 'underwriter'];
+
+      const validRoles = ["super_admin", "sales_admin", "broker", "underwriter"];
       if (!role || !validRoles.includes(role)) {
-        return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+        return res
+          .status(400)
+          .json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
       }
-      
+
       await storage.updateUser(targetUserId, { role });
       res.json({ message: `User role updated to ${role}` });
-    } catch (error: any) {
-      console.error("Error updating user role:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // File upload endpoint for underwriting attachments - uses busboy streaming parser
   const MAX_UNDERWRITING_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
   const MAX_UNDERWRITING_FILES = 10; // Maximum 10 files per request
-  
+
   app.post("/api/underwriting/upload/:submissionId", isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const submissionId = parseInt(req.params.submissionId);
-    
+
     if (isNaN(submissionId)) {
       return res.status(400).json({ error: "Invalid submission ID" });
     }
-    
+
     try {
       // Verify user role (must be broker or underwriter)
       const user = await storage.getUser(userId);
-      if (!user || !['broker', 'underwriter', 'sales_admin', 'super_admin'].includes(user.role)) {
-        return res.status(403).json({ error: "Access denied. Broker or Underwriter role required." });
+      if (!user || !["broker", "underwriter", "sales_admin", "super_admin"].includes(user.role)) {
+        return res
+          .status(403)
+          .json({ error: "Access denied. Broker or Underwriter role required." });
       }
-      
+
       // Verify submission exists and user has access
       const submission = await storage.getUnderwritingSubmission(submissionId);
       if (!submission) {
         return res.status(404).json({ error: "Submission not found" });
       }
-      
+
       // Only the broker who created it, assigned underwriter, or admins can upload
       const isOwner = submission.brokerId === userId;
       const isAssignedUnderwriter = submission.underwriterId === userId;
-      const isAdmin = ['sales_admin', 'super_admin'].includes(user.role);
-      
+      const isAdmin = ["sales_admin", "super_admin"].includes(user.role);
+
       if (!isOwner && !isAssignedUnderwriter && !isAdmin) {
-        return res.status(403).json({ error: "Access denied. You don't have permission for this submission." });
+        return res
+          .status(403)
+          .json({ error: "Access denied. You don't have permission for this submission." });
       }
-      
-      const contentType = req.headers['content-type'];
-      if (!contentType?.startsWith('multipart/form-data')) {
+
+      const contentType = req.headers["content-type"];
+      if (!contentType?.startsWith("multipart/form-data")) {
         return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
       }
-      
+
       const uploadedFiles: UnderwritingAttachment[] = [];
       const uploadPromises: Promise<UnderwritingAttachment>[] = [];
       let validationError: string | null = null;
-      
+
       const bb = busboy({
         headers: req.headers,
-        limits: { fileSize: MAX_UNDERWRITING_FILE_SIZE, files: MAX_UNDERWRITING_FILES }
+        limits: { fileSize: MAX_UNDERWRITING_FILE_SIZE, files: MAX_UNDERWRITING_FILES },
       });
-      
-      bb.on('file', (fieldname, fileStream, info) => {
+
+      bb.on("file", (fieldname, fileStream, info) => {
         const { filename, mimeType } = info;
-        
+
         if (!filename) {
           fileStream.resume();
           return;
         }
-        
+
         const timestamp = Date.now();
-        const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
         const storagePath = `.private/underwriting/${submissionId}/${userId}/${timestamp}_${sanitizedFileName}`;
-        
+
         // Stream directly to storage - no RAM buffering
         const uploadPromise = (async (): Promise<UnderwritingAttachment> => {
-          const { PassThrough } = await import('stream');
+          const { PassThrough } = await import("stream");
           const passThrough = new PassThrough();
           let limitExceeded = false;
           let bytesWritten = 0;
-          
-          fileStream.on('limit', () => {
+
+          fileStream.on("limit", () => {
             limitExceeded = true;
             validationError = `File "${filename}" exceeds 5MB limit`;
             passThrough.destroy(new Error("File size limit exceeded"));
           });
-          
-          fileStream.on('data', (chunk: Buffer) => {
+
+          fileStream.on("data", (chunk: Buffer) => {
             bytesWritten += chunk.length;
           });
-          
+
           fileStream.pipe(passThrough);
-          
+
           try {
             await getObjectStorage().uploadFromStream(storagePath, passThrough);
-            
+
             if (limitExceeded) {
-              try { await getObjectStorage().delete(storagePath); } catch {}
+              try {
+                await getObjectStorage().delete(storagePath);
+              } catch {
+                // Ignore cleanup errors
+              }
               throw new Error(`File "${filename}" exceeds 5MB limit`);
             }
-            
+
             return {
               fileName: filename,
-              fileType: mimeType || 'application/octet-stream',
+              fileType: mimeType || "application/octet-stream",
               fileSize: bytesWritten,
               storagePath,
               uploadedAt: new Date().toISOString(),
@@ -4474,143 +4792,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw err;
           }
         })();
-        
+
         uploadPromises.push(uploadPromise);
       });
-      
-      bb.on('close', async () => {
+
+      bb.on("close", async () => {
         try {
           if (validationError) {
             return res.status(413).json({ error: validationError });
           }
-          
+
           if (uploadPromises.length === 0) {
             return res.status(400).json({ error: "No files uploaded" });
           }
-          
+
           const results = await Promise.all(uploadPromises);
           res.json({ files: results });
         } catch (error: any) {
           console.error("Error completing underwriting upload:", error);
           if (!res.headersSent) {
-            res.status(500).json({ error: error.message });
+            handleApiError(res, error, "api-error");
           }
         }
       });
-      
-      bb.on('error', (error: any) => {
+
+      bb.on("error", (error: any) => {
         console.error("Busboy error in underwriting upload:", error);
         if (!res.headersSent) {
-          res.status(500).json({ error: error.message });
+          handleApiError(res, error, "api-error");
         }
       });
-      
+
       req.pipe(bb);
-    } catch (error: any) {
-      console.error("Error uploading file:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Download attachment endpoint (SECURITY: requires assigned underwriter or submitting broker)
-  app.get("/api/underwriting/download/:submissionId/:activityId/:fileIndex", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const submissionId = parseInt(req.params.submissionId);
-      const activityId = parseInt(req.params.activityId);
-      const fileIndex = parseInt(req.params.fileIndex);
-      
-      // Check submission access
-      const submission = await storage.getUnderwritingSubmission(submissionId);
-      if (!submission) {
-        return res.status(404).json({ error: "Submission not found" });
+  app.get(
+    "/api/underwriting/download/:submissionId/:activityId/:fileIndex",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const submissionId = parseInt(req.params.submissionId);
+        const activityId = parseInt(req.params.activityId);
+        const fileIndex = parseInt(req.params.fileIndex);
+
+        // Check submission access
+        const submission = await storage.getUnderwritingSubmission(submissionId);
+        if (!submission) {
+          return res.status(404).json({ error: "Submission not found" });
+        }
+
+        // SECURITY: Only allow the submitting broker OR the assigned underwriter
+        // Not just any user with role 'underwriter'
+        const user = await storage.getUser(userId);
+        const isSubmittingBroker = submission.brokerId === userId;
+        const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
+        const isSuperAdmin = user?.role === "super_admin";
+
+        if (!isSubmittingBroker && !isAssignedUnderwriter && !isSuperAdmin) {
+          return res.status(403).json({
+            error: "Access denied - you must be the submitting broker or assigned underwriter",
+          });
+        }
+
+        // Get the activity and extract attachment
+        const activities = await storage.listUnderwritingActivities(submissionId);
+        const activity = activities.find((a) => a.id === activityId);
+
+        if (!activity || !activity.attachments) {
+          return res.status(404).json({ error: "Activity not found" });
+        }
+
+        const attachments = activity.attachments as UnderwritingAttachment[];
+        if (fileIndex < 0 || fileIndex >= attachments.length) {
+          return res.status(404).json({ error: "File not found" });
+        }
+
+        const attachment = attachments[fileIndex];
+
+        // Download from object storage
+        const { data } = await getObjectStorage().downloadAsBytes(attachment.storagePath);
+
+        // SECURITY: Use sanitized filename to prevent header injection
+        const { encodeContentDisposition } = await import("./utils/security");
+        res.setHeader("Content-Type", attachment.fileType);
+        res.setHeader("Content-Disposition", encodeContentDisposition(attachment.fileName));
+        res.send(Buffer.from(data));
+      } catch (error) {
+        handleApiError(res, error, "api-error");
       }
-      
-      // SECURITY: Only allow the submitting broker OR the assigned underwriter
-      // Not just any user with role 'underwriter'
-      const user = await storage.getUser(userId);
-      const isSubmittingBroker = submission.brokerId === userId;
-      const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
-      const isSuperAdmin = user?.role === 'super_admin';
-      
-      if (!isSubmittingBroker && !isAssignedUnderwriter && !isSuperAdmin) {
-        return res.status(403).json({ error: "Access denied - you must be the submitting broker or assigned underwriter" });
-      }
-      
-      // Get the activity and extract attachment
-      const activities = await storage.listUnderwritingActivities(submissionId);
-      const activity = activities.find(a => a.id === activityId);
-      
-      if (!activity || !activity.attachments) {
-        return res.status(404).json({ error: "Activity not found" });
-      }
-      
-      const attachments = activity.attachments as UnderwritingAttachment[];
-      if (fileIndex < 0 || fileIndex >= attachments.length) {
-        return res.status(404).json({ error: "File not found" });
-      }
-      
-      const attachment = attachments[fileIndex];
-      
-      // Download from object storage
-      const { data } = await getObjectStorage().downloadAsBytes(attachment.storagePath);
-      
-      // SECURITY: Use sanitized filename to prevent header injection
-      const { encodeContentDisposition } = await import("./utils/security");
-      res.setHeader('Content-Type', attachment.fileType);
-      res.setHeader('Content-Disposition', encodeContentDisposition(attachment.fileName));
-      res.send(Buffer.from(data));
-    } catch (error: any) {
-      console.error("Error downloading file:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Broker responds to underwriter query with message and attachments
   app.post("/api/underwriting/submissions/:id/respond", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.claims.sub;
-      
+
       const submission = await storage.getUnderwritingSubmission(id);
       if (!submission) {
         return res.status(404).json({ error: "Submission not found" });
       }
-      
+
       // Only the broker who submitted can respond
       if (submission.brokerId !== userId) {
         return res.status(403).json({ error: "Only the submitting broker can respond to queries" });
       }
-      
+
       // Can only respond to queries
-      if (submission.status !== 'queried') {
-        return res.status(400).json({ error: "Can only respond to submissions with 'queried' status" });
+      if (submission.status !== "queried") {
+        return res
+          .status(400)
+          .json({ error: "Can only respond to submissions with 'queried' status" });
       }
-      
+
       const { message, attachments } = req.body;
-      
+
       if (!message || message.trim().length === 0) {
         return res.status(400).json({ error: "Response message is required" });
       }
-      
+
       // Create activity record with response and attachments
-      const activity = await storage.createUnderwritingActivity({
-        submissionId: id,
-        activityType: 'responded',
-        content: message,
-        attachments: attachments || [],
-      }, userId);
-      
+      const activity = await storage.createUnderwritingActivity(
+        {
+          submissionId: id,
+          activityType: "responded",
+          content: message,
+          attachments: attachments || [],
+        },
+        userId
+      );
+
       // Update submission status back to in_review
-      await storage.updateUnderwritingSubmission(id, { status: 'in_review' });
-      
+      await storage.updateUnderwritingSubmission(id, { status: "in_review" });
+
       res.status(201).json({
         activity,
         message: "Response submitted successfully. The underwriter will review your response.",
       });
-    } catch (error: any) {
-      console.error("Error submitting response:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4619,204 +4945,218 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.claims.sub;
-      
+
       const user = await storage.getUser(userId);
-      if (user?.role !== 'underwriter') {
-        return res.status(403).json({ error: "Only underwriters can send messages through this endpoint" });
+      if (user?.role !== "underwriter") {
+        return res
+          .status(403)
+          .json({ error: "Only underwriters can send messages through this endpoint" });
       }
-      
+
       const submission = await storage.getUnderwritingSubmission(id);
       if (!submission) {
         return res.status(404).json({ error: "Submission not found" });
       }
-      
+
       // Only assigned underwriter can message
       if (submission.assignedUnderwriterId !== userId) {
         return res.status(403).json({ error: "Only the assigned underwriter can send messages" });
       }
-      
+
       const { message, setStatus } = req.body;
-      
+
       if (!message || message.trim().length === 0) {
         return res.status(400).json({ error: "Message is required" });
       }
-      
+
       // Create activity record
-      const activityType = setStatus === 'queried' ? 'queried' : 'comment';
-      const activity = await storage.createUnderwritingActivity({
-        submissionId: id,
-        activityType,
-        content: message,
-        attachments: [],
-      }, userId);
-      
+      const activityType = setStatus === "queried" ? "queried" : "comment";
+      const activity = await storage.createUnderwritingActivity(
+        {
+          submissionId: id,
+          activityType,
+          content: message,
+          attachments: [],
+        },
+        userId
+      );
+
       // Update status if requesting a query
-      if (setStatus === 'queried') {
-        await storage.updateUnderwritingSubmission(id, { 
-          status: 'queried',
+      if (setStatus === "queried") {
+        await storage.updateUnderwritingSubmission(id, {
+          status: "queried",
           decisionReason: message,
         });
       }
-      
+
       res.status(201).json({
         activity,
-        message: activityType === 'queried' 
-          ? "Query sent to broker. They will be notified to respond."
-          : "Message sent successfully.",
+        message:
+          activityType === "queried"
+            ? "Query sent to broker. They will be notified to respond."
+            : "Message sent successfully.",
       });
-    } catch (error: any) {
-      console.error("Error sending message:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Broker sends a message on their submission
-  app.post("/api/underwriting/submissions/:id/broker-message", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
-      
-      const submission = await storage.getUnderwritingSubmission(id);
-      if (!submission) {
-        return res.status(404).json({ error: "Submission not found" });
+  app.post(
+    "/api/underwriting/submissions/:id/broker-message",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const userId = req.user.claims.sub;
+
+        const submission = await storage.getUnderwritingSubmission(id);
+        if (!submission) {
+          return res.status(404).json({ error: "Submission not found" });
+        }
+
+        // Only the broker who submitted can send messages
+        if (submission.brokerId !== userId) {
+          return res.status(403).json({ error: "Only the submitting broker can send messages" });
+        }
+
+        const { message } = req.body;
+
+        if (!message || message.trim().length === 0) {
+          return res.status(400).json({ error: "Message is required" });
+        }
+
+        // Create activity record as a comment from broker
+        const activity = await storage.createUnderwritingActivity(
+          {
+            submissionId: id,
+            activityType: "comment",
+            content: message,
+            attachments: [],
+          },
+          userId
+        );
+
+        res.status(201).json({
+          activity,
+          message: "Message sent to underwriter.",
+        });
+      } catch (error) {
+        handleApiError(res, error, "api-error");
       }
-      
-      // Only the broker who submitted can send messages
-      if (submission.brokerId !== userId) {
-        return res.status(403).json({ error: "Only the submitting broker can send messages" });
-      }
-      
-      const { message } = req.body;
-      
-      if (!message || message.trim().length === 0) {
-        return res.status(400).json({ error: "Message is required" });
-      }
-      
-      // Create activity record as a comment from broker
-      const activity = await storage.createUnderwritingActivity({
-        submissionId: id,
-        activityType: 'comment',
-        content: message,
-        attachments: [],
-      }, userId);
-      
-      res.status(201).json({
-        activity,
-        message: "Message sent to underwriter.",
-      });
-    } catch (error: any) {
-      console.error("Error sending broker message:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Prospect Documents - List all documents for a prospect
   app.get("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
-      
+
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
-      
+
       const documents = await storage.listProspectDocuments(prospectId);
       res.json(documents);
-    } catch (error: any) {
-      console.error("Error fetching prospect documents:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Upload document for a prospect - uses busboy streaming parser
   const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024; // 10MB per document
-  
+
   app.post("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const prospectId = parseInt(req.params.prospectId);
-    
+
     try {
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
-      
-      const contentType = req.headers['content-type'];
-      if (!contentType?.startsWith('multipart/form-data')) {
+
+      const contentType = req.headers["content-type"];
+      if (!contentType?.startsWith("multipart/form-data")) {
         return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
       }
-      
-      let category = 'general';
-      let notes = '';
+
+      let category = "general";
+      let notes = "";
       let uploadPromise: Promise<any> | null = null;
       let validationError: string | null = null;
-      
+
       const bb = busboy({
         headers: req.headers,
-        limits: { fileSize: MAX_DOCUMENT_FILE_SIZE, files: 1 }
+        limits: { fileSize: MAX_DOCUMENT_FILE_SIZE, files: 1 },
       });
-      
-      bb.on('field', (fieldname, value) => {
-        if (fieldname === 'category') {
-          category = value.trim() || 'general';
-        } else if (fieldname === 'notes') {
+
+      bb.on("field", (fieldname, value) => {
+        if (fieldname === "category") {
+          category = value.trim() || "general";
+        } else if (fieldname === "notes") {
           notes = value.trim();
         }
       });
-      
-      bb.on('file', (fieldname, fileStream, info) => {
+
+      bb.on("file", (fieldname, fileStream, info) => {
         const { filename, mimeType } = info;
-        
+
         if (!filename) {
           fileStream.resume();
           return;
         }
-        
+
         const timestamp = Date.now();
-        const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const sanitizedFileName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
         const storagePath = `.private/documents/${prospectId}/${timestamp}_${sanitizedFileName}`;
-        
+
         // Stream directly to storage - no RAM buffering
         uploadPromise = (async () => {
-          const { PassThrough } = await import('stream');
+          const { PassThrough } = await import("stream");
           const passThrough = new PassThrough();
           let limitExceeded = false;
           let bytesWritten = 0;
-          
-          fileStream.on('limit', () => {
+
+          fileStream.on("limit", () => {
             limitExceeded = true;
             validationError = `File "${filename}" exceeds 10MB limit`;
             passThrough.destroy(new Error("File size limit exceeded"));
           });
-          
-          fileStream.on('data', (chunk: Buffer) => {
+
+          fileStream.on("data", (chunk: Buffer) => {
             bytesWritten += chunk.length;
           });
-          
+
           fileStream.pipe(passThrough);
-          
+
           try {
             await getObjectStorage().uploadFromStream(storagePath, passThrough);
-            
+
             if (limitExceeded) {
-              try { await getObjectStorage().delete(storagePath); } catch {}
+              try {
+                await getObjectStorage().delete(storagePath);
+              } catch {
+                // Ignore cleanup errors
+              }
               throw new Error(`File "${filename}" exceeds 10MB limit`);
             }
-            
+
             const document = await storage.createProspectDocument({
               prospectId,
               userId,
               fileName: filename,
-              fileType: mimeType || 'application/octet-stream',
+              fileType: mimeType || "application/octet-stream",
               fileSize: bytesWritten,
               storagePath,
               category,
               notes: notes || null,
             });
-            
+
             return document;
           } catch (err: any) {
             if (limitExceeded) throw new Error(`File "${filename}" exceeds 10MB limit`);
@@ -4824,71 +5164,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         })();
       });
-      
-      bb.on('close', async () => {
+
+      bb.on("close", async () => {
         try {
           if (validationError) {
             return res.status(413).json({ error: validationError });
           }
-          
+
           if (!uploadPromise) {
             return res.status(400).json({ error: "No file uploaded" });
           }
-          
+
           const document = await uploadPromise;
           res.status(201).json(document);
         } catch (error: any) {
           console.error("Error completing document upload:", error);
           if (!res.headersSent) {
-            res.status(500).json({ error: error.message });
+            handleApiError(res, error, "api-error");
           }
         }
       });
-      
-      bb.on('error', (error: any) => {
+
+      bb.on("error", (error: any) => {
         console.error("Busboy error in document upload:", error);
         if (!res.headersSent) {
-          res.status(500).json({ error: error.message });
+          handleApiError(res, error, "api-error");
         }
       });
-      
+
       req.pipe(bb);
-    } catch (error: any) {
-      console.error("Error uploading document:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
   // Download a prospect document
-  app.get("/api/prospects/:prospectId/documents/:id/download", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const prospectId = parseInt(req.params.prospectId);
-      const documentId = parseInt(req.params.id);
-      
-      // Verify prospect belongs to user
-      const prospect = await storage.getProspect(prospectId, userId);
-      if (!prospect) {
-        return res.status(404).json({ error: "Prospect not found" });
+  app.get(
+    "/api/prospects/:prospectId/documents/:id/download",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+        const documentId = parseInt(req.params.id);
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        const document = await storage.getProspectDocument(documentId);
+        if (!document || document.prospectId !== prospectId) {
+          return res.status(404).json({ error: "Document not found" });
+        }
+
+        const { data } = await getObjectStorage().downloadAsBytes(document.storagePath);
+
+        // SECURITY: Use sanitized filename to prevent header injection
+        const { encodeContentDisposition } = await import("./utils/security");
+        res.setHeader("Content-Type", document.fileType);
+        res.setHeader("Content-Disposition", encodeContentDisposition(document.fileName));
+        res.send(Buffer.from(data));
+      } catch (error) {
+        handleApiError(res, error, "api-error");
       }
-      
-      const document = await storage.getProspectDocument(documentId);
-      if (!document || document.prospectId !== prospectId) {
-        return res.status(404).json({ error: "Document not found" });
-      }
-      
-      const { data } = await getObjectStorage().downloadAsBytes(document.storagePath);
-      
-      // SECURITY: Use sanitized filename to prevent header injection
-      const { encodeContentDisposition } = await import("./utils/security");
-      res.setHeader('Content-Type', document.fileType);
-      res.setHeader('Content-Disposition', encodeContentDisposition(document.fileName));
-      res.send(Buffer.from(data));
-    } catch (error: any) {
-      console.error("Error downloading document:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Delete a prospect document
   app.delete("/api/prospects/:prospectId/documents/:id", isAuthenticated, async (req: any, res) => {
@@ -4896,32 +5238,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const prospectId = parseInt(req.params.prospectId);
       const documentId = parseInt(req.params.id);
-      
+
       // Verify prospect belongs to user
       const prospect = await storage.getProspect(prospectId, userId);
       if (!prospect) {
         return res.status(404).json({ error: "Prospect not found" });
       }
-      
+
       const document = await storage.getProspectDocument(documentId);
       if (!document || document.prospectId !== prospectId) {
         return res.status(404).json({ error: "Document not found" });
       }
-      
+
       // Delete from object storage
       try {
         await getObjectStorage().delete(document.storagePath);
       } catch (storageError) {
         console.error("Error deleting from storage (continuing):", storageError);
       }
-      
+
       // Delete from database
       await storage.deleteProspectDocument(documentId);
-      
+
       res.json({ message: "Document deleted successfully" });
-    } catch (error: any) {
-      console.error("Error deleting document:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4934,13 +5275,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const apiKey = await storage.generateWebhookApiKey(userId);
-      res.json({ 
+      res.json({
         apiKey,
-        message: "API key generated successfully. Store this securely - it won't be shown again."
+        message: "API key generated successfully. Store this securely - it won't be shown again.",
       });
-    } catch (error: any) {
-      console.error("Error generating webhook API key:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4952,16 +5292,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
       res.json({
         hasApiKey: !!user.webhookApiKeyHash,
         suffix: user.webhookApiKeySuffix || null,
         createdAt: user.webhookApiKeyCreatedAt,
         lastUsedAt: user.webhookApiKeyLastUsedAt,
       });
-    } catch (error: any) {
-      console.error("Error fetching webhook key status:", error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
     }
   });
 
@@ -4975,7 +5314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Hash the provided key and look up by hash
-      const { hashWebhookApiKey } = await import('./utils/webhookKeyHash');
+      const { hashWebhookApiKey } = await import("./utils/webhookKeyHash");
       const keyHash = hashWebhookApiKey(apiKey);
       const user = await storage.getUserByWebhookApiKeyHash(keyHash);
       if (!user) {
@@ -4989,9 +5328,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validationResult = webhookProspectPayloadSchema.safeParse(req.body);
       if (!validationResult.success) {
         const humanError = fromZodError(validationResult.error);
-        return res.status(422).json({ 
+        return res.status(422).json({
           error: "Validation failed",
-          details: humanError.message 
+          details: humanError.message,
         });
       }
 
@@ -5001,11 +5340,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prospectCount = await storage.countProspects(user.id);
       const prospectCredits = await storage.getUserProspectCredits(user.id);
       const totalAllowedProspects = user.prospectLimit + prospectCredits;
-      
+
       if (prospectCount >= totalAllowedProspects) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: "Prospect limit reached",
-          message: "Upgrade your plan or purchase additional prospect credits."
+          message: "Upgrade your plan or purchase additional prospect credits.",
         });
       }
 
@@ -5014,7 +5353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (payload.company.companyNumber) {
         company = await storage.getCompanyByNumber(payload.company.companyNumber);
       }
-      
+
       if (!company) {
         company = await storage.createCompany({
           companyName: payload.company.companyName,
@@ -5028,37 +5367,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create prospect
       const prospectData = payload.prospect || {};
-      const prospect = await storage.createProspect({
-        companyId: company.id,
-        stage: prospectData.stage || "lead",
-        loanAmount: prospectData.loanAmount || null,
-        term: prospectData.term || null,
-        interestRate: prospectData.interestRate || null,
-        priority: prospectData.priority || null,
-        notes: prospectData.notes || null,
-        directorsGuarantee: prospectData.directorsGuarantee || null,
-        commercialProperty: prospectData.commercialProperty || null,
-        homeEquity: prospectData.homeEquity || null,
-        propertyOther: prospectData.propertyOther || null,
-        debenture: prospectData.debenture || null,
-        parentCompanyGuarantee: prospectData.parentCompanyGuarantee || null,
-        collateral: prospectData.collateral || null,
-        crossCompanyGuarantee: prospectData.crossCompanyGuarantee || null,
-        loanRequirementNotes: prospectData.loanRequirementNotes || null,
-      }, user.id);
+      const prospect = await storage.createProspect(
+        {
+          companyId: company.id,
+          stage: prospectData.stage || "lead",
+          loanAmount: prospectData.loanAmount || null,
+          term: prospectData.term || null,
+          interestRate: prospectData.interestRate || null,
+          priority: prospectData.priority || null,
+          notes: prospectData.notes || null,
+          directorsGuarantee: prospectData.directorsGuarantee || null,
+          commercialProperty: prospectData.commercialProperty || null,
+          homeEquity: prospectData.homeEquity || null,
+          propertyOther: prospectData.propertyOther || null,
+          debenture: prospectData.debenture || null,
+          parentCompanyGuarantee: prospectData.parentCompanyGuarantee || null,
+          collateral: prospectData.collateral || null,
+          crossCompanyGuarantee: prospectData.crossCompanyGuarantee || null,
+          loanRequirementNotes: prospectData.loanRequirementNotes || null,
+        },
+        user.id
+      );
 
       // Create contacts
       if (payload.contacts && payload.contacts.length > 0) {
         for (const contact of payload.contacts) {
-          await storage.createContact({
-            prospectId: prospect.id,
-            name: contact.name,
-            email: contact.email || null,
-            phone: contact.phone || null,
-            role: contact.role || null,
-            isPrimary: contact.isPrimary ? 1 : 0,
-            notes: contact.notes || null,
-          }, user.id);
+          await storage.createContact(
+            {
+              prospectId: prospect.id,
+              name: contact.name,
+              email: contact.email || null,
+              phone: contact.phone || null,
+              role: contact.role || null,
+              isPrimary: contact.isPrimary ? 1 : 0,
+              notes: contact.notes || null,
+            },
+            user.id
+          );
         }
       }
 
@@ -5076,15 +5421,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Log the webhook activity
-      await storage.createActivity({
-        prospectId: prospect.id,
-        title: "Prospect created via webhook",
-        description: payload.metadata?.sourceApp 
-          ? `Created from external app: ${payload.metadata.sourceApp}${payload.metadata.externalId ? ` (ID: ${payload.metadata.externalId})` : ""}`
-          : "Created via webhook API",
-        activityType: "note",
-        priority: "low",
-      }, user.id);
+      await storage.createActivity(
+        {
+          prospectId: prospect.id,
+          title: "Prospect created via webhook",
+          description: payload.metadata?.sourceApp
+            ? `Created from external app: ${payload.metadata.sourceApp}${payload.metadata.externalId ? ` (ID: ${payload.metadata.externalId})` : ""}`
+            : "Created via webhook API",
+          activityType: "note",
+          priority: "low",
+        },
+        user.id
+      );
 
       res.status(201).json({
         success: true,

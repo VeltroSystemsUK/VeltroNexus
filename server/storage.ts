@@ -92,8 +92,16 @@ export interface IStorage {
   getProspectById(id: number): Promise<ProspectWithCompany | undefined>;
   getProspectsByIds(ids: number[]): Promise<ProspectWithCompany[]>;
   createProspect(prospect: InsertProspect, userId: string): Promise<Prospect>;
-  updateProspectStage(prospectId: number, userId: string, stage: string): Promise<Prospect | undefined>;
-  updateProspect(id: number, userId: string, updates: Partial<InsertProspect>): Promise<Prospect | undefined>;
+  updateProspectStage(
+    prospectId: number,
+    userId: string,
+    stage: string
+  ): Promise<Prospect | undefined>;
+  updateProspect(
+    id: number,
+    userId: string,
+    updates: Partial<InsertProspect>
+  ): Promise<Prospect | undefined>;
   deleteProspect(id: number, userId: string): Promise<void>;
   reorderProspects(userId: string, stage: string, orderedIds: number[]): Promise<void>;
 
@@ -101,7 +109,11 @@ export interface IStorage {
   listContacts(prospectId: number, userId: string): Promise<Contact[]>;
   getContact(id: number, userId: string): Promise<Contact | undefined>;
   createContact(contact: InsertContact, userId: string): Promise<Contact | undefined>;
-  updateContact(id: number, userId: string, updates: Partial<InsertContact>): Promise<Contact | undefined>;
+  updateContact(
+    id: number,
+    userId: string,
+    updates: Partial<InsertContact>
+  ): Promise<Contact | undefined>;
   deleteContact(id: number, userId: string): Promise<boolean>;
 
   // Activities (user-scoped)
@@ -109,51 +121,87 @@ export interface IStorage {
   listAllUserActivities(userId: string): Promise<Activity[]>;
   getActivity(id: number, userId: string): Promise<Activity | undefined>;
   createActivity(activity: InsertActivity, userId: string): Promise<Activity | undefined>;
-  updateActivity(id: number, userId: string, updates: Partial<InsertActivity>): Promise<Activity | undefined>;
+  updateActivity(
+    id: number,
+    userId: string,
+    updates: Partial<InsertActivity>
+  ): Promise<Activity | undefined>;
   deleteActivity(id: number, userId: string): Promise<boolean>;
 
   // Due Diligence (user-scoped via prospect ownership)
   getDueDiligence(prospectId: number, userId: string): Promise<DueDiligence | undefined>;
-  upsertDueDiligence(prospectId: number, userId: string, data: DueDiligenceData): Promise<DueDiligence | undefined>;
+  upsertDueDiligence(
+    prospectId: number,
+    userId: string,
+    data: DueDiligenceData
+  ): Promise<DueDiligence | undefined>;
 
   // Lenders
   listLenders(userId: string): Promise<Lender[]>;
   getLender(id: number, userId: string): Promise<Lender | undefined>;
   getLenderWithProducts(id: number, userId: string): Promise<LenderWithProducts | undefined>;
   createLender(lender: InsertLender, userId: string): Promise<Lender>;
-  updateLender(id: number, userId: string, updates: Partial<InsertLender>): Promise<Lender | undefined>;
+  updateLender(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLender>
+  ): Promise<Lender | undefined>;
   deleteLender(id: number, userId: string): Promise<void>;
-  searchLenders(userId: string, filters: {
-    search?: string;
-    lenderType?: string;
-    productType?: string;
-    minLoanAmount?: number;
-    maxLoanAmount?: number;
-    sector?: string;
-    region?: string;
-    panelStatus?: string;
-  }): Promise<Lender[]>;
+  searchLenders(
+    userId: string,
+    filters: {
+      search?: string;
+      lenderType?: string;
+      productType?: string;
+      minLoanAmount?: number;
+      maxLoanAmount?: number;
+      sector?: string;
+      region?: string;
+      panelStatus?: string;
+    }
+  ): Promise<Lender[]>;
 
   // Lender Products (user-scoped via lender ownership)
   listLenderProducts(lenderId: number, userId: string): Promise<LenderProduct[]>;
   getLenderProduct(id: number, userId: string): Promise<LenderProduct | undefined>;
-  createLenderProduct(product: InsertLenderProduct, userId: string): Promise<LenderProduct | undefined>;
-  updateLenderProduct(id: number, userId: string, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined>;
+  createLenderProduct(
+    product: InsertLenderProduct,
+    userId: string
+  ): Promise<LenderProduct | undefined>;
+  updateLenderProduct(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLenderProduct>
+  ): Promise<LenderProduct | undefined>;
   deleteLenderProduct(id: number, userId: string): Promise<boolean>;
 
   // Lender Interactions (user-scoped)
   listLenderInteractions(lenderId: number, userId: string): Promise<LenderInteraction[]>;
   listUserLenderInteractions(userId: string): Promise<LenderInteraction[]>;
   getLenderInteraction(id: number, userId: string): Promise<LenderInteraction | undefined>;
-  createLenderInteraction(interaction: InsertLenderInteraction, userId: string): Promise<LenderInteraction | undefined>;
-  updateLenderInteraction(id: number, userId: string, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined>;
+  createLenderInteraction(
+    interaction: InsertLenderInteraction,
+    userId: string
+  ): Promise<LenderInteraction | undefined>;
+  updateLenderInteraction(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLenderInteraction>
+  ): Promise<LenderInteraction | undefined>;
   deleteLenderInteraction(id: number, userId: string): Promise<boolean>;
 
   // Application Submissions
   listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]>;
   getApplicationSubmission(id: number, userId: string): Promise<ApplicationSubmission | undefined>;
-  createApplicationSubmission(submission: InsertApplicationSubmission, userId: string): Promise<ApplicationSubmission>;
-  updateApplicationSubmission(id: number, userId: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined>;
+  createApplicationSubmission(
+    submission: InsertApplicationSubmission,
+    userId: string
+  ): Promise<ApplicationSubmission>;
+  updateApplicationSubmission(
+    id: number,
+    userId: string,
+    updates: Partial<InsertApplicationSubmission>
+  ): Promise<ApplicationSubmission | undefined>;
   deleteApplicationSubmission(id: number, userId: string): Promise<void>;
 
   // Email Inboxes
@@ -167,7 +215,10 @@ export interface IStorage {
   getEmailMessageByMessageId(messageId: string): Promise<EmailMessage | undefined>;
   createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage>;
   markEmailAsRead(id: number): Promise<void>;
-  updateEmailMessageLink(id: number, updates: { contactId?: number | null; prospectId?: number | null }): Promise<EmailMessage | undefined>;
+  updateEmailMessageLink(
+    id: number,
+    updates: { contactId?: number | null; prospectId?: number | null }
+  ): Promise<EmailMessage | undefined>;
   getEmailMessagesForContact(inboxId: number, contactId: number): Promise<EmailMessage[]>;
   getEmailMessagesForProspect(inboxId: number, prospectId: number): Promise<EmailMessage[]>;
 
@@ -178,10 +229,17 @@ export interface IStorage {
   listLeadUploads(userId: string): Promise<LeadUpload[]>;
   getLeadUpload(id: number, userId: string): Promise<LeadUpload | undefined>;
   createLeadUpload(upload: InsertLeadUpload): Promise<LeadUpload>;
-  updateLeadUpload(id: number, userId: string, updates: Partial<InsertLeadUpload>): Promise<LeadUpload | undefined>;
+  updateLeadUpload(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLeadUpload>
+  ): Promise<LeadUpload | undefined>;
 
   // Leads
-  listLeads(userId: string, filters?: { uploadId?: number; matchStatus?: string; search?: string }): Promise<Lead[]>;
+  listLeads(
+    userId: string,
+    filters?: { uploadId?: number; matchStatus?: string; search?: string }
+  ): Promise<Lead[]>;
   getLead(id: number, userId: string): Promise<Lead | undefined>;
   createLead(lead: InsertLead, userId: string): Promise<Lead>;
   createLeadsBulk(leads: InsertLead[], userId: string): Promise<Lead[]>;
@@ -190,18 +248,35 @@ export interface IStorage {
   deleteLeadsByUpload(uploadId: number, userId: string): Promise<void>;
 
   // Underwriting Submissions
-  listUnderwritingSubmissions(filters?: { status?: string; assignedUnderwriterId?: string }): Promise<UnderwritingSubmission[]>;
+  listUnderwritingSubmissions(filters?: {
+    status?: string;
+    assignedUnderwriterId?: string;
+  }): Promise<UnderwritingSubmission[]>;
   listUnderwriterScopedSubmissions(underwriterId: string): Promise<UnderwritingSubmission[]>;
   listBrokerUnderwritingSubmissions(brokerId: string): Promise<UnderwritingSubmission[]>;
   getUnderwritingSubmission(id: number): Promise<UnderwritingSubmission | undefined>;
-  createUnderwritingSubmission(submission: InsertUnderwritingSubmission, brokerId: string): Promise<UnderwritingSubmission>;
-  updateUnderwritingSubmission(id: number, updates: UpdateUnderwritingSubmission): Promise<UnderwritingSubmission | undefined>;
-  claimUnderwritingSubmission(id: number, underwriterId: string): Promise<UnderwritingSubmission | undefined>;
-  getUnderwritingSubmissionByProspect(prospectId: number): Promise<UnderwritingSubmission | undefined>;
+  createUnderwritingSubmission(
+    submission: InsertUnderwritingSubmission,
+    brokerId: string
+  ): Promise<UnderwritingSubmission>;
+  updateUnderwritingSubmission(
+    id: number,
+    updates: UpdateUnderwritingSubmission
+  ): Promise<UnderwritingSubmission | undefined>;
+  claimUnderwritingSubmission(
+    id: number,
+    underwriterId: string
+  ): Promise<UnderwritingSubmission | undefined>;
+  getUnderwritingSubmissionByProspect(
+    prospectId: number
+  ): Promise<UnderwritingSubmission | undefined>;
 
   // Underwriting Activity
   listUnderwritingActivities(submissionId: number): Promise<UnderwritingActivity[]>;
-  createUnderwritingActivity(activity: InsertUnderwritingActivity, userId: string): Promise<UnderwritingActivity>;
+  createUnderwritingActivity(
+    activity: InsertUnderwritingActivity,
+    userId: string
+  ): Promise<UnderwritingActivity>;
 
   // Prospect Documents
   listProspectDocuments(prospectId: number): Promise<ProspectDocument[]>;
@@ -211,7 +286,9 @@ export interface IStorage {
 
   // Teams
   getTeams(adminUserId?: string): Promise<Team[]>;
-  getTeamWithMembers(teamId: number): Promise<(Team & { members: (TeamMember & { user: User })[] }) | undefined>;
+  getTeamWithMembers(
+    teamId: number
+  ): Promise<(Team & { members: (TeamMember & { user: User })[] }) | undefined>;
   createTeam(team: InsertTeam, createdBy: string): Promise<Team>;
   updateTeam(id: number, updates: Partial<InsertTeam>): Promise<Team | undefined>;
   deleteTeam(id: number): Promise<void>;
@@ -233,7 +310,10 @@ export interface IStorage {
   getAddOnPurchase(id: number): Promise<AddOnPurchase | undefined>;
   getAddOnPurchaseByIdempotencyKey(key: string): Promise<AddOnPurchase | undefined>;
   createAddOnPurchase(purchase: InsertAddOnPurchase): Promise<AddOnPurchase>;
-  updateAddOnPurchase(id: number, updates: Partial<AddOnPurchase>): Promise<AddOnPurchase | undefined>;
+  updateAddOnPurchase(
+    id: number,
+    updates: Partial<AddOnPurchase>
+  ): Promise<AddOnPurchase | undefined>;
   getUserProspectCredits(userId: string): Promise<number>;
 
   // Webhook API
@@ -272,11 +352,8 @@ export class DatabaseStorage implements IStorage {
       return user;
     } catch (error: any) {
       // If there's a duplicate email error, fetch and return the existing user
-      if (error.code === '23505' && error.constraint === 'users_email_unique') {
-        const [existingUser] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, userData.email));
+      if (error.code === "23505" && error.constraint === "users_email_unique") {
+        const [existingUser] = await db.select().from(users).where(eq(users.email, userData.email));
         if (existingUser) {
           return existingUser;
         }
@@ -311,10 +388,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompanyById(id: number): Promise<Company | undefined> {
-    const [company] = await db
-      .select()
-      .from(companies)
-      .where(eq(companies.id, id));
+    const [company] = await db.select().from(companies).where(eq(companies.id, id));
     return company || undefined;
   }
 
@@ -404,7 +478,7 @@ export class DatabaseStorage implements IStorage {
   async createProspect(insertProspect: InsertProspect, userId: string): Promise<Prospect> {
     const [prospect] = await db
       .insert(prospects)
-      .values({ 
+      .values({
         ...insertProspect,
         userId,
       } as any)
@@ -412,7 +486,11 @@ export class DatabaseStorage implements IStorage {
     return prospect;
   }
 
-  async updateProspectStage(prospectId: number, userId: string, stage: string): Promise<Prospect | undefined> {
+  async updateProspectStage(
+    prospectId: number,
+    userId: string,
+    stage: string
+  ): Promise<Prospect | undefined> {
     const [prospect] = await db
       .update(prospects)
       .set({ stage, updatedAt: sql`now()` })
@@ -421,7 +499,11 @@ export class DatabaseStorage implements IStorage {
     return prospect || undefined;
   }
 
-  async updateProspect(id: number, userId: string, updates: Partial<InsertProspect>): Promise<Prospect | undefined> {
+  async updateProspect(
+    id: number,
+    userId: string,
+    updates: Partial<InsertProspect>
+  ): Promise<Prospect | undefined> {
     const [prospect] = await db
       .update(prospects)
       .set({ ...updates, updatedAt: sql`now()` })
@@ -431,9 +513,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProspect(id: number, userId: string): Promise<void> {
-    await db
-      .delete(prospects)
-      .where(and(eq(prospects.id, id), eq(prospects.userId, userId)));
+    await db.delete(prospects).where(and(eq(prospects.id, id), eq(prospects.userId, userId)));
   }
 
   async reorderProspects(userId: string, stage: string, orderedIds: number[]): Promise<void> {
@@ -441,11 +521,13 @@ export class DatabaseStorage implements IStorage {
       await db
         .update(prospects)
         .set({ queueOrder: i, updatedAt: sql`now()` })
-        .where(and(
-          eq(prospects.id, orderedIds[i]),
-          eq(prospects.userId, userId),
-          eq(prospects.stage, stage)
-        ));
+        .where(
+          and(
+            eq(prospects.id, orderedIds[i]),
+            eq(prospects.userId, userId),
+            eq(prospects.stage, stage)
+          )
+        );
     }
   }
 
@@ -491,7 +573,7 @@ export class DatabaseStorage implements IStorage {
       .from(prospects)
       .where(and(eq(prospects.id, insertContact.prospectId), eq(prospects.userId, userId)));
     if (!prospect) return undefined;
-    
+
     const [contact] = await db
       .insert(contacts)
       .values(insertContact as any)
@@ -499,22 +581,22 @@ export class DatabaseStorage implements IStorage {
     return contact;
   }
 
-  async updateContact(id: number, userId: string, updates: Partial<InsertContact>): Promise<Contact | undefined> {
+  async updateContact(
+    id: number,
+    userId: string,
+    updates: Partial<InsertContact>
+  ): Promise<Contact | undefined> {
     const existingContact = await this.getContact(id, userId);
     if (!existingContact) return undefined;
-    
-    const [contact] = await db
-      .update(contacts)
-      .set(updates)
-      .where(eq(contacts.id, id))
-      .returning();
+
+    const [contact] = await db.update(contacts).set(updates).where(eq(contacts.id, id)).returning();
     return contact || undefined;
   }
 
   async deleteContact(id: number, userId: string): Promise<boolean> {
     const existingContact = await this.getContact(id, userId);
     if (!existingContact) return false;
-    
+
     await db.delete(contacts).where(eq(contacts.id, id));
     return true;
   }
@@ -555,7 +637,10 @@ export class DatabaseStorage implements IStorage {
     return activity || undefined;
   }
 
-  async createActivity(insertActivity: InsertActivity, userId: string): Promise<Activity | undefined> {
+  async createActivity(
+    insertActivity: InsertActivity,
+    userId: string
+  ): Promise<Activity | undefined> {
     // SECURITY: Verify prospect belongs to user before creating activity
     if (insertActivity.prospectId) {
       const [prospect] = await db
@@ -564,7 +649,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(prospects.id, insertActivity.prospectId), eq(prospects.userId, userId)));
       if (!prospect) return undefined;
     }
-    
+
     const [activity] = await db
       .insert(activities)
       .values({ ...insertActivity, userId } as any)
@@ -572,7 +657,11 @@ export class DatabaseStorage implements IStorage {
     return activity;
   }
 
-  async updateActivity(id: number, userId: string, updates: Partial<InsertActivity>): Promise<Activity | undefined> {
+  async updateActivity(
+    id: number,
+    userId: string,
+    updates: Partial<InsertActivity>
+  ): Promise<Activity | undefined> {
     const [activity] = await db
       .update(activities)
       .set({ ...updates, updatedAt: sql`now()` })
@@ -603,13 +692,17 @@ export class DatabaseStorage implements IStorage {
     return result || undefined;
   }
 
-  async upsertDueDiligence(prospectId: number, userId: string, data: DueDiligenceData): Promise<DueDiligence | undefined> {
+  async upsertDueDiligence(
+    prospectId: number,
+    userId: string,
+    data: DueDiligenceData
+  ): Promise<DueDiligence | undefined> {
     const [prospect] = await db
       .select()
       .from(prospects)
       .where(and(eq(prospects.id, prospectId), eq(prospects.userId, userId)));
     if (!prospect) return undefined;
-    
+
     const [result] = await db
       .insert(dueDiligence)
       .values({
@@ -651,12 +744,16 @@ export class DatabaseStorage implements IStorage {
     return lender;
   }
 
-  async updateLender(id: number, userId: string, updates: Partial<InsertLender>): Promise<Lender | undefined> {
+  async updateLender(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLender>
+  ): Promise<Lender | undefined> {
     // Filter out undefined values to preserve existing data
     const cleanedUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined)
     ) as Partial<InsertLender>;
-    
+
     const [lender] = await db
       .update(lenders)
       .set({ ...cleanedUpdates, updatedAt: sql`now()` })
@@ -666,9 +763,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteLender(id: number, userId: string): Promise<void> {
-    await db
-      .delete(lenders)
-      .where(and(eq(lenders.id, id), eq(lenders.userId, userId)));
+    await db.delete(lenders).where(and(eq(lenders.id, id), eq(lenders.userId, userId)));
   }
 
   async getLenderWithProducts(id: number, userId: string): Promise<LenderWithProducts | undefined> {
@@ -677,27 +772,27 @@ export class DatabaseStorage implements IStorage {
       .from(lenders)
       .where(and(eq(lenders.id, id), eq(lenders.userId, userId)));
     if (!lender) return undefined;
-    
-    const products = await db
-      .select()
-      .from(lenderProducts)
-      .where(eq(lenderProducts.lenderId, id));
-    
+
+    const products = await db.select().from(lenderProducts).where(eq(lenderProducts.lenderId, id));
+
     return { ...lender, products };
   }
 
-  async searchLenders(userId: string, filters: {
-    search?: string;
-    lenderType?: string;
-    productType?: string;
-    minLoanAmount?: number;
-    maxLoanAmount?: number;
-    sector?: string;
-    region?: string;
-    panelStatus?: string;
-  }): Promise<Lender[]> {
+  async searchLenders(
+    userId: string,
+    filters: {
+      search?: string;
+      lenderType?: string;
+      productType?: string;
+      minLoanAmount?: number;
+      maxLoanAmount?: number;
+      sector?: string;
+      region?: string;
+      panelStatus?: string;
+    }
+  ): Promise<Lender[]> {
     const conditions = [eq(lenders.userId, userId)];
-    
+
     if (filters.search) {
       conditions.push(
         or(
@@ -707,23 +802,23 @@ export class DatabaseStorage implements IStorage {
         ) as any
       );
     }
-    
+
     if (filters.lenderType) {
       conditions.push(eq(lenders.lenderType, filters.lenderType));
     }
-    
+
     if (filters.panelStatus) {
       conditions.push(eq(lenders.panelStatus, filters.panelStatus));
     }
-    
+
     if (filters.minLoanAmount) {
       conditions.push(gte(lenders.minLoanAmount, filters.minLoanAmount));
     }
-    
+
     if (filters.maxLoanAmount) {
       conditions.push(lte(lenders.maxLoanAmount, filters.maxLoanAmount));
     }
-    
+
     return await db
       .select()
       .from(lenders)
@@ -784,13 +879,16 @@ export class DatabaseStorage implements IStorage {
     return product || undefined;
   }
 
-  async createLenderProduct(product: InsertLenderProduct, userId: string): Promise<LenderProduct | undefined> {
+  async createLenderProduct(
+    product: InsertLenderProduct,
+    userId: string
+  ): Promise<LenderProduct | undefined> {
     const [lender] = await db
       .select()
       .from(lenders)
       .where(and(eq(lenders.id, product.lenderId), eq(lenders.userId, userId)));
     if (!lender) return undefined;
-    
+
     const [created] = await db
       .insert(lenderProducts)
       .values(product as any)
@@ -798,10 +896,14 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateLenderProduct(id: number, userId: string, updates: Partial<InsertLenderProduct>): Promise<LenderProduct | undefined> {
+  async updateLenderProduct(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLenderProduct>
+  ): Promise<LenderProduct | undefined> {
     const existingProduct = await this.getLenderProduct(id, userId);
     if (!existingProduct) return undefined;
-    
+
     const [product] = await db
       .update(lenderProducts)
       .set({ ...updates, updatedAt: sql`now()` })
@@ -813,7 +915,7 @@ export class DatabaseStorage implements IStorage {
   async deleteLenderProduct(id: number, userId: string): Promise<boolean> {
     const existingProduct = await this.getLenderProduct(id, userId);
     if (!existingProduct) return false;
-    
+
     await db.delete(lenderProducts).where(eq(lenderProducts.id, id));
     return true;
   }
@@ -858,7 +960,10 @@ export class DatabaseStorage implements IStorage {
     return interaction || undefined;
   }
 
-  async createLenderInteraction(interaction: InsertLenderInteraction, userId: string): Promise<LenderInteraction | undefined> {
+  async createLenderInteraction(
+    interaction: InsertLenderInteraction,
+    userId: string
+  ): Promise<LenderInteraction | undefined> {
     if (interaction.lenderId) {
       const [lender] = await db
         .select()
@@ -866,7 +971,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(lenders.id, interaction.lenderId), eq(lenders.userId, userId)));
       if (!lender) return undefined;
     }
-    
+
     const [created] = await db
       .insert(lenderInteractions)
       .values({ ...interaction, userId } as any)
@@ -874,7 +979,11 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateLenderInteraction(id: number, userId: string, updates: Partial<InsertLenderInteraction>): Promise<LenderInteraction | undefined> {
+  async updateLenderInteraction(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLenderInteraction>
+  ): Promise<LenderInteraction | undefined> {
     const [interaction] = await db
       .update(lenderInteractions)
       .set({ ...updates, updatedAt: sql`now()` })
@@ -898,7 +1007,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(applicationSubmissions.sentAt);
   }
 
-  async getApplicationSubmission(id: number, userId: string): Promise<ApplicationSubmission | undefined> {
+  async getApplicationSubmission(
+    id: number,
+    userId: string
+  ): Promise<ApplicationSubmission | undefined> {
     const [submission] = await db
       .select()
       .from(applicationSubmissions)
@@ -906,7 +1018,10 @@ export class DatabaseStorage implements IStorage {
     return submission || undefined;
   }
 
-  async createApplicationSubmission(insertSubmission: InsertApplicationSubmission, userId: string): Promise<ApplicationSubmission> {
+  async createApplicationSubmission(
+    insertSubmission: InsertApplicationSubmission,
+    userId: string
+  ): Promise<ApplicationSubmission> {
     const [submission] = await db
       .insert(applicationSubmissions)
       .values({ ...insertSubmission, userId } as any)
@@ -914,7 +1029,11 @@ export class DatabaseStorage implements IStorage {
     return submission;
   }
 
-  async updateApplicationSubmission(id: number, userId: string, updates: Partial<InsertApplicationSubmission>): Promise<ApplicationSubmission | undefined> {
+  async updateApplicationSubmission(
+    id: number,
+    userId: string,
+    updates: Partial<InsertApplicationSubmission>
+  ): Promise<ApplicationSubmission | undefined> {
     const [submission] = await db
       .update(applicationSubmissions)
       .set({ ...updates, updatedAt: sql`now()` })
@@ -931,10 +1050,7 @@ export class DatabaseStorage implements IStorage {
 
   // Email Inboxes
   async getEmailInbox(userId: string): Promise<EmailInbox | undefined> {
-    const [inbox] = await db
-      .select()
-      .from(emailInboxes)
-      .where(eq(emailInboxes.userId, userId));
+    const [inbox] = await db.select().from(emailInboxes).where(eq(emailInboxes.userId, userId));
     return inbox || undefined;
   }
 
@@ -956,10 +1072,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEmailMessage(id: number): Promise<EmailMessage | undefined> {
-    const [message] = await db
-      .select()
-      .from(emailMessages)
-      .where(eq(emailMessages.id, id));
+    const [message] = await db.select().from(emailMessages).where(eq(emailMessages.id, id));
     return message || undefined;
   }
 
@@ -980,13 +1093,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markEmailAsRead(id: number): Promise<void> {
-    await db
-      .update(emailMessages)
-      .set({ isRead: 1 })
-      .where(eq(emailMessages.id, id));
+    await db.update(emailMessages).set({ isRead: 1 }).where(eq(emailMessages.id, id));
   }
 
-  async updateEmailMessageLink(id: number, updates: { contactId?: number | null; prospectId?: number | null }): Promise<EmailMessage | undefined> {
+  async updateEmailMessageLink(
+    id: number,
+    updates: { contactId?: number | null; prospectId?: number | null }
+  ): Promise<EmailMessage | undefined> {
     const [message] = await db
       .update(emailMessages)
       .set(updates as any)
@@ -1020,10 +1133,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
-    const [company] = await db
-      .select()
-      .from(companies)
-      .where(eq(companies.id, id));
+    const [company] = await db.select().from(companies).where(eq(companies.id, id));
     return company || undefined;
   }
 
@@ -1052,7 +1162,11 @@ export class DatabaseStorage implements IStorage {
     return newUpload;
   }
 
-  async updateLeadUpload(id: number, userId: string, updates: Partial<InsertLeadUpload>): Promise<LeadUpload | undefined> {
+  async updateLeadUpload(
+    id: number,
+    userId: string,
+    updates: Partial<InsertLeadUpload>
+  ): Promise<LeadUpload | undefined> {
     const [upload] = await db
       .update(leadUploads)
       .set(updates as any)
@@ -1062,31 +1176,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Leads
-  async listLeads(userId: string, filters?: { uploadId?: number; matchStatus?: string; search?: string }): Promise<Lead[]> {
-    let query = db
-      .select()
-      .from(leads)
-      .where(eq(leads.userId, userId))
-      .$dynamic();
+  async listLeads(
+    userId: string,
+    filters?: { uploadId?: number; matchStatus?: string; search?: string }
+  ): Promise<Lead[]> {
+    let query = db.select().from(leads).where(eq(leads.userId, userId)).$dynamic();
 
     if (filters?.uploadId) {
       query = query.where(and(eq(leads.userId, userId), eq(leads.uploadId, filters.uploadId)));
     }
     if (filters?.matchStatus) {
-      query = query.where(and(eq(leads.userId, userId), eq(leads.matchStatus, filters.matchStatus)));
+      query = query.where(
+        and(eq(leads.userId, userId), eq(leads.matchStatus, filters.matchStatus))
+      );
     }
 
     const allLeads = await query.orderBy(sql`${leads.createdAt} DESC`);
-    
+
     if (filters?.search) {
       const searchLower = filters.search.toLowerCase();
-      return allLeads.filter(lead => 
-        lead.companyName.toLowerCase().includes(searchLower) ||
-        lead.companyNumber?.toLowerCase().includes(searchLower) ||
-        lead.contactName?.toLowerCase().includes(searchLower)
+      return allLeads.filter(
+        (lead) =>
+          lead.companyName.toLowerCase().includes(searchLower) ||
+          lead.companyNumber?.toLowerCase().includes(searchLower) ||
+          lead.contactName?.toLowerCase().includes(searchLower)
       );
     }
-    
+
     return allLeads;
   }
 
@@ -1108,8 +1224,8 @@ export class DatabaseStorage implements IStorage {
 
   async createLeadsBulk(leadsData: InsertLead[], userId: string): Promise<Lead[]> {
     if (leadsData.length === 0) return [];
-    
-    const leadsWithUserId = leadsData.map(lead => ({ ...lead, userId }));
+
+    const leadsWithUserId = leadsData.map((lead) => ({ ...lead, userId }));
     const newLeads = await db
       .insert(leads)
       .values(leadsWithUserId as any)
@@ -1127,28 +1243,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteLead(id: number, userId: string): Promise<void> {
-    await db
-      .delete(leads)
-      .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+    await db.delete(leads).where(and(eq(leads.id, id), eq(leads.userId, userId)));
   }
 
   async deleteLeadsByUpload(uploadId: number, userId: string): Promise<void> {
-    await db
-      .delete(leads)
-      .where(and(eq(leads.uploadId, uploadId), eq(leads.userId, userId)));
+    await db.delete(leads).where(and(eq(leads.uploadId, uploadId), eq(leads.userId, userId)));
   }
 
   // Underwriting Submissions
-  async listUnderwritingSubmissions(filters?: { status?: string; assignedUnderwriterId?: string }): Promise<UnderwritingSubmission[]> {
+  async listUnderwritingSubmissions(filters?: {
+    status?: string;
+    assignedUnderwriterId?: string;
+  }): Promise<UnderwritingSubmission[]> {
     let query = db.select().from(underwritingSubmissions);
-    
+
     if (filters?.status) {
       query = query.where(eq(underwritingSubmissions.status, filters.status)) as any;
     }
     if (filters?.assignedUnderwriterId) {
-      query = query.where(eq(underwritingSubmissions.assignedUnderwriterId, filters.assignedUnderwriterId)) as any;
+      query = query.where(
+        eq(underwritingSubmissions.assignedUnderwriterId, filters.assignedUnderwriterId)
+      ) as any;
     }
-    
+
     return await query.orderBy(underwritingSubmissions.submittedAt);
   }
 
@@ -1160,7 +1277,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         or(
           and(
-            eq(underwritingSubmissions.status, 'submitted'),
+            eq(underwritingSubmissions.status, "submitted"),
             isNull(underwritingSubmissions.assignedUnderwriterId)
           ),
           eq(underwritingSubmissions.assignedUnderwriterId, underwriterId)
@@ -1185,7 +1302,10 @@ export class DatabaseStorage implements IStorage {
     return submission || undefined;
   }
 
-  async createUnderwritingSubmission(submission: InsertUnderwritingSubmission, brokerId: string): Promise<UnderwritingSubmission> {
+  async createUnderwritingSubmission(
+    submission: InsertUnderwritingSubmission,
+    brokerId: string
+  ): Promise<UnderwritingSubmission> {
     const [newSubmission] = await db
       .insert(underwritingSubmissions)
       .values({ ...submission, brokerId } as any)
@@ -1193,17 +1313,20 @@ export class DatabaseStorage implements IStorage {
     return newSubmission;
   }
 
-  async updateUnderwritingSubmission(id: number, updates: UpdateUnderwritingSubmission): Promise<UnderwritingSubmission | undefined> {
+  async updateUnderwritingSubmission(
+    id: number,
+    updates: UpdateUnderwritingSubmission
+  ): Promise<UnderwritingSubmission | undefined> {
     const updateData: any = { ...updates, updatedAt: new Date() };
-    
+
     // Set timestamps based on status
-    if (updates.status === 'in_review' && !updateData.claimedAt) {
+    if (updates.status === "in_review" && !updateData.claimedAt) {
       updateData.claimedAt = new Date();
     }
-    if (['approved', 'declined', 'withdrawn'].includes(updates.status || '')) {
+    if (["approved", "declined", "withdrawn"].includes(updates.status || "")) {
       updateData.decidedAt = new Date();
     }
-    
+
     const [submission] = await db
       .update(underwritingSubmissions)
       .set(updateData)
@@ -1212,25 +1335,32 @@ export class DatabaseStorage implements IStorage {
     return submission || undefined;
   }
 
-  async claimUnderwritingSubmission(id: number, underwriterId: string): Promise<UnderwritingSubmission | undefined> {
+  async claimUnderwritingSubmission(
+    id: number,
+    underwriterId: string
+  ): Promise<UnderwritingSubmission | undefined> {
     const [submission] = await db
       .update(underwritingSubmissions)
       .set({
         assignedUnderwriterId: underwriterId,
-        status: 'in_review',
+        status: "in_review",
         claimedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(underwritingSubmissions.id, id),
-        eq(underwritingSubmissions.status, 'submitted'),
-        sql`${underwritingSubmissions.assignedUnderwriterId} is null`
-      ))
+      .where(
+        and(
+          eq(underwritingSubmissions.id, id),
+          eq(underwritingSubmissions.status, "submitted"),
+          sql`${underwritingSubmissions.assignedUnderwriterId} is null`
+        )
+      )
       .returning();
     return submission || undefined;
   }
 
-  async getUnderwritingSubmissionByProspect(prospectId: number): Promise<UnderwritingSubmission | undefined> {
+  async getUnderwritingSubmissionByProspect(
+    prospectId: number
+  ): Promise<UnderwritingSubmission | undefined> {
     const [submission] = await db
       .select()
       .from(underwritingSubmissions)
@@ -1248,7 +1378,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(underwritingActivity.createdAt);
   }
 
-  async createUnderwritingActivity(activity: InsertUnderwritingActivity, userId: string): Promise<UnderwritingActivity> {
+  async createUnderwritingActivity(
+    activity: InsertUnderwritingActivity,
+    userId: string
+  ): Promise<UnderwritingActivity> {
     const [newActivity] = await db
       .insert(underwritingActivity)
       .values({ ...activity, userId } as any)
@@ -1292,23 +1425,23 @@ export class DatabaseStorage implements IStorage {
       const memberTeams = await db
         .select({ teamId: teamMembers.teamId })
         .from(teamMembers)
-        .where(and(eq(teamMembers.userId, adminUserId), eq(teamMembers.memberRole, 'admin')));
-      
-      const memberTeamIds = memberTeams.map(t => t.teamId);
-      
+        .where(and(eq(teamMembers.userId, adminUserId), eq(teamMembers.memberRole, "admin")));
+
+      const memberTeamIds = memberTeams.map((t) => t.teamId);
+
       return await db
         .select()
         .from(teams)
-        .where(
-          sql`${teams.createdBy} = ${adminUserId} OR ${teams.id} = ANY(${memberTeamIds})`
-        )
+        .where(sql`${teams.createdBy} = ${adminUserId} OR ${teams.id} = ANY(${memberTeamIds})`)
         .orderBy(teams.name);
     }
     // Super admin gets all teams
     return await db.select().from(teams).orderBy(teams.name);
   }
 
-  async getTeamWithMembers(teamId: number): Promise<(Team & { members: (TeamMember & { user: User })[] }) | undefined> {
+  async getTeamWithMembers(
+    teamId: number
+  ): Promise<(Team & { members: (TeamMember & { user: User })[] }) | undefined> {
     const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
     if (!team) return undefined;
 
@@ -1357,10 +1490,10 @@ export class DatabaseStorage implements IStorage {
       .select({ teamId: teamMembers.teamId })
       .from(teamMembers)
       .where(eq(teamMembers.userId, userId));
-    
+
     if (userTeamMemberships.length === 0) return [];
-    
-    const teamIds = userTeamMemberships.map(m => m.teamId);
+
+    const teamIds = userTeamMemberships.map((m) => m.teamId);
     return await db
       .select()
       .from(teams)
@@ -1369,18 +1502,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeamMembers(teamId: number): Promise<(TeamMember & { user: User })[]> {
-    const members = await db
-      .select()
-      .from(teamMembers)
-      .where(eq(teamMembers.teamId, teamId));
-    
+    const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId));
+
     const membersWithUsers = await Promise.all(
       members.map(async (member) => {
         const [user] = await db.select().from(users).where(eq(users.id, member.userId));
         return { ...member, user };
       })
     );
-    
+
     return membersWithUsers;
   }
 
@@ -1393,7 +1523,10 @@ export class DatabaseStorage implements IStorage {
         .where(eq(addOnProducts.isActive, 1))
         .orderBy(addOnProducts.displayOrder, addOnProducts.title);
     }
-    return await db.select().from(addOnProducts).orderBy(addOnProducts.displayOrder, addOnProducts.title);
+    return await db
+      .select()
+      .from(addOnProducts)
+      .orderBy(addOnProducts.displayOrder, addOnProducts.title);
   }
 
   async getAddOnProduct(id: number): Promise<AddOnProduct | undefined> {
@@ -1402,11 +1535,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAddOnProduct(product: InsertAddOnProduct): Promise<AddOnProduct> {
-    const [newProduct] = await db.insert(addOnProducts).values(product as any).returning();
+    const [newProduct] = await db
+      .insert(addOnProducts)
+      .values(product as any)
+      .returning();
     return newProduct;
   }
 
-  async updateAddOnProduct(id: number, updates: UpdateAddOnProduct): Promise<AddOnProduct | undefined> {
+  async updateAddOnProduct(
+    id: number,
+    updates: UpdateAddOnProduct
+  ): Promise<AddOnProduct | undefined> {
     const [product] = await db
       .update(addOnProducts)
       .set({ ...updates, updatedAt: new Date() })
@@ -1416,20 +1555,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Add-On Purchases
-  async listUserAddOnPurchases(userId: string): Promise<(AddOnPurchase & { product: AddOnProduct })[]> {
+  async listUserAddOnPurchases(
+    userId: string
+  ): Promise<(AddOnPurchase & { product: AddOnProduct })[]> {
     const purchases = await db
       .select()
       .from(addOnPurchases)
       .where(eq(addOnPurchases.userId, userId))
       .orderBy(addOnPurchases.createdAt);
-    
+
     const purchasesWithProducts = await Promise.all(
       purchases.map(async (purchase) => {
         const product = await this.getAddOnProduct(purchase.addOnProductId);
         return { ...purchase, product: product! };
       })
     );
-    
+
     return purchasesWithProducts;
   }
 
@@ -1439,16 +1580,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAddOnPurchaseByIdempotencyKey(key: string): Promise<AddOnPurchase | undefined> {
-    const [purchase] = await db.select().from(addOnPurchases).where(eq(addOnPurchases.idempotencyKey, key));
+    const [purchase] = await db
+      .select()
+      .from(addOnPurchases)
+      .where(eq(addOnPurchases.idempotencyKey, key));
     return purchase;
   }
 
   async createAddOnPurchase(purchase: InsertAddOnPurchase): Promise<AddOnPurchase> {
-    const [newPurchase] = await db.insert(addOnPurchases).values(purchase as any).returning();
+    const [newPurchase] = await db
+      .insert(addOnPurchases)
+      .values(purchase as any)
+      .returning();
     return newPurchase;
   }
 
-  async updateAddOnPurchase(id: number, updates: Partial<AddOnPurchase>): Promise<AddOnPurchase | undefined> {
+  async updateAddOnPurchase(
+    id: number,
+    updates: Partial<AddOnPurchase>
+  ): Promise<AddOnPurchase | undefined> {
     const [purchase] = await db
       .update(addOnPurchases)
       .set(updates)
@@ -1462,11 +1612,8 @@ export class DatabaseStorage implements IStorage {
     const purchases = await db
       .select()
       .from(addOnPurchases)
-      .where(and(
-        eq(addOnPurchases.userId, userId),
-        eq(addOnPurchases.status, "completed")
-      ));
-    
+      .where(and(eq(addOnPurchases.userId, userId), eq(addOnPurchases.status, "completed")));
+
     let totalCredits = 0;
     for (const purchase of purchases) {
       const product = await this.getAddOnProduct(purchase.addOnProductId);
@@ -1484,30 +1631,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async generateWebhookApiKey(userId: string): Promise<string> {
-    const { generateWebhookApiKey, hashWebhookApiKey, getApiKeySuffix } = await import('./utils/webhookKeyHash');
-    
+    const { generateWebhookApiKey, hashWebhookApiKey, getApiKeySuffix } =
+      await import("./utils/webhookKeyHash");
+
     const rawApiKey = `flwh_${generateWebhookApiKey()}`;
     const keyHash = hashWebhookApiKey(rawApiKey);
     const keySuffix = getApiKeySuffix(rawApiKey);
-    
+
     await db
       .update(users)
-      .set({ 
+      .set({
         webhookApiKeyHash: keyHash,
         webhookApiKeySuffix: keySuffix,
         webhookApiKeyCreatedAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
-    
+
     return rawApiKey;
   }
 
   async updateWebhookApiKeyLastUsed(userId: string): Promise<void> {
-    await db
-      .update(users)
-      .set({ webhookApiKeyLastUsedAt: new Date() })
-      .where(eq(users.id, userId));
+    await db.update(users).set({ webhookApiKeyLastUsedAt: new Date() }).where(eq(users.id, userId));
   }
 }
 

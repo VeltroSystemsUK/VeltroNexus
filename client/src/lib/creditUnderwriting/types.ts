@@ -1,17 +1,17 @@
 export enum LoanStatus {
-  PENDING = 'PENDING',
-  ELIGIBLE = 'ELIGIBLE',
-  INELIGIBLE = 'INELIGIBLE',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-  MANUAL_REVIEW = 'MANUAL_REVIEW'
+  PENDING = "PENDING",
+  ELIGIBLE = "ELIGIBLE",
+  INELIGIBLE = "INELIGIBLE",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  MANUAL_REVIEW = "MANUAL_REVIEW",
 }
 
 export interface PolicyQuestion {
   id: string;
   text: string;
   requiredAnswer: boolean;
-  category: 'eligibility' | 'exclusion';
+  category: "eligibility" | "exclusion";
 }
 
 export interface MonthlyMetric {
@@ -31,28 +31,28 @@ export interface TransactionFinding {
   date: string;
   description: string;
   amount: number;
-  type: 'LOAN_REPAYMENT' | 'TRANSFER' | 'ANOMALY';
+  type: "LOAN_REPAYMENT" | "TRANSFER" | "ANOMALY";
   details: string;
 }
 
 export enum AccountCategory {
-  SALES = 'Sales / Revenue',
-  OTHER_INCOME = 'Other Income',
-  COST_OF_SALES = 'Cost of Sales',
-  WAGES = 'Wages & Salaries',
-  RENT_RATES = 'Rent & Rates',
-  UTILITIES = 'Utilities',
-  MARKETING = 'Marketing & Advertising',
-  INSURANCE = 'Insurance',
-  PROFESSIONAL_FEES = 'Professional Fees',
-  BANK_FEES = 'Bank Fees & Interest',
-  VEHICLE = 'Vehicle & Travel',
-  OFFICE = 'Office Costs',
-  SUNDRY = 'Sundry / General',
-  FINANCE_COSTS = 'Loan Repayments',
-  DRAWINGS = 'Directors Drawings / Divs',
-  TAX = 'Tax / VAT / PAYE',
-  UNCATEGORIZED = 'Uncategorized'
+  SALES = "Sales / Revenue",
+  OTHER_INCOME = "Other Income",
+  COST_OF_SALES = "Cost of Sales",
+  WAGES = "Wages & Salaries",
+  RENT_RATES = "Rent & Rates",
+  UTILITIES = "Utilities",
+  MARKETING = "Marketing & Advertising",
+  INSURANCE = "Insurance",
+  PROFESSIONAL_FEES = "Professional Fees",
+  BANK_FEES = "Bank Fees & Interest",
+  VEHICLE = "Vehicle & Travel",
+  OFFICE = "Office Costs",
+  SUNDRY = "Sundry / General",
+  FINANCE_COSTS = "Loan Repayments",
+  DRAWINGS = "Directors Drawings / Divs",
+  TAX = "Tax / VAT / PAYE",
+  UNCATEGORIZED = "Uncategorized",
 }
 
 export interface ProfitAndLoss {
@@ -134,7 +134,7 @@ export interface DueDiligenceResult {
   sicCodes?: string[];
   summary: string;
   webSummary?: string;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
   flags: string[];
   sources: { title: string; uri: string }[];
   linkedCompanies: LinkedCompany[];
@@ -152,9 +152,9 @@ export interface LoanDetails {
   monthlyRepayment: number;
 }
 
-export type ThemeOption = 'teal' | 'blue' | 'violet' | 'slate';
-export type CurrencyOption = 'GBP' | 'USD' | 'EUR';
-export type LanguageOption = 'en' | 'es' | 'fr';
+export type ThemeOption = "teal" | "blue" | "violet" | "slate";
+export type CurrencyOption = "GBP" | "USD" | "EUR";
+export type LanguageOption = "en" | "es" | "fr";
 
 export interface AppSettings {
   theme: ThemeOption;
@@ -174,7 +174,7 @@ export interface AdviserSummaryData {
   sector: string;
   purpose: string;
   sections: Record<string, string>;
-  questionnaire: Record<string, 'Yes' | 'No' | 'N/A' | undefined>;
+  questionnaire: Record<string, "Yes" | "No" | "N/A" | undefined>;
 }
 
 export interface UnderwritingState {
@@ -226,9 +226,15 @@ export interface AccountsRatios {
 }
 
 export interface AccountsConcern {
-  category: 'going_concern' | 'contingent_liability' | 'related_party' | 'auditor_opinion' | 'subsequent_event' | 'other';
+  category:
+    | "going_concern"
+    | "contingent_liability"
+    | "related_party"
+    | "auditor_opinion"
+    | "subsequent_event"
+    | "other";
   description: string;
-  severity: 'low' | 'medium' | 'high';
+  severity: "low" | "medium" | "high";
   yearEnding: string;
 }
 
@@ -242,16 +248,16 @@ export interface AuditedAccountsAnalysis {
     turnoverGrowth: number[];
     profitGrowth: number[];
     netAssetGrowth: number[];
-    trend: 'improving' | 'stable' | 'declining';
+    trend: "improving" | "stable" | "declining";
     summary: string;
   };
   dscr: {
     historical: number[];
     average: number;
-    trend: 'improving' | 'stable' | 'declining';
+    trend: "improving" | "stable" | "declining";
   };
   concerns: AccountsConcern[];
   auditorOpinion: string;
   summary: string;
-  riskAssessment: 'low' | 'medium' | 'high';
+  riskAssessment: "low" | "medium" | "high";
 }

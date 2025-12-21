@@ -68,31 +68,28 @@ export default function SubmitApplicationDialog({
 
   const submitMutation = useMutation({
     mutationFn: async (data: SubmitApplicationForm) => {
-      const response = await apiRequest(
-        "/api/submissions",
-        "POST",
-        {
-          prospectId,
-          lenderId: parseInt(data.lenderId),
-          commentary: data.commentary || undefined,
-        }
-      );
+      const response = await apiRequest("/api/submissions", "POST", {
+        prospectId,
+        lenderId: parseInt(data.lenderId),
+        commentary: data.commentary || undefined,
+      });
       return response.json();
     },
     onSuccess: (result: any) => {
       let description = "The application has been submitted.";
       let variant: "default" | "destructive" = "default";
-      
+
       if (result.emailSent) {
         description = "The application has been emailed to the lender with a PDF attachment.";
       } else if (result.emailError) {
         description = `Email delivery failed: ${result.emailError}. The submission was created but please contact the lender directly.`;
         variant = "destructive";
       } else {
-        description = "The application was submitted but email delivery failed. Please contact the lender directly.";
+        description =
+          "The application was submitted but email delivery failed. Please contact the lender directly.";
         variant = "destructive";
       }
-      
+
       toast({
         title: result.emailSent ? "Application sent" : "Application submitted",
         description,
@@ -118,8 +115,8 @@ export default function SubmitApplicationDialog({
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onOpenChange={(isOpen) => {
         // Prevent closing during submission
         if (!submitMutation.isPending) {
@@ -127,8 +124,8 @@ export default function SubmitApplicationDialog({
         }
       }}
     >
-      <DialogContent 
-        className="sm:max-w-[525px]" 
+      <DialogContent
+        className="sm:max-w-[525px]"
         data-testid="dialog-submit-application"
         onPointerDownOutside={(e) => {
           // Prevent closing when clicking outside during submission
@@ -146,7 +143,8 @@ export default function SubmitApplicationDialog({
         <DialogHeader>
           <DialogTitle>Submit Application</DialogTitle>
           <DialogDescription>
-            Submit the loan application for {companyName} to a lender. This action will be logged as a task.
+            Submit the loan application for {companyName} to a lender. This action will be logged as
+            a task.
           </DialogDescription>
         </DialogHeader>
 
@@ -165,7 +163,9 @@ export default function SubmitApplicationDialog({
                   >
                     <FormControl>
                       <SelectTrigger data-testid="select-lender">
-                        <SelectValue placeholder={isLoadingLenders ? "Loading lenders..." : "Choose a lender"} />
+                        <SelectValue
+                          placeholder={isLoadingLenders ? "Loading lenders..." : "Choose a lender"}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
