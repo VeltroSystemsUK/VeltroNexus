@@ -32,6 +32,10 @@ import {
   AI_GOVERNANCE_CONFIG,
   redactSensitiveData
 } from "./utils/aiGovernance";
+import {
+  requireSubmissionReadAccess,
+  requireSubmissionWriteAccess,
+} from "./utils/underwritingAuth";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 const require = createRequire(import.meta.url);
 
@@ -2639,8 +2643,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Lender not found" });
       }
       
-      // Also get interactions
-      const interactions = await storage.listLenderInteractions(lenderId);
+      // Also get interactions (user-scoped)
+      const interactions = await storage.listLenderInteractions(lenderId, userId);
       
       res.json({ ...lender, interactions });
     } catch (error) {
@@ -3826,30 +3830,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single underwriting submission
-  app.get("/api/underwriting/submissions/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid submission ID" });
-      }
-      const submission = await storage.getUnderwritingSubmission(id);
-      
-      if (!submission) {
-        return res.status(404).json({ error: "Submission not found" });
-      }
-      
-      // Brokers can only see their own submissions
-      const user = await storage.getUser(req.user.claims.sub);
-      if (user?.role !== 'underwriter' && submission.brokerId !== req.user.claims.sub) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
+  app.get(
+    "/api/underwriting/submissions/:id",
+    isAuthenticated,
+    requireSubmissionReadAccess({ storage, allowTriage: true }),
+    async (req: any, res) => {
+      const { submission } = req.ctx;
       res.json(submission);
-    } catch (error: any) {
-      console.error("Error getting underwriting submission:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Create underwriting submission (broker submits prospect for review)
   app.post("/api/underwriting/submissions", isAuthenticated, async (req: any, res) => {
@@ -3897,22 +3886,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Claim a submission (underwriter takes ownership)
+  // Claim a submission (underwriter takes ownership) - atomic to prevent race conditions
   app.post("/api/underwriting/submissions/:id/claim", isAuthenticated, isUnderwriter, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.claims.sub;
       
-      const submission = await storage.getUnderwritingSubmission(id);
-      if (!submission) {
-        return res.status(404).json({ error: "Submission not found" });
-      }
-      
-      if (submission.status !== 'submitted') {
-        return res.status(400).json({ error: "Can only claim submissions with 'submitted' status" });
-      }
-      
+      // Atomic claim: only succeeds if status='submitted' AND assignedUnderwriterId IS NULL
       const updated = await storage.claimUnderwritingSubmission(id, userId);
+      
+      if (!updated) {
+        return res.status(409).json({ error: "Submission already claimed or not available" });
+      }
       
       // Create activity record
       await storage.createUnderwritingActivity({
@@ -3989,89 +3974,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add comment to submission
-  app.post("/api/underwriting/submissions/:id/comments", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
-      const { content } = req.body;
-      
-      if (!content) {
-        return res.status(400).json({ error: "Content is required" });
+  app.post(
+    "/api/underwriting/submissions/:id/comments",
+    isAuthenticated,
+    requireSubmissionReadAccess({ storage, allowTriage: false }),
+    async (req: any, res, next) => {
+      try {
+        const { submission, user } = req.ctx;
+        const { content } = req.body;
+        
+        if (!content) {
+          return res.status(400).json({ error: "Content is required" });
+        }
+        
+        // Determine if this is a response to a query
+        const activityType = user.role === 'broker' && submission.status === 'queried' ? 'responded' : 'comment';
+        
+        const activity = await storage.createUnderwritingActivity({
+          submissionId: submission.id,
+          activityType,
+          content,
+        }, user.id);
+        
+        // If broker responded to query, update status back to in_review
+        if (activityType === 'responded') {
+          await storage.updateUnderwritingSubmission(submission.id, { status: 'in_review' });
+        }
+        
+        res.status(201).json(activity);
+      } catch (error: any) {
+        next(error);
       }
-      
-      const submission = await storage.getUnderwritingSubmission(id);
-      if (!submission) {
-        return res.status(404).json({ error: "Submission not found" });
-      }
-      
-      // Check access
-      const user = await storage.getUser(userId);
-      if (user?.role !== 'underwriter' && submission.brokerId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      // Determine if this is a response to a query
-      const activityType = user?.role === 'broker' && submission.status === 'queried' ? 'responded' : 'comment';
-      
-      const activity = await storage.createUnderwritingActivity({
-        submissionId: id,
-        activityType,
-        content,
-      }, userId);
-      
-      // If broker responded to query, update status back to in_review
-      if (activityType === 'responded') {
-        await storage.updateUnderwritingSubmission(id, { status: 'in_review' });
-      }
-      
-      res.status(201).json(activity);
-    } catch (error: any) {
-      console.error("Error adding comment:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Get submission activities
-  app.get("/api/underwriting/submissions/:id/activities", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
-      
-      const submission = await storage.getUnderwritingSubmission(id);
-      if (!submission) {
-        return res.status(404).json({ error: "Submission not found" });
+  app.get(
+    "/api/underwriting/submissions/:id/activities",
+    isAuthenticated,
+    requireSubmissionReadAccess({ storage, allowTriage: false }),
+    async (req: any, res, next) => {
+      try {
+        const { submission } = req.ctx;
+        const activities = await storage.listUnderwritingActivities(submission.id);
+        
+        // Enrich activities with user info
+        const enrichedActivities = await Promise.all(
+          activities.map(async (activity) => {
+            const activityUser = await storage.getUser(activity.userId);
+            return {
+              ...activity,
+              user: activityUser ? {
+                firstName: activityUser.firstName,
+                lastName: activityUser.lastName,
+                email: activityUser.email,
+                role: activityUser.role,
+              } : null,
+            };
+          })
+        );
+        
+        res.json(enrichedActivities);
+      } catch (error: any) {
+        next(error);
       }
-      
-      // Check access
-      const user = await storage.getUser(userId);
-      if (user?.role !== 'underwriter' && submission.brokerId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      const activities = await storage.listUnderwritingActivities(id);
-      
-      // Enrich activities with user info
-      const enrichedActivities = await Promise.all(
-        activities.map(async (activity) => {
-          const activityUser = await storage.getUser(activity.userId);
-          return {
-            ...activity,
-            user: activityUser ? {
-              firstName: activityUser.firstName,
-              lastName: activityUser.lastName,
-              email: activityUser.email,
-              role: activityUser.role,
-            } : null,
-          };
-        })
-      );
-      
-      res.json(enrichedActivities);
-    } catch (error: any) {
-      console.error("Error getting activities:", error);
-      res.status(500).json({ error: error.message });
     }
-  });
+  );
 
   // Get underwriting submission for a specific prospect
   app.get("/api/underwriting/prospects/:prospectId/submission", isAuthenticated, async (req: any, res) => {

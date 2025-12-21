@@ -1203,7 +1203,11 @@ export class DatabaseStorage implements IStorage {
         claimedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(underwritingSubmissions.id, id))
+      .where(and(
+        eq(underwritingSubmissions.id, id),
+        eq(underwritingSubmissions.status, 'submitted'),
+        sql`${underwritingSubmissions.assignedUnderwriterId} is null`
+      ))
       .returning();
     return submission || undefined;
   }
