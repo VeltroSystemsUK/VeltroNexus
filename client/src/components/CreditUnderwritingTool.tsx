@@ -466,6 +466,16 @@ export function CreditUnderwritingTool({
       return response.json();
     },
     onSuccess: (result) => {
+      // Update local state immediately with the result
+      onSave({
+        underwriting: {
+          ...underwriting,
+          financialAnalysis: result,
+          csvFileName,
+          analysisSource: "csv",
+          analyzedAt: new Date().toISOString(),
+        },
+      });
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
       toast.success("Financial analysis complete");
     },
