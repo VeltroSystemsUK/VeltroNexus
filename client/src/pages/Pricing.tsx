@@ -322,7 +322,7 @@ export default function Pricing() {
 
   const currentPlanDetails = pricingTiers.find((p) => p.tier === selectedPlan);
   const availablePackages = selectedPlan
-    ? valuePackages[selectedPlan as keyof typeof valuePackages]
+    ? valuePackages[selectedPlan as keyof typeof valuePackages] || []
     : [];
   const selectedPackageDetails = getSelectedPackageDetails();
 
