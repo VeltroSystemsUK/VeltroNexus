@@ -56,87 +56,328 @@ export interface FinancialAnalysisResult {
 
 const DSCR_THRESHOLD = 1.25;
 
+// Red flag keywords for transaction detection
+const RED_FLAG_KEYWORDS = [
+  { pattern: /gambl|bet365|paddy\s*power|william\s*hill|ladbrokes|coral|betfair|skybet|888|casino/i, label: "Gambling activity detected" },
+  { pattern: /payday|wonga|quickquid|sunny|amigo/i, label: "Payday loan detected" },
+  { pattern: /bounced|returned|unpaid|dishon/i, label: "Returned/bounced payment" },
+  { pattern: /hmrc|vat|paye|tax/i, label: "Tax authority payment" },
+  { pattern: /loan|credit|finance.*repay/i, label: "Existing loan repayment" },
+];
+
+interface ParsedTransaction {
+  date: Date;
+  month: string; // "Jan 24" format
+  description: string;
+  income: number;
+  expense: number;
+  balance: number | null;
+}
+
+interface MonthlyAggregate {
+  month: string;
+  income: number;
+  expenses: number;
+  net: number;
+  transactionCount: number;
+  closingBalance: number;
+}
+
+interface CsvPreProcessResult {
+  monthlyBreakdown: MonthlyAggregate[];
+  totalIncome: number;
+  totalExpenses: number;
+  transactionCount: number;
+  averageMonthlyIncome: number;
+  averageMonthlyExpenses: number;
+  netDisposableIncome: number;
+  redFlagsFound: { label: string; count: number; totalAmount: number }[];
+  notableTransactions: { date: string; description: string; amount: number; type: string }[];
+  periodMonths: number;
+}
+
+function parseAmount(value: string, preserveSign = false): number {
+  if (!value || value.trim() === '') return 0;
+  // Remove currency symbols, quotes, and handle commas
+  const cleaned = value.replace(/[£$€"']/g, '').replace(/,/g, '').trim();
+  const num = parseFloat(cleaned);
+  if (isNaN(num)) return 0;
+  return preserveSign ? num : Math.abs(num);
+}
+
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr || dateStr.trim() === '') return null;
+  const cleaned = dateStr.trim();
+  
+  // Try DD/MM/YYYY format
+  const ukMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (ukMatch) {
+    const [, day, month, year] = ukMatch;
+    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? 1900 + parseInt(year) : 2000 + parseInt(year)) : parseInt(year);
+    return new Date(fullYear, parseInt(month) - 1, parseInt(day));
+  }
+  
+  // Try YYYY-MM-DD format
+  const isoMatch = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return new Date(cleaned);
+  }
+  
+  // Try other common formats
+  const parsed = new Date(cleaned);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getMonthKey(date: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getMonth()]} ${String(date.getFullYear()).slice(-2)}`;
+}
+
+export function preprocessCsvData(csvData: string): CsvPreProcessResult {
+  const lines = csvData.split(/\r?\n/).filter(line => line.trim());
+  if (lines.length < 2) {
+    return {
+      monthlyBreakdown: [],
+      totalIncome: 0,
+      totalExpenses: 0,
+      transactionCount: 0,
+      averageMonthlyIncome: 0,
+      averageMonthlyExpenses: 0,
+      netDisposableIncome: 0,
+      redFlagsFound: [],
+      notableTransactions: [],
+      periodMonths: 0,
+    };
+  }
+
+  // Parse header to identify columns - normalize by removing currency symbols and extra chars
+  const headerLine = lines[0].toLowerCase();
+  const headers = headerLine.split(',').map(h => h.trim().replace(/["'£$€()]/g, '').trim());
+  
+  // Find column indices with flexible matching for common UK bank formats
+  const dateIdx = headers.findIndex(h => h.includes('date') || h === 'posted');
+  const descIdx = headers.findIndex(h => 
+    h.includes('desc') || h.includes('details') || h.includes('narrative') || 
+    h.includes('reference') || h.includes('transaction') || h.includes('particulars')
+  );
+  // Match: "in", "paid in", "credit", "money in", "credits", "deposit", etc.
+  const inIdx = headers.findIndex(h => 
+    h === 'in' || h.includes('paid in') || h.includes('money in') || 
+    h.includes('credit') || h.includes('deposit') || h.includes('receipts')
+  );
+  // Match: "out", "paid out", "debit", "money out", "debits", "withdrawal", etc.  
+  const outIdx = headers.findIndex(h => 
+    h === 'out' || h.includes('paid out') || h.includes('money out') || 
+    h.includes('debit') || h.includes('withdrawal') || h.includes('payments')
+  );
+  const balanceIdx = headers.findIndex(h => h.includes('balance'));
+  // Match "amount" but not if it's part of in/out column names already found
+  const amountIdx = headers.findIndex((h, i) => 
+    (h === 'amount' || h.includes('value')) && i !== inIdx && i !== outIdx
+  );
+  
+  console.log(`[CSV Parser] Headers: ${headers.join(', ')}`);
+  console.log(`[CSV Parser] Found columns - date:${dateIdx}, desc:${descIdx}, in:${inIdx}, out:${outIdx}, balance:${balanceIdx}, amount:${amountIdx}`);
+
+  const transactions: ParsedTransaction[] = [];
+  const monthlyData: Map<string, MonthlyAggregate> = new Map();
+  const redFlagCounts: Map<string, { count: number; totalAmount: number }> = new Map();
+  const notableTransactions: { date: string; description: string; amount: number; type: string }[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    
+    // Parse CSV line handling quoted values
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+
+    const dateVal = dateIdx >= 0 ? values[dateIdx] : '';
+    const date = parseDate(dateVal);
+    if (!date) continue;
+
+    const description = descIdx >= 0 ? values[descIdx]?.replace(/"/g, '') || '' : '';
+    
+    let income = 0;
+    let expense = 0;
+    
+    if (inIdx >= 0 && outIdx >= 0) {
+      // Separate IN/OUT columns
+      income = parseAmount(values[inIdx]);
+      expense = parseAmount(values[outIdx]);
+    } else if (amountIdx >= 0) {
+      // Single amount column - positive is income, negative is expense
+      const amt = parseFloat(values[amountIdx]?.replace(/[£$€"',]/g, '') || '0');
+      if (amt > 0) income = amt;
+      else expense = Math.abs(amt);
+    }
+
+    // Preserve sign for balance (can be negative for overdrafts)
+    const balance = balanceIdx >= 0 ? parseAmount(values[balanceIdx], true) : null;
+    const monthKey = getMonthKey(date);
+
+    transactions.push({ date, month: monthKey, description, income, expense, balance });
+
+    // Aggregate by month
+    if (!monthlyData.has(monthKey)) {
+      monthlyData.set(monthKey, { month: monthKey, income: 0, expenses: 0, net: 0, transactionCount: 0, closingBalance: 0 });
+    }
+    const monthAgg = monthlyData.get(monthKey)!;
+    monthAgg.income += income;
+    monthAgg.expenses += expense;
+    monthAgg.net = monthAgg.income - monthAgg.expenses;
+    monthAgg.transactionCount++;
+    if (balance !== null) monthAgg.closingBalance = balance;
+
+    // Check red flags on FULL description before any truncation
+    for (const rf of RED_FLAG_KEYWORDS) {
+      if (rf.pattern.test(description)) {
+        const existing = redFlagCounts.get(rf.label) || { count: 0, totalAmount: 0 };
+        existing.count++;
+        existing.totalAmount += income + expense;
+        redFlagCounts.set(rf.label, existing);
+      }
+    }
+
+    // Track notable large transactions (>£5000) - check keywords on FULL description
+    const txAmount = income || expense;
+    const isLoanRelated = /loan|credit|finance/i.test(description);
+    const isTransfer = /transfer/i.test(description);
+    
+    if (txAmount > 5000 || isLoanRelated || isTransfer) {
+      let txType = income > 0 ? 'LARGE_CREDIT' : 'LARGE_DEBIT';
+      if (isLoanRelated) txType = 'LOAN_RELATED';
+      if (isTransfer) txType = 'TRANSFER';
+      
+      notableTransactions.push({
+        date: date.toISOString().split('T')[0],
+        description: description.substring(0, 80), // Longer truncation for display
+        amount: txAmount,
+        type: txType,
+      });
+    }
+  }
+
+  // Sort monthly breakdown chronologically
+  const monthlyBreakdown = Array.from(monthlyData.values()).sort((a, b) => {
+    const parseMonthKey = (key: string) => {
+      const [mon, yr] = key.split(' ');
+      const monthNum = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mon);
+      return parseInt('20' + yr) * 12 + monthNum;
+    };
+    return parseMonthKey(a.month) - parseMonthKey(b.month);
+  });
+
+  const totalIncome = monthlyBreakdown.reduce((sum, m) => sum + m.income, 0);
+  const totalExpenses = monthlyBreakdown.reduce((sum, m) => sum + m.expenses, 0);
+  const periodMonths = monthlyBreakdown.length || 1;
+
+  return {
+    monthlyBreakdown,
+    totalIncome,
+    totalExpenses,
+    transactionCount: transactions.length,
+    averageMonthlyIncome: totalIncome / periodMonths,
+    averageMonthlyExpenses: totalExpenses / periodMonths,
+    netDisposableIncome: (totalIncome - totalExpenses) / periodMonths,
+    redFlagsFound: Array.from(redFlagCounts.entries()).map(([label, data]) => ({ label, ...data })),
+    notableTransactions: notableTransactions.slice(0, 20), // Top 20 notable transactions
+    periodMonths,
+  };
+}
+
 export async function analyzeFinancials(
   csvData: string,
   loanAmount: number,
   monthlyRepayment: number
 ): Promise<FinancialAnalysisResult> {
-  const prompt = `You are a financial analyst specializing in commercial lending. Analyze this bank statement CSV data and provide a comprehensive financial assessment.
+  // Pre-process CSV locally for fast metrics
+  console.log("[Gemini CSV] Pre-processing CSV data locally...");
+  const preProcessed = preprocessCsvData(csvData);
+  console.log(`[Gemini CSV] Parsed ${preProcessed.transactionCount} transactions across ${preProcessed.periodMonths} months`);
 
-CRITICAL INSTRUCTIONS:
-- You MUST analyze the data provided and produce meaningful financial metrics
-- Do NOT reject data due to format inconsistencies - work with what you have
-- Different banks use different CSV formats - adapt to the format provided
-- If balance columns don't reconcile perfectly, ignore them and focus on transaction amounts
-- Treat credits/deposits/IN as income, and debits/withdrawals/OUT as expenses
-- If columns are unclear, make reasonable assumptions based on transaction descriptions and amounts
-- ALWAYS provide numeric values - never return error messages in place of numbers
+  // If we have valid pre-processed data, send condensed summary to AI for narrative
+  const condensedSummary = `
+MONTHLY CASH FLOW SUMMARY (${preProcessed.periodMonths} months):
+${preProcessed.monthlyBreakdown.map(m => `${m.month}: Income £${m.income.toFixed(2)}, Expenses £${m.expenses.toFixed(2)}, Net £${m.net.toFixed(2)}, Transactions: ${m.transactionCount}`).join('\n')}
 
-BANK STATEMENT CSV DATA:
-${csvData}
+TOTALS:
+- Total Income: £${preProcessed.totalIncome.toFixed(2)}
+- Total Expenses: £${preProcessed.totalExpenses.toFixed(2)}
+- Average Monthly Income: £${preProcessed.averageMonthlyIncome.toFixed(2)}
+- Average Monthly Expenses: £${preProcessed.averageMonthlyExpenses.toFixed(2)}
+- Net Disposable Income (Monthly): £${preProcessed.netDisposableIncome.toFixed(2)}
+- Transaction Count: ${preProcessed.transactionCount}
+
+${preProcessed.redFlagsFound.length > 0 ? `RED FLAGS DETECTED:\n${preProcessed.redFlagsFound.map(rf => `- ${rf.label}: ${rf.count} occurrences, total £${rf.totalAmount.toFixed(2)}`).join('\n')}` : 'NO RED FLAGS DETECTED'}
+
+${preProcessed.notableTransactions.length > 0 ? `NOTABLE LARGE TRANSACTIONS:\n${preProcessed.notableTransactions.map(t => `- ${t.date}: ${t.description} - £${t.amount.toFixed(2)} (${t.type})`).join('\n')}` : ''}
+`;
+
+  // Calculate DSCR from pre-processed data
+  const calculatedDscr = monthlyRepayment > 0 ? preProcessed.netDisposableIncome / monthlyRepayment : 0;
+  
+  // Determine risk score based on DSCR
+  let riskScore: string;
+  if (calculatedDscr > 2.0) riskScore = 'A';
+  else if (calculatedDscr > 1.5) riskScore = 'B';
+  else if (calculatedDscr > 1.25) riskScore = 'C';
+  else if (calculatedDscr > 1.0) riskScore = 'D';
+  else riskScore = 'E';
+
+  // Build red flags from pre-processed data
+  const redFlags = preProcessed.redFlagsFound.map(rf => ({
+    label: `${rf.label} (${rf.count} occurrences, £${rf.totalAmount.toFixed(2)})`,
+    isActive: true,
+  }));
+
+  // Build preliminary findings from notable transactions using pre-categorized types
+  const preliminaryFindings = {
+    loans: preProcessed.notableTransactions
+      .filter(t => t.type === 'LOAN_RELATED')
+      .map(t => ({ date: t.date, description: t.description, amount: t.amount, type: 'LOAN_REPAYMENT', details: '' })),
+    transfers: preProcessed.notableTransactions
+      .filter(t => t.type === 'TRANSFER')
+      .map(t => ({ date: t.date, description: t.description, amount: t.amount, type: 'TRANSFER', details: '' })),
+    anomalies: preProcessed.notableTransactions
+      .filter(t => t.amount > 10000 && t.type !== 'LOAN_RELATED' && t.type !== 'TRANSFER')
+      .map(t => ({ date: t.date, description: t.description, amount: t.amount, type: 'LARGE_TRANSACTION', details: '' })),
+  };
+
+  // Now get AI to provide just the narrative summary (much faster with condensed data)
+  const prompt = `You are a financial analyst. Based on this pre-processed bank statement summary, provide a brief executive summary.
+
+${condensedSummary}
 
 LOAN DETAILS:
 - Requested Amount: £${loanAmount.toLocaleString()}
 - Monthly Repayment: £${monthlyRepayment.toLocaleString()}
-- DSCR Threshold: ${DSCR_THRESHOLD}
+- DSCR: ${calculatedDscr.toFixed(2)}
+- Risk Score: ${riskScore}
 
-ANALYSIS REQUIREMENTS:
-1. Parse all transactions - identify credits (income) vs debits (expenses) from amount signs, column headers, or descriptions
-2. Calculate monthly cash flow metrics based on actual transaction amounts
-3. Identify any red flags (gambling transactions, high-risk activity, irregular patterns, bounced payments)
-4. Calculate DSCR = Net Disposable Income / Monthly Repayment (use absolute values)
-5. Identify existing loan repayments, large inter-account transfers, and unusual transactions
-6. Generate a P&L summary from the transaction categories
-7. Assess overall credit risk: A=Excellent (DSCR>2.0), B=Good (DSCR>1.5), C=Acceptable (DSCR>1.25), D=Marginal (DSCR>1.0), E=Decline (DSCR<1.0)
+Write a 2-3 sentence executive summary of the financial health and lending risk. Focus on cash flow stability, any concerns, and overall recommendation.
+Return ONLY the summary text, no JSON or formatting.`;
 
-Return your analysis as valid JSON with this exact structure:
-{
-  "averageMonthlyRevenue": number,
-  "averageMonthlyExpenses": number,
-  "netDisposableIncome": number,
-  "dscr": number,
-  "riskScore": "A" | "B" | "C" | "D" | "E",
-  "summary": "Brief executive summary of financial health based on actual transactions analyzed",
-  "monthlyBreakdown": [
-    { "month": "Jan 24", "income": number, "expenses": number, "net": number, "closingBalance": number }
-  ],
-  "transactionCount": number,
-  "profitAndLoss": {
-    "turnover": number,
-    "costOfSales": number,
-    "grossProfit": number,
-    "expenses": { "category": amount },
-    "totalExpenses": number,
-    "netProfit": number,
-    "periodMonths": number
-  },
-  "excludedTransferValue": number,
-  "excludedTransferCount": number,
-  "redFlags": [
-    { "label": "Description of specific concern found", "isActive": true }
-  ],
-  "preliminaryFindings": {
-    "loans": [{ "date": "YYYY-MM-DD", "description": "...", "amount": number, "type": "LOAN_REPAYMENT", "details": "..." }],
-    "transfers": [{ "date": "YYYY-MM-DD", "description": "...", "amount": number, "type": "TRANSFER", "details": "..." }],
-    "anomalies": [{ "date": "YYYY-MM-DD", "description": "...", "amount": number, "type": "ANOMALY", "details": "..." }]
-  }
-}
-
-IMPORTANT: 
-- Return ONLY valid JSON, no additional text or markdown formatting
-- Ensure all arrays and objects are properly closed
-- All numeric fields must contain actual numbers (not strings or error messages)
-- Analyze the transactions you can identify even if some data is ambiguous`;
-
-  const maxRetries = 3;
-  let lastError: Error | null = null;
-  const timeoutMs = 120000; // 2 minute timeout
+  const maxRetries = 2;
+  let summary = `Based on ${preProcessed.periodMonths} months of bank statements with ${preProcessed.transactionCount} transactions, the average monthly income is £${preProcessed.averageMonthlyIncome.toFixed(2)} with expenses of £${preProcessed.averageMonthlyExpenses.toFixed(2)}, resulting in a DSCR of ${calculatedDscr.toFixed(2)}.`;
+  const timeoutMs = 30000; // 30 second timeout for summary only
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`[Gemini CSV] Attempt ${attempt}/${maxRetries} - sending ${csvData.length} bytes to Gemini...`);
+      console.log(`[Gemini CSV] Getting AI summary (attempt ${attempt}/${maxRetries})...`);
       
-      // Add timeout wrapper
       const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error(`Gemini API timeout after ${timeoutMs/1000}s`)), timeoutMs)
       );
@@ -149,64 +390,51 @@ IMPORTANT:
         timeoutPromise
       ]);
 
-      console.log(`[Gemini CSV] Response received, extracting text...`);
-      const text = response.text || "";
-      console.log(`[Gemini CSV] Response text length: ${text.length}`);
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error(`[Gemini CSV] No JSON found in response. Response preview: ${text.substring(0, 500)}`);
-        throw new Error("Failed to extract JSON from AI response");
+      const text = response.text?.trim() || "";
+      if (text.length > 20) {
+        summary = text;
+        console.log(`[Gemini CSV] Got AI summary (${summary.length} chars)`);
       }
-
-      let jsonStr = jsonMatch[0];
-
-      // Try to repair truncated JSON by balancing brackets
-      jsonStr = repairJson(jsonStr);
-
-      const result = JSON.parse(jsonStr) as FinancialAnalysisResult;
-
-      // Ensure required fields exist with defaults
-      result.averageMonthlyRevenue = result.averageMonthlyRevenue || 0;
-      result.averageMonthlyExpenses = result.averageMonthlyExpenses || 0;
-      result.netDisposableIncome = result.netDisposableIncome || 0;
-      result.monthlyBreakdown = result.monthlyBreakdown || [];
-      result.transactionCount = result.transactionCount || 0;
-      result.redFlags = result.redFlags || [];
-      result.preliminaryFindings = result.preliminaryFindings || {
-        loans: [],
-        transfers: [],
-        anomalies: [],
-      };
-      result.profitAndLoss = result.profitAndLoss || {
-        turnover: 0,
-        costOfSales: 0,
-        grossProfit: 0,
-        expenses: {},
-        totalExpenses: 0,
-        netProfit: 0,
-        periodMonths: 0,
-      };
-
-      if (monthlyRepayment > 0) {
-        result.dscr = result.netDisposableIncome / monthlyRepayment;
-      }
-
-      console.log(`[Gemini CSV] Successfully parsed financial analysis`);
-      return result;
+      break;
     } catch (error) {
-      console.error(`[Gemini CSV] Attempt ${attempt}/${maxRetries} error:`, error);
-      lastError = error instanceof Error ? error : new Error(String(error));
-
-      if (attempt < maxRetries) {
-        console.log(`[Gemini CSV] Retrying in ${attempt} second(s)...`);
-        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
-      }
+      console.error(`[Gemini CSV] Summary attempt ${attempt}/${maxRetries} error:`, error);
+      // Continue with default summary if AI fails
     }
   }
 
-  console.error("[Gemini CSV] All attempts failed:", lastError?.message);
-  throw new Error("Failed to analyze financial data after multiple attempts");
+  // Build result using pre-processed data (instant) + AI summary
+  const result: FinancialAnalysisResult = {
+    averageMonthlyRevenue: preProcessed.averageMonthlyIncome,
+    averageMonthlyExpenses: preProcessed.averageMonthlyExpenses,
+    netDisposableIncome: preProcessed.netDisposableIncome,
+    dscr: calculatedDscr,
+    riskScore,
+    summary,
+    monthlyBreakdown: preProcessed.monthlyBreakdown.map(m => ({
+      month: m.month,
+      income: m.income,
+      expenses: m.expenses,
+      net: m.net,
+      closingBalance: m.closingBalance,
+    })),
+    transactionCount: preProcessed.transactionCount,
+    profitAndLoss: {
+      turnover: preProcessed.totalIncome,
+      costOfSales: 0,
+      grossProfit: preProcessed.totalIncome,
+      expenses: {},
+      totalExpenses: preProcessed.totalExpenses,
+      netProfit: preProcessed.totalIncome - preProcessed.totalExpenses,
+      periodMonths: preProcessed.periodMonths,
+    },
+    excludedTransferValue: 0,
+    excludedTransferCount: 0,
+    redFlags,
+    preliminaryFindings,
+  };
+
+  console.log(`[Gemini CSV] Analysis complete - DSCR: ${calculatedDscr.toFixed(2)}, Risk: ${riskScore}`);
+  return result;
 }
 
 export async function analyzeFinancialsFromPdf(
