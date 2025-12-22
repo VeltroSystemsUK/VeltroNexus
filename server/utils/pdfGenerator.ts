@@ -105,48 +105,37 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     dueDiligence
   );
 
-  // Content sections - Condensed layout (sections flow naturally with page breaks only when needed)
+  // Content sections - Standard layout with page tracking
   const sections = pdfLayoutPreferences?.sections || DEFAULT_SECTIONS;
-
-  // Start first content page
-  doc.addPage();
-  pageNumber++;
-  let currentY = MARGIN;
-
-  // Helper function to ensure space or add new page
-  const ensureSpace = (neededHeight: number): number => {
-    if (currentY + neededHeight > PAGE_HEIGHT - MARGIN - 40) {
-      doc.addPage();
-      pageNumber++;
-      return MARGIN;
-    }
-    return currentY;
-  };
 
   sections.forEach((section) => {
     if (!section.enabled) return;
 
     switch (section.id) {
       case "companyInfo":
-        currentY = ensureSpace(250);
-        currentY = renderCompanyInfoCompact(doc, prospect, currentY);
+        doc.addPage();
+        pageNumber++;
+        renderCompanyInfo(doc, prospect);
         break;
       case "officers":
         if (companiesHouseData?.officers?.items?.length > 0) {
-          currentY = ensureSpace(150);
-          currentY = renderOfficersCompact(doc, companiesHouseData!.officers, currentY);
+          doc.addPage();
+          pageNumber++;
+          renderOfficers(doc, companiesHouseData!.officers);
         }
         break;
       case "psc":
         if (companiesHouseData?.psc?.items?.length > 0) {
-          currentY = ensureSpace(150);
-          currentY = renderPSCCompact(doc, companiesHouseData!.psc, currentY);
+          doc.addPage();
+          pageNumber++;
+          renderPSC(doc, companiesHouseData!.psc);
         }
         break;
       case "charges":
         if (companiesHouseData?.charges?.items?.length > 0) {
-          currentY = ensureSpace(120);
-          currentY = renderChargesCompact(doc, companiesHouseData!.charges, currentY);
+          doc.addPage();
+          pageNumber++;
+          renderCharges(doc, companiesHouseData!.charges);
         }
         break;
       case "savedAssociations":
@@ -155,43 +144,50 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
           Array.isArray(prospect.savedAssociations) &&
           prospect.savedAssociations.length > 0
         ) {
-          currentY = ensureSpace(120);
-          currentY = renderSavedAssociationsCompact(doc, prospect.savedAssociations as any[], currentY);
+          doc.addPage();
+          pageNumber++;
+          renderSavedAssociations(doc, prospect.savedAssociations as any[]);
         }
         break;
       case "loanDetails":
-        currentY = ensureSpace(180);
-        currentY = renderLoanDetailsCompact(doc, prospect, currentY);
+        doc.addPage();
+        pageNumber++;
+        renderLoanDetails(doc, prospect);
         break;
       case "security": {
         const hasCollateral = checkHasCollateral(prospect);
         if (hasCollateral) {
-          currentY = ensureSpace(150);
-          currentY = renderSecurityCompact(doc, prospect, currentY);
+          doc.addPage();
+          pageNumber++;
+          renderSecurity(doc, prospect);
         }
         break;
       }
       case "notes":
         if (prospect.loanRequirementNotes || prospect.notes) {
-          currentY = ensureSpace(120);
-          currentY = renderNotesCompact(doc, prospect, currentY);
+          doc.addPage();
+          pageNumber++;
+          renderNotes(doc, prospect);
         }
         break;
       case "contacts":
         if (contacts.length > 0) {
-          currentY = ensureSpace(150);
-          currentY = renderContactsCompact(doc, contacts, currentY);
+          doc.addPage();
+          pageNumber++;
+          renderContacts(doc, contacts);
         }
         break;
       case "activities":
         if (activities.length > 0) {
-          currentY = ensureSpace(150);
-          currentY = renderActivitiesCompact(doc, activities, currentY);
+          doc.addPage();
+          pageNumber++;
+          renderActivities(doc, activities);
         }
         break;
       case "dueDiligence":
         if (dueDiligence?.data) {
           const dd = dueDiligence.data as any;
+          // Only add page if there's substantive due diligence content
           const hasSubstantiveContent =
             dd.checklist ||
             dd.loanCalculator ||
@@ -200,35 +196,33 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
             dd.financialRatios ||
             dd.characterAssessment;
           if (hasSubstantiveContent) {
-            // Due diligence is larger, start fresh page
             doc.addPage();
             pageNumber++;
             renderDueDiligence(doc, dueDiligence);
-            currentY = MARGIN;
           }
         }
         break;
       case "campari":
         if (dueDiligence?.data) {
           const ddData = dueDiligence.data as any;
+          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
           const adviserSummary = ddData.underwriting?.adviserSummary || ddData.creditUnderwriting?.adviserSummary;
           if (adviserSummary) {
             doc.addPage();
             pageNumber++;
             renderCampariSection(doc, adviserSummary);
-            currentY = MARGIN;
           }
         }
         break;
       case "swotAnalysis":
         if (dueDiligence?.data) {
           const ddData = dueDiligence.data as any;
+          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
           const swotAnalysis = ddData.underwriting?.swotAnalysis || ddData.creditUnderwriting?.swotAnalysis;
           if (swotAnalysis) {
             doc.addPage();
             pageNumber++;
             renderSwotSection(doc, swotAnalysis);
-            currentY = MARGIN;
           }
         }
         break;
@@ -698,9 +692,12 @@ function renderTableOfContents(
       case "activities":
         shouldInclude = activities.length > 0;
         break;
-      case "dueDiligence":
-        shouldInclude = !!dueDiligence?.data;
+      case "dueDiligence": {
+        const ddData = dueDiligence?.data as any;
+        const hasSubstantiveContent = ddData?.checklist || ddData?.loanCalculator || ddData?.dscrCalculator || ddData?.affordabilityEstimator || ddData?.financialRatios || ddData?.characterAssessment;
+        shouldInclude = !!hasSubstantiveContent;
         break;
+      }
       case "campari": {
         const ddDataCampari = dueDiligence?.data as any;
         shouldInclude = !!(ddDataCampari?.underwriting?.adviserSummary || ddDataCampari?.creditUnderwriting?.adviserSummary);
@@ -2564,6 +2561,8 @@ function renderCompactSectionHeader(doc: typeof PDFDocument.prototype, title: st
   doc.rect(MARGIN, y, CONTENT_WIDTH, 24).fill(COLORS.primary);
   doc.fontSize(11).fillColor(COLORS.white).font("Helvetica-Bold");
   doc.text(title, MARGIN + 10, y + 6);
+  // Reset to default text color for content
+  doc.fillColor(COLORS.text).font("Helvetica");
   return y + 30;
 }
 
