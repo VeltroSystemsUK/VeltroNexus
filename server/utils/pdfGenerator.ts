@@ -105,37 +105,48 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     dueDiligence
   );
 
-  // Content sections
+  // Content sections - Condensed layout (sections flow naturally with page breaks only when needed)
   const sections = pdfLayoutPreferences?.sections || DEFAULT_SECTIONS;
+
+  // Start first content page
+  doc.addPage();
+  pageNumber++;
+  let currentY = MARGIN;
+
+  // Helper function to ensure space or add new page
+  const ensureSpace = (neededHeight: number): number => {
+    if (currentY + neededHeight > PAGE_HEIGHT - MARGIN - 40) {
+      doc.addPage();
+      pageNumber++;
+      return MARGIN;
+    }
+    return currentY;
+  };
 
   sections.forEach((section) => {
     if (!section.enabled) return;
 
     switch (section.id) {
       case "companyInfo":
-        doc.addPage();
-        pageNumber++;
-        renderCompanyInfo(doc, prospect);
+        currentY = ensureSpace(250);
+        currentY = renderCompanyInfoCompact(doc, prospect, currentY);
         break;
       case "officers":
         if (companiesHouseData?.officers?.items?.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderOfficers(doc, companiesHouseData!.officers);
+          currentY = ensureSpace(150);
+          currentY = renderOfficersCompact(doc, companiesHouseData!.officers, currentY);
         }
         break;
       case "psc":
         if (companiesHouseData?.psc?.items?.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderPSC(doc, companiesHouseData!.psc);
+          currentY = ensureSpace(150);
+          currentY = renderPSCCompact(doc, companiesHouseData!.psc, currentY);
         }
         break;
       case "charges":
         if (companiesHouseData?.charges?.items?.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderCharges(doc, companiesHouseData!.charges);
+          currentY = ensureSpace(120);
+          currentY = renderChargesCompact(doc, companiesHouseData!.charges, currentY);
         }
         break;
       case "savedAssociations":
@@ -144,50 +155,43 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
           Array.isArray(prospect.savedAssociations) &&
           prospect.savedAssociations.length > 0
         ) {
-          doc.addPage();
-          pageNumber++;
-          renderSavedAssociations(doc, prospect.savedAssociations as any[]);
+          currentY = ensureSpace(120);
+          currentY = renderSavedAssociationsCompact(doc, prospect.savedAssociations as any[], currentY);
         }
         break;
       case "loanDetails":
-        doc.addPage();
-        pageNumber++;
-        renderLoanDetails(doc, prospect);
+        currentY = ensureSpace(180);
+        currentY = renderLoanDetailsCompact(doc, prospect, currentY);
         break;
       case "security": {
         const hasCollateral = checkHasCollateral(prospect);
         if (hasCollateral) {
-          doc.addPage();
-          pageNumber++;
-          renderSecurity(doc, prospect);
+          currentY = ensureSpace(150);
+          currentY = renderSecurityCompact(doc, prospect, currentY);
         }
         break;
       }
       case "notes":
         if (prospect.loanRequirementNotes || prospect.notes) {
-          doc.addPage();
-          pageNumber++;
-          renderNotes(doc, prospect);
+          currentY = ensureSpace(120);
+          currentY = renderNotesCompact(doc, prospect, currentY);
         }
         break;
       case "contacts":
         if (contacts.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderContacts(doc, contacts);
+          currentY = ensureSpace(150);
+          currentY = renderContactsCompact(doc, contacts, currentY);
         }
         break;
       case "activities":
         if (activities.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderActivities(doc, activities);
+          currentY = ensureSpace(150);
+          currentY = renderActivitiesCompact(doc, activities, currentY);
         }
         break;
       case "dueDiligence":
         if (dueDiligence?.data) {
           const dd = dueDiligence.data as any;
-          // Only add page if there's substantive due diligence content (not just creditUnderwriting which has its own sections)
           const hasSubstantiveContent =
             dd.checklist ||
             dd.loanCalculator ||
@@ -196,33 +200,35 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
             dd.financialRatios ||
             dd.characterAssessment;
           if (hasSubstantiveContent) {
+            // Due diligence is larger, start fresh page
             doc.addPage();
             pageNumber++;
             renderDueDiligence(doc, dueDiligence);
+            currentY = MARGIN;
           }
         }
         break;
       case "campari":
         if (dueDiligence?.data) {
           const ddData = dueDiligence.data as any;
-          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
           const adviserSummary = ddData.underwriting?.adviserSummary || ddData.creditUnderwriting?.adviserSummary;
           if (adviserSummary) {
             doc.addPage();
             pageNumber++;
             renderCampariSection(doc, adviserSummary);
+            currentY = MARGIN;
           }
         }
         break;
       case "swotAnalysis":
         if (dueDiligence?.data) {
           const ddData = dueDiligence.data as any;
-          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
           const swotAnalysis = ddData.underwriting?.swotAnalysis || ddData.creditUnderwriting?.swotAnalysis;
           if (swotAnalysis) {
             doc.addPage();
             pageNumber++;
             renderSwotSection(doc, swotAnalysis);
+            currentY = MARGIN;
           }
         }
         break;
@@ -2547,6 +2553,280 @@ function renderPageFooter(
 
   // Page number
   doc.text(`Page ${currentPage} of ${totalPages}`, PAGE_WIDTH - MARGIN - 50, footerY + 10);
+}
+
+// ==========================================
+// COMPACT RENDERING FUNCTIONS
+// These render sections inline without full-page headers
+// ==========================================
+
+function renderCompactSectionHeader(doc: typeof PDFDocument.prototype, title: string, y: number): number {
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 24).fill(COLORS.primary);
+  doc.fontSize(11).fillColor(COLORS.white).font("Helvetica-Bold");
+  doc.text(title, MARGIN + 10, y + 6);
+  return y + 30;
+}
+
+function renderCompanyInfoCompact(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany, startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Company Information", startY);
+
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 130).fillAndStroke(COLORS.white, COLORS.border);
+
+  // Company name
+  doc.fontSize(14).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(prospect.company.companyName, MARGIN + 15, y + 10);
+
+  // Details in two columns
+  const col1X = MARGIN + 15;
+  const col2X = MARGIN + CONTENT_WIDTH / 2;
+  let detailY = y + 35;
+
+  renderDetailRow(doc, col1X, detailY, "Company Number", prospect.company.companyNumber || "N/A");
+  renderDetailRow(doc, col2X, detailY, "Status", prospect.company.companyStatus ? capitalizeStage(prospect.company.companyStatus) : "N/A");
+  detailY += 28;
+
+  renderDetailRow(doc, col1X, detailY, "Type", prospect.company.companyType || "N/A");
+  renderDetailRow(doc, col2X, detailY, "Incorporated", prospect.company.incorporationDate || "N/A");
+  detailY += 28;
+
+  if (prospect.company.registeredAddress) {
+    renderDetailRow(doc, col1X, detailY, "Address", prospect.company.registeredAddress, CONTENT_WIDTH - 30);
+  }
+
+  return y + 145;
+}
+
+function renderOfficersCompact(doc: typeof PDFDocument.prototype, officers: any, startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Officers", startY);
+
+  const activeOfficers = officers.items.filter((o: any) => !o.resigned_on).slice(0, 5);
+
+  if (activeOfficers.length > 0) {
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(`Active Officers (${officers.items.filter((o: any) => !o.resigned_on).length})`, MARGIN, y);
+    y += 16;
+
+    activeOfficers.forEach((officer: any) => {
+      const name = officer.name || "Unknown";
+      const role = officer.officer_role?.replace(/-/g, " ") || "Officer";
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+      doc.text(`${name} - ${role}`, MARGIN + 10, y);
+      y += 14;
+    });
+
+    if (officers.items.filter((o: any) => !o.resigned_on).length > 5) {
+      doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+      doc.text(`...and ${officers.items.filter((o: any) => !o.resigned_on).length - 5} more`, MARGIN + 10, y);
+      y += 12;
+    }
+  }
+
+  return y + 10;
+}
+
+function renderPSCCompact(doc: typeof PDFDocument.prototype, psc: any, startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Persons with Significant Control", startY);
+
+  const activePsc = psc.items.filter((p: any) => !p.ceased_on).slice(0, 4);
+
+  if (activePsc.length > 0) {
+    activePsc.forEach((person: any) => {
+      const name = person.name || person.name_elements?.forename || "Unknown";
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+      doc.text(`${name}`, MARGIN + 10, y);
+      y += 14;
+    });
+
+    if (psc.items.filter((p: any) => !p.ceased_on).length > 4) {
+      doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+      doc.text(`...and ${psc.items.filter((p: any) => !p.ceased_on).length - 4} more`, MARGIN + 10, y);
+      y += 12;
+    }
+  }
+
+  return y + 10;
+}
+
+function renderChargesCompact(doc: typeof PDFDocument.prototype, charges: any, startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Charges", startY);
+
+  const outstanding = charges.items.filter((c: any) => c.status === "outstanding" || !c.satisfied_on).length;
+  const satisfied = charges.items.filter((c: any) => c.status === "satisfied" || c.satisfied_on).length;
+
+  doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+  doc.text(`Outstanding: ${outstanding} | Satisfied: ${satisfied}`, MARGIN + 10, y);
+  y += 16;
+
+  // Show first 3 outstanding charges
+  const outstandingCharges = charges.items.filter((c: any) => c.status === "outstanding" || !c.satisfied_on).slice(0, 3);
+  outstandingCharges.forEach((charge: any) => {
+    const holder = charge.persons_entitled?.[0]?.name || "Charge holder unknown";
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(`${holder}`, MARGIN + 15, y);
+    y += 12;
+  });
+
+  return y + 10;
+}
+
+function renderSavedAssociationsCompact(doc: typeof PDFDocument.prototype, associations: any[], startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Saved Associations", startY);
+
+  associations.slice(0, 5).forEach((assoc: any) => {
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+    doc.text(`${assoc.companyName || assoc.company_name} (${assoc.companyNumber || assoc.company_number})`, MARGIN + 10, y);
+    y += 14;
+  });
+
+  if (associations.length > 5) {
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(`...and ${associations.length - 5} more`, MARGIN + 10, y);
+    y += 12;
+  }
+
+  return y + 10;
+}
+
+function renderLoanDetailsCompact(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany, startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Loan Details", startY);
+
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+
+  const col1X = MARGIN + 15;
+  const col2X = MARGIN + CONTENT_WIDTH / 3;
+  const col3X = MARGIN + (CONTENT_WIDTH / 3) * 2;
+  let detailY = y + 15;
+
+  // Amount
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Loan Amount", col1X, detailY);
+  doc.fontSize(14).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(prospect.loanAmount ? formatCurrency(prospect.loanAmount * 100) : "N/A", col1X, detailY + 12);
+
+  // Term
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Term", col2X, detailY);
+  doc.fontSize(14).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.term ? `${prospect.term} months` : "N/A", col2X, detailY + 12);
+
+  // Rate
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Interest Rate", col3X, detailY);
+  doc.fontSize(14).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.interestRate ? `${prospect.interestRate}%` : "N/A", col3X, detailY + 12);
+
+  detailY += 45;
+
+  // Stage and Priority
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Stage", col1X, detailY);
+  doc.fontSize(10).fillColor(getStageColor(prospect.stage)).font("Helvetica-Bold");
+  doc.text(capitalizeStage(prospect.stage), col1X, detailY + 12);
+
+  if (prospect.priority) {
+    doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Priority", col2X, detailY);
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(prospect.priority.toUpperCase(), col2X, detailY + 12);
+  }
+
+  if (prospect.referralSource) {
+    doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Referral Source", col3X, detailY);
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(prospect.referralSource, col3X, detailY + 12);
+  }
+
+  return y + 115;
+}
+
+function renderSecurityCompact(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany, startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Security & Collateral", startY);
+
+  const totalSecurity = calculateTotalSecurity(prospect);
+  const securityTypes = getSecurityTypes(prospect);
+
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Total Security", MARGIN + 15, y + 12);
+  doc.fontSize(16).fillColor(COLORS.success).font("Helvetica-Bold");
+  doc.text(formatCurrency(totalSecurity * 100), MARGIN + 15, y + 25);
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Types: " + securityTypes.join(", "), MARGIN + 15, y + 50, { width: CONTENT_WIDTH - 30 });
+
+  return y + 85;
+}
+
+function renderNotesCompact(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany, startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Notes", startY);
+
+  if (prospect.loanRequirementNotes) {
+    doc.fontSize(9).fillColor(COLORS.secondary).font("Helvetica-Bold");
+    doc.text("Loan Requirements:", MARGIN, y);
+    y += 14;
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+    doc.text(truncateText(prospect.loanRequirementNotes, 300), MARGIN + 10, y, { width: CONTENT_WIDTH - 20 });
+    y += Math.min(60, Math.ceil(prospect.loanRequirementNotes.length / 80) * 12);
+  }
+
+  if (prospect.notes) {
+    y += 10;
+    doc.fontSize(9).fillColor(COLORS.secondary).font("Helvetica-Bold");
+    doc.text("General Notes:", MARGIN, y);
+    y += 14;
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+    doc.text(truncateText(prospect.notes, 300), MARGIN + 10, y, { width: CONTENT_WIDTH - 20 });
+    y += Math.min(60, Math.ceil(prospect.notes.length / 80) * 12);
+  }
+
+  return y + 15;
+}
+
+function renderContactsCompact(doc: typeof PDFDocument.prototype, contacts: Contact[], startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Key Contacts", startY);
+
+  contacts.slice(0, 5).forEach((contact) => {
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(contact.name, MARGIN + 10, y);
+    doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+    const details = [contact.role, contact.email, contact.phone].filter(Boolean).join(" | ");
+    doc.text(details, MARGIN + 10, y + 12, { width: CONTENT_WIDTH - 20 });
+    y += 28;
+  });
+
+  if (contacts.length > 5) {
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(`...and ${contacts.length - 5} more contacts`, MARGIN + 10, y);
+    y += 12;
+  }
+
+  return y + 10;
+}
+
+function renderActivitiesCompact(doc: typeof PDFDocument.prototype, activities: Activity[], startY: number): number {
+  let y = renderCompactSectionHeader(doc, "Activities & Tasks", startY);
+
+  const recentActivities = activities.slice(0, 5);
+
+  recentActivities.forEach((activity) => {
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(truncateText(activity.title, 60), MARGIN + 10, y);
+
+    const typeLabel = activity.activityType === "task" ? "Task" : activity.activityType === "call" ? "Call" : "Meeting";
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(`${typeLabel} | ${activity.completed ? "Completed" : "Pending"}`, MARGIN + CONTENT_WIDTH - 100, y);
+    y += 16;
+  });
+
+  if (activities.length > 5) {
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(`...and ${activities.length - 5} more activities`, MARGIN + 10, y);
+    y += 12;
+  }
+
+  return y + 10;
 }
 
 // Helper functions
