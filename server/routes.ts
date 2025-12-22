@@ -2083,10 +2083,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Prospect not found" });
         }
 
+        // Limit CSV to 500 rows to speed up AI processing (covers ~6 months of typical business transactions)
+        const { minimizeCsvData } = await import("./utils/aiGovernance");
+        const csvLines = csvData.split('\n');
+        let processedCsv = csvData;
+        if (csvLines.length > 501) { // header + 500 rows
+          const minimized = minimizeCsvData(csvData, { maxRowCount: 500 });
+          processedCsv = minimized.minimized;
+          console.log(`[CSV Analysis] Reduced CSV from ${csvLines.length} to ${500 + 1} rows for faster AI processing`);
+        }
+
         // Use governance wrapper for consent, redaction, size limits, and audit logging
         const { analyzeFinancials } = await import("./utils/geminiClient");
 
-        console.log("[CSV Analysis] Starting AI analysis...");
+        console.log("[CSV Analysis] Starting AI analysis with", processedCsv.length, "bytes...");
         const result = await wrapAiRequest(
           {
             userId,
@@ -2095,7 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             dataType: "csv",
             consentToAiProcessing: !!consentToAiProcessing,
           },
-          csvData,
+          processedCsv,
           async (processedData) => {
             console.log("[CSV Analysis] Calling Gemini with processed data length:", processedData.length);
             return analyzeFinancials(processedData, loanAmount, monthlyRepayment);
