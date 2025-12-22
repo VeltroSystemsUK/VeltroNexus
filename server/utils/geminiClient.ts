@@ -130,18 +130,32 @@ IMPORTANT:
 
   const maxRetries = 3;
   let lastError: Error | null = null;
+  const timeoutMs = 120000; // 2 minute timeout
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-      });
+      console.log(`[Gemini CSV] Attempt ${attempt}/${maxRetries} - sending ${csvData.length} bytes to Gemini...`);
+      
+      // Add timeout wrapper
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error(`Gemini API timeout after ${timeoutMs/1000}s`)), timeoutMs)
+      );
+      
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt,
+        }),
+        timeoutPromise
+      ]);
 
+      console.log(`[Gemini CSV] Response received, extracting text...`);
       const text = response.text || "";
+      console.log(`[Gemini CSV] Response text length: ${text.length}`);
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
+        console.error(`[Gemini CSV] No JSON found in response. Response preview: ${text.substring(0, 500)}`);
         throw new Error("Failed to extract JSON from AI response");
       }
 
@@ -178,18 +192,20 @@ IMPORTANT:
         result.dscr = result.netDisposableIncome / monthlyRepayment;
       }
 
+      console.log(`[Gemini CSV] Successfully parsed financial analysis`);
       return result;
     } catch (error) {
-      console.error(`Gemini analysis attempt ${attempt}/${maxRetries} error:`, error);
+      console.error(`[Gemini CSV] Attempt ${attempt}/${maxRetries} error:`, error);
       lastError = error instanceof Error ? error : new Error(String(error));
 
       if (attempt < maxRetries) {
+        console.log(`[Gemini CSV] Retrying in ${attempt} second(s)...`);
         await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
 
-  console.error("All Gemini analysis attempts failed");
+  console.error("[Gemini CSV] All attempts failed:", lastError?.message);
   throw new Error("Failed to analyze financial data after multiple attempts");
 }
 
