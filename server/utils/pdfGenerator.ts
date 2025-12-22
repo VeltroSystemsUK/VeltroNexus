@@ -205,20 +205,24 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
       case "campari":
         if (dueDiligence?.data) {
           const ddData = dueDiligence.data as any;
-          if (ddData.creditUnderwriting?.adviserSummary) {
+          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
+          const adviserSummary = ddData.underwriting?.adviserSummary || ddData.creditUnderwriting?.adviserSummary;
+          if (adviserSummary) {
             doc.addPage();
             pageNumber++;
-            renderCampariSection(doc, ddData.creditUnderwriting.adviserSummary);
+            renderCampariSection(doc, adviserSummary);
           }
         }
         break;
       case "swotAnalysis":
         if (dueDiligence?.data) {
           const ddData = dueDiligence.data as any;
-          if (ddData.creditUnderwriting?.swotAnalysis) {
+          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
+          const swotAnalysis = ddData.underwriting?.swotAnalysis || ddData.creditUnderwriting?.swotAnalysis;
+          if (swotAnalysis) {
             doc.addPage();
             pageNumber++;
-            renderSwotSection(doc, ddData.creditUnderwriting.swotAnalysis);
+            renderSwotSection(doc, swotAnalysis);
           }
         }
         break;
@@ -543,8 +547,9 @@ function renderExecutiveSummary(
     }
 
     // Risk Grade if available
-    if (ddData.creditUnderwriting?.riskGrade || ddData.creditUnderwriting?.finalRiskGrade) {
-      const grade = ddData.creditUnderwriting.finalRiskGrade || ddData.creditUnderwriting.riskGrade;
+    const underwData = ddData.underwriting || ddData.creditUnderwriting;
+    if (underwData?.riskGrade || underwData?.finalRiskGrade) {
+      const grade = underwData.finalRiskGrade || underwData.riskGrade;
       const gradeColor = getRiskGradeColor(grade);
       statusY += 18;
       doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
@@ -692,12 +697,12 @@ function renderTableOfContents(
         break;
       case "campari": {
         const ddDataCampari = dueDiligence?.data as any;
-        shouldInclude = !!ddDataCampari?.creditUnderwriting?.adviserSummary;
+        shouldInclude = !!(ddDataCampari?.underwriting?.adviserSummary || ddDataCampari?.creditUnderwriting?.adviserSummary);
         break;
       }
       case "swotAnalysis": {
         const ddDataSwot = dueDiligence?.data as any;
-        shouldInclude = !!ddDataSwot?.creditUnderwriting?.swotAnalysis;
+        shouldInclude = !!(ddDataSwot?.underwriting?.swotAnalysis || ddDataSwot?.creditUnderwriting?.swotAnalysis);
         break;
       }
     }
@@ -1824,8 +1829,10 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
   // ==========================================
   // 7. CREDIT UNDERWRITING (Premium Feature)
   // ==========================================
-  if (ddData.creditUnderwriting) {
-    const cu = ddData.creditUnderwriting;
+  // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
+  const creditUnderwritingData = ddData.underwriting || ddData.creditUnderwriting;
+  if (creditUnderwritingData) {
+    const cu = creditUnderwritingData;
 
     // New page for Credit Underwriting section
     doc.addPage();
