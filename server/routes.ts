@@ -692,14 +692,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await storage.getUser(userId);
 
-      const doc = generateProspectReport({
-        prospect,
-        contacts,
-        activities,
-        dueDiligence,
-        companiesHouseData,
-        pdfLayoutPreferences: user?.pdfLayoutPreferences || null,
-      });
+      console.log(`[PDF Report] Generating report for prospect ${id}, company: ${prospect.company.companyName}`);
+      
+      let doc;
+      try {
+        doc = generateProspectReport({
+          prospect,
+          contacts,
+          activities,
+          dueDiligence,
+          companiesHouseData,
+          pdfLayoutPreferences: user?.pdfLayoutPreferences || null,
+        });
+      } catch (pdfError) {
+        console.error("[PDF Report] Error generating PDF:", pdfError);
+        throw pdfError;
+      }
 
       // SECURITY: Use sanitized filename to prevent header injection
       const { encodeContentDisposition } = await import("./utils/security");
@@ -708,9 +716,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", encodeContentDisposition(filename));
 
+      console.log(`[PDF Report] Streaming PDF response for: ${filename}`);
       doc.pipe(res);
       doc.end();
     } catch (error) {
+      console.error("[PDF Report] Route error:", error);
       handleApiError(res, error, "api-error");
     }
   });
