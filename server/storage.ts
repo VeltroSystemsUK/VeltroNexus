@@ -1654,6 +1654,29 @@ export class DatabaseStorage implements IStorage {
   async updateWebhookApiKeyLastUsed(userId: string): Promise<void> {
     await db.update(users).set({ webhookApiKeyLastUsedAt: new Date() }).where(eq(users.id, userId));
   }
+
+  async getUserByStripeCustomerId(customerId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.stripeCustomerId, customerId));
+    return user;
+  }
+
+  async updateUserSubscription(
+    userId: string,
+    data: {
+      stripeSubscriptionId: string | null;
+      subscriptionTier: string;
+      prospectLimit: number;
+    }
+  ): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        stripeSubscriptionId: data.stripeSubscriptionId,
+        subscriptionTier: data.subscriptionTier,
+        prospectLimit: data.prospectLimit,
+      })
+      .where(eq(users.id, userId));
+  }
 }
 
 export const storage = new DatabaseStorage();
