@@ -85,7 +85,7 @@ export const teamMembers = pgTable("team_members", {
 export const companies = pgTable("companies", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   companyName: text("company_name").notNull(),
-  companyNumber: varchar("company_number", { length: 20 }).notNull().unique(),
+  companyNumber: varchar("company_number", { length: 50 }).notNull().unique(),
   registeredAddress: text("registered_address"),
   postcode: varchar("postcode", { length: 15 }),
   incorporationDate: text("incorporation_date"),
