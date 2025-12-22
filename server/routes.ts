@@ -2061,7 +2061,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const prospectId = parseInt(req.params.prospectId);
         const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
 
+        console.log("[CSV Analysis] Request received:", {
+          prospectId,
+          csvDataLength: csvData?.length || 0,
+          csvDataPreview: csvData?.substring(0, 200) || "empty",
+          loanAmount,
+          monthlyRepayment,
+          consentToAiProcessing,
+        });
+
         if (!csvData || !loanAmount || !monthlyRepayment) {
+          console.log("[CSV Analysis] Missing required fields");
           return res
             .status(400)
             .json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
@@ -2076,6 +2086,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Use governance wrapper for consent, redaction, size limits, and audit logging
         const { analyzeFinancials } = await import("./utils/geminiClient");
 
+        console.log("[CSV Analysis] Starting AI analysis...");
         const result = await wrapAiRequest(
           {
             userId,
@@ -2085,11 +2096,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             consentToAiProcessing: !!consentToAiProcessing,
           },
           csvData,
-          async (processedData) => analyzeFinancials(processedData, loanAmount, monthlyRepayment),
+          async (processedData) => {
+            console.log("[CSV Analysis] Calling Gemini with processed data length:", processedData.length);
+            return analyzeFinancials(processedData, loanAmount, monthlyRepayment);
+          },
           { maxSize: AI_GOVERNANCE_CONFIG.maxCsvSize }
         );
+        console.log("[CSV Analysis] AI analysis complete, result type:", "error" in result ? "error" : "success");
 
         if ("error" in result) {
+          console.log("[CSV Analysis] Error result:", result);
           return res.status(result.code).json({
             error: result.error,
             requiresConsent: result.code === 403,
