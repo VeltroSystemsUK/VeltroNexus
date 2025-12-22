@@ -95,6 +95,24 @@ const pricingTiers = [
     ctaType: "consultation" as const,
     highlight: "Tailored onboarding included",
   },
+  {
+    name: "Test",
+    price: "£1",
+    period: "one-time",
+    prospects: 5,
+    additionalCost: null,
+    description: "Test payment gateway",
+    features: [
+      "5 test prospects",
+      "Payment flow testing",
+      "Webhook verification",
+    ],
+    popular: false,
+    tier: "test",
+    ctaText: "Test Payment",
+    ctaType: "trial" as const,
+    highlight: "For development testing only",
+  },
 ];
 
 const valuePackages = {
