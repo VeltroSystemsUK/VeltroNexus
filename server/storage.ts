@@ -130,6 +130,7 @@ export interface IStorage {
 
   // Due Diligence (user-scoped via prospect ownership)
   getDueDiligence(prospectId: number, userId: string): Promise<DueDiligence | undefined>;
+  getAllDueDiligenceSummaries(userId: string): Promise<{ prospectId: number; status: 'complete' | 'partial' | 'pending' }[]>;
   upsertDueDiligence(
     prospectId: number,
     userId: string,
@@ -691,6 +692,36 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(prospects, eq(dueDiligence.prospectId, prospects.id))
       .where(and(eq(dueDiligence.prospectId, prospectId), eq(prospects.userId, userId)));
     return result || undefined;
+  }
+
+  async getAllDueDiligenceSummaries(userId: string): Promise<{ prospectId: number; status: 'complete' | 'partial' | 'pending' }[]> {
+    const results = await db
+      .select({
+        prospectId: dueDiligence.prospectId,
+        data: dueDiligence.data,
+      })
+      .from(dueDiligence)
+      .innerJoin(prospects, eq(dueDiligence.prospectId, prospects.id))
+      .where(eq(prospects.userId, userId));
+    
+    return results.map(row => {
+      const data = row.data as DueDiligenceData;
+      const checklist = data?.checklist || [];
+      
+      if (checklist.length === 0) {
+        return { prospectId: row.prospectId, status: 'pending' as const };
+      }
+      
+      const completedCount = checklist.filter(item => item.completed).length;
+      
+      if (completedCount === 0) {
+        return { prospectId: row.prospectId, status: 'pending' as const };
+      } else if (completedCount === checklist.length) {
+        return { prospectId: row.prospectId, status: 'complete' as const };
+      } else {
+        return { prospectId: row.prospectId, status: 'partial' as const };
+      }
+    });
   }
 
   async upsertDueDiligence(

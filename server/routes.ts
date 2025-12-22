@@ -2018,6 +2018,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get due diligence status summaries for all prospects (for pipeline cards)
+  app.get("/api/due-diligence/summaries", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const summaries = await storage.getAllDueDiligenceSummaries(userId);
+      const statusMap: Record<number, string> = {};
+      for (const summary of summaries) {
+        statusMap[summary.prospectId] = summary.status;
+      }
+      res.json(statusMap);
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
   app.get("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
