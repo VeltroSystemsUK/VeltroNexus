@@ -255,12 +255,15 @@ export default function Pricing() {
     },
   });
 
+  // Handle pending checkout after login - wait for products to load
   useEffect(() => {
     const pendingTier = sessionStorage.getItem("subscription_tier");
-    if (pendingTier && user && pendingTier === "starter") {
+    if (pendingTier && user && billingProducts?.products && billingProducts.products.length > 0) {
+      sessionStorage.removeItem("subscription_tier");
+      sessionStorage.removeItem("value_package");
       createBillingRequestMutation.mutate(pendingTier);
     }
-  }, [user]);
+  }, [user, billingProducts]);
 
   const handleSelectPlan = (plan: (typeof pricingTiers)[0]) => {
     setSelectedPlan(plan.tier);
@@ -279,27 +282,17 @@ export default function Pricing() {
   };
 
   const handleProceedToCheckout = () => {
-    const checkoutData = {
-      tier: selectedPlan,
-      valuePackage: selectedPackage,
-    };
-
     if (!user) {
+      // Store pending tier and redirect to login
       sessionStorage.setItem("subscription_tier", selectedPlan);
       if (selectedPackage) {
         sessionStorage.setItem("value_package", selectedPackage);
       }
       window.location.href = "/api/login";
     } else {
-      // Start trial - redirect to pipeline
-      toast({
-        title: "Welcome to FlowLoan!",
-        description: selectedPackage
-          ? "Your 14-day free trial has started with your value package. Explore your pipeline!"
-          : "Your 14-day free trial has started. Explore your pipeline!",
-      });
+      // User is logged in - initiate Stripe checkout
       setCheckoutDialogOpen(false);
-      setLocation("/pipeline");
+      createBillingRequestMutation.mutate(selectedPlan);
     }
   };
 
