@@ -105,6 +105,12 @@ export default function Pipeline() {
     enabled: isAuthenticated,
   });
 
+  // Fetch due diligence status summaries for pipeline cards
+  const { data: dueDiligenceStatuses = {} } = useQuery<Record<number, 'complete' | 'partial' | 'pending'>>({
+    queryKey: ["/api/due-diligence/summaries"],
+    enabled: isAuthenticated,
+  });
+
   const updateStageMutation = useMutation({
     mutationFn: ({ prospectId, stage }: { prospectId: number; stage: string }) =>
       api.prospects.updateStage(prospectId, stage),
@@ -518,6 +524,7 @@ export default function Pipeline() {
                                               handleStageChange(prospect.id, newStage as Stage)
                                             }
                                             underwritingStatus={underwritingStatuses[prospect.id]}
+                                            dueDiligenceStatus={dueDiligenceStatuses[prospect.id]}
                                             isOverLimit={isProspectOverLimit(prospect.id)}
                                             onLimitClick={() => setShowLimitModal(true)}
                                             queuePosition={index + 1}
@@ -596,6 +603,7 @@ export default function Pipeline() {
                                                 handleStageChange(prospect.id, newStage as Stage)
                                               }
                                               underwritingStatus={underwritingStatuses[prospect.id]}
+                                              dueDiligenceStatus={dueDiligenceStatuses[prospect.id]}
                                               isOverLimit={isProspectOverLimit(prospect.id)}
                                               onLimitClick={() => setShowLimitModal(true)}
                                               queuePosition={index + 1}
@@ -667,6 +675,7 @@ export default function Pipeline() {
                                                 underwritingStatus={
                                                   underwritingStatuses[prospect.id]
                                                 }
+                                                dueDiligenceStatus={dueDiligenceStatuses[prospect.id]}
                                                 isOverLimit={isProspectOverLimit(prospect.id)}
                                                 onLimitClick={() => setShowLimitModal(true)}
                                                 queuePosition={index + 1}

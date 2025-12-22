@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GripVertical, MoreVertical, Ticket, Send, FileCheck, Lock } from "lucide-react";
+import { GripVertical, MoreVertical, Ticket, Send, FileCheck, Lock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import SubmitApplicationDialog from "./SubmitApplicationDialog";
 
 export type Priority = "high" | "medium" | "low";
@@ -27,6 +27,8 @@ export interface ProspectCardData {
   stage?: string;
 }
 
+export type DueDiligenceStatus = 'complete' | 'partial' | 'pending';
+
 interface ProspectCardProps {
   prospect: ProspectCardData;
   onMove?: (stage: string) => void;
@@ -36,6 +38,7 @@ interface ProspectCardProps {
   availableStages?: { value: string; label: string }[];
   currentStage?: string;
   underwritingStatus?: UnderwritingStatus;
+  dueDiligenceStatus?: DueDiligenceStatus;
   isOverLimit?: boolean;
   onLimitClick?: () => void;
   queuePosition?: number;
@@ -103,6 +106,7 @@ export default function ProspectCard({
   availableStages = [],
   currentStage,
   underwritingStatus,
+  dueDiligenceStatus,
   isOverLimit = false,
   onLimitClick,
   queuePosition,
@@ -169,12 +173,37 @@ export default function ProspectCard({
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h4
-              className="font-semibold text-base truncate leading-tight"
-              data-testid={`text-company-name-${prospect.id}`}
-            >
-              {prospect.companyName}
-            </h4>
+            <div className="flex items-center gap-2">
+              <h4
+                className="font-semibold text-base truncate leading-tight"
+                data-testid={`text-company-name-${prospect.id}`}
+              >
+                {prospect.companyName}
+              </h4>
+              {stage === "due-diligence" && dueDiligenceStatus && (
+                <div
+                  className="flex-shrink-0"
+                  data-testid={`dd-status-${prospect.id}`}
+                  title={
+                    dueDiligenceStatus === 'complete' 
+                      ? 'Due Diligence Complete' 
+                      : dueDiligenceStatus === 'partial' 
+                        ? 'Due Diligence In Progress' 
+                        : 'Due Diligence Pending'
+                  }
+                >
+                  {dueDiligenceStatus === 'complete' && (
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  )}
+                  {dueDiligenceStatus === 'partial' && (
+                    <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                  )}
+                  {dueDiligenceStatus === 'pending' && (
+                    <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
+                  )}
+                </div>
+              )}
+            </div>
             <p
               className="text-sm text-muted-foreground font-mono mt-1"
               data-testid={`text-company-number-${prospect.id}`}
