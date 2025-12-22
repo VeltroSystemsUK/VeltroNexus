@@ -38,6 +38,12 @@ import {
   requireSubmissionWriteAccess,
 } from "./utils/underwritingAuth";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
+import {
+  getUncachableStripeClient,
+  getStripePublishableKey,
+} from "./stripeClient";
+import { sql } from "drizzle-orm";
+import { db } from "./db";
 const require = createRequire(import.meta.url);
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -5460,6 +5466,227 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Webhook error:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============= STRIPE BILLING ROUTES =============
+
+  // Get Stripe publishable key for frontend
+  app.get("/api/billing/config", isAuthenticated, async (req, res) => {
+    try {
+      const publishableKey = await getStripePublishableKey();
+      res.json({ publishableKey });
+    } catch (error) {
+      handleApiError(res, error, "Failed to get billing config", (req as any).requestId);
+    }
+  });
+
+  // List subscription products with prices
+  app.get("/api/billing/products", isAuthenticated, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        WITH subscription_products AS (
+          SELECT id, name, description, metadata, active
+          FROM stripe.products
+          WHERE active = true
+          ORDER BY name
+        )
+        SELECT 
+          p.id as product_id,
+          p.name as product_name,
+          p.description as product_description,
+          p.metadata as product_metadata,
+          pr.id as price_id,
+          pr.unit_amount,
+          pr.currency,
+          pr.recurring,
+          pr.metadata as price_metadata
+        FROM subscription_products p
+        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+        ORDER BY p.name, pr.unit_amount
+      `);
+
+      // Helper to safely parse JSON fields from Stripe sync
+      const parseJson = (val: any) => {
+        if (val === null || val === undefined) return {};
+        if (typeof val === "object") return val;
+        if (typeof val === "string") {
+          if (val === "" || val === "null") return {};
+          try {
+            return JSON.parse(val);
+          } catch {
+            return {};
+          }
+        }
+        return {};
+      };
+
+      // Group prices by product
+      const productsMap = new Map();
+      for (const row of result.rows as any[]) {
+        if (!productsMap.has(row.product_id)) {
+          productsMap.set(row.product_id, {
+            id: row.product_id,
+            name: row.product_name,
+            description: row.product_description,
+            metadata: parseJson(row.product_metadata),
+            prices: [],
+          });
+        }
+        if (row.price_id) {
+          productsMap.get(row.product_id).prices.push({
+            id: row.price_id,
+            unit_amount: row.unit_amount,
+            currency: row.currency,
+            recurring: parseJson(row.recurring),
+            metadata: parseJson(row.price_metadata),
+          });
+        }
+      }
+
+      res.json({ products: Array.from(productsMap.values()) });
+    } catch (error) {
+      handleApiError(res, error, "Failed to list products", (req as any).requestId);
+    }
+  });
+
+  // Get current user subscription status
+  app.get("/api/billing/subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user?.stripeSubscriptionId) {
+        return res.json({
+          subscription: null,
+          tier: user?.subscriptionTier || "free",
+          prospectLimit: user?.prospectLimit || 10,
+        });
+      }
+
+      const result = await db.execute(sql`
+        SELECT s.*, p.name as product_name, pr.unit_amount, pr.currency, pr.recurring
+        FROM stripe.subscriptions s
+        LEFT JOIN stripe.prices pr ON s.items->0->>'price' = pr.id
+        LEFT JOIN stripe.products p ON pr.product = p.id
+        WHERE s.id = ${user.stripeSubscriptionId}
+      `);
+
+      res.json({
+        subscription: result.rows[0] || null,
+        tier: user.subscriptionTier,
+        prospectLimit: user.prospectLimit,
+      });
+    } catch (error) {
+      handleApiError(res, error, "Failed to get subscription", (req as any).requestId);
+    }
+  });
+
+  // Create checkout session for subscription
+  app.post("/api/billing/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const { priceId } = req.body;
+
+      if (!priceId) {
+        return res.status(400).json({ error: "Price ID required" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+
+      // Create or get Stripe customer
+      let customerId = user?.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user?.email || undefined,
+          metadata: { userId },
+        });
+        await storage.updateUser(userId, { stripeCustomerId: customer.id });
+        customerId = customer.id;
+      }
+
+      // Create checkout session
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: "subscription",
+        success_url: `${baseUrl}/settings?tab=billing&success=true`,
+        cancel_url: `${baseUrl}/settings?tab=billing&canceled=true`,
+        metadata: { userId },
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      handleApiError(res, error, "Failed to create checkout session", (req as any).requestId);
+    }
+  });
+
+  // Create customer portal session for managing subscription
+  app.post("/api/billing/portal", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user?.stripeCustomerId) {
+        return res.status(400).json({ error: "No billing account found" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+
+      const session = await stripe.billingPortal.sessions.create({
+        customer: user.stripeCustomerId,
+        return_url: `${baseUrl}/settings?tab=billing`,
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      handleApiError(res, error, "Failed to create portal session", (req as any).requestId);
+    }
+  });
+
+  // Create one-time purchase (for add-ons like prospect packs)
+  app.post("/api/billing/purchase", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const { priceId, quantity = 1 } = req.body;
+
+      if (!priceId) {
+        return res.status(400).json({ error: "Price ID required" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+
+      // Create or get Stripe customer
+      let customerId = user?.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user?.email || undefined,
+          metadata: { userId },
+        });
+        await storage.updateUser(userId, { stripeCustomerId: customer.id });
+        customerId = customer.id;
+      }
+
+      // Create checkout session for one-time payment
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity }],
+        mode: "payment",
+        success_url: `${baseUrl}/settings?tab=billing&purchase=success`,
+        cancel_url: `${baseUrl}/settings?tab=billing&purchase=canceled`,
+        metadata: { userId, type: "addon" },
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      handleApiError(res, error, "Failed to create purchase session", (req as any).requestId);
     }
   });
 

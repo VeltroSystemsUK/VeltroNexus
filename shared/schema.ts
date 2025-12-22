@@ -31,6 +31,8 @@ export const users = pgTable("users", {
   gocardlessCustomerId: varchar("gocardless_customer_id"),
   gocardlessMandateId: varchar("gocardless_mandate_id"),
   gocardlessSubscriptionId: varchar("gocardless_subscription_id"),
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
   currency: varchar("currency").notNull().default("GBP"),
   timezone: varchar("timezone").notNull().default("Europe/London"),
   dateFormat: varchar("date_format").notNull().default("DD/MM/YYYY"),

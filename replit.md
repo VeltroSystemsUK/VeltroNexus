@@ -20,8 +20,12 @@ The frontend leverages React, TypeScript, Vite, and Wouter for routing, with Tan
 - **Due Diligence Tools**: Offers seven interactive tools: Checklist, Loan Calculator, DSCR Calculator, Affordability Estimator, Financial Ratios Calculator, Character Assessment, and an optional AI-powered Credit Underwriting tool (Premium tier).
 - **CRM Features**: Includes an integrated Activity Calendar, ToDoList, and Task Reminders.
 - **Leads Import System**: Supports bulk CSV lead import with intelligent column mapping and Companies House integration for prospect creation.
-- **Subscription System**: A tiered model (Free, Standard, Premium) with prospect count limits.
-- **Add-Ons Marketplace**: Allows purchasing prospect packs and feature add-ons, managed by Super Admins.
+- **Subscription System**: A tiered model (Starter, Team, Lender) with Stripe payment integration.
+  - Stripe Checkout for subscription upgrades
+  - Customer Portal for subscription management
+  - Webhook-based subscription sync via `stripe-replit-sync`
+  - Products seeded via `scripts/seed-stripe-products.ts`
+- **Add-Ons Marketplace**: Allows purchasing prospect packs and feature add-ons via Stripe one-time payments.
 - **Profile and Settings**: Manages account info, subscriptions, appearance, regional settings, customizable pipeline stage names, PDF report layout, and CSV data import.
 - **White Label Branding**: Enables custom logo uploads and theme color customization.
 - **Role-Based Access Control (RBAC)**: A 4-role permission system (Super Admin, Sales Admin, Broker User, Underwriter) with team management and role-based navigation.
@@ -64,6 +68,11 @@ The application utilizes Drizzle ORM with Neon serverless PostgreSQL. The databa
 - **openid-client**: OpenID Connect client.
 - **passport**: Authentication middleware.
 - **express-session**: Session management.
+
+### Payments
+- **stripe**: Official Stripe SDK for payment processing.
+- **stripe-replit-sync**: Automatic Stripe data sync to PostgreSQL.
+- Billing routes: `/api/billing/checkout`, `/api/billing/portal`, `/api/billing/products`, `/api/billing/subscription`.
 
 ### Development & Utilities
 - **@tanstack/react-query**: Server state management.

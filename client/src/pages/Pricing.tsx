@@ -168,9 +168,81 @@ export default function Pricing() {
     retry: false,
   });
 
+  // Fetch Stripe products
+  const { data: billingProducts } = useQuery<{
+    products: Array<{
+      id: string;
+      name: string;
+      metadata: Record<string, string>;
+      prices: Array<{
+        id: string;
+        unit_amount: number;
+        currency: string;
+        recurring: { interval: string } | null;
+      }>;
+    }>;
+  }>({
+    queryKey: ["/api/billing/products"],
+    enabled: !!user,
+  });
+
+  const createCheckoutMutation = useMutation({
+    mutationFn: async (priceId: string) => {
+      const response = await apiRequest("/api/billing/checkout", "POST", { priceId });
+      return response as unknown as { url: string };
+    },
+    onSuccess: (data) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Checkout Error",
+        description: error.message || "Failed to start checkout. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Helper to find Stripe price for a tier
+  const getStripePriceForTier = (tierName: string, interval: "month" | "year" = "month") => {
+    if (!billingProducts?.products || billingProducts.products.length === 0) {
+      console.log("No billing products available");
+      return null;
+    }
+    
+    const tierLower = tierName.toLowerCase();
+    const product = billingProducts.products.find((p) => {
+      // Check metadata.tier first
+      const metadataTier = p.metadata?.tier?.toLowerCase();
+      if (metadataTier === tierLower) return true;
+      
+      // Fall back to product name matching
+      const nameLower = p.name.toLowerCase();
+      return nameLower.includes(tierLower) || nameLower.startsWith(tierLower);
+    });
+    
+    if (!product) {
+      console.log(`No product found for tier: ${tierName}`, billingProducts.products);
+      return null;
+    }
+    
+    // Find matching price by interval
+    const price = product.prices.find((p) => p.recurring?.interval === interval);
+    if (!price) {
+      console.log(`No ${interval} price found for product:`, product);
+    }
+    return price;
+  };
+
   const createBillingRequestMutation = useMutation({
     mutationFn: async (tier: string) => {
-      throw new Error("Payment processing is temporarily unavailable. Please contact support.");
+      const price = getStripePriceForTier(tier);
+      if (price) {
+        return createCheckoutMutation.mutateAsync(price.id);
+      }
+      throw new Error("Please set up subscription products in Stripe dashboard first.");
     },
     onError: (error: any) => {
       sessionStorage.removeItem("subscription_tier");
