@@ -55,6 +55,7 @@ import {
   Mail,
   Info,
   Plug,
+  Lightbulb,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
@@ -333,14 +334,41 @@ export function CreditUnderwritingTool({
     text?: string;
     pages?: number;
   }
+  interface ManagementAccountsAnalysis {
+    summary?: string;
+    keyMetrics?: {
+      revenue?: number;
+      grossProfit?: number;
+      netProfit?: number;
+      ebitda?: number;
+      totalAssets?: number;
+      totalLiabilities?: number;
+      netAssets?: number;
+      cashPosition?: number;
+    };
+    commentary?: string;
+    strengths?: string[];
+    concerns?: string[];
+    recommendations?: string[];
+    profitabilityAssessment?: string;
+    liquidityAssessment?: string;
+    overallRating?: "strong" | "satisfactory" | "weak" | "critical";
+  }
   const [managementAccountFiles, setManagementAccountFiles] = useState<ManagementAccountFile[]>(
     underwriting.managementAccounts?.files || []
   );
   const [managementAccountsMonths, setManagementAccountsMonths] = useState(
     underwriting.managementAccounts?.months || 3
   );
+  const [managementAccountsAnalysis, setManagementAccountsAnalysis] = useState<ManagementAccountsAnalysis | undefined>(
+    underwriting.managementAccounts?.analysis
+  );
+  const [managementAccountsAnalysisStatus, setManagementAccountsAnalysisStatus] = useState<string | undefined>(
+    underwriting.managementAccounts?.analysisStatus
+  );
   const managementAccountsInputRef = useRef<HTMLInputElement>(null);
   const [parsingManagementAccounts, setParsingManagementAccounts] = useState(false);
+  const [analyzingManagementAccounts, setAnalyzingManagementAccounts] = useState(false);
 
   // Accounting software state
   const [accountingSoftwareStatus, setAccountingSoftwareStatus] = useState<
@@ -357,6 +385,8 @@ export function CreditUnderwritingTool({
   useEffect(() => {
     setManagementAccountFiles(underwriting.managementAccounts?.files || []);
     setManagementAccountsMonths(underwriting.managementAccounts?.months || 3);
+    setManagementAccountsAnalysis(underwriting.managementAccounts?.analysis);
+    setManagementAccountsAnalysisStatus(underwriting.managementAccounts?.analysisStatus);
   }, [underwriting.managementAccounts]);
 
   // Sync accounting software state when underwriting data changes
@@ -1525,16 +1555,15 @@ export function CreditUnderwritingTool({
                         const files = e.target.files;
                         if (!files || files.length === 0) return;
                         setParsingManagementAccounts(true);
+                        setAnalyzingManagementAccounts(false);
                         try {
                           const parsedFiles: ManagementAccountFile[] = [];
                           for (const file of Array.from(files)) {
-                            const formData = new FormData();
-                            formData.append("file", file);
-                            const response = await fetch("/api/parse-pdf", {
-                              method: "POST",
-                              body: formData,
-                            });
-                            if (!response.ok) throw new Error("Failed to parse PDF");
+                            const arrayBuffer = await file.arrayBuffer();
+                            const base64 = btoa(
+                              new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+                            );
+                            const response = await apiRequest("/api/parse-pdf", "POST", { pdfBase64: base64 });
                             const data = await response.json();
                             parsedFiles.push({
                               fileName: file.name,
@@ -1543,36 +1572,86 @@ export function CreditUnderwritingTool({
                             });
                           }
                           setManagementAccountFiles(parsedFiles);
-                          onSave({
-                            underwriting: {
-                              ...underwriting,
-                              managementAccounts: {
-                                files: parsedFiles.map((p) => ({
-                                  fileName: p.fileName,
-                                  pages: p.pages,
-                                })),
+                          setParsingManagementAccounts(false);
+                          
+                          // Now analyze with AI
+                          setAnalyzingManagementAccounts(true);
+                          toast.info("Analyzing management accounts with AI...");
+                          
+                          try {
+                            const analysisResponse = await apiRequest(
+                              `/api/prospects/${prospect.id}/analyze-management-accounts`,
+                              "POST",
+                              {
+                                files: parsedFiles,
                                 months: managementAccountsMonths,
-                                uploadedAt: new Date().toISOString(),
+                                consentToAiProcessing: true,
+                              }
+                            );
+                            const analysisData = await analysisResponse.json();
+                            
+                            if (analysisData.success && analysisData.analysis) {
+                              setManagementAccountsAnalysis(analysisData.analysis);
+                              setManagementAccountsAnalysisStatus("completed");
+                              toast.success("Management accounts analyzed successfully");
+                              
+                              // Trigger refetch of due diligence data
+                              onSave({
+                                underwriting: {
+                                  ...underwriting,
+                                  managementAccounts: {
+                                    files: parsedFiles.map((p) => ({
+                                      fileName: p.fileName,
+                                      pages: p.pages,
+                                    })),
+                                    months: managementAccountsMonths,
+                                    uploadedAt: new Date().toISOString(),
+                                    analysisStatus: "completed",
+                                    analyzedAt: new Date().toISOString(),
+                                    analysis: analysisData.analysis,
+                                  },
+                                },
+                              });
+                            } else {
+                              throw new Error(analysisData.error || "Analysis failed");
+                            }
+                          } catch (analysisError: any) {
+                            console.error("AI analysis error:", analysisError);
+                            setManagementAccountsAnalysisStatus("error");
+                            toast.error(analysisError.message || "Failed to analyze management accounts");
+                            // Still save the parsed files even if analysis failed
+                            onSave({
+                              underwriting: {
+                                ...underwriting,
+                                managementAccounts: {
+                                  files: parsedFiles.map((p) => ({
+                                    fileName: p.fileName,
+                                    pages: p.pages,
+                                  })),
+                                  months: managementAccountsMonths,
+                                  uploadedAt: new Date().toISOString(),
+                                  analysisStatus: "error",
+                                },
                               },
-                            },
-                          });
-                          toast.success(
-                            `Uploaded ${parsedFiles.length} management account file${parsedFiles.length > 1 ? "s" : ""}`
-                          );
+                            });
+                          }
                         } catch (error) {
                           toast.error("Failed to parse management accounts");
                         } finally {
                           setParsingManagementAccounts(false);
+                          setAnalyzingManagementAccounts(false);
                         }
                       }}
                       className="hidden"
                       data-testid="input-management-accounts"
                     />
                     <div className="border-2 border-dashed rounded-lg p-4 text-center">
-                      {parsingManagementAccounts ? (
+                      {parsingManagementAccounts || analyzingManagementAccounts ? (
                         <div className="space-y-2">
                           <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
-                          <p className="text-sm text-muted-foreground">Parsing files...</p>
+                          <p className="text-sm text-muted-foreground">
+                            {parsingManagementAccounts ? "Parsing files..." : "Analyzing with AI..."}
+                          </p>
                         </div>
                       ) : managementAccountFiles.length > 0 ? (
                         <div className="space-y-2">
@@ -1608,6 +1687,172 @@ export function CreditUnderwritingTool({
                     </div>
                   </div>
                 </div>
+                
+                {/* Management Accounts AI Analysis Display */}
+                {managementAccountsAnalysis && managementAccountsAnalysisStatus === "completed" && (
+                  <div className="mt-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      <h4 className="font-semibold">AI Analysis Results</h4>
+                      <Badge
+                        variant={
+                          managementAccountsAnalysis.overallRating === "strong"
+                            ? "default"
+                            : managementAccountsAnalysis.overallRating === "satisfactory"
+                            ? "secondary"
+                            : managementAccountsAnalysis.overallRating === "weak"
+                            ? "outline"
+                            : "destructive"
+                        }
+                        className="capitalize"
+                        data-testid="badge-management-accounts-rating"
+                      >
+                        {managementAccountsAnalysis.overallRating || "N/A"}
+                      </Badge>
+                    </div>
+                    
+                    {/* Summary */}
+                    {managementAccountsAnalysis.summary && (
+                      <div className="bg-muted/50 rounded-lg p-3">
+                        <p className="text-sm font-medium mb-1">Summary</p>
+                        <p className="text-sm text-muted-foreground">{managementAccountsAnalysis.summary}</p>
+                      </div>
+                    )}
+                    
+                    {/* Key Metrics */}
+                    {managementAccountsAnalysis.keyMetrics && Object.keys(managementAccountsAnalysis.keyMetrics).some(k => (managementAccountsAnalysis.keyMetrics as any)[k] != null) && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {managementAccountsAnalysis.keyMetrics.revenue != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-revenue">
+                            <p className="text-xs text-muted-foreground">Revenue</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.revenue.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {managementAccountsAnalysis.keyMetrics.grossProfit != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-gross-profit">
+                            <p className="text-xs text-muted-foreground">Gross Profit</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.grossProfit.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {managementAccountsAnalysis.keyMetrics.netProfit != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-net-profit">
+                            <p className="text-xs text-muted-foreground">Net Profit</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.netProfit.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {managementAccountsAnalysis.keyMetrics.ebitda != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-ebitda">
+                            <p className="text-xs text-muted-foreground">EBITDA</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.ebitda.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {managementAccountsAnalysis.keyMetrics.totalAssets != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-total-assets">
+                            <p className="text-xs text-muted-foreground">Total Assets</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.totalAssets.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {managementAccountsAnalysis.keyMetrics.totalLiabilities != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-total-liabilities">
+                            <p className="text-xs text-muted-foreground">Total Liabilities</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.totalLiabilities.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {managementAccountsAnalysis.keyMetrics.netAssets != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-net-assets">
+                            <p className="text-xs text-muted-foreground">Net Assets</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.netAssets.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {managementAccountsAnalysis.keyMetrics.cashPosition != null && (
+                          <div className="bg-card border rounded-lg p-3" data-testid="metric-cash-position">
+                            <p className="text-xs text-muted-foreground">Cash Position</p>
+                            <p className="text-lg font-semibold">£{managementAccountsAnalysis.keyMetrics.cashPosition.toLocaleString()}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Commentary */}
+                    {managementAccountsAnalysis.commentary && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">AI Commentary</p>
+                        <div className="bg-card border rounded-lg p-3">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {managementAccountsAnalysis.commentary}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Assessments */}
+                    <div className="grid md:grid-cols-2 gap-3">
+                      {managementAccountsAnalysis.profitabilityAssessment && (
+                        <div className="bg-card border rounded-lg p-3">
+                          <p className="text-xs text-muted-foreground mb-1">Profitability Assessment</p>
+                          <p className="text-sm">{managementAccountsAnalysis.profitabilityAssessment}</p>
+                        </div>
+                      )}
+                      {managementAccountsAnalysis.liquidityAssessment && (
+                        <div className="bg-card border rounded-lg p-3">
+                          <p className="text-xs text-muted-foreground mb-1">Liquidity Assessment</p>
+                          <p className="text-sm">{managementAccountsAnalysis.liquidityAssessment}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Strengths & Concerns */}
+                    <div className="grid md:grid-cols-2 gap-3">
+                      {managementAccountsAnalysis.strengths && managementAccountsAnalysis.strengths.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <CheckCircle2 className="h-4 w-4" /> Strengths
+                          </p>
+                          <ul className="text-sm space-y-1">
+                            {managementAccountsAnalysis.strengths.map((s, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-green-500 mt-0.5">+</span>
+                                <span>{s}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {managementAccountsAnalysis.concerns && managementAccountsAnalysis.concerns.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <AlertTriangle className="h-4 w-4" /> Concerns
+                          </p>
+                          <ul className="text-sm space-y-1">
+                            {managementAccountsAnalysis.concerns.map((c, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-amber-500 mt-0.5">!</span>
+                                <span>{c}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Recommendations */}
+                    {managementAccountsAnalysis.recommendations && managementAccountsAnalysis.recommendations.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium flex items-center gap-1">
+                          <Lightbulb className="h-4 w-4 text-primary" /> Recommendations
+                        </p>
+                        <ul className="text-sm space-y-1 bg-muted/30 rounded-lg p-3">
+                          {managementAccountsAnalysis.recommendations.map((r, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-primary mt-0.5">{i + 1}.</span>
+                              <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

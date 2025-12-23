@@ -2375,6 +2375,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Analyze Management Accounts with AI commentary
+  app.post(
+    "/api/prospects/:prospectId/analyze-management-accounts",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const prospectId = parseInt(req.params.prospectId);
+
+        const { files, months, consentToAiProcessing } = req.body;
+
+        if (!files || !Array.isArray(files) || files.length === 0) {
+          return res.status(400).json({ error: "At least one file is required" });
+        }
+
+        // Verify prospect belongs to user
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        // Combine all file texts for analysis
+        const combinedText = files
+          .map((f: { fileName: string; text: string }) => `--- ${f.fileName} ---\n${f.text || ""}`)
+          .join("\n\n");
+
+        if (combinedText.trim().length < 100) {
+          return res.status(400).json({ error: "Could not extract sufficient text from the uploaded files" });
+        }
+
+        // Build context for governance wrapper
+        const contextData = JSON.stringify({
+          companyName: prospect.company?.companyName || "Unknown Company",
+          periodMonths: months || 3,
+          fileCount: files.length,
+          textLength: combinedText.length,
+        });
+
+        // Use governance wrapper for AI processing
+        const { analyzeManagementAccounts } = await import("./utils/geminiClient");
+
+        const result = await wrapAiRequest(
+          {
+            userId,
+            prospectId,
+            operation: "management_accounts_analysis",
+            dataType: "structured",
+            consentToAiProcessing: !!consentToAiProcessing,
+          },
+          contextData,
+          async () =>
+            analyzeManagementAccounts(
+              combinedText,
+              prospect.company?.companyName || "Unknown Company",
+              months || 3
+            ),
+          { skipRedaction: true }
+        );
+
+        if ("error" in result) {
+          return res.status(result.code).json({
+            error: result.error,
+            requiresConsent: result.code === 403,
+          });
+        }
+
+        // Save to due diligence
+        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const mergedData = {
+          ...existingData,
+          underwriting: {
+            ...(existingData.underwriting || {}),
+            managementAccounts: {
+              ...(existingData.underwriting?.managementAccounts || {}),
+              files: files.map((f: { fileName: string; pages?: number }) => ({
+                fileName: f.fileName,
+                pages: f.pages,
+              })),
+              months: months || 3,
+              uploadedAt: new Date().toISOString(),
+              analysisStatus: "completed",
+              analyzedAt: new Date().toISOString(),
+              analysis: result.result,
+            },
+          },
+        };
+        await storage.upsertDueDiligence(prospectId, mergedData);
+
+        res.json({
+          success: true,
+          analysis: result.result,
+        });
+      } catch (error: any) {
+        console.error("Management accounts analysis error:", error);
+        handleApiError(res, error, "api-error");
+      }
+    }
+  );
+
   // Generate SWOT analysis
   app.post(
     "/api/prospects/:prospectId/underwriting/swot-analysis",

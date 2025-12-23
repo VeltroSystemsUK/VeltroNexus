@@ -1263,6 +1263,28 @@ export const managementAccountsSchema = z.object({
     .optional(),
   months: z.number().min(1).max(12).default(3),
   uploadedAt: z.string().optional(),
+  analysisStatus: z.enum(["pending", "analyzing", "completed", "error"]).optional(),
+  analyzedAt: z.string().optional(),
+  analysis: z.object({
+    summary: z.string().optional(),
+    keyMetrics: z.object({
+      revenue: z.number().optional(),
+      grossProfit: z.number().optional(),
+      netProfit: z.number().optional(),
+      ebitda: z.number().optional(),
+      totalAssets: z.number().optional(),
+      totalLiabilities: z.number().optional(),
+      netAssets: z.number().optional(),
+      cashPosition: z.number().optional(),
+    }).optional(),
+    commentary: z.string().optional(),
+    strengths: z.array(z.string()).optional(),
+    concerns: z.array(z.string()).optional(),
+    recommendations: z.array(z.string()).optional(),
+    profitabilityAssessment: z.string().optional(),
+    liquidityAssessment: z.string().optional(),
+    overallRating: z.enum(["strong", "satisfactory", "weak", "critical"]).optional(),
+  }).optional(),
 });
 
 export const accountingSoftwareSchema = z.object({

@@ -1077,3 +1077,117 @@ Focus on facts and evidence from the provided data. Where data is limited, note 
 
   throw new Error("Failed to generate CAMPARI section after multiple attempts");
 }
+
+export interface ManagementAccountsAnalysis {
+  summary: string;
+  keyMetrics: {
+    revenue?: number;
+    grossProfit?: number;
+    netProfit?: number;
+    ebitda?: number;
+    totalAssets?: number;
+    totalLiabilities?: number;
+    netAssets?: number;
+    cashPosition?: number;
+  };
+  commentary: string;
+  strengths: string[];
+  concerns: string[];
+  recommendations: string[];
+  profitabilityAssessment: string;
+  liquidityAssessment: string;
+  overallRating: "strong" | "satisfactory" | "weak" | "critical";
+}
+
+export async function analyzeManagementAccounts(
+  parsedText: string,
+  companyName: string,
+  periodMonths: number
+): Promise<ManagementAccountsAnalysis> {
+  const prompt = `You are an experienced commercial lending underwriter analyzing management accounts for a credit application.
+
+COMPANY: ${companyName}
+PERIOD COVERED: ${periodMonths} months
+
+MANAGEMENT ACCOUNTS CONTENT:
+${parsedText.substring(0, 25000)}
+
+TASK: Analyze these management accounts and provide a comprehensive assessment for lending purposes.
+
+Return your analysis as a valid JSON object with this exact structure:
+{
+  "summary": "A 2-3 sentence executive summary of the financial position",
+  "keyMetrics": {
+    "revenue": <number or null if not found>,
+    "grossProfit": <number or null>,
+    "netProfit": <number or null>,
+    "ebitda": <number or null>,
+    "totalAssets": <number or null>,
+    "totalLiabilities": <number or null>,
+    "netAssets": <number or null>,
+    "cashPosition": <number or null>
+  },
+  "commentary": "A detailed 2-3 paragraph analysis of the financial performance, trends, and position. Reference specific figures from the accounts.",
+  "strengths": ["strength1", "strength2", "strength3"],
+  "concerns": ["concern1", "concern2"],
+  "recommendations": ["recommendation1", "recommendation2"],
+  "profitabilityAssessment": "Assessment of profitability (1-2 sentences)",
+  "liquidityAssessment": "Assessment of liquidity and cash position (1-2 sentences)",
+  "overallRating": "strong" | "satisfactory" | "weak" | "critical"
+}
+
+IMPORTANT:
+- Extract actual numbers from the management accounts where visible
+- If exact figures cannot be determined, note this and provide estimates or ranges
+- Be specific about trends (improving/declining)
+- Consider seasonality if relevant
+- Rating criteria:
+  - "strong": Healthy profitability, good liquidity, positive trends
+  - "satisfactory": Adequate performance with some minor concerns
+  - "weak": Concerning metrics requiring attention
+  - "critical": Significant financial distress indicators
+
+Return ONLY the JSON object, no other text.`;
+
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+      
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("No JSON found in response");
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]) as ManagementAccountsAnalysis;
+      
+      // Validate required fields
+      if (!parsed.summary || !parsed.commentary || !parsed.overallRating) {
+        throw new Error("Missing required fields in response");
+      }
+
+      // Ensure arrays exist
+      parsed.strengths = parsed.strengths || [];
+      parsed.concerns = parsed.concerns || [];
+      parsed.recommendations = parsed.recommendations || [];
+      parsed.keyMetrics = parsed.keyMetrics || {};
+
+      return parsed;
+    } catch (error) {
+      console.error(`Management accounts analysis attempt ${attempt}/${maxRetries} error:`, error);
+
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+
+  throw new Error("Failed to analyze management accounts after multiple attempts");
+}
