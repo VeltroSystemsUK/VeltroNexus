@@ -538,7 +538,12 @@ IMPORTANT:
 
       result.averageMonthlyRevenue = result.averageMonthlyRevenue || 0;
       result.averageMonthlyExpenses = result.averageMonthlyExpenses || 0;
-      result.netDisposableIncome = result.netDisposableIncome || 0;
+      
+      // Ensure netDisposableIncome is correctly calculated from revenue - expenses
+      // The AI may return an inconsistent value, so we recalculate to ensure accuracy
+      const calculatedNetDisposable = result.averageMonthlyRevenue - result.averageMonthlyExpenses;
+      result.netDisposableIncome = calculatedNetDisposable;
+      
       result.monthlyBreakdown = result.monthlyBreakdown || [];
       result.transactionCount = result.transactionCount || 0;
       result.redFlags = result.redFlags || [];
@@ -557,8 +562,18 @@ IMPORTANT:
         periodMonths: 0,
       };
 
+      // Calculate DSCR from the corrected netDisposableIncome
       if (monthlyRepayment > 0) {
         result.dscr = result.netDisposableIncome / monthlyRepayment;
+        
+        // Recalculate risk score based on corrected DSCR
+        if (result.dscr > 2.0) result.riskScore = 'A';
+        else if (result.dscr > 1.5) result.riskScore = 'B';
+        else if (result.dscr > 1.25) result.riskScore = 'C';
+        else if (result.dscr > 1.0) result.riskScore = 'D';
+        else result.riskScore = 'E';
+        
+        console.log(`[Gemini PDF] DSCR calculated: ${result.netDisposableIncome.toFixed(2)} / ${monthlyRepayment.toFixed(2)} = ${result.dscr.toFixed(2)}, Risk: ${result.riskScore}`);
       }
 
       return result;

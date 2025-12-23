@@ -926,11 +926,14 @@ function renderLoanDetailsWithDueDiligence(
   const purposeOfLoan = adviserSummary?.proposalSummary || adviserSummary?.purpose || "";
 
   if (purposeOfLoan) {
+    // Convert long free-text into a structured layout (headings + bullets)
+    const formattedPurpose = formatPurposeOfLoan(purposeOfLoan);
+
     // Render in a measured card (prevents overflow / overlap with following sections)
     const out = renderMeasuredTextCard({
       doc,
       title: "PURPOSE OF LOAN",
-      text: purposeOfLoan,
+      text: formattedPurpose,
       y,
       pageNumber: 0,
       accentColor: COLORS.accent,
@@ -2254,6 +2257,16 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
     // 7.3 Financial Analysis (AI-powered)
     if (cu.analysis || cu.financialAnalysis) {
       const analysis = cu.analysis || cu.financialAnalysis;
+      // Prefer a computed DSCR (NDI ÷ monthly repayment) to avoid inconsistent AI narratives
+      const repayment = ddData?.loanCalculator?.monthlyPayment;
+      const ndi = analysis.netDisposableIncome;
+      const dscrComputed =
+        typeof ndi === "number" && typeof repayment === "number" && repayment > 0 ? ndi / repayment : null;
+      const dscrReported =
+        analysis.dscr != null && Number.isFinite(Number(analysis.dscr)) ? Number(analysis.dscr) : null;
+      const dscrToShow = dscrComputed ?? dscrReported;
+      const dscrMismatch =
+        dscrComputed != null && dscrReported != null && Math.abs(dscrComputed - dscrReported) > 0.15;
 
       // (A) Metrics card (short, structured)
       const hasPnl = !!analysis.profitAndLoss;
@@ -2308,8 +2321,8 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
         );
       }
 
-      if (analysis.dscr != null) {
-        const dscrVal = Number(analysis.dscr);
+      if (dscrToShow != null) {
+        const dscrVal = dscrToShow;
         const dscrColor =
           dscrVal >= 1.25 ? COLORS.success : dscrVal >= 1.0 ? COLORS.warning : COLORS.danger;
 
@@ -2317,7 +2330,12 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
         doc.text("DSCR", col2X, metricsY);
 
         doc.fontSize(11).fillColor(dscrColor).font("Helvetica-Bold");
-        doc.text(Number.isFinite(dscrVal) ? dscrVal.toFixed(2) : "N/A", col2X, metricsY + 12);
+        doc.text(dscrVal.toFixed(2), col2X, metricsY + 12);
+      } else {
+        doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+        doc.text("DSCR", col2X, metricsY);
+        doc.fontSize(11).fillColor(COLORS.textLight).font("Helvetica-Bold");
+        doc.text("N/A", col2X, metricsY + 12);
       }
 
       metricsY += 35;
@@ -2351,7 +2369,45 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
       y += metricsCardH + 15;
 
       // (B) Narrative / Summary card (measured – avoids overlap)
-      const summaryText = normalizeText(analysis.summary || analysis.narrative || analysis.commentary || "");
+      // If AI supplied a DSCR that doesn't match NDI ÷ repayment, flag it clearly
+      if (dscrMismatch && dscrComputed != null && dscrReported != null) {
+        const note = [
+          `AI narrative DSCR: ${dscrReported.toFixed(2)}`,
+          repayment != null ? `Monthly repayment: ${formatCurrency(repayment * 100)}` : null,
+          ndi != null ? `Net disposable income: ${formatCurrency(ndi * 100)}` : null,
+          `Computed DSCR (NDI ÷ repayment): ${dscrComputed.toFixed(2)}`,
+          "",
+          "This report uses the computed DSCR for display where possible.",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const outNote = renderMeasuredTextCard({
+          doc,
+          title: "DSCR CONSISTENCY CHECK",
+          text: note,
+          y,
+          pageNumber,
+          accentColor: COLORS.warning,
+          fillColor: COLORS.backgroundLight,
+          minHeight: 90,
+          titleColor: COLORS.warning,
+        });
+
+        y = outNote.y;
+        pageNumber = outNote.pageNumber;
+      }
+
+      const summaryTextRaw = normalizeText(
+        analysis.summary || analysis.narrative || analysis.commentary || ""
+      );
+      const summaryText = formatAiAnalysisText(summaryTextRaw, {
+        dscrComputed,
+        dscrReported,
+        dscrToShow,
+        repayment,
+      });
+
       if (summaryText) {
         const out = renderMeasuredTextCard({
           doc,
@@ -2662,15 +2718,15 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
 
       // Ratio rows
       const ratioMetrics = [
-        { label: "Current Ratio", key: "currentRatio", benchmark: "≥ 1.5", isGood: (v: number) => v >= 1.5 },
-        { label: "Quick Ratio", key: "quickRatio", benchmark: "≥ 1.0", isGood: (v: number) => v >= 1.0 },
-        { label: "Debt to Equity", key: "debtToEquity", benchmark: "≤ 2.0", isGood: (v: number) => v <= 2.0 },
-        { label: "Gross Profit %", key: "grossProfitMargin", benchmark: "≥ 20%", isGood: (v: number) => normalizePercent(v) >= 20, isPercent: true },
-        { label: "Net Profit %", key: "netProfitMargin", benchmark: "≥ 5%", isGood: (v: number) => normalizePercent(v) >= 5, isPercent: true },
-        { label: "Interest Cover", key: "interestCover", benchmark: "≥ 2.0", isGood: (v: number) => v >= 2.0 },
-        { label: "ROCE", key: "returnOnCapitalEmployed", benchmark: "≥ 15%", isGood: (v: number) => normalizePercent(v) >= 15, isPercent: true },
-        { label: "Debtor Days", key: "debtorDays", benchmark: "≤ 60", isGood: (v: number) => v <= 60, isDays: true },
-        { label: "Creditor Days", key: "creditorDays", benchmark: "≤ 45", isGood: (v: number) => v <= 45, isDays: true },
+        { label: "Current Ratio", key: "currentRatio", benchmark: ">= 1.5", isGood: (v: number) => v >= 1.5 },
+        { label: "Quick Ratio", key: "quickRatio", benchmark: ">= 1.0", isGood: (v: number) => v >= 1.0 },
+        { label: "Debt to Equity", key: "debtToEquity", benchmark: "<= 2.0", isGood: (v: number) => v <= 2.0 },
+        { label: "Gross Profit %", key: "grossProfitMargin", benchmark: ">= 20%", isGood: (v: number) => normalizePercent(v) >= 20, isPercent: true },
+        { label: "Net Profit %", key: "netProfitMargin", benchmark: ">= 5%", isGood: (v: number) => normalizePercent(v) >= 5, isPercent: true },
+        { label: "Interest Cover", key: "interestCover", benchmark: ">= 2.0", isGood: (v: number) => v >= 2.0 },
+        { label: "ROCE", key: "returnOnCapitalEmployed", benchmark: ">= 15%", isGood: (v: number) => normalizePercent(v) >= 15, isPercent: true },
+        { label: "Debtor Days", key: "debtorDays", benchmark: "<= 60", isGood: (v: number) => v <= 60, isDays: true },
+        { label: "Creditor Days", key: "creditorDays", benchmark: "<= 45", isGood: (v: number) => v <= 45, isDays: true },
       ];
 
       ratioMetrics.forEach((metric) => {
@@ -2778,7 +2834,7 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
       const out = renderMeasuredTextCard({
         doc,
         title: campariLabels[key] || key.toUpperCase(),
-        text: content,
+        text: formatCampariContent(key, content),
         y,
         pageNumber,
         accentColor: COLORS.secondary,
@@ -2947,6 +3003,188 @@ function normalizeText(input: any): string {
   return String(input).trim();
 }
 
+
+// ------------------------------
+// Text formatting helpers (CAMPARI / AI / Purpose of Loan)
+// ------------------------------
+function splitSentences(text: string): string[] {
+  const clean = normalizeText(text)
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return [];
+
+  // Reasonable sentence extraction for underwriting prose (no lookbehind for Node compatibility)
+  const matches = clean.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [];
+  return matches.map((s) => s.trim()).filter(Boolean);
+}
+
+function uniqKeepOrder(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const it of items) {
+    const key = it.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+}
+
+function pickSentencesByKeywords(sentences: string[], keywords: RegExp[], max: number): string[] {
+  const picked: string[] = [];
+  for (const s of sentences) {
+    if (keywords.some((rx) => rx.test(s))) picked.push(s);
+    if (picked.length >= max) break;
+  }
+  return uniqKeepOrder(picked).slice(0, max);
+}
+
+function formatPurposeOfLoan(raw: string): string {
+  const text = normalizeText(raw);
+  if (!text) return "";
+
+  // If it's already bullet-formatted, keep it tidy
+  if (/^[•\-*]\s/m.test(text)) return text;
+
+  const lines = text
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  type Block = { heading?: string; body: string[] };
+  const blocks: Block[] = [];
+  let current: Block = { body: [] };
+
+  const isHeading = (line: string, next?: string) => {
+    if (!line) return false;
+    if (line.length > 46) return false;
+    if (/[.:;]$/.test(line)) return false;
+    if (/^[•\-*]\s/.test(line)) return false;
+    // Headings are usually Title Case-ish and followed by a longer line
+    if (next && next.length >= 25) return true;
+    return false;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const next = lines[i + 1];
+    if (isHeading(line, next)) {
+      if (current.heading || current.body.length) blocks.push(current);
+      current = { heading: line, body: [] };
+      continue;
+    }
+    current.body.push(line);
+  }
+  if (current.heading || current.body.length) blocks.push(current);
+
+  // Convert bodies into bullets (sentence-level) for readability
+  const out: string[] = [];
+  for (const b of blocks) {
+    if (b.heading) out.push(b.heading);
+    const bodyText = b.body.join(" ").trim();
+    if (bodyText) {
+      const sents = splitSentences(bodyText);
+      if (sents.length <= 1) {
+        out.push(`• ${bodyText}`);
+      } else {
+        sents.slice(0, 6).forEach((s) => out.push(`• ${s}`));
+        if (sents.length > 6) out.push("• …");
+      }
+    }
+    out.push(""); // blank line between blocks
+  }
+
+  return out.join("\n").trim();
+}
+
+function formatAiAnalysisText(
+  raw: string,
+  ctx: { dscrComputed: number | null; dscrReported: number | null; dscrToShow: number | null; repayment: number | null | undefined }
+): string {
+  let text = normalizeText(raw);
+  if (!text) return "";
+
+  // Replace DSCR mentions with the displayed DSCR where possible (prevents contradictory narratives)
+  if (ctx.dscrToShow != null) {
+    const ds = ctx.dscrToShow.toFixed(2);
+    text = text
+      .replace(/\bDSCR\b\s*(?:is|=|of)?\s*([0-9]+(?:\.[0-9]+)?)/gi, `DSCR ${ds}`)
+      .replace(/Debt Service Coverage Ratio\s*\(DSCR\)\s*(?:is|=)?\s*([0-9]+(?:\.[0-9]+)?)/gi, `Debt Service Coverage Ratio (DSCR) ${ds}`);
+  }
+
+  const sentences = splitSentences(text);
+  const positiveRx = [
+    /impressive|strong|healthy|improv|growth|clear|proven|established|strategic/i,
+  ];
+  const riskRx = [
+    /concern|risk|red flag|unaudited|questionable|insufficient|decline|discrepanc|bounced|liquidity|shortfall/i,
+  ];
+
+  const positives = pickSentencesByKeywords(sentences, positiveRx, 3);
+  const risks = pickSentencesByKeywords(sentences, riskRx, 3);
+
+  const fallback = sentences.slice(0, 5);
+
+  const lines: string[] = [];
+  lines.push("Key points:");
+  const keyPoints = uniqKeepOrder([...positives, ...risks]);
+  (keyPoints.length ? keyPoints : fallback).forEach((s) => lines.push(`• ${s}`));
+
+  // Add a short 'Detail' block (keeps the PDF readable even when AI returns long prose)
+  const maxDetailChars = 950;
+  const detail = text.length > maxDetailChars ? text.slice(0, maxDetailChars).trimEnd() + "…" : text;
+
+  lines.push("");
+  lines.push("Detail:");
+  lines.push(detail);
+
+  return lines.join("\n");
+}
+
+function formatCampariContent(sectionKey: string, raw: string): string {
+  const text = normalizeText(raw);
+  if (!text) return "";
+
+  const sentences = splitSentences(text);
+  const positiveRx = [
+    /impressive|strong|healthy|improv|growth|clear|proven|established|strategic|aligned|permitted/i,
+  ];
+  const riskRx = [
+    /concern|risk|red flag|unaudited|questionable|insufficient|decline|discrepanc|bounced|liquidity|shortfall|unacceptable|lack|omit/i,
+  ];
+
+  // Heuristic: first sentence can be a 'verdict' in some sections
+  const verdict = sentences[0] && sentences[0].length <= 180 ? sentences[0] : "";
+
+  const positives = pickSentencesByKeywords(sentences, positiveRx, 4);
+  const risks = pickSentencesByKeywords(sentences, riskRx, 4);
+
+  const lines: string[] = [];
+  if (verdict) {
+    lines.push(`Verdict: ${verdict}`);
+    lines.push("");
+  }
+
+  if (positives.length) {
+    lines.push("Key positives:");
+    positives.forEach((s) => lines.push(`• ${s}`));
+    lines.push("");
+  }
+
+  if (risks.length) {
+    lines.push("Key risks:");
+    risks.forEach((s) => lines.push(`• ${s}`));
+    lines.push("");
+  }
+
+  // Keep a trimmed detail for audit trail
+  const maxDetailChars = 1100;
+  const detail = text.length > maxDetailChars ? text.slice(0, maxDetailChars).trimEnd() + "…" : text;
+  lines.push("Detail:");
+  lines.push(detail);
+
+  return lines.join("\n");
+}
 function ensureSpaceForBlock(
   doc: typeof PDFDocument.prototype,
   y: number,
