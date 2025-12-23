@@ -1,19 +1,39 @@
-# Design Guidelines: Lending Pipeline Management System
+# Design Guidelines: FlowLoan Modern UI Theme
 
 ## Design Approach
 
 **Selected Framework**: Modern SaaS Dashboard Pattern (Shadcn/UI-based)
-- Inspired by Linear's clarity, Notion's data density, and Stripe's professional restraint
+- Deep blue/purple modern aesthetic inspired by modern fintech applications
+- Uses Inter font for clean, professional typography
+- Glass morphism and gradient surfaces for visual depth
 - Function-first design optimized for daily workflow efficiency
 - Clean, scannable information architecture with purposeful visual hierarchy
+
+## Color System
+
+### Light Mode
+- Background: Soft blue-gray (#f7f8ff equivalent)
+- Cards: Pure white with subtle borders
+- Primary: Blue-purple (#6d7dff - HSL 234, 100%, 71%)
+- Secondary: Purple (#a56dff - HSL 263, 100%, 71%)
+- Destructive: Coral red (#ff4d6d - HSL 349, 100%, 65%)
+- Success: Green (#22c55e - HSL 142, 71%, 45%)
+- Warning: Amber (#fbbf24 - HSL 45, 93%, 47%)
+
+### Dark Mode (Primary Theme)
+- Background: Deep navy (#0b1020 - HSL 228, 49%, 8%)
+- Card/Panel: Dark blue (#0f1730 - HSL 227, 52%, 12%)
+- Panel Secondary: (#111b3a - HSL 225, 55%, 15%)
+- Text: Light blue-white (#e8ecff - HSL 230, 100%, 96%)
+- Borders: Subtle blue-gray (HSL 227, 40%, 18%)
 
 ## Core Design Elements
 
 ### A. Typography System
 
 **Font Families**:
-- Primary: Inter or System UI Stack for optimal screen readability
-- Monospace: JetBrains Mono for company numbers and numerical data
+- Primary: Inter (imported from Google Fonts) for optimal screen readability
+- Monospace: ui-monospace, SFMono-Regular, Menlo for company numbers and numerical data
 
 **Hierarchy**:
 - Page Titles: text-3xl, font-bold (Pipeline, Prospects, etc.)

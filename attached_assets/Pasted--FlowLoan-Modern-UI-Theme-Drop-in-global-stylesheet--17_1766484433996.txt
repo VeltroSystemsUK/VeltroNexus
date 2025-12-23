@@ -1,0 +1,306 @@
+/* =========================
+   FlowLoan Modern UI Theme
+   Drop-in global stylesheet
+   ========================= */
+
+/* 1) Font + sensible reset */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+img, svg, video { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+:focus { outline: none; }
+:focus-visible { outline: 3px solid color-mix(in oklab, var(--primary) 60%, white); outline-offset: 2px; }
+
+/* 2) Design tokens */
+:root {
+  /* Core */
+  --bg: #0b1020;
+  --panel: #0f1730;
+  --panel-2: #111b3a;
+  --text: #e8ecff;
+  --muted: color-mix(in oklab, var(--text) 70%, #000);
+  --faint: color-mix(in oklab, var(--text) 50%, #000);
+  --border: color-mix(in oklab, var(--text) 14%, #000);
+
+  /* Brand */
+  --primary: #6d7dff;         /* tweak to your brand */
+  --primary-2: #a56dff;       /* optional gradient partner */
+  --danger: #ff4d6d;
+  --success: #22c55e;
+  --warning: #fbbf24;
+
+  /* Sizing */
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 18px;
+
+  /* Shadows */
+  --shadow-sm: 0 6px 18px rgba(0,0,0,.25);
+  --shadow: 0 14px 40px rgba(0,0,0,.35);
+
+  /* Spacing scale */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8ff;
+    --panel: #ffffff;
+    --panel-2: #f3f5ff;
+    --text: #12162a;
+    --muted: color-mix(in oklab, var(--text) 72%, #fff);
+    --faint: color-mix(in oklab, var(--text) 55%, #fff);
+    --border: color-mix(in oklab, var(--text) 14%, #fff);
+  }
+}
+
+/* Optional explicit theme toggle (set data-theme="dark" or "light" on <html>) */
+html[data-theme="dark"] { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+
+/* 3) Layout primitives */
+.container { width: min(1120px, calc(100% - 2*var(--s6))); margin-inline: auto; }
+.stack > * + * { margin-top: var(--s4); }
+.row { display: flex; gap: var(--s4); align-items: center; }
+.grid { display: grid; gap: var(--s4); }
+.hr { height: 1px; background: var(--border); border: 0; margin: var(--s6) 0; }
+
+/* 4) Typography */
+.h1 { font-size: clamp(28px, 3vw, 40px); line-height: 1.1; letter-spacing: -0.02em; font-weight: 700; }
+.h2 { font-size: clamp(22px, 2.2vw, 28px); line-height: 1.2; letter-spacing: -0.01em; font-weight: 700; }
+.h3 { font-size: 18px; line-height: 1.25; font-weight: 650; }
+.p  { font-size: 15px; color: var(--muted); }
+.kbd, code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 999px;
+  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary) 28%, transparent);
+  color: color-mix(in oklab, var(--text) 92%, var(--primary));
+  font-weight: 600; font-size: 12px;
+}
+
+/* 5) Surfaces */
+.card {
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--panel) 92%, transparent),
+    color-mix(in oklab, var(--panel-2) 92%, transparent));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-hd { padding: var(--s6); border-bottom: 1px solid var(--border); }
+.card > .card-bd { padding: var(--s6); }
+.card > .card-ft { padding: var(--s6); border-top: 1px solid var(--border); }
+
+.glass {
+  background: color-mix(in oklab, var(--panel) 70%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* 6) Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  height: 42px; padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--panel) 90%, transparent);
+  color: var(--text);
+  font-weight: 650;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  cursor: pointer;
+}
+.btn:hover { transform: translateY(-1px); border-color: color-mix(in oklab, var(--text) 22%, transparent); }
+.btn:active { transform: translateY(0px); }
+
+.btn-primary {
+  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #0b1020;
+}
+.btn-primary:hover { filter: brightness(1.03); }
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn-danger {
+  border-color: color-mix(in oklab, var(--danger) 40%, transparent);
+  background: color-mix(in oklab, var(--danger) 16%, transparent);
+}
+.btn-sm { height: 36px; padding: 0 12px; border-radius: 10px; font-size: 14px; }
+.btn-lg { height: 50px; padding: 0 18px; border-radius: 14px; }
+
+/* 7) Forms */
+.label { font-size: 13px; font-weight: 650; color: var(--muted); margin-bottom: 8px; display: block; }
+.hint { font-size: 12px; color: var(--faint); margin-top: 8px; }
+
+.input, .select, .textarea {
+  width: 100%;
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--text);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.input, .select { height: 42px; }
+.textarea { min-height: 110px; resize: vertical; }
+
+.input:focus, .select:focus, .textarea:focus {
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+.input::placeholder, .textarea::placeholder { color: color-mix(in oklab, var(--text) 50%, transparent); }
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s4);
+}
+@media (max-width: 720px) {
+  .field-row { grid-template-columns: 1fr; }
+}
+
+/* 8) Tables */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.table th, .table td { padding: 12px 14px; text-align: left; }
+.table th {
+  font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--faint);
+  background: color-mix(in oklab, var(--panel-2) 86%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.table tr + tr td { border-top: 1px solid var(--border); }
+.table tr:hover td { background: color-mix(in oklab, var(--primary) 8%, transparent); }
+
+/* 9) App chrome: sidebar + topbar (optional) */
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+}
+.sidebar {
+  padding: var(--s6);
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--panel) 92%, transparent),
+    color-mix(in oklab, var(--panel-2) 92%, transparent));
+}
+.main { padding: var(--s7); }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s4);
+  margin-bottom: var(--s6);
+}
+.navlink {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--muted);
+}
+.navlink:hover { background: color-mix(in oklab, var(--primary) 10%, transparent); color: var(--text); }
+.navlink[aria-current="page"] {
+  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  color: var(--text);
+  border: 1px solid color-mix(in oklab, var(--primary) 26%, transparent);
+}
+
+@media (max-width: 980px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: sticky; top: 0; z-index: 10; border-right: 0; border-bottom: 1px solid var(--border); }
+  .main { padding: var(--s6); }
+}
+
+/* 10) Pipeline / Kanban board styling */
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 1fr);
+  gap: var(--s4);
+  overflow-x: auto;
+  padding-bottom: var(--s4);
+}
+.column {
+  background: color-mix(in oklab, var(--panel) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  min-height: 240px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+.column-hd {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+.column-title { font-weight: 750; letter-spacing: -0.01em; }
+.column-count { font-size: 12px; color: var(--faint); }
+.column-bd { padding: 12px; display: grid; gap: 12px; align-content: start; }
+
+.ticket {
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--panel-2) 90%, transparent),
+    color-mix(in oklab, var(--panel) 90%, transparent));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.ticket:hover { border-color: color-mix(in oklab, var(--text) 22%, transparent); transform: translateY(-1px); transition: transform .12s ease; }
+.ticket .title { font-weight: 700; }
+.ticket .meta { margin-top: 8px; font-size: 12px; color: var(--faint); display: flex; gap: 10px; flex-wrap: wrap; }
+.pill {
+  display: inline-flex; align-items: center;
+  padding: 4px 8px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--panel) 86%, transparent);
+}
+
+/* 11) Toast / modal basics */
+.backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(8px);
+}
+.modal {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100% - 2*var(--s6)));
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.modal-hd, .modal-bd, .modal-ft { padding: var(--s6); }
+.modal-hd { border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal-ft { border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: var(--s3); }
+
+/* 12) Motion safety */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; scroll-behavior: auto !important; }
+}
