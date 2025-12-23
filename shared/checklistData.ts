@@ -14,25 +14,25 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
     items: [
       {
         id: "ec-1",
-        description: "Applicant/s aged over 18",
+        description: "Main Applicant/s aged over 18?",
       },
       {
         id: "ec-2",
         description:
-          "Applicant/s must live in ",
+          "Main Applicant/s must live in the United Kingdom?",
       },
       {
         id: "ec-3",
         description:
-          "Loan amount criteria and security requirements met? (As per latest Loan Fund Update Document)",
+          "Loan amount criteria and security requirements met?",
       },
       {
         id: "ec-4",
-        description: "Minimum contribution 15% for existing businesses",
+        description: "Evidence minimum contribution 10% for existing businesses?",
       },
       {
         id: "ec-5",
-        description: "Request not for excluded purpose (As per latest Loan Fund Update Document)",
+        description: "Request is not for any excluded purposes?",
       },
     ],
   },
@@ -43,7 +43,7 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       {
         id: "cc-1",
         description:
-          "Before proceeding further – credit searches obtained on all applicants on all addresses revealed over the last 3 years. Must not be more than a month old.",
+          "Personal Credit Reports obtained on all applicants on all addresses revealed over the last 3 years. Must not be more than one month old.",
       },
       {
         id: "cc-2",
@@ -116,7 +116,7 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       {
         id: "cb-1",
         description:
-          "If the business is a Limited Co – then obtain a company search from Companies House. (Comment on results in adviser summary)",
+          "If the business is a Limited Co – then obtain a company search from Companies House.",
       },
       {
         id: "cb-2",
@@ -134,11 +134,11 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
     items: [
       {
         id: "fd-1",
-        description: "Personal Statement of Asset & Liabilities for each Director",
+        description: "Personal Statement of Asset & Liabilities (Assets/Liabilities) for each Director",
       },
       {
         id: "fd-2",
-        description: "One years cashflow forecast and Business Liabilities Form",
+        description: "One years Cashflow Forecast and Business Liabilities Form",
       },
       {
         id: "fd-3",
@@ -153,7 +153,7 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       {
         id: "fd-5",
         description:
-          "Full latest 6 months bank statements held (on business account if an existing business or personal account/s of all applicants if start-up). (Comment on bank account operation in adviser summary)",
+          "Full latest 6 months bank statements held (on business account if an existing business or personal account/s of all applicants if start-up).",
       },
     ],
   },
