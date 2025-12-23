@@ -26,21 +26,39 @@ interface ProspectReportData {
   pdfLayoutPreferences?: PDFLayoutPreferences | null;
 }
 
-// Big 4 Consultancy Color Palette
+// Professional Color Palette - Compact Design
 const COLORS = {
-  primary: "#0D2137", // Deep navy - main headers
-  secondary: "#1B365D", // Navy blue - secondary elements
+  primary: "#2c3e50", // Professional dark blue-gray for headers
+  secondary: "#34495e", // Slightly lighter for secondary elements
   accent: "#2563EB", // Bright blue - highlights
-  success: "#059669", // Green - positive indicators
-  warning: "#D97706", // Amber - warnings
-  danger: "#DC2626", // Red - alerts
-  text: "#1F2937", // Dark gray - body text
+  success: "#4caf50", // Green - positive indicators
+  warning: "#ff9800", // Orange - warnings
+  danger: "#f44336", // Red - alerts
+  text: "#333333", // Dark gray - body text
   textSecondary: "#6B7280", // Medium gray - secondary text
   textLight: "#9CA3AF", // Light gray - captions
-  border: "#E5E7EB", // Light border
-  backgroundLight: "#F9FAFB", // Light background for boxes
+  border: "#dfe6e9", // Subtle border color
+  borderLight: "#eee", // Very light border for sections
+  backgroundLight: "#f8f9fa", // Light background for key findings
   backgroundMuted: "#F3F4F6", // Muted background
   white: "#FFFFFF",
+  // SWOT Softened Colors
+  swotStrengthsBg: "#e8f5e9",
+  swotStrengthsBorder: "#4caf50",
+  swotWeaknessesBg: "#fff3e0",
+  swotWeaknessesBorder: "#ff9800",
+  swotOpportunitiesBg: "#e3f2fd",
+  swotOpportunitiesBorder: "#2196f3",
+  swotThreatsBg: "#ffebee",
+  swotThreatsBorder: "#f44336",
+};
+
+// Compact Layout Constants
+const SPACING = {
+  sectionMargin: 15, // Space between sections
+  cellPadding: { x: 8, y: 6 }, // Table cell padding
+  sectionPadding: 10, // Padding inside sections
+  headerMargin: 10, // Space below headers
 };
 
 const DEFAULT_SECTIONS: PDFSection[] = [
@@ -350,19 +368,19 @@ function renderMetricBox(
   value: string,
   accentColor: string
 ) {
-  // Box with subtle border
-  doc.rect(x, y, width, height).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  // Compact box with light background and accent border
+  doc.rect(x, y, width, height).fill(COLORS.backgroundLight);
 
-  // Accent bar on left
-  doc.rect(x, y, 4, height).fill(accentColor);
+  // Accent bar on left - 5px as per CSS spec
+  doc.rect(x, y, 5, height).fill(accentColor);
 
-  // Label
-  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
-  doc.text(label.toUpperCase(), x + 15, y + 12, { width: width - 20 });
+  // Label - compact
+  doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text(label.toUpperCase(), x + 12, y + SPACING.cellPadding.y, { width: width - 20 });
 
-  // Value
-  doc.fontSize(16).fillColor(COLORS.primary).font("Helvetica-Bold");
-  doc.text(value, x + 15, y + 32, { width: width - 20 });
+  // Value - slightly smaller for compact design
+  doc.fontSize(14).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(value, x + 12, y + 24, { width: width - 20 });
 }
 
 function renderExecutiveSummary(
@@ -752,20 +770,24 @@ function renderSectionHeader(
   title: string,
   sectionNumber?: string
 ) {
-  // Header bar
-  doc.rect(0, MARGIN, PAGE_WIDTH, 50).fill(COLORS.primary);
+  // Compact header bar with thinner height
+  const headerHeight = 40;
+  doc.rect(0, MARGIN, PAGE_WIDTH, headerHeight).fill(COLORS.primary);
 
-  // Section number (if provided)
+  // Section number (if provided) - inline with title
   if (sectionNumber) {
-    doc.fontSize(12).fillColor(COLORS.accent).font("Helvetica");
-    doc.text(`Section ${sectionNumber}`, MARGIN, MARGIN + 8);
+    doc.fontSize(10).fillColor(COLORS.accent).font("Helvetica");
+    doc.text(`${sectionNumber}`, MARGIN, MARGIN + 14);
+    // Title - uppercase for professional look
+    doc.fontSize(16).fillColor(COLORS.white).font("Helvetica-Bold");
+    doc.text(title.toUpperCase(), MARGIN + 30, MARGIN + 12);
+  } else {
+    // Title only - uppercase
+    doc.fontSize(16).fillColor(COLORS.white).font("Helvetica-Bold");
+    doc.text(title.toUpperCase(), MARGIN, MARGIN + 12);
   }
 
-  // Title
-  doc.fontSize(20).fillColor(COLORS.white).font("Helvetica-Bold");
-  doc.text(title, MARGIN, sectionNumber ? MARGIN + 22 : MARGIN + 15);
-
-  doc.y = MARGIN + 70;
+  doc.y = MARGIN + headerHeight + SPACING.sectionPadding;
 }
 
 function renderCompanyInfo(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
@@ -846,10 +868,11 @@ function renderDetailRow(
   value: string,
   width?: number
 ) {
-  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  // Compact detail row with tighter spacing
+  doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text(label.toUpperCase(), x, y);
-  doc.fontSize(11).fillColor(COLORS.text).font("Helvetica-Bold");
-  doc.text(value, x, y + 14, { width: width || 220 });
+  doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(value, x, y + 12, { width: width || 200 });
 }
 
 function renderOfficers(doc: typeof PDFDocument.prototype, officers: any) {
@@ -2407,99 +2430,98 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
   }
 }
 
-// Standalone SWOT Analysis Section
+// Standalone SWOT Analysis Section - Softened Professional Colors
 function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
   renderSectionHeader(doc, "SWOT Analysis", "16");
   let y = doc.y + 10;
 
-  // Create 2x2 grid for SWOT
-  const boxWidth = (CONTENT_WIDTH - 15) / 2;
-  const boxHeight = 180;
+  // Create 2x2 grid for SWOT with compact spacing
+  const gap = 10;
+  const boxWidth = (CONTENT_WIDTH - gap) / 2;
+  const boxHeight = 160;
+  const accentBorderWidth = 5;
 
-  // Strengths (top-left)
-  doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.success + "10", COLORS.success);
-  doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.success);
-  doc.fontSize(11).fillColor(COLORS.white).font("Helvetica-Bold");
-  doc.text("STRENGTHS", MARGIN + 10, y + 7);
+  // Strengths (top-left) - Soft green pastel
+  doc.rect(MARGIN, y, boxWidth, boxHeight).fill(COLORS.swotStrengthsBg);
+  doc.rect(MARGIN, y, accentBorderWidth, boxHeight).fill(COLORS.swotStrengthsBorder);
+  doc.fontSize(11).fillColor(COLORS.swotStrengthsBorder).font("Helvetica-Bold");
+  doc.text("STRENGTHS", MARGIN + 12, y + 10);
 
   if (swot.strengths && Array.isArray(swot.strengths)) {
-    let sY = y + 35;
+    let sY = y + 28;
     swot.strengths.slice(0, 5).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, sY, { width: boxWidth - 20 });
-      sY += 28;
+      doc.text(`• ${truncateText(item, 70)}`, MARGIN + 12, sY, { width: boxWidth - 20 });
+      sY += 24;
     });
   }
 
-  // Weaknesses (top-right)
-  doc
-    .rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight)
-    .fillAndStroke(COLORS.warning + "10", COLORS.warning);
-  doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.warning);
-  doc.fontSize(11).fillColor(COLORS.white).font("Helvetica-Bold");
-  doc.text("WEAKNESSES", MARGIN + boxWidth + 25, y + 7);
+  // Weaknesses (top-right) - Soft orange pastel
+  const rightX = MARGIN + boxWidth + gap;
+  doc.rect(rightX, y, boxWidth, boxHeight).fill(COLORS.swotWeaknessesBg);
+  doc.rect(rightX, y, accentBorderWidth, boxHeight).fill(COLORS.swotWeaknessesBorder);
+  doc.fontSize(11).fillColor(COLORS.swotWeaknessesBorder).font("Helvetica-Bold");
+  doc.text("WEAKNESSES", rightX + 12, y + 10);
 
   if (swot.weaknesses && Array.isArray(swot.weaknesses)) {
-    let wY = y + 35;
+    let wY = y + 28;
     swot.weaknesses.slice(0, 5).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, wY, { width: boxWidth - 20 });
-      wY += 28;
+      doc.text(`• ${truncateText(item, 70)}`, rightX + 12, wY, { width: boxWidth - 20 });
+      wY += 24;
     });
   }
 
-  y += boxHeight + 15;
+  y += boxHeight + gap;
 
-  // Opportunities (bottom-left)
-  doc.rect(MARGIN, y, boxWidth, boxHeight).fillAndStroke(COLORS.accent + "10", COLORS.accent);
-  doc.rect(MARGIN, y, boxWidth, 25).fill(COLORS.accent);
-  doc.fontSize(11).fillColor(COLORS.white).font("Helvetica-Bold");
-  doc.text("OPPORTUNITIES", MARGIN + 10, y + 7);
+  // Opportunities (bottom-left) - Soft blue pastel
+  doc.rect(MARGIN, y, boxWidth, boxHeight).fill(COLORS.swotOpportunitiesBg);
+  doc.rect(MARGIN, y, accentBorderWidth, boxHeight).fill(COLORS.swotOpportunitiesBorder);
+  doc.fontSize(11).fillColor(COLORS.swotOpportunitiesBorder).font("Helvetica-Bold");
+  doc.text("OPPORTUNITIES", MARGIN + 12, y + 10);
 
   if (swot.opportunities && Array.isArray(swot.opportunities)) {
-    let oY = y + 35;
+    let oY = y + 28;
     swot.opportunities.slice(0, 5).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 80)}`, MARGIN + 10, oY, { width: boxWidth - 20 });
-      oY += 28;
+      doc.text(`• ${truncateText(item, 70)}`, MARGIN + 12, oY, { width: boxWidth - 20 });
+      oY += 24;
     });
   }
 
-  // Threats (bottom-right)
-  doc
-    .rect(MARGIN + boxWidth + 15, y, boxWidth, boxHeight)
-    .fillAndStroke(COLORS.danger + "10", COLORS.danger);
-  doc.rect(MARGIN + boxWidth + 15, y, boxWidth, 25).fill(COLORS.danger);
-  doc.fontSize(11).fillColor(COLORS.white).font("Helvetica-Bold");
-  doc.text("THREATS", MARGIN + boxWidth + 25, y + 7);
+  // Threats (bottom-right) - Soft red pastel
+  doc.rect(rightX, y, boxWidth, boxHeight).fill(COLORS.swotThreatsBg);
+  doc.rect(rightX, y, accentBorderWidth, boxHeight).fill(COLORS.swotThreatsBorder);
+  doc.fontSize(11).fillColor(COLORS.swotThreatsBorder).font("Helvetica-Bold");
+  doc.text("THREATS", rightX + 12, y + 10);
 
   if (swot.threats && Array.isArray(swot.threats)) {
-    let tY = y + 35;
+    let tY = y + 28;
     swot.threats.slice(0, 5).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 80)}`, MARGIN + boxWidth + 25, tY, { width: boxWidth - 20 });
-      tY += 28;
+      doc.text(`• ${truncateText(item, 70)}`, rightX + 12, tY, { width: boxWidth - 20 });
+      tY += 24;
     });
   }
 
-  y += boxHeight + 15;
+  y += boxHeight + SPACING.sectionMargin;
 
-  // SWOT Summary
+  // SWOT Summary - Compact with left accent border
   if (swot.summary) {
-    if (y > PAGE_HEIGHT - 100) {
+    if (y > PAGE_HEIGHT - 90) {
       doc.addPage();
       pageNumber++;
-      y = MARGIN + 20;
+      y = MARGIN + 15;
     }
 
-    doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
-    doc.rect(MARGIN, y, 4, 80).fill(COLORS.primary);
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fill(COLORS.backgroundLight);
+    doc.rect(MARGIN, y, accentBorderWidth, 70).fill(COLORS.primary);
 
     doc.fontSize(10).fillColor(COLORS.primary).font("Helvetica-Bold");
-    doc.text("SWOT SUMMARY", MARGIN + 15, y + 12);
+    doc.text("SWOT SUMMARY", MARGIN + 12, y + 10);
 
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(truncateText(swot.summary, 400), MARGIN + 15, y + 32, { width: CONTENT_WIDTH - 30 });
+    doc.text(truncateText(swot.summary, 400), MARGIN + 12, y + 28, { width: CONTENT_WIDTH - 25 });
   }
 }
 
@@ -2518,13 +2540,20 @@ function renderSmallMetricBox(
   label: string,
   value: string
 ) {
-  doc.rect(x, y, width, 50).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
+  // Compact metric box with light background - key findings grid style
+  doc.rect(x, y, width, 45).fill(COLORS.backgroundLight);
 
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
-  doc.text(label.toUpperCase(), x + 8, y + 8, { width: width - 16, align: "center" });
+  doc.text(label.toUpperCase(), x + SPACING.cellPadding.x, y + SPACING.cellPadding.y, { 
+    width: width - (SPACING.cellPadding.x * 2), 
+    align: "center" 
+  });
 
-  doc.fontSize(14).fillColor(COLORS.primary).font("Helvetica-Bold");
-  doc.text(value, x + 8, y + 26, { width: width - 16, align: "center" });
+  doc.fontSize(13).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(value, x + SPACING.cellPadding.x, y + 22, { 
+    width: width - (SPACING.cellPadding.x * 2), 
+    align: "center" 
+  });
 }
 
 function renderPageFooter(
