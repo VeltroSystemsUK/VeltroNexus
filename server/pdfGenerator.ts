@@ -210,19 +210,18 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   pageNumber++;
   renderAdviserRecommendation(doc, prospect);
   // Add page numbers to all pages except cover
-  // const range = doc.bufferedPageRange(); // { start, count }
-  // const coverIndex = range.start; // cover is the first buffered page
-  // const totalContentPages = Math.max(0, range.count - 1);
+  const range = doc.bufferedPageRange(); // { start, count }
+  const coverIndex = range.start; // cover is the first buffered page
+  const totalContentPages = Math.max(0, range.count - 1);
 
-  // for (let pageIndex = coverIndex + 1; pageIndex < coverIndex + range.count; pageIndex++) {
-  //   doc.switchToPage(pageIndex);
-  //   const currentPage = pageIndex - coverIndex; // 1-based (excluding cover)
-  //   renderPageFooter(doc, currentPage, totalContentPages);
+  for (let pageIndex = coverIndex + 1; pageIndex < coverIndex + range.count; pageIndex++) {
+    doc.switchToPage(pageIndex);
+    const currentPage = pageIndex - coverIndex; // 1-based (excluding cover)
+    renderPageFooter(doc, currentPage, totalContentPages);
   }
 // Note: do NOT call doc.end() here - the caller will call it after piping
   return doc;
 }
-
 function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
   // Navy background header band
   doc.rect(0, 0, PAGE_WIDTH, 280).fill(COLORS.primary);
@@ -261,6 +260,42 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
   // Loan Amount Box
   renderMetricBox(
     doc,
+    function renderPageFooter(
+      doc: typeof PDFDocument.prototype,
+      currentPage: number,
+      totalPages: number
+    ) {
+      const page = doc.page;
+      const x0 = page.margins.left;
+      const x1 = page.width - page.margins.right;
+
+      // Must be inside the printable area
+      const lineY = page.height - page.margins.bottom - 18;
+      const textY = lineY + 6;
+
+      // Preserve cursor
+      const prevX = doc.x;
+      const prevY = doc.y;
+
+      doc.save();
+
+      doc.strokeColor(COLORS.border).lineWidth(0.5);
+      doc.moveTo(x0, lineY).lineTo(x1, lineY).stroke();
+
+      doc.font("Helvetica").fontSize(8).fillColor(COLORS.textLight);
+
+      doc.text("FlowLoan • Commercial Lending Solutions", x0, textY, { lineBreak: false });
+      doc.text("CONFIDENTIAL", page.width / 2 - 30, textY, { lineBreak: false });
+
+      const rightText = `Page ${currentPage} of ${totalPages}`;
+      const rightW = doc.widthOfString(rightText);
+      doc.text(rightText, x1 - rightW, textY, { lineBreak: false });
+
+      doc.restore();
+
+      doc.x = prevX;
+      doc.y = prevY;
+    }
     MARGIN,
     boxY,
     boxWidth,
@@ -324,15 +359,7 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
 }
 
 function renderMetricBox(
-  doc: typeof PDFDocument.prototype,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  label: string,
-  value: string,
-  accentColor: string
-) {
+doc: typeof PDFDocument.prototype, p0: (doc: typeof PDFDocument.prototype, currentPage: number, totalPages: number) => void, x: number, y: number, width: number, height: number, label: string, value: string, accentColor: string) {
   // Compact box with light background and accent border
   doc.rect(x, y, width, height).fill(COLORS.backgroundLight);
 
