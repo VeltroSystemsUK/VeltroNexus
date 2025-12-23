@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import type { DueDiligenceData } from "@shared/schema";
+import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
 
 interface AutomaticCreditAnalysisProps {
   data: DueDiligenceData;
@@ -364,7 +365,14 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
             <Separator />
             <div>
               <h3 className="font-semibold mb-2">Analysis Summary</h3>
-              <p className="text-sm text-muted-foreground">{financialAnalysis.summary}</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                {formatAsBulletPoints(financialAnalysis.summary).map((point, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </>
         )}

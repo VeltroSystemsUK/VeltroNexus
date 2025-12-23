@@ -69,6 +69,7 @@ import {
   SUMMARY_SECTIONS,
   CAMPARI_QUESTIONS,
 } from "@/lib/creditUnderwriting/constants";
+import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
 
 interface CreditUnderwritingToolProps {
   prospect: ProspectWithCompany;
@@ -1159,7 +1160,16 @@ export function CreditUnderwritingTool({
                   <span className="font-medium text-sm">Bank Statement Analysis Complete</span>
                   {getRiskGradeBadge(financialAnalysis.riskScore)}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{financialAnalysis.summary}</p>
+                {financialAnalysis.summary && (
+                  <ul className="mt-2 text-xs text-muted-foreground space-y-1">
+                    {formatAsBulletPoints(financialAnalysis.summary).map((point, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-green-500 mt-0.5">•</span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
 
@@ -1435,7 +1445,14 @@ export function CreditUnderwritingTool({
                       )}
                     </div>
                     {accountsAnalysis.summary && (
-                      <p className="text-sm">{accountsAnalysis.summary}</p>
+                      <ul className="text-sm space-y-1">
+                        {formatAsBulletPoints(accountsAnalysis.summary).map((point, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-blue-500 mt-0.5">•</span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
                     )}
 
                     {accountsAnalysis.trends?.trend && (
@@ -1778,9 +1795,14 @@ export function CreditUnderwritingTool({
                       <div className="space-y-2">
                         <p className="text-sm font-medium">AI Commentary</p>
                         <div className="bg-card border rounded-lg p-3">
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                            {managementAccountsAnalysis.commentary}
-                          </p>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {formatAsBulletPoints(managementAccountsAnalysis.commentary).map((point, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-primary mt-0.5">•</span>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       </div>
                     )}
@@ -1790,13 +1812,27 @@ export function CreditUnderwritingTool({
                       {managementAccountsAnalysis.profitabilityAssessment && (
                         <div className="bg-card border rounded-lg p-3">
                           <p className="text-xs text-muted-foreground mb-1">Profitability Assessment</p>
-                          <p className="text-sm">{managementAccountsAnalysis.profitabilityAssessment}</p>
+                          <ul className="text-sm space-y-1">
+                            {formatAsBulletPoints(managementAccountsAnalysis.profitabilityAssessment).map((point, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-primary mt-0.5">•</span>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       )}
                       {managementAccountsAnalysis.liquidityAssessment && (
                         <div className="bg-card border rounded-lg p-3">
                           <p className="text-xs text-muted-foreground mb-1">Liquidity Assessment</p>
-                          <p className="text-sm">{managementAccountsAnalysis.liquidityAssessment}</p>
+                          <ul className="text-sm space-y-1">
+                            {formatAsBulletPoints(managementAccountsAnalysis.liquidityAssessment).map((point, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-primary mt-0.5">•</span>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       )}
                     </div>

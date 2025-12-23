@@ -209,15 +209,17 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   doc.addPage();
   pageNumber++;
   renderAdviserRecommendation(doc, prospect);
-
   // Add page numbers to all pages except cover
-  const totalPages = doc.bufferedPageRange();
-  for (let i = 1; i < totalPages.count; i++) {
-    doc.switchToPage(i);
-    renderPageFooter(doc, i, totalPages.count - 1);
-  }
+  // const range = doc.bufferedPageRange(); // { start, count }
+  // const coverIndex = range.start; // cover is the first buffered page
+  // const totalContentPages = Math.max(0, range.count - 1);
 
-  // Note: do NOT call doc.end() here - the caller will call it after piping
+  // for (let pageIndex = coverIndex + 1; pageIndex < coverIndex + range.count; pageIndex++) {
+  //   doc.switchToPage(pageIndex);
+  //   const currentPage = pageIndex - coverIndex; // 1-based (excluding cover)
+  //   renderPageFooter(doc, currentPage, totalContentPages);
+  }
+// Note: do NOT call doc.end() here - the caller will call it after piping
   return doc;
 }
 
@@ -3023,58 +3025,60 @@ function renderPageFooter(
   currentPage: number,
   totalPages: number
 ) {
-  // IMPORTANT:
-  // PDFKit will auto-add a new page if you call doc.text() below the printable area
-  // (page.height - margins.bottom). Your previous footer used PAGE_HEIGHT-35 which is
-  // *below* the bottom margin, creating 3 extra pages per page (one for each footer line).
   const page = doc.page;
+
   const x0 = page.margins.left;
   const x1 = page.width - page.margins.right;
+  const w = x1 - x0;
 
-  // Keep footer fully inside printable area
-  const lineY = page.height - page.margins.bottom - 18; // safe baseline
+  // Ultra-safe footer positioning: always inside the printable area.
+  // If you write below (page.height - margins.bottom), PDFKit will auto-add pages.
+  doc.font("Helvetica").fontSize(8);
+  const lh = doc.currentLineHeight(true);
+  const lineY = page.height - page.margins.bottom - lh - 10;
   const textY = lineY + 6;
 
-  // Preserve cursor so footer drawing can't affect content layout
   const prevX = doc.x;
   const prevY = doc.y;
 
   doc.save();
 
-  // Footer separator line
+  // Divider line
   doc.strokeColor(COLORS.border).lineWidth(0.5);
   doc.moveTo(x0, lineY).lineTo(x1, lineY).stroke();
 
-  doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
+  doc.fillColor(COLORS.textLight);
 
-  // Left
+  // Three fixed columns prevent wrapping and keep cursor stable
+  const colW = w / 3;
+
   doc.text("FlowLoan • Commercial Lending Solutions", x0, textY, {
-    lineBreak: false,
-    width: x1 - x0,
-    continued: false,
+    width: colW,
+    align: "left",
+    lineBreak: false
   });
 
-  // Centre
-  doc.text("CONFIDENTIAL", page.width / 2 - 30, textY, {
-    lineBreak: false,
-    continued: false,
+  doc.text("CONFIDENTIAL", x0 + colW, textY, {
+    width: colW,
+    align: "center",
+    lineBreak: false
   });
 
-  // Right (measure for perfect right align)
-  const rightText = `Page ${currentPage} of ${totalPages}`;
-  const rightW = doc.widthOfString(rightText);
-  doc.text(rightText, x1 - rightW, textY, {
-    lineBreak: false,
-    continued: false,
+  doc.text(`Page ${currentPage} of ${totalPages}`, x0 + colW * 2, textY, {
+    width: colW,
+    align: "right",
+    lineBreak: false
   });
 
   doc.restore();
 
+  // Restore cursor so stamping can't influence layout
   doc.x = prevX;
   doc.y = prevY;
 }
 
- // ==========================================
+
+// ==========================================
 // COMPACT RENDERING FUNCTIONS
 // These render sections inline without full-page headers
 // ==========================================

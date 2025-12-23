@@ -115,6 +115,7 @@ import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog"
 import ReplyToQueryDialog from "@/components/ReplyToQueryDialog";
 import ConversationThread from "@/components/ConversationThread";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
+import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
 
 const STAGES = [
   { value: "lead", label: "Lead" },
@@ -3973,9 +3974,14 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                     <Search className="h-4 w-4" />
                     AI Summary
                   </h3>
-                  <p className="text-sm whitespace-pre-wrap" data-testid="text-ai-summary">
-                    {webSearchResults.answer}
-                  </p>
+                  <ul className="text-sm space-y-1" data-testid="text-ai-summary">
+                    {formatAsBulletPoints(webSearchResults.answer).map((point, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-primary mt-0.5">•</span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
