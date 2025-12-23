@@ -24,6 +24,14 @@ interface ProspectReportData {
   dueDiligence?: DueDiligence;
   companiesHouseData?: CompaniesHouseData | null;
   pdfLayoutPreferences?: PDFLayoutPreferences | null;
+  businessOverview?: string[] | null;
+}
+
+let sectionCounter = 0;
+
+function getNextSectionNumber(): string {
+  sectionCounter++;
+  return sectionCounter.toString().padStart(2, "0");
 }
 
 // Professional Color Palette - Compact Design
@@ -98,9 +106,10 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     },
   });
 
-  const { prospect, contacts, activities, dueDiligence, companiesHouseData, pdfLayoutPreferences } =
+  const { prospect, contacts, activities, dueDiligence, companiesHouseData, pdfLayoutPreferences, businessOverview } =
     data;
   pageNumber = 0;
+  sectionCounter = 0;
 
   // Cover Page
   renderCoverPage(doc, prospect);
@@ -108,7 +117,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   // Executive Summary Page
   doc.addPage();
   pageNumber++;
-  renderExecutiveSummary(doc, prospect, dueDiligence, companiesHouseData);
+  renderExecutiveSummary(doc, prospect, dueDiligence, companiesHouseData, getNextSectionNumber());
 
   // Content sections - Standard layout with page tracking
   const sections = pdfLayoutPreferences?.sections || DEFAULT_SECTIONS;
@@ -117,37 +126,43 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     return section?.enabled !== false;
   };
 
-  // Section 1: Company Information - Officers, Key Contacts, PSCs, Background consolidated
+  // Business Overview (AI-powered research) - if available
+  if (businessOverview && businessOverview.length > 0) {
+    doc.addPage();
+    pageNumber++;
+    renderBusinessOverview(doc, prospect, businessOverview, getNextSectionNumber());
+  }
+
+  // Company Information - Officers, Key Contacts, PSCs consolidated
   if (isSectionEnabled("companyInfo")) {
     doc.addPage();
     pageNumber++;
-    renderCompanyInfoConsolidated(doc, prospect, companiesHouseData, contacts);
+    renderCompanyInfoConsolidated(doc, prospect, companiesHouseData, contacts, getNextSectionNumber());
   }
 
-  // Section 2: Loan Details with Due Diligence and Purpose of Loan
+  // Loan Details with Due Diligence and Purpose of Loan
   if (isSectionEnabled("loanDetails")) {
     doc.addPage();
     pageNumber++;
-    renderLoanDetailsWithDueDiligence(doc, prospect, dueDiligence);
+    renderLoanDetailsWithDueDiligence(doc, prospect, dueDiligence, getNextSectionNumber());
   }
 
-  // Section 3: Security, Collateral and Notes consolidated
+  // Security, Collateral consolidated
   const hasCollateral = checkHasCollateral(prospect);
-  const hasNotes = !!(prospect.loanRequirementNotes || prospect.notes);
-  if ((isSectionEnabled("security") || isSectionEnabled("notes")) && (hasCollateral || hasNotes)) {
+  if (isSectionEnabled("security") && hasCollateral) {
     doc.addPage();
     pageNumber++;
-    renderSecurityCollateralNotes(doc, prospect);
+    renderSecurityCollateral(doc, prospect, getNextSectionNumber());
   }
 
-  // Section 4: Charges (if any)
+  // Charges (if any)
   if (isSectionEnabled("charges") && companiesHouseData?.charges?.items?.length > 0) {
     doc.addPage();
     pageNumber++;
-    renderCharges(doc, companiesHouseData!.charges);
+    renderCharges(doc, companiesHouseData!.charges, getNextSectionNumber());
   }
 
-  // Section 5: Saved Associations (if any)
+  // Saved Associations (if any)
   if (
     isSectionEnabled("savedAssociations") &&
     prospect.savedAssociations &&
@@ -156,17 +171,17 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   ) {
     doc.addPage();
     pageNumber++;
-    renderSavedAssociations(doc, prospect.savedAssociations as any[]);
+    renderSavedAssociations(doc, prospect.savedAssociations as any[], getNextSectionNumber());
   }
 
-  // Section 6: Activities (if any)
+  // Activities (if any)
   if (isSectionEnabled("activities") && activities.length > 0) {
     doc.addPage();
     pageNumber++;
-    renderActivities(doc, activities);
+    renderActivities(doc, activities, getNextSectionNumber());
   }
 
-  // Section 7: Due Diligence Tools (if any)
+  // Due Diligence Tools (if any)
   if (isSectionEnabled("dueDiligence") && dueDiligence?.data) {
     const dd = dueDiligence.data as any;
     const hasSubstantiveContent =
@@ -179,36 +194,36 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     if (hasSubstantiveContent) {
       doc.addPage();
       pageNumber++;
-      renderDueDiligence(doc, dueDiligence);
+      renderDueDiligence(doc, dueDiligence, getNextSectionNumber());
     }
   }
 
-  // Section 8: CAMPARI Analysis (if any)
+  // CAMPARI Analysis (if any)
   if (isSectionEnabled("campari") && dueDiligence?.data) {
     const ddData = dueDiligence.data as any;
     const adviserSummary = ddData.underwriting?.adviserSummary || ddData.creditUnderwriting?.adviserSummary;
     if (adviserSummary) {
       doc.addPage();
       pageNumber++;
-      renderCampariSection(doc, adviserSummary);
+      renderCampariSection(doc, adviserSummary, getNextSectionNumber());
     }
   }
 
-  // Section 9: SWOT Analysis (if any)
+  // SWOT Analysis (if any)
   if (isSectionEnabled("swotAnalysis") && dueDiligence?.data) {
     const ddData = dueDiligence.data as any;
     const swotAnalysis = ddData.underwriting?.swotAnalysis || ddData.creditUnderwriting?.swotAnalysis;
     if (swotAnalysis) {
       doc.addPage();
       pageNumber++;
-      renderSwotSection(doc, swotAnalysis);
+      renderSwotSection(doc, swotAnalysis, getNextSectionNumber());
     }
   }
 
   // Final Section: Adviser Recommendation with Signature (always last page)
   doc.addPage();
   pageNumber++;
-  renderAdviserRecommendation(doc, prospect);
+  renderAdviserRecommendation(doc, prospect, getNextSectionNumber());
 
   // Add page numbers to all pages except cover
   const totalPages = doc.bufferedPageRange();
@@ -346,13 +361,74 @@ function renderMetricBox(
   doc.text(value, x + 12, y + 24, { width: width - 20 });
 }
 
+function renderBusinessOverview(
+  doc: typeof PDFDocument.prototype,
+  prospect: ProspectWithCompany,
+  bulletPoints: string[],
+  sectionNum?: string
+) {
+  renderSectionHeader(doc, "Business Overview", sectionNum || "02");
+  let y = doc.y + 15;
+
+  // Company name header
+  doc.fontSize(14).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(prospect.company.companyName, MARGIN, y);
+  y += 25;
+
+  // Sector/Industry subheader
+  const sector = prospect.company.sicDescription || prospect.company.sicCode || "";
+  if (sector) {
+    doc.fontSize(10).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(`Industry: ${sector}`, MARGIN, y);
+    y += 20;
+  }
+
+  // AI Research Results as bullet points
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 20).fill(COLORS.primary);
+  doc.fontSize(10).fillColor(COLORS.white).font("Helvetica-Bold");
+  doc.text("AI-POWERED BUSINESS RESEARCH", MARGIN + 15, y + 5);
+  y += 30;
+
+  // Render each bullet point
+  doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
+  const bulletIndent = MARGIN + 15;
+  const textWidth = CONTENT_WIDTH - 30;
+
+  for (const point of bulletPoints) {
+    // Check if we need a new page
+    if (y > PAGE_HEIGHT - 100) {
+      doc.addPage();
+      y = MARGIN + 20;
+    }
+
+    // Bullet marker
+    doc.fillColor(COLORS.accent);
+    doc.text("•", MARGIN, y);
+    
+    // Bullet text
+    doc.fillColor(COLORS.text);
+    const textHeight = doc.heightOfString(point, { width: textWidth });
+    doc.text(point, bulletIndent, y, { width: textWidth });
+    y += textHeight + 8;
+  }
+
+  // Source attribution
+  y += 10;
+  doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
+  doc.text("Research generated using AI-powered web search and company website analysis.", MARGIN, y, {
+    width: CONTENT_WIDTH,
+    align: "center"
+  });
+}
+
 function renderExecutiveSummary(
   doc: typeof PDFDocument.prototype,
   prospect: ProspectWithCompany,
   dueDiligence?: DueDiligence,
-  companiesHouseData?: CompaniesHouseData | null
+  companiesHouseData?: CompaniesHouseData | null,
+  sectionNum?: string
 ) {
-  renderSectionHeader(doc, "Executive Summary", "01");
+  renderSectionHeader(doc, "Executive Summary", sectionNum || "01");
 
   let y = doc.y + 15;
 
@@ -752,9 +828,10 @@ function renderCompanyInfoConsolidated(
   doc: typeof PDFDocument.prototype,
   prospect: ProspectWithCompany,
   companiesHouseData: CompaniesHouseData | null | undefined,
-  contacts: Contact[]
+  contacts: Contact[],
+  sectionNum?: string
 ) {
-  renderSectionHeader(doc, "Company Information", "03");
+  renderSectionHeader(doc, "Company Information", sectionNum || "03");
   let y = doc.y + 10;
 
   // Company header info
@@ -891,9 +968,10 @@ function renderCompanyInfoConsolidated(
 function renderLoanDetailsWithDueDiligence(
   doc: typeof PDFDocument.prototype,
   prospect: ProspectWithCompany,
-  dueDiligence?: DueDiligence
+  dueDiligence?: DueDiligence,
+  sectionNum?: string
 ) {
-  renderSectionHeader(doc, "Loan Details", "04");
+  renderSectionHeader(doc, "Loan Details", sectionNum || "04");
   let y = doc.y + 10;
 
   // Loan amount, term, rate
@@ -984,8 +1062,8 @@ function renderLoanDetailsWithDueDiligence(
 }
 
 // Security, Collateral, and Notes consolidated
-function renderSecurityCollateralNotes(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
-  renderSectionHeader(doc, "Security & Collateral", "05");
+function renderSecurityCollateral(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany, sectionNum?: string) {
+  renderSectionHeader(doc, "Security & Collateral", sectionNum || "05");
   let y = doc.y + 10;
 
   // Security types
@@ -1042,8 +1120,8 @@ function renderSecurityCollateralNotes(doc: typeof PDFDocument.prototype, prospe
 }
 
 // Adviser Recommendation with Signature Box (Final Page)
-function renderAdviserRecommendation(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
-  renderSectionHeader(doc, "Adviser Recommendation");
+function renderAdviserRecommendation(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany, sectionNum?: string) {
+  renderSectionHeader(doc, "Adviser Recommendation", sectionNum);
   let y = doc.y + 20;
 
   // Recommendation text
@@ -1327,8 +1405,8 @@ function renderPSC(doc: typeof PDFDocument.prototype, psc: any) {
   }
 }
 
-function renderCharges(doc: typeof PDFDocument.prototype, charges: any) {
-  renderSectionHeader(doc, "Charges", "06");
+function renderCharges(doc: typeof PDFDocument.prototype, charges: any, sectionNum?: string) {
+  renderSectionHeader(doc, "Charges", sectionNum || "06");
 
   const outstandingCharges = charges.items.filter((c: any) => c.status === "outstanding");
   const satisfiedCharges = charges.items.filter(
@@ -1400,8 +1478,8 @@ function renderCharges(doc: typeof PDFDocument.prototype, charges: any) {
   }
 }
 
-function renderSavedAssociations(doc: typeof PDFDocument.prototype, associations: any[]) {
-  renderSectionHeader(doc, "Associated Companies", "07");
+function renderSavedAssociations(doc: typeof PDFDocument.prototype, associations: any[], sectionNum?: string) {
+  renderSectionHeader(doc, "Associated Companies", sectionNum || "07");
 
   const byType: { [key: string]: any[] } = {};
   associations.forEach((assoc: any) => {
@@ -1692,8 +1770,8 @@ function renderContacts(doc: typeof PDFDocument.prototype, contacts: Contact[]) 
   });
 }
 
-function renderActivities(doc: typeof PDFDocument.prototype, activities: Activity[]) {
-  renderSectionHeader(doc, "Activities & Tasks", "12");
+function renderActivities(doc: typeof PDFDocument.prototype, activities: Activity[], sectionNum?: string) {
+  renderSectionHeader(doc, "Activities & Tasks", sectionNum || "12");
 
   const pendingActivities = activities.filter((a) => a.completed === 0);
   const completedActivities = activities.filter((a) => a.completed === 1);
@@ -1760,8 +1838,8 @@ function renderActivities(doc: typeof PDFDocument.prototype, activities: Activit
   }
 }
 
-function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: DueDiligence) {
-  renderSectionHeader(doc, "Due Diligence Analysis", "13");
+function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: DueDiligence, sectionNum?: string) {
+  renderSectionHeader(doc, "Due Diligence Analysis", sectionNum || "13");
 
   const ddData = dueDiligence.data as any;
   let y = doc.y + 10;
@@ -2700,8 +2778,8 @@ function getRiskGradeColor(grade: string): string {
 }
 
 // Standalone CAMPARI Analysis Section
-function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
-  renderSectionHeader(doc, "CAMPARI Analysis", "15");
+function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any, sectionNum?: string) {
+  renderSectionHeader(doc, "CAMPARI Analysis", sectionNum || "15");
   let y = doc.y + 10;
 
   // Header info
@@ -2808,8 +2886,8 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
 }
 
 // Standalone SWOT Analysis Section - Softened Professional Colors
-function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
-  renderSectionHeader(doc, "SWOT Analysis", "16");
+function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any, sectionNum?: string) {
+  renderSectionHeader(doc, "SWOT Analysis", sectionNum || "16");
   let y = doc.y + 10;
 
   // Create 2x2 grid for SWOT with compact spacing

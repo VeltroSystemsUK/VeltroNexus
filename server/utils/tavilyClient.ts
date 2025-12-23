@@ -245,6 +245,118 @@ export async function searchContactInfo(
   }
 }
 
+export interface BusinessOverviewResult {
+  bulletPoints: string[];
+  sources: { url: string; title: string }[];
+}
+
+export async function searchBusinessOverview(
+  companyName: string,
+  industry?: string
+): Promise<BusinessOverviewResult> {
+  const apiKey = process.env.TAVILY_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("TAVILY_API_KEY not configured");
+  }
+
+  const cleanName = companyName.replace(/"/g, "");
+  const industryContext = industry ? ` ${industry}` : "";
+
+  const query = `"${cleanName}" UK company${industryContext} business overview products services history`;
+
+  try {
+    const response = await fetch(BASE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: query,
+        search_depth: "advanced",
+        include_answer: true,
+        max_results: 8,
+        include_domains: [],
+        exclude_domains: [
+          "linkedin.com",
+          "facebook.com",
+          "instagram.com",
+          "glassdoor.co.uk",
+          "indeed.co.uk",
+          "twitter.com",
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tavily API Error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const results: TavilyResult[] = data.results || [];
+    
+    // Extract key information and convert to bullet points
+    const bulletPoints: string[] = [];
+    const sources: { url: string; title: string }[] = [];
+
+    // If Tavily provides an answer, add it as the first bullet point
+    if (data.answer) {
+      // Split answer into sentences and add as bullet points
+      const sentences = data.answer
+        .split(/[.!?]+/)
+        .filter((s: string) => s.trim().length > 20)
+        .map((s: string) => s.trim())
+        .slice(0, 5);
+      bulletPoints.push(...sentences);
+    }
+
+    // Extract key information from each result
+    for (const result of results) {
+      sources.push({ url: result.url, title: result.title });
+      
+      // Extract meaningful sentences from content
+      const sentences = result.content
+        .split(/[.!?]+/)
+        .filter((s: string) => s.trim().length > 30 && s.trim().length < 200)
+        .filter((s: string) => {
+          const lower = s.toLowerCase();
+          // Focus on business-relevant content
+          return (
+            lower.includes(cleanName.toLowerCase()) ||
+            lower.includes("company") ||
+            lower.includes("business") ||
+            lower.includes("service") ||
+            lower.includes("product") ||
+            lower.includes("founded") ||
+            lower.includes("established") ||
+            lower.includes("specializ") ||
+            lower.includes("provid") ||
+            lower.includes("offer")
+          );
+        })
+        .map((s: string) => s.trim())
+        .slice(0, 2);
+      
+      bulletPoints.push(...sentences);
+    }
+
+    // Remove duplicates and limit to reasonable number
+    const uniqueBullets = [...new Set(bulletPoints)].slice(0, 12);
+
+    return {
+      bulletPoints: uniqueBullets,
+      sources: sources.slice(0, 5),
+    };
+  } catch (error) {
+    console.error("Business Overview Search Failed:", error);
+    return {
+      bulletPoints: [],
+      sources: [],
+    };
+  }
+}
+
 export function assessAdverseMediaRisk(results: TavilyResult[]): {
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   flags: string[];

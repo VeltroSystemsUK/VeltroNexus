@@ -725,6 +725,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Business Overview API - AI-powered web search for company info
+  app.get("/api/prospects/:id/business-overview", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+
+      const prospect = await storage.getProspect(id, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+
+      const { searchBusinessOverview } = await import("./utils/tavilyClient");
+      
+      const companyName = prospect.company.companyName;
+      const industry = prospect.company.sicDescription || prospect.company.sicCode || undefined;
+      
+      console.log(`[Business Overview] Searching for company: ${companyName}`);
+      
+      const result = await searchBusinessOverview(companyName, industry);
+      
+      res.json({
+        companyName,
+        industry: industry || null,
+        bulletPoints: result.bulletPoints,
+        sources: result.sources,
+      });
+    } catch (error) {
+      console.error("[Business Overview] Error:", error);
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  // Enhanced PDF report with business overview
+  app.get("/api/prospects/:id/report-enhanced", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      const includeBusinessOverview = req.query.includeBusinessOverview === "true";
+
+      const prospect = await storage.getProspect(id, userId);
+      if (!prospect) {
+        return res.status(404).json({ error: "Prospect not found" });
+      }
+
+      const [contacts, activities, dueDiligence, user] = await Promise.all([
+        storage.listContacts(id, userId),
+        storage.listActivities(id, userId),
+        storage.getDueDiligence(id, userId),
+        storage.getUser(userId),
+      ]);
+
+      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+      let companiesHouseData = null;
+
+      if (apiKey && prospect.company.companyNumber) {
+        try {
+          const trimmedApiKey = apiKey.trim();
+          const authString = `${trimmedApiKey}:`;
+          const base64Auth = Buffer.from(authString).toString("base64");
+          
+          const [profileRes, officersRes, chargesRes, pscsRes] = await Promise.all([
+            fetch(`https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}`, {
+              headers: { Authorization: `Basic ${base64Auth}` },
+            }),
+            fetch(`https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}/officers`, {
+              headers: { Authorization: `Basic ${base64Auth}` },
+            }),
+            fetch(`https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}/charges`, {
+              headers: { Authorization: `Basic ${base64Auth}` },
+            }),
+            fetch(`https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}/persons-with-significant-control`, {
+              headers: { Authorization: `Basic ${base64Auth}` },
+            }),
+          ]);
+
+          companiesHouseData = {
+            profile: profileRes.ok ? await profileRes.json() : null,
+            officers: officersRes.ok ? await officersRes.json() : null,
+            charges: chargesRes.ok ? await chargesRes.json() : null,
+            pscs: pscsRes.ok ? await pscsRes.json() : null,
+          };
+        } catch (chError) {
+          console.error("[PDF Report] Companies House fetch error:", chError);
+        }
+      }
+
+      // Optionally fetch business overview
+      let businessOverview: string[] | null = null;
+      if (includeBusinessOverview) {
+        try {
+          const { searchBusinessOverview } = await import("./utils/tavilyClient");
+          const industry = prospect.company.sicDescription || prospect.company.sicCode || undefined;
+          const result = await searchBusinessOverview(prospect.company.companyName, industry);
+          businessOverview = result.bulletPoints;
+        } catch (overviewError) {
+          console.error("[PDF Report] Business overview fetch error:", overviewError);
+        }
+      }
+
+      const doc = generateProspectReport({
+        prospect,
+        contacts,
+        activities,
+        dueDiligence,
+        companiesHouseData: companiesHouseData as any,
+        pdfLayoutPreferences: (user?.pdfLayoutPreferences || null) as any,
+        businessOverview,
+      });
+
+      const { encodeContentDisposition } = await import("./utils/security");
+      const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`;
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", encodeContentDisposition(filename));
+
+      doc.pipe(res);
+      doc.end();
+    } catch (error) {
+      console.error("[PDF Report Enhanced] Route error:", error);
+      handleApiError(res, error, "api-error");
+    }
+  });
+
   // Companies House Search API - Protected route
   app.get("/api/companies-house/search", isAuthenticated, async (req, res) => {
     try {
