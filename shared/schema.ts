@@ -123,6 +123,10 @@ export const prospects = pgTable("prospects", {
   savedAssociations: jsonb("saved_associations").default("[]"),
   queueOrder: integer("queue_order").notNull().default(0),
   referralSource: text("referral_source"),
+  background: text("background"),
+  adviserRecommendation: text("adviser_recommendation"),
+  adviserRecommendationSignedBy: varchar("adviser_recommendation_signed_by"),
+  adviserRecommendationSignedAt: timestamp("adviser_recommendation_signed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

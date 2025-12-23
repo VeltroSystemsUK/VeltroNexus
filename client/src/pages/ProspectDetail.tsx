@@ -72,6 +72,8 @@ import {
   Reply,
   ClipboardList,
   Shield,
+  FileSignature,
+  CheckCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -734,6 +736,7 @@ export default function ProspectDetail() {
             <CompanyInformationTab
               companyNumber={prospect.company.companyNumber}
               companyId={prospect.company.id}
+              prospect={prospect}
             />
           </TabsContent>
 
@@ -2175,6 +2178,123 @@ function SalesActivityTab({
   );
 }
 
+function AdviserRecommendationSection({ prospect }: { prospect: ProspectWithCompany }) {
+  const { user } = useAuth();
+  const [recommendation, setRecommendation] = useState(prospect.adviserRecommendation || "");
+  const [isSigned, setIsSigned] = useState(!!prospect.adviserRecommendationSignedAt);
+
+  useEffect(() => {
+    setRecommendation(prospect.adviserRecommendation || "");
+    setIsSigned(!!prospect.adviserRecommendationSignedAt);
+  }, [prospect.adviserRecommendation, prospect.adviserRecommendationSignedAt]);
+
+  const saveRecommendationMutation = useMutation({
+    mutationFn: (updates: { adviserRecommendation: string }) =>
+      fetch(`/api/prospects/${prospect.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      toast.success("Adviser recommendation saved");
+    },
+  });
+
+  const signRecommendationMutation = useMutation({
+    mutationFn: () =>
+      fetch(`/api/prospects/${prospect.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          adviserRecommendation: recommendation,
+          adviserRecommendationSignedBy: user?.firstName && user?.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user?.email || "Unknown",
+          adviserRecommendationSignedAt: new Date().toISOString(),
+        }),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      setIsSigned(true);
+      toast.success("Adviser recommendation signed and saved");
+    },
+  });
+
+  const formatSignatureDate = (date: string | Date | null | undefined) => {
+    if (!date) return "";
+    return new Date(date).toLocaleString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileSignature className="h-5 w-5" />
+          Adviser Recommendation
+        </CardTitle>
+        <CardDescription>
+          Provide your recommendation for this loan application. Sign to confirm.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Textarea
+          value={recommendation}
+          onChange={(e) => setRecommendation(e.target.value)}
+          placeholder="Enter your recommendation for this loan application..."
+          className="min-h-[150px]"
+          disabled={isSigned}
+          data-testid="input-adviser-recommendation"
+        />
+        
+        {isSigned && prospect.adviserRecommendationSignedBy && prospect.adviserRecommendationSignedAt && (
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span className="font-medium">Signed</span>
+            </div>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p><strong>Signed by:</strong> {prospect.adviserRecommendationSignedBy}</p>
+              <p><strong>Date/Time:</strong> {formatSignatureDate(prospect.adviserRecommendationSignedAt)}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          {!isSigned && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => saveRecommendationMutation.mutate({ adviserRecommendation: recommendation })}
+                disabled={saveRecommendationMutation.isPending}
+                data-testid="button-save-recommendation"
+              >
+                {saveRecommendationMutation.isPending ? "Saving..." : "Save Draft"}
+              </Button>
+              <Button
+                onClick={() => signRecommendationMutation.mutate()}
+                disabled={signRecommendationMutation.isPending || !recommendation.trim()}
+                data-testid="button-sign-recommendation"
+              >
+                <FileSignature className="h-4 w-4 mr-2" />
+                {signRecommendationMutation.isPending ? "Signing..." : "Sign & Submit"}
+              </Button>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 type CreditTool = "loan-calc" | "dscr" | "affordability" | "ratios" | "character" | null;
 
 const creditToolsConfig = [
@@ -2421,6 +2541,8 @@ function DueDiligenceTab({
             </CardContent>
           </Card>
         )}
+
+        <AdviserRecommendationSection prospect={prospect} />
       </TabsContent>
     </Tabs>
   );
@@ -3223,11 +3345,32 @@ function SummaryTab({
 function CompanyInformationTab({
   companyNumber,
   companyId,
+  prospect,
 }: {
   companyNumber: string;
   companyId: number;
+  prospect: ProspectWithCompany;
 }) {
   const [isSyncing, setIsSyncing] = useState(false);
+  const [background, setBackground] = useState(prospect.background || "");
+
+  useEffect(() => {
+    setBackground(prospect.background || "");
+  }, [prospect.background]);
+
+  const saveBackgroundMutation = useMutation({
+    mutationFn: (updates: { background: string }) =>
+      fetch(`/api/prospects/${prospect.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      toast.success("Background saved");
+    },
+  });
 
   const {
     data: companyProfile,
@@ -3333,6 +3476,33 @@ function CompanyInformationTab({
         </Button>
       </div>
       <CompanyInformation companyProfile={companyProfile} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Background</CardTitle>
+          <CardDescription>
+            Provide background information about the company and its principals
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Textarea
+            value={background}
+            onChange={(e) => setBackground(e.target.value)}
+            placeholder="Enter background information about the company, its history, principals, and any relevant context..."
+            className="min-h-[150px]"
+            data-testid="input-company-background"
+          />
+          <div className="flex justify-end">
+            <Button
+              onClick={() => saveBackgroundMutation.mutate({ background })}
+              disabled={saveBackgroundMutation.isPending}
+              data-testid="button-save-background"
+            >
+              {saveBackgroundMutation.isPending ? "Saving..." : "Save Background"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

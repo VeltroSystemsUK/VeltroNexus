@@ -110,142 +110,105 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   pageNumber++;
   renderExecutiveSummary(doc, prospect, dueDiligence, companiesHouseData);
 
-  // Table of Contents
-  doc.addPage();
-  pageNumber++;
-  renderTableOfContents(
-    doc,
-    pdfLayoutPreferences?.sections || DEFAULT_SECTIONS,
-    companiesHouseData,
-    prospect,
-    contacts,
-    activities,
-    dueDiligence
-  );
-
   // Content sections - Standard layout with page tracking
   const sections = pdfLayoutPreferences?.sections || DEFAULT_SECTIONS;
+  const isSectionEnabled = (sectionId: string) => {
+    const section = sections.find(s => s.id === sectionId);
+    return section?.enabled !== false;
+  };
 
-  sections.forEach((section) => {
-    if (!section.enabled) return;
+  // Section 1: Company Information - Officers, Key Contacts, PSCs, Background consolidated
+  if (isSectionEnabled("companyInfo")) {
+    doc.addPage();
+    pageNumber++;
+    renderCompanyInfoConsolidated(doc, prospect, companiesHouseData, contacts);
+  }
 
-    switch (section.id) {
-      case "companyInfo":
-        doc.addPage();
-        pageNumber++;
-        renderCompanyInfo(doc, prospect);
-        break;
-      case "officers":
-        if (companiesHouseData?.officers?.items?.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderOfficers(doc, companiesHouseData!.officers);
-        }
-        break;
-      case "psc":
-        if (companiesHouseData?.psc?.items?.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderPSC(doc, companiesHouseData!.psc);
-        }
-        break;
-      case "charges":
-        if (companiesHouseData?.charges?.items?.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderCharges(doc, companiesHouseData!.charges);
-        }
-        break;
-      case "savedAssociations":
-        if (
-          prospect.savedAssociations &&
-          Array.isArray(prospect.savedAssociations) &&
-          prospect.savedAssociations.length > 0
-        ) {
-          doc.addPage();
-          pageNumber++;
-          renderSavedAssociations(doc, prospect.savedAssociations as any[]);
-        }
-        break;
-      case "loanDetails":
-        doc.addPage();
-        pageNumber++;
-        renderLoanDetails(doc, prospect);
-        break;
-      case "security": {
-        const hasCollateral = checkHasCollateral(prospect);
-        if (hasCollateral) {
-          doc.addPage();
-          pageNumber++;
-          renderSecurity(doc, prospect);
-        }
-        break;
-      }
-      case "notes":
-        if (prospect.loanRequirementNotes || prospect.notes) {
-          doc.addPage();
-          pageNumber++;
-          renderNotes(doc, prospect);
-        }
-        break;
-      case "contacts":
-        if (contacts.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderContacts(doc, contacts);
-        }
-        break;
-      case "activities":
-        if (activities.length > 0) {
-          doc.addPage();
-          pageNumber++;
-          renderActivities(doc, activities);
-        }
-        break;
-      case "dueDiligence":
-        if (dueDiligence?.data) {
-          const dd = dueDiligence.data as any;
-          // Only add page if there's substantive due diligence content
-          const hasSubstantiveContent =
-            dd.checklist ||
-            dd.loanCalculator ||
-            dd.dscrCalculator ||
-            dd.affordabilityEstimator ||
-            dd.financialRatios ||
-            dd.characterAssessment;
-          if (hasSubstantiveContent) {
-            doc.addPage();
-            pageNumber++;
-            renderDueDiligence(doc, dueDiligence);
-          }
-        }
-        break;
-      case "campari":
-        if (dueDiligence?.data) {
-          const ddData = dueDiligence.data as any;
-          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
-          const adviserSummary = ddData.underwriting?.adviserSummary || ddData.creditUnderwriting?.adviserSummary;
-          if (adviserSummary) {
-            doc.addPage();
-            pageNumber++;
-            renderCampariSection(doc, adviserSummary);
-          }
-        }
-        break;
-      case "swotAnalysis":
-        if (dueDiligence?.data) {
-          const ddData = dueDiligence.data as any;
-          // Check both paths - underwriting (schema) and creditUnderwriting (legacy)
-          const swotAnalysis = ddData.underwriting?.swotAnalysis || ddData.creditUnderwriting?.swotAnalysis;
-          if (swotAnalysis) {
-            doc.addPage();
-            pageNumber++;
-            renderSwotSection(doc, swotAnalysis);
-          }
-        }
-        break;
+  // Section 2: Loan Details with Due Diligence and Purpose of Loan
+  if (isSectionEnabled("loanDetails")) {
+    doc.addPage();
+    pageNumber++;
+    renderLoanDetailsWithDueDiligence(doc, prospect, dueDiligence);
+  }
+
+  // Section 3: Security, Collateral and Notes consolidated
+  const hasCollateral = checkHasCollateral(prospect);
+  const hasNotes = !!(prospect.loanRequirementNotes || prospect.notes);
+  if ((isSectionEnabled("security") || isSectionEnabled("notes")) && (hasCollateral || hasNotes)) {
+    doc.addPage();
+    pageNumber++;
+    renderSecurityCollateralNotes(doc, prospect);
+  }
+
+  // Section 4: Charges (if any)
+  if (isSectionEnabled("charges") && companiesHouseData?.charges?.items?.length > 0) {
+    doc.addPage();
+    pageNumber++;
+    renderCharges(doc, companiesHouseData!.charges);
+  }
+
+  // Section 5: Saved Associations (if any)
+  if (
+    isSectionEnabled("savedAssociations") &&
+    prospect.savedAssociations &&
+    Array.isArray(prospect.savedAssociations) &&
+    prospect.savedAssociations.length > 0
+  ) {
+    doc.addPage();
+    pageNumber++;
+    renderSavedAssociations(doc, prospect.savedAssociations as any[]);
+  }
+
+  // Section 6: Activities (if any)
+  if (isSectionEnabled("activities") && activities.length > 0) {
+    doc.addPage();
+    pageNumber++;
+    renderActivities(doc, activities);
+  }
+
+  // Section 7: Due Diligence Tools (if any)
+  if (isSectionEnabled("dueDiligence") && dueDiligence?.data) {
+    const dd = dueDiligence.data as any;
+    const hasSubstantiveContent =
+      dd.checklist ||
+      dd.loanCalculator ||
+      dd.dscrCalculator ||
+      dd.affordabilityEstimator ||
+      dd.financialRatios ||
+      dd.characterAssessment;
+    if (hasSubstantiveContent) {
+      doc.addPage();
+      pageNumber++;
+      renderDueDiligence(doc, dueDiligence);
     }
-  });
+  }
+
+  // Section 8: CAMPARI Analysis (if any)
+  if (isSectionEnabled("campari") && dueDiligence?.data) {
+    const ddData = dueDiligence.data as any;
+    const adviserSummary = ddData.underwriting?.adviserSummary || ddData.creditUnderwriting?.adviserSummary;
+    if (adviserSummary) {
+      doc.addPage();
+      pageNumber++;
+      renderCampariSection(doc, adviserSummary);
+    }
+  }
+
+  // Section 9: SWOT Analysis (if any)
+  if (isSectionEnabled("swotAnalysis") && dueDiligence?.data) {
+    const ddData = dueDiligence.data as any;
+    const swotAnalysis = ddData.underwriting?.swotAnalysis || ddData.creditUnderwriting?.swotAnalysis;
+    if (swotAnalysis) {
+      doc.addPage();
+      pageNumber++;
+      renderSwotSection(doc, swotAnalysis);
+    }
+  }
+
+  // Final Section: Adviser Recommendation with Signature (always last page)
+  doc.addPage();
+  pageNumber++;
+  renderAdviserRecommendation(doc, prospect);
 
   // Add page numbers to all pages except cover
   const totalPages = doc.bufferedPageRange();
@@ -507,11 +470,6 @@ function renderExecutiveSummary(
   );
   secY += 22;
 
-  if (prospect.loanAmount && totalSecurity > 0) {
-    const ltv = ((prospect.loanAmount / totalSecurity) * 100).toFixed(1);
-    renderKeyValue(doc, MARGIN + 15, secY, "Loan-to-Value", `${ltv}%`, colWidth - 30);
-    secY += 22;
-  }
 
   const securityTypes = getSecurityTypes(prospect);
   renderKeyValue(
@@ -788,6 +746,366 @@ function renderSectionHeader(
   }
 
   doc.y = MARGIN + headerHeight + SPACING.sectionPadding;
+}
+
+// Consolidated Company Information - Officers, Key Contacts, PSCs, Background on same page(s)
+function renderCompanyInfoConsolidated(
+  doc: typeof PDFDocument.prototype,
+  prospect: ProspectWithCompany,
+  companiesHouseData: CompaniesHouseData | null | undefined,
+  contacts: Contact[]
+) {
+  renderSectionHeader(doc, "Company Information", "03");
+  let y = doc.y + 10;
+
+  // Company header info
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.white, COLORS.border);
+  doc.fontSize(16).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(prospect.company.companyName, MARGIN + 15, y + 15);
+
+  const col1X = MARGIN + 15;
+  const col2X = MARGIN + CONTENT_WIDTH / 2;
+  let detailY = y + 45;
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Company Number:", col1X, detailY);
+  doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.company.companyNumber || "N/A", col1X + 100, detailY);
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Status:", col2X, detailY);
+  doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.company.companyStatus ? capitalizeStage(prospect.company.companyStatus) : "N/A", col2X + 50, detailY);
+
+  detailY += 20;
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Type:", col1X, detailY);
+  doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.company.companyType || "N/A", col1X + 100, detailY);
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Incorporated:", col2X, detailY);
+  doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.company.incorporationDate || "N/A", col2X + 70, detailY);
+
+  y += 110;
+
+  // Officers section (compact)
+  const officers = companiesHouseData?.officers?.items?.filter((o: any) => !o.resigned_on) || [];
+  if (officers.length > 0) {
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Officers", MARGIN, y);
+    y += 20;
+
+    officers.slice(0, 5).forEach((officer: any) => {
+      if (y > PAGE_HEIGHT - 60) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 35).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+      doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+      doc.text(officer.name || "Unknown", MARGIN + 10, y + 8);
+      doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+      doc.text(officer.officer_role || "N/A", MARGIN + 10, y + 22);
+      doc.text(`Appointed: ${officer.appointed_on || "N/A"}`, MARGIN + CONTENT_WIDTH - 150, y + 15);
+      y += 40;
+    });
+    y += 10;
+  }
+
+  // Key Contacts section (compact)
+  if (contacts.length > 0) {
+    if (y > PAGE_HEIGHT - 100) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Key Contacts", MARGIN, y);
+    y += 20;
+
+    contacts.slice(0, 4).forEach((contact) => {
+      if (y > PAGE_HEIGHT - 50) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 30).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+      doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+      doc.text(contact.name, MARGIN + 10, y + 8);
+      doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+      doc.text(contact.role || "N/A", MARGIN + 150, y + 8);
+      doc.text(contact.email || "", MARGIN + CONTENT_WIDTH - 200, y + 8);
+      y += 35;
+    });
+    y += 10;
+  }
+
+  // Persons of Significant Control (compact)
+  const pscList = companiesHouseData?.psc?.items?.filter((p: any) => !p.ceased_on) || [];
+  if (pscList.length > 0) {
+    if (y > PAGE_HEIGHT - 100) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Persons of Significant Control", MARGIN, y);
+    y += 20;
+
+    pscList.slice(0, 4).forEach((psc: any) => {
+      if (y > PAGE_HEIGHT - 50) {
+        doc.addPage();
+        pageNumber++;
+        y = MARGIN + 20;
+      }
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 30).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+      doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+      doc.text(psc.name || "Unknown", MARGIN + 10, y + 8);
+      const ownership = psc.natures_of_control?.find((n: string) => n.includes("ownership"))?.replace(/-/g, " ") || "";
+      doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+      doc.text(ownership, MARGIN + CONTENT_WIDTH - 200, y + 8, { width: 180 });
+      y += 35;
+    });
+    y += 10;
+  }
+
+  // Background section
+  if (prospect.background) {
+    if (y > PAGE_HEIGHT - 120) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Background", MARGIN, y);
+    y += 20;
+
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.white, COLORS.border);
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
+    doc.text(truncateText(prospect.background, 500), MARGIN + 10, y + 10, { width: CONTENT_WIDTH - 20 });
+  }
+}
+
+// Loan Details with Due Diligence and Purpose of Loan
+function renderLoanDetailsWithDueDiligence(
+  doc: typeof PDFDocument.prototype,
+  prospect: ProspectWithCompany,
+  dueDiligence?: DueDiligence
+) {
+  renderSectionHeader(doc, "Loan Details", "04");
+  let y = doc.y + 10;
+
+  // Loan amount, term, rate
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
+  const col1X = MARGIN + 15;
+  const col2X = MARGIN + CONTENT_WIDTH / 3;
+  const col3X = MARGIN + (CONTENT_WIDTH * 2) / 3;
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Loan Amount", col1X, y + 15);
+  doc.fontSize(14).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(formatCurrency(prospect.loanAmount || 0), col1X, y + 30);
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Term", col2X, y + 15);
+  doc.fontSize(14).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.term ? `${prospect.term} months` : "N/A", col2X, y + 30);
+
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Interest Rate", col3X, y + 15);
+  doc.fontSize(14).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text(prospect.interestRate ? `${prospect.interestRate}%` : "N/A", col3X, y + 30);
+
+  y += 90;
+
+  // Purpose of Loan (from Adviser Summary)
+  const ddData = dueDiligence?.data as any;
+  const adviserSummary = ddData?.underwriting?.adviserSummary || ddData?.creditUnderwriting?.adviserSummary;
+  const purposeOfLoan = adviserSummary?.proposalSummary || adviserSummary?.purpose || "";
+
+  if (purposeOfLoan) {
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Purpose of Loan", MARGIN, y);
+    y += 20;
+
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
+    doc.text(truncateText(purposeOfLoan, 400), MARGIN + 10, y + 10, { width: CONTENT_WIDTH - 20 });
+    y += 90;
+  }
+
+  // Due Diligence Summary
+  if (ddData) {
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Due Diligence Overview", MARGIN, y);
+    y += 20;
+
+    const dueDiligenceItems = [];
+    if (ddData.dscrCalculator?.dscr != null) {
+      const dscr = ddData.dscrCalculator.dscr;
+      const status = dscr >= 1.25 ? "PASS" : dscr >= 1.0 ? "CAUTION" : "FAIL";
+      dueDiligenceItems.push({ label: "DSCR", value: `${dscr.toFixed(2)} (${status})` });
+    }
+    if (ddData.affordabilityEstimator?.disposableIncome != null) {
+      dueDiligenceItems.push({
+        label: "Disposable Income",
+        value: formatCurrency(ddData.affordabilityEstimator.disposableIncome * 100),
+      });
+    }
+    if (ddData.loanCalculator?.monthlyPayment != null) {
+      dueDiligenceItems.push({
+        label: "Monthly Payment",
+        value: formatCurrency(ddData.loanCalculator.monthlyPayment * 100),
+      });
+    }
+    if (ddData.checklist) {
+      const allItems = Object.values(ddData.checklist).flat();
+      const totalItems = allItems.length;
+      const completedItems = allItems.filter((item: any) => item?.checked).length;
+      dueDiligenceItems.push({
+        label: "Checklist Progress",
+        value: `${completedItems}/${totalItems} items completed`,
+      });
+    }
+
+    if (dueDiligenceItems.length > 0) {
+      doc.rect(MARGIN, y, CONTENT_WIDTH, dueDiligenceItems.length * 25 + 15).fillAndStroke(COLORS.white, COLORS.border);
+      let itemY = y + 10;
+      dueDiligenceItems.forEach((item) => {
+        doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+        doc.text(item.label + ":", MARGIN + 15, itemY);
+        doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+        doc.text(item.value, MARGIN + 150, itemY);
+        itemY += 25;
+      });
+    }
+  }
+}
+
+// Security, Collateral, and Notes consolidated
+function renderSecurityCollateralNotes(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
+  renderSectionHeader(doc, "Security & Collateral", "05");
+  let y = doc.y + 10;
+
+  // Security types
+  const securityItems = [];
+  if (prospect.directorsGuarantee) securityItems.push({ label: "Directors Guarantee", value: formatCurrency(prospect.directorsGuarantee) });
+  if (prospect.commercialProperty) securityItems.push({ label: "Commercial Property", value: formatCurrency(prospect.commercialProperty) });
+  if (prospect.homeEquity) securityItems.push({ label: "Home Equity", value: formatCurrency(prospect.homeEquity) });
+  if (prospect.propertyOther) securityItems.push({ label: "Other Property", value: formatCurrency(prospect.propertyOther) });
+  if (prospect.debenture) securityItems.push({ label: "Debenture", value: formatCurrency(prospect.debenture) });
+  if (prospect.parentCompanyGuarantee) securityItems.push({ label: "Parent Company Guarantee", value: formatCurrency(prospect.parentCompanyGuarantee) });
+  if (prospect.collateral) securityItems.push({ label: "Other Collateral", value: formatCurrency(prospect.collateral) });
+  if (prospect.crossCompanyGuarantee) securityItems.push({ label: "Cross Company Guarantee", value: formatCurrency(prospect.crossCompanyGuarantee) });
+
+  const totalSecurity = calculateTotalSecurity(prospect);
+
+  if (securityItems.length > 0) {
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Security Types", MARGIN, y);
+    y += 20;
+
+    const boxHeight = Math.min(securityItems.length * 25 + 40, 200);
+    doc.rect(MARGIN, y, CONTENT_WIDTH, boxHeight).fillAndStroke(COLORS.white, COLORS.border);
+
+    let itemY = y + 15;
+    securityItems.forEach((item) => {
+      doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+      doc.text(item.label, MARGIN + 15, itemY);
+      doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+      doc.text(item.value, MARGIN + CONTENT_WIDTH - 120, itemY);
+      itemY += 25;
+    });
+
+    // Total
+    doc.fontSize(10).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Total Security:", MARGIN + 15, itemY);
+    doc.text(formatCurrency(totalSecurity), MARGIN + CONTENT_WIDTH - 120, itemY);
+
+    y += boxHeight + 15;
+  }
+
+  // Notes section
+  if (prospect.loanRequirementNotes || prospect.notes) {
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Notes", MARGIN, y);
+    y += 20;
+
+    const allNotes = [prospect.loanRequirementNotes, prospect.notes].filter(Boolean).join("\n\n");
+    const notesHeight = Math.min(150, 50 + allNotes.length / 3);
+
+    doc.rect(MARGIN, y, CONTENT_WIDTH, notesHeight).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
+    doc.text(truncateText(allNotes, 600), MARGIN + 15, y + 15, { width: CONTENT_WIDTH - 30 });
+  }
+}
+
+// Adviser Recommendation with Signature Box (Final Page)
+function renderAdviserRecommendation(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
+  renderSectionHeader(doc, "Adviser Recommendation");
+  let y = doc.y + 20;
+
+  // Recommendation text
+  doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text("Recommendation", MARGIN, y);
+  y += 20;
+
+  const recommendationText = prospect.adviserRecommendation || "No recommendation provided.";
+  const textHeight = Math.max(150, Math.min(300, recommendationText.length / 2));
+
+  doc.rect(MARGIN, y, CONTENT_WIDTH, textHeight).fillAndStroke(COLORS.white, COLORS.border);
+  doc.fontSize(11).fillColor(COLORS.text).font("Helvetica");
+  doc.text(recommendationText, MARGIN + 15, y + 15, { width: CONTENT_WIDTH - 30 });
+
+  y += textHeight + 30;
+
+  // Signature box
+  doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text("Signature", MARGIN, y);
+  y += 20;
+
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+
+  if (prospect.adviserRecommendationSignedBy && prospect.adviserRecommendationSignedAt) {
+    // Signed state
+    doc.fontSize(10).fillColor(COLORS.success).font("Helvetica-Bold");
+    doc.text("SIGNED", MARGIN + 15, y + 15);
+
+    doc.fontSize(10).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Signed by:", MARGIN + 15, y + 40);
+    doc.fontSize(11).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(prospect.adviserRecommendationSignedBy, MARGIN + 80, y + 40);
+
+    doc.fontSize(10).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Date/Time:", MARGIN + 15, y + 60);
+    const signedDate = new Date(prospect.adviserRecommendationSignedAt).toLocaleString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    doc.fontSize(11).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(signedDate, MARGIN + 80, y + 60);
+  } else {
+    // Unsigned state
+    doc.fontSize(10).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Signature: _________________________________", MARGIN + 15, y + 25);
+    doc.text("Name: _________________________________", MARGIN + 15, y + 50);
+    doc.text("Date: _________________________________", MARGIN + 15, y + 75);
+  }
+
+  // Footer note
+  y += 120;
+  doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
+  doc.text(
+    "This report is confidential and intended for internal use only. The information contained herein has been prepared based on data provided and should be verified independently.",
+    MARGIN,
+    y,
+    { width: CONTENT_WIDTH, align: "center" }
+  );
 }
 
 function renderCompanyInfo(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
@@ -2452,36 +2770,6 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
       doc.text(truncateText(content, 400), MARGIN + 15, y + 30, { width: CONTENT_WIDTH - 30 });
 
       y += 90;
-    });
-  }
-
-  // Questionnaire
-  if (adviser.questionnaire && typeof adviser.questionnaire === "object") {
-    if (y > PAGE_HEIGHT - 150) {
-      doc.addPage();
-      pageNumber++;
-      y = MARGIN + 20;
-    }
-
-    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
-    doc.text("Credit Committee Questionnaire", MARGIN, y);
-    y += 25;
-
-    const questions = Object.entries(adviser.questionnaire);
-    questions.forEach(([question, answer]) => {
-      if (y > PAGE_HEIGHT - 40) {
-        doc.addPage();
-        pageNumber++;
-        y = MARGIN + 20;
-      }
-
-      const ansColor =
-        answer === "Yes" ? COLORS.success : answer === "No" ? COLORS.danger : COLORS.textSecondary;
-      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${question}`, MARGIN + 10, y, { width: CONTENT_WIDTH - 80 });
-      doc.fontSize(9).fillColor(ansColor).font("Helvetica-Bold");
-      doc.text(String(answer || "N/A"), PAGE_WIDTH - MARGIN - 50, y);
-      y += 20;
     });
   }
 
