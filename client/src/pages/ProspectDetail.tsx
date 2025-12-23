@@ -74,6 +74,9 @@ import {
   Shield,
   FileSignature,
   CheckCircle,
+  PieChart,
+  DollarSign,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -1581,6 +1584,18 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
     !!prospect.crossCompanyGuarantee
   );
   const [notes, setNotes] = useState(prospect.loanRequirementNotes || "");
+  
+  interface AllocationItem {
+    id: string;
+    description: string;
+    amount: number;
+  }
+  
+  const [loanAllocation, setLoanAllocation] = useState<AllocationItem[]>(
+    Array.isArray(prospect.loanAllocation) ? (prospect.loanAllocation as AllocationItem[]) : []
+  );
+  const [newDescription, setNewDescription] = useState("");
+  const [newAmount, setNewAmount] = useState("");
 
   useEffect(() => {
     setLoanAmount(prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "");
@@ -1595,6 +1610,9 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
     setCollateral(!!prospect.collateral);
     setCrossCompanyGuarantee(!!prospect.crossCompanyGuarantee);
     setNotes(prospect.loanRequirementNotes || "");
+    setLoanAllocation(
+      Array.isArray(prospect.loanAllocation) ? (prospect.loanAllocation as AllocationItem[]) : []
+    );
   }, [prospect]);
 
   const saveLoanRequirementMutation = useMutation({
@@ -1625,7 +1643,43 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
       collateral: collateral ? 1 : 0,
       crossCompanyGuarantee: crossCompanyGuarantee ? 1 : 0,
       loanRequirementNotes: notes,
+      loanAllocation: loanAllocation,
     });
+  };
+  
+  const totalAllocated = loanAllocation.reduce((sum, item) => sum + item.amount, 0);
+  const loanAmountNum = loanAmount ? parseFloat(loanAmount) : 0;
+  const remainingToAllocate = loanAmountNum - totalAllocated;
+  
+  const addAllocationItem = () => {
+    const amount = parseFloat(newAmount);
+    if (!newDescription.trim() || isNaN(amount) || amount <= 0) return;
+    if (amount > remainingToAllocate && remainingToAllocate > 0) return;
+    
+    const newItem: AllocationItem = {
+      id: Date.now().toString(),
+      description: newDescription.trim(),
+      amount: amount,
+    };
+    
+    setLoanAllocation([...loanAllocation, newItem]);
+    setNewDescription("");
+    setNewAmount("");
+  };
+  
+  const removeAllocationItem = (id: string) => {
+    setLoanAllocation(loanAllocation.filter(item => item.id !== id));
+  };
+  
+  const updateAllocationItem = (id: string, field: "description" | "amount", value: string) => {
+    setLoanAllocation(loanAllocation.map(item => {
+      if (item.id !== id) return item;
+      if (field === "amount") {
+        const numValue = parseFloat(value) || 0;
+        return { ...item, amount: numValue };
+      }
+      return { ...item, description: value };
+    }));
   };
 
   const calculateMonthlyPayment = () => {
@@ -1784,7 +1838,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="loan-notes">Notes</Label>
+          <Label htmlFor="loan-notes">Purpose of Loan</Label>
           <Textarea
             id="loan-notes"
             value={notes}
@@ -1794,6 +1848,151 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
             data-testid="textarea-loan-notes"
           />
         </div>
+
+        <Card className="border-2 border-dashed">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <PieChart className="h-4 w-4 text-primary" />
+              Use of Funds Breakdown
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Allocate how the loan will be used. Total must equal the loan amount.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                <span className="font-medium">Loan Amount:</span>
+              </div>
+              <span className="text-lg font-bold" data-testid="text-total-loan">
+                £{loanAmountNum.toLocaleString()}
+              </span>
+            </div>
+            
+            {loanAllocation.length > 0 && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-2">
+                  <span className="col-span-6">Description</span>
+                  <span className="col-span-4 text-right">Amount</span>
+                  <span className="col-span-2"></span>
+                </div>
+                {loanAllocation.map((item, index) => (
+                  <div 
+                    key={item.id} 
+                    className="grid grid-cols-12 gap-2 items-center p-2 bg-muted/50 rounded-md hover:bg-muted/70 transition-colors"
+                    data-testid={`allocation-row-${index}`}
+                  >
+                    <Input
+                      className="col-span-6 h-8 text-sm"
+                      value={item.description}
+                      onChange={(e) => updateAllocationItem(item.id, "description", e.target.value)}
+                      data-testid={`input-allocation-desc-${index}`}
+                    />
+                    <div className="col-span-4 flex items-center">
+                      <span className="text-sm text-muted-foreground mr-1">£</span>
+                      <Input
+                        className="h-8 text-sm text-right"
+                        type="number"
+                        value={item.amount}
+                        onChange={(e) => updateAllocationItem(item.id, "amount", e.target.value)}
+                        data-testid={`input-allocation-amount-${index}`}
+                      />
+                    </div>
+                    <div className="col-span-2 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeAllocationItem(item.id)}
+                        data-testid={`button-remove-allocation-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="flex gap-2 items-end">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Description</Label>
+                <Input
+                  placeholder="e.g., Working Capital"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="h-9"
+                  data-testid="input-new-allocation-desc"
+                />
+              </div>
+              <div className="w-32 space-y-1">
+                <Label className="text-xs">Amount (£)</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                  className="h-9"
+                  max={remainingToAllocate > 0 ? remainingToAllocate : undefined}
+                  data-testid="input-new-allocation-amount"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addAllocationItem}
+                disabled={!newDescription.trim() || !newAmount || parseFloat(newAmount) <= 0}
+                className="h-9"
+                data-testid="button-add-allocation"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add
+              </Button>
+            </div>
+            
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total Allocated:</span>
+                <span className="font-medium" data-testid="text-total-allocated">
+                  £{totalAllocated.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Remaining to Allocate:</span>
+                <span 
+                  className={`font-medium ${remainingToAllocate === 0 ? "text-green-600 dark:text-green-400" : remainingToAllocate < 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"}`}
+                  data-testid="text-remaining-allocation"
+                >
+                  £{remainingToAllocate.toLocaleString()}
+                </span>
+              </div>
+              {loanAmountNum > 0 && (
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div 
+                    className={`h-full transition-all ${remainingToAllocate === 0 ? "bg-green-500" : remainingToAllocate < 0 ? "bg-destructive" : "bg-primary"}`}
+                    style={{ width: `${Math.min(100, (totalAllocated / loanAmountNum) * 100)}%` }}
+                    data-testid="progress-allocation"
+                  />
+                </div>
+              )}
+              {remainingToAllocate === 0 && loanAmountNum > 0 && (
+                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                  <CheckSquare className="h-4 w-4" />
+                  <span>Funds fully allocated</span>
+                </div>
+              )}
+              {remainingToAllocate < 0 && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>Over-allocated by £{Math.abs(remainingToAllocate).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="bg-muted/50">
           <CardHeader>

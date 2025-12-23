@@ -118,6 +118,7 @@ export const prospects = pgTable("prospects", {
   collateral: integer("collateral").default(0),
   crossCompanyGuarantee: integer("cross_company_guarantee").default(0),
   loanRequirementNotes: text("loan_requirement_notes"),
+  loanAllocation: jsonb("loan_allocation").default("[]"),
   priority: text("priority"),
   notes: text("notes"),
   savedAssociations: jsonb("saved_associations").default("[]"),

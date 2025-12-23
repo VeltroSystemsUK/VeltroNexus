@@ -209,19 +209,18 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   doc.addPage();
   pageNumber++;
   renderAdviserRecommendation(doc, prospect);
-  // Add page numbers to all pages except cover
-  const range = doc.bufferedPageRange(); // { start, count }
-  const coverIndex = range.start; // cover is the first buffered page
-  const totalContentPages = Math.max(0, range.count - 1);
 
-  for (let pageIndex = coverIndex + 1; pageIndex < coverIndex + range.count; pageIndex++) {
-    doc.switchToPage(pageIndex);
-    const currentPage = pageIndex - coverIndex; // 1-based (excluding cover)
-    renderPageFooter(doc, currentPage, totalContentPages);
+  // Add page numbers to all pages except cover
+  const totalPages = doc.bufferedPageRange();
+  for (let i = 1; i < totalPages.count; i++) {
+    doc.switchToPage(i);
+    renderPageFooter(doc, i, totalPages.count - 1);
   }
-// Note: do NOT call doc.end() here - the caller will call it after piping
+
+  // Note: do NOT call doc.end() here - the caller will call it after piping
   return doc;
 }
+
 function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
   // Navy background header band
   doc.rect(0, 0, PAGE_WIDTH, 280).fill(COLORS.primary);
@@ -260,42 +259,6 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
   // Loan Amount Box
   renderMetricBox(
     doc,
-    function renderPageFooter(
-      doc: typeof PDFDocument.prototype,
-      currentPage: number,
-      totalPages: number
-    ) {
-      const page = doc.page;
-      const x0 = page.margins.left;
-      const x1 = page.width - page.margins.right;
-
-      // Must be inside the printable area
-      const lineY = page.height - page.margins.bottom - 18;
-      const textY = lineY + 6;
-
-      // Preserve cursor
-      const prevX = doc.x;
-      const prevY = doc.y;
-
-      doc.save();
-
-      doc.strokeColor(COLORS.border).lineWidth(0.5);
-      doc.moveTo(x0, lineY).lineTo(x1, lineY).stroke();
-
-      doc.font("Helvetica").fontSize(8).fillColor(COLORS.textLight);
-
-      doc.text("FlowLoan • Commercial Lending Solutions", x0, textY, { lineBreak: false });
-      doc.text("CONFIDENTIAL", page.width / 2 - 30, textY, { lineBreak: false });
-
-      const rightText = `Page ${currentPage} of ${totalPages}`;
-      const rightW = doc.widthOfString(rightText);
-      doc.text(rightText, x1 - rightW, textY, { lineBreak: false });
-
-      doc.restore();
-
-      doc.x = prevX;
-      doc.y = prevY;
-    }
     MARGIN,
     boxY,
     boxWidth,
@@ -359,7 +322,15 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
 }
 
 function renderMetricBox(
-doc: typeof PDFDocument.prototype, p0: (doc: typeof PDFDocument.prototype, currentPage: number, totalPages: number) => void, x: number, y: number, width: number, height: number, label: string, value: string, accentColor: string) {
+  doc: typeof PDFDocument.prototype,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  value: string,
+  accentColor: string
+) {
   // Compact box with light background and accent border
   doc.rect(x, y, width, height).fill(COLORS.backgroundLight);
 
@@ -424,40 +395,10 @@ function renderExecutiveSummary(
 
   y += 105;
 
-  // Key Findings strip (placed early to avoid orphaning on a new page)
-  const status = prospect.company.companyStatus || "Unknown";
-  const activeOfficers =
-    companiesHouseData?.officers?.items?.filter((o: any) => !o.resigned_on).length || 0;
-  const outstanding =
-    companiesHouseData?.charges?.items?.filter((c: any) => c.status === "outstanding").length || 0;
-
-  const keyFindingsHeight = 55;
-  doc.rect(MARGIN, y, CONTENT_WIDTH, keyFindingsHeight).fillAndStroke(COLORS.backgroundLight, COLORS.border);
-  doc.fontSize(10).fillColor(COLORS.primary).font("Helvetica-Bold");
-  doc.text("KEY FINDINGS", MARGIN + 15, y + 10);
-
-  doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-  let findingsY = y + 28;
-  doc.text(`• Company Status: ${status.charAt(0).toUpperCase() + status.slice(1)}`, MARGIN + 15, findingsY);
-  doc.text(`• Active Officers: ${activeOfficers}`, MARGIN + 200, findingsY);
-  doc.text(`• Outstanding Charges: ${outstanding}`, MARGIN + 350, findingsY);
-
-  y += keyFindingsHeight + 10;
-
   // Loan Purpose Box - use loanRequirementNotes or fall back to notes
   const loanPurposeText = prospect.loanRequirementNotes || prospect.notes;
   if (loanPurposeText) {
-    // Keep exec summary compact; show what fits cleanly and point to Loan Details for full text.
-    const maxTextHeight = 34; // ~2–3 lines at 9pt
-    const { text: fitted, didTruncate } = fitTextToHeight(
-      doc,
-      loanPurposeText,
-      CONTENT_WIDTH - 30,
-      maxTextHeight,
-      { font: "Helvetica", fontSize: 9, lineGap: 2 }
-    );
-
-    const purposeHeight = 60;
+    const purposeHeight = 70;
     doc.rect(MARGIN, y, CONTENT_WIDTH, purposeHeight).fillAndStroke(COLORS.white, COLORS.border);
     doc.rect(MARGIN, y, 4, purposeHeight).fill(COLORS.accent);
 
@@ -465,10 +406,8 @@ function renderExecutiveSummary(
     doc.text("LOAN PURPOSE & REQUIREMENTS", MARGIN + 15, y + 12);
 
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    const suffix = didTruncate ? " (See Loan Details for full text.)" : "";
-    doc.text(`${fitted}${suffix}`, MARGIN + 15, y + 30, {
+    doc.text(truncateText(loanPurposeText, 350), MARGIN + 15, y + 30, {
       width: CONTENT_WIDTH - 30,
-      lineGap: 2,
     });
 
     y += purposeHeight + 10;
@@ -600,8 +539,41 @@ function renderExecutiveSummary(
   }
 
   y += 115;
-}
 
+  // Key Findings if space available
+  if (y < PAGE_HEIGHT - 120) {
+    const status = prospect.company.companyStatus || "Unknown";
+    const activeOfficers =
+      companiesHouseData?.officers?.items?.filter((o: any) => !o.resigned_on).length || 0;
+    const outstanding =
+      companiesHouseData?.charges?.items?.filter((c: any) => c.status === "outstanding").length ||
+      0;
+
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 70).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    doc.fontSize(10).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("KEY FINDINGS", MARGIN + 15, y + 12);
+
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+    let findingsY = y + 32;
+
+    doc.text(
+      `• Company Status: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+      MARGIN + 15,
+      findingsY
+    );
+    doc.text(`• Active Officers: ${activeOfficers}`, MARGIN + 200, findingsY);
+    doc.text(`• Outstanding Charges: ${outstanding}`, MARGIN + 350, findingsY);
+
+    findingsY += 16;
+    if (prospect.company.incorporationDate) {
+      const incDate = new Date(prospect.company.incorporationDate);
+      doc.text(`• Incorporated: ${incDate.toLocaleDateString("en-GB")}`, MARGIN + 15, findingsY);
+    }
+    if (prospect.company.postcode) {
+      doc.text(`• Location: ${prospect.company.postcode}`, MARGIN + 200, findingsY);
+    }
+  }
+}
 
 function renderProgressBar(
   doc: typeof PDFDocument.prototype,
@@ -912,7 +884,7 @@ function renderCompanyInfoConsolidated(
 
     doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.white, COLORS.border);
     doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
-    doc.text(prospect.background, MARGIN + 10, y + 10, { width: CONTENT_WIDTH - 20 });
+    doc.text(truncateText(prospect.background, 500), MARGIN + 10, y + 10, { width: CONTENT_WIDTH - 20 });
   }
 }
 
@@ -954,14 +926,19 @@ function renderLoanDetailsWithDueDiligence(
   const purposeOfLoan = adviserSummary?.proposalSummary || adviserSummary?.purpose || "";
 
   if (purposeOfLoan) {
-    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
-    doc.text("Purpose of Loan", MARGIN, y);
-    y += 20;
-
-    doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.backgroundLight, COLORS.border);
-    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
-    doc.text(purposeOfLoan, MARGIN + 10, y + 10, { width: CONTENT_WIDTH - 20 });
-    y += 90;
+    // Render in a measured card (prevents overflow / overlap with following sections)
+    const out = renderMeasuredTextCard({
+      doc,
+      title: "PURPOSE OF LOAN",
+      text: purposeOfLoan,
+      y,
+      pageNumber: 0,
+      accentColor: COLORS.accent,
+      fillColor: COLORS.backgroundLight,
+      minHeight: 110,
+      titleColor: COLORS.primary,
+    });
+    y = out.y;
   }
 
   // Due Diligence Summary
@@ -1066,7 +1043,7 @@ function renderSecurityCollateralNotes(doc: typeof PDFDocument.prototype, prospe
 
     doc.rect(MARGIN, y, CONTENT_WIDTH, notesHeight).fillAndStroke(COLORS.backgroundLight, COLORS.border);
     doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
-    doc.text(allNotes, MARGIN + 15, y + 15, { width: CONTENT_WIDTH - 30 });
+    doc.text(truncateText(allNotes, 600), MARGIN + 15, y + 15, { width: CONTENT_WIDTH - 30 });
   }
 }
 
@@ -2278,17 +2255,24 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
     if (cu.analysis || cu.financialAnalysis) {
       const analysis = cu.analysis || cu.financialAnalysis;
 
-      if (y > PAGE_HEIGHT - 250) {
+      // (A) Metrics card (short, structured)
+      const hasPnl = !!analysis.profitAndLoss;
+      const metricsCardH = hasPnl ? 165 : 120;
+
+      if (y > PAGE_HEIGHT - (metricsCardH + 40)) {
         doc.addPage();
         pageNumber++;
         y = MARGIN + 20;
       }
 
-      doc.rect(MARGIN, y, CONTENT_WIDTH, 200).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+      doc
+        .rect(MARGIN, y, CONTENT_WIDTH, metricsCardH)
+        .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+
       doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
       doc.text("AI-POWERED FINANCIAL ANALYSIS", MARGIN + 15, y + 12);
 
-      let analysisY = y + 35;
+      let metricsY = y + 35;
       const col1X = MARGIN + 15;
       const col2X = MARGIN + CONTENT_WIDTH / 2;
 
@@ -2297,7 +2281,7 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
         renderDetailRow(
           doc,
           col1X,
-          analysisY,
+          metricsY,
           "Avg Monthly Revenue",
           formatCurrency(analysis.averageMonthlyRevenue * 100)
         );
@@ -2306,67 +2290,83 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
         renderDetailRow(
           doc,
           col2X,
-          analysisY,
+          metricsY,
           "Avg Monthly Expenses",
           formatCurrency(analysis.averageMonthlyExpenses * 100)
         );
       }
-      analysisY += 30;
+
+      metricsY += 30;
 
       if (analysis.netDisposableIncome != null) {
         renderDetailRow(
           doc,
           col1X,
-          analysisY,
+          metricsY,
           "Net Disposable Income",
           formatCurrency(analysis.netDisposableIncome * 100)
         );
       }
+
       if (analysis.dscr != null) {
-        const dscrVal = analysis.dscr;
+        const dscrVal = Number(analysis.dscr);
         const dscrColor =
           dscrVal >= 1.25 ? COLORS.success : dscrVal >= 1.0 ? COLORS.warning : COLORS.danger;
-        doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
-        doc.text("DSCR", col2X, analysisY);
-        doc.fontSize(11).fillColor(dscrColor).font("Helvetica-Bold");
-        doc.text(dscrVal.toFixed(2), col2X, analysisY + 12);
-      }
-      analysisY += 35;
 
-      // P&L Summary
+        doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+        doc.text("DSCR", col2X, metricsY);
+
+        doc.fontSize(11).fillColor(dscrColor).font("Helvetica-Bold");
+        doc.text(Number.isFinite(dscrVal) ? dscrVal.toFixed(2) : "N/A", col2X, metricsY + 12);
+      }
+
+      metricsY += 35;
+
+      // P&L Summary (compact)
       if (analysis.profitAndLoss) {
         const pnl = analysis.profitAndLoss;
+
         doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
-        doc.text("Profit & Loss Summary", col1X, analysisY);
-        analysisY += 18;
+        doc.text("Profit & Loss Summary", col1X, metricsY);
+        metricsY += 16;
+
+        doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
 
         if (pnl.turnover != null) {
-          doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
-          doc.text(`Turnover: ${formatCurrency(pnl.turnover * 100)}`, col1X, analysisY);
+          doc.text(`Turnover: ${formatCurrency(pnl.turnover * 100)}`, col1X, metricsY);
         }
         if (pnl.grossProfit != null) {
-          doc.text(`Gross Profit: ${formatCurrency(pnl.grossProfit * 100)}`, col2X, analysisY);
+          doc.text(`Gross Profit: ${formatCurrency(pnl.grossProfit * 100)}`, col2X, metricsY);
         }
-        analysisY += 14;
+        metricsY += 14;
 
         if (pnl.netProfit != null) {
-          doc.text(`Net Profit: ${formatCurrency(pnl.netProfit * 100)}`, col1X, analysisY);
+          doc.text(`Net Profit: ${formatCurrency(pnl.netProfit * 100)}`, col1X, metricsY);
         }
         if (pnl.periodMonths != null) {
-          doc.text(`Period: ${pnl.periodMonths} months`, col2X, analysisY);
+          doc.text(`Period: ${pnl.periodMonths} months`, col2X, metricsY);
         }
       }
 
-      // Summary text
-      if (analysis.summary) {
-        analysisY += 25;
-        doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-        doc.text(analysis.summary, col1X, analysisY, {
-          width: CONTENT_WIDTH - 30,
-        });
-      }
+      y += metricsCardH + 15;
 
-      y += 215;
+      // (B) Narrative / Summary card (measured – avoids overlap)
+      const summaryText = normalizeText(analysis.summary || analysis.narrative || analysis.commentary || "");
+      if (summaryText) {
+        const out = renderMeasuredTextCard({
+          doc,
+          title: "ANALYSIS SUMMARY",
+          text: summaryText,
+          y,
+          pageNumber,
+          accentColor: COLORS.secondary,
+          fillColor: COLORS.white,
+          minHeight: 110,
+          titleColor: COLORS.secondary,
+        });
+        y = out.y;
+        pageNumber = out.pageNumber;
+      }
     }
 
     // 7.4 Red Flags
@@ -2439,7 +2439,7 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
       // Summary
       if (ddChecks.summary) {
         doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-        doc.text(ddChecks.summary, MARGIN + 15, ddY, {
+        doc.text(truncateText(ddChecks.summary, 200), MARGIN + 15, ddY, {
           width: CONTENT_WIDTH - 30,
         });
         ddY += 35;
@@ -2451,7 +2451,7 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
         doc.text("Adverse Media Search:", MARGIN + 15, ddY);
         ddY += 14;
         doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-        doc.text(ddChecks.webSummary, MARGIN + 15, ddY, {
+        doc.text(truncateText(ddChecks.webSummary, 180), MARGIN + 15, ddY, {
           width: CONTENT_WIDTH - 30,
         });
         ddY += 30;
@@ -2583,7 +2583,7 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
 
         if (accounts.trends.summary) {
           doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-          doc.text(accounts.trends.summary, MARGIN + 15, y + 35, {
+          doc.text(truncateText(accounts.trends.summary, 250), MARGIN + 15, y + 35, {
             width: CONTENT_WIDTH - 30,
           });
         }
@@ -2757,17 +2757,9 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
 
   y += 95;
 
-  // CAMPARI sections
+  // CAMPARI sections (measured cards – prevents overflow / overlap)
   if (adviser.sections && typeof adviser.sections === "object") {
-    const campariOrder = [
-      "character",
-      "ability",
-      "margin",
-      "purpose",
-      "amount",
-      "repayment",
-      "insurance",
-    ];
+    const campariOrder = ["character", "ability", "margin", "purpose", "amount", "repayment", "insurance"];
     const campariLabels: Record<string, string> = {
       character: "CHARACTER - Management & Background",
       ability: "ABILITY - Capacity to Repay",
@@ -2779,29 +2771,27 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
     };
 
     campariOrder.forEach((key) => {
-      const content = adviser.sections[key];
+      const raw = (adviser.sections as any)[key];
+      const content = normalizeText(raw);
       if (!content) return;
 
-      if (y > PAGE_HEIGHT - 120) {
-        doc.addPage();
-        pageNumber++;
-        y = MARGIN + 20;
-      }
+      const out = renderMeasuredTextCard({
+        doc,
+        title: campariLabels[key] || key.toUpperCase(),
+        text: content,
+        y,
+        pageNumber,
+        accentColor: COLORS.secondary,
+        fillColor: COLORS.white,
+        minHeight: 110,
+        titleColor: COLORS.secondary,
+      });
 
-      doc.rect(MARGIN, y, CONTENT_WIDTH, 80).fillAndStroke(COLORS.white, COLORS.border);
-      doc.rect(MARGIN, y, 4, 80).fill(COLORS.secondary);
-
-      doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
-      doc.text(campariLabels[key] || key.toUpperCase(), MARGIN + 15, y + 12);
-
-      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(content, MARGIN + 15, y + 30, { width: CONTENT_WIDTH - 30 });
-
-      y += 90;
+      y = out.y;
+      pageNumber = out.pageNumber;
     });
   }
 
-  // Recommendation
   if (adviser.recommendation) {
     if (y > PAGE_HEIGHT - 100) {
       doc.addPage();
@@ -2847,24 +2837,6 @@ function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
   const boxHeight = 160;
   const accentBorderWidth = 5;
 
-  const renderSwotList = (items: any, startX: number, startY: number, maxW: number, maxH: number) => {
-    if (!items || !Array.isArray(items)) return;
-    let curY = startY;
-    const bottom = startY + maxH;
-    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-
-    for (const raw of items) {
-      const text = String(raw ?? "").trim();
-      if (!text) continue;
-      const line = `• ${text}`;
-      const h = doc.heightOfString(line, { width: maxW, lineGap: 2 });
-      if (curY + h > bottom) break;
-      doc.text(line, startX, curY, { width: maxW, lineGap: 2 });
-      curY += h + 4;
-    }
-  };
-
-
   // Strengths (top-left) - Soft green pastel
   doc.rect(MARGIN, y, boxWidth, boxHeight).fill(COLORS.swotStrengthsBg);
   doc.rect(MARGIN, y, accentBorderWidth, boxHeight).fill(COLORS.swotStrengthsBorder);
@@ -2872,7 +2844,12 @@ function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
   doc.text("STRENGTHS", MARGIN + 12, y + 10);
 
   if (swot.strengths && Array.isArray(swot.strengths)) {
-    renderSwotList(swot.strengths, MARGIN + 12, y + 28, boxWidth - 20, boxHeight - 45);
+    let sY = y + 28;
+    swot.strengths.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+      doc.text(`• ${truncateText(item, 70)}`, MARGIN + 12, sY, { width: boxWidth - 20 });
+      sY += 24;
+    });
   }
 
   // Weaknesses (top-right) - Soft orange pastel
@@ -2883,7 +2860,12 @@ function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
   doc.text("WEAKNESSES", rightX + 12, y + 10);
 
   if (swot.weaknesses && Array.isArray(swot.weaknesses)) {
-    renderSwotList(swot.weaknesses, rightX + 12, y + 28, boxWidth - 20, boxHeight - 45);
+    let wY = y + 28;
+    swot.weaknesses.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+      doc.text(`• ${truncateText(item, 70)}`, rightX + 12, wY, { width: boxWidth - 20 });
+      wY += 24;
+    });
   }
 
   y += boxHeight + gap;
@@ -2895,7 +2877,12 @@ function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
   doc.text("OPPORTUNITIES", MARGIN + 12, y + 10);
 
   if (swot.opportunities && Array.isArray(swot.opportunities)) {
-    renderSwotList(swot.opportunities, MARGIN + 12, y + 28, boxWidth - 20, boxHeight - 45);
+    let oY = y + 28;
+    swot.opportunities.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+      doc.text(`• ${truncateText(item, 70)}`, MARGIN + 12, oY, { width: boxWidth - 20 });
+      oY += 24;
+    });
   }
 
   // Threats (bottom-right) - Soft red pastel
@@ -2905,7 +2892,12 @@ function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
   doc.text("THREATS", rightX + 12, y + 10);
 
   if (swot.threats && Array.isArray(swot.threats)) {
-    renderSwotList(swot.threats, rightX + 12, y + 28, boxWidth - 20, boxHeight - 45);
+    let tY = y + 28;
+    swot.threats.slice(0, 5).forEach((item: string) => {
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+      doc.text(`• ${truncateText(item, 70)}`, rightX + 12, tY, { width: boxWidth - 20 });
+      tY += 24;
+    });
   }
 
   y += boxHeight + SPACING.sectionMargin;
@@ -2925,16 +2917,7 @@ function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
     doc.text("SWOT SUMMARY", MARGIN + 12, y + 10);
 
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    const maxSummaryHeight = 34; // keep compact; full text remains in app data
-    const { text: summaryFitted, didTruncate: summaryTrunc } = fitTextToHeight(
-      doc,
-      swot.summary,
-      CONTENT_WIDTH - 25,
-      maxSummaryHeight,
-      { font: "Helvetica", fontSize: 9, lineGap: 2 }
-    );
-    const summarySuffix = summaryTrunc ? " (See full SWOT details in app.)" : "";
-    doc.text(`${summaryFitted}${summarySuffix}`, MARGIN + 12, y + 28, { width: CONTENT_WIDTH - 25, lineGap: 2 });
+    doc.text(truncateText(swot.summary, 400), MARGIN + 12, y + 28, { width: CONTENT_WIDTH - 25 });
   }
 }
 
@@ -2945,83 +2928,188 @@ function truncateText(text: string, maxLength: number): string {
   return text.substring(0, maxLength - 3) + "...";
 }
 
+
+// Helper: normalize unknown AI / user content to printable string
+function normalizeText(input: any): string {
+  if (input == null) return "";
+  if (typeof input === "string") return input.replace(/\r\n/g, "\n").trim();
+  try {
+    if (Array.isArray(input)) {
+      return input.map((v) => normalizeText(v)).filter(Boolean).join("\n");
+    }
+    if (typeof input === "object") {
+      // Avoid "[object Object]" in PDFs
+      return JSON.stringify(input, null, 2);
+    }
+  } catch {
+    // ignore
+  }
+  return String(input).trim();
+}
+
+function ensureSpaceForBlock(
+  doc: typeof PDFDocument.prototype,
+  y: number,
+  neededHeight: number,
+  pageNumber: number
+) {
+  const available = PAGE_HEIGHT - MARGIN - y;
+  if (neededHeight > available) {
+    doc.addPage();
+    pageNumber++;
+    y = MARGIN + 20;
+  }
+  return { y, pageNumber };
+}
+
 function fitTextToHeight(
   doc: typeof PDFDocument.prototype,
   text: string,
   width: number,
   maxHeight: number,
-  options: { font?: string; fontSize?: number; lineGap?: number } = {}
-): { text: string; didTruncate: boolean } {
-  const raw = (text || "").trim();
-  if (!raw) return { text: "", didTruncate: false };
-
-  // Remember current font settings
-  // @ts-ignore PDFKit internals
-  const prevFont = doc._font?.name;
-  // @ts-ignore PDFKit internals
-  const prevFontSize = doc._fontSize;
-
-  if (options.font) doc.font(options.font);
-  if (options.fontSize) doc.fontSize(options.fontSize);
-
+  options: { lineGap?: number }
+) {
   const lineGap = options.lineGap ?? 2;
+  const clean = text.trim();
+  if (!clean) return { fit: "", rest: "" };
 
-  const fullHeight = doc.heightOfString(raw, { width, lineGap });
-  if (fullHeight <= maxHeight) {
-    if (prevFont) doc.font(prevFont);
-    doc.fontSize(prevFontSize);
-    return { text: raw, didTruncate: false };
-  }
+  // Fast path: it all fits
+  const fullH = doc.heightOfString(clean, { width, lineGap });
+  if (fullH <= maxHeight) return { fit: clean, rest: "" };
 
-  // Binary search for the longest prefix that fits
   let lo = 0;
-  let hi = raw.length;
-  let best = 0;
+  let hi = clean.length;
 
-  while (lo <= hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    const candidate = raw.slice(0, mid);
-    const h = doc.heightOfString(candidate, { width, lineGap });
-    if (h <= maxHeight) {
-      best = mid;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
+  const clampWord = (s: string) => {
+    const m = s.match(/^(.*?)(\s+[^\s]*)?$/);
+    return (m?.[1] ?? s).trimEnd();
+  };
+
+  // Binary search for maximum prefix that fits
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi + 1) / 2);
+    const candidate = clampWord(clean.slice(0, mid));
+    const h = doc.heightOfString(candidate || " ", { width, lineGap });
+    if (h <= maxHeight) lo = mid;
+    else hi = mid - 1;
   }
 
-  // Cut back to last whitespace to avoid mid-word breaks
-  let cut = raw.slice(0, best);
-  const lastSpace = cut.lastIndexOf(" ");
-  if (lastSpace > 80) cut = cut.slice(0, lastSpace);
-
-  if (prevFont) doc.font(prevFont);
-  doc.fontSize(prevFontSize);
-
-  return { text: cut.trim(), didTruncate: true };
+  const fit = clampWord(clean.slice(0, lo));
+  const rest = clean.slice(fit.length).trimStart();
+  return { fit, rest };
 }
 
-function getDscr(ddData: any): number | null {
-  const candidates = [
-    ddData?.dscrCalculator?.dscr,
-    ddData?.bankStatementAnalysis?.dscr,
-    ddData?.bankStatements?.dscr,
-    ddData?.aiFinancialAnalysis?.dscr,
-    ddData?.financialAnalysis?.dscr,
-    ddData?.underwriting?.dscr,
-    ddData?.creditUnderwriting?.dscr,
-  ];
+function renderMeasuredTextCard(params: {
+  doc: typeof PDFDocument.prototype;
+  title: string;
+  text: string;
+  y: number;
+  pageNumber: number;
+  accentColor?: string;
+  fillColor?: string;
+  minHeight?: number;
+  titleColor?: string;
+}) {
+  const {
+    doc,
+    title,
+    text,
+    accentColor = COLORS.secondary,
+    fillColor = COLORS.white,
+    minHeight = 80,
+    titleColor = accentColor,
+  } = params;
 
-  for (const v of candidates) {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string") {
-      const n = Number(v);
-      if (Number.isFinite(n)) return n;
+  let { y, pageNumber } = params;
+
+  const padX = 15;
+  const padTop = 12;
+  const titleGap = 8;
+  const lineGap = 2;
+  const contentW = CONTENT_WIDTH - padX * 2;
+
+  const clean = normalizeText(text);
+  if (!clean) return { y, pageNumber };
+
+  // Measure
+  doc.font("Helvetica-Bold").fontSize(10);
+  const titleH = doc.currentLineHeight(true);
+
+  doc.font("Helvetica").fontSize(9);
+  const textH = doc.heightOfString(clean, { width: contentW, lineGap });
+
+  const desiredH = Math.max(minHeight, padTop + titleH + titleGap + textH + 14);
+
+  // If it fits on the current page, draw a proper card
+  let ensured = ensureSpaceForBlock(doc, y, desiredH + 10, pageNumber);
+  y = ensured.y;
+  pageNumber = ensured.pageNumber;
+
+  const maxHOnPage = PAGE_HEIGHT - MARGIN - y;
+
+  // If it's too tall for a single page, render as multi-page cards
+  if (desiredH > maxHOnPage) {
+    // Render first page with as much text as fits
+    const cardH = Math.max(minHeight, maxHOnPage);
+    const availableTextH = Math.max(
+      40,
+      cardH - (padTop + titleH + titleGap + 14)
+    );
+
+    const { fit, rest } = fitTextToHeight(doc, clean, contentW, availableTextH, { lineGap });
+
+    doc.rect(MARGIN, y, CONTENT_WIDTH, cardH).fillAndStroke(fillColor, COLORS.border);
+    doc.rect(MARGIN, y, 4, cardH).fill(accentColor);
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(titleColor);
+    doc.text(title, MARGIN + padX, y + padTop);
+
+    doc.font("Helvetica").fontSize(9).fillColor(COLORS.text);
+    doc.text(fit, MARGIN + padX, y + padTop + titleH + titleGap, {
+      width: contentW,
+      lineGap,
+    });
+
+    y += cardH + 12;
+
+    if (rest) {
+      // Next page continuation
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+
+      return renderMeasuredTextCard({
+        ...params,
+        title: `${title} (cont.)`,
+        text: rest,
+        y,
+        pageNumber,
+        minHeight,
+        accentColor,
+        fillColor,
+        titleColor,
+      });
     }
-  }
-  return null;
-}
 
+    return { y, pageNumber };
+  }
+
+  // Single-page card
+  doc.rect(MARGIN, y, CONTENT_WIDTH, desiredH).fillAndStroke(fillColor, COLORS.border);
+  doc.rect(MARGIN, y, 4, desiredH).fill(accentColor);
+
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(titleColor);
+  doc.text(title, MARGIN + padX, y + padTop);
+
+  doc.font("Helvetica").fontSize(9).fillColor(COLORS.text);
+  doc.text(clean, MARGIN + padX, y + padTop + titleH + titleGap, {
+    width: contentW,
+    lineGap,
+  });
+
+  y += desiredH + 12;
+  return { y, pageNumber };
+}
 
 function renderSmallMetricBox(
   doc: typeof PDFDocument.prototype,
@@ -3052,58 +3140,25 @@ function renderPageFooter(
   currentPage: number,
   totalPages: number
 ) {
-  const page = doc.page;
+  const footerY = PAGE_HEIGHT - 35;
 
-  const x0 = page.margins.left;
-  const x1 = page.width - page.margins.right;
-  const w = x1 - x0;
-
-  // Ultra-safe footer positioning: always inside the printable area.
-  // If you write below (page.height - margins.bottom), PDFKit will auto-add pages.
-  doc.font("Helvetica").fontSize(8);
-  const lh = doc.currentLineHeight(true);
-  const lineY = page.height - page.margins.bottom - lh - 10;
-  const textY = lineY + 6;
-
-  const prevX = doc.x;
-  const prevY = doc.y;
-
-  doc.save();
-
-  // Divider line
+  // Footer line
   doc.strokeColor(COLORS.border).lineWidth(0.5);
-  doc.moveTo(x0, lineY).lineTo(x1, lineY).stroke();
+  doc
+    .moveTo(MARGIN, footerY)
+    .lineTo(PAGE_WIDTH - MARGIN, footerY)
+    .stroke();
 
-  doc.fillColor(COLORS.textLight);
+  // FlowLoan branding
+  doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
+  doc.text("FlowLoan • Commercial Lending Solutions", MARGIN, footerY + 10);
 
-  // Three fixed columns prevent wrapping and keep cursor stable
-  const colW = w / 3;
+  // Confidential notice
+  doc.text("CONFIDENTIAL", PAGE_WIDTH / 2 - 30, footerY + 10);
 
-  doc.text("FlowLoan • Commercial Lending Solutions", x0, textY, {
-    width: colW,
-    align: "left",
-    lineBreak: false
-  });
-
-  doc.text("CONFIDENTIAL", x0 + colW, textY, {
-    width: colW,
-    align: "center",
-    lineBreak: false
-  });
-
-  doc.text(`Page ${currentPage} of ${totalPages}`, x0 + colW * 2, textY, {
-    width: colW,
-    align: "right",
-    lineBreak: false
-  });
-
-  doc.restore();
-
-  // Restore cursor so stamping can't influence layout
-  doc.x = prevX;
-  doc.y = prevY;
+  // Page number
+  doc.text(`Page ${currentPage} of ${totalPages}`, PAGE_WIDTH - MARGIN - 50, footerY + 10);
 }
-
 
 // ==========================================
 // COMPACT RENDERING FUNCTIONS
@@ -3319,7 +3374,7 @@ function renderNotesCompact(doc: typeof PDFDocument.prototype, prospect: Prospec
     doc.text("Loan Requirements:", MARGIN, y);
     y += 14;
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(prospect.loanRequirementNotes, MARGIN + 10, y, { width: CONTENT_WIDTH - 20 });
+    doc.text(truncateText(prospect.loanRequirementNotes, 300), MARGIN + 10, y, { width: CONTENT_WIDTH - 20 });
     y += Math.min(60, Math.ceil(prospect.loanRequirementNotes.length / 80) * 12);
   }
 
@@ -3329,7 +3384,7 @@ function renderNotesCompact(doc: typeof PDFDocument.prototype, prospect: Prospec
     doc.text("General Notes:", MARGIN, y);
     y += 14;
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(prospect.notes, MARGIN + 10, y, { width: CONTENT_WIDTH - 20 });
+    doc.text(truncateText(prospect.notes, 300), MARGIN + 10, y, { width: CONTENT_WIDTH - 20 });
     y += Math.min(60, Math.ceil(prospect.notes.length / 80) * 12);
   }
 
@@ -3364,7 +3419,7 @@ function renderActivitiesCompact(doc: typeof PDFDocument.prototype, activities: 
 
   recentActivities.forEach((activity) => {
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
-    doc.text(activity.title, MARGIN + 10, y);
+    doc.text(truncateText(activity.title, 60), MARGIN + 10, y);
 
     const typeLabel = activity.activityType === "task" ? "Task" : activity.activityType === "call" ? "Call" : "Meeting";
     doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
@@ -3408,34 +3463,19 @@ function calculateTotalSecurity(prospect: ProspectWithCompany): number {
   return total;
 }
 
-function isSelected(v: unknown): boolean {
-  if (v === null || v === undefined) return false;
-  if (typeof v === "boolean") return v;
-  if (typeof v === "number") return true; // 0 still indicates "present/selected"
-  if (typeof v === "string") return v.trim().length > 0;
-  return true;
-}
-
 function getSecurityTypes(prospect: ProspectWithCompany): string[] {
   const types: string[] = [];
-
-  // Treat presence/boolean flags as "selected" even if numeric value is 0
-  if (isSelected((prospect as any).directorsGuarantee)) types.push("PG");
-  if (isSelected((prospect as any).commercialProperty)) types.push("Commercial");
-  if (isSelected((prospect as any).homeEquity)) types.push("Residential");
-  if (isSelected((prospect as any).propertyOther)) types.push("Other Property");
-  if (isSelected((prospect as any).debenture)) types.push("Debenture");
-  if (isSelected((prospect as any).parentCompanyGuarantee)) types.push("Parent Guarantee");
-  if (isSelected((prospect as any).crossCompanyGuarantee)) types.push("Cross Guarantee");
-  if (isSelected((prospect as any).collateral)) types.push("Other");
-
-  // Preserve any explicit securityTypes/securityType fields if they exist
-  const extra = (prospect as any).securityTypes;
-  if (Array.isArray(extra)) types.push(...extra.map(String));
-  const single = (prospect as any).securityType;
-  if (typeof single === "string" && single.trim()) types.push(single.trim());
-
-  return Array.from(new Set(types.filter(Boolean)));
+  if (prospect.directorsGuarantee && prospect.directorsGuarantee > 0) types.push("PG");
+  if (prospect.commercialProperty && prospect.commercialProperty > 0) types.push("Commercial");
+  if (prospect.homeEquity && prospect.homeEquity > 0) types.push("Residential");
+  if (prospect.propertyOther && prospect.propertyOther > 0) types.push("Other Property");
+  if (prospect.debenture && prospect.debenture > 0) types.push("Debenture");
+  if (prospect.parentCompanyGuarantee && prospect.parentCompanyGuarantee > 0)
+    types.push("Parent Guarantee");
+  if (prospect.collateral && prospect.collateral > 0) types.push("Other");
+  if (prospect.crossCompanyGuarantee && prospect.crossCompanyGuarantee > 0)
+    types.push("Cross Guarantee");
+  return types;
 }
 
 function getStageColor(stage: string): string {
