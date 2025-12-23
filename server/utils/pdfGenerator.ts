@@ -3023,50 +3023,31 @@ function renderPageFooter(
   currentPage: number,
   totalPages: number
 ) {
-  // IMPORTANT:
-  // PDFKit will auto-add a new page if you call doc.text() below the printable area
-  // (page.height - margins.bottom). Your previous footer used PAGE_HEIGHT-35 which is
-  // *below* the bottom margin, creating 3 extra pages per page (one for each footer line).
   const page = doc.page;
   const x0 = page.margins.left;
   const x1 = page.width - page.margins.right;
 
-  // Keep footer fully inside printable area
-  const lineY = page.height - page.margins.bottom - 18; // safe baseline
+  // Must be inside the printable area
+  const lineY = page.height - page.margins.bottom - 18;
   const textY = lineY + 6;
 
-  // Preserve cursor so footer drawing can't affect content layout
+  // Preserve cursor
   const prevX = doc.x;
   const prevY = doc.y;
 
   doc.save();
 
-  // Footer separator line
   doc.strokeColor(COLORS.border).lineWidth(0.5);
   doc.moveTo(x0, lineY).lineTo(x1, lineY).stroke();
 
-  doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
+  doc.font("Helvetica").fontSize(8).fillColor(COLORS.textLight);
 
-  // Left
-  doc.text("FlowLoan • Commercial Lending Solutions", x0, textY, {
-    lineBreak: false,
-    width: x1 - x0,
-    continued: false,
-  });
+  doc.text("FlowLoan • Commercial Lending Solutions", x0, textY, { lineBreak: false });
+  doc.text("CONFIDENTIAL", page.width / 2 - 30, textY, { lineBreak: false });
 
-  // Centre
-  doc.text("CONFIDENTIAL", page.width / 2 - 30, textY, {
-    lineBreak: false,
-    continued: false,
-  });
-
-  // Right (measure for perfect right align)
   const rightText = `Page ${currentPage} of ${totalPages}`;
   const rightW = doc.widthOfString(rightText);
-  doc.text(rightText, x1 - rightW, textY, {
-    lineBreak: false,
-    continued: false,
-  });
+  doc.text(rightText, x1 - rightW, textY, { lineBreak: false });
 
   doc.restore();
 
