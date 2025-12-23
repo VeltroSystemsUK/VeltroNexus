@@ -105,6 +105,7 @@ import {
   CharacterAssessmentTool,
 } from "@/components/DueDiligenceTools";
 import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
+import { AutomaticCreditAnalysis } from "@/components/AutomaticCreditAnalysis";
 import { CompanyInformation } from "@/components/CompanyInformation";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import { ContactEnrichmentDialog } from "@/components/ContactEnrichmentDialog";
@@ -2397,7 +2398,8 @@ function DueDiligenceTab({
         </Card>
       </TabsContent>
 
-      <TabsContent value="underwriting" className="mt-0">
+      <TabsContent value="underwriting" className="mt-0 space-y-6">
+        <AutomaticCreditAnalysis data={dueDiligenceData} />
         {userTier === "premium" ? (
           <CreditUnderwritingTool
             prospect={prospect}
