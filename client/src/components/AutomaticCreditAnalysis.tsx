@@ -38,8 +38,6 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
     (accountsAnalysis.ratios?.length ?? 0) > 0
   );
 
-  const latestRatios = accountsAnalysis?.ratios?.[0]?.ratios;
-
   if (!hasFinancialData && !hasAccountsData) {
     return (
       <Card>
@@ -76,9 +74,16 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
     }).format(amount);
   };
 
+  const normalizePercent = (value: number | undefined): number => {
+    if (value === undefined) return 0;
+    if (value <= 0) return 0;
+    if (value < 1) return value * 100;
+    return value;
+  };
+
   const formatPercent = (value: number | undefined) => {
     if (value === undefined) return "N/A";
-    return `${value.toFixed(1)}%`;
+    return `${normalizePercent(value).toFixed(1)}%`;
   };
 
   const formatRatio = (value: number | undefined) => {
@@ -226,72 +231,91 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
           </>
         )}
 
-        {hasAccountsData && latestRatios && (
+        {hasAccountsData && accountsAnalysis?.ratios && accountsAnalysis.ratios.length > 0 && (
           <>
             {hasFinancialData && <Separator />}
             <div>
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <Percent className="h-4 w-4" />
                 Audited Accounts Ratios
-                {accountsAnalysis?.ratios?.[0]?.year && (
-                  <Badge variant="outline" className="ml-2">{accountsAnalysis.ratios[0].year}</Badge>
-                )}
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <RatioCard 
-                  label="Current Ratio" 
-                  value={formatRatio(latestRatios.currentRatio)}
-                  benchmark="≥ 1.5"
-                  isGood={(latestRatios.currentRatio ?? 0) >= 1.5}
-                />
-                <RatioCard 
-                  label="Quick Ratio" 
-                  value={formatRatio(latestRatios.quickRatio)}
-                  benchmark="≥ 1.0"
-                  isGood={(latestRatios.quickRatio ?? 0) >= 1.0}
-                />
-                <RatioCard 
-                  label="Debt to Equity" 
-                  value={formatRatio(latestRatios.debtToEquity)}
-                  benchmark="≤ 2.0"
-                  isGood={(latestRatios.debtToEquity ?? 0) <= 2.0}
-                />
-                <RatioCard 
-                  label="Gross Profit Margin" 
-                  value={formatPercent(latestRatios.grossProfitMargin)}
-                  benchmark="≥ 20%"
-                  isGood={(latestRatios.grossProfitMargin ?? 0) >= 20}
-                />
-                <RatioCard 
-                  label="Net Profit Margin" 
-                  value={formatPercent(latestRatios.netProfitMargin)}
-                  benchmark="≥ 5%"
-                  isGood={(latestRatios.netProfitMargin ?? 0) >= 5}
-                />
-                <RatioCard 
-                  label="Interest Cover" 
-                  value={formatRatio(latestRatios.interestCover)}
-                  benchmark="≥ 2.0"
-                  isGood={(latestRatios.interestCover ?? 0) >= 2.0}
-                />
-                <RatioCard 
-                  label="ROCE" 
-                  value={formatPercent(latestRatios.returnOnCapitalEmployed)}
-                  benchmark="≥ 15%"
-                  isGood={(latestRatios.returnOnCapitalEmployed ?? 0) >= 15}
-                />
-                <RatioCard 
-                  label="Debtor Days" 
-                  value={latestRatios.debtorDays?.toFixed(0) ?? "N/A"}
-                  benchmark="≤ 60"
-                  isGood={(latestRatios.debtorDays ?? 0) <= 60}
-                />
-                <RatioCard 
-                  label="Creditor Days" 
-                  value={latestRatios.creditorDays?.toFixed(0) ?? "N/A"}
-                  benchmark="≤ 45"
-                  isGood={(latestRatios.creditorDays ?? 0) <= 45}
-                />
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left py-2 px-3 font-medium">Metric</th>
+                      <th className="text-left py-2 px-3 font-medium">Benchmark</th>
+                      {accountsAnalysis.ratios.map((r, idx) => (
+                        <th key={idx} className="text-right py-2 px-3 font-medium">{r.year}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <RatioTableRow 
+                      label="Current Ratio" 
+                      benchmark="≥ 1.5" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.currentRatio)}
+                      formatFn={formatRatio}
+                      isGood={(v) => (v ?? 0) >= 1.5}
+                    />
+                    <RatioTableRow 
+                      label="Quick Ratio" 
+                      benchmark="≥ 1.0" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.quickRatio)}
+                      formatFn={formatRatio}
+                      isGood={(v) => (v ?? 0) >= 1.0}
+                    />
+                    <RatioTableRow 
+                      label="Debt to Equity" 
+                      benchmark="≤ 2.0" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.debtToEquity)}
+                      formatFn={formatRatio}
+                      isGood={(v) => (v ?? 0) <= 2.0}
+                    />
+                    <RatioTableRow 
+                      label="Gross Profit Margin" 
+                      benchmark="≥ 20%" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.grossProfitMargin)}
+                      formatFn={formatPercent}
+                      isGood={(v) => normalizePercent(v) >= 20}
+                    />
+                    <RatioTableRow 
+                      label="Net Profit Margin" 
+                      benchmark="≥ 5%" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.netProfitMargin)}
+                      formatFn={formatPercent}
+                      isGood={(v) => normalizePercent(v) >= 5}
+                    />
+                    <RatioTableRow 
+                      label="Interest Cover" 
+                      benchmark="≥ 2.0" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.interestCover)}
+                      formatFn={formatRatio}
+                      isGood={(v) => (v ?? 0) >= 2.0}
+                    />
+                    <RatioTableRow 
+                      label="ROCE" 
+                      benchmark="≥ 15%" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.returnOnCapitalEmployed)}
+                      formatFn={formatPercent}
+                      isGood={(v) => normalizePercent(v) >= 15}
+                    />
+                    <RatioTableRow 
+                      label="Debtor Days" 
+                      benchmark="≤ 60" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.debtorDays)}
+                      formatFn={(v) => v?.toFixed(0) ?? "N/A"}
+                      isGood={(v) => (v ?? 0) <= 60}
+                    />
+                    <RatioTableRow 
+                      label="Creditor Days" 
+                      benchmark="≤ 45" 
+                      values={accountsAnalysis.ratios.map(r => r.ratios.creditorDays)}
+                      formatFn={(v) => v?.toFixed(0) ?? "N/A"}
+                      isGood={(v) => (v ?? 0) <= 45}
+                    />
+                  </tbody>
+                </table>
               </div>
             </div>
           </>
@@ -442,5 +466,44 @@ function RatioCard({
       <div className="font-semibold">{value}</div>
       <div className="text-xs text-muted-foreground">Benchmark: {benchmark}</div>
     </div>
+  );
+}
+
+function RatioTableRow({
+  label,
+  benchmark,
+  values,
+  formatFn,
+  isGood,
+}: {
+  label: string;
+  benchmark: string;
+  values: (number | undefined)[];
+  formatFn: (v: number | undefined) => string;
+  isGood: (v: number | undefined) => boolean;
+}) {
+  return (
+    <tr className="border-b last:border-0">
+      <td className="py-2 px-3 font-medium">{label}</td>
+      <td className="py-2 px-3 text-muted-foreground text-xs">{benchmark}</td>
+      {values.map((value, idx) => {
+        const good = isGood(value);
+        return (
+          <td 
+            key={idx} 
+            className={`text-right py-2 px-3 font-medium ${good ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}
+          >
+            <div className="flex items-center justify-end gap-1">
+              {formatFn(value)}
+              {good ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : (
+                <AlertTriangle className="h-3 w-3" />
+              )}
+            </div>
+          </td>
+        );
+      })}
+    </tr>
   );
 }
