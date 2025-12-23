@@ -19,7 +19,7 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       {
         id: "ec-2",
         description:
-          "Applicant/s live in or have business in E Mids and have lived in E Mids min 18 months or business located/to be located in MEIF LEP areas (see LEP postcode document or question which local authority business rates are paid to)",
+          "Applicant/s must li",
       },
       {
         id: "ec-3",
