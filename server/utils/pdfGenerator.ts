@@ -147,6 +147,14 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     renderLoanDetailsWithDueDiligence(doc, prospect, dueDiligence, getNextSectionNumber());
   }
 
+  // Use of Funds Breakdown (if any allocations exist)
+  const loanAllocation = prospect.loanAllocation as Array<{id: string, description: string, amount: number}> | null;
+  if (loanAllocation && Array.isArray(loanAllocation) && loanAllocation.length > 0) {
+    doc.addPage();
+    pageNumber++;
+    renderUseOfFunds(doc, prospect, loanAllocation, getNextSectionNumber());
+  }
+
   // Security, Collateral consolidated
   const hasCollateral = checkHasCollateral(prospect);
   if (isSectionEnabled("security") && hasCollateral) {
@@ -1116,6 +1124,83 @@ function renderSecurityCollateral(doc: typeof PDFDocument.prototype, prospect: P
     doc.rect(MARGIN, y, CONTENT_WIDTH, notesHeight).fillAndStroke(COLORS.backgroundLight, COLORS.border);
     doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
     doc.text(allNotes, MARGIN + 15, y + 15, { width: CONTENT_WIDTH - 30 });
+  }
+}
+
+// Use of Funds Breakdown
+function renderUseOfFunds(
+  doc: typeof PDFDocument.prototype,
+  prospect: ProspectWithCompany,
+  allocation: Array<{id: string, description: string, amount: number}>,
+  sectionNum?: string
+) {
+  renderSectionHeader(doc, "Use of Funds", sectionNum);
+  let y = doc.y + 10;
+
+  const loanAmount = prospect.loanAmount || 0;
+  const totalAllocated = allocation.reduce((sum, item) => sum + item.amount, 0);
+  const remaining = loanAmount - totalAllocated;
+
+  // Summary box with £ icon
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 60).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  
+  const col1X = MARGIN + 20;
+  const col2X = MARGIN + CONTENT_WIDTH / 2;
+  
+  // Loan Amount with £ symbol
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Total Loan Amount", col1X, y + 15);
+  doc.fontSize(14).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text(`£${loanAmount.toLocaleString()}`, col1X, y + 30);
+  
+  // Allocated amount
+  doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text("Total Allocated", col2X, y + 15);
+  const allocatedColor = remaining === 0 ? COLORS.success : remaining < 0 ? COLORS.danger : COLORS.warning;
+  doc.fontSize(14).fillColor(allocatedColor).font("Helvetica-Bold");
+  doc.text(`£${totalAllocated.toLocaleString()}`, col2X, y + 30);
+  
+  y += 75;
+  
+  // Allocation items header
+  doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text("Breakdown", MARGIN, y);
+  y += 20;
+  
+  // Table header
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 25).fillAndStroke(COLORS.primary, COLORS.primary);
+  doc.fontSize(10).fillColor(COLORS.white).font("Helvetica-Bold");
+  doc.text("Purpose", MARGIN + 15, y + 8);
+  doc.text("Amount (£)", MARGIN + CONTENT_WIDTH - 100, y + 8, { width: 85, align: "right" });
+  y += 25;
+  
+  // Allocation rows
+  allocation.forEach((item, index) => {
+    const rowColor = index % 2 === 0 ? COLORS.white : COLORS.backgroundLight;
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 25).fillAndStroke(rowColor, COLORS.border);
+    
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
+    doc.text(item.description || "Unspecified", MARGIN + 15, y + 8, { width: CONTENT_WIDTH - 130 });
+    doc.font("Helvetica-Bold");
+    doc.text(`£${item.amount.toLocaleString()}`, MARGIN + CONTENT_WIDTH - 100, y + 8, { width: 85, align: "right" });
+    y += 25;
+  });
+  
+  // Totals row
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 30).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
+  doc.text("Total Allocated:", MARGIN + 15, y + 10);
+  doc.fillColor(allocatedColor);
+  doc.text(`£${totalAllocated.toLocaleString()}`, MARGIN + CONTENT_WIDTH - 100, y + 10, { width: 85, align: "right" });
+  y += 30;
+  
+  // Remaining row if not fully allocated
+  if (remaining !== 0) {
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 30).fillAndStroke(COLORS.white, COLORS.border);
+    doc.fontSize(10).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(remaining > 0 ? "Remaining to Allocate:" : "Over-allocated:", MARGIN + 15, y + 10);
+    doc.fillColor(remaining > 0 ? COLORS.warning : COLORS.danger).font("Helvetica-Bold");
+    doc.text(`£${Math.abs(remaining).toLocaleString()}`, MARGIN + CONTENT_WIDTH - 100, y + 10, { width: 85, align: "right" });
   }
 }
 

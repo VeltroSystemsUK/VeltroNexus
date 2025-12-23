@@ -1852,7 +1852,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
         <Card className="border-2 border-dashed">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <PieChart className="h-4 w-4 text-primary" />
+              <span className="h-5 w-5 flex items-center justify-center rounded-full bg-primary/20 text-primary font-bold text-sm">£</span>
               Use of Funds Breakdown
             </CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -1862,7 +1862,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
               <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-primary" />
+                <span className="h-6 w-6 flex items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-sm">£</span>
                 <span className="font-medium">Loan Amount:</span>
               </div>
               <span className="text-lg font-bold" data-testid="text-total-loan">
