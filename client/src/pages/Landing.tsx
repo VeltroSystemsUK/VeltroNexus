@@ -202,7 +202,7 @@ export default function Landing() {
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight"
                 data-testid="text-hero-title"
               >
-                Better Decisions. <span className="text-primary">Faster Outcomes.</span>
+                Better Decisions.<br /><span className="text-primary">Faster Outcomes.</span>
               </h2>
 
               <p
