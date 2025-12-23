@@ -19,7 +19,7 @@ export const CHECKLIST_SECTIONS: ChecklistSection[] = [
       {
         id: "ec-2",
         description:
-          "Applicant/s must li",
+          "Applicant/s must live in ",
       },
       {
         id: "ec-3",
