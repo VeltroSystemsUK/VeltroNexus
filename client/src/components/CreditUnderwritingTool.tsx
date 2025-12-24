@@ -2119,6 +2119,54 @@ export function CreditUnderwritingTool({
                 </Card>
 
                 <Card className="overflow-hidden border-0 shadow-md">
+                  <div className="bg-[#2d5a3f] text-white px-4 py-3">
+                    <h4 className="font-semibold text-sm uppercase tracking-wide">
+                      Base Affordability (Bank Statements)
+                    </h4>
+                  </div>
+                  <CardContent className="p-0">
+                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border">
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Avg Monthly Rev
+                        </div>
+                        <div className="text-xl font-bold text-foreground">
+                          {formatCurrency(financialAnalysis.averageMonthlyRevenue || 0)}
+                        </div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Avg Monthly Exp
+                        </div>
+                        <div className="text-xl font-bold text-foreground">
+                          {formatCurrency(financialAnalysis.averageMonthlyExpenses || 0)}
+                        </div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Net Disposable
+                        </div>
+                        <div
+                          className={`text-xl font-bold ${(financialAnalysis.netDisposableIncome || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
+                        >
+                          {formatCurrency(financialAnalysis.netDisposableIncome || 0)}
+                        </div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Bank DSCR
+                        </div>
+                        <div
+                          className={`text-xl font-bold ${(financialAnalysis.dscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}
+                        >
+                          {(financialAnalysis.dscr || 0).toFixed(2)}x
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden border-0 shadow-md">
                   <div className="bg-[#1e3a5f] text-white px-4 py-3">
                     <h4 className="font-semibold text-sm uppercase tracking-wide">AI Summary</h4>
                   </div>
