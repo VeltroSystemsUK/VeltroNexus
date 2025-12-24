@@ -2178,6 +2178,118 @@ export function CreditUnderwritingTool({
                   </CardContent>
                 </Card>
 
+                {/* Audited Accounts Ratios Table */}
+                {accountsAnalysis?.ratios && accountsAnalysis.ratios.length > 0 && (
+                  <Card className="overflow-hidden border-0 shadow-md">
+                    <div className="bg-[#1e3a5f] text-white px-4 py-3">
+                      <h4 className="font-semibold text-sm uppercase tracking-wide">
+                        Audited Accounts Ratios
+                      </h4>
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left py-2 px-3 font-medium">Metric</th>
+                              <th className="text-left py-2 px-3 font-medium">Benchmark</th>
+                              {accountsAnalysis.ratios.map((r: any, idx: number) => (
+                                <th key={idx} className="text-right py-2 px-3 font-medium">{r.year}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[
+                              { label: "Current Ratio", key: "currentRatio", benchmark: "≥ 1.5", isGood: (v: number) => v >= 1.5 },
+                              { label: "Quick Ratio", key: "quickRatio", benchmark: "≥ 1.0", isGood: (v: number) => v >= 1.0 },
+                              { label: "Debt to Equity", key: "debtToEquity", benchmark: "≤ 2.0", isGood: (v: number) => v <= 2.0 },
+                              { label: "Gross Profit Margin", key: "grossProfitMargin", benchmark: "≥ 20%", isGood: (v: number) => (v < 1 ? v * 100 : v) >= 20, isPercent: true },
+                              { label: "Net Profit Margin", key: "netProfitMargin", benchmark: "≥ 5%", isGood: (v: number) => (v < 1 ? v * 100 : v) >= 5, isPercent: true },
+                              { label: "Interest Cover", key: "interestCover", benchmark: "≥ 2.0", isGood: (v: number) => v >= 2.0 },
+                              { label: "ROCE", key: "returnOnCapitalEmployed", benchmark: "≥ 15%", isGood: (v: number) => (v < 1 ? v * 100 : v) >= 15, isPercent: true },
+                              { label: "Debtor Days", key: "debtorDays", benchmark: "≤ 60", isGood: (v: number) => v <= 60, isDays: true },
+                              { label: "Creditor Days", key: "creditorDays", benchmark: "≤ 45", isGood: (v: number) => v <= 45, isDays: true },
+                            ].map((metric) => (
+                              <tr key={metric.key} className="border-b last:border-0">
+                                <td className="py-2 px-3 font-medium">{metric.label}</td>
+                                <td className="py-2 px-3 text-muted-foreground text-xs">{metric.benchmark}</td>
+                                {accountsAnalysis.ratios.map((r: any, idx: number) => {
+                                  const value = r.ratios?.[metric.key];
+                                  const good = value !== undefined && metric.isGood(value);
+                                  let displayValue = "N/A";
+                                  if (value !== undefined) {
+                                    if ((metric as any).isPercent) {
+                                      displayValue = `${(value < 1 ? value * 100 : value).toFixed(1)}%`;
+                                    } else if ((metric as any).isDays) {
+                                      displayValue = value.toFixed(0);
+                                    } else {
+                                      displayValue = value.toFixed(2);
+                                    }
+                                  }
+                                  return (
+                                    <td 
+                                      key={idx}
+                                      className={`text-right py-2 px-3 font-medium ${good ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}
+                                    >
+                                      <div className="flex items-center justify-end gap-1">
+                                        {displayValue}
+                                        {good ? (
+                                          <CheckCircle2 className="h-3 w-3" />
+                                        ) : (
+                                          <AlertTriangle className="h-3 w-3" />
+                                        )}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Year-on-Year Comparison Table */}
+                {accountsAnalysis?.years && accountsAnalysis.years.length > 0 && (
+                  <Card className="overflow-hidden border-0 shadow-md">
+                    <div className="bg-[#1e3a5f] text-white px-4 py-3">
+                      <h4 className="font-semibold text-sm uppercase tracking-wide">
+                        Year-on-Year Comparison
+                      </h4>
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left py-2 px-3 font-medium">Year Ending</th>
+                              <th className="text-right py-2 px-3 font-medium">Turnover</th>
+                              <th className="text-right py-2 px-3 font-medium">Gross Profit</th>
+                              <th className="text-right py-2 px-3 font-medium">Net Profit</th>
+                              <th className="text-right py-2 px-3 font-medium">Net Assets</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {accountsAnalysis.years.map((year: any, index: number) => (
+                              <tr key={index} className="border-b last:border-0">
+                                <td className="py-2 px-3 font-medium">{year.yearEnding}</td>
+                                <td className="text-right py-2 px-3">{formatCurrency(year.turnover)}</td>
+                                <td className="text-right py-2 px-3">{formatCurrency(year.grossProfit)}</td>
+                                <td className={`text-right py-2 px-3 ${(year.netProfit ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatCurrency(year.netProfit)}
+                                </td>
+                                <td className="text-right py-2 px-3">{formatCurrency(year.netAssets)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 <Card className="overflow-hidden border-0 shadow-md">
                   <div className="bg-[#1e3a5f] text-white px-4 py-3">
                     <h4 className="font-semibold text-sm uppercase tracking-wide">AI Summary</h4>
