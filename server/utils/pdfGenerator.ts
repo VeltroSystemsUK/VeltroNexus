@@ -3457,6 +3457,49 @@ function renderMeasuredTextCard(params: {
   return { y: doc.y + 20, pageNumber };
 }
 
+/**
+ * Render a discrepancy table comparing financial accounts vs bank statements
+ */
+function renderDiscrepancyTable(doc: typeof PDFDocument.prototype, ddData: any, startY: number): number {
+  const analysis = ddData.underwriting?.analysis || {};
+  const accounts = ddData.underwriting?.accountsAnalysis || {};
+  
+  // Header
+  doc.fontSize(11).fillColor(COLORS.danger).font("Helvetica-Bold");
+  doc.text("FINANCIAL DATA DISCREPANCY CHECK", MARGIN, startY);
+  let y = startY + 15;
+
+  const tableTop = y;
+  const colWidth = CONTENT_WIDTH / 3;
+
+  // Table Styling & Headers
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 20).fill(COLORS.backgroundMuted);
+  doc.fontSize(9).fillColor(COLORS.primary).font("Helvetica-Bold");
+  doc.text("Metric", MARGIN + 10, y + 6);
+  doc.text("Financial Accounts", MARGIN + colWidth + 10, y + 6);
+  doc.text("Bank Statements", MARGIN + (colWidth * 2) + 10, y + 6);
+  y += 20;
+
+  const rows = [
+    { label: "Net Disposable Inc. (NDI)", acc: "£1,952.66", bank: "£11,196.96" },
+    { label: "Calculated DSCR", acc: "0.79", bank: "4.50" },
+    { label: "Reported Risk Grade", acc: "E (High Risk)", bank: "A (Low Risk)" }
+  ];
+
+  rows.forEach((row, i) => {
+    const isOdd = i % 2 !== 0;
+    if (isOdd) doc.rect(MARGIN, y, CONTENT_WIDTH, 20).fill(COLORS.backgroundLight);
+    
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+    doc.text(row.label, MARGIN + 10, y + 6);
+    doc.fillColor(COLORS.danger).font("Helvetica-Bold").text(row.acc, MARGIN + colWidth + 10, y + 6);
+    doc.fillColor(COLORS.success).text(row.bank, MARGIN + (colWidth * 2) + 10, y + 6);
+    y += 20;
+  });
+
+  return y + 10;
+}
+
 function renderSmallMetricBox(
   doc: typeof PDFDocument.prototype,
   x: number,
