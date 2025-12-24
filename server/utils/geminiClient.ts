@@ -440,11 +440,28 @@ Return ONLY the summary text, no JSON or formatting.`;
 export async function analyzeFinancialsFromPdf(
   pdfTexts: { fileName: string; text: string; pages?: number }[],
   loanAmount: number,
-  monthlyRepayment: number
+  monthlyRepayment: number,
+  accountsAnalysis?: any
 ): Promise<FinancialAnalysisResult> {
   const combinedText = pdfTexts
     .map((p, i) => `\n=== BANK STATEMENT FILE ${i + 1}: ${p.fileName} ===\n${p.text}`)
     .join("\n\n");
+
+  // Build comparison context if accounts analysis is available
+  let accountsContext = "";
+  if (accountsAnalysis?.dscr?.average || accountsAnalysis?.years?.length > 0) {
+    const avgDscr = accountsAnalysis.dscr?.average || 0;
+    const latestYear = accountsAnalysis.years?.[0];
+    accountsContext = `
+AUDITED ACCOUNTS REFERENCE DATA (for comparison):
+- Official DSCR from audited accounts: ${avgDscr.toFixed(2)}x
+${latestYear ? `- Latest year turnover: £${(latestYear.turnover || 0).toLocaleString()}
+- Latest year net profit: £${(latestYear.netProfit || 0).toLocaleString()}
+- Average monthly revenue (from accounts): £${((latestYear.turnover || 0) / 12).toLocaleString()}` : ''}
+
+IMPORTANT: Compare your findings from the bank statements against these official accounts figures and explain any material variance concisely in your summary.
+`;
+  }
 
   const prompt = `You are a financial analyst specializing in commercial lending. Analyze these bank statements extracted from PDF documents (up to 6 months) and provide a comprehensive financial assessment.
 
@@ -456,7 +473,7 @@ CRITICAL INSTRUCTIONS:
 - Ignore repeated headers, footers, page numbers, and promotional content
 - Credits/deposits/payments IN are income; debits/withdrawals/payments OUT are expenses
 - ALWAYS provide numeric values - never return error messages in place of numbers
-
+${accountsContext}
 BANK STATEMENT PDF TEXT:
 ${combinedText}
 

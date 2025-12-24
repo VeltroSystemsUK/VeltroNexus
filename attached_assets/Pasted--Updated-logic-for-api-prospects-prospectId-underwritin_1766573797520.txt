@@ -1,0 +1,68 @@
+// Updated logic for /api/prospects/:prospectId/underwriting/analyze-bank-pdfs
+app.post("/api/prospects/:prospectId/underwriting/analyze-bank-pdfs", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const prospectId = parseInt(req.params.prospectId);
+    const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
+
+    // 1. Fetch Existing Reality A (Accounts Analysis) to provide context
+    const existingDD = await storage.getDueDiligence(prospectId, userId);
+    const accountsAnalysis = (existingDD?.data as any)?.underwriting?.accountsAnalysis;
+
+    // 2. Pre-process and Redact
+    const processedPdfTexts = pdfTexts.map((p: any) => {
+      const { redacted } = redactSensitiveData(p.text || "");
+      return { ...p, text: redacted };
+    });
+
+    const combinedText = processedPdfTexts.map((p: any) => p.text).join("\n---\n");
+
+    const { analyzeFinancialsFromPdf } = await import("./utils/geminiClient");
+
+    // 3. Force Gemini to reconcile the two sources
+    const result = await wrapAiRequest(
+      { userId, prospectId, operation: "analyze_bank_pdfs", dataType: "pdf", consentToAiProcessing: !!consentToAiProcessing },
+      combinedText,
+      async () => analyzeFinancialsFromPdf(
+        processedPdfTexts, 
+        loanAmount, 
+        monthlyRepayment,
+        accountsAnalysis // <--- PASS THIS AS NEW PARAMETER
+      ),
+      { skipRedaction: true }
+    );
+
+    if ("error" in result) return res.status(result.code).json(result);
+
+    // 4. Data Integrity Guard: Compare result with Accounts
+    const bankDscr = result.result.calculatedDscr || 0;
+    const accountsDscr = accountsAnalysis?.calculatedDscr || 0;
+    
+    // Add a flag if variance is over 50%
+    const hasCriticalVariance = Math.abs(bankDscr - accountsDscr) > (accountsDscr * 0.5);
+
+    const mergedData = {
+      ...(existingDD?.data as object || {}),
+      underwriting: {
+        ...((existingDD?.data as any)?.underwriting || {}),
+        financialAnalysis: result.result,
+        analyzedAt: new Date().toISOString(),
+        analysisSource: "pdf",
+        dataIntegrity: {
+          hasCriticalVariance,
+          accountsDscr,
+          bankDscr
+        }
+      },
+    };
+
+    await storage.upsertDueDiligence(prospectId, mergedData);
+    res.json(result.result);
+  } catch (error: any) {
+    handleApiError(res, error, "api-error");
+  }
+});
+Next Steps:
+Update geminiClient.ts: You must update the analyzeFinancialsFromPdf function signature to accept accountsAnalysis and include a line in the prompt: "The official accounts report a DSCR of {{accountsDscr}}. Compare your findings from the bank statements against this and explain any material variance concisely."
+
+Report Implementation: The dataIntegrity object we just added to the database can now be used by the Discrepancy Table we built earlier to show the side-by-side comparison.

@@ -2303,6 +2303,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Prospect not found" });
         }
 
+        // Fetch existing accounts analysis to provide context for comparison
+        const existingDD = await storage.getDueDiligence(prospectId, userId);
+        const accountsAnalysis = (existingDD?.data as any)?.underwriting?.accountsAnalysis;
+
         // Validate size and apply redaction to each PDF text
         const processedPdfTexts: typeof pdfTexts = [];
         for (const pdfText of pdfTexts) {
@@ -2333,7 +2337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             consentToAiProcessing: !!consentToAiProcessing,
           },
           combinedText,
-          async () => analyzeFinancialsFromPdf(processedPdfTexts, loanAmount, monthlyRepayment),
+          async () => analyzeFinancialsFromPdf(processedPdfTexts, loanAmount, monthlyRepayment, accountsAnalysis),
           { skipRedaction: true } // Already redacted above
         );
 
@@ -2344,9 +2348,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // Save to due diligence with bank PDF file metadata
-        const existing = await storage.getDueDiligence(prospectId, userId);
-        const existingData = (existing?.data || {}) as Record<string, any>;
+        // Data Integrity Guard: Compare bank analysis with accounts analysis
+        const bankDscr = result.result.dscr || 0;
+        const accountsDscr = accountsAnalysis?.dscr?.average || 0;
+        const hasCriticalVariance = accountsDscr > 0 && Math.abs(bankDscr - accountsDscr) > (accountsDscr * 0.5);
+
+        // Save to due diligence with bank PDF file metadata and data integrity info
+        const existingData = (existingDD?.data || {}) as Record<string, any>;
         const mergedData = {
           ...existingData,
           underwriting: {
@@ -2358,6 +2366,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               pages: p.pages || 0,
             })),
             analysisSource: "pdf",
+            dataIntegrity: {
+              hasCriticalVariance,
+              accountsDscr,
+              bankDscr,
+              variancePercent: accountsDscr > 0 ? Math.abs((bankDscr - accountsDscr) / accountsDscr * 100).toFixed(1) : null,
+            },
           },
         };
         await storage.upsertDueDiligence(prospectId, mergedData);
