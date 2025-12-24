@@ -2294,11 +2294,11 @@ export function CreditUnderwritingTool({
                   <div className="bg-[#1e3a5f] text-white px-4 py-3 flex items-center justify-between gap-2">
                     <h4 className="font-semibold text-sm uppercase tracking-wide">AI Summary</h4>
                     <Button
-                      size="sm"
-                      variant="ghost"
+                      size="icon"
+                      variant="outline"
                       onClick={handleAnalyze}
                       disabled={analyzeCsvMutation.isPending}
-                      className="h-7 px-2 text-white hover:bg-white/20"
+                      className="h-7 w-7 bg-white/10 border-white/30 text-white hover:bg-white/20"
                       data-testid="button-refresh-ai-summary"
                     >
                       <RefreshCw className={`h-4 w-4 ${analyzeCsvMutation.isPending ? 'animate-spin' : ''}`} />
