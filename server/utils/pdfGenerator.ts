@@ -308,7 +308,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     if (adviserSummary) {
       doc.addPage();
       pageNumber++;
-      renderCampariSection(doc, adviserSummary);
+      renderCampariSection(doc, adviserSummary, prospect.loanAllocation as any[]);
     }
   }
 
@@ -2912,7 +2912,7 @@ function getRiskGradeColor(grade: string): string {
 }
 
 // Standalone CAMPARI Analysis Section
-function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
+function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any, loanAllocation?: any[]) {
   renderSectionHeader(doc, "CAMPARI Analysis", "15");
   let y = doc.y + 10;
 
@@ -2969,7 +2969,10 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
 
   campariOrder.forEach((key) => {
     const content = getSectionContent(key);
-    if (!content || content.trim() === "") return;
+    
+    // For AMOUNT section, we can render even if no text content - we'll show Use of Funds
+    const hasLoanAllocation = loanAllocation && Array.isArray(loanAllocation) && loanAllocation.length > 0;
+    if ((!content || content.trim() === "") && !(key === "amount" && hasLoanAllocation)) return;
 
     // FORMATTING FIX: Ensure minimum space for section header
     ensureSpace(doc, 60);
@@ -2985,17 +2988,64 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any) {
 
     // FORMATTING FIX: Split content into paragraphs and render with page break awareness
     // This prevents text from breaking mid-sentence across pages
-    const formattedContent = formatCampariContent(key, content);
-    const paragraphs = formattedContent
-      .split(/\n\n+/)
-      .filter((p: string) => p.trim())
-      .map((p: string) => p.trim());
+    if (content && content.trim() !== "") {
+      const formattedContent = formatCampariContent(key, content);
+      const paragraphs = formattedContent
+        .split(/\n\n+/)
+        .filter((p: string) => p.trim())
+        .map((p: string) => p.trim());
 
-    doc.y = renderParagraphsWithBreaks(doc, paragraphs, MARGIN + 15, {
-      fontSize: 10,
-      color: COLORS.text,
-      width: CONTENT_WIDTH - 30,
-    });
+      doc.y = renderParagraphsWithBreaks(doc, paragraphs, MARGIN + 15, {
+        fontSize: 10,
+        color: COLORS.text,
+        width: CONTENT_WIDTH - 30,
+      });
+    }
+
+    // For AMOUNT section, add Use of Funds Breakdown table
+    if (key === "amount" && hasLoanAllocation) {
+      doc.y += 10;
+      ensureSpace(doc, 30 + loanAllocation.length * 22 + 30);
+      
+      // Use of Funds subtitle
+      doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
+      doc.text("Use of Funds Breakdown:", MARGIN + 15, doc.y);
+      doc.y += 18;
+      
+      // Table header
+      const tableX = MARGIN + 15;
+      const descWidth = CONTENT_WIDTH - 130;
+      const amountWidth = 100;
+      
+      doc.rect(tableX, doc.y, descWidth + amountWidth, 20).fill(COLORS.backgroundMuted);
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
+      doc.text("Description", tableX + 8, doc.y + 6);
+      doc.text("Amount", tableX + descWidth + 8, doc.y + 6);
+      doc.y += 20;
+      
+      // Table rows
+      let totalAmount = 0;
+      loanAllocation.forEach((item: any, idx: number) => {
+        const rowY = doc.y;
+        const bgColor = idx % 2 === 0 ? COLORS.white : COLORS.backgroundLight;
+        doc.rect(tableX, rowY, descWidth + amountWidth, 22).fill(bgColor);
+        doc.rect(tableX, rowY, descWidth + amountWidth, 22).stroke(COLORS.borderLight);
+        
+        doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+        doc.text(item.description || "-", tableX + 8, rowY + 6, { width: descWidth - 16 });
+        doc.text(`£${(item.amount || 0).toLocaleString()}`, tableX + descWidth + 8, rowY + 6);
+        
+        totalAmount += item.amount || 0;
+        doc.y += 22;
+      });
+      
+      // Total row
+      doc.rect(tableX, doc.y, descWidth + amountWidth, 22).fill(COLORS.primary);
+      doc.fontSize(9).fillColor(COLORS.white).font("Helvetica-Bold");
+      doc.text("TOTAL", tableX + 8, doc.y + 6);
+      doc.text(`£${totalAmount.toLocaleString()}`, tableX + descWidth + 8, doc.y + 6);
+      doc.y += 22;
+    }
 
     doc.y += 15; // Space after section
   });
