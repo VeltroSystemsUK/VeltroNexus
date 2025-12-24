@@ -73,6 +73,7 @@ const DEFAULT_SECTIONS: PDFSection[] = [
   { id: "contacts", label: "Key Contacts", enabled: true },
   { id: "activities", label: "Activities & Tasks", enabled: true },
   { id: "dueDiligence", label: "Due Diligence", enabled: true },
+  { id: "creditRatios", label: "Credit Ratios", enabled: true },
   { id: "campari", label: "CAMPARI Analysis", enabled: true },
   { id: "swotAnalysis", label: "SWOT Analysis", enabled: true },
 ];
@@ -301,7 +302,18 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     }
   }
 
-  // Section 8: CAMPARI Analysis (if any)
+  // Section 8: Credit Ratios (dedicated page)
+  if (isSectionEnabled("creditRatios") && dueDiligence?.data) {
+    const ddData = dueDiligence.data as any;
+    const cu = ddData.underwriting || ddData.creditUnderwriting;
+    if (cu?.accountsAnalysis?.ratios && Array.isArray(cu.accountsAnalysis.ratios) && cu.accountsAnalysis.ratios.length > 0) {
+      doc.addPage();
+      pageNumber++;
+      renderCreditRatiosSection(doc, cu.accountsAnalysis);
+    }
+  }
+
+  // Section 9: CAMPARI Analysis (if any)
   if (isSectionEnabled("campari") && dueDiligence?.data) {
     const ddData = dueDiligence.data as any;
     const adviserSummary = ddData.underwriting?.adviserSummary || ddData.creditUnderwriting?.adviserSummary;
@@ -3078,6 +3090,205 @@ function renderCampariSection(doc: typeof PDFDocument.prototype, adviser: any, l
     doc.text("FINAL RECOMMENDATION", MARGIN + 15, doc.y + 12);
     doc.fontSize(16).fillColor(recColor).font("Helvetica-Bold");
     doc.text(recLabel, MARGIN + 15, doc.y + 35);
+  }
+}
+
+// Standalone Credit Ratios Section - Dedicated page for financial ratios analysis
+function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAnalysis: any) {
+  renderSectionHeader(doc, "Credit Ratios Analysis", "8");
+  let y = doc.y + 15;
+
+  // Introduction text
+  doc.fontSize(10).fillColor(COLORS.textSecondary).font("Helvetica");
+  doc.text(
+    "Financial ratios calculated from audited accounts, with industry benchmarks for comparison.",
+    MARGIN,
+    y,
+    { width: CONTENT_WIDTH }
+  );
+  y += 25;
+
+  const ratiosData = accountsAnalysis.ratios;
+  if (!ratiosData || ratiosData.length === 0) return;
+
+  // Calculate column widths
+  const colCount = ratiosData.length + 2; // Metric + Benchmark + Years
+  const metricColWidth = 120;
+  const benchmarkColWidth = 80;
+  const yearColWidth = (CONTENT_WIDTH - metricColWidth - benchmarkColWidth) / ratiosData.length;
+
+  // Helper to normalize percentage values
+  const normalizePercent = (v: number) => {
+    if (v <= 0) return 0;
+    if (v < 1) return v * 100;
+    return v;
+  };
+
+  // Table header
+  doc.rect(MARGIN, y, CONTENT_WIDTH, 28).fill(COLORS.primary);
+  doc.fontSize(9).fillColor(COLORS.white).font("Helvetica-Bold");
+  doc.text("Ratio", MARGIN + 10, y + 9);
+  doc.text("Benchmark", MARGIN + metricColWidth + 5, y + 9);
+  ratiosData.forEach((rd: any, idx: number) => {
+    doc.text(rd.year || `Year ${idx + 1}`, MARGIN + metricColWidth + benchmarkColWidth + idx * yearColWidth + 10, y + 9);
+  });
+  y += 28;
+
+  // Ratio definitions with benchmarks
+  const ratioCategories = [
+    {
+      category: "Profitability",
+      color: COLORS.success,
+      metrics: [
+        { label: "Gross Profit Margin", key: "grossProfitMargin", benchmark: "≥ 20%", isGood: (v: number) => normalizePercent(v) >= 20, isPercent: true },
+        { label: "Net Profit Margin", key: "netProfitMargin", benchmark: "≥ 5%", isGood: (v: number) => normalizePercent(v) >= 5, isPercent: true },
+        { label: "Return on Capital Employed", key: "returnOnCapitalEmployed", benchmark: "≥ 15%", isGood: (v: number) => normalizePercent(v) >= 15, isPercent: true },
+      ],
+    },
+    {
+      category: "Liquidity",
+      color: COLORS.accent,
+      metrics: [
+        { label: "Current Ratio", key: "currentRatio", benchmark: "≥ 1.5", isGood: (v: number) => v >= 1.5 },
+        { label: "Quick Ratio (Acid Test)", key: "quickRatio", benchmark: "≥ 1.0", isGood: (v: number) => v >= 1.0 },
+      ],
+    },
+    {
+      category: "Leverage",
+      color: COLORS.warning,
+      metrics: [
+        { label: "Debt to Equity Ratio", key: "debtToEquity", benchmark: "≤ 2.0", isGood: (v: number) => v <= 2.0 },
+        { label: "Interest Cover", key: "interestCover", benchmark: "≥ 2.0", isGood: (v: number) => v >= 2.0 },
+      ],
+    },
+    {
+      category: "Efficiency",
+      color: COLORS.secondary,
+      metrics: [
+        { label: "Debtor Days", key: "debtorDays", benchmark: "≤ 60 days", isGood: (v: number) => v <= 60, isDays: true },
+        { label: "Creditor Days", key: "creditorDays", benchmark: "≤ 45 days", isGood: (v: number) => v <= 45, isDays: true },
+      ],
+    },
+  ];
+
+  ratioCategories.forEach((category) => {
+    // Check if we need a new page
+    const categoryHeight = 25 + category.metrics.length * 24;
+    if (y > PAGE_HEIGHT - FOOTER_SPACE - categoryHeight) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+
+    // Category header
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 22).fill(category.color + "20");
+    doc.rect(MARGIN, y, 4, 22).fill(category.color);
+    doc.fontSize(10).fillColor(category.color).font("Helvetica-Bold");
+    doc.text(category.category, MARGIN + 12, y + 6);
+    y += 22;
+
+    // Metrics rows
+    category.metrics.forEach((metric, mIdx) => {
+      const isOdd = mIdx % 2 === 0;
+      doc.rect(MARGIN, y, CONTENT_WIDTH, 24).fillAndStroke(isOdd ? COLORS.white : COLORS.backgroundLight, COLORS.borderLight);
+
+      // Metric name
+      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+      doc.text(metric.label, MARGIN + 10, y + 7, { width: metricColWidth - 15 });
+
+      // Benchmark
+      doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+      doc.text(metric.benchmark, MARGIN + metricColWidth + 5, y + 8);
+
+      // Year values
+      ratiosData.forEach((rd: any, idx: number) => {
+        const value = rd.ratios?.[metric.key];
+        const xPos = MARGIN + metricColWidth + benchmarkColWidth + idx * yearColWidth + 10;
+
+        if (value === undefined || value === null) {
+          doc.fontSize(9).fillColor(COLORS.textLight).font("Helvetica");
+          doc.text("N/A", xPos, y + 7);
+        } else {
+          const good = metric.isGood(value);
+          const color = good ? COLORS.success : COLORS.danger;
+          
+          let displayValue = "";
+          if ((metric as any).isPercent) {
+            displayValue = `${normalizePercent(value).toFixed(1)}%`;
+          } else if ((metric as any).isDays) {
+            displayValue = `${value.toFixed(0)} days`;
+          } else {
+            displayValue = value.toFixed(2);
+          }
+
+          // Value with indicator
+          doc.fontSize(9).fillColor(color).font("Helvetica-Bold");
+          doc.text(displayValue, xPos, y + 7);
+        }
+      });
+
+      y += 24;
+    });
+
+    y += 8; // Space between categories
+  });
+
+  // DSCR Section if available
+  if (accountsAnalysis.dscr) {
+    if (y > PAGE_HEIGHT - FOOTER_SPACE - 100) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+
+    y += 10;
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 28).fill(COLORS.primary);
+    doc.fontSize(11).fillColor(COLORS.white).font("Helvetica-Bold");
+    doc.text("Debt Service Coverage Ratio (DSCR)", MARGIN + 10, y + 9);
+    y += 28;
+
+    // DSCR details
+    doc.rect(MARGIN, y, CONTENT_WIDTH, 50).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    
+    const dscrAvg = accountsAnalysis.dscr.average;
+    const dscrColor = dscrAvg >= 1.25 ? COLORS.success : dscrAvg >= 1.0 ? COLORS.warning : COLORS.danger;
+    
+    doc.fontSize(24).fillColor(dscrColor).font("Helvetica-Bold");
+    doc.text(dscrAvg?.toFixed(2) || "N/A", MARGIN + 20, y + 12);
+    
+    doc.fontSize(10).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Average DSCR", MARGIN + 80, y + 18);
+    
+    const trendLabel = accountsAnalysis.dscr.trend === "improving" ? "↑ Improving" : 
+                       accountsAnalysis.dscr.trend === "declining" ? "↓ Declining" : "→ Stable";
+    const trendColor = accountsAnalysis.dscr.trend === "improving" ? COLORS.success :
+                       accountsAnalysis.dscr.trend === "declining" ? COLORS.danger : COLORS.textSecondary;
+    
+    doc.fontSize(10).fillColor(trendColor).font("Helvetica-Bold");
+    doc.text(trendLabel, MARGIN + 200, y + 18);
+
+    // Benchmark note
+    doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Benchmark: DSCR ≥ 1.25 indicates strong debt servicing capacity", MARGIN + 300, y + 18);
+
+    y += 60;
+  }
+
+  // Trends summary if available
+  if (accountsAnalysis.trends?.summary) {
+    if (y > PAGE_HEIGHT - FOOTER_SPACE - 80) {
+      doc.addPage();
+      pageNumber++;
+      y = MARGIN + 20;
+    }
+
+    y += 10;
+    doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
+    doc.text("Trend Summary", MARGIN, y);
+    y += 18;
+
+    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
+    doc.text(accountsAnalysis.trends.summary, MARGIN, y, { width: CONTENT_WIDTH });
   }
 }
 
