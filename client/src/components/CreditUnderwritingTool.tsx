@@ -2070,54 +2070,66 @@ export function CreditUnderwritingTool({
 
             {financialAnalysis ? (
               <>
-                <Card className="overflow-hidden border-0 shadow-md">
-                  <div className="bg-[#1e3a5f] text-white px-4 py-3">
-                    <h4 className="font-semibold text-sm uppercase tracking-wide">
-                      Base Affordability (Historic)
-                    </h4>
-                  </div>
-                  <CardContent className="p-0">
-                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border">
-                      <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                          Avg Monthly Rev
-                        </div>
-                        <div className="text-xl font-bold text-foreground">
-                          {formatCurrency(financialAnalysis.averageMonthlyRevenue || 0)}
-                        </div>
+                {/* Historic affordability from Audited Accounts */}
+                {accountsAnalysis?.years && accountsAnalysis.years.length > 0 && (() => {
+                  const latestYear = accountsAnalysis.years[0];
+                  const historicMonthlyRev = (latestYear.turnover || 0) / 12;
+                  const historicMonthlyExp = ((latestYear.turnover || 0) - (latestYear.netProfit || 0)) / 12;
+                  const historicNetDisposable = (latestYear.netProfit || 0) / 12;
+                  const historicDscr = accountsAnalysis.dscr?.average || 0;
+                  
+                  return (
+                    <Card className="overflow-hidden border-0 shadow-md">
+                      <div className="bg-[#1e3a5f] text-white px-4 py-3">
+                        <h4 className="font-semibold text-sm uppercase tracking-wide">
+                          Base Affordability (Historic - Audited Accounts)
+                        </h4>
                       </div>
-                      <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                          Avg Monthly Exp
+                      <CardContent className="p-0">
+                        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border">
+                          <div className="p-4 text-center">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                              Avg Monthly Rev
+                            </div>
+                            <div className="text-xl font-bold text-foreground">
+                              {formatCurrency(historicMonthlyRev)}
+                            </div>
+                          </div>
+                          <div className="p-4 text-center">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                              Avg Monthly Exp
+                            </div>
+                            <div className="text-xl font-bold text-foreground">
+                              {formatCurrency(historicMonthlyExp)}
+                            </div>
+                          </div>
+                          <div className="p-4 text-center">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                              Net Disposable
+                            </div>
+                            <div
+                              className={`text-xl font-bold ${historicNetDisposable >= 0 ? "text-green-600" : "text-red-600"}`}
+                            >
+                              {formatCurrency(historicNetDisposable)}
+                            </div>
+                          </div>
+                          <div className="p-4 text-center">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                              Historic DSCR
+                            </div>
+                            <div
+                              className={`text-xl font-bold ${historicDscr >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}
+                            >
+                              {historicDscr.toFixed(2)}x
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-xl font-bold text-foreground">
-                          {formatCurrency(financialAnalysis.averageMonthlyExpenses || 0)}
-                        </div>
-                      </div>
-                      <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                          Net Disposable
-                        </div>
-                        <div
-                          className={`text-xl font-bold ${(financialAnalysis.netDisposableIncome || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
-                        >
-                          {formatCurrency(financialAnalysis.netDisposableIncome || 0)}
-                        </div>
-                      </div>
-                      <div className="p-4 text-center">
-                        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                          Base DSCR
-                        </div>
-                        <div
-                          className={`text-xl font-bold ${(financialAnalysis.dscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}
-                        >
-                          {(financialAnalysis.dscr || 0).toFixed(2)}x
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
 
+                {/* Bank Statements affordability */}
                 <Card className="overflow-hidden border-0 shadow-md">
                   <div className="bg-[#2d5a3f] text-white px-4 py-3">
                     <h4 className="font-semibold text-sm uppercase tracking-wide">
