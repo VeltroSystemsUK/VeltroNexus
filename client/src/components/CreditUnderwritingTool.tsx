@@ -2291,8 +2291,18 @@ export function CreditUnderwritingTool({
                 )}
 
                 <Card className="overflow-hidden border-0 shadow-md">
-                  <div className="bg-[#1e3a5f] text-white px-4 py-3">
+                  <div className="bg-[#1e3a5f] text-white px-4 py-3 flex items-center justify-between gap-2">
                     <h4 className="font-semibold text-sm uppercase tracking-wide">AI Summary</h4>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleAnalyze}
+                      disabled={analyzeCsvMutation.isPending}
+                      className="h-7 px-2 text-white hover:bg-white/20"
+                      data-testid="button-refresh-ai-summary"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${analyzeCsvMutation.isPending ? 'animate-spin' : ''}`} />
+                    </Button>
                   </div>
                   <CardContent className="p-4">
                     <p className="text-sm text-muted-foreground italic leading-relaxed">
