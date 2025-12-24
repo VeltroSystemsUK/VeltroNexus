@@ -3335,19 +3335,26 @@ function formatCampariContent(sectionKey: string, raw: string): string {
 
   return lines.join("\n");
 }
+/**
+ * FIX 1: Prevent double-page jumping and infinite recursion
+ */
 function ensureSpaceForBlock(
   doc: typeof PDFDocument.prototype,
   y: number,
   neededHeight: number,
-  pageNumber: number
+  pn: number
 ) {
-  const available = PAGE_HEIGHT - MARGIN - y;
+  const available = PAGE_HEIGHT - FOOTER_SPACE - y; // Always account for footer
+  
   if (neededHeight > available) {
-    doc.addPage();
-    pageNumber++;
-    y = MARGIN + 20;
+    // Only add a page if we aren't already at the top of one
+    if (y > MARGIN + 30) {
+      doc.addPage();
+      pn++;
+      y = MARGIN + 20;
+    }
   }
-  return { y, pageNumber };
+  return { y, pageNumber: pn };
 }
 
 function fitTextToHeight(
@@ -3387,6 +3394,10 @@ function fitTextToHeight(
   return { fit, rest };
 }
 
+/**
+ * FIX 2: Linear Text Rendering (No recursion)
+ * This stops the "Page 1 of 65" issue by using PDFKit's built-in text wrapping
+ */
 function renderMeasuredTextCard(params: {
   doc: typeof PDFDocument.prototype;
   title: string;
@@ -3398,105 +3409,52 @@ function renderMeasuredTextCard(params: {
   minHeight?: number;
   titleColor?: string;
 }) {
-  const {
-    doc,
-    title,
-    text,
-    accentColor = COLORS.secondary,
-    fillColor = COLORS.white,
-    minHeight = 80,
-    titleColor = accentColor,
-  } = params;
-
+  const { doc, title, text, accentColor = COLORS.secondary, fillColor = COLORS.white } = params;
   let { y, pageNumber } = params;
 
   const padX = 15;
-  const padTop = 12;
-  const titleGap = 8;
-  const lineGap = 2;
   const contentW = CONTENT_WIDTH - padX * 2;
+  
+  // 1. Check for page break BEFORE starting the card
+  const headerHeight = 40; 
+  const spaceCheck = ensureSpaceForBlock(doc, y, headerHeight + 50, pageNumber);
+  y = spaceCheck.y;
+  pageNumber = spaceCheck.pageNumber;
 
-  const clean = normalizeText(text);
-  if (!clean) return { y, pageNumber };
+  // 2. Render Title
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(params.titleColor || accentColor);
+  doc.text(title, MARGIN + padX, y + 10);
+  const titleYEnd = doc.y;
 
-  // Measure
-  doc.font("Helvetica-Bold").fontSize(10);
-  const titleH = doc.currentLineHeight(true);
-
-  doc.font("Helvetica").fontSize(9);
-  const textH = doc.heightOfString(clean, { width: contentW, lineGap });
-
-  const desiredH = Math.max(minHeight, padTop + titleH + titleGap + textH + 14);
-
-  // If it fits on the current page, draw a proper card
-  let ensured = ensureSpaceForBlock(doc, y, desiredH + 10, pageNumber);
-  y = ensured.y;
-  pageNumber = ensured.pageNumber;
-
-  const maxHOnPage = PAGE_HEIGHT - MARGIN - y;
-
-  // If it's too tall for a single page, render as multi-page cards
-  if (desiredH > maxHOnPage) {
-    // Render first page with as much text as fits
-    const cardH = Math.max(minHeight, maxHOnPage);
-    const availableTextH = Math.max(
-      40,
-      cardH - (padTop + titleH + titleGap + 14)
-    );
-
-    const { fit, rest } = fitTextToHeight(doc, clean, contentW, availableTextH, { lineGap });
-
-    doc.rect(MARGIN, y, CONTENT_WIDTH, cardH).fillAndStroke(fillColor, COLORS.border);
-    doc.rect(MARGIN, y, 4, cardH).fill(accentColor);
-
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(titleColor);
-    doc.text(title, MARGIN + padX, y + padTop);
-
-    doc.font("Helvetica").fontSize(9).fillColor(COLORS.text);
-    doc.text(fit, MARGIN + padX, y + padTop + titleH + titleGap, {
-      width: contentW,
-      lineGap,
-    });
-
-    y += cardH + 12;
-
-    if (rest) {
-      // Next page continuation
-      doc.addPage();
-      pageNumber++;
-      y = MARGIN + 20;
-
-      return renderMeasuredTextCard({
-        ...params,
-        title: `${title} (cont.)`,
-        text: rest,
-        y,
-        pageNumber,
-        minHeight,
-        accentColor,
-        fillColor,
-        titleColor,
-      });
-    }
-
-    return { y, pageNumber };
-  }
-
-  // Single-page card
-  doc.rect(MARGIN, y, CONTENT_WIDTH, desiredH).fillAndStroke(fillColor, COLORS.border);
-  doc.rect(MARGIN, y, 4, desiredH).fill(accentColor);
-
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(titleColor);
-  doc.text(title, MARGIN + padX, y + padTop);
-
+  // 3. Render Body with built-in PDFKit page wrapping
+  // By using doc.text with a height limit or simply letting it flow,
+  // we avoid the recursive "rest" logic that caused the 60+ pages.
   doc.font("Helvetica").fontSize(9).fillColor(COLORS.text);
-  doc.text(clean, MARGIN + padX, y + padTop + titleH + titleGap, {
+  
+  const cleanText = normalizeText(text);
+  if (!cleanText) return { y: y + 20, pageNumber };
+  
+  // Draw the background box FIRST based on an estimated height
+  const estimatedHeight = Math.max(params.minHeight || 60, doc.heightOfString(cleanText, { width: contentW }) + 25);
+  
+  // Ensure the box doesn't go off the page
+  const actualBoxHeight = Math.min(estimatedHeight, PAGE_HEIGHT - FOOTER_SPACE - y);
+  
+  doc.rect(MARGIN, y, CONTENT_WIDTH, actualBoxHeight).fillAndStroke(fillColor, COLORS.border);
+  doc.rect(MARGIN, y, 4, actualBoxHeight).fill(accentColor);
+  
+  // Re-draw title over the box
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(params.titleColor || accentColor);
+  doc.text(title, MARGIN + padX, y + 10);
+  
+  // Re-draw text over the box
+  doc.font("Helvetica").fontSize(9).fillColor(COLORS.text);
+  doc.text(cleanText, MARGIN + padX, titleYEnd + 5, {
     width: contentW,
-    lineGap,
+    lineGap: 2
   });
 
-  y += desiredH + 12;
-  return { y, pageNumber };
+  return { y: doc.y + 20, pageNumber };
 }
 
 function renderSmallMetricBox(
