@@ -27,6 +27,140 @@ interface ProspectReportData {
   businessOverview?: string[] | null;
 }
 
+/**
+ * Data Integrity Engine
+ * Validates that the AI narrative matches the hard financial calculations.
+ */
+interface IntegrityResult {
+  isValid: boolean;
+  actualDscr: number;
+  narrativeDscr: number;
+  discrepancyLevel: 'none' | 'minor' | 'critical';
+}
+
+function validateFinancials(ddData: any): IntegrityResult {
+  const actualNdi = ddData?.underwriting?.analysis?.netDisposableIncome || 
+                    ddData?.creditUnderwriting?.analysis?.netDisposableIncome || 
+                    ddData?.bankStatementAnalysis?.netDisposableIncome || 0;
+  const repayment = ddData?.loanCalculator?.monthlyPayment || 1; // Avoid division by zero
+  
+  const calculatedDscr = actualNdi / repayment;
+  // Extracting the first number found in the narrative summary to check for hallucinations
+  const narrativeText = ddData?.underwriting?.analysis?.summary || 
+                        ddData?.creditUnderwriting?.analysis?.summary || "";
+  const narrativeMatch = narrativeText.match(/(\d+\.\d+)/);
+  const narrativeDscr = narrativeMatch ? parseFloat(narrativeMatch[0]) : calculatedDscr;
+
+  const diff = Math.abs(calculatedDscr - narrativeDscr);
+
+  return {
+    isValid: diff < 0.1,
+    actualDscr: calculatedDscr,
+    narrativeDscr: narrativeDscr,
+    discrepancyLevel: diff > 0.5 ? 'critical' : diff > 0.1 ? 'minor' : 'none'
+  };
+}
+
+interface MeasuredTextCardParams {
+  doc: typeof PDFDocument.prototype;
+  title: string;
+  text: string;
+  y: number;
+  pageNumber: number;
+  accentColor?: string;
+  fillColor?: string;
+}
+
+function renderMeasuredTextCard(params: MeasuredTextCardParams): { y: number; pageNumber: number } {
+  const { doc, title, text, accentColor = COLORS.accent, fillColor = COLORS.backgroundLight } = params;
+  let { y, pageNumber: pn } = params;
+  
+  // Check if we need a new page
+  if (y > PAGE_HEIGHT - 150) {
+    doc.addPage();
+    pn++;
+    y = MARGIN + 20;
+  }
+  
+  // Calculate text height
+  const textHeight = doc.heightOfString(text, { width: CONTENT_WIDTH - 30, fontSize: 9 });
+  const boxHeight = Math.max(textHeight + 40, 60);
+  
+  // Draw card background
+  doc.rect(MARGIN, y, CONTENT_WIDTH, boxHeight).fillAndStroke(fillColor, COLORS.border);
+  
+  // Draw accent bar on left
+  doc.rect(MARGIN, y, 5, boxHeight).fill(accentColor);
+  
+  // Title
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(accentColor);
+  doc.text(title, MARGIN + 15, y + 10);
+  
+  // Content text
+  doc.font("Helvetica").fontSize(9).fillColor(COLORS.text);
+  doc.text(text, MARGIN + 15, y + 28, { width: CONTENT_WIDTH - 30 });
+  
+  return { y: y + boxHeight + 10, pageNumber: pn };
+}
+
+function renderAnalysisWithIntegrity(
+  doc: typeof PDFDocument.prototype, 
+  ddData: any, 
+  y: number, 
+  pn: number
+): { y: number; pageNumber: number } {
+  const validation = validateFinancials(ddData);
+  
+  if (validation.discrepancyLevel !== 'none') {
+    // RENDER: High-visibility Warning Box
+    const warningMsg = `CRITICAL DATA MISMATCH: Calculated DSCR is ${validation.actualDscr.toFixed(2)}, ` +
+                       `but narrative reports ${validation.narrativeDscr.toFixed(2)}. ` +
+                       `Manual underwriting review required.`;
+
+    const result = renderMeasuredTextCard({
+      doc,
+      title: "DATA INTEGRITY ALERT",
+      text: warningMsg,
+      y: y,
+      pageNumber: pn,
+      accentColor: "#f44336", // Danger Red
+      fillColor: "#ffebee"    // Light Red Background
+    });
+    
+    y = result.y;
+    pn = result.pageNumber;
+  }
+
+  // Get narrative summary
+  const narrativeSummary = ddData?.underwriting?.analysis?.summary || 
+                           ddData?.creditUnderwriting?.analysis?.summary || "";
+  
+  if (narrativeSummary) {
+    // Proceed with the standard narrative but flagged as high risk if validation fails
+    const result = renderMeasuredTextCard({
+      doc,
+      title: "AI-POWERED ANALYSIS",
+      text: formatNarrativeForPdf(narrativeSummary),
+      y: y,
+      pageNumber: pn,
+      accentColor: validation.isValid ? "#2563EB" : "#f44336"
+    });
+    
+    return result;
+  }
+  
+  return { y, pageNumber: pn };
+}
+
+function formatNarrativeForPdf(text: string): string {
+  if (!text) return "";
+  // Clean up narrative text for PDF display
+  return text
+    .replace(/\*\*/g, "") // Remove markdown bold
+    .replace(/\n{3,}/g, "\n\n") // Reduce excessive newlines
+    .trim();
+}
+
 let sectionCounter = 0;
 
 function getNextSectionNumber(): string {
