@@ -305,11 +305,12 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   // Section 8: Credit Ratios (dedicated page)
   if (isSectionEnabled("creditRatios") && dueDiligence?.data) {
     const ddData = dueDiligence.data as any;
-    const cu = ddData.underwriting || ddData.creditUnderwriting;
-    if (cu?.accountsAnalysis?.ratios && Array.isArray(cu.accountsAnalysis.ratios) && cu.accountsAnalysis.ratios.length > 0) {
+    // Check both locations for accountsAnalysis - creditUnderwriting is more commonly used
+    const accountsAnalysis = ddData.creditUnderwriting?.accountsAnalysis || ddData.underwriting?.accountsAnalysis;
+    if (accountsAnalysis?.ratios && Array.isArray(accountsAnalysis.ratios) && accountsAnalysis.ratios.length > 0) {
       doc.addPage();
       pageNumber++;
-      renderCreditRatiosSection(doc, cu.accountsAnalysis);
+      renderCreditRatiosSection(doc, accountsAnalysis);
     }
   }
 
@@ -2818,95 +2819,7 @@ function renderDueDiligence(doc: typeof PDFDocument.prototype, dueDiligence: Due
       }
     }
 
-    // 7.7 Financial Ratios from Accounts Analysis
-    if (cu.accountsAnalysis?.ratios && Array.isArray(cu.accountsAnalysis.ratios) && cu.accountsAnalysis.ratios.length > 0) {
-      if (y > PAGE_HEIGHT - 200) {
-        doc.addPage();
-        pageNumber++;
-        y = MARGIN + 20;
-      }
-
-      doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
-      doc.text("Calculated Financial Ratios", MARGIN, y);
-      y += 25;
-
-      // Render ratios table with all years
-      const ratiosData = cu.accountsAnalysis.ratios;
-      const colCount = ratiosData.length + 2; // Metric + Benchmark + Years
-      const colWidth = CONTENT_WIDTH / colCount;
-      
-      // Table header
-      doc.rect(MARGIN, y, CONTENT_WIDTH, 25).fillAndStroke(COLORS.backgroundMuted, COLORS.border);
-      doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica-Bold");
-      doc.text("Metric", MARGIN + 8, y + 8);
-      doc.text("Benchmark", MARGIN + colWidth + 5, y + 8);
-      ratiosData.forEach((rd: any, idx: number) => {
-        doc.text(rd.year || `Year ${idx + 1}`, MARGIN + (idx + 2) * colWidth + 5, y + 8);
-      });
-      y += 25;
-
-      // Helper to normalize percentage values (handles both decimal and percentage formats)
-      // Values < 1 are assumed to be decimals (e.g., 0.25 = 25%)
-      // Values >= 1 are assumed to already be percentages (e.g., 25 = 25%)
-      const normalizePercent = (v: number) => {
-        if (v <= 0) return 0;
-        if (v < 1) return v * 100;
-        return v;
-      };
-
-      // Ratio rows
-      const ratioMetrics = [
-        { label: "Current Ratio", key: "currentRatio", benchmark: ">= 1.5", isGood: (v: number) => v >= 1.5 },
-        { label: "Quick Ratio", key: "quickRatio", benchmark: ">= 1.0", isGood: (v: number) => v >= 1.0 },
-        { label: "Debt to Equity", key: "debtToEquity", benchmark: "<= 2.0", isGood: (v: number) => v <= 2.0 },
-        { label: "Gross Profit %", key: "grossProfitMargin", benchmark: ">= 20%", isGood: (v: number) => normalizePercent(v) >= 20, isPercent: true },
-        { label: "Net Profit %", key: "netProfitMargin", benchmark: ">= 5%", isGood: (v: number) => normalizePercent(v) >= 5, isPercent: true },
-        { label: "Interest Cover", key: "interestCover", benchmark: ">= 2.0", isGood: (v: number) => v >= 2.0 },
-        { label: "ROCE", key: "returnOnCapitalEmployed", benchmark: ">= 15%", isGood: (v: number) => normalizePercent(v) >= 15, isPercent: true },
-        { label: "Debtor Days", key: "debtorDays", benchmark: "<= 60", isGood: (v: number) => v <= 60, isDays: true },
-        { label: "Creditor Days", key: "creditorDays", benchmark: "<= 45", isGood: (v: number) => v <= 45, isDays: true },
-      ];
-
-      ratioMetrics.forEach((metric) => {
-        if (y > PAGE_HEIGHT - 30) {
-          doc.addPage();
-          pageNumber++;
-          y = MARGIN + 20;
-        }
-
-        const isOdd = ratioMetrics.indexOf(metric) % 2 === 0;
-        doc.rect(MARGIN, y, CONTENT_WIDTH, 20).fillAndStroke(isOdd ? COLORS.white : COLORS.backgroundLight, COLORS.border);
-        
-        doc.fontSize(8).fillColor(COLORS.text).font("Helvetica");
-        doc.text(metric.label, MARGIN + 8, y + 6);
-        doc.fontSize(7).fillColor(COLORS.textSecondary).font("Helvetica");
-        doc.text(metric.benchmark, MARGIN + colWidth + 5, y + 6);
-
-        ratiosData.forEach((rd: any, idx: number) => {
-          const value = rd.ratios?.[metric.key];
-          const good = value !== undefined && metric.isGood(value);
-          const color = good ? COLORS.success : COLORS.warning;
-          
-          let displayValue = "N/A";
-          if (value !== undefined) {
-            if ((metric as any).isPercent) {
-              displayValue = `${normalizePercent(value).toFixed(1)}%`;
-            } else if ((metric as any).isDays) {
-              displayValue = value.toFixed(0);
-            } else {
-              displayValue = value.toFixed(2);
-            }
-          }
-
-          doc.fontSize(8).fillColor(color).font("Helvetica-Bold");
-          doc.text(displayValue, MARGIN + (idx + 2) * colWidth + 5, y + 6);
-        });
-
-        y += 20;
-      });
-
-      y += 15;
-    }
+    // Note: Financial Ratios are now rendered on their own dedicated Credit Ratios page (Section 8)
     } // Close the "if has content" check
   }
 }
