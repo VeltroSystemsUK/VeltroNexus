@@ -336,9 +336,13 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     }
   }
 
-  // Final Section: Adviser Recommendation with Signature (always last page)
-  doc.addPage();
-  pageNumber++;
+  // Final Section: Adviser Recommendation with Signature
+  // Only add a new page if we don't have enough space (minimum ~450px for recommendation content)
+  const adviserRecMinSpace = 450;
+  if (doc.y > PAGE_HEIGHT - FOOTER_SPACE - adviserRecMinSpace) {
+    doc.addPage();
+    pageNumber++;
+  }
   renderAdviserRecommendation(doc, prospect);
 
   // Add page numbers to all pages except cover
