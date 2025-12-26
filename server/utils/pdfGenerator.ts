@@ -3210,98 +3210,143 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
 }
 
 // Standalone SWOT Analysis Section - Softened Professional Colors
+// Enhanced to display full content without truncation
 function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
   renderSectionHeader(doc, "SWOT Analysis", "16");
   let y = doc.y + 10;
 
-  // FORMATTING FIX: Ensure the entire SWOT grid fits on one page
-  const gap = 10;
+  const gap = 12;
   const boxWidth = (CONTENT_WIDTH - gap) / 2;
-  const boxHeight = 160;
   const accentBorderWidth = 5;
-  const totalGridHeight = (boxHeight * 2) + gap + 20; // Total height of 2x2 grid
-  
-  ensureSpace(doc, totalGridHeight);
-  y = doc.y;
+  const headerHeight = 28;
+  const itemLineHeight = 14; // Line height for wrapped text
+  const itemPadding = 8; // Padding between items
+  const boxPadding = 12; // Internal padding
 
-  // Strengths (top-left) - Soft green pastel (keep original styling)
-  doc.rect(MARGIN, y, boxWidth, boxHeight).fill(COLORS.swotStrengthsBg);
-  doc.rect(MARGIN, y, accentBorderWidth, boxHeight).fill(COLORS.swotStrengthsBorder);
+  // Helper to calculate dynamic box height based on content
+  const calculateBoxHeight = (items: string[] | undefined, maxItems: number = 8): number => {
+    if (!items || !Array.isArray(items)) return 100;
+    const displayItems = items.slice(0, maxItems);
+    let totalHeight = headerHeight + 15; // Header + top padding
+    displayItems.forEach((item: string) => {
+      // Estimate lines needed based on text length and box width
+      const charsPerLine = Math.floor((boxWidth - boxPadding * 2 - 15) / 5.5); // ~5.5px per char at font 9
+      const lines = Math.ceil(item.length / charsPerLine);
+      totalHeight += (lines * itemLineHeight) + itemPadding;
+    });
+    return Math.max(totalHeight + 10, 120); // Minimum height 120
+  };
+
+  // Calculate heights for each quadrant
+  const strengthsHeight = calculateBoxHeight(swot.strengths);
+  const weaknessesHeight = calculateBoxHeight(swot.weaknesses);
+  const opportunitiesHeight = calculateBoxHeight(swot.opportunities);
+  const threatsHeight = calculateBoxHeight(swot.threats);
+
+  // Use max height for each row to keep boxes aligned
+  const topRowHeight = Math.max(strengthsHeight, weaknessesHeight);
+  const bottomRowHeight = Math.max(opportunitiesHeight, threatsHeight);
+  const totalGridHeight = topRowHeight + bottomRowHeight + gap + 20;
+
+  // Check if we need a new page for the entire grid
+  if (y + totalGridHeight > PAGE_HEIGHT - FOOTER_SPACE) {
+    doc.addPage();
+    y = MARGIN + 20;
+  }
+
+  // Strengths (top-left) - Soft green pastel
+  doc.rect(MARGIN, y, boxWidth, topRowHeight).fill(COLORS.swotStrengthsBg);
+  doc.rect(MARGIN, y, accentBorderWidth, topRowHeight).fill(COLORS.swotStrengthsBorder);
   doc.fontSize(11).fillColor(COLORS.swotStrengthsBorder).font("Helvetica-Bold");
-  doc.text("STRENGTHS", MARGIN + 12, y + 10);
+  doc.text("STRENGTHS", MARGIN + boxPadding, y + 10);
 
   if (swot.strengths && Array.isArray(swot.strengths)) {
-    let sY = y + 28;
-    swot.strengths.slice(0, 5).forEach((item: string) => {
+    let sY = y + headerHeight;
+    swot.strengths.slice(0, 8).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 70)}`, MARGIN + 12, sY, { width: boxWidth - 20 });
-      sY += 24;
+      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
+      doc.text(`• ${item}`, MARGIN + boxPadding, sY, { width: boxWidth - boxPadding * 2 - 10 });
+      sY += textHeight + itemPadding;
     });
   }
 
-  // Weaknesses (top-right) - Soft orange pastel (keep original styling)
+  // Weaknesses (top-right) - Soft orange pastel
   const rightX = MARGIN + boxWidth + gap;
-  doc.rect(rightX, y, boxWidth, boxHeight).fill(COLORS.swotWeaknessesBg);
-  doc.rect(rightX, y, accentBorderWidth, boxHeight).fill(COLORS.swotWeaknessesBorder);
+  doc.rect(rightX, y, boxWidth, topRowHeight).fill(COLORS.swotWeaknessesBg);
+  doc.rect(rightX, y, accentBorderWidth, topRowHeight).fill(COLORS.swotWeaknessesBorder);
   doc.fontSize(11).fillColor(COLORS.swotWeaknessesBorder).font("Helvetica-Bold");
-  doc.text("WEAKNESSES", rightX + 12, y + 10);
+  doc.text("WEAKNESSES", rightX + boxPadding, y + 10);
 
   if (swot.weaknesses && Array.isArray(swot.weaknesses)) {
-    let wY = y + 28;
-    swot.weaknesses.slice(0, 5).forEach((item: string) => {
+    let wY = y + headerHeight;
+    swot.weaknesses.slice(0, 8).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 70)}`, rightX + 12, wY, { width: boxWidth - 20 });
-      wY += 24;
+      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
+      doc.text(`• ${item}`, rightX + boxPadding, wY, { width: boxWidth - boxPadding * 2 - 10 });
+      wY += textHeight + itemPadding;
     });
   }
 
-  y += boxHeight + gap;
+  y += topRowHeight + gap;
 
-  // Opportunities (bottom-left) - Soft blue pastel (keep original styling)
-  doc.rect(MARGIN, y, boxWidth, boxHeight).fill(COLORS.swotOpportunitiesBg);
-  doc.rect(MARGIN, y, accentBorderWidth, boxHeight).fill(COLORS.swotOpportunitiesBorder);
+  // Check if bottom row needs new page
+  if (y + bottomRowHeight > PAGE_HEIGHT - FOOTER_SPACE) {
+    doc.addPage();
+    y = MARGIN + 20;
+  }
+
+  // Opportunities (bottom-left) - Soft blue pastel
+  doc.rect(MARGIN, y, boxWidth, bottomRowHeight).fill(COLORS.swotOpportunitiesBg);
+  doc.rect(MARGIN, y, accentBorderWidth, bottomRowHeight).fill(COLORS.swotOpportunitiesBorder);
   doc.fontSize(11).fillColor(COLORS.swotOpportunitiesBorder).font("Helvetica-Bold");
-  doc.text("OPPORTUNITIES", MARGIN + 12, y + 10);
+  doc.text("OPPORTUNITIES", MARGIN + boxPadding, y + 10);
 
   if (swot.opportunities && Array.isArray(swot.opportunities)) {
-    let oY = y + 28;
-    swot.opportunities.slice(0, 5).forEach((item: string) => {
+    let oY = y + headerHeight;
+    swot.opportunities.slice(0, 8).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 70)}`, MARGIN + 12, oY, { width: boxWidth - 20 });
-      oY += 24;
+      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
+      doc.text(`• ${item}`, MARGIN + boxPadding, oY, { width: boxWidth - boxPadding * 2 - 10 });
+      oY += textHeight + itemPadding;
     });
   }
 
-  // Threats (bottom-right) - Soft red pastel (keep original styling)
-  doc.rect(rightX, y, boxWidth, boxHeight).fill(COLORS.swotThreatsBg);
-  doc.rect(rightX, y, accentBorderWidth, boxHeight).fill(COLORS.swotThreatsBorder);
+  // Threats (bottom-right) - Soft red pastel
+  doc.rect(rightX, y, boxWidth, bottomRowHeight).fill(COLORS.swotThreatsBg);
+  doc.rect(rightX, y, accentBorderWidth, bottomRowHeight).fill(COLORS.swotThreatsBorder);
   doc.fontSize(11).fillColor(COLORS.swotThreatsBorder).font("Helvetica-Bold");
-  doc.text("THREATS", rightX + 12, y + 10);
+  doc.text("THREATS", rightX + boxPadding, y + 10);
 
   if (swot.threats && Array.isArray(swot.threats)) {
-    let tY = y + 28;
-    swot.threats.slice(0, 5).forEach((item: string) => {
+    let tY = y + headerHeight;
+    swot.threats.slice(0, 8).forEach((item: string) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${truncateText(item, 70)}`, rightX + 12, tY, { width: boxWidth - 20 });
-      tY += 24;
+      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
+      doc.text(`• ${item}`, rightX + boxPadding, tY, { width: boxWidth - boxPadding * 2 - 10 });
+      tY += textHeight + itemPadding;
     });
   }
 
-  y += boxHeight + SPACING.sectionMargin;
+  y += bottomRowHeight + SPACING.sectionMargin;
   doc.y = y;
 
-  // SWOT Summary - FORMATTING FIX: Ensure space before rendering
+  // SWOT Summary - Dynamic height based on content
   if (swot.summary) {
-    ensureSpace(doc, 90);
+    const summaryText = swot.summary;
+    doc.fontSize(9).font("Helvetica");
+    const summaryTextHeight = doc.heightOfString(summaryText, { width: CONTENT_WIDTH - 30 });
+    const summaryBoxHeight = Math.max(summaryTextHeight + 45, 80);
 
-    doc.rect(MARGIN, doc.y, CONTENT_WIDTH, 70).fill(COLORS.backgroundLight);
-    doc.rect(MARGIN, doc.y, accentBorderWidth, 70).fill(COLORS.primary);
+    ensureSpace(doc, summaryBoxHeight + 20);
+
+    doc.rect(MARGIN, doc.y, CONTENT_WIDTH, summaryBoxHeight).fill(COLORS.backgroundLight);
+    doc.rect(MARGIN, doc.y, accentBorderWidth, summaryBoxHeight).fill(COLORS.primary);
 
     doc.fontSize(10).fillColor(COLORS.primary).font("Helvetica-Bold");
-    doc.text("SWOT SUMMARY", MARGIN + 12, doc.y + 10);
+    doc.text("SWOT SUMMARY", MARGIN + boxPadding, doc.y + 10);
 
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(truncateText(swot.summary, 400), MARGIN + 12, doc.y + 28, { width: CONTENT_WIDTH - 25 });
+    doc.text(summaryText, MARGIN + boxPadding, doc.y + 30, { width: CONTENT_WIDTH - boxPadding * 2 - 5 });
   }
 }
 
