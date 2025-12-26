@@ -3047,11 +3047,11 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
   });
   y += 28;
 
-  // Ratio definitions with benchmarks
+  // Ratio definitions with benchmarks - using consistent professional colors
   const ratioCategories = [
     {
       category: "Profitability",
-      color: COLORS.success,
+      color: COLORS.primary,
       metrics: [
         { label: "Gross Profit Margin", key: "grossProfitMargin", benchmark: "≥ 20%", isGood: (v: number) => normalizePercent(v) >= 20, isPercent: true },
         { label: "Net Profit Margin", key: "netProfitMargin", benchmark: "≥ 5%", isGood: (v: number) => normalizePercent(v) >= 5, isPercent: true },
@@ -3060,7 +3060,7 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
     },
     {
       category: "Liquidity",
-      color: COLORS.accent,
+      color: COLORS.secondary,
       metrics: [
         { label: "Current Ratio", key: "currentRatio", benchmark: "≥ 1.5", isGood: (v: number) => v >= 1.5 },
         { label: "Quick Ratio (Acid Test)", key: "quickRatio", benchmark: "≥ 1.0", isGood: (v: number) => v >= 1.0 },
@@ -3068,7 +3068,7 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
     },
     {
       category: "Leverage",
-      color: COLORS.warning,
+      color: COLORS.primary,
       metrics: [
         { label: "Debt to Equity Ratio", key: "debtToEquity", benchmark: "≤ 2.0", isGood: (v: number) => v <= 2.0 },
         { label: "Interest Cover", key: "interestCover", benchmark: "≥ 2.0", isGood: (v: number) => v >= 2.0 },
@@ -3113,7 +3113,7 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
       doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
       doc.text(metric.benchmark, MARGIN + metricColWidth + 5, y + 8);
 
-      // Year values
+      // Year values - using professional colors consistent with report
       ratiosData.forEach((rd: any, idx: number) => {
         const value = rd.ratios?.[metric.key];
         const xPos = MARGIN + metricColWidth + benchmarkColWidth + idx * yearColWidth + 10;
@@ -3123,7 +3123,8 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
           doc.text("N/A", xPos, y + 7);
         } else {
           const good = metric.isGood(value);
-          const color = good ? COLORS.success : COLORS.danger;
+          // Use primary for good values, secondary with warning undertone for concerning
+          const color = good ? COLORS.primary : COLORS.textSecondary;
           
           let displayValue = "";
           if ((metric as any).isPercent) {
@@ -3134,9 +3135,10 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
             displayValue = value.toFixed(2);
           }
 
-          // Value with indicator
+          // Value with indicator - add subtle marker for status
           doc.fontSize(9).fillColor(color).font("Helvetica-Bold");
-          doc.text(displayValue, xPos, y + 7);
+          const marker = good ? "✓ " : "• ";
+          doc.text(marker + displayValue, xPos, y + 7);
         }
       });
 
@@ -3160,11 +3162,12 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
     doc.text("Debt Service Coverage Ratio (DSCR)", MARGIN + 10, y + 9);
     y += 28;
 
-    // DSCR details
+    // DSCR details - using consistent professional colors
     doc.rect(MARGIN, y, CONTENT_WIDTH, 50).fillAndStroke(COLORS.backgroundLight, COLORS.border);
     
     const dscrAvg = accountsAnalysis.dscr.average;
-    const dscrColor = dscrAvg >= 1.25 ? COLORS.success : dscrAvg >= 1.0 ? COLORS.warning : COLORS.danger;
+    // Use primary for strong DSCR, secondary for adequate, text color for weak
+    const dscrColor = dscrAvg >= 1.25 ? COLORS.primary : dscrAvg >= 1.0 ? COLORS.secondary : COLORS.textSecondary;
     
     doc.fontSize(24).fillColor(dscrColor).font("Helvetica-Bold");
     doc.text(dscrAvg?.toFixed(2) || "N/A", MARGIN + 20, y + 12);
@@ -3174,8 +3177,9 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
     
     const trendLabel = accountsAnalysis.dscr.trend === "improving" ? "↑ Improving" : 
                        accountsAnalysis.dscr.trend === "declining" ? "↓ Declining" : "→ Stable";
-    const trendColor = accountsAnalysis.dscr.trend === "improving" ? COLORS.success :
-                       accountsAnalysis.dscr.trend === "declining" ? COLORS.danger : COLORS.textSecondary;
+    // Use consistent professional colors for trends
+    const trendColor = accountsAnalysis.dscr.trend === "improving" ? COLORS.primary :
+                       accountsAnalysis.dscr.trend === "declining" ? COLORS.textSecondary : COLORS.secondary;
     
     doc.fontSize(10).fillColor(trendColor).font("Helvetica-Bold");
     doc.text(trendLabel, MARGIN + 200, y + 18);
