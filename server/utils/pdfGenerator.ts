@@ -337,12 +337,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   }
 
   // Final Section: Adviser Recommendation with Signature
-  // Only add a new page if we don't have enough space (minimum ~450px for recommendation content)
-  const adviserRecMinSpace = 450;
-  if (doc.y > PAGE_HEIGHT - FOOTER_SPACE - adviserRecMinSpace) {
-    doc.addPage();
-    pageNumber++;
-  }
+  // The renderAdviserRecommendation function handles its own page break logic
   renderAdviserRecommendation(doc, prospect);
 
   // Add page numbers to all pages except cover
@@ -1187,29 +1182,51 @@ function renderSecurityCollateralNotes(doc: typeof PDFDocument.prototype, prospe
 
 // Adviser Recommendation with Signature Box (Final Page)
 function renderAdviserRecommendation(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
+  const recommendationText = prospect.adviserRecommendation || "No recommendation provided.";
+  
+  // Pre-calculate heights using actual text measurement
+  doc.fontSize(11).font("Helvetica");
+  const actualTextHeight = doc.heightOfString(recommendationText, { width: CONTENT_WIDTH - 30 });
+  const textBoxHeight = Math.min(Math.max(actualTextHeight + 30, 100), 250); // Min 100, max 250
+  
+  const headerHeight = 50;
+  const signatureBoxHeight = 100;
+  const footerHeight = 40;
+  const spacing = 80;
+  const totalNeeded = headerHeight + textBoxHeight + signatureBoxHeight + footerHeight + spacing;
+  
+  // Ensure we have space for the entire section
+  if (doc.y + totalNeeded > PAGE_HEIGHT - FOOTER_SPACE) {
+    doc.addPage();
+    pageNumber++;
+  }
+  
   renderSectionHeader(doc, "Adviser Recommendation");
-  let y = doc.y + 20;
+  let y = doc.y + 15;
 
   // Recommendation text
   doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
   doc.text("Recommendation", MARGIN, y);
-  y += 20;
+  y += 18;
 
-  const recommendationText = prospect.adviserRecommendation || "No recommendation provided.";
-  const textHeight = Math.max(150, Math.min(300, recommendationText.length / 2));
-
-  doc.rect(MARGIN, y, CONTENT_WIDTH, textHeight).fillAndStroke(COLORS.white, COLORS.border);
+  doc.rect(MARGIN, y, CONTENT_WIDTH, textBoxHeight).fillAndStroke(COLORS.white, COLORS.border);
   doc.fontSize(11).fillColor(COLORS.text).font("Helvetica");
-  doc.text(recommendationText, MARGIN + 15, y + 15, { width: CONTENT_WIDTH - 30 });
+  
+  // Truncate if too long
+  const maxChars = 1200;
+  const displayText = recommendationText.length > maxChars 
+    ? recommendationText.substring(0, maxChars - 3) + "..."
+    : recommendationText;
+  doc.text(displayText, MARGIN + 15, y + 12, { width: CONTENT_WIDTH - 30 });
 
-  y += textHeight + 30;
+  y += textBoxHeight + 20;
 
   // Signature box
   doc.fontSize(11).fillColor(COLORS.primary).font("Helvetica-Bold");
   doc.text("Signature", MARGIN, y);
-  y += 20;
+  y += 18;
 
-  doc.rect(MARGIN, y, CONTENT_WIDTH, 100).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  doc.rect(MARGIN, y, CONTENT_WIDTH, signatureBoxHeight).fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   if (prospect.adviserRecommendationSignedBy && prospect.adviserRecommendationSignedAt) {
     // Signed state
@@ -1241,7 +1258,7 @@ function renderAdviserRecommendation(doc: typeof PDFDocument.prototype, prospect
   }
 
   // Footer note
-  y += 120;
+  y += signatureBoxHeight + 15;
   doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
   doc.text(
     "This report is confidential and intended for internal use only. The information contained herein has been prepared based on data provided and should be verified independently.",
@@ -1249,6 +1266,8 @@ function renderAdviserRecommendation(doc: typeof PDFDocument.prototype, prospect
     y,
     { width: CONTENT_WIDTH, align: "center" }
   );
+  
+  doc.y = y + 30;
 }
 
 function renderCompanyInfo(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany) {
@@ -3213,144 +3232,117 @@ function renderCreditRatiosSection(doc: typeof PDFDocument.prototype, accountsAn
   }
 }
 
-// Standalone SWOT Analysis Section - Softened Professional Colors
-// Enhanced to display full content without truncation
+// Standalone SWOT Analysis Section - Constrained to fit on single page
 function renderSwotSection(doc: typeof PDFDocument.prototype, swot: any) {
-  renderSectionHeader(doc, "SWOT Analysis", "16");
-  let y = doc.y + 10;
-
-  const gap = 12;
+  const gap = 10;
   const boxWidth = (CONTENT_WIDTH - gap) / 2;
   const accentBorderWidth = 5;
-  const headerHeight = 28;
-  const itemLineHeight = 14; // Line height for wrapped text
-  const itemPadding = 8; // Padding between items
-  const boxPadding = 12; // Internal padding
+  const boxPadding = 10;
+  const headerHeight = 24;
+  const itemSpacing = 4;
+  
+  // Fixed box height to ensure 2x2 grid fits on one page with header and summary
+  // Page height ~842, margins ~100, header ~50, summary ~80 = ~610 available
+  // Two rows with gap = (610 - 10) / 2 = ~300 per row, use 280 for safety
+  const maxBoxHeight = 260;
+  const summaryHeight = 90;
+  const sectionHeaderHeight = 50;
+  const totalNeededHeight = sectionHeaderHeight + (maxBoxHeight * 2) + gap + summaryHeight + 20;
 
-  // Helper to calculate dynamic box height based on content
-  const calculateBoxHeight = (items: string[] | undefined, maxItems: number = 8): number => {
-    if (!items || !Array.isArray(items)) return 100;
-    const displayItems = items.slice(0, maxItems);
-    let totalHeight = headerHeight + 15; // Header + top padding
-    displayItems.forEach((item: string) => {
-      // Estimate lines needed based on text length and box width
-      const charsPerLine = Math.floor((boxWidth - boxPadding * 2 - 15) / 5.5); // ~5.5px per char at font 9
-      const lines = Math.ceil(item.length / charsPerLine);
-      totalHeight += (lines * itemLineHeight) + itemPadding;
-    });
-    return Math.max(totalHeight + 10, 120); // Minimum height 120
+  // Pre-check: ensure we have a fresh page for the entire SWOT section
+  if (doc.y + totalNeededHeight > PAGE_HEIGHT - FOOTER_SPACE) {
+    doc.addPage();
+    pageNumber++;
+  }
+
+  // Now render header on this page
+  renderSectionHeader(doc, "SWOT Analysis", "16");
+  let y = doc.y + 8;
+
+  // Helper to render items within a constrained box with text truncation if needed
+  const renderQuadrant = (
+    items: string[] | undefined,
+    x: number,
+    startY: number,
+    bgColor: string,
+    borderColor: string,
+    title: string
+  ) => {
+    // Draw box background
+    doc.rect(x, startY, boxWidth, maxBoxHeight).fill(bgColor);
+    doc.rect(x, startY, accentBorderWidth, maxBoxHeight).fill(borderColor);
+    
+    // Title
+    doc.fontSize(10).fillColor(borderColor).font("Helvetica-Bold");
+    doc.text(title, x + boxPadding, startY + 8);
+    
+    if (!items || !Array.isArray(items)) return;
+    
+    let itemY = startY + headerHeight;
+    const maxY = startY + maxBoxHeight - 10; // Leave padding at bottom
+    const textWidth = boxWidth - boxPadding * 2 - 8;
+    
+    // Render items, stopping when we run out of space
+    for (let i = 0; i < Math.min(items.length, 6); i++) {
+      if (itemY >= maxY - 12) break; // Stop if no room for more
+      
+      const item = items[i];
+      doc.fontSize(8).fillColor(COLORS.text).font("Helvetica");
+      
+      // Calculate available height for this item
+      const availableHeight = maxY - itemY;
+      const fullTextHeight = doc.heightOfString(`• ${item}`, { width: textWidth });
+      
+      if (fullTextHeight <= availableHeight) {
+        // Full text fits
+        doc.text(`• ${item}`, x + boxPadding, itemY, { width: textWidth });
+        itemY += fullTextHeight + itemSpacing;
+      } else {
+        // Truncate to fit remaining space
+        const maxChars = Math.floor((availableHeight / 12) * (textWidth / 4.5));
+        const truncated = item.length > maxChars ? item.substring(0, maxChars - 3) + "..." : item;
+        doc.text(`• ${truncated}`, x + boxPadding, itemY, { width: textWidth });
+        break; // Stop after truncated item
+      }
+    }
   };
 
-  // Calculate heights for each quadrant
-  const strengthsHeight = calculateBoxHeight(swot.strengths);
-  const weaknessesHeight = calculateBoxHeight(swot.weaknesses);
-  const opportunitiesHeight = calculateBoxHeight(swot.opportunities);
-  const threatsHeight = calculateBoxHeight(swot.threats);
-
-  // Use max height for each row to keep boxes aligned
-  const topRowHeight = Math.max(strengthsHeight, weaknessesHeight);
-  const bottomRowHeight = Math.max(opportunitiesHeight, threatsHeight);
-  const totalGridHeight = topRowHeight + bottomRowHeight + gap + 20;
-
-  // Check if we need a new page for the entire grid
-  if (y + totalGridHeight > PAGE_HEIGHT - FOOTER_SPACE) {
-    doc.addPage();
-    y = MARGIN + 20;
-  }
-
-  // Strengths (top-left) - Soft green pastel
-  doc.rect(MARGIN, y, boxWidth, topRowHeight).fill(COLORS.swotStrengthsBg);
-  doc.rect(MARGIN, y, accentBorderWidth, topRowHeight).fill(COLORS.swotStrengthsBorder);
-  doc.fontSize(11).fillColor(COLORS.swotStrengthsBorder).font("Helvetica-Bold");
-  doc.text("STRENGTHS", MARGIN + boxPadding, y + 10);
-
-  if (swot.strengths && Array.isArray(swot.strengths)) {
-    let sY = y + headerHeight;
-    swot.strengths.slice(0, 8).forEach((item: string) => {
-      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
-      doc.text(`• ${item}`, MARGIN + boxPadding, sY, { width: boxWidth - boxPadding * 2 - 10 });
-      sY += textHeight + itemPadding;
-    });
-  }
-
-  // Weaknesses (top-right) - Soft orange pastel
   const rightX = MARGIN + boxWidth + gap;
-  doc.rect(rightX, y, boxWidth, topRowHeight).fill(COLORS.swotWeaknessesBg);
-  doc.rect(rightX, y, accentBorderWidth, topRowHeight).fill(COLORS.swotWeaknessesBorder);
-  doc.fontSize(11).fillColor(COLORS.swotWeaknessesBorder).font("Helvetica-Bold");
-  doc.text("WEAKNESSES", rightX + boxPadding, y + 10);
 
-  if (swot.weaknesses && Array.isArray(swot.weaknesses)) {
-    let wY = y + headerHeight;
-    swot.weaknesses.slice(0, 8).forEach((item: string) => {
-      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
-      doc.text(`• ${item}`, rightX + boxPadding, wY, { width: boxWidth - boxPadding * 2 - 10 });
-      wY += textHeight + itemPadding;
-    });
-  }
+  // Top row: Strengths and Weaknesses
+  renderQuadrant(swot.strengths, MARGIN, y, COLORS.swotStrengthsBg, COLORS.swotStrengthsBorder, "STRENGTHS");
+  renderQuadrant(swot.weaknesses, rightX, y, COLORS.swotWeaknessesBg, COLORS.swotWeaknessesBorder, "WEAKNESSES");
+  
+  y += maxBoxHeight + gap;
 
-  y += topRowHeight + gap;
+  // Bottom row: Opportunities and Threats
+  renderQuadrant(swot.opportunities, MARGIN, y, COLORS.swotOpportunitiesBg, COLORS.swotOpportunitiesBorder, "OPPORTUNITIES");
+  renderQuadrant(swot.threats, rightX, y, COLORS.swotThreatsBg, COLORS.swotThreatsBorder, "THREATS");
 
-  // Check if bottom row needs new page
-  if (y + bottomRowHeight > PAGE_HEIGHT - FOOTER_SPACE) {
-    doc.addPage();
-    y = MARGIN + 20;
-  }
-
-  // Opportunities (bottom-left) - Soft blue pastel
-  doc.rect(MARGIN, y, boxWidth, bottomRowHeight).fill(COLORS.swotOpportunitiesBg);
-  doc.rect(MARGIN, y, accentBorderWidth, bottomRowHeight).fill(COLORS.swotOpportunitiesBorder);
-  doc.fontSize(11).fillColor(COLORS.swotOpportunitiesBorder).font("Helvetica-Bold");
-  doc.text("OPPORTUNITIES", MARGIN + boxPadding, y + 10);
-
-  if (swot.opportunities && Array.isArray(swot.opportunities)) {
-    let oY = y + headerHeight;
-    swot.opportunities.slice(0, 8).forEach((item: string) => {
-      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
-      doc.text(`• ${item}`, MARGIN + boxPadding, oY, { width: boxWidth - boxPadding * 2 - 10 });
-      oY += textHeight + itemPadding;
-    });
-  }
-
-  // Threats (bottom-right) - Soft red pastel
-  doc.rect(rightX, y, boxWidth, bottomRowHeight).fill(COLORS.swotThreatsBg);
-  doc.rect(rightX, y, accentBorderWidth, bottomRowHeight).fill(COLORS.swotThreatsBorder);
-  doc.fontSize(11).fillColor(COLORS.swotThreatsBorder).font("Helvetica-Bold");
-  doc.text("THREATS", rightX + boxPadding, y + 10);
-
-  if (swot.threats && Array.isArray(swot.threats)) {
-    let tY = y + headerHeight;
-    swot.threats.slice(0, 8).forEach((item: string) => {
-      doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-      const textHeight = doc.heightOfString(`• ${item}`, { width: boxWidth - boxPadding * 2 - 10 });
-      doc.text(`• ${item}`, rightX + boxPadding, tY, { width: boxWidth - boxPadding * 2 - 10 });
-      tY += textHeight + itemPadding;
-    });
-  }
-
-  y += bottomRowHeight + SPACING.sectionMargin;
+  y += maxBoxHeight + 15;
   doc.y = y;
 
-  // SWOT Summary - Dynamic height based on content
+  // SWOT Summary - Fixed height box
   if (swot.summary) {
     const summaryText = swot.summary;
-    doc.fontSize(9).font("Helvetica");
-    const summaryTextHeight = doc.heightOfString(summaryText, { width: CONTENT_WIDTH - 30 });
-    const summaryBoxHeight = Math.max(summaryTextHeight + 45, 80);
+    const summaryBoxH = summaryHeight;
 
-    ensureSpace(doc, summaryBoxHeight + 20);
-
-    doc.rect(MARGIN, doc.y, CONTENT_WIDTH, summaryBoxHeight).fill(COLORS.backgroundLight);
-    doc.rect(MARGIN, doc.y, accentBorderWidth, summaryBoxHeight).fill(COLORS.primary);
+    doc.rect(MARGIN, y, CONTENT_WIDTH, summaryBoxH).fill(COLORS.backgroundLight);
+    doc.rect(MARGIN, y, accentBorderWidth, summaryBoxH).fill(COLORS.primary);
 
     doc.fontSize(10).fillColor(COLORS.primary).font("Helvetica-Bold");
-    doc.text("SWOT SUMMARY", MARGIN + boxPadding, doc.y + 10);
+    doc.text("SWOT SUMMARY", MARGIN + boxPadding, y + 8);
 
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(summaryText, MARGIN + boxPadding, doc.y + 30, { width: CONTENT_WIDTH - boxPadding * 2 - 5 });
+    // Truncate summary if too long
+    const maxSummaryChars = 500;
+    const displaySummary = summaryText.length > maxSummaryChars 
+      ? summaryText.substring(0, maxSummaryChars - 3) + "..."
+      : summaryText;
+    doc.text(displaySummary, MARGIN + boxPadding, y + 24, { width: CONTENT_WIDTH - boxPadding * 2 - 5 });
+    
+    y += summaryBoxH + 10;
+    doc.y = y;
   }
 }
 
