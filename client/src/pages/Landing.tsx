@@ -384,7 +384,7 @@ export default function Landing() {
                 <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center mb-5">
                   <BarChart3 className="h-6 w-6" />
                 </div>
-                <h4 className="text-white font-semibold text-lg mb-3">Analyze & Match</h4>
+                <h4 className="text-white font-semibold text-lg mb-3">Analyse & Match</h4>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   AI runs deep-tier risk assessments and matches your deal against a live database of lender criteria instantly.
                 </p>
