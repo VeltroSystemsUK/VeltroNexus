@@ -20,7 +20,6 @@ import {
   Layers,
   FileText,
   CreditCard,
-  ChevronRight,
   Star,
   Target,
   Workflow,
@@ -362,34 +361,6 @@ export default function Landing() {
                 Drag-and-drop your prospects through 9 customizable stages. See exactly where every
                 deal stands at a glance.
               </p>
-            </div>
-
-            <div className="flex flex-wrap justify-center gap-3 mb-12 md:mb-16">
-              {[
-                { stage: "Lead", color: "bg-slate-500 dark:bg-slate-600" },
-                { stage: "Contacted", color: "bg-blue-500 dark:bg-blue-600" },
-                { stage: "Qualified", color: "bg-indigo-500 dark:bg-indigo-600" },
-                { stage: "Proposal", color: "bg-violet-500 dark:bg-violet-600" },
-                { stage: "Due Diligence", color: "bg-purple-500 dark:bg-purple-600" },
-                { stage: "Approval", color: "bg-amber-500 dark:bg-amber-600" },
-                { stage: "Approved", color: "bg-green-500 dark:bg-green-600" },
-                { stage: "Declined", color: "bg-red-500 dark:bg-red-600" },
-                { stage: "Withdrawn", color: "bg-gray-400 dark:bg-gray-500" },
-              ].map(({ stage, color }, i) => (
-                <div key={stage} className="flex items-center gap-2">
-                  <Badge
-                    className={`whitespace-nowrap inline-flex items-center rounded-md border px-3 py-1 font-medium transition-colors border-transparent text-white shadow-sm text-xs ${color}`}
-                  >
-                    {stage}
-                  </Badge>
-                  {i < 8 && (
-                    <div className="flex items-center -mx-1">
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      <ChevronRight className="h-4 w-4 text-muted-foreground -ml-2" />
-                    </div>
-                  )}
-                </div>
-              ))}
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
