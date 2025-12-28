@@ -88,6 +88,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import ThemeToggle from "@/components/ThemeToggle";
+import LenderRecommendations from "@/components/LenderRecommendations";
 import { useState, useEffect, useRef, useMemo } from "react";
 import type {
   Prospect,
@@ -696,7 +697,7 @@ export default function ProspectDetail() {
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
           <TabsList
-            className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-6" : user?.subscriptionTier === "premium" ? "grid-cols-8" : "grid-cols-7"} mb-8`}
+            className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-7" : user?.subscriptionTier === "premium" ? "grid-cols-9" : "grid-cols-8"} mb-8`}
           >
             <TabsTrigger value="contacts" data-testid="tab-contacts">
               Contacts
@@ -725,6 +726,9 @@ export default function ProspectDetail() {
             )}
             <TabsTrigger value="summary" data-testid="tab-summary">
               Summary
+            </TabsTrigger>
+            <TabsTrigger value="lenders" data-testid="tab-lenders">
+              Lenders
             </TabsTrigger>
           </TabsList>
 
@@ -770,6 +774,15 @@ export default function ProspectDetail() {
 
           <TabsContent value="summary">
             <SummaryTab prospect={prospect} contacts={contacts} activities={activities} />
+          </TabsContent>
+
+          <TabsContent value="lenders">
+            <LenderRecommendations 
+              prospectId={prospectId}
+              onSelectLender={(lenderId) => setLocation(`/lenders/${lenderId}`)}
+              showDisqualified={false}
+              limit={5}
+            />
           </TabsContent>
         </Tabs>
       </main>

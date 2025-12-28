@@ -34,6 +34,10 @@ import {
   redactSensitiveData,
 } from "./utils/aiGovernance";
 import {
+  generateRecommendations,
+  getTopRecommendations,
+} from "./services/lenderRecommendationEngine";
+import {
   requireSubmissionReadAccess,
   requireSubmissionWriteAccess,
 } from "./utils/underwritingAuth";
@@ -3112,6 +3116,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error searching lenders:", error);
       res.status(500).json({ message: "Failed to search lenders" });
+    }
+  });
+
+  // Lender Recommendations for a Prospect
+  app.get("/api/prospects/:prospectId/recommendations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prospectId = parseInt(req.params.prospectId);
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
+      const includeDisqualified = req.query.includeDisqualified === 'true';
+
+      if (isNaN(prospectId)) {
+        return res.status(400).json({ message: "Invalid prospect ID" });
+      }
+
+      let result;
+      if (includeDisqualified) {
+        result = await generateRecommendations(userId, prospectId);
+      } else {
+        result = await getTopRecommendations(userId, prospectId, limit);
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error generating lender recommendations:", error);
+      if (error.message === 'Prospect not found') {
+        return res.status(404).json({ message: "Prospect not found" });
+      }
+      res.status(500).json({ message: "Failed to generate lender recommendations" });
     }
   });
 

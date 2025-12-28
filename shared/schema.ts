@@ -235,6 +235,8 @@ export const lenders = pgTable("lenders", {
   borrowerTypes: jsonb("borrower_types").default("[]"),
   minTradingYears: integer("min_trading_years"),
   minRevenue: integer("min_revenue"),
+  minDscr: text("min_dscr"), // Minimum DSCR requirement (e.g., "1.25")
+  acceptsStartups: integer("accepts_startups").default(0), // 1 = accepts businesses with 0 trading years
   turnaroundDays: integer("turnaround_days"),
   panelStatus: text("panel_status").default("market"),
   accreditationStatus: text("accreditation_status"),
