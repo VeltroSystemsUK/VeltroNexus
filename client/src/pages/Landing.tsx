@@ -27,6 +27,7 @@ import {
   PoundSterling,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
 
@@ -87,47 +88,87 @@ function useCountUp(end: number, duration: number = 2000, startOnView: boolean =
   return { count, ref };
 }
 
-// FlowLoan pricing tiers
-const FLOWLOAN_PRICING: Record<string, { name: string; price: number; prospects: number | string }> = {
-  starter: { name: "Starter", price: 39, prospects: 50 },
-  team: { name: "Team", price: 229, prospects: 250 },
-  lender: { name: "Lender", price: 999, prospects: "Unlimited" },
+// FlowLoan pricing tiers with seat limits and AI module info
+interface PricingTier {
+  name: string;
+  price: number;
+  prospects: number | string;
+  maxSeats: number;
+  aiModuleIncluded: boolean;
+  aiModuleAddOn: number; // Monthly cost to add AI module (0 if included or N/A)
+}
+
+const FLOWLOAN_PRICING: Record<string, PricingTier> = {
+  starter: { name: "Starter", price: 39, prospects: 50, maxSeats: 1, aiModuleIncluded: false, aiModuleAddOn: 49 },
+  team: { name: "Team", price: 229, prospects: 250, maxSeats: 5, aiModuleIncluded: false, aiModuleAddOn: 99 },
+  lender: { name: "Lender", price: 999, prospects: Infinity, maxSeats: Infinity, aiModuleIncluded: true, aiModuleAddOn: 0 },
 };
+
+const AI_MODULE_ADD_ON_PRICE = 49; // Base price for AI Credit Underwriting add-on
 
 function SavingsCalculator() {
   const [crmSpend, setCrmSpend] = useState(100);
   const [creditDataSpend, setCreditDataSpend] = useState(200);
   const [trackingSpend, setTrackingSpend] = useState(50);
   const [labourHours, setLabourHours] = useState(20);
+  const [numberOfUsers, setNumberOfUsers] = useState(1);
+  const [needsAiModule, setNeedsAiModule] = useState(false);
   const hourlyRate = 25; // £25/hour for back-office labor
 
   const totalCurrentSpend = crmSpend + creditDataSpend + trackingSpend + (labourHours * hourlyRate);
   
-  // Recommend the tier that delivers the best savings
-  const getRecommendedTier = () => {
-    const tiers = [
+  // Calculate total FlowLoan cost for a tier (base + AI add-on if needed and not included)
+  const getTierTotalCost = (tier: PricingTier): number => {
+    let cost = tier.price;
+    if (needsAiModule && !tier.aiModuleIncluded) {
+      cost += tier.aiModuleAddOn;
+    }
+    return cost;
+  };
+  
+  // Check if tier can accommodate the user count
+  const tierMeetsSeats = (tier: PricingTier): boolean => {
+    return numberOfUsers <= tier.maxSeats;
+  };
+  
+  // Recommend the tier that delivers the best savings while meeting requirements
+  const getRecommendedTier = (): { tier: PricingTier; totalCost: number; aiAddOnApplied: boolean } => {
+    const tiersList = [
       FLOWLOAN_PRICING.starter,
       FLOWLOAN_PRICING.team,
       FLOWLOAN_PRICING.lender,
     ];
     
-    // Find the tier with maximum savings (or minimum cost if all cost more)
-    let bestTier = FLOWLOAN_PRICING.starter;
-    let bestSavings = totalCurrentSpend - FLOWLOAN_PRICING.starter.price;
+    // Filter tiers that meet seat requirements
+    const eligibleTiers = tiersList.filter(tierMeetsSeats);
     
-    for (const tier of tiers) {
-      const savings = totalCurrentSpend - tier.price;
-      if (savings > bestSavings) {
-        bestSavings = savings;
+    // If no eligible tiers (shouldn't happen), default to lender
+    if (eligibleTiers.length === 0) {
+      const tier = FLOWLOAN_PRICING.lender;
+      return { tier, totalCost: getTierTotalCost(tier), aiAddOnApplied: needsAiModule && !tier.aiModuleIncluded };
+    }
+    
+    // Find the tier with maximum savings (lowest total cost)
+    let bestTier = eligibleTiers[0];
+    let bestTotalCost = getTierTotalCost(bestTier);
+    
+    for (const tier of eligibleTiers) {
+      const totalCost = getTierTotalCost(tier);
+      if (totalCost < bestTotalCost) {
+        bestTotalCost = totalCost;
         bestTier = tier;
       }
     }
     
-    return bestTier;
+    return { 
+      tier: bestTier, 
+      totalCost: bestTotalCost, 
+      aiAddOnApplied: needsAiModule && !bestTier.aiModuleIncluded 
+    };
   };
   
-  const recommendedTier = getRecommendedTier();
-  const monthlySavings = totalCurrentSpend - recommendedTier.price;
+  const { tier: recommendedTier, totalCost: flowloanCost, aiAddOnApplied } = getRecommendedTier();
+  const monthlySavings = totalCurrentSpend - flowloanCost;
   const annualSavings = monthlySavings * 12;
   const savingsPercentage = totalCurrentSpend > 0 
     ? Math.round((monthlySavings / totalCurrentSpend) * 100) 
@@ -208,6 +249,39 @@ function SavingsCalculator() {
               data-testid="slider-labour-hours"
             />
           </div>
+
+          {/* Team Size */}
+          <div>
+            <div className="flex justify-between mb-3">
+              <label className="text-white text-sm font-medium">Number of Users</label>
+              <span className="text-indigo-400 font-semibold">{numberOfUsers} {numberOfUsers === 1 ? 'user' : 'users'}</span>
+            </div>
+            <Slider
+              value={[numberOfUsers]}
+              onValueChange={(v) => setNumberOfUsers(v[0])}
+              min={1}
+              max={20}
+              step={1}
+              className="w-full"
+              data-testid="slider-number-users"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Starter: 1 user | Team: up to 5 | Lender: Unlimited
+            </p>
+          </div>
+
+          {/* AI Credit Underwriting Toggle */}
+          <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+            <div>
+              <label className="text-white text-sm font-medium">AI Credit Underwriting Module</label>
+              <p className="text-xs text-gray-500 mt-1">Premium add-on for Starter & Team plans</p>
+            </div>
+            <Switch
+              checked={needsAiModule}
+              onCheckedChange={setNeedsAiModule}
+              data-testid="switch-ai-module"
+            />
+          </div>
         </div>
 
         {/* Results Panel */}
@@ -219,7 +293,20 @@ function SavingsCalculator() {
             </div>
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
               <span className="text-gray-400">Recommended FlowLoan Plan</span>
-              <span className="text-white font-semibold">{recommendedTier.name} (£{recommendedTier.price}/mo)</span>
+              <div className="text-right">
+                <span className="text-white font-semibold">{recommendedTier.name}</span>
+                <span className="text-gray-400 text-sm ml-1">(£{recommendedTier.price}/mo)</span>
+              </div>
+            </div>
+            {aiAddOnApplied && (
+              <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                <span className="text-gray-400">+ AI Credit Underwriting</span>
+                <span className="text-indigo-400 font-semibold">£{recommendedTier.aiModuleAddOn}/mo</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pb-4 border-b border-white/10">
+              <span className="text-gray-400 font-medium">FlowLoan Total</span>
+              <span className="text-white font-bold text-lg">£{flowloanCost}/mo</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-400">Monthly Savings</span>
