@@ -779,7 +779,7 @@ export default function ProspectDetail() {
           <TabsContent value="lenders">
             <LenderRecommendations 
               prospectId={prospectId}
-              onSelectLender={(lenderId) => setLocation(`/lenders/${lenderId}`)}
+              onSelectLender={(lenderId) => navigate(`/lenders/${lenderId}`)}
               showDisqualified={false}
               limit={5}
             />
@@ -1165,21 +1165,7 @@ function ContactsTab({
     },
   });
 
-  // Track if we've already attempted sync to prevent multiple syncs (using ref to avoid re-renders)
-  const hasSyncedRef = useRef(false);
-
-  // Auto-sync officers when component mounts (only once if no contacts exist)
-  useEffect(() => {
-    if (
-      companyNumber &&
-      contacts.length === 0 &&
-      !hasSyncedRef.current &&
-      !syncOfficersMutation.isPending
-    ) {
-      hasSyncedRef.current = true;
-      syncOfficersMutation.mutate();
-    }
-  }, [prospectId, companyNumber]);
+  // Manual sync only - removed auto-sync to require explicit user action
 
   // Edit contact mutation
   const editContactMutation = useMutation({
