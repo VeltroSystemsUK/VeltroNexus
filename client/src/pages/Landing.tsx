@@ -25,9 +25,15 @@ import {
   Search,
   Calculator,
   PoundSterling,
+  Info,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
 
@@ -192,7 +198,19 @@ function SavingsCalculator() {
         <div className="space-y-6">
           <div>
             <div className="flex justify-between mb-3">
-              <label className="text-white text-sm font-medium">CRM / Pipeline Tools</label>
+              <div className="flex items-center gap-2">
+                <label className="text-white text-sm font-medium">CRM / Pipeline Tools</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex" aria-label="More info about CRM costs" data-testid="info-crm">
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Customer relationship management and sales pipeline software used to track leads, contacts, and deal progress.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <span className="text-indigo-400 font-semibold">£{crmSpend}/mo</span>
             </div>
             <Slider
@@ -207,7 +225,19 @@ function SavingsCalculator() {
 
           <div>
             <div className="flex justify-between mb-3">
-              <label className="text-white text-sm font-medium">Credit Data / Bureau Subscriptions</label>
+              <div className="flex items-center gap-2">
+                <label className="text-white text-sm font-medium">Credit Data / Bureau Subscriptions</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex" aria-label="More info about credit data costs" data-testid="info-credit-data">
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Subscription fees for credit reference agencies and business data providers used to assess borrower creditworthiness.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <span className="text-indigo-400 font-semibold">£{creditDataSpend}/mo</span>
             </div>
             <Slider
@@ -222,7 +252,19 @@ function SavingsCalculator() {
 
           <div>
             <div className="flex justify-between mb-3">
-              <label className="text-white text-sm font-medium">Project Tracking / Admin Tools</label>
+              <div className="flex items-center gap-2">
+                <label className="text-white text-sm font-medium">Project Tracking / Admin Tools</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex" aria-label="More info about tracking costs" data-testid="info-tracking">
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Task management, document storage, and administrative software used to coordinate loan applications and team workflows.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <span className="text-indigo-400 font-semibold">£{trackingSpend}/mo</span>
             </div>
             <Slider
@@ -237,7 +279,19 @@ function SavingsCalculator() {
 
           <div>
             <div className="flex justify-between mb-3">
-              <label className="text-white text-sm font-medium">Manual Data Entry (hours/month)</label>
+              <div className="flex items-center gap-2">
+                <label className="text-white text-sm font-medium">Manual Data Entry (hours/month)</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex" aria-label="More info about labour costs" data-testid="info-labour">
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Time spent on manual data entry, document processing, and administrative tasks. Cost calculated at £25/hour average, including wages and employer overheads (NI, pension, equipment, etc.).</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <span className="text-indigo-400 font-semibold">{labourHours} hrs (£{labourHours * hourlyRate})</span>
             </div>
             <Slider
@@ -253,7 +307,19 @@ function SavingsCalculator() {
           {/* Team Size */}
           <div>
             <div className="flex justify-between mb-3">
-              <label className="text-white text-sm font-medium">Number of Users</label>
+              <div className="flex items-center gap-2">
+                <label className="text-white text-sm font-medium">Number of Users</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex" aria-label="More info about team size" data-testid="info-users">
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>The number of team members who will need access to the platform. Different plans support different team sizes.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <span className="text-indigo-400 font-semibold">{numberOfUsers} {numberOfUsers === 1 ? 'user' : 'users'}</span>
             </div>
             <Slider
@@ -272,9 +338,21 @@ function SavingsCalculator() {
 
           {/* AI Credit Underwriting Toggle */}
           <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
-            <div>
-              <label className="text-white text-sm font-medium">AI Credit Underwriting Module</label>
-              <p className="text-xs text-gray-500 mt-1">Premium add-on for Starter & Team plans</p>
+            <div className="flex items-center gap-2">
+              <div>
+                <label className="text-white text-sm font-medium">AI Credit Underwriting Module</label>
+                <p className="text-xs text-gray-500 mt-1">Premium add-on for Starter & Team plans</p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="inline-flex" aria-label="More info about AI module" data-testid="info-ai-module">
+                    <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>AI-powered credit analysis that automatically generates underwriting reports, risk assessments, and lending recommendations from uploaded documents.</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <Switch
               checked={needsAiModule}
