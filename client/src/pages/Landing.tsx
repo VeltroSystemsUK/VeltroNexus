@@ -347,7 +347,7 @@ export default function Landing() {
         </section>
 
         {/* End-to-End Broker Engine Section */}
-        <section id="workflow" className="bg-[#0b0f19] dark:bg-[#0b0f19] py-20 md:py-24">
+        <section id="workflow" className="dark:bg-[#0b0f19] py-20 md:py-24 bg-[#262525]">
           <div className="container mx-auto px-6 md:px-8 max-w-[1100px]">
             <div className="text-center mb-14 md:mb-16">
               <h3 className="text-3xl md:text-4xl font-extrabold mb-4 tracking-tight bg-gradient-to-r from-white to-indigo-400 bg-clip-text text-transparent">
