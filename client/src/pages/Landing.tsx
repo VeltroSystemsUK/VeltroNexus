@@ -440,7 +440,7 @@ export default function Landing() {
                       <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">Reduced Overhead</span></td>
                     </tr>
                     <tr>
-                      <td className="p-5 text-white">Back-Office Labor</td>
+                      <td className="p-5 text-white">Back-Office Labour</td>
                       <td className="p-5 text-red-400 line-through opacity-70">Manual Entry Hours</td>
                       <td className="p-5 text-emerald-400 font-semibold">AI Document Processing</td>
                       <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">60% Faster Processing</span></td>
