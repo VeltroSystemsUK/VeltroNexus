@@ -1,8 +1,35 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// Custom error class for session revocation
+export class SessionRevokedError extends Error {
+  reason: string;
+  details: string;
+  
+  constructor(details: string) {
+    super("Your session has ended");
+    this.name = "SessionRevokedError";
+    this.reason = "session_revoked";
+    this.details = details;
+  }
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
+    
+    // Check for session revocation
+    if (res.status === 401) {
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.reason === "session_revoked") {
+          throw new SessionRevokedError(errorData.details || "Your session was ended because another device logged in");
+        }
+      } catch (e) {
+        // If not JSON or not session_revoked, continue with normal error
+        if (e instanceof SessionRevokedError) throw e;
+      }
+    }
+    
     throw new Error(`${res.status}: ${text}`);
   }
 }
@@ -39,6 +66,13 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
     return await res.json();
   };
 
+// Global handler for session revocation - redirects to login
+function handleSessionRevoked(details: string) {
+  // Show alert and redirect to login
+  alert(details + "\n\nYou will be redirected to login.");
+  window.location.href = "/api/login";
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -46,10 +80,22 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: (failureCount, error) => {
+        // Don't retry on session revocation
+        if (error instanceof SessionRevokedError) {
+          handleSessionRevoked(error.details);
+          return false;
+        }
+        return false;
+      },
     },
     mutations: {
       retry: false,
+      onError: (error) => {
+        if (error instanceof SessionRevokedError) {
+          handleSessionRevoked(error.details);
+        }
+      },
     },
   },
 });

@@ -1,4 +1,5 @@
 import {
+  sessions,
   companies,
   prospects,
   users,
@@ -67,9 +68,13 @@ import {
   type InsertAddOnPurchase,
   addOnProducts,
   addOnPurchases,
+  userSessions,
+  type UserSession,
+  type InsertUserSession,
+  SESSION_LIMITS,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, or, ilike, gte, lte, desc, inArray, isNull } from "drizzle-orm";
+import { eq, sql, and, or, ilike, gte, lte, desc, inArray, isNull, isNotNull } from "drizzle-orm";
 
 export interface IStorage {
   // Users - required for Replit Auth
@@ -78,6 +83,17 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+
+  // User Sessions - for concurrent login limiting
+  createUserSession(session: InsertUserSession): Promise<UserSession>;
+  getUserActiveSessions(userId: string): Promise<UserSession[]>;
+  getSessionBySessionId(sessionId: string): Promise<UserSession | undefined>;
+  updateSessionLastSeen(sessionId: string): Promise<void>;
+  revokeSession(sessionId: string, reason: string): Promise<void>;
+  revokeOldestSession(userId: string, reason: string): Promise<UserSession | undefined>;
+  destroyExpressSession(sessionId: string): Promise<void>;
+  cleanupExpiredSessions(): Promise<number>;
+  getSessionLimit(subscriptionTier: string): number;
 
   // Companies
   getCompanyByNumber(companyNumber: string): Promise<Company | undefined>;
@@ -378,6 +394,79 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  // User Sessions - for concurrent login limiting
+  async createUserSession(session: InsertUserSession): Promise<UserSession> {
+    const [created] = await db.insert(userSessions).values(session).returning();
+    return created;
+  }
+
+  async getUserActiveSessions(userId: string): Promise<UserSession[]> {
+    return await db
+      .select()
+      .from(userSessions)
+      .where(and(eq(userSessions.userId, userId), isNull(userSessions.revokedAt)))
+      .orderBy(userSessions.createdAt);
+  }
+
+  async getSessionBySessionId(sessionId: string): Promise<UserSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(userSessions)
+      .where(eq(userSessions.sessionId, sessionId));
+    return session;
+  }
+
+  async updateSessionLastSeen(sessionId: string): Promise<void> {
+    await db
+      .update(userSessions)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(userSessions.sessionId, sessionId));
+  }
+
+  async revokeSession(sessionId: string, reason: string): Promise<void> {
+    await db
+      .update(userSessions)
+      .set({ revokedAt: new Date(), revokedReason: reason })
+      .where(eq(userSessions.sessionId, sessionId));
+  }
+
+  async revokeOldestSession(userId: string, reason: string): Promise<UserSession | undefined> {
+    const activeSessions = await this.getUserActiveSessions(userId);
+    if (activeSessions.length === 0) return undefined;
+    
+    // Revoke the oldest session (first in the list, ordered by createdAt)
+    const oldest = activeSessions[0];
+    await this.revokeSession(oldest.sessionId, reason);
+    // Also destroy the express session to immediately invalidate the cookie
+    await this.destroyExpressSession(oldest.sessionId);
+    return oldest;
+  }
+
+  async destroyExpressSession(sessionId: string): Promise<void> {
+    // Delete from the express-session sessions table to immediately invalidate the cookie
+    await db.delete(sessions).where(eq(sessions.sid, sessionId));
+  }
+
+  async cleanupExpiredSessions(): Promise<number> {
+    // Remove user_sessions entries where the session was revoked more than 30 days ago
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const result = await db
+      .delete(userSessions)
+      .where(
+        and(
+          isNotNull(userSessions.revokedAt),
+          lte(userSessions.revokedAt, thirtyDaysAgo)
+        )
+      );
+    return 0; // Drizzle doesn't return affected count easily
+  }
+
+  getSessionLimit(subscriptionTier: string): number {
+    return SESSION_LIMITS[subscriptionTier] ?? SESSION_LIMITS.free;
   }
 
   async getCompanyByNumber(companyNumber: string): Promise<Company | undefined> {

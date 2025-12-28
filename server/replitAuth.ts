@@ -6,6 +6,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+import crypto from "crypto";
 import { storage } from "./storage";
 
 const getOidcConfig = memoize(
@@ -118,6 +119,79 @@ async function upsertUser(claims: any) {
   });
 }
 
+// Hash IP address for privacy
+function hashIp(ip: string | undefined): string | undefined {
+  if (!ip) return undefined;
+  return crypto.createHash("sha256").update(ip).digest("hex");
+}
+
+// Extract device info from user agent
+function extractDeviceInfo(userAgent: string | undefined): string {
+  if (!userAgent) return "Unknown device";
+  
+  // Simple extraction of browser/OS info
+  const browsers = ["Chrome", "Firefox", "Safari", "Edge", "Opera"];
+  const os = ["Windows", "Mac", "Linux", "Android", "iOS"];
+  
+  let browser = "Unknown browser";
+  let platform = "Unknown OS";
+  
+  for (const b of browsers) {
+    if (userAgent.includes(b)) {
+      browser = b;
+      break;
+    }
+  }
+  
+  for (const o of os) {
+    if (userAgent.includes(o)) {
+      platform = o;
+      break;
+    }
+  }
+  
+  return `${browser} on ${platform}`;
+}
+
+// Register a new session and enforce limits
+async function registerSession(
+  sessionId: string,
+  userId: string,
+  userAgent: string | undefined,
+  ip: string | undefined
+): Promise<{ kicked: boolean; kickedSession?: any }> {
+  // Get user to check subscription tier
+  const user = await storage.getUser(userId);
+  const subscriptionTier = user?.subscriptionTier || "free";
+  const sessionLimit = storage.getSessionLimit(subscriptionTier);
+  
+  // Get current active sessions
+  const activeSessions = await storage.getUserActiveSessions(userId);
+  
+  let kicked = false;
+  let kickedSession;
+  
+  // If at or over limit, revoke the oldest session
+  if (activeSessions.length >= sessionLimit && sessionLimit !== Infinity) {
+    kickedSession = await storage.revokeOldestSession(userId, "New device login - session limit exceeded");
+    kicked = true;
+    console.log(`[Session] Revoked oldest session for user ${userId} due to limit (${sessionLimit})`);
+  }
+  
+  // Create the new session record
+  await storage.createUserSession({
+    sessionId,
+    userId,
+    userAgent: userAgent || null,
+    ipHash: hashIp(ip) || null,
+    deviceInfo: extractDeviceInfo(userAgent),
+  });
+  
+  console.log(`[Session] Registered new session for user ${userId} (tier: ${subscriptionTier}, limit: ${sessionLimit})`);
+  
+  return { kicked, kickedSession };
+}
+
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
@@ -170,13 +244,47 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/callback", (req, res, next) => {
     ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+    passport.authenticate(`replitauth:${req.hostname}`, async (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.redirect("/api/login");
+      
+      req.logIn(user, async (loginErr) => {
+        if (loginErr) return next(loginErr);
+        
+        // Register the session and enforce limits
+        try {
+          const sessionId = req.sessionID;
+          const userId = user.claims?.sub;
+          const userAgent = req.get("User-Agent");
+          const ip = req.ip || req.socket?.remoteAddress;
+          
+          if (userId && sessionId) {
+            await registerSession(sessionId, userId, userAgent, ip);
+          }
+        } catch (sessionErr) {
+          console.error("[Session] Error registering session:", sessionErr);
+          // Don't block login if session tracking fails
+        }
+        
+        return res.redirect("/");
+      });
     })(req, res, next);
   });
 
-  app.get("/api/logout", (req, res) => {
+  app.get("/api/logout", async (req, res) => {
+    const user = req.user as any;
+    const sessionId = req.sessionID;
+    
+    // Revoke the session before logout
+    if (sessionId) {
+      try {
+        await storage.revokeSession(sessionId, "User logged out");
+        console.log(`[Session] Revoked session on logout: ${sessionId}`);
+      } catch (err) {
+        console.error("[Session] Error revoking session on logout:", err);
+      }
+    }
+    
     req.logout(() => {
       res.redirect(
         client.buildEndSessionUrl(config, {
@@ -193,6 +301,30 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   if (!req.isAuthenticated() || !user.expires_at) {
     return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Check if this session has been revoked (kicked by another login)
+  const sessionId = req.sessionID;
+  if (sessionId) {
+    try {
+      const userSession = await storage.getSessionBySessionId(sessionId);
+      if (userSession?.revokedAt) {
+        // Session was revoked - force logout
+        return res.status(401).json({ 
+          message: "Session ended", 
+          reason: "session_revoked",
+          details: userSession.revokedReason || "Your session was ended because another device logged in"
+        });
+      }
+      
+      // Update last seen timestamp (async, don't wait)
+      storage.updateSessionLastSeen(sessionId).catch(err => {
+        console.error("[Session] Error updating last seen:", err);
+      });
+    } catch (err) {
+      console.error("[Session] Error checking session validity:", err);
+      // Don't block if session check fails
+    }
   }
 
   const now = Math.floor(Date.now() / 1000);

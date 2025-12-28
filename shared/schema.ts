@@ -15,6 +15,38 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)]
 );
 
+// User sessions table - tracks active sessions for concurrent login limiting
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    sessionId: varchar("session_id").notNull().unique(), // Links to sessions.sid
+    userId: varchar("user_id").notNull(),
+    userAgent: text("user_agent"),
+    ipHash: varchar("ip_hash", { length: 64 }), // SHA-256 hash of IP for privacy
+    deviceInfo: text("device_info"), // Browser/OS info
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"), // Null = active, set = revoked
+    revokedReason: varchar("revoked_reason"), // Why session was revoked
+  },
+  (table) => [
+    index("IDX_user_sessions_user_id").on(table.userId),
+    index("IDX_user_sessions_session_id").on(table.sessionId),
+  ]
+);
+
+export type UserSession = typeof userSessions.$inferSelect;
+export type InsertUserSession = typeof userSessions.$inferInsert;
+
+// Session limits by subscription tier
+export const SESSION_LIMITS: Record<string, number> = {
+  free: 1,
+  starter: 1,
+  team: 5,
+  lender: Infinity,
+};
+
 // User storage table - required for Replit Auth
 // Roles: super_admin (all access), sales_admin (team access), broker (own prospects), underwriter (underwriting only)
 export const users = pgTable("users", {
