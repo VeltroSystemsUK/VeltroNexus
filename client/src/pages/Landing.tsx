@@ -23,7 +23,10 @@ import {
   Star,
   Target,
   Search,
+  Calculator,
+  PoundSterling,
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
 
@@ -82,6 +85,182 @@ function useCountUp(end: number, duration: number = 2000, startOnView: boolean =
   }, [end, duration, hasStarted]);
 
   return { count, ref };
+}
+
+// FlowLoan pricing tiers
+const FLOWLOAN_PRICING: Record<string, { name: string; price: number; prospects: number | string }> = {
+  starter: { name: "Starter", price: 39, prospects: 50 },
+  team: { name: "Team", price: 229, prospects: 250 },
+  lender: { name: "Lender", price: 999, prospects: "Unlimited" },
+};
+
+function SavingsCalculator() {
+  const [crmSpend, setCrmSpend] = useState(100);
+  const [creditDataSpend, setCreditDataSpend] = useState(200);
+  const [trackingSpend, setTrackingSpend] = useState(50);
+  const [labourHours, setLabourHours] = useState(20);
+  const hourlyRate = 25; // £25/hour for back-office labor
+
+  const totalCurrentSpend = crmSpend + creditDataSpend + trackingSpend + (labourHours * hourlyRate);
+  
+  // Recommend the tier that delivers the best savings
+  const getRecommendedTier = () => {
+    const tiers = [
+      FLOWLOAN_PRICING.starter,
+      FLOWLOAN_PRICING.team,
+      FLOWLOAN_PRICING.lender,
+    ];
+    
+    // Find the tier with maximum savings (or minimum cost if all cost more)
+    let bestTier = FLOWLOAN_PRICING.starter;
+    let bestSavings = totalCurrentSpend - FLOWLOAN_PRICING.starter.price;
+    
+    for (const tier of tiers) {
+      const savings = totalCurrentSpend - tier.price;
+      if (savings > bestSavings) {
+        bestSavings = savings;
+        bestTier = tier;
+      }
+    }
+    
+    return bestTier;
+  };
+  
+  const recommendedTier = getRecommendedTier();
+  const monthlySavings = totalCurrentSpend - recommendedTier.price;
+  const annualSavings = monthlySavings * 12;
+  const savingsPercentage = totalCurrentSpend > 0 
+    ? Math.round((monthlySavings / totalCurrentSpend) * 100) 
+    : 0;
+
+  return (
+    <div className="mt-12 bg-[#161b26] p-8 md:p-10 rounded-3xl border border-white/5">
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center gap-2 bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-full mb-4">
+          <Calculator className="h-4 w-4" />
+          <span className="text-sm font-medium">Savings Calculator</span>
+        </div>
+        <h4 className="text-white text-xl md:text-2xl font-semibold mb-2">
+          Calculate Your Potential Savings
+        </h4>
+        <p className="text-gray-400">Enter your current monthly spend to see how much you could save with FlowLoan.</p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        {/* Input Sliders */}
+        <div className="space-y-6">
+          <div>
+            <div className="flex justify-between mb-3">
+              <label className="text-white text-sm font-medium">CRM / Pipeline Tools</label>
+              <span className="text-indigo-400 font-semibold">£{crmSpend}/mo</span>
+            </div>
+            <Slider
+              value={[crmSpend]}
+              onValueChange={(v) => setCrmSpend(v[0])}
+              max={500}
+              step={10}
+              className="w-full"
+              data-testid="slider-crm-spend"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-3">
+              <label className="text-white text-sm font-medium">Credit Data / Bureau Subscriptions</label>
+              <span className="text-indigo-400 font-semibold">£{creditDataSpend}/mo</span>
+            </div>
+            <Slider
+              value={[creditDataSpend]}
+              onValueChange={(v) => setCreditDataSpend(v[0])}
+              max={1000}
+              step={25}
+              className="w-full"
+              data-testid="slider-credit-data-spend"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-3">
+              <label className="text-white text-sm font-medium">Project Tracking / Admin Tools</label>
+              <span className="text-indigo-400 font-semibold">£{trackingSpend}/mo</span>
+            </div>
+            <Slider
+              value={[trackingSpend]}
+              onValueChange={(v) => setTrackingSpend(v[0])}
+              max={300}
+              step={10}
+              className="w-full"
+              data-testid="slider-tracking-spend"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-3">
+              <label className="text-white text-sm font-medium">Manual Data Entry (hours/month)</label>
+              <span className="text-indigo-400 font-semibold">{labourHours} hrs (£{labourHours * hourlyRate})</span>
+            </div>
+            <Slider
+              value={[labourHours]}
+              onValueChange={(v) => setLabourHours(v[0])}
+              max={80}
+              step={5}
+              className="w-full"
+              data-testid="slider-labour-hours"
+            />
+          </div>
+        </div>
+
+        {/* Results Panel */}
+        <div className="bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 p-6 md:p-8 rounded-2xl border border-indigo-500/20">
+          <div className="space-y-4 mb-6">
+            <div className="flex justify-between items-center pb-4 border-b border-white/10">
+              <span className="text-gray-400">Your Current Monthly Spend</span>
+              <span className="text-red-400 font-semibold text-lg">£{totalCurrentSpend.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center pb-4 border-b border-white/10">
+              <span className="text-gray-400">Recommended FlowLoan Plan</span>
+              <span className="text-white font-semibold">{recommendedTier.name} (£{recommendedTier.price}/mo)</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Monthly Savings</span>
+              <span className={`font-bold text-lg ${monthlySavings >= 0 ? 'text-emerald-400' : 'text-gray-400'}`}>
+                {monthlySavings >= 0 ? `£${monthlySavings.toLocaleString()}` : '—'}
+              </span>
+            </div>
+          </div>
+
+          {annualSavings > 0 ? (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-5 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <PoundSterling className="h-6 w-6 text-emerald-400" />
+                <span className="text-3xl md:text-4xl font-bold text-emerald-400">
+                  {annualSavings.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-emerald-300 text-sm font-medium">
+                Potential Annual Savings ({savingsPercentage}% reduction)
+              </p>
+            </div>
+          ) : (
+            <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-5 text-center">
+              <p className="text-indigo-300 text-sm font-medium">
+                Add your current tool costs above to see potential savings
+              </p>
+            </div>
+          )}
+
+          <div className="mt-6 text-center">
+            <Link href="/pricing">
+              <Button className="bg-indigo-500 hover:bg-indigo-600 text-white gap-2">
+                View Full Pricing
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function StatsSection() {
@@ -449,6 +628,9 @@ export default function Landing() {
                 </table>
               </div>
             </div>
+
+            {/* Savings Calculator */}
+            <SavingsCalculator />
           </div>
         </section>
 
