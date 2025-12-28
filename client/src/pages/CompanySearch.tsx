@@ -117,6 +117,7 @@ export default function CompanySearch() {
   const [registeredAddress, setRegisteredAddress] = useState("");
   const [postcode, setPostcode] = useState("");
   const [sicCodes, setSicCodes] = useState<string[]>([]);
+  const [sicPostcodeFilter, setSicPostcodeFilter] = useState("");
   const [loanAmount, setLoanAmount] = useState("");
   const [priority, setPriority] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -133,6 +134,7 @@ export default function CompanySearch() {
       searchType,
       hideDissolvedCompanies,
       searchLimit,
+      sicPostcodeFilter,
     ],
     queryFn: async () => {
       const limit = parseInt(searchLimit) || 50;
@@ -142,7 +144,8 @@ export default function CompanySearch() {
 
       // Add search type specific parameters
       if (searchType === "sic") {
-        url = `/api/companies-house/advanced-search?sic_codes=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
+        const postcodeParam = sicPostcodeFilter.trim() ? `&postcode=${encodeURIComponent(sicPostcodeFilter.trim())}` : "";
+        url = `/api/companies-house/advanced-search?sic_codes=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}${postcodeParam}`;
       } else if (searchType === "location") {
         url = `/api/companies-house/advanced-search?location=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
       } else if (searchType === "postcode") {
@@ -562,6 +565,7 @@ export default function CompanySearch() {
                     onClick={() => {
                       setSearchType("sic");
                       setSearchQuery("");
+                      setSicPostcodeFilter("");
                     }}
                     className="flex flex-col items-center gap-1 h-auto py-2"
                     data-testid="search-type-sic"
@@ -637,6 +641,24 @@ export default function CompanySearch() {
                       <p className="text-xs text-muted-foreground">{getSearchHint()}</p>
                     )}
                   </div>
+
+                  {/* Optional Postcode Filter for SIC Code Search */}
+                  {searchType === "sic" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="sic-postcode-filter">Filter by Postcode (optional)</Label>
+                      <Input
+                        id="sic-postcode-filter"
+                        value={sicPostcodeFilter}
+                        onChange={(e) => setSicPostcodeFilter(e.target.value.toUpperCase())}
+                        placeholder="e.g., SW1A, M1, EC2R..."
+                        data-testid="input-sic-postcode-filter"
+                        className="max-w-xs"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Enter a full or partial postcode to narrow results to a specific area
+                      </p>
+                    </div>
+                  )}
 
                   {/* Search Filters */}
                   <div className="flex flex-wrap items-center gap-4 pt-2 border-t">

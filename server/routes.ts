@@ -937,23 +937,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const params = new URLSearchParams();
       params.append("size", limit.toString());
 
+      // Build search parameters - can combine SIC codes with postcode filter
       if (sic_codes) {
-        // Filter by SIC code
         params.append("sic_codes", sic_codes as string);
-        console.log(`Advanced search by SIC code: ${sic_codes} (limit: ${limit})`);
+        console.log(`Advanced search by SIC code: ${sic_codes}`);
+        
+        // Optional postcode filter with SIC code search
+        if (postcode) {
+          const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
+          params.append("location", formattedPostcode);
+          console.log(`  + filtered by postcode: ${formattedPostcode}`);
+        }
       } else if (location) {
         // Filter by location (town/city in registered address)
         params.append("location", location as string);
         console.log(`Advanced search by location: ${location} (limit: ${limit})`);
       } else if (postcode) {
-        // Filter by postcode (registered office address)
-        // Format postcode: remove spaces and convert to uppercase
+        // Filter by postcode only (registered office address)
         const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
         params.append("location", formattedPostcode);
         console.log(`Advanced search by postcode: ${formattedPostcode} (limit: ${limit})`);
       } else {
         return res.status(400).json({ error: "At least one search parameter required" });
       }
+      console.log(`Search limit: ${limit}`);
 
       // Only search active companies if filter is enabled
       if (activeOnly) {
