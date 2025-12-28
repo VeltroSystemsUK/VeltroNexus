@@ -951,7 +951,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (location) {
         // Filter by location (town/city in registered address)
         params.append("location", location as string);
-        console.log(`Advanced search by location: ${location} (limit: ${limit})`);
+        console.log(`Advanced search by location: ${location}`);
+        
+        // Optional postcode filter with location search
+        if (postcode) {
+          const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
+          // Append postcode to location for more specific search
+          params.set("location", `${location} ${formattedPostcode}`);
+          console.log(`  + filtered by postcode: ${formattedPostcode}`);
+        }
       } else if (postcode) {
         // Filter by postcode only (registered office address)
         const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();

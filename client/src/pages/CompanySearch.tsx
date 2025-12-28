@@ -81,7 +81,7 @@ interface OfficerAppointment {
   resigned_on?: string;
 }
 
-type SearchType = "company" | "sic" | "location" | "postcode" | "officers";
+type SearchType = "company" | "sic" | "location" | "officers";
 
 const COMPANY_TYPES = [
   { value: "ltd", label: "Limited Company (Ltd)" },
@@ -118,6 +118,7 @@ export default function CompanySearch() {
   const [postcode, setPostcode] = useState("");
   const [sicCodes, setSicCodes] = useState<string[]>([]);
   const [sicPostcodeFilter, setSicPostcodeFilter] = useState("");
+  const [locationPostcodeFilter, setLocationPostcodeFilter] = useState("");
   const [loanAmount, setLoanAmount] = useState("");
   const [priority, setPriority] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -135,6 +136,7 @@ export default function CompanySearch() {
       hideDissolvedCompanies,
       searchLimit,
       sicPostcodeFilter,
+      locationPostcodeFilter,
     ],
     queryFn: async () => {
       const limit = parseInt(searchLimit) || 50;
@@ -147,9 +149,8 @@ export default function CompanySearch() {
         const postcodeParam = sicPostcodeFilter.trim() ? `&postcode=${encodeURIComponent(sicPostcodeFilter.trim())}` : "";
         url = `/api/companies-house/advanced-search?sic_codes=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}${postcodeParam}`;
       } else if (searchType === "location") {
-        url = `/api/companies-house/advanced-search?location=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
-      } else if (searchType === "postcode") {
-        url = `/api/companies-house/advanced-search?postcode=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}`;
+        const postcodeParam = locationPostcodeFilter.trim() ? `&postcode=${encodeURIComponent(locationPostcodeFilter.trim())}` : "";
+        url = `/api/companies-house/advanced-search?location=${encodeURIComponent(searchQuery)}&limit=${limit}${activeOnly}${postcodeParam}`;
       }
 
       const response = await fetch(url, { credentials: "include" });
@@ -418,8 +419,6 @@ export default function CompanySearch() {
         return "Enter SIC code (e.g., 62020, 47110)...";
       case "location":
         return "Enter town or city (e.g., Manchester, Leeds)...";
-      case "postcode":
-        return "Enter postcode area (e.g., SW1A, M1, B15)...";
       case "officers":
         return "Enter director/officer name...";
       default:
@@ -433,8 +432,6 @@ export default function CompanySearch() {
         return "Enter a SIC code to find companies in that industry";
       case "location":
         return "Search for companies by town or city name";
-      case "postcode":
-        return "Enter a postcode to find companies in that area";
       case "officers":
         return "Search by name, then click to see their companies";
       default:
@@ -450,8 +447,6 @@ export default function CompanySearch() {
         return "SIC Code";
       case "location":
         return "Town/City";
-      case "postcode":
-        return "Postcode";
       case "officers":
         return "Director/Officer Name";
       default:
@@ -537,13 +532,12 @@ export default function CompanySearch() {
                   <CardTitle>Search Companies House</CardTitle>
                 </div>
                 <CardDescription>
-                  Search UK registered companies by name, SIC code, location, postcode, or director
-                  name
+                  Search UK registered companies by name, SIC code, town/city, or director name
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Search Type Selector */}
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Button
                     type="button"
                     variant={searchType === "company" ? "default" : "outline"}
@@ -580,26 +574,13 @@ export default function CompanySearch() {
                     onClick={() => {
                       setSearchType("location");
                       setSearchQuery("");
+                      setLocationPostcodeFilter("");
                     }}
                     className="flex flex-col items-center gap-1 h-auto py-2"
                     data-testid="search-type-location"
                   >
                     <MapPin className="h-4 w-4" />
                     <span className="text-xs">Town/City</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={searchType === "postcode" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      setSearchType("postcode");
-                      setSearchQuery("");
-                    }}
-                    className="flex flex-col items-center gap-1 h-auto py-2"
-                    data-testid="search-type-postcode"
-                  >
-                    <Briefcase className="h-4 w-4" />
-                    <span className="text-xs">Postcode</span>
                   </Button>
                   <Button
                     type="button"
@@ -656,6 +637,24 @@ export default function CompanySearch() {
                       />
                       <p className="text-xs text-muted-foreground">
                         Enter a full or partial postcode to narrow results to a specific area
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Optional Postcode Filter for Town/City Search */}
+                  {searchType === "location" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="location-postcode-filter">Filter by Postcode (optional)</Label>
+                      <Input
+                        id="location-postcode-filter"
+                        value={locationPostcodeFilter}
+                        onChange={(e) => setLocationPostcodeFilter(e.target.value.toUpperCase())}
+                        placeholder="e.g., SW1A, M1, EC2R..."
+                        data-testid="input-location-postcode-filter"
+                        className="max-w-xs"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Enter a full or partial postcode to narrow results within the town/city
                       </p>
                     </div>
                   )}
