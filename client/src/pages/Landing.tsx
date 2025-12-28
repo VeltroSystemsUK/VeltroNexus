@@ -117,9 +117,9 @@ function SavingsCalculator() {
   const [creditDataSpend, setCreditDataSpend] = useState(200);
   const [trackingSpend, setTrackingSpend] = useState(50);
   const [labourHours, setLabourHours] = useState(20);
+  const [hourlyRate, setHourlyRate] = useState(25);
   const [numberOfUsers, setNumberOfUsers] = useState(1);
   const [needsAiModule, setNeedsAiModule] = useState(false);
-  const hourlyRate = 25; // £25/hour for back-office labor
 
   const totalCurrentSpend = crmSpend + creditDataSpend + trackingSpend + (labourHours * hourlyRate);
   
@@ -288,11 +288,11 @@ function SavingsCalculator() {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    <p>Time spent on manual data entry, document processing, and administrative tasks. Cost calculated at £25/hour average, including wages and employer overheads (NI, pension, equipment, etc.).</p>
+                    <p>Time spent on manual data entry, document processing, and administrative tasks.</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <span className="text-indigo-400 font-semibold">{labourHours} hrs (£{labourHours * hourlyRate})</span>
+              <span className="text-indigo-400 font-semibold">{labourHours} hrs</span>
             </div>
             <Slider
               value={[labourHours]}
@@ -301,6 +301,34 @@ function SavingsCalculator() {
               step={5}
               className="w-full"
               data-testid="slider-labour-hours"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <label className="text-white text-sm font-medium">Hourly Rate</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex" aria-label="More info about hourly rate" data-testid="info-hourly-rate">
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Average cost per hour for staff, including wages and employer overheads (NI, pension, equipment, office space, etc.). UK average is £25-35/hour fully loaded.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <span className="text-indigo-400 font-semibold">£{hourlyRate}/hr (£{labourHours * hourlyRate}/mo)</span>
+            </div>
+            <Slider
+              value={[hourlyRate]}
+              onValueChange={(v) => setHourlyRate(v[0])}
+              min={10}
+              max={75}
+              step={5}
+              className="w-full"
+              data-testid="slider-hourly-rate"
             />
           </div>
 
