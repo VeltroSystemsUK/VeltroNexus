@@ -38,6 +38,7 @@ The frontend leverages React, TypeScript, Vite, and Wouter for routing, with Tan
 The application utilizes Drizzle ORM with Neon serverless PostgreSQL. The database schema includes tables for `Users`, `Sessions`, `Companies`, `Prospects`, `Activities`, and `Due Diligence`, ensuring user-specific data isolation and efficient retrieval. The `Due Diligence` table stores assessment data in a JSONB column.
 
 ### Security & Quality
+- **Concurrent Session Limiting**: Enforces seat limits per subscription tier (Starter=1, Team=5, Lender=unlimited) by tracking active sessions in `user_sessions` table. When a user exceeds their limit, the oldest session is kicked and the express session is destroyed immediately. Kicked users see a user-friendly message and are redirected to login.
 - **Standardized Error Handling**: Uses `handleApiError()` utility for consistent, safe error responses that log structured JSON server-side while returning sanitized messages to clients.
 - **Underwriting Audit Logging**: Structured logging of all underwriting actions (claim, withdraw, approve, decline, query) with userId, role, status transitions, and source IP.
 - **CI Pipeline**: Located at `scripts/ci.sh`, enforces:
