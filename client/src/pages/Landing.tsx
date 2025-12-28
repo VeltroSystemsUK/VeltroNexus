@@ -357,10 +357,7 @@ export default function Landing() {
               <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight">
                 Visual Pipeline Management
               </h3>
-              <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                Drag-and-drop your prospects through 9 customizable stages. See exactly where every
-                deal stands at a glance.
-              </p>
+              <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">Drag-and-drop your prospects and live opportunities through customisable stages. See exactly where every deal stands at a glance.</p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
