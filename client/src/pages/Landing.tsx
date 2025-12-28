@@ -175,9 +175,7 @@ export default function Landing() {
               className="font-semibold"
               onClick={handleLogin}
               data-testid="button-sign-in"
-            >
-              Sign In
-            </Button>
+            >Login</Button>
             <Button className="font-semibold" onClick={handleLogin} data-testid="button-sign-up">
               Start Free Trial
             </Button>
