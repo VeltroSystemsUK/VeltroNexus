@@ -18,7 +18,6 @@ import {
   LineChart,
   Lock,
   Layers,
-  Bot,
   FileText,
   CreditCard,
   ChevronRight,
@@ -211,7 +210,7 @@ export default function Landing() {
                 empowering commercial finance brokers to prioritize better sales opportunities.
               </p>
 
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+              <div className="flex items-center justify-center mb-12">
                 <Button
                   size="lg"
                   onClick={handleLogin}
@@ -220,16 +219,6 @@ export default function Landing() {
                 >
                   Start Free Trial
                   <ArrowRight className="h-5 w-5" />
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={handleLogin}
-                  className="gap-2 h-12 font-medium"
-                  data-testid="button-demo"
-                >
-                  <Bot className="h-5 w-5" />
-                  See AI in Action
                 </Button>
               </div>
 
