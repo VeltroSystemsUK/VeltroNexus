@@ -22,7 +22,7 @@ import {
   CreditCard,
   Star,
   Target,
-  Workflow,
+  Search,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Link } from "wouter";
@@ -346,68 +346,108 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Visual Pipeline Section */}
-        <section id="workflow" className="bg-muted/30 py-20 md:py-24">
-          <div className="container mx-auto px-6 md:px-8">
-            <div className="text-center mb-12 md:mb-16">
-              <Badge variant="outline" className="mb-6 px-3 py-1.5">
-                <Workflow className="h-4 w-4 mr-2" />
-                <span className="text-sm font-medium">End-to-End Workflow</span>
-              </Badge>
-              <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight">
-                Visual Pipeline Management
+        {/* End-to-End Broker Engine Section */}
+        <section id="workflow" className="bg-[#0b0f19] dark:bg-[#0b0f19] py-20 md:py-24">
+          <div className="container mx-auto px-6 md:px-8 max-w-[1100px]">
+            <div className="text-center mb-14 md:mb-16">
+              <h3 className="text-3xl md:text-4xl font-extrabold mb-4 tracking-tight bg-gradient-to-r from-white to-indigo-400 bg-clip-text text-transparent">
+                The End-to-End Broker Engine
               </h3>
-              <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">Drag-and-drop your prospects and live opportunities through customisable stages. See exactly where every deal stands at a glance.</p>
+              <p className="text-base md:text-lg text-gray-400 max-w-[700px] mx-auto leading-relaxed">
+                One platform to find, enrich, and fund. Replace your fragmented stack with the AI-powered powerhouse for commercial finance.
+              </p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
-              <Card>
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="h-14 w-14 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mx-auto mb-5">
-                    <Zap className="h-7 w-7 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h4 className="font-semibold mb-3 text-base">Instant Lead Capture</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Import leads via CSV, search Companies House, or add manually.
-                  </p>
-                </CardContent>
-              </Card>
+            {/* 4-Step Flow Grid */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
+              <div className="bg-[#161b26] p-8 rounded-2xl border border-white/5 hover:border-indigo-500 hover:-translate-y-1 transition-all duration-300">
+                <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center mb-5">
+                  <Search className="h-6 w-6" />
+                </div>
+                <h4 className="text-white font-semibold text-lg mb-3">Target & Discover</h4>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Advanced search engine to filter prospects by industry, location, and name. You pick the targets; we provide the data.
+                </p>
+              </div>
 
-              <Card>
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="h-14 w-14 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center mx-auto mb-5">
-                    <Building2 className="h-7 w-7 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <h4 className="font-semibold mb-3 text-base">Auto-Enrich Data</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Pull company details, directors, and charges directly from Companies House.
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="bg-[#161b26] p-8 rounded-2xl border border-white/5 hover:border-indigo-500 hover:-translate-y-1 transition-all duration-300">
+                <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center mb-5">
+                  <Zap className="h-6 w-6" />
+                </div>
+                <h4 className="text-white font-semibold text-lg mb-3">Enrich with Live Data</h4>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Move beyond stale bureau reports. Upload bank statements to get a realistic, real-time view of financial standing.
+                </p>
+              </div>
 
-              <Card>
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="h-14 w-14 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mx-auto mb-5">
-                    <FileCheck className="h-7 w-7 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <h4 className="font-semibold mb-3 text-base">Due Diligence Suite</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    7 built-in tools: checklists, calculators, affordability, and AI underwriting.
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="bg-[#161b26] p-8 rounded-2xl border border-white/5 hover:border-indigo-500 hover:-translate-y-1 transition-all duration-300">
+                <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center mb-5">
+                  <BarChart3 className="h-6 w-6" />
+                </div>
+                <h4 className="text-white font-semibold text-lg mb-3">Analyze & Match</h4>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  AI runs deep-tier risk assessments and matches your deal against a live database of lender criteria instantly.
+                </p>
+              </div>
 
-              <Card>
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto mb-5">
-                    <LineChart className="h-7 w-7 text-green-600 dark:text-green-400" />
-                  </div>
-                  <h4 className="font-semibold mb-3 text-base">Decision & Submit</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Generate PDF reports and submit to lenders via email.
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="bg-[#161b26] p-8 rounded-2xl border border-white/5 hover:border-indigo-500 hover:-translate-y-1 transition-all duration-300">
+                <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center mb-5">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+                <h4 className="text-white font-semibold text-lg mb-3">Finalize & Fund</h4>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Review the AI-generated outputs, apply your expert judgment, and process the application through to completion.
+                </p>
+              </div>
+            </div>
+
+            {/* Comparison Table */}
+            <div className="bg-gradient-to-b from-indigo-500/5 to-transparent p-8 md:p-10 rounded-3xl border border-indigo-500/20">
+              <div className="text-center mb-8">
+                <h4 className="text-white text-xl md:text-2xl font-semibold mb-2">
+                  Consolidate Your Tech. Multiply Your Profit.
+                </h4>
+                <p className="text-gray-400">Eliminate SaaS sprawl and hidden administrative costs.</p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">Category</th>
+                      <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">Traditional Stack</th>
+                      <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">The Flow Advantage</th>
+                      <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">Benefit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-white/5">
+                      <td className="p-5 text-white">Credit Data</td>
+                      <td className="p-5 text-red-400 line-through opacity-70">Bureau Subscriptions</td>
+                      <td className="p-5 text-emerald-400 font-semibold">Real-Time AI Enrichment</td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">Fresher Data</span></td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-5 text-white">Pipeline Management</td>
+                      <td className="p-5 text-red-400 line-through opacity-70">Generalist CRM</td>
+                      <td className="p-5 text-emerald-400 font-semibold">Integrated Finance Workflow</td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">Zero Context-Switching</span></td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-5 text-white">Project Tracking</td>
+                      <td className="p-5 text-red-400 line-through opacity-70">Third-Party SaaS</td>
+                      <td className="p-5 text-emerald-400 font-semibold">Automated Internal Engine</td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">Reduced Overhead</span></td>
+                    </tr>
+                    <tr>
+                      <td className="p-5 text-white">Back-Office Labor</td>
+                      <td className="p-5 text-red-400 line-through opacity-70">Manual Entry Hours</td>
+                      <td className="p-5 text-emerald-400 font-semibold">AI Document Processing</td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">60% Faster Processing</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
