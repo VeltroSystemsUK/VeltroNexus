@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { searchSicCodes } from "@/lib/sicCodes";
 import {
   Select,
   SelectContent,
@@ -119,6 +120,13 @@ export default function CompanySearch() {
   const [sicCodes, setSicCodes] = useState<string[]>([]);
   const [sicPostcodeFilter, setSicPostcodeFilter] = useState("");
   const [locationPostcodeFilter, setLocationPostcodeFilter] = useState("");
+  const [sicSearchTerm, setSicSearchTerm] = useState("");
+  const [showSicHelper, setShowSicHelper] = useState(false);
+  
+  const sicSuggestions = useMemo(() => {
+    if (sicSearchTerm.length < 2) return [];
+    return searchSicCodes(sicSearchTerm, 8);
+  }, [sicSearchTerm]);
   const [loanAmount, setLoanAmount] = useState("");
   const [priority, setPriority] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -623,21 +631,86 @@ export default function CompanySearch() {
                     )}
                   </div>
 
-                  {/* Optional Postcode Filter for SIC Code Search */}
+                  {/* SIC Code Helper and Postcode Filter */}
                   {searchType === "sic" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="sic-postcode-filter">Filter by Postcode (optional)</Label>
-                      <Input
-                        id="sic-postcode-filter"
-                        value={sicPostcodeFilter}
-                        onChange={(e) => setSicPostcodeFilter(e.target.value.toUpperCase())}
-                        placeholder="e.g., SW1A, M1, EC2R..."
-                        data-testid="input-sic-postcode-filter"
-                        className="max-w-xs"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Enter a full or partial postcode to narrow results to a specific area
-                      </p>
+                    <div className="space-y-4">
+                      {/* SIC Code Helper */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowSicHelper(!showSicHelper)}
+                            data-testid="button-sic-helper-toggle"
+                          >
+                            {showSicHelper ? "Hide" : "Find SIC Code"}
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            Search by industry keyword to find the right code
+                          </span>
+                        </div>
+                        
+                        {showSicHelper && (
+                          <div className="border rounded-md p-3 bg-muted/30 space-y-2">
+                            <Input
+                              value={sicSearchTerm}
+                              onChange={(e) => setSicSearchTerm(e.target.value)}
+                              placeholder="Type industry keyword (e.g., restaurant, software, construction)..."
+                              data-testid="input-sic-helper-search"
+                              className="bg-background"
+                            />
+                            {sicSearchTerm.length >= 2 && sicSuggestions.length > 0 && (
+                              <div className="space-y-1 max-h-48 overflow-y-auto">
+                                {sicSuggestions.map((sic) => (
+                                  <button
+                                    key={sic.code}
+                                    type="button"
+                                    onClick={() => {
+                                      setSearchQuery(sic.code);
+                                      setSicSearchTerm("");
+                                      setShowSicHelper(false);
+                                    }}
+                                    className="w-full text-left px-2 py-1.5 rounded text-sm hover-elevate flex items-center gap-2"
+                                    data-testid={`sic-suggestion-${sic.code}`}
+                                  >
+                                    <Badge variant="secondary" className="font-mono">
+                                      {sic.code}
+                                    </Badge>
+                                    <span className="text-muted-foreground">{sic.description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {sicSearchTerm.length >= 2 && sicSuggestions.length === 0 && (
+                              <p className="text-xs text-muted-foreground py-2">
+                                No matching SIC codes found. Try a different keyword.
+                              </p>
+                            )}
+                            {sicSearchTerm.length < 2 && (
+                              <p className="text-xs text-muted-foreground">
+                                Type at least 2 characters to search
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Postcode Filter */}
+                      <div className="space-y-2">
+                        <Label htmlFor="sic-postcode-filter">Filter by Postcode (optional)</Label>
+                        <Input
+                          id="sic-postcode-filter"
+                          value={sicPostcodeFilter}
+                          onChange={(e) => setSicPostcodeFilter(e.target.value.toUpperCase())}
+                          placeholder="e.g., SW1A, M1, EC2R..."
+                          data-testid="input-sic-postcode-filter"
+                          className="max-w-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter a full or partial postcode to narrow results to a specific area
+                        </p>
+                      </div>
                     </div>
                   )}
 
