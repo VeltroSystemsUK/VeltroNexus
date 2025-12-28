@@ -193,9 +193,9 @@ export default function Landing() {
 
           <div className="container mx-auto px-6 md:px-8 py-16 md:py-24 lg:py-32 relative">
             <div className="max-w-4xl mx-auto text-center">
-              <Badge variant="secondary" className="mb-8 px-4 py-2">
+              <Badge className="bg-[#0a0a0a] text-[18px] mt-[50px] mb-[50px] pl-[200px] pr-[200px] font-bold text-center pt-[10px] pb-[10px] text-secondary-foreground">
                 <Sparkles className="h-4 w-4 mr-2" />
-                <span className="text-sm font-medium">Commercial Lending Workflow Platform</span>
+                <span className="font-medium">Commercial Lending Workflow Platform</span>
               </Badge>
 
               <h2
