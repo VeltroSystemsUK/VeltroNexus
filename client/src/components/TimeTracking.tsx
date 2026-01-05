@@ -54,14 +54,15 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
   const [showStopDialog, setShowStopDialog] = useState(false);
   const [manualHours, setManualHours] = useState("0");
   const [manualMinutes, setManualMinutes] = useState("30");
-  const [description, setDescription] = useState("");
+  const [manualDescription, setManualDescription] = useState("");
+  const [timerDescription, setTimerDescription] = useState("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { data: timeEntries = [], isLoading: entriesLoading } = useQuery<TimeEntry[]>({
+  const { data: timeEntries = [], isLoading: entriesLoading, isError: entriesError } = useQuery<TimeEntry[]>({
     queryKey: ["/api/prospects", prospectId, "time-entries"],
   });
 
-  const { data: totalTime } = useQuery<{ totalMinutes: number }>({
+  const { data: totalTime, isLoading: totalLoading } = useQuery<{ totalMinutes: number }>({
     queryKey: ["/api/prospects", prospectId, "time-total"],
   });
 
@@ -125,21 +126,21 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
     createMutation.mutate({
       durationMinutes,
       entryType: "timer",
-      description: description || undefined,
-      startedAt: timerStartTime || undefined,
-      endedAt: new Date(),
+      description: timerDescription || undefined,
+      startedAt: timerStartTime?.toISOString() as unknown as Date,
+      endedAt: new Date().toISOString() as unknown as Date,
     });
     setShowStopDialog(false);
     setTimerSeconds(0);
     setTimerStartTime(null);
-    setDescription("");
+    setTimerDescription("");
   };
 
   const handleDiscardTimer = () => {
     setShowStopDialog(false);
     setTimerSeconds(0);
     setTimerStartTime(null);
-    setDescription("");
+    setTimerDescription("");
   };
 
   const handleManualEntry = () => {
@@ -155,12 +156,12 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
     createMutation.mutate({
       durationMinutes: totalMins,
       entryType: "manual",
-      description: description || undefined,
+      description: manualDescription || undefined,
     });
     setShowManualDialog(false);
     setManualHours("0");
     setManualMinutes("30");
-    setDescription("");
+    setManualDescription("");
   };
 
   return (
@@ -253,11 +254,11 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor="description">Description (optional)</Label>
+                      <Label htmlFor="manual-description">Description (optional)</Label>
                       <Textarea
-                        id="description"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
+                        id="manual-description"
+                        value={manualDescription}
+                        onChange={(e) => setManualDescription(e.target.value)}
                         placeholder="What did you work on?"
                         data-testid="input-time-description"
                       />
@@ -290,8 +291,8 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
                 <Label htmlFor="timer-description">Description (optional)</Label>
                 <Textarea
                   id="timer-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  value={timerDescription}
+                  onChange={(e) => setTimerDescription(e.target.value)}
                   placeholder="What did you work on?"
                   data-testid="input-timer-description"
                 />
@@ -309,9 +310,11 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
         </Dialog>
 
         {entriesLoading ? (
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-muted-foreground" data-testid="text-loading-entries">Loading...</p>
+        ) : entriesError ? (
+          <p className="text-sm text-destructive" data-testid="text-entries-error">Failed to load time entries</p>
         ) : timeEntries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No time logged yet</p>
+          <p className="text-sm text-muted-foreground" data-testid="text-no-entries">No time logged yet</p>
         ) : (
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {timeEntries.map((entry) => (

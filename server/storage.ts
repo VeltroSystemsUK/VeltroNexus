@@ -1653,11 +1653,19 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(timeEntries)
-      .where(eq(timeEntries.prospectId, prospectId))
+      .where(and(
+        eq(timeEntries.prospectId, prospectId),
+        eq(timeEntries.userId, userId)
+      ))
       .orderBy(desc(timeEntries.createdAt));
   }
 
   async createTimeEntry(entry: InsertTimeEntry, userId: string): Promise<TimeEntry> {
+    const prospect = await this.getProspect(entry.prospectId, userId);
+    if (!prospect) {
+      throw new Error("Access denied - prospect not found or not owned by user");
+    }
+    
     const [newEntry] = await db
       .insert(timeEntries)
       .values({ ...entry, userId })
@@ -1673,10 +1681,16 @@ export class DatabaseStorage implements IStorage {
     
     if (!existing) return undefined;
     
+    const safeUpdates: Partial<InsertTimeEntry> = {};
+    if (updates.description !== undefined) safeUpdates.description = updates.description;
+    if (updates.durationMinutes !== undefined && updates.durationMinutes > 0) {
+      safeUpdates.durationMinutes = updates.durationMinutes;
+    }
+    
     const [updated] = await db
       .update(timeEntries)
-      .set(updates)
-      .where(eq(timeEntries.id, id))
+      .set(safeUpdates)
+      .where(and(eq(timeEntries.id, id), eq(timeEntries.userId, userId)))
       .returning();
     return updated;
   }
@@ -1694,7 +1708,10 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({ total: sql<number>`COALESCE(SUM(${timeEntries.durationMinutes}), 0)` })
       .from(timeEntries)
-      .where(eq(timeEntries.prospectId, prospectId));
+      .where(and(
+        eq(timeEntries.prospectId, prospectId),
+        eq(timeEntries.userId, userId)
+      ));
     
     return result[0]?.total ?? 0;
   }
