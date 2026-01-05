@@ -835,6 +835,32 @@ export const insertActivitySchema = createInsertSchema(activities, {
   updatedAt: true,
 });
 
+export const insertTimeEntrySchema = createInsertSchema(timeEntries, {
+  prospectId: z.union([
+    z.number().int().positive(),
+    z
+      .string()
+      .trim()
+      .regex(/^[0-9]+$/)
+      .transform(Number),
+  ]),
+  durationMinutes: z.number().int().positive(),
+  entryType: z.enum(["timer", "manual"]).default("manual"),
+  startedAt: z
+    .union([z.date(), z.string().transform((val) => (val ? new Date(val) : null)), z.null()])
+    .optional(),
+  endedAt: z
+    .union([z.date(), z.string().transform((val) => (val ? new Date(val) : null)), z.null()])
+    .optional(),
+}).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export type InsertTimeEntry = z.infer<typeof insertTimeEntrySchema>;
+export type TimeEntry = typeof timeEntries.$inferSelect;
+
 export const insertLenderSchema = createInsertSchema(lenders, {
   productTypes: z.array(z.string()).optional().default([]),
   sectors: z.array(z.string()).optional().default([]),

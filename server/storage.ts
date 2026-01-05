@@ -19,6 +19,7 @@ import {
   prospectDocuments,
   teams,
   teamMembers,
+  timeEntries,
   type Company,
   type InsertCompany,
   type Prospect,
@@ -66,6 +67,8 @@ import {
   type UpdateAddOnProduct,
   type AddOnPurchase,
   type InsertAddOnPurchase,
+  type TimeEntry,
+  type InsertTimeEntry,
   addOnProducts,
   addOnPurchases,
   userSessions,
@@ -315,6 +318,13 @@ export interface IStorage {
   removeTeamMember(teamId: number, userId: string): Promise<void>;
   getUserTeams(userId: string): Promise<Team[]>;
   getTeamMembers(teamId: number): Promise<(TeamMember & { user: User })[]>;
+
+  // Time Entries
+  listTimeEntries(prospectId: number, userId: string): Promise<TimeEntry[]>;
+  createTimeEntry(entry: InsertTimeEntry, userId: string): Promise<TimeEntry>;
+  updateTimeEntry(id: number, userId: string, updates: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined>;
+  deleteTimeEntry(id: number, userId: string): Promise<void>;
+  getProspectTotalTime(prospectId: number, userId: string): Promise<number>;
 
   // Add-On Products
   listAddOnProducts(activeOnly?: boolean): Promise<AddOnProduct[]>;
@@ -1633,6 +1643,60 @@ export class DatabaseStorage implements IStorage {
     );
 
     return membersWithUsers;
+  }
+
+  // Time Entries
+  async listTimeEntries(prospectId: number, userId: string): Promise<TimeEntry[]> {
+    const prospect = await this.getProspect(prospectId, userId);
+    if (!prospect) return [];
+    
+    return await db
+      .select()
+      .from(timeEntries)
+      .where(eq(timeEntries.prospectId, prospectId))
+      .orderBy(desc(timeEntries.createdAt));
+  }
+
+  async createTimeEntry(entry: InsertTimeEntry, userId: string): Promise<TimeEntry> {
+    const [newEntry] = await db
+      .insert(timeEntries)
+      .values({ ...entry, userId })
+      .returning();
+    return newEntry;
+  }
+
+  async updateTimeEntry(id: number, userId: string, updates: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined> {
+    const [existing] = await db
+      .select()
+      .from(timeEntries)
+      .where(and(eq(timeEntries.id, id), eq(timeEntries.userId, userId)));
+    
+    if (!existing) return undefined;
+    
+    const [updated] = await db
+      .update(timeEntries)
+      .set(updates)
+      .where(eq(timeEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTimeEntry(id: number, userId: string): Promise<void> {
+    await db
+      .delete(timeEntries)
+      .where(and(eq(timeEntries.id, id), eq(timeEntries.userId, userId)));
+  }
+
+  async getProspectTotalTime(prospectId: number, userId: string): Promise<number> {
+    const prospect = await this.getProspect(prospectId, userId);
+    if (!prospect) return 0;
+    
+    const result = await db
+      .select({ total: sql<number>`COALESCE(SUM(${timeEntries.durationMinutes}), 0)` })
+      .from(timeEntries)
+      .where(eq(timeEntries.prospectId, prospectId));
+    
+    return result[0]?.total ?? 0;
   }
 
   // Add-On Products
