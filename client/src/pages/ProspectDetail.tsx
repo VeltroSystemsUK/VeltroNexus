@@ -118,6 +118,7 @@ import { ContactEnrichmentDialog } from "@/components/ContactEnrichmentDialog";
 import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog";
 import ReplyToQueryDialog from "@/components/ReplyToQueryDialog";
 import ConversationThread from "@/components/ConversationThread";
+import TimeTracking from "@/components/TimeTracking";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
 
@@ -757,7 +758,14 @@ export default function ProspectDetail() {
           </TabsContent>
 
           <TabsContent value="activity">
-            <SalesActivityTab prospectId={prospectId} activities={activities} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <SalesActivityTab prospectId={prospectId} activities={activities} />
+              </div>
+              <div className="lg:col-span-1">
+                <TimeTracking prospectId={prospectId} />
+              </div>
+            </div>
           </TabsContent>
 
           {user?.subscriptionTier !== "free" && (
