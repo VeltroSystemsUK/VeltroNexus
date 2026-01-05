@@ -9,6 +9,7 @@ import {
   updateProspectStageSchema,
   insertContactSchema,
   insertActivitySchema,
+  insertTimeEntrySchema,
   insertLenderSchema,
   insertApplicationSubmissionSchema,
   queryResponseSchema,
@@ -2154,6 +2155,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       const userId = req.user.claims.sub;
       await storage.deleteActivity(id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  // Time Entries Routes
+  app.get("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: any, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const userId = req.user.claims.sub;
+      const entries = await storage.listTimeEntries(prospectId, userId);
+      res.json(entries);
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  app.get("/api/prospects/:prospectId/time-total", isAuthenticated, async (req: any, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const userId = req.user.claims.sub;
+      const totalMinutes = await storage.getProspectTotalTime(prospectId, userId);
+      res.json({ totalMinutes });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  app.post("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: any, res) => {
+    try {
+      const prospectId = parseInt(req.params.prospectId);
+      const userId = req.user.claims.sub;
+      
+      const parsed = insertTimeEntrySchema.safeParse({ ...req.body, prospectId });
+      if (!parsed.success) {
+        return res.status(400).json({ error: fromZodError(parsed.error).message });
+      }
+      
+      const entry = await storage.createTimeEntry(parsed.data, userId);
+      res.status(201).json(entry);
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  app.patch("/api/time-entries/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const entry = await storage.updateTimeEntry(id, userId, req.body);
+      if (!entry) {
+        return res.status(404).json({ error: "Time entry not found or access denied" });
+      }
+      res.json(entry);
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  app.delete("/api/time-entries/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      await storage.deleteTimeEntry(id, userId);
       res.json({ success: true });
     } catch (error) {
       handleApiError(res, error, "api-error");
