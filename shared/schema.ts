@@ -206,6 +206,23 @@ export const dueDiligence = pgTable("due_diligence", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const timeEntries = pgTable("time_entries", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  prospectId: integer("prospect_id")
+    .notNull()
+    .references(() => prospects.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  durationMinutes: integer("duration_minutes").notNull(),
+  entryType: text("entry_type").notNull().default("manual"), // "timer" | "manual"
+  description: text("description"),
+  activityId: integer("activity_id").references(() => activities.id, { onDelete: "set null" }),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const lenders = pgTable("lenders", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id")
