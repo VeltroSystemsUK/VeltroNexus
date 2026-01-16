@@ -666,7 +666,7 @@ export default function Landing() {
               The <span className="text-[#D97706]">53-Day</span> Trap
             </h3>
             <p className="text-lg md:text-xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
-              The average commercial deal in the UK now takes <span className="text-white font-semibold">53 days</span> to settle. 
+              The average business loan through traditional lenders takes <span className="text-white font-semibold">53 days</span> to complete. 
               That's 53 days of silence, "black box" underwriting, and chasing updates.
             </p>
             <p className="text-base md:text-lg text-gray-400 mt-6 leading-relaxed max-w-2xl mx-auto">
