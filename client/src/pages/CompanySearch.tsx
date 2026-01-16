@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import logoFlat from "@assets/logo.flat.png.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -479,10 +480,13 @@ export default function CompanySearch() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <h1 className="text-xl font-bold italic">VELTRO - Add Prospect</h1>
+              <img 
+                src={logoFlat} 
+                alt="Veltro" 
+                className="h-8 object-contain"
+                data-testid="img-logo-nav"
+              />
+              <span className="text-xl font-bold italic">- Add Prospect</span>
             </div>
           </div>
           <ThemeToggle />

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
+import logoFlat from "@assets/logo.flat.png.png";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -100,12 +101,12 @@ export default function Submissions() {
       <div className="flex flex-col h-screen">
         <header className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary">
-              <TrendingUp className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-xl font-bold italic" data-testid="text-app-title">
-              VELTRO
-            </h1>
+            <img 
+              src={logoFlat} 
+              alt="Veltro" 
+              className="h-8 md:h-10 object-contain"
+              data-testid="img-logo-nav"
+            />
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import logoChrome from "@assets/logo-chrome.png";
+import logoFlat from "@assets/logo.flat.png.png";
 import {
   TrendingUp,
   Building2,
@@ -507,12 +509,12 @@ export default function Landing() {
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-primary rounded-md flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <h1 className="text-2xl font-bold italic tracking-tight" data-testid="text-app-title">
-              VELTRO
-            </h1>
+            <img 
+              src={logoFlat} 
+              alt="Veltro" 
+              className="h-8 md:h-10 object-contain"
+              data-testid="img-logo-nav"
+            />
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <a
@@ -561,7 +563,14 @@ export default function Landing() {
 
           <div className="container mx-auto px-6 md:px-8 py-16 md:py-24 lg:py-32 relative">
             <div className="max-w-4xl mx-auto text-center">
-              <Badge className="bg-[#0a0a0a] text-[18px] mt-[50px] mb-[50px] pl-[200px] pr-[200px] font-bold text-center pt-[10px] pb-[10px] text-secondary-foreground">
+              <img 
+                src={logoChrome} 
+                alt="Veltro" 
+                className="h-20 md:h-24 lg:h-28 object-contain mx-auto mb-8"
+                data-testid="img-logo-hero"
+              />
+              
+              <Badge className="bg-[#0a0a0a] text-[18px] mb-8 px-6 md:px-12 font-bold text-center py-2 text-secondary-foreground">
                 <Sparkles className="h-4 w-4 mr-2" />
                 <span className="font-medium">Commercial Lending Workflow Platform</span>
               </Badge>
@@ -1153,10 +1162,12 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 bg-primary rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="font-semibold text-lg italic">VELTRO</span>
+              <img 
+                src={logoFlat} 
+                alt="Veltro" 
+                className="h-8 object-contain"
+                data-testid="img-logo-footer"
+              />
             </div>
             <div className="flex items-center gap-8 text-sm text-muted-foreground">
               <Link href="/pricing">

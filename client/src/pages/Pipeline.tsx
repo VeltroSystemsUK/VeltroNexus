@@ -2,6 +2,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import logoFlat from "@assets/logo.flat.png.png";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineColumn from "@/components/PipelineColumn";
 import ProspectCard, {
@@ -231,22 +232,12 @@ export default function Pipeline() {
                 <p className="text-[10px] text-muted-foreground">Powered by Veltro</p>
               </div>
             ) : (
-              <>
-                <div className="h-9 w-9 md:h-11 md:w-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-                  <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />
-                </div>
-                <div>
-                  <h1
-                    className="text-lg md:text-2xl font-bold italic tracking-tight"
-                    data-testid="text-app-title"
-                  >
-                    VELTRO
-                  </h1>
-                  <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
-                    Commercial Lending Platform
-                  </p>
-                </div>
-              </>
+              <img 
+                src={logoFlat} 
+                alt="Veltro" 
+                className="h-8 md:h-10 object-contain"
+                data-testid="img-logo-nav"
+              />
             )}
           </div>
           <div className="flex items-center gap-2 md:gap-3">
