@@ -580,7 +580,7 @@ export default function Landing() {
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight text-white"
                 data-testid="text-hero-title"
               >
-                Built for Speed.<br /><span className="text-[#D97706]">Bred for Business.</span>
+                Bred for Speed.<br /><span className="text-[#D97706]">Built for Business.</span>
               </h2>
 
               <p
