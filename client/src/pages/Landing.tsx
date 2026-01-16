@@ -1035,7 +1035,7 @@ export default function Landing() {
                     <li className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm leading-relaxed">
-                        Dedicated inbox with prioritized submission queue
+                        Deal Inbox with Prioritisation Queue
                       </span>
                     </li>
                     <li className="flex items-start gap-3">
