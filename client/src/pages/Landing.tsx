@@ -656,14 +656,14 @@ export default function Landing() {
 
       <main>
         {/* The 53-Day Trap - Problem Section */}
-        <section className="bg-gradient-to-b from-[#1e293b] to-background py-20 md:py-24">
+        <section className="bg-[#0f172a] py-20 md:py-24 border-t border-white/5">
           <div className="container mx-auto px-6 md:px-8 max-w-4xl text-center">
-            <Badge variant="outline" className="mb-6 px-3 py-1.5 border-red-500/30 text-red-400">
-              <Clock className="h-4 w-4 mr-2" />
-              <span className="text-sm font-medium">The Industry Problem</span>
+            <Badge variant="outline" className="mb-6 px-3 py-1.5 border-[#D97706]/40 bg-[#D97706]/10">
+              <Clock className="h-4 w-4 mr-2 text-[#D97706]" />
+              <span className="text-sm font-medium text-[#D97706]">The Industry Problem</span>
             </Badge>
             <h3 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight text-white">
-              The <span className="text-red-400">53-Day</span> Trap
+              The <span className="text-[#D97706]">53-Day</span> Trap
             </h3>
             <p className="text-lg md:text-xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
               The average commercial deal in the UK now takes <span className="text-white font-semibold">53 days</span> to settle. 
