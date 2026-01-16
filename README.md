@@ -1,10 +1,12 @@
-# FlowLoan
+# Veltro
+
+**Built for Speed. Bred for Business.**
 
 AI-enhanced commercial lending workflow management platform for UK commercial finance brokers.
 
 ## Overview
 
-FlowLoan is a secure, multi-user commercial lending pipeline management system designed for lending teams. It streamlines the commercial lending process by tracking and managing company loan prospects from initial lead to final approval or rejection.
+Veltro is a secure, multi-user commercial lending pipeline management system designed for lending teams. The name is inspired by the Italian Greyhound, representing speed, agility, and elite pedigree. Veltro retrieves Companies House data instantly and converts it into elite loan proposals, streamlining the process from initial lead to final approval.
 
 ## Key Features
 

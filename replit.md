@@ -1,7 +1,14 @@
-# FlowLoan - Commercial Lending Workflow Management Platform
+# Veltro - Commercial Lending Workflow Management Platform
 
 ## Overview
-FlowLoan is a secure, multi-user commercial lending pipeline management system designed for lending teams. Its primary purpose is to streamline the commercial lending process by tracking and managing company loan prospects from the initial lead stage through to final approval or rejection. The platform offers key capabilities such as robust user authentication, user-specific data isolation, an intuitive drag-and-drop Kanban board, comprehensive company and prospect management tools, and a modern SaaS dashboard interface. The overarching goal is to significantly enhance efficiency within the commercial lending sector.
+Veltro is a secure, multi-user commercial lending pipeline management system designed for lending teams. Built around the tagline "Built for Speed. Bred for Business.", Veltro streamlines the commercial lending process by retrieving Companies House data instantly and converting it into elite loan proposals. The platform offers key capabilities such as robust user authentication, user-specific data isolation, an intuitive drag-and-drop Kanban board, comprehensive company and prospect management tools, and a modern SaaS dashboard interface. The overarching goal is to significantly enhance efficiency within the commercial lending sector.
+
+## Brand Identity
+- **Brand Name**: VELTRO (displayed in italics for forward motion aesthetic)
+- **Tagline**: "Built for Speed. Bred for Business."
+- **Core Values**: Speed, Pedigree, Payout
+- **UI Terminology**: "Retrieve Data" (search), "The Track" (process), "Close & Fund" (payout)
+- **Color Palette**: Light Grey background (#F3F4F6), Deep Charcoal headers (#1F2937), Burnt Orange actions (#D97706), Electric Indigo links (#4F46E5)
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

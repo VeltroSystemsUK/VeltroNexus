@@ -1,31 +1,32 @@
-# Design Guidelines: FlowLoan Modern UI Theme
+# Design Guidelines: Veltro Modern UI Theme
 
 ## Design Approach
 
 **Selected Framework**: Modern SaaS Dashboard Pattern (Shadcn/UI-based)
-- Deep blue/purple modern aesthetic inspired by modern fintech applications
-- Uses Inter font for clean, professional typography
-- Glass morphism and gradient surfaces for visual depth
+**Brand Identity**: VELTRO - "Built for Speed. Bred for Business."
+- Inspired by Italian Greyhound (Veltro) - speed, agility, elite pedigree
+- Uses Inter font for clean, professional typography displayed in italics for the brand name
 - Function-first design optimized for daily workflow efficiency
 - Clean, scannable information architecture with purposeful visual hierarchy
 
 ## Color System
 
-### Light Mode
-- Background: Soft blue-gray (#f7f8ff equivalent)
+### Light Mode (Primary Theme)
+- Background: Light Grey/Silver (#F3F4F6 - HSL 210, 17%, 95%)
 - Cards: Pure white with subtle borders
-- Primary: Blue-purple (#6d7dff - HSL 234, 100%, 71%)
-- Secondary: Purple (#a56dff - HSL 263, 100%, 71%)
+- Primary: Electric Indigo (#4F46E5 - HSL 239, 75%, 59%)
+- Action: Burnt Orange (#D97706 - HSL 34, 93%, 44%)
+- Headers: Deep Charcoal (#1F2937 - HSL 215, 28%, 17%)
+- Links: Electric Indigo (#4F46E5)
 - Destructive: Coral red (#ff4d6d - HSL 349, 100%, 65%)
 - Success: Green (#22c55e - HSL 142, 71%, 45%)
 - Warning: Amber (#fbbf24 - HSL 45, 93%, 47%)
 
-### Dark Mode (Primary Theme)
-- Background: Deep navy (#0b1020 - HSL 228, 49%, 8%)
-- Card/Panel: Dark blue (#0f1730 - HSL 227, 52%, 12%)
-- Panel Secondary: (#111b3a - HSL 225, 55%, 15%)
-- Text: Light blue-white (#e8ecff - HSL 230, 100%, 96%)
-- Borders: Subtle blue-gray (HSL 227, 40%, 18%)
+### Dark Mode
+- Background: Deep Charcoal (#1F2937 - HSL 215, 28%, 17%)
+- Card/Panel: Slightly lighter charcoal (#374151 - HSL 215, 19%, 35%)
+- Text: Light grey (#F3F4F6)
+- Borders: Subtle grey (HSL 215, 20%, 25%)
 
 ## Core Design Elements
 
