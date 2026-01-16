@@ -572,7 +572,7 @@ export default function Landing() {
               <img 
                 src={logoChrome} 
                 alt="Veltro" 
-                className="h-24 md:h-28 lg:h-32 object-contain mx-auto mb-12"
+                className="h-32 md:h-40 lg:h-48 object-contain mx-auto mb-12"
                 data-testid="img-logo-hero"
               />
 
