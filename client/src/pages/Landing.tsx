@@ -667,7 +667,7 @@ export default function Landing() {
             </h3>
             <p className="text-lg md:text-xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
               The average business loan through traditional lenders takes <span className="text-white font-semibold">53 days</span> to complete. 
-              That's 53 days of silence, "black box" underwriting, and chasing updates.
+              That's 53 days of silence, "black box" underwriting, "paperchasing" and constantly chasing updates from the Lender.
             </p>
             <p className="text-base md:text-lg text-gray-400 mt-6 leading-relaxed max-w-2xl mx-auto">
               Legacy banking systems and administrative chaos are eating your margins. You spend <span className="text-white font-medium">80% of your week</span> wrestling with data, 
