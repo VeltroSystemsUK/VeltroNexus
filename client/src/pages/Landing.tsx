@@ -571,7 +571,10 @@ export default function Landing() {
               <img 
                 src={logoChrome} 
                 alt="Veltro" 
-                className="h-32 md:h-40 lg:h-48 object-contain mx-auto mb-12"
+                className="h-32 md:h-40 lg:h-48 object-contain mx-auto mb-12 animate-[float_3s_ease-in-out_infinite]"
+                style={{
+                  filter: "drop-shadow(0 0 20px rgba(217, 119, 6, 0.3))"
+                }}
                 data-testid="img-logo-hero"
               />
 
