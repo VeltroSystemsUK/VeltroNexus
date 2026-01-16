@@ -94,7 +94,7 @@ function useCountUp(end: number, duration: number = 2000, startOnView: boolean =
   return { count, ref };
 }
 
-// FlowLoan pricing tiers with seat limits and AI module info
+// Veltro pricing tiers with seat limits and AI module info
 interface PricingTier {
   name: string;
   price: number;
@@ -104,7 +104,7 @@ interface PricingTier {
   aiModuleAddOn: number; // Monthly cost to add AI module (0 if included or N/A)
 }
 
-const FLOWLOAN_PRICING: Record<string, PricingTier> = {
+const VELTRO_PRICING: Record<string, PricingTier> = {
   starter: { name: "Starter", price: 39, prospects: 50, maxSeats: 1, aiModuleIncluded: false, aiModuleAddOn: 49 },
   team: { name: "Team", price: 229, prospects: 250, maxSeats: 5, aiModuleIncluded: false, aiModuleAddOn: 99 },
   lender: { name: "Lender", price: 999, prospects: Infinity, maxSeats: Infinity, aiModuleIncluded: true, aiModuleAddOn: 0 },
@@ -123,7 +123,7 @@ function SavingsCalculator() {
 
   const totalCurrentSpend = crmSpend + creditDataSpend + trackingSpend + (labourHours * hourlyRate);
   
-  // Calculate total FlowLoan cost for a tier (base + AI add-on if needed and not included)
+  // Calculate total Veltro cost for a tier (base + AI add-on if needed and not included)
   const getTierTotalCost = (tier: PricingTier): number => {
     let cost = tier.price;
     if (needsAiModule && !tier.aiModuleIncluded) {
@@ -140,9 +140,9 @@ function SavingsCalculator() {
   // Recommend the tier that delivers the best savings while meeting requirements
   const getRecommendedTier = (): { tier: PricingTier; totalCost: number; aiAddOnApplied: boolean } => {
     const tiersList = [
-      FLOWLOAN_PRICING.starter,
-      FLOWLOAN_PRICING.team,
-      FLOWLOAN_PRICING.lender,
+      VELTRO_PRICING.starter,
+      VELTRO_PRICING.team,
+      VELTRO_PRICING.lender,
     ];
     
     // Filter tiers that meet seat requirements
@@ -150,7 +150,7 @@ function SavingsCalculator() {
     
     // If no eligible tiers (shouldn't happen), default to lender
     if (eligibleTiers.length === 0) {
-      const tier = FLOWLOAN_PRICING.lender;
+      const tier = VELTRO_PRICING.lender;
       return { tier, totalCost: getTierTotalCost(tier), aiAddOnApplied: needsAiModule && !tier.aiModuleIncluded };
     }
     
@@ -190,7 +190,7 @@ function SavingsCalculator() {
         <h4 className="text-white text-xl md:text-2xl font-semibold mb-2">
           Calculate Your Potential Savings
         </h4>
-        <p className="text-gray-400">Enter your current monthly spend to see how much you could save with FlowLoan.</p>
+        <p className="text-gray-400">Enter your current monthly spend to see how much you could save with Veltro.</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-8">
@@ -398,7 +398,7 @@ function SavingsCalculator() {
               <span className="text-red-400 font-semibold text-lg">£{totalCurrentSpend.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
-              <span className="text-gray-400">Recommended FlowLoan Plan</span>
+              <span className="text-gray-400">Recommended Veltro Plan</span>
               <div className="text-right">
                 <span className="text-white font-semibold">{recommendedTier.name}</span>
                 <span className="text-gray-400 text-sm ml-1">(£{recommendedTier.price}/mo)</span>
@@ -411,7 +411,7 @@ function SavingsCalculator() {
               </div>
             )}
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
-              <span className="text-gray-400 font-medium">FlowLoan Total</span>
+              <span className="text-gray-400 font-medium">Veltro Total</span>
               <span className="text-white font-bold text-lg">£{flowloanCost}/mo</span>
             </div>
             <div className="flex justify-between items-center">
@@ -510,8 +510,8 @@ export default function Landing() {
             <div className="h-10 w-10 bg-primary rounded-md flex items-center justify-center">
               <TrendingUp className="h-6 w-6 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold" data-testid="text-app-title">
-              FlowLoan
+            <h1 className="text-2xl font-bold italic tracking-tight" data-testid="text-app-title">
+              VELTRO
             </h1>
           </div>
           <nav className="hidden md:flex items-center gap-6">
@@ -570,15 +570,14 @@ export default function Landing() {
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight"
                 data-testid="text-hero-title"
               >
-                Better Decisions.<br /><span className="text-primary">Faster Outcomes.</span>
+                Built for Speed.<br /><span className="text-primary">Bred for Business.</span>
               </h2>
 
               <p
                 className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed"
                 data-testid="text-hero-description"
               >
-                AI-assisted tools for credit analysis, risk assessment, and document processing —
-                empowering commercial finance brokers to prioritize better sales opportunities.
+                Retrieve Companies House data instantly and convert it into elite loan proposals.
               </p>
 
               <div className="flex items-center justify-center mb-12">
@@ -1106,7 +1105,7 @@ export default function Landing() {
                 ))}
               </div>
               <blockquote className="text-xl md:text-2xl lg:text-3xl font-medium mb-6 leading-relaxed">
-                "FlowLoan transformed how we manage our lending pipeline. The AI credit underwriting
+                "Veltro transformed how we manage our lending pipeline. The AI credit underwriting
                 alone saves us hours every week."
               </blockquote>
               <p className="text-primary-foreground/80 text-base">
@@ -1157,7 +1156,7 @@ export default function Landing() {
               <div className="h-9 w-9 bg-primary rounded-lg flex items-center justify-center">
                 <TrendingUp className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-semibold text-lg">FlowLoan</span>
+              <span className="font-semibold text-lg italic">VELTRO</span>
             </div>
             <div className="flex items-center gap-8 text-sm text-muted-foreground">
               <Link href="/pricing">
@@ -1172,7 +1171,7 @@ export default function Landing() {
                 Terms of Service
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">© 2024 FlowLoan. All rights reserved.</p>
+            <p className="text-sm text-muted-foreground">© 2024 Veltro. All rights reserved.</p>
           </div>
         </div>
       </footer>

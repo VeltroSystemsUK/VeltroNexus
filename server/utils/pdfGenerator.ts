@@ -195,7 +195,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
     bufferPages: true,
     info: {
       Title: `Credit Assessment Report - ${data.prospect.company.companyName}`,
-      Author: "FlowLoan",
+      Author: "Veltro",
       Subject: "Commercial Lending Credit Assessment",
       Keywords: "credit, assessment, lending, commercial",
     },
@@ -1327,9 +1327,9 @@ function addFootersToAllPages(doc: typeof PDFDocument.prototype, prospect: Prosp
       align: "right",
     });
 
-    // Bottom - FlowLoan
+    // Bottom - Veltro
     doc.fontSize(7).fillColor(COLORS.textLight).font("Helvetica");
-    doc.text("FlowLoan • Commercial Lending Solutions", MARGIN, footerY + 11, {
+    doc.text("Veltro • Commercial Lending Solutions", MARGIN, footerY + 11, {
       width: CONTENT_WIDTH,
       align: "center",
     });

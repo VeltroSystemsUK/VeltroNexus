@@ -15,7 +15,7 @@ export default function EmptyPipeline({ onAddProspect }: EmptyPipelineProps) {
           No prospects in your pipeline yet
         </p>
         <Button onClick={onAddProspect} data-testid="button-add-prospect">
-          Search for Companies
+          Retrieve Data
         </Button>
       </CardContent>
     </Card>

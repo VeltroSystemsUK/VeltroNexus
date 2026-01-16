@@ -103,8 +103,8 @@ export default function Submissions() {
             <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary">
               <TrendingUp className="h-5 w-5 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold" data-testid="text-app-title">
-              FlowLoan
+            <h1 className="text-xl font-bold italic" data-testid="text-app-title">
+              VELTRO
             </h1>
           </div>
           <div className="flex items-center gap-2">

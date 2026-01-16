@@ -482,7 +482,7 @@ export default function CompanySearch() {
               <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
                 <TrendingUp className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-bold">FlowLoan - Add Prospect</h1>
+              <h1 className="text-xl font-bold italic">VELTRO - Add Prospect</h1>
             </div>
           </div>
           <ThemeToggle />
@@ -509,7 +509,7 @@ export default function CompanySearch() {
               className="flex items-center gap-2"
             >
               <Search className="h-4 w-4" />
-              Search Companies House
+              Retrieve Data
             </TabsTrigger>
             <TabsTrigger
               value="manual"
@@ -537,7 +537,7 @@ export default function CompanySearch() {
               <CardHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <Search className="h-6 w-6 text-primary" />
-                  <CardTitle>Search Companies House</CardTitle>
+                  <CardTitle>Retrieve Data</CardTitle>
                 </div>
                 <CardDescription>
                   Search UK registered companies by name, SIC code, town/city, or director name

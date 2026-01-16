@@ -3581,7 +3581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ""}
               </ul>
               <p>Please find the complete application details in the attached PDF report.</p>
-              <p style="margin-top: 30px;">Best regards,<br/>FlowLoan Application</p>
+              <p style="margin-top: 30px;">Best regards,<br/>Veltro Application</p>
             </div>
           `,
           attachments: [
@@ -3693,7 +3693,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const user = await storage.getUser(userId);
           const displayName = user?.firstName
             ? `${user.firstName} ${user.lastName || ""}`.trim()
-            : "FlowLoan User";
+            : "Veltro User";
 
           let agentMailInbox: any = null;
 

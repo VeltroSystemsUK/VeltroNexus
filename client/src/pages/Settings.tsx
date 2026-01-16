@@ -435,7 +435,7 @@ export default function Settings() {
             <h1 className="text-3xl font-bold" data-testid="heading-settings">
               Settings
             </h1>
-            <p className="text-muted-foreground">Customize your FlowLoan experience</p>
+            <p className="text-muted-foreground">Customize your Veltro experience</p>
           </div>
         </div>
         <Button
@@ -476,7 +476,7 @@ export default function Settings() {
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">
-              Choose how FlowLoan looks on your device
+              Choose how Veltro looks on your device
             </p>
           </div>
         </CardContent>
@@ -508,7 +508,7 @@ export default function Settings() {
                         data-testid="img-logo-preview"
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">Powered by FlowLoan</p>
+                    <p className="text-xs text-muted-foreground">Powered by Veltro</p>
                   </div>
                 ) : (
                   <div
@@ -1110,7 +1110,7 @@ export default function Settings() {
             API Integration
           </CardTitle>
           <CardDescription>
-            Connect external applications to FlowLoan using the webhook API
+            Connect external applications to Veltro using the webhook API
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -1264,7 +1264,7 @@ export default function Settings() {
             <div className="space-y-1">
               <Label className="text-base">Enable AI-Powered Analysis</Label>
               <p className="text-sm text-muted-foreground">
-                Allow FlowLoan to use AI to analyze financial documents (bank statements, accounts)
+                Allow Veltro to use AI to analyze financial documents (bank statements, accounts)
                 for credit underwriting, SWOT analysis, and CAMPARI assessments.
               </p>
               <p className="text-sm text-muted-foreground mt-2">

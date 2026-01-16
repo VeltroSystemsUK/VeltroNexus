@@ -414,7 +414,7 @@ export default function Leads() {
       <Dialog open={showCompanySearchDialog} onOpenChange={setShowCompanySearchDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Search Companies House</DialogTitle>
+            <DialogTitle>Retrieve Data</DialogTitle>
             <DialogDescription>
               {selectedLead && (
                 <>Searching for "{selectedLead.companyNumber || selectedLead.companyName}"</>

@@ -228,7 +228,7 @@ export default function Pipeline() {
                   className="max-h-10 md:max-h-12 max-w-32 md:max-w-48 object-contain"
                   data-testid="img-custom-logo"
                 />
-                <p className="text-[10px] text-muted-foreground">Powered by FlowLoan</p>
+                <p className="text-[10px] text-muted-foreground">Powered by Veltro</p>
               </div>
             ) : (
               <>
@@ -237,10 +237,10 @@ export default function Pipeline() {
                 </div>
                 <div>
                   <h1
-                    className="text-lg md:text-2xl font-bold tracking-tight"
+                    className="text-lg md:text-2xl font-bold italic tracking-tight"
                     data-testid="text-app-title"
                   >
-                    FlowLoan
+                    VELTRO
                   </h1>
                   <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
                     Commercial Lending Platform
