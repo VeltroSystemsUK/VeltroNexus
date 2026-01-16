@@ -565,6 +565,35 @@ export default function Landing() {
         <section className="relative overflow-hidden pt-20">
           <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#0f172a] to-[#1e293b]" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#D97706]/10 via-transparent to-transparent opacity-60" />
+          
+          {/* Animated Background Elements */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {/* Floating orbs */}
+            <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/20 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]" />
+            <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-[pulse_6s_ease-in-out_infinite_1s]" />
+            <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/15 rounded-full blur-3xl animate-[pulse_5s_ease-in-out_infinite_2s]" />
+            
+            {/* Moving grid lines */}
+            <div className="absolute inset-0 opacity-[0.03]" style={{
+              backgroundImage: `linear-gradient(#D97706 1px, transparent 1px), linear-gradient(90deg, #D97706 1px, transparent 1px)`,
+              backgroundSize: '60px 60px',
+              animation: 'gridMove 20s linear infinite'
+            }} />
+            
+            {/* Floating particles */}
+            <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-60 animate-[floatParticle_8s_ease-in-out_infinite]" />
+            <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-40 animate-[floatParticle_6s_ease-in-out_infinite_1s]" />
+            <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-50 animate-[floatParticle_10s_ease-in-out_infinite_2s]" />
+            <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-30 animate-[floatParticle_7s_ease-in-out_infinite_3s]" />
+            <div className="absolute bottom-1/3 right-1/2 w-1.5 h-1.5 bg-[#D97706] rounded-full opacity-40 animate-[floatParticle_9s_ease-in-out_infinite_4s]" />
+            
+            {/* Diagonal streaks - speed lines */}
+            <div className="absolute top-0 left-0 w-full h-full">
+              <div className="absolute top-[20%] -left-20 w-[400px] h-[1px] bg-gradient-to-r from-transparent via-[#D97706]/30 to-transparent rotate-[35deg] animate-[streak_3s_ease-in-out_infinite]" />
+              <div className="absolute top-[40%] -right-20 w-[300px] h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent -rotate-[35deg] animate-[streak_4s_ease-in-out_infinite_1s]" />
+              <div className="absolute top-[60%] -left-10 w-[250px] h-[1px] bg-gradient-to-r from-transparent via-[#D97706]/20 to-transparent rotate-[35deg] animate-[streak_5s_ease-in-out_infinite_2s]" />
+            </div>
+          </div>
 
           <div className="container mx-auto px-6 md:px-8 py-20 md:py-28 lg:py-36 relative">
             <div className="max-w-4xl mx-auto text-center">

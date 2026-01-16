@@ -633,6 +633,48 @@ html[data-theme="light"] { color-scheme: light; }
   }
 }
 
+/* Floating particles animation */
+@keyframes floatParticle {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translate(10px, -20px) scale(1.2);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-5px, -40px) scale(0.8);
+    opacity: 0.3;
+  }
+  75% {
+    transform: translate(15px, -20px) scale(1.1);
+    opacity: 0.5;
+  }
+}
+
+/* Grid movement animation */
+@keyframes gridMove {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(60px, 60px);
+  }
+}
+
+/* Speed streak animation */
+@keyframes streak {
+  0%, 100% {
+    opacity: 0;
+    transform: translateX(-100px) rotate(35deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(100px) rotate(35deg);
+  }
+}
+
 /* Motion safety */
 @media (prefers-reduced-motion: reduce) {
   * {
