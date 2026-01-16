@@ -589,7 +589,7 @@ export default function Landing() {
                 className="text-lg md:text-xl text-[#9CA3AF] mb-12 max-w-2xl mx-auto leading-relaxed"
                 data-testid="text-hero-description"
               >
-                Retrieve Companies House data instantly and convert it into elite loan proposals.
+                Retrieve Companies House data instantly. Enrich with Data. Convert into high quality loan proposals.
               </p>
 
               <div className="flex items-center justify-center mb-14">
