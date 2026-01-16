@@ -27,6 +27,7 @@ import {
   Calculator,
   PoundSterling,
   Info,
+  Rocket,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -654,8 +655,153 @@ export default function Landing() {
       </div>
 
       <main>
+        {/* The 53-Day Trap - Problem Section */}
+        <section className="bg-gradient-to-b from-[#1e293b] to-background py-20 md:py-24">
+          <div className="container mx-auto px-6 md:px-8 max-w-4xl text-center">
+            <Badge variant="outline" className="mb-6 px-3 py-1.5 border-red-500/30 text-red-400">
+              <Clock className="h-4 w-4 mr-2" />
+              <span className="text-sm font-medium">The Industry Problem</span>
+            </Badge>
+            <h3 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight text-white">
+              The <span className="text-red-400">53-Day</span> Trap
+            </h3>
+            <p className="text-lg md:text-xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
+              The average commercial deal in the UK now takes <span className="text-white font-semibold">53 days</span> to settle. 
+              That's 53 days of silence, "black box" underwriting, and chasing updates.
+            </p>
+            <p className="text-base md:text-lg text-gray-400 mt-6 leading-relaxed max-w-2xl mx-auto">
+              Legacy banking systems and administrative chaos are eating your margins. You spend <span className="text-white font-medium">80% of your week</span> wrestling with data, 
+              leaving only 20% to do what you do best: <span className="text-[#D97706] font-semibold">Close deals.</span>
+            </p>
+          </div>
+        </section>
+
         {/* Stats Section */}
         <StatsSection />
+
+        {/* A Weapon for the Modern Broker - Solution Section */}
+        <section className="bg-[#0f172a] py-20 md:py-24">
+          <div className="container mx-auto px-6 md:px-8 max-w-6xl">
+            <div className="text-center mb-14">
+              <Badge variant="outline" className="mb-6 px-3 py-1.5 border-[#D97706]/30">
+                <Zap className="h-4 w-4 mr-2 text-[#D97706]" />
+                <span className="text-sm font-medium text-[#D97706]">The Solution</span>
+              </Badge>
+              <h3 className="text-3xl md:text-4xl font-bold mb-5 tracking-tight text-white">
+                A Weapon for the <span className="text-[#D97706]">Modern Broker</span>
+              </h3>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {/* The Glass Box */}
+              <div className="bg-[#161b26] p-8 rounded-2xl border border-white/10 hover:border-[#D97706]/50 transition-all duration-300">
+                <div className="w-14 h-14 bg-[#D97706]/10 rounded-xl flex items-center justify-center mb-6">
+                  <Layers className="h-7 w-7 text-[#D97706]" />
+                </div>
+                <h4 className="text-white font-bold text-xl mb-2">The Glass Box</h4>
+                <p className="text-[#D97706] text-sm font-medium mb-4">Workflow</p>
+                <p className="text-gray-400 leading-relaxed">
+                  <span className="text-white font-medium">See the Kill.</span> Stop working in the dark. 
+                  Our Kanban-style dashboard gives you a visual, real-time command center for every deal. 
+                  From "Lead" to "Cash," you know exactly where your application sits and who is holding it up.
+                </p>
+              </div>
+
+              {/* Data Pedigree */}
+              <div className="bg-[#161b26] p-8 rounded-2xl border border-white/10 hover:border-[#D97706]/50 transition-all duration-300">
+                <div className="w-14 h-14 bg-[#D97706]/10 rounded-xl flex items-center justify-center mb-6">
+                  <Building2 className="h-7 w-7 text-[#D97706]" />
+                </div>
+                <h4 className="text-white font-bold text-xl mb-2">Data Pedigree</h4>
+                <p className="text-[#D97706] text-sm font-medium mb-4">Validation</p>
+                <p className="text-gray-400 leading-relaxed">
+                  <span className="text-white font-medium">Validate in Seconds.</span> Kill the "Not In Good Order" (NIGO) rejections. 
+                  Veltro integrates directly with Companies House and Open Banking. Type a client name, 
+                  and we auto-populate verified, golden-source data. Your applications go to lenders ready to fund.
+                </p>
+              </div>
+
+              {/* The AI Edge */}
+              <div className="bg-[#161b26] p-8 rounded-2xl border border-white/10 hover:border-[#D97706]/50 transition-all duration-300">
+                <div className="w-14 h-14 bg-[#D97706]/10 rounded-xl flex items-center justify-center mb-6">
+                  <Brain className="h-7 w-7 text-[#D97706]" />
+                </div>
+                <h4 className="text-white font-bold text-xl mb-2">The AI Edge</h4>
+                <p className="text-[#D97706] text-sm font-medium mb-4">The Upgrade</p>
+                <p className="text-gray-400 leading-relaxed">
+                  <span className="text-white font-medium">Underwrite with Intelligence.</span> Don't just submit; strategize. 
+                  Upgrade to unlock our AI Credit Underwriting engine. Pre-screen your own deals against lender criteria 
+                  before you even hit send.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Test the Speed - How It Works */}
+        <section className="py-20 md:py-24 bg-gradient-to-b from-background to-muted/30">
+          <div className="container mx-auto px-6 md:px-8 max-w-5xl">
+            <div className="text-center mb-14">
+              <Badge variant="outline" className="mb-6 px-3 py-1.5">
+                <Rocket className="h-4 w-4 mr-2" />
+                <span className="text-sm font-medium">How It Works</span>
+              </Badge>
+              <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">
+                Test the Speed. <span className="text-[#D97706]">Risk-Free.</span>
+              </h3>
+              <p className="text-lg text-muted-foreground">
+                We don't need to sell you on velocity. We'll let you feel it.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-4 gap-6">
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-5">
+                  <span className="text-2xl font-bold text-primary">1</span>
+                </div>
+                <h4 className="font-semibold mb-2">Create Account</h4>
+                <p className="text-sm text-muted-foreground">No credit card. 60 seconds to launch.</p>
+              </div>
+
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-5">
+                  <span className="text-2xl font-bold text-primary">2</span>
+                </div>
+                <h4 className="font-semibold mb-2">Load Your Prospects</h4>
+                <p className="text-sm text-muted-foreground">You get 10 Free Prospects to test the system immediately.</p>
+              </div>
+
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-5">
+                  <span className="text-2xl font-bold text-primary">3</span>
+                </div>
+                <h4 className="font-semibold mb-2">Experience Flow</h4>
+                <p className="text-sm text-muted-foreground">Watch the data auto-populate and the workflow organize itself.</p>
+              </div>
+
+              <div className="text-center p-6">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-5">
+                  <span className="text-2xl font-bold text-primary">4</span>
+                </div>
+                <h4 className="font-semibold mb-2">Upgrade to Scale</h4>
+                <p className="text-sm text-muted-foreground">Ready for the big leagues? Unlock unlimited prospects and AI insights.</p>
+              </div>
+            </div>
+
+            <div className="text-center mt-12">
+              <Button
+                size="lg"
+                onClick={() => window.location.href = "/api/login"}
+                className="gap-2 text-base px-10 h-14 font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-xl shadow-orange-500/30"
+                data-testid="button-trial-cta"
+              >
+                Start Free Trial
+                <ArrowRight className="h-5 w-5" />
+              </Button>
+              <p className="text-sm text-muted-foreground mt-4">No credit card required. Upgrade anytime.</p>
+            </div>
+          </div>
+        </section>
 
         {/* AI-Powered Section */}
         <section id="ai-powered" className="container mx-auto px-6 md:px-8 py-20 md:py-24">
@@ -1140,20 +1286,26 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Testimonial/Social Proof */}
-        <section className="bg-primary text-primary-foreground py-16 md:py-20">
+        {/* Social Proof Section */}
+        <section className="bg-[#0f172a] text-white py-16 md:py-20">
           <div className="container mx-auto px-6 md:px-8">
             <div className="max-w-3xl mx-auto text-center">
+              <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">
+                The Future of Lending is <span className="text-[#D97706]">Fast.</span>
+              </h3>
+              <p className="text-lg text-gray-300 mb-8">
+                Join the brokers who have stopped chasing paper and started breaking records.
+              </p>
               <div className="flex justify-center mb-6">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-6 w-6 fill-current" />
+                  <Star key={i} className="h-6 w-6 fill-[#D97706] text-[#D97706]" />
                 ))}
               </div>
-              <blockquote className="text-xl md:text-2xl lg:text-3xl font-medium mb-6 leading-relaxed">
+              <blockquote className="text-xl md:text-2xl font-medium mb-6 leading-relaxed text-gray-200">
                 "Veltro transformed how we manage our lending pipeline. The AI credit underwriting
                 alone saves us hours every week."
               </blockquote>
-              <p className="text-primary-foreground/80 text-base">
+              <p className="text-gray-400 text-base">
                 — Commercial Finance Broker, UK
               </p>
             </div>
@@ -1178,7 +1330,7 @@ export default function Landing() {
               <Button
                 size="lg"
                 onClick={handleLogin}
-                className="gap-2 text-base px-8 h-12 font-semibold"
+                className="gap-2 text-base px-8 h-12 font-semibold bg-[#D97706] hover:bg-[#B45309] text-white"
                 data-testid="button-sign-up-cta"
               >
                 Start Free Trial
