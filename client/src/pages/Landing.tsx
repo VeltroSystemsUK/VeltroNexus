@@ -830,34 +830,36 @@ export default function Landing() {
                     <tr className="border-b border-white/10">
                       <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">Category</th>
                       <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">Traditional Stack</th>
-                      <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">The Flow Advantage</th>
+                      <th className="text-left p-4 uppercase text-xs tracking-wider font-medium">
+                        <span className="text-[#D97706] animate-[glow_2s_ease-in-out_infinite]" style={{ textShadow: '0 0 10px rgba(217, 119, 6, 0.5), 0 0 20px rgba(217, 119, 6, 0.3)' }}>Veltro Advantage</span>
+                      </th>
                       <th className="text-left p-4 text-gray-400 uppercase text-xs tracking-wider font-medium">Benefit</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr className="border-b border-white/5">
                       <td className="p-5 text-white">Credit Data</td>
-                      <td className="p-5 text-red-400 line-through opacity-70">Bureau Subscriptions</td>
+                      <td className="p-5 text-red-400 opacity-70"><span className="animate-[strikethrough_0.5s_ease-out_forwards_0.5s] strikethrough-animate">Bureau Subscriptions</span></td>
                       <td className="p-5 text-emerald-400 font-semibold">Real-Time AI Enrichment</td>
-                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">Fresher Data</span></td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs animate-[benefitPulse_2s_ease-in-out_infinite]">Fresher Data</span></td>
                     </tr>
                     <tr className="border-b border-white/5">
                       <td className="p-5 text-white">Pipeline Management</td>
-                      <td className="p-5 text-red-400 line-through opacity-70">Generalist CRM</td>
+                      <td className="p-5 text-red-400 opacity-70"><span className="animate-[strikethrough_0.5s_ease-out_forwards_0.8s] strikethrough-animate">Generalist CRM</span></td>
                       <td className="p-5 text-emerald-400 font-semibold">Integrated Finance Workflow</td>
-                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">Zero Context-Switching</span></td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs animate-[benefitPulse_2s_ease-in-out_infinite_0.3s]">Zero Context-Switching</span></td>
                     </tr>
                     <tr className="border-b border-white/5">
                       <td className="p-5 text-white">Project Tracking</td>
-                      <td className="p-5 text-red-400 line-through opacity-70">Third-Party SaaS</td>
+                      <td className="p-5 text-red-400 opacity-70"><span className="animate-[strikethrough_0.5s_ease-out_forwards_1.1s] strikethrough-animate">Third-Party SaaS</span></td>
                       <td className="p-5 text-emerald-400 font-semibold">Automated Internal Engine</td>
-                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">Reduced Overhead</span></td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs animate-[benefitPulse_2s_ease-in-out_infinite_0.6s]">Reduced Overhead</span></td>
                     </tr>
                     <tr>
                       <td className="p-5 text-white">Back-Office Labour</td>
-                      <td className="p-5 text-red-400 line-through opacity-70">Manual Entry Hours</td>
+                      <td className="p-5 text-red-400 opacity-70"><span className="animate-[strikethrough_0.5s_ease-out_forwards_1.4s] strikethrough-animate">Manual Entry Hours</span></td>
                       <td className="p-5 text-emerald-400 font-semibold">AI Document Processing</td>
-                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">60% Faster Processing</span></td>
+                      <td className="p-5"><span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs animate-[benefitPulse_2s_ease-in-out_infinite_0.9s]">60% Faster Processing</span></td>
                     </tr>
                   </tbody>
                 </table>
