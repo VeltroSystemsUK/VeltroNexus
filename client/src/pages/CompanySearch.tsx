@@ -468,7 +468,7 @@ export default function CompanySearch() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-background sticky top-0 z-50">
+      <header className="border-b border-[#1e293b] bg-[#0f172a] sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
@@ -476,6 +476,7 @@ export default function CompanySearch() {
               size="icon"
               onClick={() => navigate("/")}
               data-testid="button-back"
+              className="text-gray-300 hover:text-white hover:bg-white/10"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -486,7 +487,7 @@ export default function CompanySearch() {
                 className="h-8 object-contain"
                 data-testid="img-logo-nav"
               />
-              <span className="text-xl font-bold italic">- Add Prospect</span>
+              <span className="text-xl font-bold italic text-white">- Add Prospect</span>
             </div>
           </div>
           <ThemeToggle />

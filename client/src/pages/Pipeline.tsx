@@ -218,7 +218,7 @@ export default function Pipeline() {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
-      <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
+      <header className="border-b border-[#1e293b] bg-[#0f172a] sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 md:px-6 py-3 md:py-5 flex items-center justify-between gap-2 md:gap-4">
           <div className="flex items-center gap-2 md:gap-4">
             {user?.brandingLogoUrl ? (
@@ -229,7 +229,7 @@ export default function Pipeline() {
                   className="max-h-10 md:max-h-12 max-w-32 md:max-w-48 object-contain"
                   data-testid="img-custom-logo"
                 />
-                <p className="text-[10px] text-muted-foreground">Powered by Veltro</p>
+                <p className="text-[10px] text-gray-400">Powered by Veltro</p>
               </div>
             ) : (
               <img 
@@ -243,7 +243,7 @@ export default function Pipeline() {
           <div className="flex items-center gap-2 md:gap-3">
             <Button
               size="icon"
-              className="md:hidden h-9 w-9"
+              className="md:hidden h-9 w-9 bg-[#D97706] hover:bg-[#B45309] text-white"
               onClick={() => navigate("/search")}
               data-testid="button-add-prospect-mobile"
             >
@@ -251,7 +251,7 @@ export default function Pipeline() {
             </Button>
             <Button
               size="lg"
-              className="hidden md:flex"
+              className="hidden md:flex bg-[#D97706] hover:bg-[#B45309] text-white"
               onClick={() => navigate("/search")}
               data-testid="button-add-prospect"
             >
@@ -263,7 +263,7 @@ export default function Pipeline() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-11 text-gray-300 hover:text-white hover:bg-white/10"
                   data-testid="button-user-menu"
                 >
                   <Avatar className="h-10 w-10">

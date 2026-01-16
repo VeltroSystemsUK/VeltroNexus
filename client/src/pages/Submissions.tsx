@@ -99,7 +99,7 @@ export default function Submissions() {
   return (
     <div className="min-h-screen bg-background">
       <div className="flex flex-col h-screen">
-        <header className="flex items-center justify-between p-4 border-b">
+        <header className="flex items-center justify-between p-4 border-b border-[#1e293b] bg-[#0f172a]">
           <div className="flex items-center gap-2">
             <img 
               src={logoChrome} 
@@ -112,7 +112,7 @@ export default function Submissions() {
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" data-testid="button-user-menu">
+                <Button variant="ghost" size="icon" className="text-gray-300 hover:text-white hover:bg-white/10" data-testid="button-user-menu">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.profileImageUrl || undefined} />
                     <AvatarFallback>
