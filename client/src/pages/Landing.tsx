@@ -505,95 +505,96 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img 
-              src={logoFlat} 
-              alt="Veltro" 
-              className="h-8 md:h-10 object-contain"
-              data-testid="img-logo-nav"
-            />
-          </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <a
-              href="#features"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold"
-            >
-              Features
-            </a>
-            <a
-              href="#ai-powered"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold"
-            >
-              AI Automation
-            </a>
-            <a
-              href="#workflow"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors font-semibold"
-            >
-              Workflow
-            </a>
-          </nav>
-          <div className="flex items-center gap-2">
-            <Link href="/pricing">
-              <Button variant="ghost" className="font-semibold" data-testid="button-pricing">
-                Pricing
+      {/* Dark Hero Container - includes header and hero section */}
+      <div className="bg-[#0f172a] relative">
+        {/* Header - Transparent on dark hero */}
+        <header className="absolute top-0 left-0 right-0 z-50">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img 
+                src={logoFlat} 
+                alt="Veltro" 
+                className="h-8 md:h-10 object-contain brightness-0 invert"
+                data-testid="img-logo-nav"
+              />
+            </div>
+            <nav className="hidden md:flex items-center gap-6">
+              <a
+                href="#features"
+                className="text-sm text-gray-300 hover:text-white transition-colors font-semibold"
+              >
+                Features
+              </a>
+              <a
+                href="#ai-powered"
+                className="text-sm text-gray-300 hover:text-white transition-colors font-semibold"
+              >
+                AI Automation
+              </a>
+              <a
+                href="#workflow"
+                className="text-sm text-gray-300 hover:text-white transition-colors font-semibold"
+              >
+                Workflow
+              </a>
+            </nav>
+            <div className="flex items-center gap-2">
+              <Link href="/pricing">
+                <Button variant="ghost" className="font-semibold text-gray-300 hover:text-white hover:bg-white/10" data-testid="button-pricing">
+                  Pricing
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                className="font-semibold text-gray-300 hover:text-white hover:bg-white/10"
+                onClick={handleLogin}
+                data-testid="button-sign-in"
+              >Login</Button>
+              <Button 
+                className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25" 
+                onClick={handleLogin} 
+                data-testid="button-sign-up"
+              >
+                Start Free Trial
               </Button>
-            </Link>
-            <Button
-              variant="ghost"
-              className="font-semibold"
-              onClick={handleLogin}
-              data-testid="button-sign-in"
-            >Login</Button>
-            <Button className="font-semibold" onClick={handleLogin} data-testid="button-sign-up">
-              Start Free Trial
-            </Button>
-            <ThemeToggle />
+              <ThemeToggle />
+            </div>
           </div>
-        </div>
-      </header>
-      <main>
+        </header>
+        
         {/* Hero Section */}
-        <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent opacity-50" />
+        <section className="relative overflow-hidden pt-20">
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#0f172a] to-[#1e293b]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#D97706]/10 via-transparent to-transparent opacity-60" />
 
-          <div className="container mx-auto px-6 md:px-8 py-16 md:py-24 lg:py-32 relative">
+          <div className="container mx-auto px-6 md:px-8 py-20 md:py-28 lg:py-36 relative">
             <div className="max-w-4xl mx-auto text-center">
               <img 
                 src={logoChrome} 
                 alt="Veltro" 
-                className="h-20 md:h-24 lg:h-28 object-contain mx-auto mb-8"
+                className="h-24 md:h-28 lg:h-32 object-contain mx-auto mb-12"
                 data-testid="img-logo-hero"
               />
-              
-              <Badge className="bg-[#0a0a0a] text-[18px] mb-8 px-6 md:px-12 font-bold text-center py-2 text-secondary-foreground">
-                <Sparkles className="h-4 w-4 mr-2" />
-                <span className="font-medium">Commercial Lending Workflow Platform</span>
-              </Badge>
 
               <h2
-                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight"
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight tracking-tight text-white"
                 data-testid="text-hero-title"
               >
-                Built for Speed.<br /><span className="text-primary">Bred for Business.</span>
+                Built for Speed.<br /><span className="text-[#D97706]">Bred for Business.</span>
               </h2>
 
               <p
-                className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed"
+                className="text-lg md:text-xl text-[#9CA3AF] mb-12 max-w-2xl mx-auto leading-relaxed"
                 data-testid="text-hero-description"
               >
                 Retrieve Companies House data instantly and convert it into elite loan proposals.
               </p>
 
-              <div className="flex items-center justify-center mb-12">
+              <div className="flex items-center justify-center mb-14">
                 <Button
                   size="lg"
                   onClick={handleLogin}
-                  className="gap-2 text-base px-8 h-12 font-semibold"
+                  className="gap-2 text-base px-10 h-14 font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-xl shadow-orange-500/30 transition-all hover:shadow-orange-500/40 hover:scale-105"
                   data-testid="button-get-started"
                 >
                   Start Free Trial
@@ -602,24 +603,26 @@ export default function Landing() {
               </div>
 
               {/* Trust Badges */}
-              <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-[#9CA3AF]">
                 <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-green-500" />
+                  <Shield className="h-4 w-4 text-emerald-400" />
                   <span className="font-medium">Bank-Grade Security</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                   <span className="font-medium">GDPR Compliant</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-green-500" />
+                  <Building2 className="h-4 w-4 text-emerald-400" />
                   <span className="font-medium">Companies House Integrated</span>
                 </div>
               </div>
             </div>
           </div>
         </section>
+      </div>
 
+      <main>
         {/* Stats Section */}
         <StatsSection />
 
