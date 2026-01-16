@@ -776,7 +776,7 @@ export default function Landing() {
                   <span className="text-2xl font-bold text-primary">3</span>
                 </div>
                 <h4 className="font-semibold mb-2">Experience Flow</h4>
-                <p className="text-sm text-muted-foreground">Watch the data auto-populate and the workflow organize itself.</p>
+                <p className="text-sm text-muted-foreground">Watch the data auto-populate and the workflow organise itself.</p>
               </div>
 
               <div className="text-center p-6">
@@ -828,7 +828,7 @@ export default function Landing() {
                 </div>
                 <h4 className="text-lg md:text-xl font-semibold mb-3">AI Credit Underwriting</h4>
                 <p className="text-sm md:text-base text-muted-foreground mb-5 leading-relaxed">
-                  Machine learning analyzes bank statements, financial data, and company profiles to
+                  Machine learning analyses bank statements, financial data, and company profiles to
                   deliver instant credit recommendations.
                 </p>
                 <ul className="space-y-3 text-sm">
@@ -1077,7 +1077,7 @@ export default function Landing() {
               <div>
                 <h4 className="font-semibold mb-2 text-base">Document Storage</h4>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Upload and organize documents by category.
+                  Upload and organise documents by category.
                 </p>
               </div>
             </div>

@@ -4503,7 +4503,7 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
             <p className="text-sm text-muted-foreground">
               {filterCategory !== "all"
                 ? `No documents in the ${getCategoryLabel(filterCategory)} category`
-                : "Upload documents to keep everything organized"}
+                : "Upload documents to keep everything organised"}
             </p>
           </div>
         ) : (

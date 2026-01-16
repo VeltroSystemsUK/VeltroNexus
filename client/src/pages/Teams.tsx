@@ -215,7 +215,7 @@ export default function Teams() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Team Management</h1>
-            <p className="text-muted-foreground">Create and manage teams to organize your users</p>
+            <p className="text-muted-foreground">Create and manage teams to organise your users</p>
           </div>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -229,7 +229,7 @@ export default function Teams() {
             <DialogHeader>
               <DialogTitle>Create New Team</DialogTitle>
               <DialogDescription>
-                Add a new team to organize your users and prospects.
+                Add a new team to organise your users and prospects.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

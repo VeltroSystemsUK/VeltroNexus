@@ -1214,7 +1214,7 @@ export function CreditUnderwritingTool({
                           {analyzeCsvMutation.isPending ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            "Analyze"
+                            "Analyse"
                           )}
                         </Button>
                       </div>
@@ -1271,7 +1271,7 @@ export function CreditUnderwritingTool({
                           {analyzeBankPdfsMutation.isPending ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            "Analyze"
+                            "Analyse"
                           )}
                         </Button>
                       </div>
@@ -1412,12 +1412,12 @@ export function CreditUnderwritingTool({
                       {analyzeAccountsMutation.isPending ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Analyzing Accounts...
+                          Analysing Accounts...
                         </>
                       ) : (
                         <>
                           <TrendingUp className="h-4 w-4 mr-2" />
-                          Analyze {accountsPdfs.filter((p) => p?.text).length} Year
+                          Analyse {accountsPdfs.filter((p) => p?.text).length} Year
                           {accountsPdfs.filter((p) => p?.text).length > 1 ? "s" : ""} of Accounts
                         </>
                       )}

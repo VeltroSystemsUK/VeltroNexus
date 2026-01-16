@@ -435,7 +435,7 @@ export default function Settings() {
             <h1 className="text-3xl font-bold" data-testid="heading-settings">
               Settings
             </h1>
-            <p className="text-muted-foreground">Customize your Veltro experience</p>
+            <p className="text-muted-foreground">Customise your Veltro experience</p>
           </div>
         </div>
         <Button
@@ -458,7 +458,7 @@ export default function Settings() {
             <Palette className="h-5 w-5" />
             Appearance
           </CardTitle>
-          <CardDescription>Customize the look and feel of your workspace</CardDescription>
+          <CardDescription>Customise the look and feel of your workspace</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -489,7 +489,7 @@ export default function Settings() {
             White Label Branding
           </CardTitle>
           <CardDescription>
-            Add your corporate logo and customize colors for a branded experience
+            Add your corporate logo and customise colours for a branded experience
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -674,7 +674,7 @@ export default function Settings() {
             <Globe className="h-5 w-5" />
             Regional Settings
           </CardTitle>
-          <CardDescription>Customize currency, timezone, and date formats</CardDescription>
+          <CardDescription>Customise currency, timezone, and date formats</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
@@ -752,7 +752,7 @@ export default function Settings() {
                 <SettingsIcon className="h-5 w-5" />
                 Pipeline Stage Names
               </CardTitle>
-              <CardDescription>Customize the names of your pipeline stages</CardDescription>
+              <CardDescription>Customise the names of your pipeline stages</CardDescription>
             </div>
             <Button
               variant="outline"
@@ -850,7 +850,7 @@ export default function Settings() {
           </div>
           <Separator />
           <p className="text-sm text-muted-foreground">
-            Customize stage names to match your workflow. These names will appear throughout the
+            Customise stage names to match your workflow. These names will appear throughout the
             application including the pipeline view, prospect details, and reports.
           </p>
         </CardContent>
@@ -865,7 +865,7 @@ export default function Settings() {
                 PDF Report Layout
               </CardTitle>
               <CardDescription>
-                Customize which sections appear in your PDF reports and their order
+                Customise which sections appear in your PDF reports and their order
               </CardDescription>
             </div>
             <Button
@@ -1264,7 +1264,7 @@ export default function Settings() {
             <div className="space-y-1">
               <Label className="text-base">Enable AI-Powered Analysis</Label>
               <p className="text-sm text-muted-foreground">
-                Allow Veltro to use AI to analyze financial documents (bank statements, accounts)
+                Allow Veltro to use AI to analyse financial documents (bank statements, accounts)
                 for credit underwriting, SWOT analysis, and CAMPARI assessments.
               </p>
               <p className="text-sm text-muted-foreground mt-2">
