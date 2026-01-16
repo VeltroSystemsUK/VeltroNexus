@@ -512,9 +512,9 @@ export default function Landing() {
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img 
-                src={logoFlat} 
+                src={logoChrome} 
                 alt="Veltro" 
-                className="h-8 md:h-10 object-contain brightness-0 invert"
+                className="h-8 md:h-10 object-contain"
                 data-testid="img-logo-nav"
               />
             </div>
