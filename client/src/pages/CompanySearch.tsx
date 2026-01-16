@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import logoFlat from "@assets/logo.flat.png.png";
+import logoChrome from "@assets/logo-chrome.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -481,7 +481,7 @@ export default function CompanySearch() {
             </Button>
             <div className="flex items-center gap-3">
               <img 
-                src={logoFlat} 
+                src={logoChrome} 
                 alt="Veltro" 
                 className="h-8 object-contain"
                 data-testid="img-logo-nav"

@@ -2,7 +2,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import logoFlat from "@assets/logo.flat.png.png";
+import logoChrome from "@assets/logo-chrome.png";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineColumn from "@/components/PipelineColumn";
 import ProspectCard, {
@@ -233,7 +233,7 @@ export default function Pipeline() {
               </div>
             ) : (
               <img 
-                src={logoFlat} 
+                src={logoChrome} 
                 alt="Veltro" 
                 className="h-8 md:h-10 object-contain"
                 data-testid="img-logo-nav"

@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import logoChrome from "@assets/logo-chrome.png";
-import logoFlat from "@assets/logo.flat.png.png";
 import {
   TrendingUp,
   Building2,
@@ -1166,7 +1165,7 @@ export default function Landing() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <img 
-                src={logoFlat} 
+                src={logoChrome} 
                 alt="Veltro" 
                 className="h-8 object-contain"
                 data-testid="img-logo-footer"

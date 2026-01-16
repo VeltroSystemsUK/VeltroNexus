@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import logoFlat from "@assets/logo.flat.png.png";
+import logoChrome from "@assets/logo-chrome.png";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -102,7 +102,7 @@ export default function Submissions() {
         <header className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             <img 
-              src={logoFlat} 
+              src={logoChrome} 
               alt="Veltro" 
               className="h-8 md:h-10 object-contain"
               data-testid="img-logo-nav"
