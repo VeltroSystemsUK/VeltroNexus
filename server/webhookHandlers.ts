@@ -1,4 +1,4 @@
-import { getStripeSync, getUncachableStripeClient } from './stripeClient';
+import { getUncachableStripeClient } from './stripeClient';
 import { storage } from './storage';
 import Stripe from 'stripe';
 
@@ -13,20 +13,21 @@ export class WebhookHandlers {
       );
     }
 
-    const sync = await getStripeSync();
-    
-    // Process with stripe-replit-sync for automatic data sync
-    await sync.processWebhook(payload, signature);
 
-    // Parse the event for custom handling
+    // Standard Stripe Webhook Verification
     const stripe = await getUncachableStripeClient();
-    const webhookSecret = await sync.getWebhookSecret();
-    
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      console.error('STRIPE_WEBHOOK_SECRET is not set');
+      return;
+    }
+
     let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err);
+    } catch (err: any) {
+      console.error('Webhook signature verification failed:', err.message);
       return;
     }
 
@@ -59,15 +60,15 @@ export class WebhookHandlers {
 
   static async handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
     console.log('Checkout session completed:', session.id);
-    
+
     if (session.mode !== 'subscription' || !session.subscription || !session.customer) {
       return;
     }
 
-    const customerId = typeof session.customer === 'string' 
-      ? session.customer 
+    const customerId = typeof session.customer === 'string'
+      ? session.customer
       : session.customer.id;
-    
+
     const subscriptionId = typeof session.subscription === 'string'
       ? session.subscription
       : session.subscription.id;
@@ -82,7 +83,7 @@ export class WebhookHandlers {
     // Get subscription details to determine tier
     const stripe = await getUncachableStripeClient();
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-    
+
     const tier = await WebhookHandlers.getTierFromSubscription(subscription);
     const prospectLimit = WebhookHandlers.getProspectLimitForTier(tier);
 
@@ -97,7 +98,7 @@ export class WebhookHandlers {
 
   static async handleSubscriptionUpdate(subscription: Stripe.Subscription): Promise<void> {
     console.log('Subscription updated:', subscription.id, 'Status:', subscription.status);
-    
+
     const customerId = typeof subscription.customer === 'string'
       ? subscription.customer
       : subscription.customer.id;
@@ -128,7 +129,7 @@ export class WebhookHandlers {
 
   static async handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
     console.log('Subscription deleted:', subscription.id);
-    
+
     const customerId = typeof subscription.customer === 'string'
       ? subscription.customer
       : subscription.customer.id;
@@ -147,17 +148,17 @@ export class WebhookHandlers {
 
   static async getTierFromSubscription(subscription: Stripe.Subscription): Promise<string> {
     const stripe = await getUncachableStripeClient();
-    
+
     // Get product from the first subscription item
     const item = subscription.items.data[0];
     if (!item) return 'free';
 
     const priceId = typeof item.price === 'string' ? item.price : item.price.id;
     const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
-    
+
     const product = price.product as Stripe.Product;
     const tier = product.metadata?.tier || 'free';
-    
+
     return tier.toLowerCase();
   }
 

@@ -1,3 +1,4 @@
+import "./types";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -8,7 +9,7 @@ import {
   getRateLimitStatus,
 } from "./utils/rateLimit";
 import crypto from "crypto";
-import { runMigrations } from "stripe-replit-sync";
+
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 
@@ -93,7 +94,7 @@ app.use((req, res, next) => {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://api.resend.com https://*.replit.dev wss://*.replit.dev https://api.stripe.com https://checkout.stripe.com",
+      "connect-src 'self' https://*.replit.dev wss://*.replit.dev https://api.stripe.com https://checkout.stripe.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -145,42 +146,13 @@ app.use((req: any, res, next) => {
   // Initialize Redis for rate limiting (falls back to memory if unavailable)
   await initializeRateLimitRedis();
 
-  // Initialize Stripe schema and sync data
+  // Initialize Stripe schema and sync data - REMOVED for decoupling
+  /*
   const databaseUrl = process.env.DATABASE_URL;
   if (databaseUrl) {
-    try {
-      console.log("Initializing Stripe schema...");
-      await runMigrations({ databaseUrl, schema: "stripe" });
-      console.log("Stripe schema ready");
-
-      const stripeSync = await getStripeSync();
-
-      // Set up managed webhook
-      const domains = process.env.REPLIT_DOMAINS?.split(",");
-      if (domains && domains[0]) {
-        const webhookUrl = `https://${domains[0]}/api/stripe/webhook`;
-        try {
-          const result = await stripeSync.findOrCreateManagedWebhook(webhookUrl);
-          if (result?.webhook?.url) {
-            console.log(`Stripe webhook configured: ${result.webhook.url}`);
-          } else {
-            console.log(`Stripe webhook setup completed for: ${webhookUrl}`);
-          }
-        } catch (webhookError: any) {
-          console.warn("Stripe webhook setup skipped:", webhookError.message);
-        }
-      }
-
-      // Sync Stripe data in background
-      stripeSync.syncBackfill().then(() => {
-        console.log("Stripe data synced");
-      }).catch((err: Error) => {
-        console.error("Error syncing Stripe data:", err.message);
-      });
-    } catch (error: any) {
-      console.error("Failed to initialize Stripe:", error.message);
-    }
+    // Stripe sync logic removed
   }
+  */
 
   // Log rate limit status on startup
   const rateLimitStatus = getRateLimitStatus();
@@ -237,7 +209,6 @@ app.use((req: any, res, next) => {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`serving on port ${port}`);

@@ -54,6 +54,7 @@ export const users = pgTable("users", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
+  password: text("password").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -87,6 +88,13 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertUser = z.infer<typeof insertUserSchema>;
 
 // Teams - Groups of brokers managed by Sales Admins
 export const teams = pgTable("teams", {
@@ -290,6 +298,8 @@ export const lenderProducts = pgTable("lender_products", {
   minLtv: integer("min_ltv"),
   maxLtv: integer("max_ltv"),
   rateType: text("rate_type"),
+  minRate: text("min_rate"),
+  maxRate: text("max_rate"),
   typicalRate: text("typical_rate"),
   arrangementFee: text("arrangement_fee"),
   exitFee: text("exit_fee"),
@@ -315,6 +325,7 @@ export const lenderInteractions = pgTable("lender_interactions", {
   channel: text("channel").default("email"),
   subject: text("subject"),
   summary: text("summary"),
+  notes: text("notes"),
   status: text("status").default("sent"),
   sentAt: timestamp("sent_at"),
   respondedAt: timestamp("responded_at"),
@@ -739,20 +750,17 @@ export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
 }));
 
 export const insertCompanySchema = createInsertSchema(companies).omit({
-  id: true,
   createdAt: true,
 });
 
 // Team insert schemas
 export const insertTeamSchema = createInsertSchema(teams).omit({
-  id: true,
   createdBy: true,
   createdAt: true,
   updatedAt: true,
 });
 
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
-  id: true,
   createdAt: true,
 });
 
@@ -777,7 +785,7 @@ export const insertProspectSchema = createInsertSchema(prospects, {
     ])
     .optional(),
 }).omit({
-  id: true,
+
   userId: true,
   createdAt: true,
   updatedAt: true,
@@ -808,7 +816,7 @@ export const insertContactSchema = createInsertSchema(contacts, {
       .transform(Number),
   ]),
 }).omit({
-  id: true,
+
   createdAt: true,
 });
 
@@ -829,7 +837,7 @@ export const insertActivitySchema = createInsertSchema(activities, {
     .union([z.date(), z.string().transform((val) => (val ? new Date(val) : null)), z.null()])
     .optional(),
 }).omit({
-  id: true,
+
   userId: true,
   createdAt: true,
   updatedAt: true,
@@ -853,7 +861,7 @@ export const insertTimeEntrySchema = createInsertSchema(timeEntries, {
     .union([z.date(), z.string().transform((val) => (val ? new Date(val) : null)), z.null()])
     .optional(),
 }).omit({
-  id: true,
+
   userId: true,
   createdAt: true,
 });
@@ -868,7 +876,7 @@ export const insertLenderSchema = createInsertSchema(lenders, {
   securityTypes: z.array(z.string()).optional().default([]),
   borrowerTypes: z.array(z.string()).optional().default([]),
 }).omit({
-  id: true,
+
   userId: true,
   createdAt: true,
   updatedAt: true,
@@ -878,7 +886,7 @@ export const insertLenderProductSchema = createInsertSchema(lenderProducts, {
   eligibilityCriteria: z.record(z.any()).optional().default({}),
   features: z.array(z.string()).optional().default([]),
 }).omit({
-  id: true,
+
   createdAt: true,
   updatedAt: true,
 });
@@ -886,7 +894,7 @@ export const insertLenderProductSchema = createInsertSchema(lenderProducts, {
 export const insertLenderInteractionSchema = createInsertSchema(lenderInteractions, {
   attachments: z.array(z.any()).optional().default([]),
 }).omit({
-  id: true,
+
   createdAt: true,
   updatedAt: true,
 });
@@ -910,7 +918,7 @@ export const insertApplicationSubmissionSchema = createInsertSchema(applicationS
   ]),
   status: z.enum(["pending", "sent", "approved", "declined", "withdrawn"]).default("pending"),
 }).omit({
-  id: true,
+
   userId: true,
   createdAt: true,
   updatedAt: true,
@@ -945,12 +953,10 @@ export type InsertApplicationSubmission = z.infer<typeof insertApplicationSubmis
 export type ApplicationSubmission = typeof applicationSubmissions.$inferSelect;
 
 export const insertEmailInboxSchema = createInsertSchema(emailInboxes).omit({
-  id: true,
   createdAt: true,
 });
 
 export const insertEmailMessageSchema = createInsertSchema(emailMessages).omit({
-  id: true,
   createdAt: true,
 });
 
@@ -960,12 +966,10 @@ export type InsertEmailMessage = z.infer<typeof insertEmailMessageSchema>;
 export type EmailMessage = typeof emailMessages.$inferSelect;
 
 export const insertLeadUploadSchema = createInsertSchema(leadUploads).omit({
-  id: true,
   createdAt: true,
 });
 
 export const insertLeadSchema = createInsertSchema(leads).omit({
-  id: true,
   userId: true,
   createdAt: true,
   updatedAt: true,
@@ -999,7 +1003,6 @@ export type UpdateLead = z.infer<typeof updateLeadSchema>;
 
 // Prospect Document schemas
 export const insertProspectDocumentSchema = createInsertSchema(prospectDocuments).omit({
-  id: true,
   createdAt: true,
 });
 
@@ -1033,7 +1036,6 @@ export const insertUnderwritingSubmissionSchema = createInsertSchema(underwritin
     .default("submitted"),
   priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
 }).omit({
-  id: true,
   brokerId: true,
   createdAt: true,
   updatedAt: true,
@@ -1070,7 +1072,6 @@ export const insertUnderwritingActivitySchema = createInsertSchema(underwritingA
     "comment",
   ]),
 }).omit({
-  id: true,
   userId: true,
   createdAt: true,
 });
@@ -1457,7 +1458,6 @@ export const dueDiligenceDataSchema = z.object({
 });
 
 export const insertDueDiligenceSchema = createInsertSchema(dueDiligence).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -1482,7 +1482,6 @@ export const insertAddOnProductSchema = createInsertSchema(addOnProducts, {
   category: z.enum(["prospects", "features"]).default("prospects"),
   priceInPence: z.number().int().positive(),
 }).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -1502,7 +1501,6 @@ export const updateAddOnProductSchema = z.object({
 export const insertAddOnPurchaseSchema = createInsertSchema(addOnPurchases, {
   status: z.enum(["pending", "completed", "failed", "refunded"]).default("pending"),
 }).omit({
-  id: true,
   createdAt: true,
   completedAt: true,
 });
@@ -1624,3 +1622,4 @@ export const webhookProspectPayloadSchema = z.object({
 });
 
 export type WebhookProspectPayload = z.infer<typeof webhookProspectPayloadSchema>;
+export type WebhookProspect = z.infer<typeof webhookProspectSchema>;

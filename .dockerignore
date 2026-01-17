@@ -49,7 +49,8 @@ docs
 !README.md
 
 # Attached assets (development only)
-attached_assets
+# Attached assets (development only)
+!attached_assets
 
 # Audit and temporary files
 codebase_audit.txt

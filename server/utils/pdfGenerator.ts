@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import type { ProspectWithCompany, Contact, Activity, DueDiligence } from "@shared/schema";
+import type { ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
 
 interface CompaniesHouseData {
   officers?: any;
@@ -109,7 +109,7 @@ function ensureSpace(doc: typeof PDFDocument.prototype, requiredHeight: number):
   if (doc.y < MARGIN + 50) {
     return;
   }
-  
+
   if (needsNewPage(doc, requiredHeight)) {
     doc.addPage();
     pageNumber++;
@@ -210,7 +210,7 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   // Executive Summary Page
   doc.addPage();
   pageNumber++;
-  renderExecutiveSummary(doc, prospect);
+  renderExecutiveSummary(doc, prospect, companiesHouseData);
 
   // Get enabled sections
   const sections = pdfLayoutPreferences?.sections || DEFAULT_SECTIONS;
@@ -242,14 +242,14 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
 
       case "officers":
         if (companiesHouseData?.officers?.items?.length > 0) {
-          doc.y = renderOfficersCompact(doc, companiesHouseData.officers.items, doc.y);
+          doc.y = renderOfficersCompact(doc, companiesHouseData!.officers.items, doc.y);
           isFirstSection = false;
         }
         break;
 
       case "psc":
         if (companiesHouseData?.psc?.items?.length > 0) {
-          doc.y = renderPSCCompact(doc, companiesHouseData.psc.items, doc.y);
+          doc.y = renderPSCCompact(doc, companiesHouseData!.psc.items, doc.y);
           isFirstSection = false;
         }
         break;
@@ -262,8 +262,8 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
         break;
 
       case "savedAssociations":
-        if (prospect.savedAssociatedCompanies?.length > 0) {
-          doc.y = renderSavedAssociationsCompact(doc, prospect.savedAssociatedCompanies, doc.y);
+        if ((prospect.savedAssociations as any[])?.length > 0) {
+          doc.y = renderSavedAssociationsCompact(doc, prospect.savedAssociations as any[], doc.y);
           isFirstSection = false;
         }
         break;
@@ -309,22 +309,24 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
         break;
 
       case "creditRatios":
-        if (dueDiligence?.financialData) {
-          doc.y = renderCreditRatios(doc, dueDiligence.financialData, doc.y);
+        const ddData = (dueDiligence?.data as unknown as DueDiligenceData) || {};
+        if (ddData.underwriting?.financialAnalysis) {
+          doc.y = renderCreditRatios(doc, ddData.underwriting.financialAnalysis, doc.y);
           isFirstSection = false;
         }
         break;
 
       case "campari":
-        if (dueDiligence?.campariAnalysis) {
-          doc.y = renderCAMPARIAnalysis(doc, dueDiligence.campariAnalysis, doc.y);
-          isFirstSection = false;
-        }
+        // if (dueDiligence?.campariAnalysis) {
+        //   doc.y = renderCAMPARIAnalysis(doc, dueDiligence.campariAnalysis, doc.y);
+        //   isFirstSection = false;
+        // }
         break;
 
       case "swotAnalysis":
-        if (dueDiligence?.swotAnalysis) {
-          doc.y = renderSWOTAnalysis(doc, dueDiligence.swotAnalysis, doc.y);
+        const ddDataSwot = (dueDiligence?.data as unknown as DueDiligenceData) || {};
+        if (ddDataSwot.underwriting?.swotAnalysis) {
+          doc.y = renderSWOTAnalysis(doc, ddDataSwot.underwriting.swotAnalysis, doc.y);
           isFirstSection = false;
         }
         break;
@@ -351,10 +353,10 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
 
   // Header bar
   doc.rect(0, 0, PAGE_WIDTH, 95).fill(COLORS.primary);
-  
+
   doc.fontSize(26).fillColor(COLORS.white).font("Helvetica-Bold");
   doc.text("FLOWLOAN", centerX - 75, 28);
-  
+
   doc.fontSize(11).fillColor(COLORS.white).font("Helvetica");
   doc.text("Commercial Lending Solutions", centerX - 90, 58);
 
@@ -362,7 +364,7 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
   doc.y = 150;
   doc.fontSize(30).fillColor(COLORS.primary).font("Helvetica-Bold");
   doc.text("Credit Assessment", 0, doc.y, { align: "center", width: PAGE_WIDTH });
-  
+
   doc.y += 38;
   doc.fontSize(26).fillColor(COLORS.primary).font("Helvetica-Bold");
   doc.text("Report", 0, doc.y, { align: "center", width: PAGE_WIDTH });
@@ -371,9 +373,9 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
   doc.y += 55;
   const boxWidth = 380;
   const boxX = (PAGE_WIDTH - boxWidth) / 2;
-  
+
   doc.roundedRect(boxX, doc.y, boxWidth, 75, 4).fillAndStroke(COLORS.backgroundLight, COLORS.border);
-  
+
   doc.fontSize(18).fillColor(COLORS.text).font("Helvetica-Bold");
   doc.text(prospect.company.companyName, boxX + 15, doc.y + 24, {
     width: boxWidth - 30,
@@ -383,7 +385,7 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
   // Company details
   doc.y += 95;
   doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
-  
+
   const details = [
     `Company Registration: ${prospect.company.companyNumber}`,
     `Registered Address: ${prospect.company.registeredAddress}`,
@@ -398,9 +400,9 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
   doc.y += 35;
   const summaryBoxWidth = 420;
   const summaryBoxX = (PAGE_WIDTH - summaryBoxWidth) / 2;
-  
+
   doc.roundedRect(summaryBoxX, doc.y, summaryBoxWidth, 95, 4)
-     .fillAndStroke(COLORS.white, COLORS.border);
+    .fillAndStroke(COLORS.white, COLORS.border);
 
   const col1X = summaryBoxX + 25;
   const col2X = summaryBoxX + summaryBoxWidth / 2 + 10;
@@ -460,30 +462,34 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
 // EXECUTIVE SUMMARY
 // ============================================================================
 
-function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany): void {
+function renderExecutiveSummary(
+  doc: typeof PDFDocument.prototype,
+  prospect: ProspectWithCompany,
+  companiesHouseData?: CompaniesHouseData | null
+): void {
   doc.y = MARGIN;
 
   // Section header
   doc.fontSize(20).fillColor(COLORS.primary).font("Helvetica-Bold");
   doc.text("01 EXECUTIVE SUMMARY", MARGIN, doc.y);
-  
+
   doc.moveTo(MARGIN, doc.y + 28)
-     .lineTo(MARGIN + CONTENT_WIDTH, doc.y + 28)
-     .strokeColor(COLORS.accent)
-     .lineWidth(2)
-     .stroke();
+    .lineTo(MARGIN + CONTENT_WIDTH, doc.y + 28)
+    .strokeColor(COLORS.accent)
+    .lineWidth(2)
+    .stroke();
 
   doc.y += 42;
 
   // Business Overview Box
   doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 165, 4)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   let contentY = doc.y + 12;
-  
+
   doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
   doc.text("BUSINESS OVERVIEW", MARGIN + 12, contentY);
-  
+
   contentY += 22;
 
   // Two-column layout
@@ -509,7 +515,7 @@ function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: Pro
 
   // Right column
   contentY = doc.y + 34;
-  
+
   const rightItems = [
     { label: "LOAN AMOUNT", value: prospect.loanAmount ? formatCurrency(prospect.loanAmount * 100) : "TBD" },
     { label: "TERM", value: prospect.term ? `${prospect.term} months` : "TBD" },
@@ -529,13 +535,13 @@ function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: Pro
 
   // Security Position Box
   doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 80, 4)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   contentY = doc.y + 12;
-  
+
   doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
   doc.text("SECURITY POSITION", MARGIN + 12, contentY);
-  
+
   contentY += 22;
 
   const totalSecurity = calculateTotalSecurity(prospect);
@@ -557,17 +563,17 @@ function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: Pro
 
   // Assessment Status Box
   doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 65, 4)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   contentY = doc.y + 12;
-  
+
   doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
   doc.text("ASSESSMENT STATUS", MARGIN + 12, contentY);
-  
+
   contentY += 22;
 
   doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-  doc.text(prospect.assessmentStatus || "Due diligence not yet started", MARGIN + 12, contentY, {
+  doc.text(prospect.stage || "Due diligence not yet started", MARGIN + 12, contentY, {
     width: CONTENT_WIDTH - 24,
   });
 
@@ -575,20 +581,20 @@ function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: Pro
 
   // Key Findings Box
   doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 85, 4)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   contentY = doc.y + 12;
-  
+
   doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
   doc.text("KEY FINDINGS", MARGIN + 12, contentY);
-  
+
   contentY += 22;
 
   const keyFindings = [
     `Company Status: ${prospect.company.companyStatus || "Active"}`,
-    `Active Officers: ${prospect.company.numActiveOfficers || 0}`,
-    `Outstanding Charges: ${prospect.company.numOutstandingCharges || 0}`,
-    `Incorporated: ${prospect.company.dateOfIncorporation ? new Date(prospect.company.dateOfIncorporation).toLocaleDateString("en-GB") : "N/A"}`,
+    `Active Officers: ${companiesHouseData?.officers?.items?.length || 0}`,
+    `Outstanding Charges: ${companiesHouseData?.charges?.outstanding_count || 0}`,
+    `Incorporated: ${prospect.company.incorporationDate ? new Date(prospect.company.incorporationDate).toLocaleDateString("en-GB") : "N/A"}`,
     `Location: ${prospect.company.postcode || "N/A"}`,
   ];
 
@@ -606,24 +612,24 @@ function renderExecutiveSummary(doc: typeof PDFDocument.prototype, prospect: Pro
 function renderCompactSectionHeader(doc: typeof PDFDocument.prototype, title: string, startY: number): number {
   // Calculate header height
   const headerHeight = 20;
-  
+
   // Check if we need a new page for this section
   ensureSpace(doc, headerHeight + 40);
-  
+
   doc.y = startY;
-  
+
   // Accent line
   doc.moveTo(MARGIN, doc.y)
-     .lineTo(MARGIN + 3, doc.y)
-     .strokeColor(COLORS.accent)
-     .lineWidth(2.5)
-     .stroke();
+    .lineTo(MARGIN + 3, doc.y)
+    .strokeColor(COLORS.accent)
+    .lineWidth(2.5)
+    .stroke();
 
   doc.fontSize(12).fillColor(COLORS.primary).font("Helvetica-Bold");
   doc.text(title, MARGIN + 10, doc.y - 2);
 
   doc.y += headerHeight;
-  
+
   return doc.y;
 }
 
@@ -639,13 +645,13 @@ function renderCompanyInfoCompact(
 ): number {
   const sectionHeight = 95;
   ensureSpace(doc, sectionHeight + 20);
-  
+
   let y = renderCompactSectionHeader(doc, "Company Information", startY);
 
   const company = prospect.company;
 
   doc.roundedRect(MARGIN, y, CONTENT_WIDTH, sectionHeight, 3)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   let detailY = y + 10;
   const labelX = MARGIN + 10;
@@ -658,8 +664,8 @@ function renderCompanyInfoCompact(
     { label: "Type:", value: company.companyType || "ltd" },
     {
       label: "Incorporated:",
-      value: company.dateOfIncorporation
-        ? new Date(company.dateOfIncorporation).toLocaleDateString("en-GB")
+      value: company.incorporationDate
+        ? new Date(company.incorporationDate).toLocaleDateString("en-GB")
         : "N/A",
     },
   ];
@@ -667,10 +673,10 @@ function renderCompanyInfoCompact(
   details.forEach((detail) => {
     doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
     doc.text(detail.label, labelX, detailY);
-    
+
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
     doc.text(detail.value, valueX, detailY, { width: maxWidth });
-    
+
     detailY += 17;
   });
 
@@ -685,9 +691,9 @@ function renderOfficersCompact(doc: typeof PDFDocument.prototype, officers: any[
   const itemHeight = 26;
   const maxItems = Math.min(officers.length, 5);
   const sectionHeight = maxItems * itemHeight + 10;
-  
+
   ensureSpace(doc, sectionHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Officers", startY);
 
   officers.slice(0, 5).forEach((officer) => {
@@ -701,7 +707,7 @@ function renderOfficersCompact(doc: typeof PDFDocument.prototype, officers: any[
     ]
       .filter(Boolean)
       .join(" | ");
-    
+
     doc.text(details, MARGIN + 8, y + 12, { width: CONTENT_WIDTH - 16 });
     y += itemHeight;
   });
@@ -723,9 +729,9 @@ function renderPSCCompact(doc: typeof PDFDocument.prototype, pscList: any[], sta
   const itemHeight = 26;
   const maxItems = Math.min(pscList.length, 5);
   const sectionHeight = maxItems * itemHeight + 10;
-  
+
   ensureSpace(doc, sectionHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Persons with Significant Control", startY);
 
   pscList.slice(0, 5).forEach((psc) => {
@@ -735,7 +741,7 @@ function renderPSCCompact(doc: typeof PDFDocument.prototype, pscList: any[], sta
     const natures = psc.natures_of_control?.join(", ") || "Not specified";
     doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
     doc.text(natures, MARGIN + 8, y + 12, { width: CONTENT_WIDTH - 16 });
-    
+
     y += itemHeight;
   });
 
@@ -757,9 +763,9 @@ function renderChargesCompact(doc: typeof PDFDocument.prototype, chargesData: an
   const maxCharges = Math.min(charges.length, 3);
   const chargesListHeight = maxCharges * 26;
   const totalHeight = 65 + (charges.length > 0 ? chargesListHeight + 5 : 0);
-  
+
   ensureSpace(doc, totalHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Charges", startY);
 
   const totalCharges = chargesData.total_count || 0;
@@ -768,7 +774,7 @@ function renderChargesCompact(doc: typeof PDFDocument.prototype, chargesData: an
 
   // Summary box
   doc.roundedRect(MARGIN, y, CONTENT_WIDTH, 58, 3)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   const col1X = MARGIN + 12;
   const col2X = MARGIN + CONTENT_WIDTH / 3;
@@ -783,8 +789,8 @@ function renderChargesCompact(doc: typeof PDFDocument.prototype, chargesData: an
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Outstanding", col2X, summaryY);
   doc.fontSize(13)
-     .fillColor(outstanding > 0 ? COLORS.warning : COLORS.success)
-     .font("Helvetica-Bold");
+    .fillColor(outstanding > 0 ? COLORS.warning : COLORS.success)
+    .font("Helvetica-Bold");
   doc.text(outstanding.toString(), col2X, summaryY + 11);
 
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
@@ -797,11 +803,11 @@ function renderChargesCompact(doc: typeof PDFDocument.prototype, chargesData: an
   // List recent charges
   if (charges.length > 0) {
     y += 3;
-    
+
     charges.slice(0, maxCharges).forEach((charge: any) => {
       doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
       doc.text(charge.classification?.description || "Charge", MARGIN + 8, y);
-      
+
       doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
       const chargeDetails = [
         charge.status,
@@ -809,7 +815,7 @@ function renderChargesCompact(doc: typeof PDFDocument.prototype, chargesData: an
       ]
         .filter(Boolean)
         .join(" | ");
-      
+
       doc.text(chargeDetails, MARGIN + 8, y + 11);
       y += 26;
     });
@@ -836,9 +842,9 @@ function renderSavedAssociationsCompact(
   const itemHeight = 16;
   const maxItems = Math.min(associations.length, 5);
   const sectionHeight = maxItems * itemHeight + 10;
-  
+
   ensureSpace(doc, sectionHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Saved Associated Companies", startY);
 
   associations.slice(0, 5).forEach((assoc: any) => {
@@ -871,12 +877,12 @@ function renderLoanDetailsCompact(
 ): number {
   const boxHeight = 90;
   ensureSpace(doc, boxHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Loan Details", startY);
 
   // Draw entire box at once
   doc.roundedRect(MARGIN, y, CONTENT_WIDTH, boxHeight, 3)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   const col1X = MARGIN + 12;
   const col2X = MARGIN + CONTENT_WIDTH / 3;
@@ -935,14 +941,14 @@ function renderSecurityCompact(
 ): number {
   const boxHeight = 62;
   ensureSpace(doc, boxHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Security & Collateral", startY);
 
   const totalSecurity = calculateTotalSecurity(prospect);
   const securityTypes = getSecurityTypes(prospect);
 
   doc.roundedRect(MARGIN, y, CONTENT_WIDTH, boxHeight, 3)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Total Security", MARGIN + 12, y + 10);
@@ -972,20 +978,20 @@ function renderNotesCompact(
   if (prospect.notes) {
     estimatedHeight += Math.min(70, Math.ceil(prospect.notes.length / 70) * 12);
   }
-  
+
   ensureSpace(doc, estimatedHeight);
-  
+
   let y = renderCompactSectionHeader(doc, "Notes", startY);
 
   if (prospect.loanRequirementNotes) {
     doc.fontSize(9).fillColor(COLORS.secondary).font("Helvetica-Bold");
     doc.text("Loan Requirements:", MARGIN, y);
     y += 13;
-    
+
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
     const noteText = truncateText(prospect.loanRequirementNotes, 300);
     doc.text(noteText, MARGIN + 8, y, { width: CONTENT_WIDTH - 16 });
-    
+
     const textHeight = doc.heightOfString(noteText, { width: CONTENT_WIDTH - 16 });
     y += textHeight + 4;
   }
@@ -995,11 +1001,11 @@ function renderNotesCompact(
     doc.fontSize(9).fillColor(COLORS.secondary).font("Helvetica-Bold");
     doc.text("General Notes:", MARGIN, y);
     y += 13;
-    
+
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
     const noteText = truncateText(prospect.notes, 300);
     doc.text(noteText, MARGIN + 8, y, { width: CONTENT_WIDTH - 16 });
-    
+
     const textHeight = doc.heightOfString(noteText, { width: CONTENT_WIDTH - 16 });
     y += textHeight + 4;
   }
@@ -1015,19 +1021,19 @@ function renderContactsCompact(doc: typeof PDFDocument.prototype, contacts: Cont
   const itemHeight = 26;
   const maxItems = Math.min(contacts.length, 5);
   const sectionHeight = maxItems * itemHeight + 10;
-  
+
   ensureSpace(doc, sectionHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Key Contacts", startY);
 
   contacts.slice(0, 5).forEach((contact) => {
     doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
     doc.text(contact.name, MARGIN + 8, y);
-    
+
     doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
     const details = [contact.role, contact.email, contact.phone].filter(Boolean).join(" | ");
     doc.text(details, MARGIN + 8, y + 12, { width: CONTENT_WIDTH - 16 });
-    
+
     y += itemHeight;
   });
 
@@ -1048,9 +1054,9 @@ function renderActivitiesCompact(doc: typeof PDFDocument.prototype, activities: 
   const itemHeight = 18;
   const maxItems = Math.min(activities.length, 5);
   const sectionHeight = maxItems * itemHeight + 10;
-  
+
   ensureSpace(doc, sectionHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Activities & Tasks", startY);
 
   const recentActivities = activities.slice(0, 5);
@@ -1067,7 +1073,7 @@ function renderActivitiesCompact(doc: typeof PDFDocument.prototype, activities: 
       MARGIN + CONTENT_WIDTH - 90,
       y
     );
-    
+
     y += itemHeight;
   });
 
@@ -1089,13 +1095,15 @@ function renderDueDiligenceCompact(
   dueDiligence: DueDiligence,
   startY: number
 ): number {
-  const boxHeight = dueDiligence.summary ? 95 : 70;
+  const ddData = (dueDiligence.data as unknown as DueDiligenceData) || {};
+  const summary = ddData.underwriting?.adviserSummary?.recommendation;
+  const boxHeight = summary ? 95 : 70;
   ensureSpace(doc, boxHeight + 25);
-  
+
   let y = renderCompactSectionHeader(doc, "Due Diligence", startY);
 
   doc.roundedRect(MARGIN, y, CONTENT_WIDTH, boxHeight, 3)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   let contentY = y + 10;
   const col1X = MARGIN + 12;
@@ -1105,7 +1113,7 @@ function renderDueDiligenceCompact(
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Status", col1X, contentY);
   doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
-  doc.text(dueDiligence.status || "Not Started", col1X, contentY + 11);
+  doc.text("In Progress", col1X, contentY + 11);
 
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Last Updated", col2X, contentY);
@@ -1116,14 +1124,14 @@ function renderDueDiligenceCompact(
     contentY + 11
   );
 
-  if (dueDiligence.summary) {
+  if (summary) {
     contentY += 38;
     doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
     doc.text("Summary", col1X, contentY);
-    
+
     contentY += 13;
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(truncateText(dueDiligence.summary, 150), col1X, contentY, {
+    doc.text(truncateText(summary, 150), col1X, contentY, {
       width: CONTENT_WIDTH - 24,
     });
   }
@@ -1137,7 +1145,7 @@ function renderDueDiligenceCompact(
 
 function renderCreditRatios(doc: typeof PDFDocument.prototype, financialData: any, startY: number): number {
   ensureSpace(doc, 115);
-  
+
   let y = renderCompactSectionHeader(doc, "Credit Ratios", startY);
 
   const ratios = [
@@ -1160,7 +1168,7 @@ function renderCreditRatios(doc: typeof PDFDocument.prototype, financialData: an
 
       doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
       doc.text(ratio.label, x, ratioY);
-      
+
       doc.fontSize(13).fillColor(COLORS.text).font("Helvetica-Bold");
       doc.text(ratio.format(ratio.value), x, ratioY + 11);
     }
@@ -1191,7 +1199,7 @@ function renderCAMPARIAnalysis(doc: typeof PDFDocument.prototype, campari: any, 
     if (content) {
       const textHeight = doc.heightOfString(content, { width: CONTENT_WIDTH - 16 });
       const sectionHeight = textHeight + 30;
-      
+
       ensureSpace(doc, sectionHeight);
 
       doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
@@ -1203,7 +1211,7 @@ function renderCAMPARIAnalysis(doc: typeof PDFDocument.prototype, campari: any, 
         color: COLORS.text,
         width: CONTENT_WIDTH - 16,
       });
-      
+
       y = doc.y + 10;
     }
   });
@@ -1235,11 +1243,11 @@ function renderSWOTAnalysis(doc: typeof PDFDocument.prototype, swot: any, startY
     if (items && items.length > 0) {
       const itemsHeight = items.length * 15;
       const quadHeight = itemsHeight + 38;
-      
+
       ensureSpace(doc, quadHeight);
 
       doc.roundedRect(MARGIN, y, CONTENT_WIDTH, itemsHeight + 35, 3)
-         .fillAndStroke(quad.bg, quad.border);
+        .fillAndStroke(quad.bg, quad.border);
 
       doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
       doc.text(quad.label, MARGIN + 10, y + 9);
@@ -1267,7 +1275,7 @@ function renderSignatureSection(doc: typeof PDFDocument.prototype, startY: numbe
   doc.y = startY;
 
   doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 110, 3)
-     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
   let sigY = doc.y + 12;
 
@@ -1278,7 +1286,7 @@ function renderSignatureSection(doc: typeof PDFDocument.prototype, startY: numbe
 
   doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Recommendation", MARGIN + 12, sigY);
-  
+
   sigY += 13;
   doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
   doc.text("No recommendation provided.", MARGIN + 12, sigY);
@@ -1303,7 +1311,7 @@ function renderSignatureSection(doc: typeof PDFDocument.prototype, startY: numbe
 
 function addFootersToAllPages(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany): void {
   const pages = doc.bufferedPageRange();
-  
+
   for (let i = 0; i < pages.count; i++) {
     doc.switchToPage(i);
 
