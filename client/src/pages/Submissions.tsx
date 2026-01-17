@@ -29,6 +29,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ApplicationSubmission, Prospect, Lender } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 type SubmissionWithDetails = ApplicationSubmission & {
   prospect: Prospect & {
@@ -45,6 +46,7 @@ export default function Submissions() {
   const { data: user } = useQuery<any>({
     queryKey: ["/api/auth/user"],
   });
+  const { logoutMutation } = useAuth();
 
   const { data: submissions = [], isLoading } = useQuery<SubmissionWithDetails[]>({
     queryKey: ["/api/submissions"],
@@ -70,10 +72,7 @@ export default function Submissions() {
     },
   });
 
-  const handleLogout = async () => {
-    await fetch("/api/logout", { method: "POST" });
-    window.location.href = "/";
-  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -101,9 +100,9 @@ export default function Submissions() {
       <div className="flex flex-col h-screen">
         <header className="flex items-center justify-between p-4 border-b border-[#1e293b] bg-[#0f172a]">
           <div className="flex items-center gap-2">
-            <img 
-              src={logoChrome} 
-              alt="Veltro" 
+            <img
+              src={logoChrome}
+              alt="Veltro"
               className="h-8 md:h-10 object-contain"
               data-testid="img-logo-nav"
             />
@@ -137,7 +136,7 @@ export default function Submissions() {
                   <Link href="/dashboard">Dashboard</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout">
+                <DropdownMenuItem onClick={() => logoutMutation.mutate()} data-testid="menu-item-logout">
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>

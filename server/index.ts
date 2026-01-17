@@ -146,13 +146,7 @@ app.use((req: any, res, next) => {
   // Initialize Redis for rate limiting (falls back to memory if unavailable)
   await initializeRateLimitRedis();
 
-  // Initialize Stripe schema and sync data - REMOVED for decoupling
-  /*
-  const databaseUrl = process.env.DATABASE_URL;
-  if (databaseUrl) {
-    // Stripe sync logic removed
-  }
-  */
+
 
   // Log rate limit status on startup
   const rateLimitStatus = getRateLimitStatus();

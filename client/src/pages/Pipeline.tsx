@@ -66,7 +66,7 @@ const ALL_STAGES = [...PROSPECT_STAGES, ...PROCESS_STAGES, ...FINAL_STAGES];
 
 export default function Pipeline() {
   const [, navigate] = useLocation();
-  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading, logoutMutation } = useAuth();
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   useEffect(() => {
@@ -232,9 +232,9 @@ export default function Pipeline() {
                 <p className="text-[10px] text-gray-400">Powered by Veltro</p>
               </div>
             ) : (
-              <img 
-                src={logoChrome} 
-                alt="Veltro" 
+              <img
+                src={logoChrome}
+                alt="Veltro"
                 className="h-8 md:h-10 object-contain"
                 data-testid="img-logo-nav"
               />
@@ -328,7 +328,7 @@ export default function Pipeline() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => (window.location.href = "/api/logout")}
+                  onClick={() => logoutMutation.mutate()}
                   className="py-2.5 text-base"
                   data-testid="menu-item-logout"
                 >

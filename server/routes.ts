@@ -6,22 +6,7 @@ import { searchBusinessOverview } from "./utils/tavilyClient";
 
 // ... existing code ...
 
-// Inside registerRoutes(app):
-// Replace dynamic imports with direct usage
 
-// In /healthz:
-// const rateLimitStatus = getRateLimitStatus();
-
-// In /api/user/branding/logo:
-// const passThrough = new PassThrough();
-// const validationTransform = new Transform(...);
-// if (isSvgContent(accumulatedBuffer)) ...
-
-// In /api/prospects/export/excel and report endpoints:
-// res.setHeader("Content-Disposition", encodeContentDisposition(filename));
-
-// In /api/prospects/:id/business-overview:
-// const result = await searchBusinessOverview(companyName, industry);
 import { createServer, type Server } from "http";
 import busboy from "busboy";
 import { storage } from "./storage";
