@@ -24,6 +24,8 @@ import Teams from "@/pages/Teams";
 import Admin from "@/pages/Admin";
 import ValuePackages from "@/pages/ValuePackages";
 import AuthPage from "@/pages/Auth";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import { CookieConsent } from "@/components/CookieConsent";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,6 +39,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/privacy" component={PrivacyPolicy} />
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
@@ -87,6 +90,7 @@ function App() {
         <Toaster />
         <SonnerToaster position="top-right" />
         <AppContent />
+        <CookieConsent />
       </TooltipProvider>
     </QueryClientProvider>
   );

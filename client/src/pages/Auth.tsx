@@ -1,6 +1,6 @@
 
 import { useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -319,6 +319,11 @@ export default function AuthPage() {
                             </Card>
                         </TabsContent>
                     </Tabs>
+                    <div className="text-center text-sm text-muted-foreground mt-8">
+                        <Link href="/privacy" className="hover:text-primary transition-colors underline underline-offset-4">
+                            Privacy Policy
+                        </Link>
+                    </div>
                 </div>
             </div>
 
