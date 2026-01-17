@@ -1334,7 +1334,7 @@ export default function Landing() {
                 className="gap-2 text-base px-8 h-12 font-semibold bg-[#D97706] hover:bg-[#B45309] text-white"
                 data-testid="button-sign-up-cta"
               >
-                Start Free Trial
+                Start Free Trial Now
                 <ArrowRight className="h-5 w-5" />
               </Button>
               <Link href="/pricing">

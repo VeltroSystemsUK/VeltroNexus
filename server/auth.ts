@@ -68,6 +68,47 @@ export function setupAuth(app: Express) {
         }
     });
 
+    app.post("/api/register", async (req, res, next) => {
+        console.log("[Auth] Register request received", { email: req.body.email });
+        try {
+            if (!req.body.email || !req.body.password) {
+                console.error("[Auth] Missing email or password");
+                return res.status(400).send("Email and password are required");
+            }
+
+            const existingUser = await storage.getUserByUsername(req.body.email);
+            if (existingUser) {
+                console.log("[Auth] Username already exists", req.body.email);
+                return res.status(400).send("Username already exists");
+            }
+
+            console.log("[Auth] Hashing password...");
+            const hashedPassword = await hashPassword(req.body.password);
+
+            console.log("[Auth] Creating user in DB...");
+            const user = await storage.createUser({
+                ...req.body,
+                password: hashedPassword,
+                role: 'broker',
+                subscriptionTier: 'free',
+                prospectLimit: 10,
+            });
+            console.log("[Auth] User created:", user.id);
+
+            req.login(user, (err) => {
+                if (err) {
+                    console.error("[Auth] Login error:", err);
+                    return next(err);
+                }
+                console.log("[Auth] Login successful");
+                res.status(201).json(user);
+            });
+        } catch (error) {
+            console.error("[Auth] Registration error:", error);
+            next(error);
+        }
+    });
+
     app.post("/api/login", (req, res, next) => {
         passport.authenticate("local", (err: Error | null, user: Express.User | false, info: any) => {
             if (err) {

@@ -79,7 +79,7 @@ export default function AuthPage() {
 
     const loginMutation = useMutation({
         mutationFn: async (data: z.infer<typeof loginSchema>) => {
-            const res = await apiRequest("POST", "/api/login", data);
+            const res = await apiRequest("/api/login", "POST", data);
             return res.json();
         },
         onSuccess: (user) => {
@@ -99,7 +99,7 @@ export default function AuthPage() {
     const registerMutation = useMutation({
         mutationFn: async (data: z.infer<typeof registerSchema>) => {
             const { confirmPassword, ...registerData } = data;
-            const res = await apiRequest("POST", "/api/register", registerData);
+            const res = await apiRequest("/api/register", "POST", registerData);
             return res.json();
         },
         onSuccess: (user) => {
@@ -154,7 +154,11 @@ export default function AuthPage() {
                                                     <FormItem>
                                                         <FormLabel>Email</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Enter your email" {...field} />
+                                                            <Input
+                                                                placeholder="Enter your email"
+                                                                autoComplete="username"
+                                                                {...field}
+                                                            />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -170,6 +174,7 @@ export default function AuthPage() {
                                                             <Input
                                                                 type="password"
                                                                 placeholder="Enter your password"
+                                                                autoComplete="current-password"
                                                                 {...field}
                                                             />
                                                         </FormControl>
@@ -214,7 +219,12 @@ export default function AuthPage() {
                                                         <FormItem>
                                                             <FormLabel>First Name</FormLabel>
                                                             <FormControl>
-                                                                <Input placeholder="John" {...field} value={field.value || ''} />
+                                                                <Input
+                                                                    placeholder="John"
+                                                                    autoComplete="given-name"
+                                                                    {...field}
+                                                                    value={field.value || ''}
+                                                                />
                                                             </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
@@ -227,7 +237,12 @@ export default function AuthPage() {
                                                         <FormItem>
                                                             <FormLabel>Last Name</FormLabel>
                                                             <FormControl>
-                                                                <Input placeholder="Doe" {...field} value={field.value || ''} />
+                                                                <Input
+                                                                    placeholder="Doe"
+                                                                    autoComplete="family-name"
+                                                                    {...field}
+                                                                    value={field.value || ''}
+                                                                />
                                                             </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
@@ -244,6 +259,7 @@ export default function AuthPage() {
                                                             <Input
                                                                 type="email"
                                                                 placeholder="john@example.com"
+                                                                autoComplete="username"
                                                                 {...field}
                                                                 value={field.value || ''}
                                                             />
@@ -262,6 +278,7 @@ export default function AuthPage() {
                                                             <Input
                                                                 type="password"
                                                                 placeholder="Create a password"
+                                                                autoComplete="new-password"
                                                                 {...field}
                                                             />
                                                         </FormControl>
@@ -279,6 +296,7 @@ export default function AuthPage() {
                                                             <Input
                                                                 type="password"
                                                                 placeholder="Confirm your password"
+                                                                autoComplete="new-password"
                                                                 {...field}
                                                             />
                                                         </FormControl>
@@ -309,11 +327,14 @@ export default function AuthPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900/50" />
                 <div className="relative z-10 max-w-lg mx-auto text-center space-y-6">
                     <h1 className="text-4xl font-bold tracking-tight">
-                        Streamline Your Commercial Lending Pipeline
+                        Streamline
+                    </h1>
+                    <h1 className="text-4xl font-bold tracking-tight">
+                        Your Lending Pipeline
                     </h1>
                     <p className="text-lg text-slate-300">
-                        Join thousands of brokers using Veltro to manage prospects, find
-                        lenders, and close deals faster.
+                        Veltro will REVOLUTIONISE your workflow. From finding new prospects, assessing credit viability, managing your pipeline through to submitting applications and everything else in between!
+                        Close deals much faster and more efficiently...
                     </p>
                 </div>
             </div>

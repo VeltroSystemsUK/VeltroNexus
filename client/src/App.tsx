@@ -36,10 +36,10 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/auth" component={AuthPage} />
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
-          <Route path="/auth" component={AuthPage} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/value-packages" component={ValuePackages} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />

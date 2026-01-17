@@ -364,7 +364,8 @@ export class DatabaseStorage implements IStorage {
   constructor() {
     this.sessionStore = new PostgresStore({
       pool,
-      createTableIfMissing: true,
+      createTableIfMissing: false,
+      tableName: 'sessions',
     });
   }
   async getUser(id: string): Promise<User | undefined> {
