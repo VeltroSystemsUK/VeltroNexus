@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, ArrowLeft, Package, Sparkles } from "lucide-react";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -75,6 +75,7 @@ const teamPackages = [
 ];
 
 export default function ValuePackages() {
+  const [, setLocation] = useLocation();
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const selectedPlan = params.get("plan") || "starter";
@@ -91,7 +92,7 @@ export default function ValuePackages() {
 
   const handleSelectPackage = (pkg: (typeof starterPackages)[0]) => {
     if (!user) {
-      window.location.href = "/api/login";
+      setLocation("/auth");
       return;
     }
 

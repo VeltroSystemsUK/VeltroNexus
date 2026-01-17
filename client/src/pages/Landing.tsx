@@ -37,7 +37,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import ThemeToggle from "@/components/ThemeToggle";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 function useCountUp(end: number, duration: number = 2000, startOnView: boolean = true) {
   const [count, setCount] = useState(0);
@@ -124,7 +124,7 @@ function SavingsCalculator() {
   const [needsAiModule, setNeedsAiModule] = useState(false);
 
   const totalCurrentSpend = crmSpend + creditDataSpend + trackingSpend + (labourHours * hourlyRate);
-  
+
   // Calculate total Veltro cost for a tier (base + AI add-on if needed and not included)
   const getTierTotalCost = (tier: PricingTier): number => {
     let cost = tier.price;
@@ -133,12 +133,12 @@ function SavingsCalculator() {
     }
     return cost;
   };
-  
+
   // Check if tier can accommodate the user count
   const tierMeetsSeats = (tier: PricingTier): boolean => {
     return numberOfUsers <= tier.maxSeats;
   };
-  
+
   // Recommend the tier that delivers the best savings while meeting requirements
   const getRecommendedTier = (): { tier: PricingTier; totalCost: number; aiAddOnApplied: boolean } => {
     const tiersList = [
@@ -146,20 +146,20 @@ function SavingsCalculator() {
       VELTRO_PRICING.team,
       VELTRO_PRICING.lender,
     ];
-    
+
     // Filter tiers that meet seat requirements
     const eligibleTiers = tiersList.filter(tierMeetsSeats);
-    
+
     // If no eligible tiers (shouldn't happen), default to lender
     if (eligibleTiers.length === 0) {
       const tier = VELTRO_PRICING.lender;
       return { tier, totalCost: getTierTotalCost(tier), aiAddOnApplied: needsAiModule && !tier.aiModuleIncluded };
     }
-    
+
     // Find the tier with maximum savings (lowest total cost)
     let bestTier = eligibleTiers[0];
     let bestTotalCost = getTierTotalCost(bestTier);
-    
+
     for (const tier of eligibleTiers) {
       const totalCost = getTierTotalCost(tier);
       if (totalCost < bestTotalCost) {
@@ -167,19 +167,19 @@ function SavingsCalculator() {
         bestTier = tier;
       }
     }
-    
-    return { 
-      tier: bestTier, 
-      totalCost: bestTotalCost, 
-      aiAddOnApplied: needsAiModule && !bestTier.aiModuleIncluded 
+
+    return {
+      tier: bestTier,
+      totalCost: bestTotalCost,
+      aiAddOnApplied: needsAiModule && !bestTier.aiModuleIncluded
     };
   };
-  
+
   const { tier: recommendedTier, totalCost: flowloanCost, aiAddOnApplied } = getRecommendedTier();
   const monthlySavings = totalCurrentSpend - flowloanCost;
   const annualSavings = monthlySavings * 12;
-  const savingsPercentage = totalCurrentSpend > 0 
-    ? Math.round((monthlySavings / totalCurrentSpend) * 100) 
+  const savingsPercentage = totalCurrentSpend > 0
+    ? Math.round((monthlySavings / totalCurrentSpend) * 100)
     : 0;
 
   return (
@@ -499,8 +499,9 @@ function StatsSection() {
 }
 
 export default function Landing() {
+  const [, setLocation] = useLocation();
   const handleLogin = () => {
-    window.location.href = "/api/login";
+    setLocation("/auth");
   };
 
   return (
@@ -511,9 +512,9 @@ export default function Landing() {
         <header className="absolute top-0 left-0 right-0 z-50">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img 
-                src={logoChrome} 
-                alt="Veltro" 
+              <img
+                src={logoChrome}
+                alt="Veltro"
                 className="h-8 md:h-10 object-contain"
                 data-testid="img-logo-nav"
               />
@@ -550,9 +551,9 @@ export default function Landing() {
                 onClick={handleLogin}
                 data-testid="button-sign-in"
               >Login</Button>
-              <Button 
-                className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25" 
-                onClick={handleLogin} 
+              <Button
+                className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25"
+                onClick={handleLogin}
                 data-testid="button-sign-up"
               >
                 Start Free Trial
@@ -561,33 +562,33 @@ export default function Landing() {
             </div>
           </div>
         </header>
-        
+
         {/* Hero Section */}
         <section className="relative overflow-hidden pt-20">
           <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#0f172a] to-[#1e293b]" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#D97706]/10 via-transparent to-transparent opacity-60" />
-          
+
           {/* Animated Background Elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {/* Floating orbs */}
             <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/20 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]" />
             <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-[pulse_6s_ease-in-out_infinite_1s]" />
             <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/15 rounded-full blur-3xl animate-[pulse_5s_ease-in-out_infinite_2s]" />
-            
+
             {/* Moving grid lines */}
             <div className="absolute inset-0 opacity-[0.03]" style={{
               backgroundImage: `linear-gradient(#D97706 1px, transparent 1px), linear-gradient(90deg, #D97706 1px, transparent 1px)`,
               backgroundSize: '60px 60px',
               animation: 'gridMove 20s linear infinite'
             }} />
-            
+
             {/* Floating particles */}
             <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-60 animate-[floatParticle_8s_ease-in-out_infinite]" />
             <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-40 animate-[floatParticle_6s_ease-in-out_infinite_1s]" />
             <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-50 animate-[floatParticle_10s_ease-in-out_infinite_2s]" />
             <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-30 animate-[floatParticle_7s_ease-in-out_infinite_3s]" />
             <div className="absolute bottom-1/3 right-1/2 w-1.5 h-1.5 bg-[#D97706] rounded-full opacity-40 animate-[floatParticle_9s_ease-in-out_infinite_4s]" />
-            
+
             {/* Diagonal streaks - speed lines */}
             <div className="absolute top-0 left-0 w-full h-full">
               <div className="absolute top-[20%] -left-20 w-[400px] h-[1px] bg-gradient-to-r from-transparent via-[#D97706]/30 to-transparent rotate-[35deg] animate-[streak_3s_ease-in-out_infinite]" />
@@ -598,9 +599,9 @@ export default function Landing() {
 
           <div className="container mx-auto px-6 md:px-8 py-20 md:py-28 lg:py-36 relative">
             <div className="max-w-4xl mx-auto text-center">
-              <img 
-                src={logoChrome} 
-                alt="Veltro" 
+              <img
+                src={logoChrome}
+                alt="Veltro"
                 className="h-32 md:h-40 lg:h-48 object-contain mx-auto mb-12 animate-[float_3s_ease-in-out_infinite]"
                 style={{
                   filter: "drop-shadow(0 0 20px rgba(217, 119, 6, 0.3))"
@@ -666,11 +667,11 @@ export default function Landing() {
               The <span className="text-[#D97706]">53-Day</span> Trap
             </h3>
             <p className="text-lg md:text-xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
-              The average business loan through traditional lenders takes <span className="text-white font-semibold">53 days</span> to complete. 
+              The average business loan through traditional lenders takes <span className="text-white font-semibold">53 days</span> to complete.
               That's 53 days of silence, "black box" underwriting, "paperchasing" and constantly chasing updates from the Lender.
             </p>
             <p className="text-base md:text-lg text-gray-400 mt-6 leading-relaxed max-w-2xl mx-auto">
-              Legacy banking systems and administrative chaos are eating your margins. You spend <span className="text-white font-medium">80% of your week</span> wrestling with data, 
+              Legacy banking systems and administrative chaos are eating your margins. You spend <span className="text-white font-medium">80% of your week</span> wrestling with data,
               leaving only 20% to do what you do best: <span className="text-[#D97706] font-semibold">Close deals.</span>
             </p>
           </div>
@@ -701,8 +702,8 @@ export default function Landing() {
                 <h4 className="text-white font-bold text-xl mb-2">The Glass Box</h4>
                 <p className="text-[#D97706] text-sm font-medium mb-4">Workflow</p>
                 <p className="text-gray-400 leading-relaxed">
-                  <span className="text-white font-medium">See the Kill.</span> Stop working in the dark. 
-                  Our Kanban-style dashboard gives you a visual, real-time command center for every deal. 
+                  <span className="text-white font-medium">See the Kill.</span> Stop working in the dark.
+                  Our Kanban-style dashboard gives you a visual, real-time command center for every deal.
                   From "Lead" to "Cash," you know exactly where your application sits and who is holding it up.
                 </p>
               </div>
@@ -715,8 +716,8 @@ export default function Landing() {
                 <h4 className="text-white font-bold text-xl mb-2">Data Pedigree</h4>
                 <p className="text-[#D97706] text-sm font-medium mb-4">Validation</p>
                 <p className="text-gray-400 leading-relaxed">
-                  <span className="text-white font-medium">Validate in Seconds.</span> Kill the "Not In Good Order" (NIGO) rejections. 
-                  Veltro integrates directly with Companies House and Open Banking. Type a client name, 
+                  <span className="text-white font-medium">Validate in Seconds.</span> Kill the "Not In Good Order" (NIGO) rejections.
+                  Veltro integrates directly with Companies House and Open Banking. Type a client name,
                   and we auto-populate verified, golden-source data. Your applications go to lenders ready to fund.
                 </p>
               </div>
@@ -729,8 +730,8 @@ export default function Landing() {
                 <h4 className="text-white font-bold text-xl mb-2">The AI Edge</h4>
                 <p className="text-[#D97706] text-sm font-medium mb-4">The Upgrade</p>
                 <p className="text-gray-400 leading-relaxed">
-                  <span className="text-white font-medium">Underwrite with Intelligence.</span> Don't just submit; strategize. 
-                  Upgrade to unlock our AI Credit Underwriting engine. Pre-screen your own deals against lender criteria 
+                  <span className="text-white font-medium">Underwrite with Intelligence.</span> Don't just submit; strategize.
+                  Upgrade to unlock our AI Credit Underwriting engine. Pre-screen your own deals against lender criteria
                   before you even hit send.
                 </p>
               </div>
@@ -791,7 +792,7 @@ export default function Landing() {
             <div className="text-center mt-12">
               <Button
                 size="lg"
-                onClick={() => window.location.href = "/api/login"}
+                onClick={() => setLocation("/auth")}
                 className="gap-2 text-base px-10 h-14 font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-xl shadow-orange-500/30"
                 data-testid="button-trial-cta"
               >
@@ -1350,9 +1351,9 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img 
-                src={logoChrome} 
-                alt="Veltro" 
+              <img
+                src={logoChrome}
+                alt="Veltro"
                 className="h-8 object-contain"
                 data-testid="img-logo-footer"
               />

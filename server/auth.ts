@@ -28,6 +28,9 @@ export function setupAuth(app: Express) {
         resave: false,
         saveUninitialized: false,
         store: storage.sessionStore,
+        cookie: {
+            secure: app.get("env") === "production",
+        },
     };
 
     if (app.get("env") === "production") {

@@ -23,6 +23,7 @@ import UnderwriterInbox from "@/pages/UnderwriterInbox";
 import Teams from "@/pages/Teams";
 import Admin from "@/pages/Admin";
 import ValuePackages from "@/pages/ValuePackages";
+import AuthPage from "@/pages/Auth";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,6 +39,7 @@ function Router() {
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
+          <Route path="/auth" component={AuthPage} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/value-packages" component={ValuePackages} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />

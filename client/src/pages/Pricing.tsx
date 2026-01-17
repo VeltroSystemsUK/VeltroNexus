@@ -229,23 +229,23 @@ export default function Pricing() {
       console.log("No billing products available");
       return null;
     }
-    
+
     const tierLower = tierName.toLowerCase();
     const product = billingProducts.products.find((p) => {
       // Check metadata.tier first
       const metadataTier = p.metadata?.tier?.toLowerCase();
       if (metadataTier === tierLower) return true;
-      
+
       // Fall back to product name matching
       const nameLower = p.name.toLowerCase();
       return nameLower.includes(tierLower) || nameLower.startsWith(tierLower);
     });
-    
+
     if (!product) {
       console.log(`No product found for tier: ${tierName}`, billingProducts.products);
       return null;
     }
-    
+
     // Find matching price by interval
     const price = product.prices.find((p) => p.recurring?.interval === interval);
     if (!price) {
@@ -306,7 +306,7 @@ export default function Pricing() {
       if (selectedPackage) {
         sessionStorage.setItem("value_package", selectedPackage);
       }
-      window.location.href = "/api/login";
+      setLocation("/auth");
     } else {
       // User is logged in - initiate Stripe checkout
       setCheckoutDialogOpen(false);
@@ -591,9 +591,8 @@ export default function Pricing() {
                 {availablePackages.map((pkg) => (
                   <div
                     key={pkg.id}
-                    className={`relative border rounded-lg p-3 cursor-pointer transition-colors hover-elevate ${
-                      selectedPackage === pkg.id ? "border-primary bg-primary/5" : "border-border"
-                    }`}
+                    className={`relative border rounded-lg p-3 cursor-pointer transition-colors hover-elevate ${selectedPackage === pkg.id ? "border-primary bg-primary/5" : "border-border"
+                      }`}
                     onClick={() => setSelectedPackage(selectedPackage === pkg.id ? null : pkg.id)}
                     data-testid={`checkout-package-${pkg.id}`}
                   >
@@ -609,11 +608,10 @@ export default function Pricing() {
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedPackage === pkg.id
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPackage === pkg.id
                               ? "border-primary bg-primary"
                               : "border-muted-foreground"
-                          }`}
+                            }`}
                         >
                           {selectedPackage === pkg.id && (
                             <Check className="w-3 h-3 text-primary-foreground" />
