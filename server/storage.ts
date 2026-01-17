@@ -26,6 +26,8 @@ import {
   type InsertProspect,
   type ProspectWithCompany,
   type User,
+
+  type InsertUser,
   type UpsertUser,
   type Contact,
   type InsertContact,
@@ -76,12 +78,19 @@ import {
   type InsertUserSession,
   SESSION_LIMITS,
 } from "@shared/schema";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { eq, sql, and, or, ilike, gte, lte, desc, inArray, isNull, isNotNull } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+
+const PostgresStore = connectPg(session);
 
 export interface IStorage {
-  // Users - required for Replit Auth
+  sessionStore: session.Store;
+  // Users - required for auth
   getUser(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
   getUsersByIds(ids: string[]): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
@@ -350,9 +359,27 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+
+  constructor() {
+    this.sessionStore = new PostgresStore({
+      pool,
+      createTableIfMissing: true,
+    });
+  }
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, username));
+    return user;
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
   }
 
   async getUsersByIds(ids: string[]): Promise<User[]> {
@@ -380,7 +407,7 @@ export class DatabaseStorage implements IStorage {
     } catch (error: any) {
       // If there's a duplicate email error, fetch and return the existing user
       if (error.code === "23505" && error.constraint === "users_email_unique") {
-        const [existingUser] = await db.select().from(users).where(eq(users.email, userData.email));
+        const [existingUser] = await db.select().from(users).where(eq(users.email, userData.email as string));
         if (existingUser) {
           return existingUser;
         }
@@ -445,7 +472,7 @@ export class DatabaseStorage implements IStorage {
   async revokeOldestSession(userId: string, reason: string): Promise<UserSession | undefined> {
     const activeSessions = await this.getUserActiveSessions(userId);
     if (activeSessions.length === 0) return undefined;
-    
+
     // Revoke the oldest session (first in the list, ordered by createdAt)
     const oldest = activeSessions[0];
     await this.revokeSession(oldest.sessionId, reason);
@@ -463,7 +490,7 @@ export class DatabaseStorage implements IStorage {
     // Remove user_sessions entries where the session was revoked more than 30 days ago
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const result = await db
       .delete(userSessions)
       .where(
@@ -641,6 +668,8 @@ export class DatabaseStorage implements IStorage {
         email: contacts.email,
         phone: contacts.phone,
         notes: contacts.notes,
+        isPrimary: contacts.isPrimary,
+        profilePicture: contacts.profilePicture,
         createdAt: contacts.createdAt,
       })
       .from(contacts)
@@ -659,6 +688,8 @@ export class DatabaseStorage implements IStorage {
         email: contacts.email,
         phone: contacts.phone,
         notes: contacts.notes,
+        isPrimary: contacts.isPrimary,
+        profilePicture: contacts.profilePicture,
         createdAt: contacts.createdAt,
       })
       .from(contacts)
@@ -802,17 +833,17 @@ export class DatabaseStorage implements IStorage {
       .from(dueDiligence)
       .innerJoin(prospects, eq(dueDiligence.prospectId, prospects.id))
       .where(eq(prospects.userId, userId));
-    
+
     return results.map(row => {
       const data = row.data as DueDiligenceData;
       const checklist = data?.checklist || [];
-      
+
       if (checklist.length === 0) {
         return { prospectId: row.prospectId, status: 'pending' as const };
       }
-      
+
       const completedCount = checklist.filter(item => item.completed).length;
-      
+
       if (completedCount === 0) {
         return { prospectId: row.prospectId, status: 'pending' as const };
       } else if (completedCount === checklist.length) {
@@ -965,15 +996,23 @@ export class DatabaseStorage implements IStorage {
         lenderId: lenderProducts.lenderId,
         productName: lenderProducts.productName,
         productType: lenderProducts.productType,
+        description: lenderProducts.description,
         minLoanAmount: lenderProducts.minLoanAmount,
         maxLoanAmount: lenderProducts.maxLoanAmount,
+        minTermMonths: lenderProducts.minTermMonths,
+        maxTermMonths: lenderProducts.maxTermMonths,
         minLtv: lenderProducts.minLtv,
         maxLtv: lenderProducts.maxLtv,
+        rateType: lenderProducts.rateType,
+        typicalRate: lenderProducts.typicalRate,
         minRate: lenderProducts.minRate,
         maxRate: lenderProducts.maxRate,
         arrangementFee: lenderProducts.arrangementFee,
         exitFee: lenderProducts.exitFee,
-        term: lenderProducts.term,
+        securityRequirements: lenderProducts.securityRequirements,
+        eligibilityCriteria: lenderProducts.eligibilityCriteria,
+        features: lenderProducts.features,
+        isActive: lenderProducts.isActive,
         notes: lenderProducts.notes,
         createdAt: lenderProducts.createdAt,
         updatedAt: lenderProducts.updatedAt,
@@ -991,15 +1030,23 @@ export class DatabaseStorage implements IStorage {
         lenderId: lenderProducts.lenderId,
         productName: lenderProducts.productName,
         productType: lenderProducts.productType,
+        description: lenderProducts.description,
         minLoanAmount: lenderProducts.minLoanAmount,
         maxLoanAmount: lenderProducts.maxLoanAmount,
+        minTermMonths: lenderProducts.minTermMonths,
+        maxTermMonths: lenderProducts.maxTermMonths,
         minLtv: lenderProducts.minLtv,
         maxLtv: lenderProducts.maxLtv,
+        rateType: lenderProducts.rateType,
+        typicalRate: lenderProducts.typicalRate,
         minRate: lenderProducts.minRate,
         maxRate: lenderProducts.maxRate,
         arrangementFee: lenderProducts.arrangementFee,
         exitFee: lenderProducts.exitFee,
-        term: lenderProducts.term,
+        securityRequirements: lenderProducts.securityRequirements,
+        eligibilityCriteria: lenderProducts.eligibilityCriteria,
+        features: lenderProducts.features,
+        isActive: lenderProducts.isActive,
         notes: lenderProducts.notes,
         createdAt: lenderProducts.createdAt,
         updatedAt: lenderProducts.updatedAt,
@@ -1060,12 +1107,16 @@ export class DatabaseStorage implements IStorage {
         userId: lenderInteractions.userId,
         prospectId: lenderInteractions.prospectId,
         interactionType: lenderInteractions.interactionType,
+        channel: lenderInteractions.channel,
         subject: lenderInteractions.subject,
+        summary: lenderInteractions.summary,
+        status: lenderInteractions.status,
         notes: lenderInteractions.notes,
         outcome: lenderInteractions.outcome,
         followUpDate: lenderInteractions.followUpDate,
         sentAt: lenderInteractions.sentAt,
         respondedAt: lenderInteractions.respondedAt,
+        attachments: lenderInteractions.attachments,
         createdAt: lenderInteractions.createdAt,
         updatedAt: lenderInteractions.updatedAt,
       })
@@ -1649,7 +1700,7 @@ export class DatabaseStorage implements IStorage {
   async listTimeEntries(prospectId: number, userId: string): Promise<TimeEntry[]> {
     const prospect = await this.getProspect(prospectId, userId);
     if (!prospect) return [];
-    
+
     return await db
       .select()
       .from(timeEntries)
@@ -1665,10 +1716,10 @@ export class DatabaseStorage implements IStorage {
     if (!prospect) {
       throw new Error("Access denied - prospect not found or not owned by user");
     }
-    
+
     const [newEntry] = await db
       .insert(timeEntries)
-      .values({ ...entry, userId })
+      .values({ ...entry, userId } as any)
       .returning();
     return newEntry;
   }
@@ -1678,15 +1729,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(timeEntries)
       .where(and(eq(timeEntries.id, id), eq(timeEntries.userId, userId)));
-    
+
     if (!existing) return undefined;
-    
+
     const safeUpdates: Partial<InsertTimeEntry> = {};
     if (updates.description !== undefined) safeUpdates.description = updates.description;
     if (updates.durationMinutes !== undefined && updates.durationMinutes > 0) {
       safeUpdates.durationMinutes = updates.durationMinutes;
     }
-    
+
     const [updated] = await db
       .update(timeEntries)
       .set(safeUpdates)
@@ -1704,7 +1755,7 @@ export class DatabaseStorage implements IStorage {
   async getProspectTotalTime(prospectId: number, userId: string): Promise<number> {
     const prospect = await this.getProspect(prospectId, userId);
     if (!prospect) return 0;
-    
+
     const result = await db
       .select({ total: sql<number>`COALESCE(SUM(${timeEntries.durationMinutes}), 0)` })
       .from(timeEntries)
@@ -1712,7 +1763,7 @@ export class DatabaseStorage implements IStorage {
         eq(timeEntries.prospectId, prospectId),
         eq(timeEntries.userId, userId)
       ));
-    
+
     return result[0]?.total ?? 0;
   }
 
@@ -1830,6 +1881,12 @@ export class DatabaseStorage implements IStorage {
   async getUserByWebhookApiKeyHash(keyHash: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.webhookApiKeyHash, keyHash));
     return user;
+  }
+
+  async getUserByWebhookApiKey(apiKey: string): Promise<User | undefined> {
+    const { hashWebhookApiKey } = await import("./utils/webhookKeyHash");
+    const keyHash = hashWebhookApiKey(apiKey);
+    return this.getUserByWebhookApiKeyHash(keyHash);
   }
 
   async generateWebhookApiKey(userId: string): Promise<string> {

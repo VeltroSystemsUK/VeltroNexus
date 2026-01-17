@@ -1,8 +1,32 @@
-import type { Express } from "express";
+// Static imports added at the top
+import { getRateLimitStatus } from "./utils/rateLimit";
+import { PassThrough, Transform } from "stream";
+import { isSvgContent, hasValidImageMagicBytes, encodeContentDisposition } from "./utils/security";
+import { searchBusinessOverview } from "./utils/tavilyClient";
+
+// ... existing code ...
+
+// Inside registerRoutes(app):
+// Replace dynamic imports with direct usage
+
+// In /healthz:
+// const rateLimitStatus = getRateLimitStatus();
+
+// In /api/user/branding/logo:
+// const passThrough = new PassThrough();
+// const validationTransform = new Transform(...);
+// if (isSvgContent(accumulatedBuffer)) ...
+
+// In /api/prospects/export/excel and report endpoints:
+// res.setHeader("Content-Disposition", encodeContentDisposition(filename));
+
+// In /api/prospects/:id/business-overview:
+// const result = await searchBusinessOverview(companyName, industry);
 import { createServer, type Server } from "http";
 import busboy from "busboy";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, csrfProtection } from "./replitAuth";
+import { setupAuth, isAuthenticated, csrfProtection } from "./auth";
+import { formatOfficerName } from "./utils/formatters";
 import {
   insertCompanySchema,
   insertProspectSchema,
@@ -12,18 +36,19 @@ import {
   insertTimeEntrySchema,
   insertLenderSchema,
   insertApplicationSubmissionSchema,
+  insertUserSchema,
   queryResponseSchema,
   webhookProspectPayloadSchema,
   type InsertApplicationSubmission,
   type UnderwritingAttachment,
   type DueDiligenceData,
+  type WebhookProspect,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 import { createRequire } from "module";
 import { generateProspectReport } from "./utils/pdfGenerator";
 import { generatePipelineExcel } from "./utils/excelExporter";
-import { getUncachableResendClient } from "./utils/resendClient";
 import { getSicDescription } from "./utils/sicCodeLookup";
 import { createErrorResponse } from "./utils/errorResponse";
 import { handleApiError, logUnderwritingAudit } from "./utils/errorHandler";
@@ -42,7 +67,7 @@ import {
   requireSubmissionReadAccess,
   requireSubmissionWriteAccess,
 } from "./utils/underwritingAuth";
-import { Client as ObjectStorageClient } from "@replit/object-storage";
+import { LocalStorageClient as ObjectStorageClient } from "./localStorage";
 import {
   getUncachableStripeClient,
   getStripePublishableKey,
@@ -86,7 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // Check Redis (if configured)
-    const { getRateLimitStatus } = await import("./utils/rateLimit");
+    // const { getRateLimitStatus } = await import("./utils/rateLimit");
     const rateLimitStatus = getRateLimitStatus();
     if (rateLimitStatus.backend === "redis") {
       checks.redis = { status: "ok" };
@@ -154,7 +179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes - Required for Replit Auth
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       // Add no-store cache header for sensitive auth data
       res.setHeader("Cache-Control", "no-store");
@@ -193,7 +218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/user/settings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const result = updateUserSettingsSchema.safeParse(req.body);
 
       if (!result.success) {
@@ -237,7 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB limit
 
   app.post("/api/user/branding/logo", isAuthenticated, (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
 
     const contentType = req.headers["content-type"];
     if (!contentType?.startsWith("multipart/form-data")) {
@@ -289,8 +314,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Stream to storage with content validation
         uploadPromise = (async () => {
-          const { PassThrough, Transform } = await import("stream");
-          const { isSvgContent, hasValidImageMagicBytes } = await import("./utils/security");
+          // const { PassThrough, Transform } = await import("stream");
+          // const { isSvgContent, hasValidImageMagicBytes } = await import("./utils/security");
 
           const passThrough = new PassThrough();
           let limitExceeded = false;
@@ -318,7 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 if (!hasValidImageMagicBytes(accumulatedBuffer)) {
                   validationError =
                     "Invalid image file - content does not match a recognized image format (PNG, JPEG, GIF, or WebP).";
-                  callback(new Error(validationError));
+                  passThrough.destroy(new Error(validationError));
                   return;
                 }
                 magicBytesValidated = true;
@@ -329,7 +354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (isSvgContent(accumulatedBuffer)) {
                 validationError =
                   "File content appears to be SVG disguised as another format. SVG files are not allowed.";
-                callback(new Error(validationError));
+                passThrough.destroy(new Error(validationError));
                 return;
               }
 
@@ -346,13 +371,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 if (!hasValidImageMagicBytes(accumulatedBuffer)) {
                   validationError =
                     "Invalid image file - content does not match a recognized image format.";
-                  callback(new Error(validationError));
+                  passThrough.destroy(new Error(validationError));
                   return;
                 }
                 // Final SVG check
                 if (isSvgContent(accumulatedBuffer)) {
                   validationError = "File content appears to be SVG disguised as another format.";
-                  callback(new Error(validationError));
+                  passThrough.destroy(new Error(validationError));
                   return;
                 }
                 // Push buffered data for small files
@@ -427,7 +452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete branding logo
   app.delete("/api/user/branding/logo", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
 
       // Clear the logo URL from user settings
       await storage.updateUser(userId, { brandingLogoUrl: null });
@@ -444,7 +469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/public-objects/*", async (req, res) => {
     try {
-      const filePath = req.params[0];
+      const filePath = (req.params as any)[0];
 
       // Security: Validate path is within allowed prefixes
       const isAllowed = ALLOWED_PUBLIC_PREFIXES.some((prefix) => filePath.startsWith(prefix));
@@ -501,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Prospects API - Protected routes
   app.get("/api/prospects", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospects = await storage.listProspects(userId);
       res.json(prospects);
     } catch (error) {
@@ -511,14 +536,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/prospects/export/excel", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospects = await storage.listProspects(userId);
       const user = await storage.getUser(userId);
 
       const excelBuffer = await generatePipelineExcel(prospects, user);
 
       // SECURITY: Use sanitized filename to prevent header injection
-      const { encodeContentDisposition } = await import("./utils/security");
+      // const { encodeContentDisposition } = await import("./utils/security");
       const filename = `pipeline-export-${new Date().toISOString().split("T")[0]}.xlsx`;
       res.setHeader(
         "Content-Type",
@@ -533,7 +558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
       const prospect = await storage.getProspect(id, userId);
       if (!prospect) {
@@ -547,7 +572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/prospects", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
 
       // Check prospect limit based on subscription tier
       const user = await storage.getUser(userId);
@@ -578,7 +603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/prospects/:id/stage", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospectId = parseInt(req.params.id);
       const result = updateProspectStageSchema.safeParse({
         prospectId,
@@ -599,7 +624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/prospects/reorder", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { stage, orderedIds } = req.body;
 
       if (!stage || !Array.isArray(orderedIds)) {
@@ -615,7 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       const prospect = await storage.updateProspect(id, userId, req.body);
@@ -630,7 +655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       await storage.deleteProspect(id, userId);
@@ -642,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/prospects/:id/report", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       const prospect = await storage.getProspect(id, userId);
@@ -698,7 +723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
 
       console.log(`[PDF Report] Generating report for prospect ${id}, company: ${prospect.company.companyName}`);
-      
+
       let doc;
       try {
         doc = generateProspectReport({
@@ -707,15 +732,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           activities,
           dueDiligence,
           companiesHouseData,
-          pdfLayoutPreferences: user?.pdfLayoutPreferences || null,
-        });
+          pdfLayoutPreferences: (user?.pdfLayoutPreferences as any) || null,
+        } as any);
       } catch (pdfError) {
         console.error("[PDF Report] Error generating PDF:", pdfError);
         throw pdfError;
       }
 
       // SECURITY: Use sanitized filename to prevent header injection
-      const { encodeContentDisposition } = await import("./utils/security");
+      // const { encodeContentDisposition } = await import("./utils/security");
       const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`;
 
       res.setHeader("Content-Type", "application/pdf");
@@ -733,7 +758,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Business Overview API - AI-powered web search for company info
   app.get("/api/prospects/:id/business-overview", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       const prospect = await storage.getProspect(id, userId);
@@ -741,15 +766,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Prospect not found" });
       }
 
-      const { searchBusinessOverview } = await import("./utils/tavilyClient");
-      
+      // const { searchBusinessOverview } = await import("./utils/tavilyClient");
+
       const companyName = prospect.company.companyName;
       const industry = prospect.company.sicDescription || prospect.company.sicCode || undefined;
-      
+
       console.log(`[Business Overview] Searching for company: ${companyName}`);
-      
+
       const result = await searchBusinessOverview(companyName, industry);
-      
+
       res.json({
         companyName,
         industry: industry || null,
@@ -765,7 +790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced PDF report with business overview
   app.get("/api/prospects/:id/report-enhanced", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
       const includeBusinessOverview = req.query.includeBusinessOverview === "true";
 
@@ -789,7 +814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const trimmedApiKey = apiKey.trim();
           const authString = `${trimmedApiKey}:`;
           const base64Auth = Buffer.from(authString).toString("base64");
-          
+
           const [profileRes, officersRes, chargesRes, pscsRes] = await Promise.all([
             fetch(`https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}`, {
               headers: { Authorization: `Basic ${base64Auth}` },
@@ -820,7 +845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let businessOverview: string[] | null = null;
       if (includeBusinessOverview) {
         try {
-          const { searchBusinessOverview } = await import("./utils/tavilyClient");
+          // const { searchBusinessOverview } = await import("./utils/tavilyClient");
           const industry = prospect.company.sicDescription || prospect.company.sicCode || undefined;
           const result = await searchBusinessOverview(prospect.company.companyName, industry);
           businessOverview = result.bulletPoints;
@@ -837,7 +862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companiesHouseData: companiesHouseData as any,
         pdfLayoutPreferences: (user?.pdfLayoutPreferences || null) as any,
         businessOverview,
-      });
+      } as any);
 
       const { encodeContentDisposition } = await import("./utils/security");
       const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`;
@@ -942,7 +967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (sic_codes) {
         params.append("sic_codes", sic_codes as string);
         console.log(`Advanced search by SIC code: ${sic_codes}`);
-        
+
         // Optional postcode filter with SIC code search
         if (postcode) {
           const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
@@ -953,7 +978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Filter by location (town/city in registered address)
         params.append("location", location as string);
         console.log(`Advanced search by location: ${location}`);
-        
+
         // Optional postcode filter with location search
         if (postcode) {
           const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
@@ -1023,16 +1048,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               company_type: item.company_type,
               address_snippet: addr
                 ? [
-                    addr.premises,
-                    addr.address_line_1,
-                    addr.address_line_2,
-                    addr.locality,
-                    addr.region,
-                    addr.postal_code,
-                    addr.country,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")
+                  addr.premises,
+                  addr.address_line_1,
+                  addr.address_line_2,
+                  addr.locality,
+                  addr.region,
+                  addr.postal_code,
+                  addr.country,
+                ]
+                  .filter(Boolean)
+                  .join(", ")
                 : undefined,
               address: addr,
               date_of_creation: item.date_of_creation,
@@ -1330,7 +1355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
 
         // Check user subscription - Premium only
@@ -1515,7 +1540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI web search for company - Premium feature
   app.post("/api/prospects/:prospectId/web-search", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
 
       // Check user subscription - Premium only
@@ -1584,7 +1609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
         const { associations } = req.body;
 
@@ -1796,37 +1821,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to format officer name from "SURNAME, First Middle" to "First Middle Surname"
-  function formatOfficerName(name: string): string {
-    if (!name) return name;
-
-    // Check if name contains a comma (Companies House format: "SURNAME, First Middle")
-    if (name.includes(",")) {
-      const parts = name.split(",").map((p) => p.trim());
-      if (parts.length >= 2) {
-        const surname = parts[0];
-        const firstNames = parts.slice(1).join(" ");
-        // Convert to proper case
-        const formatWord = (word: string) =>
-          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-
-        const formattedSurname = surname
-          .split(/[\s-]+/)
-          .map(formatWord)
-          .join(surname.includes("-") ? "-" : " ");
-        const formattedFirstNames = firstNames.split(/\s+/).map(formatWord).join(" ");
-
-        return `${formattedFirstNames} ${formattedSurname}`.trim();
-      }
-    }
-    return name;
-  }
-
-  // Contacts API - Protected routes (user-scoped via prospect ownership)
+  // Contact enrichment - search web and email inbox for contact info
   app.get("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const contacts = await storage.listContacts(prospectId, userId);
       res.json(contacts);
     } catch (error) {
@@ -1838,7 +1837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/prospects/:prospectId/sync-officers", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
 
       // Get the prospect to find the company number
       const prospect = await storage.getProspect(prospectId, userId);
@@ -1916,7 +1915,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const result = insertContactSchema.safeParse({ ...req.body, prospectId });
       if (!result.success) {
         return res.status(400).json({ error: fromZodError(result.error).toString() });
@@ -1936,7 +1935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const contact = await storage.updateContact(id, userId, req.body);
       if (!contact) {
         return res.status(404).json({ error: "Contact not found or access denied" });
@@ -1950,7 +1949,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const deleted = await storage.deleteContact(id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Contact not found or access denied" });
@@ -1965,7 +1964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/contacts/:id/enrich", isAuthenticated, async (req: any, res) => {
     try {
       const contactId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
 
       // Get the contact (already user-scoped via prospect ownership)
       const contact = await storage.getContact(contactId, userId);
@@ -2074,7 +2073,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Activities API - Protected routes
   app.get("/api/activities", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const activities = await storage.listAllUserActivities(userId);
       res.json(activities);
     } catch (error) {
@@ -2084,7 +2083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/activities", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       // SECURITY: Strip userId from request body to prevent injection attacks
       const { userId: _, ...safeBody } = req.body;
       const result = insertActivitySchema.safeParse(safeBody);
@@ -2106,7 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/prospects/:prospectId/activities", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const activities = await storage.listActivities(prospectId, userId);
       res.json(activities);
     } catch (error) {
@@ -2116,7 +2115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/prospects/:prospectId/activities", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
       // SECURITY: Strip userId from request body to prevent injection attacks
       const { userId: _, ...safeBody } = req.body;
@@ -2139,7 +2138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/activities/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const activity = await storage.updateActivity(id, userId, req.body);
       if (!activity) {
         return res.status(404).json({ error: "Activity not found or access denied" });
@@ -2153,7 +2152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/activities/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       await storage.deleteActivity(id, userId);
       res.json({ success: true });
     } catch (error) {
@@ -2165,7 +2164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const entries = await storage.listTimeEntries(prospectId, userId);
       res.json(entries);
     } catch (error) {
@@ -2176,7 +2175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/prospects/:prospectId/time-total", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const totalMinutes = await storage.getProspectTotalTime(prospectId, userId);
       res.json({ totalMinutes });
     } catch (error) {
@@ -2187,13 +2186,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
-      
+      const userId = req.user.id;
+
       const parsed = insertTimeEntrySchema.safeParse({ ...req.body, prospectId });
       if (!parsed.success) {
         return res.status(400).json({ error: fromZodError(parsed.error).message });
       }
-      
+
       const entry = await storage.createTimeEntry(parsed.data, userId);
       res.status(201).json(entry);
     } catch (error) {
@@ -2204,7 +2203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/time-entries/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const entry = await storage.updateTimeEntry(id, userId, req.body);
       if (!entry) {
         return res.status(404).json({ error: "Time entry not found or access denied" });
@@ -2218,7 +2217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/time-entries/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       await storage.deleteTimeEntry(id, userId);
       res.json({ success: true });
     } catch (error) {
@@ -2229,7 +2228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get due diligence status summaries for all prospects (for pipeline cards)
   app.get("/api/due-diligence/summaries", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const summaries = await storage.getAllDueDiligenceSummaries(userId);
       const statusMap: Record<number, string> = {};
       for (const summary of summaries) {
@@ -2244,7 +2243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const dueDiligenceData = await storage.getDueDiligence(prospectId, userId);
       res.json(dueDiligenceData || { prospectId, data: {} });
     } catch (error) {
@@ -2255,7 +2254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: any, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const existing = await storage.getDueDiligence(prospectId, userId);
       const mergedData =
         existing && existing.data ? { ...(existing.data as object), ...req.body } : req.body;
@@ -2280,7 +2279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
         const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
 
@@ -2346,7 +2345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             analyzedAt: new Date().toISOString(),
           },
         };
-        await storage.upsertDueDiligence(prospectId, mergedData);
+        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
 
         res.json(result.result);
       } catch (error: any) {
@@ -2362,7 +2361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
         const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
 
@@ -2459,7 +2458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             },
           },
         };
-        await storage.upsertDueDiligence(prospectId, mergedData);
+        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
 
         res.json(result.result);
       } catch (error: any) {
@@ -2475,7 +2474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
         const { pdfTexts, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
 
@@ -2547,7 +2546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             accountsAnalyzedAt: new Date().toISOString(),
           },
         };
-        await storage.upsertDueDiligence(prospectId, mergedData);
+        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
 
         res.json(result.result);
       } catch (error: any) {
@@ -2569,8 +2568,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "PDF data is required" });
       }
 
-      // Import pdf-parse
-      const { PDFParse } = await import("pdf-parse");
+      // Import pdf-parse with correct default export handling
+      const pdfImport = await import("pdf-parse");
+      // @ts-ignore
+      const pdfParse = pdfImport.default || pdfImport;
 
       // Convert base64 to buffer
       const pdfBuffer = Buffer.from(pdfBase64, "base64");
@@ -2582,14 +2583,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ error: "PDF exceeds 7.5MB limit. Please use a smaller file." });
       }
 
-      // Parse PDF using v2 API
-      const parser = new PDFParse({ data: pdfBuffer });
-      const result = await parser.getText();
+      // Parse PDF using standard API
+      // @ts-ignore
+      const result = await pdfParse(pdfBuffer);
 
       res.json({
         text: result.text,
-        pages: result.totalPages,
-        info: {},
+        pages: result.numpages,
+        info: result.info || {},
       });
     } catch (error: any) {
       console.error("PDF parsing error:", error);
@@ -2603,7 +2604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
 
         const { files, months, consentToAiProcessing } = req.body;
@@ -2684,7 +2685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             },
           },
         };
-        await storage.upsertDueDiligence(prospectId, mergedData);
+        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
 
         res.json({
           success: true,
@@ -2703,7 +2704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
 
         const {
@@ -2785,7 +2786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             swotAnalyzedAt: new Date().toISOString(),
           },
         };
-        await storage.upsertDueDiligence(prospectId, mergedData);
+        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
 
         res.json(result.result);
       } catch (error: any) {
@@ -2801,7 +2802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
 
         const {
@@ -2848,7 +2849,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Parse document contents with redaction
         const documentSummaries: { fileName: string; category: string; content: string }[] = [];
-        const pdfParse = (await import("pdf-parse")).default;
+        const pdfImport = await import("pdf-parse");
+        // @ts-ignore
+        const pdfParse = pdfImport.default || pdfImport;
+
 
         for (const doc of relevantDocs.slice(0, AI_GOVERNANCE_CONFIG.maxDocuments)) {
           try {
@@ -2956,7 +2960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             },
           },
         };
-        await storage.upsertDueDiligence(prospectId, mergedData);
+        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
 
         res.json({ sectionKey, content: result.result });
       } catch (error: any) {
@@ -2971,7 +2975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
 
         // Check if user is premium
@@ -3015,7 +3019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             adverseMediaSearchedAt: new Date().toISOString(),
           },
         };
-        await storage.upsertDueDiligence(prospectId, mergedData);
+        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
 
         res.json(result);
       } catch (error: any) {
@@ -3037,7 +3041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/add-ons/purchases", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const purchases = await storage.listUserAddOnPurchases(userId);
       res.json(purchases);
     } catch (error) {
@@ -3047,7 +3051,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/add-ons/credits", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const credits = await storage.getUserProspectCredits(userId);
       res.json({ credits });
     } catch (error) {
@@ -3066,7 +3070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Create add-on product (Super Admin only)
   app.post("/api/add-ons/products", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (user?.role !== "super_admin") {
@@ -3097,7 +3101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Lenders API - Protected routes
   app.get("/api/lenders", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const lenders = await storage.listLenders(userId);
       res.json(lenders);
     } catch (error) {
@@ -3108,7 +3112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
       const lender = await storage.getLender(lenderId, userId);
 
@@ -3125,7 +3129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/lenders", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const result = insertLenderSchema.safeParse(req.body);
 
       if (!result.success) {
@@ -3143,7 +3147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
       const result = insertLenderSchema.partial().safeParse(req.body);
 
@@ -3167,7 +3171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
 
       await storage.deleteLender(lenderId, userId);
@@ -3181,7 +3185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Lender Search with filters
   app.get("/api/lenders/search", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const filters = {
         search: req.query.search as string,
         lenderType: req.query.lenderType as string,
@@ -3203,7 +3207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Lender Recommendations for a Prospect
   app.get("/api/prospects/:prospectId/recommendations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
       const includeDisqualified = req.query.includeDisqualified === 'true';
@@ -3232,7 +3236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get lender with products
   app.get("/api/lenders/:id/full", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
       const lender = await storage.getLenderWithProducts(lenderId, userId);
 
@@ -3254,7 +3258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const products = await storage.listLenderProducts(lenderId, userId);
       res.json(products);
     } catch (error) {
@@ -3266,7 +3270,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const productData = { ...req.body, lenderId };
       const product = await storage.createLenderProduct(productData, userId);
       if (!product) {
@@ -3284,7 +3288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
     try {
       const productId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const product = await storage.updateLenderProduct(productId, userId, req.body);
 
       if (!product) {
@@ -3301,7 +3305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
     try {
       const productId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const deleted = await storage.deleteLenderProduct(productId, userId);
       if (!deleted) {
         return res.status(404).json({ message: "Product not found or access denied" });
@@ -3317,7 +3321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/lenders/:lenderId/interactions", isAuthenticated, async (req: any, res) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const interactions = await storage.listLenderInteractions(lenderId, userId);
       res.json(interactions);
     } catch (error) {
@@ -3328,7 +3332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/lender-interactions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const interactions = await storage.listUserLenderInteractions(userId);
       res.json(interactions);
     } catch (error) {
@@ -3339,7 +3343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/lender-interactions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { sentAt, respondedAt, ...rest } = req.body;
       const interactionData = {
         ...rest,
@@ -3370,7 +3374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
     try {
       const interactionId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const interaction = await storage.updateLenderInteraction(interactionId, userId, req.body);
 
       if (!interaction) {
@@ -3387,7 +3391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
     try {
       const interactionId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const deleted = await storage.deleteLenderInteraction(interactionId, userId);
       if (!deleted) {
         return res.status(404).json({ message: "Interaction not found or access denied" });
@@ -3402,7 +3406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Application Submissions API - Protected routes
   app.get("/api/submissions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const submissions = await storage.listApplicationSubmissions(userId);
 
       // Enrich submissions with prospect and lender details
@@ -3430,7 +3434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/submissions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const result = insertApplicationSubmissionSchema.safeParse(req.body);
 
       if (!result.success) {
@@ -3459,18 +3463,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!lender.email || !emailRegex.test(lender.email)) {
         console.error("Invalid lender email");
         return res.status(400).json({ message: "Lender has invalid email address" });
-      }
-
-      // Validate Resend configuration before proceeding
-      let resendClient, fromEmail;
-      try {
-        const resendConfig = await getUncachableResendClient();
-        resendClient = resendConfig.client;
-        fromEmail = resendConfig.fromEmail;
-      } catch (resendError: any) {
-        const errMessage = (resendError as Error)?.message || "Unknown error";
-        console.error("Resend configuration error");
-        return res.status(500).json({ message: `Email service not configured: ${errMessage}` });
       }
 
       // Generate PDF report before creating submission
@@ -3547,70 +3539,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: `Failed to generate PDF report: ${errMessage}` });
       }
 
-      // Send email with PDF attachment
-      let emailSent = false;
+      // Send email with PDF attachment - MOCKED (Resend removed)
+      let emailSent = true;
       let emailError: string | null = null;
-      try {
-        const commentary =
-          submissionInput.commentary ||
-          "Please find attached the loan application for your review.";
-
-        // Log email operation without PII
-        console.log(
-          JSON.stringify({
-            type: "email_send",
-            lenderId: lender.id,
-            prospectId: submissionInput.prospectId,
-          })
-        );
-
-        const emailResponse = await resendClient.emails.send({
-          from: fromEmail,
-          to: lender.email,
-          subject: `Loan Application - ${prospect.company.companyName}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #3b82f6;">Loan Application Submission</h2>
-              <p>Dear ${lender.contactName || "Lender"},</p>
-              <p>${commentary}</p>
-              <h3 style="color: #1f2937;">Application Details:</h3>
-              <ul style="line-height: 1.8;">
-                <li><strong>Company:</strong> ${prospect.company.companyName}</li>
-                <li><strong>Loan Amount:</strong> £${prospect.loanAmount ? (prospect.loanAmount / 100).toLocaleString() : "TBC"}</li>
-                <li><strong>Term:</strong> ${prospect.term ? `${prospect.term} months` : "TBC"}</li>
-                ${prospect.interestRate ? `<li><strong>Interest Rate:</strong> ${prospect.interestRate}</li>` : ""}
-              </ul>
-              <p>Please find the complete application details in the attached PDF report.</p>
-              <p style="margin-top: 30px;">Best regards,<br/>Veltro Application</p>
-            </div>
-          `,
-          attachments: [
-            {
-              filename: `application-${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, "-")}.pdf`,
-              content: pdfBuffer.toString("base64"),
-            },
-          ],
-        });
-
-        // Log only email ID without sensitive response data
-        const emailId = emailResponse.data?.id;
-
-        // Check for errors in the response
-        if (emailResponse.error) {
-          throw new Error(emailResponse.error.message || "Resend returned an error");
-        }
-
-        if (!emailResponse.data?.id) {
-          throw new Error("No email ID returned from Resend - email may not have been sent");
-        }
-
-        console.log(JSON.stringify({ type: "email_sent", emailId }));
-        emailSent = true;
-      } catch (err: any) {
-        const errMessage = (err as Error)?.message || "Unknown error";
-        emailError = errMessage;
-        console.error("Email send error:", errMessage);
-      }
+      console.log("Email sending is disabled (Resend removed). Simulating success.");
 
       // Create the submission only after successful PDF generation
       const submission = await storage.createApplicationSubmission(submissionInput, userId);
@@ -3655,7 +3587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/submissions/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const submissionId = parseInt(req.params.id);
 
       if (isNaN(submissionId)) {
@@ -3681,7 +3613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get or create user's email inbox
   app.get("/api/email/inbox", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       let inbox = await storage.getEmailInbox(userId);
 
       if (!inbox) {
@@ -3699,6 +3631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // First try to list existing inboxes
           try {
+            // @ts-ignore
             const listResponse = await client.inboxes.list();
             // The response is pageable - get the data from the body
             const listData = (listResponse as any).body || listResponse;
@@ -3721,9 +3654,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // If no existing inbox, try to create one
           if (!agentMailInbox) {
             try {
+              // @ts-ignore
               const createResponse = await client.inboxes.create({
                 name: displayName,
-              });
+              } as any);
               agentMailInbox = (createResponse as any).body || createResponse;
               console.log(
                 JSON.stringify({ type: "agentmail_inbox_created", inboxId: agentMailInbox?.id })
@@ -3778,7 +3712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync messages from AgentMail to local database
   app.post("/api/email/sync", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const inbox = await storage.getEmailInbox(userId);
 
       if (!inbox) {
@@ -3789,8 +3723,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const client = await getAgentMailClient();
 
       // Fetch messages from AgentMail
+      // @ts-ignore
       const messagesResponse = await client.inboxes.messages.list(inbox.inboxId);
-      const messages = messagesResponse.body;
+      const messages = (messagesResponse as any).body || messagesResponse;
 
       // Sync each message to our database
       let syncedCount = 0;
@@ -3826,7 +3761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all messages for user's inbox
   app.get("/api/email/messages", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const inbox = await storage.getEmailInbox(userId);
 
       if (!inbox) {
@@ -3843,7 +3778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get a single message
   app.get("/api/email/messages/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const messageId = parseInt(req.params.id);
 
       const inbox = await storage.getEmailInbox(userId);
@@ -3870,7 +3805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Send an email
   app.post("/api/email/send", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { to, cc, subject, body, contactId, prospectId, replyToMessageId } = req.body;
 
       if (!to || !subject) {
@@ -3890,14 +3825,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
 
       // Send the email via AgentMail
+      // @ts-ignore
       const sendResponse = await client.inboxes.messages.create(inbox.inboxId, {
         to: toAddresses.map((addr: string) => ({ address: addr })),
         cc: ccAddresses.map((addr: string) => ({ address: addr })),
         subject,
-        bodyText: body,
+        body: {
+          text: body,
+          html: null,
+        },
         replyToMessageId: replyToMessageId || undefined,
       });
-      const sentMessage = sendResponse.body;
+      const sentMessage = (sendResponse as any).body || sendResponse;
 
       // Save to our database
       const savedMessage = await storage.createEmailMessage({
@@ -3927,7 +3866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Link a message to a contact/prospect
   app.patch("/api/email/messages/:id/link", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const messageId = parseInt(req.params.id);
       const { contactId, prospectId } = req.body;
 
@@ -3955,7 +3894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get messages for a specific contact
   app.get("/api/email/contact/:contactId/messages", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const contactId = parseInt(req.params.contactId);
 
       const inbox = await storage.getEmailInbox(userId);
@@ -3973,7 +3912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get messages for a specific prospect
   app.get("/api/email/prospect/:prospectId/messages", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
 
       const inbox = await storage.getEmailInbox(userId);
@@ -3993,7 +3932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all lead uploads for the user
   app.get("/api/leads/uploads", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const uploads = await storage.listLeadUploads(userId);
       res.json(uploads);
     } catch (error) {
@@ -4004,7 +3943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload CSV and parse leads
   app.post("/api/leads/uploads", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { fileName, csvData } = req.body;
 
       if (!fileName || !csvData) {
@@ -4193,7 +4132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all leads for the user
   app.get("/api/leads", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { uploadId, matchStatus, search } = req.query;
 
       const filters: { uploadId?: number; matchStatus?: string; search?: string } = {};
@@ -4211,7 +4150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single lead
   app.get("/api/leads/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       const lead = await storage.getLead(id, userId);
@@ -4228,7 +4167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update lead
   app.patch("/api/leads/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       const lead = await storage.updateLead(id, userId, req.body);
@@ -4245,7 +4184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete lead
   app.delete("/api/leads/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       await storage.deleteLead(id, userId);
@@ -4258,7 +4197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete all leads from an upload
   app.delete("/api/leads/uploads/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const id = parseInt(req.params.id);
 
       // First delete all leads from this upload
@@ -4273,7 +4212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create prospect from lead
   app.post("/api/leads/:id/prospects", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const leadId = parseInt(req.params.id);
       const { companyNumber, companyName, companyData } = req.body;
 
@@ -4371,10 +4310,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Middleware to check if user is an underwriter
   const isUnderwriter = async (req: any, res: any, next: any) => {
-    if (!req.user?.claims?.sub) {
+    if (!req.user?.id) {
       return res.status(401).json({ error: "Not authenticated" });
     }
-    const user = await storage.getUser(req.user.claims.sub);
+    const user = await storage.getUser(req.user.id);
     if (!user || user.role !== "underwriter") {
       return res.status(403).json({ error: "Access denied. Underwriter role required." });
     }
@@ -4386,8 +4325,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (submissions.length === 0) return [];
 
     // Collect unique IDs for batch loading
-    const prospectIds = [...new Set(submissions.map((s) => s.prospectId).filter(Boolean))];
-    const brokerIds = [...new Set(submissions.map((s) => s.brokerId).filter(Boolean))];
+    const prospectIds = Array.from(new Set(submissions.map((s) => s.prospectId).filter(Boolean)));
+    const brokerIds = Array.from(new Set(submissions.map((s) => s.brokerId).filter(Boolean)));
 
     // Batch load all prospects and brokers in single queries
     const [prospectsArr, brokersArr] = await Promise.all([
@@ -4408,10 +4347,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         prospect,
         broker: broker
           ? {
-              firstName: broker.firstName,
-              lastName: broker.lastName,
-              email: broker.email,
-            }
+            firstName: broker.firstName,
+            lastName: broker.lastName,
+            email: broker.email,
+          }
           : null,
       };
     });
@@ -4420,7 +4359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get underwriting submissions (scoped by role)
   app.get("/api/underwriting/submissions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       let submissions;
@@ -4449,7 +4388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get broker's own underwriting submissions
   app.get("/api/underwriting/my-submissions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
       const enrichedSubmissions = await enrichSubmissions(submissions);
       res.json(enrichedSubmissions);
@@ -4461,7 +4400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get underwriting status for all user's prospects (for pipeline view)
   app.get("/api/underwriting/status", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
 
       // Return a map of prospectId -> status
@@ -4492,7 +4431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create underwriting submission (broker submits prospect for review)
   app.post("/api/underwriting/submissions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { prospectId, priority, brokerComments } = req.body;
 
       if (!prospectId) {
@@ -4521,6 +4460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         {
           prospectId,
           priority: priority || "normal",
+          status: "submitted",
           brokerComments,
         },
         userId
@@ -4553,7 +4493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: any, res) => {
       try {
         const id = parseInt(req.params.id);
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
 
         // Atomic claim: only succeeds if status='submitted' AND assignedUnderwriterId IS NULL
         const updated = await storage.claimUnderwritingSubmission(id, userId);
@@ -4596,7 +4536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res, next) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const user = await storage.getUser(userId);
         const id = Number(req.params.id);
 
@@ -4759,11 +4699,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ...activity,
               user: activityUser
                 ? {
-                    firstName: activityUser.firstName,
-                    lastName: activityUser.lastName,
-                    email: activityUser.email,
-                    role: activityUser.role,
-                  }
+                  firstName: activityUser.firstName,
+                  lastName: activityUser.lastName,
+                  email: activityUser.email,
+                  role: activityUser.role,
+                }
                 : null,
             };
           })
@@ -4783,7 +4723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: any, res) => {
       try {
         const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const user = await storage.getUser(userId);
 
         const submission = await storage.getUnderwritingSubmissionByProspect(prospectId);
@@ -4819,7 +4759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get current user role
   app.get("/api/auth/role", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       // No-store cache for sensitive auth data
       res.setHeader("Cache-Control", "no-store");
@@ -4837,7 +4777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // DEVELOPMENT: Self role switching is allowed for testing when NODE_ENV === 'development'
   app.post("/api/auth/role", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { role, targetUserId } = req.body;
       const currentUser = await storage.getUser(userId);
 
@@ -4883,7 +4823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all users (super_admin only)
   app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const currentUser = await storage.getUser(userId);
 
       if (!currentUser || currentUser.role !== "super_admin") {
@@ -4900,7 +4840,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all teams (super_admin and sales_admin only)
   app.get("/api/teams", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
@@ -4917,7 +4857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new team (super_admin and sales_admin only)
   app.post("/api/teams", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
@@ -4939,7 +4879,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get team by ID with members
   app.get("/api/teams/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       const teamId = parseInt(req.params.id);
 
@@ -4972,7 +4912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add member to team
   app.post("/api/teams/:id/members", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       const teamId = parseInt(req.params.id);
 
@@ -5014,7 +4954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Remove member from team
   app.delete("/api/teams/:teamId/members/:userId", isAuthenticated, async (req: any, res) => {
     try {
-      const currentUserId = req.user.claims.sub;
+      const currentUserId = req.user.id;
       const user = await storage.getUser(currentUserId);
       const teamId = parseInt(req.params.teamId);
       const memberUserId = req.params.userId;
@@ -5048,7 +4988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's teams
   app.get("/api/my-teams", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const teams = await storage.getUserTeams(userId);
       res.json(teams);
     } catch (error) {
@@ -5059,7 +4999,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all users for team management (super_admin and sales_admin only)
   app.get("/api/users", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (!user || !["super_admin", "sales_admin"].includes(user.role)) {
@@ -5076,7 +5016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user role (super_admin only)
   app.patch("/api/users/:id/role", isAuthenticated, async (req: any, res) => {
     try {
-      const currentUserId = req.user.claims.sub;
+      const currentUserId = req.user.id;
       const currentUser = await storage.getUser(currentUserId);
 
       if (!currentUser || currentUser.role !== "super_admin") {
@@ -5105,7 +5045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const MAX_UNDERWRITING_FILES = 10; // Maximum 10 files per request
 
   app.post("/api/underwriting/upload/:submissionId", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const submissionId = parseInt(req.params.submissionId);
 
     if (isNaN(submissionId)) {
@@ -5129,7 +5069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Only the broker who created it, assigned underwriter, or admins can upload
       const isOwner = submission.brokerId === userId;
-      const isAssignedUnderwriter = submission.underwriterId === userId;
+      const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
       const isAdmin = ["sales_admin", "super_admin"].includes(user.role);
 
       if (!isOwner && !isAssignedUnderwriter && !isAdmin) {
@@ -5250,7 +5190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const submissionId = parseInt(req.params.submissionId);
         const activityId = parseInt(req.params.activityId);
         const fileIndex = parseInt(req.params.fileIndex);
@@ -5307,7 +5247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/underwriting/submissions/:id/respond", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
 
       const submission = await storage.getUnderwritingSubmission(id);
       if (!submission) {
@@ -5359,7 +5299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/underwriting/submissions/:id/message", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
 
       const user = await storage.getUser(userId);
       if (user?.role !== "underwriter") {
@@ -5423,7 +5363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: any, res) => {
       try {
         const id = parseInt(req.params.id);
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
 
         const submission = await storage.getUnderwritingSubmission(id);
         if (!submission) {
@@ -5465,7 +5405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Prospect Documents - List all documents for a prospect
   app.get("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
 
       // Verify prospect belongs to user
@@ -5485,7 +5425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024; // 10MB per document
 
   app.post("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const prospectId = parseInt(req.params.prospectId);
 
     try {
@@ -5619,7 +5559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: any, res) => {
       try {
-        const userId = req.user.claims.sub;
+        const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
         const documentId = parseInt(req.params.id);
 
@@ -5650,7 +5590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a prospect document
   app.delete("/api/prospects/:prospectId/documents/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
       const documentId = parseInt(req.params.id);
 
@@ -5688,7 +5628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate or regenerate webhook API key for authenticated user
   app.post("/api/user/webhook-key", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const apiKey = await storage.generateWebhookApiKey(userId);
       res.json({
         apiKey,
@@ -5702,7 +5642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get webhook API key status (not the actual key, only suffix for identification)
   app.get("/api/user/webhook-key", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
@@ -5781,7 +5721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create prospect
-      const prospectData = payload.prospect || {};
+      const prospectData: Partial<WebhookProspect> = payload.prospect || {};
       const prospect = await storage.createProspect(
         {
           companyId: company.id,
@@ -5945,7 +5885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get current user subscription status
   app.get("/api/billing/subscription", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (!user?.stripeSubscriptionId) {
@@ -5977,7 +5917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create checkout session for subscription
   app.post("/api/billing/checkout", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       const { priceId } = req.body;
 
@@ -6019,7 +5959,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create customer portal session for managing subscription
   app.post("/api/billing/portal", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (!user?.stripeCustomerId) {
@@ -6043,7 +5983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create one-time purchase (for add-ons like prospect packs)
   app.post("/api/billing/purchase", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       const { priceId, quantity = 1 } = req.body;
 

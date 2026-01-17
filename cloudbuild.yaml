@@ -1,0 +1,26 @@
+steps:
+  # 1. Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA', '.']
+
+  # 2. Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA']
+
+  # 3. Deploy the new image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'veltro-app'
+      - '--image'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west2'
+      # Note: We do NOT set --set-env-vars here. 
+      # This ensures we preserve the existing DATABASE_URL and SESSION_SECRET 
+      # that we manually configured.
+
+images:
+  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA'

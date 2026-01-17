@@ -109,7 +109,7 @@ export default function Leads() {
         companyName,
         companyData,
       });
-      return response as { prospect: { id: number } };
+      return await response.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });

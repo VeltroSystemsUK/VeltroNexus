@@ -291,7 +291,7 @@ export function CreditUnderwritingTool({
   );
   const [loanAmount, setLoanAmount] = useState(
     underwriting.loanDetails?.amount?.toString() ||
-      (prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "")
+    (prospect.loanAmount ? (prospect.loanAmount / 100).toString() : "")
   );
   const [termMonths, setTermMonths] = useState(
     underwriting.loanDetails?.termMonths?.toString() || DEFAULT_TERM_MONTHS.toString()
@@ -424,10 +424,10 @@ export function CreditUnderwritingTool({
   const monthlyRepayment =
     loanAmount && termMonths && interestRate
       ? calculateMonthlyPayment(
-          parseFloat(loanAmount),
-          parseFloat(interestRate),
-          parseInt(termMonths)
-        )
+        parseFloat(loanAmount),
+        parseFloat(interestRate),
+        parseInt(termMonths)
+      )
       : 0;
 
   const checkEligibility = (): { isEligible: boolean; reasons: string[] } => {
@@ -972,13 +972,12 @@ export function CreditUnderwritingTool({
               <div key={step.id} className="flex items-center">
                 <button
                   onClick={() => setCurrentStep(step.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    currentStep === step.id
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${currentStep === step.id
                       ? "bg-primary text-primary-foreground"
                       : currentStep > step.id
                         ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                         : "bg-muted text-muted-foreground"
-                  }`}
+                    }`}
                   data-testid={`button-step-${step.id}`}
                 >
                   <step.icon className="h-4 w-4" />
@@ -1590,11 +1589,11 @@ export function CreditUnderwritingTool({
                           }
                           setManagementAccountFiles(parsedFiles);
                           setParsingManagementAccounts(false);
-                          
+
                           // Now analyze with AI
                           setAnalyzingManagementAccounts(true);
                           toast.info("Analyzing management accounts with AI...");
-                          
+
                           try {
                             const analysisResponse = await apiRequest(
                               `/api/prospects/${prospect.id}/analyze-management-accounts`,
@@ -1606,12 +1605,12 @@ export function CreditUnderwritingTool({
                               }
                             );
                             const analysisData = await analysisResponse.json();
-                            
+
                             if (analysisData.success && analysisData.analysis) {
                               setManagementAccountsAnalysis(analysisData.analysis);
                               setManagementAccountsAnalysisStatus("completed");
                               toast.success("Management accounts analyzed successfully");
-                              
+
                               // Trigger refetch of due diligence data
                               onSave({
                                 underwriting: {
@@ -1704,7 +1703,7 @@ export function CreditUnderwritingTool({
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Management Accounts AI Analysis Display */}
                 {managementAccountsAnalysis && managementAccountsAnalysisStatus === "completed" && (
                   <div className="mt-4 space-y-4">
@@ -1716,10 +1715,10 @@ export function CreditUnderwritingTool({
                           managementAccountsAnalysis.overallRating === "strong"
                             ? "default"
                             : managementAccountsAnalysis.overallRating === "satisfactory"
-                            ? "secondary"
-                            : managementAccountsAnalysis.overallRating === "weak"
-                            ? "outline"
-                            : "destructive"
+                              ? "secondary"
+                              : managementAccountsAnalysis.overallRating === "weak"
+                                ? "outline"
+                                : "destructive"
                         }
                         className="capitalize"
                         data-testid="badge-management-accounts-rating"
@@ -1727,7 +1726,7 @@ export function CreditUnderwritingTool({
                         {managementAccountsAnalysis.overallRating || "N/A"}
                       </Badge>
                     </div>
-                    
+
                     {/* Summary */}
                     {managementAccountsAnalysis.summary && (
                       <div className="bg-muted/50 rounded-lg p-3">
@@ -1735,7 +1734,7 @@ export function CreditUnderwritingTool({
                         <p className="text-sm text-muted-foreground">{managementAccountsAnalysis.summary}</p>
                       </div>
                     )}
-                    
+
                     {/* Key Metrics */}
                     {managementAccountsAnalysis.keyMetrics && Object.keys(managementAccountsAnalysis.keyMetrics).some(k => (managementAccountsAnalysis.keyMetrics as any)[k] != null) && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1789,7 +1788,7 @@ export function CreditUnderwritingTool({
                         )}
                       </div>
                     )}
-                    
+
                     {/* Commentary */}
                     {managementAccountsAnalysis.commentary && (
                       <div className="space-y-2">
@@ -1806,7 +1805,7 @@ export function CreditUnderwritingTool({
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Assessments */}
                     <div className="grid md:grid-cols-2 gap-3">
                       {managementAccountsAnalysis.profitabilityAssessment && (
@@ -1836,7 +1835,7 @@ export function CreditUnderwritingTool({
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Strengths & Concerns */}
                     <div className="grid md:grid-cols-2 gap-3">
                       {managementAccountsAnalysis.strengths && managementAccountsAnalysis.strengths.length > 0 && (
@@ -1870,7 +1869,7 @@ export function CreditUnderwritingTool({
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Recommendations */}
                     {managementAccountsAnalysis.recommendations && managementAccountsAnalysis.recommendations.length > 0 && (
                       <div className="space-y-2">
@@ -2077,7 +2076,7 @@ export function CreditUnderwritingTool({
                   const historicMonthlyExp = ((latestYear.turnover || 0) - (latestYear.netProfit || 0)) / 12;
                   const historicNetDisposable = (latestYear.netProfit || 0) / 12;
                   const historicDscr = accountsAnalysis.dscr?.average || 0;
-                  
+
                   return (
                     <Card className="overflow-hidden border-0 shadow-md">
                       <div className="bg-[#1e3a5f] text-white px-4 py-3">
@@ -2213,7 +2212,7 @@ export function CreditUnderwritingTool({
                               <tr key={metric.key} className="border-b last:border-0">
                                 <td className="py-2 px-3 font-medium">{metric.label}</td>
                                 <td className="py-2 px-3 text-muted-foreground text-xs">{metric.benchmark}</td>
-                                {accountsAnalysis.ratios.map((r: any, idx: number) => {
+                                {accountsAnalysis.ratios!.map((r: any, idx: number) => {
                                   const value = r.ratios?.[metric.key];
                                   const good = value !== undefined && metric.isGood(value);
                                   let displayValue = "N/A";
@@ -2227,7 +2226,7 @@ export function CreditUnderwritingTool({
                                     }
                                   }
                                   return (
-                                    <td 
+                                    <td
                                       key={idx}
                                       className={`text-right py-2 px-3 font-medium ${good ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}
                                     >
@@ -2515,7 +2514,7 @@ export function CreditUnderwritingTool({
 
                   <TabsContent value="monthly">
                     {financialAnalysis.monthlyBreakdown &&
-                    financialAnalysis.monthlyBreakdown.length > 0 ? (
+                      financialAnalysis.monthlyBreakdown.length > 0 ? (
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
@@ -2626,11 +2625,10 @@ export function CreditUnderwritingTool({
                         {financialAnalysis.redFlags.map((flag, idx) => (
                           <div
                             key={idx}
-                            className={`flex items-center gap-3 p-3 rounded-lg ${
-                              flag.isActive
+                            className={`flex items-center gap-3 p-3 rounded-lg ${flag.isActive
                                 ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
                                 : "bg-muted"
-                            }`}
+                              }`}
                           >
                             {flag.isActive ? (
                               <AlertCircle className="h-5 w-5 text-red-500" />

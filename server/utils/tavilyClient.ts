@@ -295,7 +295,7 @@ export async function searchBusinessOverview(
 
     const data = await response.json();
     const results: TavilyResult[] = data.results || [];
-    
+
     // Extract key information and convert to bullet points
     const bulletPoints: string[] = [];
     const sources: { url: string; title: string }[] = [];
@@ -314,7 +314,7 @@ export async function searchBusinessOverview(
     // Extract key information from each result
     for (const result of results) {
       sources.push({ url: result.url, title: result.title });
-      
+
       // Extract meaningful sentences from content
       const sentences = result.content
         .split(/[.!?]+/)
@@ -337,12 +337,12 @@ export async function searchBusinessOverview(
         })
         .map((s: string) => s.trim())
         .slice(0, 2);
-      
+
       bulletPoints.push(...sentences);
     }
 
     // Remove duplicates and limit to reasonable number
-    const uniqueBullets = [...new Set(bulletPoints)].slice(0, 12);
+    const uniqueBullets = Array.from(new Set(bulletPoints)).slice(0, 12);
 
     return {
       bulletPoints: uniqueBullets,

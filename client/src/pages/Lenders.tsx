@@ -173,6 +173,7 @@ const PANEL_STATUSES = [
 ];
 
 const extendedLenderSchema = insertLenderSchema.extend({
+  institutionName: z.string().min(1, "Institution name is required"),
   lenderType: z.string().optional(),
   productTypes: z.array(z.string()).optional().default([]),
   minLoanAmount: z.coerce.number().optional(),
@@ -222,13 +223,12 @@ function RatingStars({ rating }: { rating: number | null | undefined }) {
       {[...Array(5)].map((_, i) => (
         <Star
           key={i}
-          className={`h-4 w-4 ${
-            i < fullStars
-              ? "fill-yellow-400 text-yellow-400"
-              : i === fullStars && hasHalf
-                ? "fill-yellow-400/50 text-yellow-400"
-                : "text-muted-foreground/30"
-          }`}
+          className={`h-4 w-4 ${i < fullStars
+            ? "fill-yellow-400 text-yellow-400"
+            : i === fullStars && hasHalf
+              ? "fill-yellow-400/50 text-yellow-400"
+              : "text-muted-foreground/30"
+            }`}
         />
       ))}
       <span className="ml-1 text-sm text-muted-foreground">({rating.toFixed(1)})</span>
@@ -905,7 +905,7 @@ export default function Lenders() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Lender Type</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value || undefined}>
                               <FormControl>
                                 <SelectTrigger data-testid="select-lender-type-form">
                                   <SelectValue placeholder="Select type" />
@@ -932,7 +932,7 @@ export default function Lenders() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Panel Status</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value || undefined}>
                               <FormControl>
                                 <SelectTrigger data-testid="select-panel-status-form">
                                   <SelectValue placeholder="Select status" />
@@ -961,6 +961,7 @@ export default function Lenders() {
                                 placeholder="https://..."
                                 data-testid="input-website"
                                 {...field}
+                                value={field.value || ""}
                               />
                             </FormControl>
                             <FormMessage />
@@ -980,6 +981,7 @@ export default function Lenders() {
                               placeholder="Full address..."
                               data-testid="input-address"
                               {...field}
+                              value={field.value || ""}
                             />
                           </FormControl>
                           <FormMessage />
@@ -1031,6 +1033,7 @@ export default function Lenders() {
                                 placeholder="e.g., 50000"
                                 data-testid="input-min-loan"
                                 {...field}
+                                value={field.value || ""}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1049,6 +1052,7 @@ export default function Lenders() {
                                 placeholder="e.g., 10000000"
                                 data-testid="input-max-loan"
                                 {...field}
+                                value={field.value || ""}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1065,7 +1069,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Min Term (months)</FormLabel>
                             <FormControl>
-                              <Input type="number" placeholder="e.g., 12" {...field} />
+                              <Input type="number" placeholder="e.g., 12" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1078,7 +1082,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Max Term (months)</FormLabel>
                             <FormControl>
-                              <Input type="number" placeholder="e.g., 60" {...field} />
+                              <Input type="number" placeholder="e.g., 60" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1094,7 +1098,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Min LTV (%)</FormLabel>
                             <FormControl>
-                              <Input type="number" placeholder="e.g., 0" {...field} />
+                              <Input type="number" placeholder="e.g., 0" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1107,7 +1111,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Max LTV (%)</FormLabel>
                             <FormControl>
-                              <Input type="number" placeholder="e.g., 75" {...field} />
+                              <Input type="number" placeholder="e.g., 75" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1123,7 +1127,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Rate From</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g., 4.5%" {...field} />
+                              <Input placeholder="e.g., 4.5%" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1136,7 +1140,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Rate To</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g., 8.5%" {...field} />
+                              <Input placeholder="e.g., 8.5%" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1149,7 +1153,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Arrangement Fee</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g., 1.5%" {...field} />
+                              <Input placeholder="e.g., 1.5%" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1164,7 +1168,7 @@ export default function Lenders() {
                         <FormItem>
                           <FormLabel>Typical Turnaround (days)</FormLabel>
                           <FormControl>
-                            <Input type="number" placeholder="e.g., 14" {...field} />
+                            <Input type="number" placeholder="e.g., 14" {...field} value={field.value || ""} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1239,7 +1243,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Primary Contact Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g., John Smith" {...field} />
+                              <Input placeholder="e.g., John Smith" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1252,7 +1256,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>Primary Email *</FormLabel>
                             <FormControl>
-                              <Input type="email" placeholder="email@example.com" {...field} />
+                              <Input type="email" placeholder="email@example.com" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1267,7 +1271,7 @@ export default function Lenders() {
                         <FormItem>
                           <FormLabel>Primary Phone</FormLabel>
                           <FormControl>
-                            <Input type="tel" placeholder="+44 20 1234 5678" {...field} />
+                            <Input type="tel" placeholder="+44 20 1234 5678" {...field} value={field.value || ""} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1285,7 +1289,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>BDM Name</FormLabel>
                             <FormControl>
-                              <Input placeholder="e.g., Sarah Jones" {...field} />
+                              <Input placeholder="e.g., Sarah Jones" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1298,7 +1302,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>BDM Email</FormLabel>
                             <FormControl>
-                              <Input type="email" placeholder="bdm@example.com" {...field} />
+                              <Input type="email" placeholder="bdm@example.com" {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1311,7 +1315,7 @@ export default function Lenders() {
                           <FormItem>
                             <FormLabel>BDM Phone</FormLabel>
                             <FormControl>
-                              <Input type="tel" placeholder="+44..." {...field} />
+                              <Input type="tel" placeholder="+44..." {...field} value={field.value || ""} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1329,7 +1333,7 @@ export default function Lenders() {
                             Email address for sending loan applications
                           </FormDescription>
                           <FormControl>
-                            <Input type="email" placeholder="submissions@example.com" {...field} />
+                            <Input type="email" placeholder="submissions@example.com" {...field} value={field.value || ""} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1355,11 +1359,10 @@ export default function Lenders() {
                                   onClick={() => field.onChange(star)}
                                 >
                                   <Star
-                                    className={`h-6 w-6 ${
-                                      field.value && star <= field.value
-                                        ? "fill-yellow-400 text-yellow-400"
-                                        : "text-muted-foreground"
-                                    }`}
+                                    className={`h-6 w-6 ${field.value && star <= field.value
+                                      ? "fill-yellow-400 text-yellow-400"
+                                      : "text-muted-foreground"
+                                      }`}
                                   />
                                 </Button>
                               ))}
@@ -1392,6 +1395,7 @@ export default function Lenders() {
                               className="resize-none"
                               rows={2}
                               {...field}
+                              value={field.value || ""}
                             />
                           </FormControl>
                           <FormMessage />
@@ -1411,6 +1415,7 @@ export default function Lenders() {
                               className="resize-none"
                               rows={2}
                               {...field}
+                              value={field.value || ""}
                             />
                           </FormControl>
                           <FormMessage />
@@ -1430,6 +1435,7 @@ export default function Lenders() {
                               className="resize-none"
                               rows={2}
                               {...field}
+                              value={field.value || ""}
                             />
                           </FormControl>
                           <FormMessage />
@@ -1449,6 +1455,7 @@ export default function Lenders() {
                               className="resize-none"
                               rows={3}
                               {...field}
+                              value={field.value || ""}
                             />
                           </FormControl>
                           <FormMessage />

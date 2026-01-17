@@ -371,7 +371,7 @@ export default function Settings() {
         fileName: csvFile?.name || "upload.csv",
         csvData,
       });
-      return response;
+      return response.json();
     },
     onSuccess: (data) => {
       setUploadResult(data);
@@ -892,9 +892,8 @@ export default function Settings() {
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          className={`flex items-center gap-3 p-3 rounded-md border bg-card ${
-                            snapshot.isDragging ? "shadow-lg" : ""
-                          }`}
+                          className={`flex items-center gap-3 p-3 rounded-md border bg-card ${snapshot.isDragging ? "shadow-lg" : ""
+                            }`}
                           data-testid={`pdf-section-${section.id}`}
                         >
                           <div
@@ -910,9 +909,8 @@ export default function Settings() {
                             data-testid={`checkbox-pdf-section-${section.id}`}
                           />
                           <Label
-                            className={`flex-1 cursor-pointer ${
-                              !section.enabled ? "text-muted-foreground line-through" : ""
-                            }`}
+                            className={`flex-1 cursor-pointer ${!section.enabled ? "text-muted-foreground line-through" : ""
+                              }`}
                             onClick={() => handlePdfSectionToggle(section.id)}
                             data-testid={`label-pdf-section-${section.id}`}
                           >
