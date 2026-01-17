@@ -22,5 +22,8 @@ steps:
       # This ensures we preserve the existing DATABASE_URL and SESSION_SECRET 
       # that we manually configured.
 
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 images:
   - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA'
