@@ -27,6 +27,7 @@ import AuthPage from "@/pages/Auth";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { CookieConsent } from "@/components/CookieConsent";
 import TrialBanner from "@/components/TrialBanner";
+import LenderEnquiry from "@/pages/LenderEnquiry";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -45,6 +46,7 @@ function Router() {
         <>
           <Route path="/" component={Landing} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/lender-enquiry" component={LenderEnquiry} />
           <Route path="/value-packages" component={ValuePackages} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />
         </>
@@ -64,6 +66,7 @@ function Router() {
           <Route path="/profile" component={Profile} />
           <Route path="/settings" component={Settings} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/lender-enquiry" component={LenderEnquiry} />
           <Route path="/value-packages" component={ValuePackages} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />
         </>

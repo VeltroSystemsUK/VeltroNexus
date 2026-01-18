@@ -298,12 +298,12 @@ export default function Pricing() {
                             </div>
 
                             <div className="w-full mb-5">
-                                <a
-                                    href="mailto:sales@veltro.io?subject=Lender%20Plan%20Demo%20Request"
-                                    className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all block text-center"
+                                <button
+                                    onClick={() => navigate("/lender-enquiry")}
+                                    className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all"
                                 >
-                                    Book a Demo
-                                </a>
+                                    Request a Quote
+                                </button>
                             </div>
 
                             <ul className="space-y-2 border-t border-border pt-4">
