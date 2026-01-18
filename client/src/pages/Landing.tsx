@@ -177,15 +177,15 @@ function SavingsCalculator() {
     };
   };
 
-  const { tier: recommendedTier, totalCost: flowloanCost, aiAddOnApplied } = getRecommendedTier();
-  const monthlySavings = totalCurrentSpend - flowloanCost;
+  const { tier: recommendedTier, totalCost: veltroCost, aiAddOnApplied } = getRecommendedTier();
+  const monthlySavings = totalCurrentSpend - veltroCost;
   const annualSavings = monthlySavings * 12;
   const savingsPercentage = totalCurrentSpend > 0
     ? Math.round((monthlySavings / totalCurrentSpend) * 100)
     : 0;
 
   return (
-    <div className="mt-12 bg-[#161b26] p-8 md:p-10 rounded-3xl border border-white/5">
+    <div className="mt-12 bg-[#161b26] p-5 md:p-10 rounded-3xl border border-white/5">
       <div className="text-center mb-8">
         <div className="inline-flex items-center gap-2 bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-full mb-4">
           <Calculator className="h-4 w-4" />
@@ -416,7 +416,7 @@ function SavingsCalculator() {
             )}
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
               <span className="text-gray-400 font-medium">Veltro Total</span>
-              <span className="text-white font-bold text-lg">£{flowloanCost}/mo</span>
+              <span className="text-white font-bold text-lg">£{veltroCost}/mo</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-400">Monthly Savings</span>
@@ -1018,7 +1018,7 @@ export default function Landing() {
             </div>
 
             {/* Comparison Table */}
-            <div className="bg-gradient-to-b from-indigo-500/5 to-transparent p-8 md:p-10 rounded-3xl border border-indigo-500/20">
+            <div className="bg-gradient-to-b from-indigo-500/5 to-transparent p-6 md:p-10 rounded-3xl border border-indigo-500/20">
               <div className="text-center mb-8">
                 <h4 className="text-white text-xl md:text-2xl font-semibold mb-2">
                   Consolidate Your Tech. Multiply Your Profit.
@@ -1026,7 +1026,35 @@ export default function Landing() {
                 <p className="text-gray-400">Eliminate SaaS sprawl and hidden administrative costs.</p>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile: Stacked Cards */}
+              <div className="md:hidden space-y-4">
+                {[
+                  { category: "Credit Data", old: "Bureau Subscriptions", new: "Real-Time AI Enrichment", benefit: "Fresher Data" },
+                  { category: "Pipeline Management", old: "Generalist CRM", new: "Integrated Finance Workflow", benefit: "Zero Context-Switching" },
+                  { category: "Project Tracking", old: "Third-Party SaaS", new: "Automated Internal Engine", benefit: "Reduced Overhead" },
+                  { category: "Back-Office Labour", old: "Manual Entry Hours", new: "AI Document Processing", benefit: "60% Faster Processing" },
+                ].map((item, i) => (
+                  <div key={i} className="bg-white/5 rounded-xl p-5 border border-white/10">
+                    <div className="text-white font-semibold mb-3">{item.category}</div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-gray-500 text-xs uppercase mb-1">Before</div>
+                        <div className="text-red-400 line-through opacity-70">{item.old}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500 text-xs uppercase mb-1">With Veltro</div>
+                        <div className="text-emerald-400 font-semibold">{item.new}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      <span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs">{item.benefit}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: Original Table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/10">

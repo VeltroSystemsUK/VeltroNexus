@@ -230,10 +230,11 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
   const sections = pdfLayoutPreferences?.sections || DEFAULT_SECTIONS;
   const enabledSections = sections.filter((s) => s.enabled);
 
-  // Add new page for main content
-  doc.addPage();
-  pageNumber++;
-  doc.y = MARGIN;
+  // Add spacing after executive summary
+  doc.y += SPACING.sectionMargin * 2;
+
+  // Ensure we have enough space to start the first section
+  ensureSpace(doc, 100);
 
   let isFirstSection = true;
 
@@ -369,10 +370,10 @@ function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWi
   doc.rect(0, 0, PAGE_WIDTH, 95).fill(COLORS.primary);
 
   doc.fontSize(26).fillColor(COLORS.white).font("Helvetica-Bold");
-  doc.text("FLOWLOAN", centerX - 75, 28);
+  doc.text("VELTRO", centerX - 55, 28);
 
   doc.fontSize(11).fillColor(COLORS.white).font("Helvetica");
-  doc.text("Commercial Lending Solutions", centerX - 90, 58);
+  doc.text("Commercial Lending Intelligence", centerX - 95, 58);
 
   // Main title
   doc.y = 150;

@@ -233,8 +233,8 @@ export default function ValuePackages() {
         <div className="mt-12 text-center">
           <p className="text-sm text-muted-foreground">
             Questions about packages? Email us at{" "}
-            <a href="mailto:hello@flowloan.co.uk" className="text-primary hover:underline">
-              hello@flowloan.co.uk
+            <a href="mailto:hello@veltro.co.uk" className="text-primary hover:underline">
+              hello@veltro.co.uk
             </a>
           </p>
         </div>

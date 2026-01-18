@@ -342,18 +342,48 @@ export default function AuthPage() {
             </div>
 
             {/* Right Column - Image/Gradient */}
-            <div className="hidden lg:flex flex-col justify-center p-12 bg-slate-900 text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900/50" />
+            <div className="hidden lg:flex flex-col justify-center p-12 bg-[#0f172a] text-white relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-indigo-900/50" />
+
+                {/* Animated Background Elements */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {/* Floating orbs */}
+                    <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/20 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]" />
+                    <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-[pulse_6s_ease-in-out_infinite_1s]" />
+                    <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/15 rounded-full blur-3xl animate-[pulse_5s_ease-in-out_infinite_2s]" />
+
+                    {/* Moving grid lines */}
+                    <div className="absolute inset-0 opacity-[0.03]" style={{
+                        backgroundImage: `linear-gradient(#D97706 1px, transparent 1px), linear-gradient(90deg, #D97706 1px, transparent 1px)`,
+                        backgroundSize: '60px 60px',
+                    }} />
+
+                    {/* Floating particles */}
+                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-60 animate-[pulse_8s_ease-in-out_infinite]" />
+                    <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-40 animate-[pulse_6s_ease-in-out_infinite_1s]" />
+                    <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-50 animate-[pulse_10s_ease-in-out_infinite_2s]" />
+                    <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-30 animate-[pulse_7s_ease-in-out_infinite_3s]" />
+                </div>
+
                 <div className="relative z-10 max-w-lg mx-auto text-center space-y-6">
-                    <h1 className="text-4xl font-bold tracking-tight">
+                    {/* Animated Logo */}
+                    <img
+                        src={logoChrome}
+                        alt="Veltro"
+                        className="h-32 w-auto object-contain mx-auto mb-8 animate-[pulse_3s_ease-in-out_infinite]"
+                        style={{
+                            filter: "drop-shadow(0 0 20px rgba(217, 119, 6, 0.3))"
+                        }}
+                    />
+
+                    <h1 className="text-5xl font-bold tracking-tight">
                         STREAMLINE
                     </h1>
-                    <h2 className="text-4xl font-bold tracking-tight">
+                    <h2 className="text-3xl font-bold tracking-tight text-[#D97706]">
                         Your Lending Pipeline
                     </h2>
                     <p className="text-lg text-slate-300">
                         Veltro will REVOLUTIONISE your workflow. From finding new prospects, assessing credit viability, managing your pipeline through to submitting applications and everything else in between!
-                        Close deals faster and more efficiently...
                     </p>
                 </div>
             </div>

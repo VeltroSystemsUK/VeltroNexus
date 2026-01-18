@@ -1218,7 +1218,7 @@ export default function Settings() {
               <div>
                 <Label className="text-xs text-muted-foreground">Required Header</Label>
                 <code className="block bg-background px-3 py-2 rounded text-sm font-mono border mt-1">
-                  x-flowloan-api-key: YOUR_API_KEY
+                  x-veltro-api-key: YOUR_API_KEY
                 </code>
               </div>
 
