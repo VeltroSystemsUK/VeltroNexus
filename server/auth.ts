@@ -133,7 +133,23 @@ export function setupAuth(app: Express) {
     app.post("/api/logout", (req, res, next) => {
         req.logout((err) => {
             if (err) return next(err);
-            res.sendStatus(200);
+
+            // Destroy the session completely
+            req.session.destroy((destroyErr) => {
+                if (destroyErr) {
+                    console.error("Session destroy error:", destroyErr);
+                }
+
+                // Clear the session cookie
+                res.clearCookie("connect.sid", {
+                    path: "/",
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: "lax",
+                });
+
+                res.sendStatus(200);
+            });
         });
     });
 
