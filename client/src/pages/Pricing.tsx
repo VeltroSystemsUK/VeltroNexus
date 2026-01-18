@@ -1,682 +1,363 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Check, Calendar, Phone, Package, Plus, Minus, ShoppingCart, Sparkles } from "lucide-react";
-import { useLocation, Link } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-
-const pricingTiers = [
-  {
-    name: "Starter",
-    price: "£39",
-    period: "per month",
-    prospects: 50,
-    additionalCost: "£2",
-    trialDays: 14,
-    description: "Perfect for independent brokers",
-    features: [
-      "50 prospects included",
-      "Companies House integration",
-      "Full due diligence suite",
-      "Contact management",
-      "Activity tracking & CRM",
-      "PDF report generation",
-      "Email support",
-    ],
-    popular: false,
-    tier: "starter",
-    ctaText: "Start 14-Day Free Trial",
-    ctaType: "trial" as const,
-    highlight: "No credit card required",
-  },
-  {
-    name: "Team",
-    price: "£229",
-    period: "per month",
-    prospects: 250,
-    additionalCost: "£1.50",
-    seats: 5,
-    description: "For growing sales teams",
-    features: [
-      "5 team seats included",
-      "250 prospects included",
-      "Everything in Broker Starter",
-      "Role-based access control",
-      "Internal underwriting workflow",
-      "Team activity dashboard",
-      "Priority email & chat support",
-      "Onboarding assistance",
-    ],
-    popular: true,
-    tier: "team",
-    ctaText: "Book a Demo",
-    ctaType: "demo" as const,
-    highlight: "14-day team pilot available",
-  },
-  {
-    name: "Lender",
-    price: "£999",
-    period: "per month",
-    prospects: "Unlimited",
-    additionalCost: null,
-    description: "Enterprise credit teams & lenders",
-    features: [
-      "Unlimited prospects",
-      "Unlimited team seats",
-      "Everything in Team",
-      "AI Credit Underwriting module",
-      "Credit committee reports",
-      "Custom scoring models",
-      "White-label branding",
-      "API access",
-      "Dedicated account manager",
-      "SLA & compliance support",
-    ],
-    popular: false,
-    tier: "lender",
-    ctaText: "Request Access",
-    ctaType: "consultation" as const,
-    highlight: "Tailored onboarding included",
-  },
-  {
-    name: "Test",
-    price: "£1",
-    period: "one-time",
-    prospects: 5,
-    additionalCost: null,
-    description: "Test payment gateway",
-    features: [
-      "5 test prospects",
-      "Payment flow testing",
-      "Webhook verification",
-    ],
-    popular: false,
-    tier: "test",
-    ctaText: "Test Payment",
-    ctaType: "trial" as const,
-    highlight: "For development testing only",
-  },
-];
-
-const valuePackages = {
-  starter: [
-    {
-      id: "starter-10",
-      name: "10 Extra Prospects",
-      prospects: 10,
-      price: 10,
-      pricePerProspect: "£1.00",
-      savings: "50%",
-    },
-    {
-      id: "starter-30",
-      name: "30 Extra Prospects",
-      prospects: 30,
-      price: 25,
-      pricePerProspect: "£0.83",
-      savings: "58%",
-      popular: true,
-    },
-    {
-      id: "starter-100",
-      name: "100 Extra Prospects",
-      prospects: 100,
-      price: 49,
-      pricePerProspect: "£0.49",
-      savings: "76%",
-    },
-  ],
-  team: [
-    {
-      id: "team-100",
-      name: "100 Extra Prospects",
-      prospects: 100,
-      price: 50,
-      pricePerProspect: "£0.50",
-      savings: "67%",
-    },
-    {
-      id: "team-250",
-      name: "250 Extra Prospects",
-      prospects: 250,
-      price: 75,
-      pricePerProspect: "£0.30",
-      savings: "80%",
-      popular: true,
-    },
-    {
-      id: "team-500",
-      name: "500 Extra Prospects",
-      prospects: 500,
-      price: 99,
-      pricePerProspect: "£0.20",
-      savings: "87%",
-    },
-  ],
-};
+import { useState } from "react";
+import { Link } from "wouter";
+import { Check } from "lucide-react";
 
 export default function Pricing() {
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const [demoDialogOpen, setDemoDialogOpen] = useState(false);
-  const [consultationDialogOpen, setConsultationDialogOpen] = useState(false);
-  const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string>("");
-  const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
+    const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
+    const isAnnual = billingInterval === "annual";
 
-  const { data: user } = useQuery({
-    queryKey: ["/api/auth/user"],
-    retry: false,
-  });
+    return (
+        <div className="min-h-screen bg-background text-foreground font-sans">
+            {/* Navigation - keeping it simple/implied or matching app shell */}
 
-  // Fetch Stripe products
-  const { data: billingProducts } = useQuery<{
-    products: Array<{
-      id: string;
-      name: string;
-      metadata: Record<string, string>;
-      prices: Array<{
-        id: string;
-        unit_amount: number;
-        currency: string;
-        recurring: { interval: string } | null;
-      }>;
-    }>;
-  }>({
-    queryKey: ["/api/billing/products"],
-    enabled: !!user,
-  });
+            {/* Hero Section */}
+            <section className="relative overflow-hidden pt-20 pb-16 px-6 text-center">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_center,hsl(35,92%,50%,0.08)_0%,transparent_70%)] pointer-events-none" />
 
-  const createCheckoutMutation = useMutation({
-    mutationFn: async (priceId: string) => {
-      const response = await apiRequest("/api/billing/checkout", "POST", { priceId });
-      return response as unknown as { url: string };
-    },
-    onSuccess: (data) => {
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Checkout Error",
-        description: error.message || "Failed to start checkout. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+                <div className="relative z-10 max-w-[700px] mx-auto">
+                    <h1 className="text-5xl font-extrabold tracking-tight mb-4 bg-gradient-to-br from-foreground to-muted-foreground bg-clip-text text-transparent">
+                        Simple, Transparent Pricing
+                    </h1>
+                    <p className="text-lg text-muted-foreground max-w-[560px] mx-auto">
+                        Start managing your commercial lending pipeline with Veltro. Select the plan that fits your needs.
+                    </p>
 
-  // Helper to find Stripe price for a tier
-  const getStripePriceForTier = (tierName: string, interval: "month" | "year" = "month") => {
-    if (!billingProducts?.products || billingProducts.products.length === 0) {
-      console.log("No billing products available");
-      return null;
-    }
-
-    const tierLower = tierName.toLowerCase();
-    const product = billingProducts.products.find((p) => {
-      // Check metadata.tier first
-      const metadataTier = p.metadata?.tier?.toLowerCase();
-      if (metadataTier === tierLower) return true;
-
-      // Fall back to product name matching
-      const nameLower = p.name.toLowerCase();
-      return nameLower.includes(tierLower) || nameLower.startsWith(tierLower);
-    });
-
-    if (!product) {
-      console.log(`No product found for tier: ${tierName}`, billingProducts.products);
-      return null;
-    }
-
-    // Find matching price by interval
-    const price = product.prices.find((p) => p.recurring?.interval === interval);
-    if (!price) {
-      console.log(`No ${interval} price found for product:`, product);
-    }
-    return price;
-  };
-
-  const createBillingRequestMutation = useMutation({
-    mutationFn: async (tier: string) => {
-      const price = getStripePriceForTier(tier);
-      if (price) {
-        return createCheckoutMutation.mutateAsync(price.id);
-      }
-      throw new Error("Please set up subscription products in Stripe dashboard first.");
-    },
-    onError: (error: any) => {
-      sessionStorage.removeItem("subscription_tier");
-      toast({
-        title: "Subscription Unavailable",
-        description:
-          error.message || "Payment processing is temporarily unavailable. Please contact support.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Handle pending checkout after login - wait for products to load
-  useEffect(() => {
-    const pendingTier = sessionStorage.getItem("subscription_tier");
-    if (pendingTier && user && billingProducts?.products && billingProducts.products.length > 0) {
-      sessionStorage.removeItem("subscription_tier");
-      sessionStorage.removeItem("value_package");
-      createBillingRequestMutation.mutate(pendingTier);
-    }
-  }, [user, billingProducts]);
-
-  const handleSelectPlan = (plan: (typeof pricingTiers)[0]) => {
-    setSelectedPlan(plan.tier);
-
-    if (plan.ctaType === "trial") {
-      // Broker Starter: Show checkout dialog with optional value packages
-      setSelectedPackage(null);
-      setCheckoutDialogOpen(true);
-    } else if (plan.ctaType === "demo") {
-      // Team plan: Book a demo
-      setDemoDialogOpen(true);
-    } else if (plan.ctaType === "consultation") {
-      // Lender plan: Request access
-      setConsultationDialogOpen(true);
-    }
-  };
-
-  const handleProceedToCheckout = () => {
-    if (!user) {
-      // Store pending tier and redirect to login
-      sessionStorage.setItem("subscription_tier", selectedPlan);
-      if (selectedPackage) {
-        sessionStorage.setItem("value_package", selectedPackage);
-      }
-      setLocation("/auth");
-    } else {
-      // User is logged in - initiate Stripe checkout
-      setCheckoutDialogOpen(false);
-      createBillingRequestMutation.mutate(selectedPlan);
-    }
-  };
-
-  const getSelectedPackageDetails = () => {
-    if (!selectedPackage || !selectedPlan) return null;
-    const packages = valuePackages[selectedPlan as keyof typeof valuePackages];
-    return packages?.find((p) => p.id === selectedPackage);
-  };
-
-  const currentPlanDetails = pricingTiers.find((p) => p.tier === selectedPlan);
-  const availablePackages = selectedPlan
-    ? valuePackages[selectedPlan as keyof typeof valuePackages] || []
-    : [];
-  const selectedPackageDetails = getSelectedPackageDetails();
-
-  const calculateTotal = () => {
-    const basePrice = currentPlanDetails ? parseInt(currentPlanDetails.price.replace("£", "")) : 0;
-    const packagePrice = selectedPackageDetails?.price || 0;
-    return basePrice + packagePrice;
-  };
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Start managing your commercial lending pipeline with Veltro. Select the plan that fits
-            your needs.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {pricingTiers.map((plan) => (
-            <Card
-              key={plan.tier}
-              className={`relative ${plan.popular ? "border-primary shadow-lg" : ""}`}
-              data-testid={`pricing-card-${plan.tier}`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <Badge variant="default" className="px-4 py-1">
-                    Most Popular
-                  </Badge>
-                </div>
-              )}
-              <CardHeader className="text-center pt-8">
-                <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                <CardDescription className="mt-1">{plan.description}</CardDescription>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">{plan.price}</span>
-                  <span className="text-muted-foreground ml-2">{plan.period}</span>
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {typeof plan.prospects === "number"
-                    ? `${plan.prospects} prospects included`
-                    : plan.prospects + " prospects"}
-                </div>
-                {plan.highlight && (
-                  <Badge variant="secondary" className="mt-3">
-                    {plan.highlight}
-                  </Badge>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {plan.additionalCost && (
-                  <div className="text-sm text-muted-foreground text-center border-t border-b py-3">
-                    <div>
-                      Additional prospects:{" "}
-                      <span className="font-semibold text-foreground">{plan.additionalCost}</span>{" "}
-                      each
-                    </div>
-                    <Link href={`/value-packages?plan=${plan.tier}`}>
-                      <span className="text-xs text-primary hover:underline cursor-pointer mt-1 inline-block">
-                        Value Packages Available
-                      </span>
-                    </Link>
-                  </div>
-                )}
-                <ul className="space-y-3">
-                  {plan.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <Check className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter className="flex-col gap-2">
-                <Button
-                  className="w-full"
-                  variant={plan.popular ? "default" : "outline"}
-                  onClick={() => handleSelectPlan(plan)}
-                  disabled={createBillingRequestMutation.isPending && selectedPlan === plan.tier}
-                  data-testid={`button-select-${plan.tier}`}
-                >
-                  {plan.ctaType === "demo" && <Calendar className="w-4 h-4 mr-2" />}
-                  {plan.ctaType === "consultation" && <Phone className="w-4 h-4 mr-2" />}
-                  {createBillingRequestMutation.isPending && selectedPlan === plan.tier
-                    ? "Processing..."
-                    : plan.ctaText}
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-
-        <div className="mt-16 text-center">
-          <p className="text-sm text-muted-foreground">
-            All plans include access to Companies House integration, contact management, and
-            activity tracking.
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Questions? Email us at{" "}
-            <a href="mailto:hello@flowloan.co.uk" className="text-primary hover:underline">
-              hello@flowloan.co.uk
-            </a>
-          </p>
-        </div>
-      </div>
-
-      {/* Book a Demo Dialog */}
-      <Dialog open={demoDialogOpen} onOpenChange={setDemoDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              Book a Team Demo
-            </DialogTitle>
-            <DialogDescription>
-              Our team will set up your account, invite your team members, and guide you through a
-              14-day pilot.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              <h4 className="font-medium">What's included:</h4>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>Personalized demo of all Team features</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>We set up your account & invite your team</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>14-day fully-featured team pilot</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>Optional: We import your existing leads</span>
-                </li>
-              </ul>
-            </div>
-            <div className="flex flex-col gap-3">
-              <Button
-                className="w-full"
-                onClick={() => {
-                  window.location.href =
-                    "mailto:sales@flowloan.co.uk?subject=Team%20Demo%20Request&body=Hi%2C%0A%0AI%27d%20like%20to%20book%20a%20demo%20for%20the%20Team%20plan.%0A%0ACompany%3A%20%0ATeam%20size%3A%20%0APreferred%20time%3A%20%0A%0AThanks!";
-                }}
-                data-testid="button-email-demo"
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Email Us to Book
-              </Button>
-              <p className="text-xs text-center text-muted-foreground">
-                Or call us: +44 (0) 20 1234 5678
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Request Access / Consultation Dialog */}
-      <Dialog open={consultationDialogOpen} onOpenChange={setConsultationDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5 text-primary" />
-              Request Lender Access
-            </DialogTitle>
-            <DialogDescription>
-              Our enterprise team will discuss your requirements and provide a tailored solution for
-              your credit team.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              <h4 className="font-medium">Enterprise consultation includes:</h4>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>Discovery call to understand your workflow</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>Custom AI underwriting model discussion</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>White-label branding options</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>Compliance & security review</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>Tailored onboarding & training plan</span>
-                </li>
-              </ul>
-            </div>
-            <div className="flex flex-col gap-3">
-              <Button
-                className="w-full"
-                onClick={() => {
-                  window.location.href =
-                    "mailto:enterprise@flowloan.co.uk?subject=Lender%20Plan%20Enquiry&body=Hi%2C%0A%0AI%27d%20like%20to%20discuss%20the%20Lender%20plan%20for%20our%20credit%20team.%0A%0AOrganisation%3A%20%0ATeam%20size%3A%20%0ACurrent%20lending%20volume%3A%20%0A%0AThanks!";
-                }}
-                data-testid="button-email-consultation"
-              >
-                <Phone className="w-4 h-4 mr-2" />
-                Request a Consultation
-              </Button>
-              <p className="text-xs text-center text-muted-foreground">
-                We'll respond within 24 hours
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Checkout Dialog with Value Packages */}
-      <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-              Complete Your Order
-            </DialogTitle>
-            <DialogDescription>
-              Start your 14-day free trial. Add a value package to save on additional prospects.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Selected Plan */}
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="font-medium">{currentPlanDetails?.name} Plan</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {currentPlanDetails?.prospects} prospects included
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-lg">{currentPlanDetails?.price}</div>
-                  <div className="text-xs text-muted-foreground">per month</div>
-                </div>
-              </div>
-              <Badge variant="secondary" className="mt-2">
-                14-day free trial
-              </Badge>
-            </div>
-
-            {/* Value Packages */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Package className="h-4 w-4 text-primary" />
-                <h4 className="font-medium">Add a Value Package</h4>
-                <Badge variant="outline" className="text-xs">
-                  Optional
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                {availablePackages.map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    className={`relative border rounded-lg p-3 cursor-pointer transition-colors hover-elevate ${selectedPackage === pkg.id ? "border-primary bg-primary/5" : "border-border"
-                      }`}
-                    onClick={() => setSelectedPackage(selectedPackage === pkg.id ? null : pkg.id)}
-                    data-testid={`checkout-package-${pkg.id}`}
-                  >
-                    {pkg.popular && (
-                      <Badge
-                        variant="default"
-                        className="absolute -top-2 right-2 text-xs px-2 py-0"
-                      >
-                        <Sparkles className="w-3 h-3 mr-1" />
-                        Best Value
-                      </Badge>
-                    )}
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPackage === pkg.id
-                              ? "border-primary bg-primary"
-                              : "border-muted-foreground"
-                            }`}
+                    <div className="flex items-center justify-center gap-3 mt-8">
+                        <span className={`text-sm font-medium transition-colors ${!isAnnual ? "text-foreground" : "text-muted-foreground"}`}>
+                            Monthly
+                        </span>
+                        <button
+                            onClick={() => setBillingInterval(isAnnual ? "monthly" : "annual")}
+                            className={`w-12 h-[26px] bg-muted rounded-full relative transition-colors border border-border cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 ${isAnnual ? "after:translate-x-[22px]" : "after:translate-x-[2px]"}`}
                         >
-                          {selectedPackage === pkg.id && (
-                            <Check className="w-3 h-3 text-primary-foreground" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">{pkg.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {pkg.pricePerProspect}/prospect
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold">£{pkg.price}</div>
-                        <Badge
-                          variant="secondary"
-                          className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                        >
-                          Save {pkg.savings}
-                        </Badge>
-                      </div>
+                            <span className="absolute top-[2px] left-0 w-5 h-5 bg-primary rounded-full shadow-sm transition-transform duration-200" />
+                        </button>
+                        <span className={`text-sm font-medium transition-colors ${isAnnual ? "text-foreground" : "text-muted-foreground"}`}>
+                            Annual
+                        </span>
+                        <span className="bg-success/15 text-success px-2.5 py-1 rounded-full text-xs font-semibold border border-success/30">
+                            Save 20%
+                        </span>
                     </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Value packages are billed monthly and can be cancelled anytime.
-              </p>
-            </div>
-
-            {/* Order Summary */}
-            <div className="border-t pt-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>{currentPlanDetails?.name} Plan</span>
-                  <span>{currentPlanDetails?.price}/mo</span>
                 </div>
-                {selectedPackageDetails && (
-                  <div className="flex justify-between text-sm">
-                    <span>{selectedPackageDetails.name}</span>
-                    <span>£{selectedPackageDetails.price}/mo</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                  <span>Total after trial</span>
-                  <span>£{calculateTotal()}/mo</span>
-                </div>
-              </div>
-            </div>
+            </section>
 
-            {/* CTA */}
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleProceedToCheckout}
-              data-testid="button-proceed-checkout"
-            >
-              {user ? "Start Free Trial" : "Sign Up to Start Trial"}
-            </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              No payment required during trial. Cancel anytime.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+            {/* Pricing Section */}
+            <section className="px-6 pb-20 max-w-[1280px] mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
+
+                    {/* Broker */}
+                    <div className="bg-card border border-card-border rounded-lg p-7 relative transition-all duration-200 hover:border-muted-foreground hover:-translate-y-0.5 hover:shadow-lg">
+                        <div className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-1">Starter</div>
+                        <div className="text-2xl font-bold tracking-tight mb-1.5">Broker</div>
+                        <div className="text-[13px] text-muted-foreground mb-5 leading-normal">
+                            Perfect for independent brokers building their pipeline
+                        </div>
+
+                        <div className="mb-5">
+                            <div className="flex items-baseline gap-0.5">
+                                <span className="text-xl font-semibold text-foreground">£</span>
+                                <span className="text-[2.75rem] font-extrabold tracking-tight leading-none text-foreground">
+                                    {isAnnual ? "119" : "149"}
+                                </span>
+                                <span className="text-sm text-muted-foreground ml-1">/month</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1.5">
+                                50 prospects included • £5 per additional
+                            </div>
+                        </div>
+
+                        <div className="w-full mb-5">
+                            <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all">
+                                Start 14-Day Free Trial
+                            </button>
+                        </div>
+                        <p className="text-center text-[11px] text-muted-foreground -mt-3 mb-4">
+                            No credit card required
+                        </p>
+
+                        <ul className="space-y-2 border-t border-border pt-4">
+                            {[
+                                { text: "50 prospects included", highlight: "50 prospects" },
+                                { text: "Companies House integration" },
+                                { text: "Full due diligence suite" },
+                                { text: "Contact management" },
+                                { text: "Activity tracking & CRM" },
+                                { text: "PDF report generation" },
+                                { text: "Email support" },
+                            ].map((item, i) => (
+                                <li key={i} className="flex items-start gap-2.5 text-[13px] text-foreground">
+                                    <span className="w-[18px] h-[18px] bg-success/15 rounded-full flex items-center justify-center shrink-0 mt-px">
+                                        <Check className="w-2.5 h-2.5 text-success stroke-[3]" />
+                                    </span>
+                                    <span>
+                                        {item.highlight ? (
+                                            <>
+                                                <span className="font-semibold text-primary">{item.highlight}</span>{" "}
+                                                {item.text.replace(item.highlight, "").trim()}
+                                            </>
+                                        ) : (
+                                            item.text
+                                        )}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Team */}
+                    <div className="bg-card border border-primary rounded-lg p-7 relative transition-all duration-200 hover:border-primary hover:-translate-y-0.5 shadow-[0_0_0_1px_hsl(35,92%,50%),0_14px_40px_rgba(0,0,0,0.5)]">
+                        <div className="absolute -top-[11px] left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-3.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider">
+                            Most Popular
+                        </div>
+                        <div className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-1">Professional</div>
+                        <div className="text-2xl font-bold tracking-tight mb-1.5">Team</div>
+                        <div className="text-[13px] text-muted-foreground mb-5 leading-normal">
+                            For growing sales teams and brokerages
+                        </div>
+
+                        <div className="mb-5">
+                            <div className="flex items-baseline gap-0.5">
+                                <span className="text-xl font-semibold text-foreground">£</span>
+                                <span className="text-[2.75rem] font-extrabold tracking-tight leading-none text-foreground">
+                                    {isAnnual ? "439" : "549"}
+                                </span>
+                                <span className="text-sm text-muted-foreground ml-1">/month</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1.5">
+                                5 seats • 250 prospects • £3 per additional
+                            </div>
+                        </div>
+
+                        <div className="w-full mb-5">
+                            <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:brightness-110 hover:-translate-y-px transition-all shadow-sm">
+                                Start 14-Day Team Pilot
+                            </button>
+                        </div>
+
+                        <ul className="space-y-2 pt-4">
+                            {[
+                                { text: "5 team seats included", highlight: "5 team seats" },
+                                { text: "250 prospects monthly", highlight: "250 prospects" },
+                                { text: "Everything in Broker" },
+                                { text: "Role-based access control" },
+                                { text: "Internal underwriting workflow" },
+                                { text: "Team activity dashboard" },
+                                { text: "Priority email & chat support" },
+                                { text: "Onboarding assistance" },
+                            ].map((item, i) => (
+                                <li key={i} className="flex items-start gap-2.5 text-[13px] text-foreground">
+                                    <span className="w-[18px] h-[18px] bg-success/15 rounded-full flex items-center justify-center shrink-0 mt-px">
+                                        <Check className="w-2.5 h-2.5 text-success stroke-[3]" />
+                                    </span>
+                                    <span>
+                                        {item.highlight ? (
+                                            <>
+                                                <span className="font-semibold text-primary">{item.highlight}</span>{" "}
+                                                {item.text.replace(item.highlight, "").trim()}
+                                            </>
+                                        ) : (
+                                            item.text
+                                        )}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Lender */}
+                    <div className="bg-card border border-card-border rounded-lg p-7 relative transition-all duration-200 hover:border-muted-foreground hover:-translate-y-0.5 hover:shadow-lg">
+                        <div className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-1">Business</div>
+                        <div className="text-2xl font-bold tracking-tight mb-1.5">Lender</div>
+                        <div className="text-[13px] text-muted-foreground mb-5 leading-normal">
+                            For credit teams and lending operations
+                        </div>
+
+                        <div className="mb-5">
+                            <div className="flex items-baseline gap-0.5">
+                                <span className="text-xl font-semibold text-foreground">£</span>
+                                <span className="text-[2.75rem] font-extrabold tracking-tight leading-none text-foreground">
+                                    {isAnnual ? "1,999" : "2,499"}
+                                </span>
+                                <span className="text-sm text-muted-foreground ml-1">/month</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1.5">
+                                15 seats • Unlimited prospects
+                            </div>
+                        </div>
+
+                        <div className="w-full mb-5">
+                            <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all">
+                                Book a Demo
+                            </button>
+                        </div>
+
+                        <ul className="space-y-2 border-t border-border pt-4">
+                            {[
+                                { text: "Unlimited prospects", highlight: "Unlimited prospects" },
+                                { text: "15 team seats included", highlight: "15 team seats" },
+                                { text: "Everything in Team" },
+                                { text: "AI Credit Underwriting module" },
+                                { text: "Credit committee reports" },
+                                { text: "Custom scoring models" },
+                                { text: "API access" },
+                                { text: "Dedicated account manager" },
+                                { text: "99.5% SLA with credits" },
+                            ].map((item, i) => (
+                                <li key={i} className="flex items-start gap-2.5 text-[13px] text-foreground">
+                                    <span className="w-[18px] h-[18px] bg-success/15 rounded-full flex items-center justify-center shrink-0 mt-px">
+                                        <Check className="w-2.5 h-2.5 text-success stroke-[3]" />
+                                    </span>
+                                    <span>
+                                        {item.highlight ? (
+                                            <>
+                                                <span className="font-semibold text-primary">{item.highlight}</span>{" "}
+                                                {item.text.replace(item.highlight, "").trim()}
+                                            </>
+                                        ) : (
+                                            item.text
+                                        )}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Enterprise */}
+                    <div className="bg-card border border-card-border rounded-lg p-7 relative transition-all duration-200 hover:border-muted-foreground hover:-translate-y-0.5 hover:shadow-lg">
+                        <div className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-1">Enterprise</div>
+                        <div className="text-2xl font-bold tracking-tight mb-1.5">Institution</div>
+                        <div className="text-[13px] text-muted-foreground mb-5 leading-normal">
+                            For banks, CDFIs, and large lending operations
+                        </div>
+
+                        <div className="mb-5">
+                            <div className="flex items-baseline gap-0.5 h-[58px]">
+                                <span className="text-[2rem] font-bold text-foreground self-center">
+                                    Custom
+                                </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1.5">
+                                Tailored to your requirements
+                            </div>
+                        </div>
+
+                        <div className="w-full mb-5">
+                            <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all">
+                                Request Access
+                            </button>
+                        </div>
+
+                        <ul className="space-y-2 border-t border-border pt-4">
+                            {[
+                                { text: "Everything in Lender", highlight: "Everything in Lender" },
+                                { text: "Unlimited seats" },
+                                { text: "White-label branding" },
+                                { text: "Custom integrations" },
+                                { text: "Dedicated infrastructure" },
+                                { text: "99.9% SLA guarantee" },
+                                { text: "Compliance & audit support" },
+                                { text: "Bespoke development" },
+                                { text: "On-premise available" },
+                            ].map((item, i) => (
+                                <li key={i} className="flex items-start gap-2.5 text-[13px] text-foreground">
+                                    <span className="w-[18px] h-[18px] bg-success/15 rounded-full flex items-center justify-center shrink-0 mt-px">
+                                        <Check className="w-2.5 h-2.5 text-success stroke-[3]" />
+                                    </span>
+                                    <span>
+                                        {item.highlight ? (
+                                            <>
+                                                <span className="font-semibold text-primary">{item.highlight}</span>{" "}
+                                                {item.text.replace(item.highlight, "").trim()}
+                                            </>
+                                        ) : (
+                                            item.text
+                                        )}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                </div>
+
+                {/* Value Callout */}
+                <div className="bg-card border border-border rounded-lg p-6 mt-8 text-center flex items-center justify-center gap-3">
+                    <span className="text-xl">💡</span>
+                    <p className="text-sm text-muted-foreground m-0">
+                        <strong className="text-primary">One completed deal covers your annual subscription.</strong>{" "}
+                        A broker placing just £250k earns enough commission to pay for Veltro for the entire year.
+                    </p>
+                </div>
+            </section>
+
+            {/* Features Section */}
+            <section className="py-16 px-6 bg-card border-t border-border">
+                <div className="max-w-[1120px] mx-auto text-center">
+                    <h2 className="text-[1.75rem] font-bold tracking-tight mb-2">
+                        Why Leading Lenders Choose Veltro
+                    </h2>
+                    <p className="text-muted-foreground mb-10">
+                        Built by lending professionals who understand the commercial finance market.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                        {/* Feature 1 */}
+                        <div className="p-6 bg-background border border-border rounded-lg">
+                            <div className="w-10 h-10 bg-primary/10 rounded-[10px] flex items-center justify-center mb-4">
+                                <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-primary stroke-2 fill-none">
+                                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                            </div>
+                            <h3 className="text-[15px] font-semibold mb-2">ROI in Days, Not Months</h3>
+                            <p className="text-[13px] text-muted-foreground leading-relaxed">
+                                Most users see payback within their first completed deal. The efficiency gains compound from there.
+                            </p>
+                        </div>
+
+                        {/* Feature 2 */}
+                        <div className="p-6 bg-background border border-border rounded-lg">
+                            <div className="w-10 h-10 bg-primary/10 rounded-[10px] flex items-center justify-center mb-4">
+                                <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-primary stroke-2 fill-none">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                            </div>
+                            <h3 className="text-[15px] font-semibold mb-2">Enterprise-Grade Security</h3>
+                            <p className="text-[13px] text-muted-foreground leading-relaxed">
+                                UK-hosted infrastructure, GDPR compliant, with encryption at rest and in transit. Your data stays sovereign.
+                            </p>
+                        </div>
+
+                        {/* Feature 3 */}
+                        <div className="p-6 bg-background border border-border rounded-lg">
+                            <div className="w-10 h-10 bg-primary/10 rounded-[10px] flex items-center justify-center mb-4">
+                                <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-primary stroke-2 fill-none">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <h3 className="text-[15px] font-semibold mb-2">Built for UK Lending</h3>
+                            <p className="text-[13px] text-muted-foreground leading-relaxed">
+                                Companies House integration, FCA-aware workflows, and credit assessment tools designed for the UK market.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Footer */}
+            <footer className="p-6 text-center border-t border-border">
+                <p className="text-[13px] text-muted-foreground">
+                    Questions?{" "}
+                    <a href="mailto:sales@veltro.io" className="text-primary hover:underline">
+                        sales@veltro.io
+                    </a>{" "}
+                    • All prices exclude VAT • <a href="#" className="hover:underline">View full feature comparison</a>
+                </p>
+            </footer>
+        </div>
+    );
 }
