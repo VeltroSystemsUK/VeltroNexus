@@ -51,6 +51,10 @@ export default function AuthPage() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
+    // Get plan from URL query params (e.g., /auth?plan=broker)
+    const urlParams = new URLSearchParams(window.location.search);
+    const selectedPlan = urlParams.get("plan") as "broker" | "team" | null;
+
     // Redirect if already logged in
     useEffect(() => {
         if (user) {
@@ -99,13 +103,23 @@ export default function AuthPage() {
     const registerMutation = useMutation({
         mutationFn: async (data: z.infer<typeof registerSchema>) => {
             const { confirmPassword, ...registerData } = data;
-            const res = await apiRequest("/api/register", "POST", registerData);
+            // Pass selected plan to backend for trial setup
+            const res = await apiRequest("/api/register", "POST", {
+                ...registerData,
+                trialTier: selectedPlan || undefined,
+            });
             return res.json();
         },
         onSuccess: (user) => {
             queryClient.setQueryData(["/api/auth/user"], user);
             setLocation("/pipeline");
-            toast({ title: "Account created", description: "Welcome to Veltro!" });
+            const planName = selectedPlan === "team" ? "Team" : selectedPlan === "broker" ? "Broker" : null;
+            toast({
+                title: "Account created",
+                description: planName
+                    ? `Welcome to Veltro! Your 14-day ${planName} trial has started.`
+                    : "Welcome to Veltro!"
+            });
         },
         onError: (error: Error) => {
             toast({

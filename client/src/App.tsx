@@ -26,6 +26,7 @@ import ValuePackages from "@/pages/ValuePackages";
 import AuthPage from "@/pages/Auth";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { CookieConsent } from "@/components/CookieConsent";
+import TrialBanner from "@/components/TrialBanner";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -77,6 +78,7 @@ function AppContent() {
 
   return (
     <>
+      {isAuthenticated && !isLoading && <TrialBanner />}
       <Router />
       {isAuthenticated && !isLoading && <MobileNav />}
     </>

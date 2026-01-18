@@ -81,12 +81,27 @@ export function setupAuth(app: Express) {
 
             const hashedPassword = await hashPassword(req.body.password);
 
+            // Handle trial setup based on selected plan
+            const trialTier = req.body.trialTier;
+            let subscriptionTier = "free";
+            let prospectLimit = 10;
+            let trialEndsAt = null;
+
+            if (trialTier === "broker" || trialTier === "team") {
+                trialEndsAt = new Date();
+                trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+                subscriptionTier = trialTier;
+                prospectLimit = trialTier === "broker" ? 50 : 250;
+            }
+
             const user = await storage.createUser({
                 ...req.body,
                 password: hashedPassword,
-                role: 'broker', // Default role
-                subscriptionTier: 'free',
-                prospectLimit: 10,
+                role: 'broker',
+                subscriptionTier,
+                prospectLimit,
+                trialTier: trialTier || null,
+                trialEndsAt,
             });
 
             req.login(user, (err) => {
