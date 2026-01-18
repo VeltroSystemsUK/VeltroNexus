@@ -110,6 +110,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
 import LoanRequirementCard from "@/components/LoanRequirementCard";
+import ResearchTab from "@/components/ResearchTab";
 import {
   DueDiligenceChecklist,
   LoanCalculatorTool,
@@ -729,7 +730,7 @@ export default function ProspectDetail() {
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
           <TabsList
-            className={`flex flex-nowrap overflow-x-auto w-full md:grid ${user?.subscriptionTier === "free" ? "md:grid-cols-7" : user?.subscriptionTier === "premium" ? "md:grid-cols-9" : "md:grid-cols-8"} mb-8 pb-2 md:pb-0 gap-2 md:gap-0 scrollbar-hide h-auto`}
+            className={`flex flex-nowrap overflow-x-auto w-full md:grid ${user?.subscriptionTier === "free" ? "md:grid-cols-8" : user?.subscriptionTier === "premium" ? "md:grid-cols-10" : "md:grid-cols-9"} mb-8 pb-2 md:pb-0 gap-2 md:gap-0 scrollbar-hide h-auto`}
           >
             <TabsTrigger value="contacts" data-testid="tab-contacts">
               Contacts
@@ -739,6 +740,9 @@ export default function ProspectDetail() {
             </TabsTrigger>
             <TabsTrigger value="loan" data-testid="tab-loan">
               Requirement
+            </TabsTrigger>
+            <TabsTrigger value="research" data-testid="tab-research">
+              Research
             </TabsTrigger>
             <TabsTrigger value="documents" data-testid="tab-documents">
               Documents
@@ -782,6 +786,10 @@ export default function ProspectDetail() {
 
           <TabsContent value="loan">
             <LoanRequirementCard prospect={prospect} />
+          </TabsContent>
+
+          <TabsContent value="research">
+            <ResearchTab prospect={prospect} />
           </TabsContent>
 
           <TabsContent value="documents">
