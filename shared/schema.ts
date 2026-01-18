@@ -47,6 +47,53 @@ export const SESSION_LIMITS: Record<string, number> = {
   lender: Infinity,
 };
 
+// Lender enquiry table - stores enterprise enquiries from the form
+export const lenderEnquiries = pgTable(
+  "lender_enquiries",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    // Company context
+    entityName: varchar("entity_name", { length: 255 }).notNull(),
+    sponsor: varchar("sponsor", { length: 255 }).notNull(),
+    goLiveDate: varchar("go_live_date", { length: 50 }),
+    objective: varchar("objective", { length: 255 }),
+    // Workflow
+    loanTypes: text("loan_types"),
+    stages: text("stages"),
+    // Users
+    internalRoles: jsonb("internal_roles"),
+    externalRoles: jsonb("external_roles"),
+    userCount: integer("user_count"),
+    // Modules
+    creditIntegration: varchar("credit_integration", { length: 100 }),
+    openBanking: varchar("open_banking", { length: 10 }),
+    decisioning: varchar("decisioning", { length: 100 }),
+    documents: jsonb("documents"),
+    // Compliance
+    dataSubjects: jsonb("data_subjects"),
+    dataResidency: varchar("data_residency", { length: 255 }),
+    dataResidencyDetails: text("data_residency_details"),
+    // Contact
+    contactName: varchar("contact_name", { length: 255 }).notNull(),
+    contactEmail: varchar("contact_email", { length: 255 }).notNull(),
+    contactPhone: varchar("contact_phone", { length: 50 }),
+    additionalNotes: text("additional_notes"),
+    // Metadata
+    formData: jsonb("form_data"), // Full form submission as JSON backup
+    status: varchar("status", { length: 50 }).default("new").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedBy: varchar("reviewed_by"),
+  },
+  (table) => [
+    index("IDX_lender_enquiries_status").on(table.status),
+    index("IDX_lender_enquiries_created_at").on(table.createdAt),
+  ]
+);
+
+export type LenderEnquiry = typeof lenderEnquiries.$inferSelect;
+export type InsertLenderEnquiry = typeof lenderEnquiries.$inferInsert;
+
 // User storage table - required for Replit Auth
 // Roles: super_admin (all access), sales_admin (team access), broker (own prospects), underwriter (underwriting only)
 export const users = pgTable("users", {

@@ -6007,6 +6007,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===========================================
+  // LENDER ENQUIRY FORM SUBMISSION
+  // ===========================================
+  app.post("/api/lender-enquiry", async (req, res) => {
+    try {
+      const data = req.body;
+
+      // Validate required fields
+      if (!data.entity_name || !data.contact_name || !data.contact_email) {
+        return res.status(400).json({
+          error: "Missing required fields: entity_name, contact_name, contact_email",
+        });
+      }
+
+      // Import lenderEnquiries dynamically to avoid circular dependencies
+      const { lenderEnquiries } = await import("@shared/schema");
+
+      // Store in database
+      const [enquiry] = await db
+        .insert(lenderEnquiries)
+        .values({
+          entityName: data.entity_name,
+          sponsor: data.sponsor || "",
+          goLiveDate: data.go_live_date,
+          objective: data.objective,
+          loanTypes: data.loan_types,
+          stages: data.stages,
+          internalRoles: data.internal_roles || [],
+          externalRoles: data.external_roles || [],
+          userCount: data.user_count ? parseInt(data.user_count) : null,
+          creditIntegration: data.credit_integration,
+          openBanking: data.open_banking ? "true" : "false",
+          decisioning: data.decisioning,
+          documents: data.documents || [],
+          dataSubjects: data.data_subjects || [],
+          dataResidency: data.data_residency,
+          dataResidencyDetails: data.data_residency_details,
+          contactName: data.contact_name,
+          contactEmail: data.contact_email,
+          contactPhone: data.contact_phone,
+          additionalNotes: data.additional_notes,
+          formData: data, // Store full form as JSON backup
+          status: "new",
+        })
+        .returning();
+
+      console.log(`[Lender Enquiry] New enquiry from ${data.contact_email} for ${data.entity_name}`);
+
+      // Send email notification (non-blocking)
+      const notificationEmail = process.env.LENDER_ENQUIRY_EMAIL || "sales@veltro.io";
+
+      // Email sending using nodemailer or your configured email service
+      // For now, we'll log it - you can integrate with your email service
+      console.log(`[Lender Enquiry] Email notification would be sent to: ${notificationEmail}`);
+      console.log(`[Lender Enquiry] Subject: New Lender Platform Enquiry from ${data.entity_name}`);
+      console.log(`[Lender Enquiry] Body: Contact: ${data.contact_name} <${data.contact_email}>`);
+
+      // If you have an email service configured, uncomment and adapt:
+      // try {
+      //   await sendEmail({
+      //     to: notificationEmail,
+      //     subject: `New Lender Platform Enquiry: ${data.entity_name}`,
+      //     html: `
+      //       <h2>New Lender Enquiry</h2>
+      //       <p><strong>Company:</strong> ${data.entity_name}</p>
+      //       <p><strong>Contact:</strong> ${data.contact_name}</p>
+      //       <p><strong>Email:</strong> ${data.contact_email}</p>
+      //       <p><strong>Phone:</strong> ${data.contact_phone || 'Not provided'}</p>
+      //       <hr>
+      //       <p><strong>Target Go-Live:</strong> ${data.go_live_date || 'Not specified'}</p>
+      //       <p><strong>Objective:</strong> ${data.objective || 'Not specified'}</p>
+      //       <p><strong>User Count:</strong> ${data.user_count || 'Not specified'}</p>
+      //       <hr>
+      //       <p><strong>Additional Notes:</strong></p>
+      //       <p>${data.additional_notes || 'None'}</p>
+      //     `,
+      //   });
+      // } catch (emailError) {
+      //   console.error("[Lender Enquiry] Failed to send email:", emailError);
+      // }
+
+      res.status(201).json({
+        success: true,
+        message: "Enquiry submitted successfully",
+        id: enquiry.id,
+      });
+    } catch (error) {
+      console.error("[Lender Enquiry] Error:", error);
+      res.status(500).json({ error: "Failed to submit enquiry" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
