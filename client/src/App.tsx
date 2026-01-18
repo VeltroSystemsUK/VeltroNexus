@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as SonnerToaster } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import MobileNav from "@/components/MobileNav";
+import Sidebar from "@/components/Sidebar";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
@@ -81,8 +82,21 @@ function AppContent() {
 
   return (
     <>
-      {isAuthenticated && !isLoading && <TrialBanner />}
-      <Router />
+      <div className="flex bg-background h-screen overflow-hidden">
+        {isAuthenticated && !isLoading && (
+          <div className="hidden md:block">
+            <Sidebar />
+          </div>
+        )}
+
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          {isAuthenticated && !isLoading && <TrialBanner />}
+
+          <main className="flex-1 overflow-y-auto w-full">
+            <Router />
+          </main>
+        </div>
+      </div>
       {isAuthenticated && !isLoading && <MobileNav />}
     </>
   );
