@@ -109,6 +109,7 @@ import type {
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
+import LoanRequirementCard from "@/components/LoanRequirementCard";
 import {
   DueDiligenceChecklist,
   LoanCalculatorTool,
@@ -780,7 +781,7 @@ export default function ProspectDetail() {
           </TabsContent>
 
           <TabsContent value="loan">
-            <LoanRequirementTab prospect={prospect} />
+            <LoanRequirementCard prospect={prospect} />
           </TabsContent>
 
           <TabsContent value="documents">
