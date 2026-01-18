@@ -357,8 +357,11 @@ export default function Pricing() {
                             </div>
 
                             <div className="w-full mb-5">
-                                <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all">
-                                    Request Access
+                                <button
+                                    onClick={() => navigate("/lender-enquiry")}
+                                    className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all"
+                                >
+                                    Request a Quote
                                 </button>
                             </div>
 
@@ -400,7 +403,7 @@ export default function Pricing() {
                         <span className="text-xl">💡</span>
                         <p className="text-sm text-muted-foreground m-0">
                             <strong className="text-primary">One completed deal covers your annual subscription.</strong>{" "}
-                            A broker placing just £250k earns enough commission to pay for Veltro for the entire year.
+                            A broker placing just £100k earns enough commission to pay for Veltro for the entire year.
                         </p>
                     </div>
                 </section>
@@ -409,7 +412,7 @@ export default function Pricing() {
                 <section className="py-16 px-6 bg-card border-t border-border">
                     <div className="max-w-[1120px] mx-auto text-center">
                         <h2 className="text-[1.75rem] font-bold tracking-tight mb-2">
-                            Why Leading Lenders Choose Veltro
+                            Why Should You Choose Veltro
                         </h2>
                         <p className="text-muted-foreground mb-10">
                             Built by lending professionals who understand the commercial finance market.
@@ -468,8 +471,8 @@ export default function Pricing() {
             <footer className="p-6 text-center border-t border-border bg-card mt-auto">
                 <p className="text-[13px] text-muted-foreground">
                     Questions?{" "}
-                    <a href="mailto:sales@veltro.io" className="text-primary hover:underline">
-                        sales@veltro.io
+                    <a href="mailto:hello@veltro.co.uk" className="text-primary hover:underline">
+                        hello@veltro.co.uk
                     </a>{" "}
                     • All prices exclude VAT • <a href="#" className="hover:underline">View full feature comparison</a>
                 </p>
