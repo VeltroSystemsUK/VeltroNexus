@@ -14,11 +14,15 @@ export function useAuth() {
       await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/user"], null);
-      window.location.href = "/auth";
+      // Clear all cached data and redirect to login
+      queryClient.clear();
+      // Force a full page reload to /auth to ensure clean state
+      window.location.replace("/auth");
     },
     onError: (error: Error) => {
       console.error("Logout failed:", error);
+      // Even on error, try to redirect
+      window.location.replace("/auth");
     },
   });
 
