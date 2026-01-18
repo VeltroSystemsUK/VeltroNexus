@@ -472,7 +472,7 @@ export default function Pipeline() {
                   </p>
                 </div>
                 <DragDropContext onDragEnd={onDragEnd}>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                  <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-4 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
                     {PROSPECT_STAGES.map((stage) => {
                       const stageProspects = getProspectsByStage(stage.value);
                       const totalValue = getTotalValueByStage(stage.value);
@@ -480,7 +480,7 @@ export default function Pipeline() {
                       return (
                         <Droppable key={stage.value} droppableId={stage.value}>
                           {(provided, snapshot) => (
-                            <div ref={provided.innerRef} {...provided.droppableProps}>
+                            <div ref={provided.innerRef} {...provided.droppableProps} className="min-w-[85vw] md:min-w-0 snap-center">
                               <PipelineColumn
                                 title={stage.label}
                                 count={stageProspects.length}
@@ -551,7 +551,7 @@ export default function Pipeline() {
                 <DragDropContext onDragEnd={onDragEnd}>
                   <div className="space-y-4 md:space-y-8">
                     {/* Active Process Stages */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                    <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-4 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
                       {PROCESS_STAGES.map((stage) => {
                         const stageProspects = getProspectsByStage(stage.value);
                         const totalValue = getTotalValueByStage(stage.value);
@@ -559,7 +559,7 @@ export default function Pipeline() {
                         return (
                           <Droppable key={stage.value} droppableId={stage.value}>
                             {(provided, snapshot) => (
-                              <div ref={provided.innerRef} {...provided.droppableProps}>
+                              <div ref={provided.innerRef} {...provided.droppableProps} className="min-w-[85vw] md:min-w-0 snap-center">
                                 <PipelineColumn
                                   title={stage.label}
                                   count={stageProspects.length}
@@ -618,7 +618,7 @@ export default function Pipeline() {
                       <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
                         Final Outcomes
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5">
+                      <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-5 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
                         {FINAL_STAGES.map((stage) => {
                           const stageProspects = getProspectsByStage(stage.value);
                           const totalValue = getTotalValueByStage(stage.value);
@@ -626,7 +626,7 @@ export default function Pipeline() {
                           return (
                             <Droppable key={stage.value} droppableId={stage.value}>
                               {(provided, snapshot) => (
-                                <div ref={provided.innerRef} {...provided.droppableProps}>
+                                <div ref={provided.innerRef} {...provided.droppableProps} className="min-w-[85vw] md:min-w-0 snap-center">
                                   <PipelineColumn
                                     title={stage.label}
                                     count={stageProspects.length}

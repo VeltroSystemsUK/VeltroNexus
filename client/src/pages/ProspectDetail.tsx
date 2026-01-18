@@ -77,7 +77,14 @@ import {
   PieChart,
   DollarSign,
   AlertTriangle,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -616,58 +623,81 @@ export default function ProspectDetail() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => navigate("/")}
-                data-testid="link-view-directory"
-              >
-                View in Directory
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleDownloadReport}
-                data-testid="button-download-report"
-              >
-                <FileDown className="h-4 w-4 mr-2" />
-                Download Report
-              </Button>
-              <Button
-                onClick={() => setShowUnderwritingDialog(true)}
-                data-testid="button-submit-underwriting"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Submit for Underwriting
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" data-testid="button-delete-prospect">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Prospect?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete this prospect for{" "}
-                      {prospect.company.companyName}? This action cannot be undone and will
-                      permanently remove all associated contacts, activities, and due diligence
-                      data.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                    <AlertDialogAction
+              {/* Desktop Actions */}
+              <div className="hidden md:flex items-center gap-3">
+                <Button variant="outline" onClick={() => navigate("/")} data-testid="link-view-directory">
+                  View in Directory
+                </Button>
+                <Button variant="outline" onClick={handleDownloadReport} data-testid="button-download-report">
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Download Report
+                </Button>
+                <Button onClick={() => setShowUnderwritingDialog(true)} data-testid="button-submit-underwriting">
+                  <Send className="h-4 w-4 mr-2" />
+                  Submit for Underwriting
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" data-testid="button-delete-prospect">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Prospect?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this prospect for {prospect.company.companyName}? This action
+                        cannot be undone and will permanently remove all associated contacts, activities, and due
+                        diligence data.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteProspectMutation.mutate()}
+                        disabled={deleteProspectMutation.isPending}
+                        data-testid="button-confirm-delete"
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {deleteProspectMutation.isPending ? "Deleting..." : "Delete Prospect"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+
+              {/* Mobile Actions Menu */}
+              <div className="md:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => navigate("/")}>
+                      View in Directory
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadReport}>
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Download Report
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowUnderwritingDialog(true)}>
+                      <Send className="h-4 w-4 mr-2" />
+                      Submit for Underwriting
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => deleteProspectMutation.mutate()}
-                      disabled={deleteProspectMutation.isPending}
-                      data-testid="button-confirm-delete"
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      className="text-destructive focus:text-destructive"
                     >
-                      {deleteProspectMutation.isPending ? "Deleting..." : "Delete Prospect"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Prospect
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
               <ThemeToggle />
             </div>
           </div>
@@ -698,7 +728,7 @@ export default function ProspectDetail() {
         {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
           <TabsList
-            className={`grid w-full ${user?.subscriptionTier === "free" ? "grid-cols-7" : user?.subscriptionTier === "premium" ? "grid-cols-9" : "grid-cols-8"} mb-8`}
+            className={`flex flex-nowrap overflow-x-auto w-full md:grid ${user?.subscriptionTier === "free" ? "md:grid-cols-7" : user?.subscriptionTier === "premium" ? "md:grid-cols-9" : "md:grid-cols-8"} mb-8 pb-2 md:pb-0 gap-2 md:gap-0 scrollbar-hide h-auto`}
           >
             <TabsTrigger value="contacts" data-testid="tab-contacts">
               Contacts
@@ -785,7 +815,7 @@ export default function ProspectDetail() {
           </TabsContent>
 
           <TabsContent value="lenders">
-            <LenderRecommendations 
+            <LenderRecommendations
               prospectId={prospectId}
               onSelectLender={(lenderId) => navigate(`/lenders/${lenderId}`)}
               showDisqualified={false}
@@ -1591,13 +1621,13 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
     !!prospect.crossCompanyGuarantee
   );
   const [notes, setNotes] = useState(prospect.loanRequirementNotes || "");
-  
+
   interface AllocationItem {
     id: string;
     description: string;
     amount: number;
   }
-  
+
   const [loanAllocation, setLoanAllocation] = useState<AllocationItem[]>(
     Array.isArray(prospect.loanAllocation) ? (prospect.loanAllocation as AllocationItem[]) : []
   );
@@ -1653,31 +1683,31 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
       loanAllocation: loanAllocation,
     });
   };
-  
+
   const totalAllocated = loanAllocation.reduce((sum, item) => sum + item.amount, 0);
   const loanAmountNum = loanAmount ? parseFloat(loanAmount) : 0;
   const remainingToAllocate = loanAmountNum - totalAllocated;
-  
+
   const addAllocationItem = () => {
     const amount = parseFloat(newAmount);
     if (!newDescription.trim() || isNaN(amount) || amount <= 0) return;
     if (amount > remainingToAllocate && remainingToAllocate > 0) return;
-    
+
     const newItem: AllocationItem = {
       id: Date.now().toString(),
       description: newDescription.trim(),
       amount: amount,
     };
-    
+
     setLoanAllocation([...loanAllocation, newItem]);
     setNewDescription("");
     setNewAmount("");
   };
-  
+
   const removeAllocationItem = (id: string) => {
     setLoanAllocation(loanAllocation.filter(item => item.id !== id));
   };
-  
+
   const updateAllocationItem = (id: string, field: "description" | "amount", value: string) => {
     setLoanAllocation(loanAllocation.map(item => {
       if (item.id !== id) return item;
@@ -1876,7 +1906,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
                 £{loanAmountNum.toLocaleString()}
               </span>
             </div>
-            
+
             {loanAllocation.length > 0 && (
               <div className="space-y-2">
                 <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-2">
@@ -1885,8 +1915,8 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
                   <span className="col-span-2"></span>
                 </div>
                 {loanAllocation.map((item, index) => (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     className="grid grid-cols-12 gap-2 items-center p-2 bg-muted/50 rounded-md hover:bg-muted/70 transition-colors"
                     data-testid={`allocation-row-${index}`}
                   >
@@ -1922,7 +1952,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
                 ))}
               </div>
             )}
-            
+
             <div className="flex gap-2 items-end">
               <div className="flex-1 space-y-1">
                 <Label className="text-xs">Description</Label>
@@ -1959,7 +1989,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
                 Add
               </Button>
             </div>
-            
+
             <div className="border-t pt-3 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total Allocated:</span>
@@ -1969,7 +1999,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Remaining to Allocate:</span>
-                <span 
+                <span
                   className={`font-medium ${remainingToAllocate === 0 ? "text-green-600 dark:text-green-400" : remainingToAllocate < 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"}`}
                   data-testid="text-remaining-allocation"
                 >
@@ -1978,7 +2008,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
               </div>
               {loanAmountNum > 0 && (
                 <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                  <div 
+                  <div
                     className={`h-full transition-all ${remainingToAllocate === 0 ? "bg-green-500" : remainingToAllocate < 0 ? "bg-destructive" : "bg-primary"}`}
                     style={{ width: `${Math.min(100, (totalAllocated / loanAmountNum) * 100)}%` }}
                     data-testid="progress-allocation"
@@ -2417,8 +2447,8 @@ function AdviserRecommendationSection({ prospect }: { prospect: ProspectWithComp
         credentials: "include",
         body: JSON.stringify({
           adviserRecommendation: recommendation,
-          adviserRecommendationSignedBy: user?.firstName && user?.lastName 
-            ? `${user.firstName} ${user.lastName}` 
+          adviserRecommendationSignedBy: user?.firstName && user?.lastName
+            ? `${user.firstName} ${user.lastName}`
             : user?.email || "Unknown",
           adviserRecommendationSignedAt: new Date().toISOString(),
         }),
@@ -2461,7 +2491,7 @@ function AdviserRecommendationSection({ prospect }: { prospect: ProspectWithComp
           disabled={isSigned}
           data-testid="input-adviser-recommendation"
         />
-        
+
         {isSigned && prospect.adviserRecommendationSignedBy && prospect.adviserRecommendationSignedAt && (
           <div className="border rounded-lg p-4 bg-muted/30">
             <div className="flex items-center gap-2 mb-2">
@@ -3901,28 +3931,28 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               {(associatedCompanies.officers.length > 0 ||
                 associatedCompanies.psc.length > 0 ||
                 associatedCompanies.sameAddress.length > 0) && (
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                  <div className="text-sm">
-                    {selectedAssociations.length > 0 ? (
-                      <span className="font-medium">
-                        {selectedAssociations.length} company/companies selected
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        Select companies to save to this prospect
-                      </span>
-                    )}
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div className="text-sm">
+                      {selectedAssociations.length > 0 ? (
+                        <span className="font-medium">
+                          {selectedAssociations.length} company/companies selected
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Select companies to save to this prospect
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      onClick={saveSelectedAssociations}
+                      disabled={selectedAssociations.length === 0 || isSavingAssociations}
+                      data-testid="button-save-associations"
+                    >
+                      {isSavingAssociations && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Save Selected ({selectedAssociations.length})
+                    </Button>
                   </div>
-                  <Button
-                    onClick={saveSelectedAssociations}
-                    disabled={selectedAssociations.length === 0 || isSavingAssociations}
-                    data-testid="button-save-associations"
-                  >
-                    {isSavingAssociations && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Selected ({selectedAssociations.length})
-                  </Button>
-                </div>
-              )}
+                )}
 
               {/* Companies via Common Officers */}
               {associatedCompanies.officers.length > 0 && (

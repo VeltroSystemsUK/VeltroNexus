@@ -28,6 +28,8 @@ import {
   PoundSterling,
   Info,
   Rocket,
+  Menu,
+  X,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -500,6 +502,7 @@ function StatsSection() {
 
 export default function Landing() {
   const [, setLocation] = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const handleLogin = () => {
     setLocation("/auth");
   };
@@ -508,7 +511,6 @@ export default function Landing() {
     <div className="min-h-screen bg-background">
       {/* Dark Hero Container - includes header and hero section */}
       <div className="bg-[#0f172a] relative">
-        {/* Header - Transparent on dark hero */}
         <header className="absolute top-0 left-0 right-0 z-50">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -519,27 +521,16 @@ export default function Landing() {
                 data-testid="img-logo-nav"
               />
             </div>
+
+            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-6">
-              <a
-                href="#features"
-                className="text-sm text-gray-300 hover:text-white transition-colors font-semibold"
-              >
-                Features
-              </a>
-              <a
-                href="#ai-powered"
-                className="text-sm text-gray-300 hover:text-white transition-colors font-semibold"
-              >
-                AI Automation
-              </a>
-              <a
-                href="#workflow"
-                className="text-sm text-gray-300 hover:text-white transition-colors font-semibold"
-              >
-                Workflow
-              </a>
+              <a href="#features" className="text-sm text-gray-300 hover:text-white transition-colors font-semibold">Features</a>
+              <a href="#ai-powered" className="text-sm text-gray-300 hover:text-white transition-colors font-semibold">AI Automation</a>
+              <a href="#workflow" className="text-sm text-gray-300 hover:text-white transition-colors font-semibold">Workflow</a>
             </nav>
-            <div className="flex items-center gap-2">
+
+            {/* Desktop Actions */}
+            <div className="hidden md:flex items-center gap-2">
               <Link href="/pricing">
                 <Button variant="ghost" className="font-semibold text-gray-300 hover:text-white hover:bg-white/10" data-testid="button-pricing">
                   Pricing
@@ -560,7 +551,71 @@ export default function Landing() {
               </Button>
               <ThemeToggle />
             </div>
+
+            {/* Mobile Menu Toggle & Actions */}
+            <div className="flex items-center gap-2 md:hidden">
+              <div className="scale-75 origin-right">
+                <ThemeToggle />
+              </div>
+              <Button
+                size="sm"
+                className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25 text-xs px-3 h-8"
+                onClick={handleLogin}
+              >
+                Start Trial
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-300"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </Button>
+            </div>
           </div>
+
+          {/* Mobile Menu Dropdown */}
+          {isMobileMenuOpen && (
+            <div className="md:hidden bg-[#0f172a] border-b border-white/10 absolute top-full left-0 right-0 p-4 shadow-xl animate-in slide-in-from-top-2">
+              <nav className="flex flex-col gap-4">
+                <a
+                  href="#features"
+                  className="text-gray-300 hover:text-white font-medium py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Features
+                </a>
+                <a
+                  href="#ai-powered"
+                  className="text-gray-300 hover:text-white font-medium py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  AI Automation
+                </a>
+                <a
+                  href="#workflow"
+                  className="text-gray-300 hover:text-white font-medium py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Workflow
+                </a>
+                <Link href="/pricing" onClick={() => setIsMobileMenuOpen(false)}>
+                  <span className="text-gray-300 hover:text-white font-medium py-2 block cursor-pointer">
+                    Pricing
+                  </span>
+                </Link>
+                <div className="h-px bg-white/10 my-1" />
+                <Button
+                  variant="ghost"
+                  className="justify-start font-semibold text-gray-300 hover:text-white hover:bg-white/10 pl-0"
+                  onClick={handleLogin}
+                >
+                  Login
+                </Button>
+              </nav>
+            </div>
+          )}
         </header>
 
         {/* Hero Section */}

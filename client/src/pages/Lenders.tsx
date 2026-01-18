@@ -758,11 +758,11 @@ export default function Lenders() {
                   <TableRow>
                     <TableHead className="w-10">Fav</TableHead>
                     <TableHead>Lender</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Panel</TableHead>
-                    <TableHead>Loan Range</TableHead>
-                    <TableHead>Rating</TableHead>
-                    <TableHead>Agreement</TableHead>
+                    <TableHead className="hidden md:table-cell">Type</TableHead>
+                    <TableHead className="hidden md:table-cell">Panel</TableHead>
+                    <TableHead className="hidden md:table-cell">Loan Range</TableHead>
+                    <TableHead className="hidden md:table-cell">Rating</TableHead>
+                    <TableHead className="hidden md:table-cell">Agreement</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -797,23 +797,23 @@ export default function Lenders() {
                           {lender.institutionName}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <Badge variant="outline" className="text-xs">
                           {LENDER_TYPES.find((t) => t.value === lender.lenderType)?.label ||
                             "Lender"}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <PanelBadge status={lender.panelStatus} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {formatCurrency(lender.minLoanAmount)} -{" "}
                         {formatCurrency(lender.maxLoanAmount)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <RatingStars rating={lender.rating} />
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="hidden md:table-cell">
                         <div className="flex items-center gap-1">
                           <Switch
                             checked={!!lender.introducerAgreementSigned}
@@ -873,7 +873,7 @@ export default function Lenders() {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
                 <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
                     <TabsTrigger value="basic">Basic Info</TabsTrigger>
                     <TabsTrigger value="criteria">Lending Criteria</TabsTrigger>
                     <TabsTrigger value="contacts">Contacts</TabsTrigger>
@@ -881,7 +881,7 @@ export default function Lenders() {
                   </TabsList>
 
                   <TabsContent value="basic" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="institutionName"
@@ -925,7 +925,7 @@ export default function Lenders() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="panelStatus"
@@ -1020,7 +1020,7 @@ export default function Lenders() {
                   </TabsContent>
 
                   <TabsContent value="criteria" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="minLoanAmount"
@@ -1061,7 +1061,7 @@ export default function Lenders() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="minTermMonths"
@@ -1090,7 +1090,7 @@ export default function Lenders() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="minLtv"
@@ -1119,7 +1119,7 @@ export default function Lenders() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <FormField
                         control={form.control}
                         name="typicalRateFrom"
@@ -1235,7 +1235,7 @@ export default function Lenders() {
                   </TabsContent>
 
                   <TabsContent value="contacts" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="contactName"
@@ -1281,7 +1281,7 @@ export default function Lenders() {
                     <Separator />
                     <h4 className="font-medium">BDM Contact</h4>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <FormField
                         control={form.control}
                         name="bdmName"
