@@ -1,14 +1,74 @@
 import { useState } from "react";
-import { Link } from "wouter";
-import { Check, Menu, X } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Check, Menu, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 import logoChrome from "@assets/logo-chrome.png";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+
+// Stripe Price IDs - Replace with your actual Stripe Price IDs
+const PRICE_IDS = {
+    broker: {
+        monthly: "price_broker_monthly_placeholder",
+        annual: "price_broker_annual_placeholder",
+    },
+    team: {
+        monthly: "price_team_monthly_placeholder",
+        annual: "price_team_annual_placeholder",
+    },
+    lender: {
+        monthly: "price_lender_monthly_placeholder",
+        annual: "price_lender_annual_placeholder",
+    },
+} as const;
+
+type PlanTier = keyof typeof PRICE_IDS;
 
 export default function Pricing() {
     const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState<string | null>(null);
+    const [, navigate] = useLocation();
+    const { user } = useAuth();
     const isAnnual = billingInterval === "annual";
+
+    const handleSubscribe = async (tier: PlanTier) => {
+        // If not authenticated, redirect to auth with return URL
+        if (!user) {
+            navigate("/auth?redirect=/pricing");
+            return;
+        }
+
+        const priceId = PRICE_IDS[tier][billingInterval];
+        setIsLoading(tier);
+
+        try {
+            const response = await fetch("/api/billing/checkout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ priceId }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || "Failed to create checkout session");
+            }
+
+            const { url } = await response.json();
+            if (url) {
+                window.location.href = url;
+            } else {
+                throw new Error("No checkout URL returned");
+            }
+        } catch (error: any) {
+            console.error("Checkout error:", error);
+            toast.error(error.message || "Failed to start checkout. Please try again.");
+        } finally {
+            setIsLoading(null);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-background text-foreground font-sans flex flex-col">
@@ -162,8 +222,16 @@ export default function Pricing() {
                             </div>
 
                             <div className="w-full mb-5">
-                                <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all">
-                                    Start 14-Day Free Trial
+                                <button
+                                    onClick={() => handleSubscribe("broker")}
+                                    disabled={isLoading === "broker"}
+                                    className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isLoading === "broker" ? (
+                                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+                                    ) : (
+                                        "Start 14-Day Free Trial"
+                                    )}
                                 </button>
                             </div>
                             <p className="text-center text-[11px] text-muted-foreground -mt-3 mb-4">
@@ -229,8 +297,16 @@ export default function Pricing() {
                             </div>
 
                             <div className="w-full mb-5">
-                                <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:brightness-110 hover:-translate-y-px transition-all shadow-sm">
-                                    Start 14-Day Team Pilot
+                                <button
+                                    onClick={() => handleSubscribe("team")}
+                                    disabled={isLoading === "team"}
+                                    className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:brightness-110 hover:-translate-y-px transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isLoading === "team" ? (
+                                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+                                    ) : (
+                                        "Start 14-Day Team Pilot"
+                                    )}
                                 </button>
                             </div>
 
@@ -291,8 +367,16 @@ export default function Pricing() {
                             </div>
 
                             <div className="w-full mb-5">
-                                <button className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all">
-                                    Book a Demo
+                                <button
+                                    onClick={() => handleSubscribe("lender")}
+                                    disabled={isLoading === "lender"}
+                                    className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isLoading === "lender" ? (
+                                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+                                    ) : (
+                                        "Book a Demo"
+                                    )}
                                 </button>
                             </div>
 
