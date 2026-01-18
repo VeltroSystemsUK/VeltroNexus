@@ -5904,10 +5904,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
-      const { priceId } = req.body;
+      const { priceId, tier, interval } = req.body;
 
-      if (!priceId) {
-        return res.status(400).json({ error: "Price ID required" });
+      // Map tier/interval to price ID if not provided directly
+      let finalPriceId = priceId;
+      if (!finalPriceId && tier && interval) {
+        // Price ID mapping from environment variables
+        // Format: STRIPE_PRICE_<TIER>_<INTERVAL> e.g., STRIPE_PRICE_BROKER_MONTHLY
+        const envKey = `STRIPE_PRICE_${tier.toUpperCase()}_${interval.toUpperCase()}`;
+        finalPriceId = process.env[envKey];
+
+        // Fallback mapping for common tiers if env vars not set
+        if (!finalPriceId) {
+          const priceMap: Record<string, Record<string, string>> = {
+            broker: {
+              monthly: process.env.STRIPE_PRICE_BROKER_MONTHLY || "",
+              annual: process.env.STRIPE_PRICE_BROKER_ANNUAL || "",
+            },
+            team: {
+              monthly: process.env.STRIPE_PRICE_TEAM_MONTHLY || "",
+              annual: process.env.STRIPE_PRICE_TEAM_ANNUAL || "",
+            },
+            lender: {
+              monthly: process.env.STRIPE_PRICE_LENDER_MONTHLY || "",
+              annual: process.env.STRIPE_PRICE_LENDER_ANNUAL || "",
+            },
+          };
+          finalPriceId = priceMap[tier]?.[interval];
+        }
+      }
+
+      if (!finalPriceId) {
+        return res.status(400).json({
+          error: "Price ID required. Please configure Stripe price IDs in environment variables.",
+          hint: `Set STRIPE_PRICE_${tier?.toUpperCase() || 'TIER'}_${interval?.toUpperCase() || 'INTERVAL'}`,
+        });
       }
 
       const stripe = await getUncachableStripeClient();
@@ -5928,11 +5959,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ["card"],
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: [{ price: finalPriceId, quantity: 1 }],
         mode: "subscription",
         success_url: `${baseUrl}/settings?tab=billing&success=true`,
         cancel_url: `${baseUrl}/settings?tab=billing&canceled=true`,
-        metadata: { userId },
+        metadata: { userId, tier: tier || "unknown", interval: interval || "unknown" },
       });
 
       res.json({ url: session.url });
