@@ -757,8 +757,8 @@ export default function LoanRequirementCard({ prospect }: LoanRequirementCardPro
                     </div>
                 )}
 
-                {/* Use of Funds Breakdown */}
-                {formData.product_type && primaryAmount > 0 && (
+                {/* Use of Funds Breakdown - Only for Business Loans */}
+                {formData.product_type === "BUSINESS_LOAN" && primaryAmount > 0 && (
                     <Card className="border-2 border-dashed">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-base flex items-center gap-2">
@@ -862,17 +862,13 @@ export default function LoanRequirementCard({ prospect }: LoanRequirementCardPro
                     </Card>
                 )}
 
-                {/* Calculated Summary */}
-                {formData.product_type && primaryAmount > 0 && (
+                {/* Calculated Summary - Only for Business Loans */}
+                {(formData.product_type === "BUSINESS_LOAN" || formData.product_type === "SECURED_LOAN") && primaryAmount > 0 && calculatedSummary.estimated_monthly_payment > 0 && (
                     <Card className="bg-muted/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-base">Calculated Summary</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2">
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Facility Fee (3.5%):</span>
-                                <span className="font-semibold">£{calculatedSummary.estimated_facility_fee.toLocaleString()}</span>
-                            </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Estimated Monthly Payment:</span>
                                 <span className="font-semibold">£{calculatedSummary.estimated_monthly_payment.toLocaleString()}</span>

@@ -217,6 +217,10 @@ export const prospects = pgTable("prospects", {
   adviserRecommendation: text("adviser_recommendation"),
   adviserRecommendationSignedBy: varchar("adviser_recommendation_signed_by"),
   adviserRecommendationSignedAt: timestamp("adviser_recommendation_signed_at"),
+  // Structured loan requirement data (JSON schema format)
+  loanRequirementData: jsonb("loan_requirement_data"),
+  // Research/due diligence data (JSON schema format)
+  researchData: jsonb("research_data"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
