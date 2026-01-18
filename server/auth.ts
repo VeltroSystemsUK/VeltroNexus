@@ -130,26 +130,41 @@ export function setupAuth(app: Express) {
         })(req, res, next);
     });
 
-    app.post("/api/logout", (req, res, next) => {
+    app.post("/api/logout", (req, res) => {
+        // Get the environment check to match session cookie creation
+        const isProduction = app.get("env") === "production";
+
+        console.log("[Logout] Starting logout for user:", req.user?.id);
+
+        // First, logout from passport
         req.logout((err) => {
-            if (err) return next(err);
+            if (err) {
+                console.error("[Logout] Passport logout error:", err);
+            }
 
-            // Destroy the session completely
-            req.session.destroy((destroyErr) => {
-                if (destroyErr) {
-                    console.error("Session destroy error:", destroyErr);
-                }
-
-                // Clear the session cookie
-                res.clearCookie("connect.sid", {
-                    path: "/",
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
+            // Clear the session data
+            if (req.session) {
+                req.session.destroy((destroyErr) => {
+                    if (destroyErr) {
+                        console.error("[Logout] Session destroy error:", destroyErr);
+                    }
+                    console.log("[Logout] Session destroyed");
                 });
+            }
 
-                res.sendStatus(200);
+            // Clear the session cookie with MATCHING options
+            // The cookie name is "connect.sid" by default
+            res.clearCookie("connect.sid", {
+                path: "/",
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: "lax",
             });
+
+            console.log("[Logout] Cookie cleared, isProduction:", isProduction);
+
+            // Send success response
+            res.status(200).json({ success: true, message: "Logged out successfully" });
         });
     });
 
