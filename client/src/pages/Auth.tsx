@@ -346,17 +346,18 @@ export default function AuthPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900/50" />
                 <div className="relative z-10 max-w-lg mx-auto text-center space-y-6">
                     <h1 className="text-4xl font-bold tracking-tight">
-                        Streamline
+                        STREAMLINE
                     </h1>
-                    <h1 className="text-4xl font-bold tracking-tight">
+                    <h2 className="text-4xl font-bold tracking-tight">
                         Your Lending Pipeline
-                    </h1>
+                    </h2>
                     <p className="text-lg text-slate-300">
                         Veltro will REVOLUTIONISE your workflow. From finding new prospects, assessing credit viability, managing your pipeline through to submitting applications and everything else in between!
-                        Close deals much faster and more efficiently...
+                        Close deals faster and more efficiently...
                     </p>
                 </div>
             </div>
         </div>
     );
 }
+
