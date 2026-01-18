@@ -101,16 +101,30 @@ function needsNewPage(doc: typeof PDFDocument.prototype, requiredHeight: number)
 }
 
 /**
- * KEY FIX: Only add page if we truly don't have space
- * AND we're not already at the top of a fresh page
+ * IMPROVED: Smarter page break that checks both position and remaining space
+ * Only skips adding page if we're at the very top AND have enough space
  */
 function ensureSpace(doc: typeof PDFDocument.prototype, requiredHeight: number): void {
-  // If we're already near the top of a page, don't add another
-  if (doc.y < MARGIN + 50) {
+  const remaining = getRemainingSpace(doc);
+  const isNearTop = doc.y < MARGIN + 30;
+
+  // Only skip if we're near top AND have sufficient space
+  if (isNearTop && remaining >= requiredHeight) {
     return;
   }
 
-  if (needsNewPage(doc, requiredHeight)) {
+  if (remaining < requiredHeight) {
+    doc.addPage();
+    pageNumber++;
+    doc.y = MARGIN;
+  }
+}
+
+/**
+ * Force a new page for section boundaries to prevent orphaned items
+ */
+function startNewSectionPage(doc: typeof PDFDocument.prototype, minSpaceNeeded: number = 120): void {
+  if (getRemainingSpace(doc) < minSpaceNeeded) {
     doc.addPage();
     pageNumber++;
     doc.y = MARGIN;
@@ -688,15 +702,26 @@ function renderCompanyInfoCompact(
 // ============================================================================
 
 function renderOfficersCompact(doc: typeof PDFDocument.prototype, officers: any[], startY: number): number {
-  const itemHeight = 26;
-  const maxItems = Math.min(officers.length, 5);
-  const sectionHeight = maxItems * itemHeight + 10;
+  const itemHeight = 30;
+  const headerHeight = 25;
 
-  ensureSpace(doc, sectionHeight + 25);
+  // Ensure we have space for at least header + 1 item
+  ensureSpace(doc, headerHeight + itemHeight);
 
   let y = renderCompactSectionHeader(doc, "Officers", startY);
+  doc.y = y;
 
-  officers.slice(0, 5).forEach((officer) => {
+  const displayOfficers = officers.slice(0, 5);
+
+  displayOfficers.forEach((officer, index) => {
+    // Check if we need a new page before rendering this item
+    if (needsNewPage(doc, itemHeight + 5)) {
+      doc.addPage();
+      pageNumber++;
+      doc.y = MARGIN;
+      y = MARGIN;
+    }
+
     doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
     doc.text(officer.name, MARGIN + 8, y);
 
@@ -710,12 +735,13 @@ function renderOfficersCompact(doc: typeof PDFDocument.prototype, officers: any[
 
     doc.text(details, MARGIN + 8, y + 12, { width: CONTENT_WIDTH - 16 });
     y += itemHeight;
+    doc.y = y;
   });
 
   if (officers.length > 5) {
     doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
     doc.text(`...and ${officers.length - 5} more officers`, MARGIN + 8, y);
-    y += 10;
+    y += 12;
   }
 
   return y + SPACING.sectionMargin;
@@ -726,15 +752,26 @@ function renderOfficersCompact(doc: typeof PDFDocument.prototype, officers: any[
 // ============================================================================
 
 function renderPSCCompact(doc: typeof PDFDocument.prototype, pscList: any[], startY: number): number {
-  const itemHeight = 26;
-  const maxItems = Math.min(pscList.length, 5);
-  const sectionHeight = maxItems * itemHeight + 10;
+  const itemHeight = 30;
+  const headerHeight = 25;
 
-  ensureSpace(doc, sectionHeight + 25);
+  // Ensure we have space for at least header + 1 item
+  ensureSpace(doc, headerHeight + itemHeight);
 
   let y = renderCompactSectionHeader(doc, "Persons with Significant Control", startY);
+  doc.y = y;
 
-  pscList.slice(0, 5).forEach((psc) => {
+  const displayPSCs = pscList.slice(0, 5);
+
+  displayPSCs.forEach((psc) => {
+    // Check if we need a new page before rendering this item
+    if (needsNewPage(doc, itemHeight + 5)) {
+      doc.addPage();
+      pageNumber++;
+      doc.y = MARGIN;
+      y = MARGIN;
+    }
+
     doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
     doc.text(psc.name, MARGIN + 8, y);
 
@@ -743,12 +780,13 @@ function renderPSCCompact(doc: typeof PDFDocument.prototype, pscList: any[], sta
     doc.text(natures, MARGIN + 8, y + 12, { width: CONTENT_WIDTH - 16 });
 
     y += itemHeight;
+    doc.y = y;
   });
 
   if (pscList.length > 5) {
     doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
     doc.text(`...and ${pscList.length - 5} more PSCs`, MARGIN + 8, y);
-    y += 10;
+    y += 12;
   }
 
   return y + SPACING.sectionMargin;
@@ -1224,7 +1262,11 @@ function renderCAMPARIAnalysis(doc: typeof PDFDocument.prototype, campari: any, 
 // ============================================================================
 
 function renderSWOTAnalysis(doc: typeof PDFDocument.prototype, swot: any, startY: number): number {
+  // Ensure we have space for header + at least one quadrant
+  ensureSpace(doc, 100);
+
   let y = renderCompactSectionHeader(doc, "SWOT Analysis", startY);
+  doc.y = y;
 
   const quadrants = [
     { key: "strengths", label: "Strengths", bg: COLORS.swotStrengthsBg, border: COLORS.swotStrengthsBorder },
@@ -1241,26 +1283,36 @@ function renderSWOTAnalysis(doc: typeof PDFDocument.prototype, swot: any, startY
   quadrants.forEach((quad) => {
     const items = swot[quad.key];
     if (items && items.length > 0) {
-      const itemsHeight = items.length * 15;
-      const quadHeight = itemsHeight + 38;
+      // Calculate actual height needed for this quadrant
+      // Use more accurate height calculation - estimate ~18px per item for wrapped text
+      const estimatedItemHeight = 18;
+      const itemsHeight = items.length * estimatedItemHeight;
+      const quadHeight = itemsHeight + 42; // header + padding
 
-      ensureSpace(doc, quadHeight);
+      // Check for page break BEFORE drawing the quadrant
+      if (needsNewPage(doc, quadHeight + 10)) {
+        doc.addPage();
+        pageNumber++;
+        doc.y = MARGIN;
+        y = MARGIN;
+      }
 
-      doc.roundedRect(MARGIN, y, CONTENT_WIDTH, itemsHeight + 35, 3)
+      doc.roundedRect(MARGIN, y, CONTENT_WIDTH, itemsHeight + 38, 3)
         .fillAndStroke(quad.bg, quad.border);
 
       doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
       doc.text(quad.label, MARGIN + 10, y + 9);
 
-      let itemY = y + 26;
+      let itemY = y + 28;
 
       items.forEach((item: string) => {
         doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
         doc.text(`• ${item}`, MARGIN + 10, itemY, { width: CONTENT_WIDTH - 20 });
-        itemY += 15;
+        itemY += estimatedItemHeight;
       });
 
-      y = itemY + 10;
+      y = itemY + 12;
+      doc.y = y;
     }
   });
 
