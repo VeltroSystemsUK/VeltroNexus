@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useUnderwritingAccess } from "@/hooks/useUnderwritingAccess";
 import {
   Home,
   Search,
@@ -11,6 +12,7 @@ import {
   Inbox,
   Users,
   Shield,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +26,7 @@ const brokerNavItems: NavItem[] = [
   { path: "/", label: "Pipeline", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/leads", label: "Leads", icon: FileSpreadsheet },
-  { path: "/submissions", label: "Submissions", icon: Send },
+  { path: "/underwriting", label: "Underwriting", icon: Send },
   { path: "/profile", label: "Profile", icon: User },
 ];
 
@@ -53,6 +55,7 @@ const superAdminNavItems: NavItem[] = [
 
 export default function MobileNav() {
   const [location, navigate] = useLocation();
+  const { hasAccess: hasUnderwritingAccess } = useUnderwritingAccess();
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/role"],
   });
@@ -98,7 +101,12 @@ export default function MobileNav() {
               )}
               data-testid={`mobile-nav-${item.label.toLowerCase()}`}
             >
-              <Icon className={cn("h-5 w-5 mb-1", active && "stroke-[2.5px]")} />
+              <div className="relative">
+                <Icon className={cn("h-5 w-5 mb-1", active && "stroke-[2.5px]")} />
+                {item.path === "/underwriting" && !hasUnderwritingAccess && (
+                  <Lock className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-amber-500" />
+                )}
+              </div>
               <span
                 className={cn(
                   "text-[10px] font-medium truncate max-w-full",
