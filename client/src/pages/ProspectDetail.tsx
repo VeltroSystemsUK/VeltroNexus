@@ -4612,6 +4612,23 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
           </div>
         )}
       </CardContent>
-    </Card>
+    </main>
+
+      {/* Dialogs */ }
+      <SubmitToUnderwritingDialog
+        open={showUnderwritingDialog}
+        onOpenChange={setShowUnderwritingDialog}
+        prospectId={prospectId}
+        companyName={prospect.company.companyName}
+      />
+      <ReplyToQueryDialog
+        open={showReplyDialog}
+        onOpenChange={setShowReplyDialog}
+        submissionId={underwritingSubmission?.id || 0}
+      />
+      <ProspectLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
+      <ContactEnrichmentDialog />
+      <EmailComposeDialog />
+    </div >
   );
 }
