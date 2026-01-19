@@ -164,7 +164,7 @@ export default function LenderEnquiry() {
     };
 
     const validateCurrentStep = (): boolean => {
-        const requiredFields = currentSection.fields.filter(f => f.required);
+        const requiredFields = currentSection.fields.filter(f => 'required' in f && f.required === true);
         for (const field of requiredFields) {
             const value = formData[field.id];
             if (!value || (typeof value === "string" && value.trim() === "")) {

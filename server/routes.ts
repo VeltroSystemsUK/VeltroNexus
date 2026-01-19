@@ -8,6 +8,7 @@ import { searchBusinessOverview } from "./utils/tavilyClient";
 
 
 import { createServer, type Server } from "http";
+import type { Request, Response, NextFunction, Application } from "express";
 import busboy from "busboy";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, csrfProtection } from "./auth";
@@ -60,7 +61,15 @@ import { sql } from "drizzle-orm";
 import { db } from "./db";
 const require = createRequire(import.meta.url);
 
-export async function registerRoutes(app: Express): Promise<Server> {
+// Extended Request interface for authenticated routes
+interface AuthenticatedRequest extends Request {
+  user?: any;
+  requestId?: string;
+  ctx?: any;
+}
+
+
+export async function registerRoutes(app: Application): Promise<Server> {
   // Simple health check endpoint for load balancers
   app.get("/api/health", async (req, res) => {
     try {
@@ -136,7 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Setup authentication - Required for Replit Auth
-  await setupAuth(app);
+  await setupAuth(app as any);
 
   // CSRF protection for all state-changing requests
   app.use(csrfProtection);
@@ -161,7 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Auth routes - Required for Replit Auth
-  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+  app.get("/api/auth/user", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -200,7 +209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiDataConsent: z.number().int().min(0).max(1).optional(),
   });
 
-  app.patch("/api/user/settings", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/user/settings", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const result = updateUserSettingsSchema.safeParse(req.body);
@@ -245,7 +254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // No RAM buffering: files stream directly to storage via uploadFromStream
   const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB limit
 
-  app.post("/api/user/branding/logo", isAuthenticated, (req: any, res) => {
+  app.post("/api/user/branding/logo", isAuthenticated, (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user.id;
 
     const contentType = req.headers["content-type"];
@@ -434,7 +443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete branding logo
-  app.delete("/api/user/branding/logo", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/user/branding/logo", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
 
@@ -508,7 +517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Prospects API - Protected routes
-  app.get("/api/prospects", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospects = await storage.listProspects(userId);
@@ -518,7 +527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/prospects/export/excel", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/export/excel", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospects = await storage.listProspects(userId);
@@ -540,7 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -554,7 +563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/prospects", isAuthenticated, async (req: any, res) => {
+  app.post("/api/prospects", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
 
@@ -585,7 +594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/prospects/:id/stage", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/prospects/:id/stage", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospectId = parseInt(req.params.id);
@@ -606,7 +615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/prospects/reorder", isAuthenticated, async (req: any, res) => {
+  app.post("/api/prospects/reorder", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const { stage, orderedIds } = req.body;
@@ -622,7 +631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/prospects/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -637,7 +646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/prospects/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/prospects/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -649,7 +658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/prospects/:id/report", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:id/report", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -755,7 +764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Business Overview API - AI-powered web search for company info
-  app.get("/api/prospects/:id/business-overview", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:id/business-overview", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -787,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enhanced PDF report with business overview
-  app.get("/api/prospects/:id/report-enhanced", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:id/report-enhanced", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -1143,6 +1152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/companies-house/officer-appointments", isAuthenticated, async (req, res) => {
     try {
       const officerId = req.query.officer_id as string;
+      const redirectUrl = (req.query.redirect as string) || "/underwriting";
       if (!officerId) {
         return res.status(400).json({ error: "Officer ID is required" });
       }
@@ -1377,7 +1387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/prospects/:prospectId/associated-companies",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -1562,7 +1572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // AI web search for company - Premium feature
-  app.post("/api/prospects/:prospectId/web-search", isAuthenticated, async (req: any, res) => {
+  app.post("/api/prospects/:prospectId/web-search", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
@@ -1631,7 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/save-associations",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -1846,7 +1856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Contact enrichment - search web and email inbox for contact info
-  app.get("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -1936,7 +1946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: any, res) => {
+  app.post("/api/prospects/:prospectId/contacts", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -1956,7 +1966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/contacts/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -1970,7 +1980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/contacts/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -1985,7 +1995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Contact enrichment - search web and email inbox for contact info
-  app.post("/api/contacts/:id/enrich", isAuthenticated, async (req: any, res) => {
+  app.post("/api/contacts/:id/enrich", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const contactId = parseInt(req.params.id);
       const userId = req.user.id;
@@ -2095,7 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activities API - Protected routes
-  app.get("/api/activities", isAuthenticated, async (req: any, res) => {
+  app.get("/api/activities", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const activities = await storage.listAllUserActivities(userId);
@@ -2105,7 +2115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/activities", isAuthenticated, async (req: any, res) => {
+  app.post("/api/activities", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       // SECURITY: Strip userId from request body to prevent injection attacks
@@ -2126,7 +2136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/prospects/:prospectId/activities", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:prospectId/activities", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -2137,7 +2147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/prospects/:prospectId/activities", isAuthenticated, async (req: any, res) => {
+  app.post("/api/prospects/:prospectId/activities", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
@@ -2159,7 +2169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/activities/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/activities/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -2173,7 +2183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/activities/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/activities/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -2185,7 +2195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Time Entries Routes
-  app.get("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -2196,7 +2206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/prospects/:prospectId/time-total", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:prospectId/time-total", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -2207,7 +2217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: any, res) => {
+  app.post("/api/prospects/:prospectId/time-entries", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -2224,7 +2234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/time-entries/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/time-entries/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -2238,7 +2248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/time-entries/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/time-entries/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -2250,7 +2260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get due diligence status summaries for all prospects (for pipeline cards)
-  app.get("/api/due-diligence/summaries", isAuthenticated, async (req: any, res) => {
+  app.get("/api/due-diligence/summaries", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const summaries = await storage.getAllDueDiligenceSummaries(userId);
@@ -2264,7 +2274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -2275,7 +2285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/prospects/:prospectId/due-diligence", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user.id;
@@ -2301,7 +2311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/underwriting/analyze-csv",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -2383,7 +2393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/underwriting/analyze-bank-pdfs",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -2496,7 +2506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/underwriting/analyze-accounts",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -2584,7 +2594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Note: 7.5MB decoded limit (base64 encoded ~10MB represents ~7.5MB binary)
   const MAX_PDF_DECODED_SIZE = 7.5 * 1024 * 1024; // 7.5MB decoded binary limit
 
-  app.post("/api/parse-pdf", isAuthenticated, async (req: any, res) => {
+  app.post("/api/parse-pdf", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { pdfBase64 } = req.body;
 
@@ -2626,7 +2636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/analyze-management-accounts",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -2726,7 +2736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/underwriting/swot-analysis",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -2824,7 +2834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/underwriting/campari-section",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -2997,7 +3007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/prospects/:prospectId/underwriting/adverse-media",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -3054,7 +3064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Add-On Products API - Marketplace for prospect packs and feature add-ons
-  app.get("/api/add-ons", isAuthenticated, async (req: any, res) => {
+  app.get("/api/add-ons", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const products = await storage.listAddOnProducts(true);
       res.json(products);
@@ -3063,7 +3073,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/add-ons/purchases", isAuthenticated, async (req: any, res) => {
+  app.get("/api/add-ons/purchases", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const purchases = await storage.listUserAddOnPurchases(userId);
@@ -3073,7 +3083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/add-ons/credits", isAuthenticated, async (req: any, res) => {
+  app.get("/api/add-ons/credits", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const credits = await storage.getUserProspectCredits(userId);
@@ -3084,7 +3094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Purchase an add-on - payment processing temporarily unavailable
-  app.post("/api/add-ons/purchase", isAuthenticated, async (req: any, res) => {
+  app.post("/api/add-ons/purchase", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     return res.status(503).json({
       error: "Payment processing is temporarily unavailable. Please contact support.",
       unavailable: true,
@@ -3092,7 +3102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Create add-on product (Super Admin only)
-  app.post("/api/add-ons/products", isAuthenticated, async (req: any, res) => {
+  app.post("/api/add-ons/products", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -3123,7 +3133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lenders API - Protected routes
-  app.get("/api/lenders", isAuthenticated, async (req: any, res) => {
+  app.get("/api/lenders", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const lenders = await storage.listLenders(userId);
@@ -3134,7 +3144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/lenders/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
@@ -3151,7 +3161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/lenders", isAuthenticated, async (req: any, res) => {
+  app.post("/api/lenders", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const result = insertLenderSchema.safeParse(req.body);
@@ -3169,10 +3179,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/lenders/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
+      const action = req.query.action as string;
+      const redirect = req.query.redirect as string | undefined;
+      const message = req.query.message as string | undefined;
       const result = insertLenderSchema.partial().safeParse(req.body);
 
       if (!result.success) {
@@ -3193,7 +3206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/lenders/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/lenders/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
@@ -3207,15 +3220,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lender Search with filters
-  app.get("/api/lenders/search", isAuthenticated, async (req: any, res) => {
+  app.get("/api/lenders/search", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const filters = {
         search: req.query.search as string,
         lenderType: req.query.lenderType as string,
         productType: req.query.productType as string,
-        minLoanAmount: req.query.minLoanAmount ? parseInt(req.query.minLoanAmount) : undefined,
-        maxLoanAmount: req.query.maxLoanAmount ? parseInt(req.query.maxLoanAmount) : undefined,
+        minLoanAmount: req.query.minLoanAmount ? parseInt(req.query.minLoanAmount as string) : undefined,
+        maxLoanAmount: req.query.maxLoanAmount ? parseInt(req.query.maxLoanAmount as string) : undefined,
         sector: req.query.sector as string,
         region: req.query.region as string,
         panelStatus: req.query.panelStatus as string,
@@ -3229,7 +3242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lender Recommendations for a Prospect
-  app.get("/api/prospects/:prospectId/recommendations", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:prospectId/recommendations", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
@@ -3258,7 +3271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get lender with products
-  app.get("/api/lenders/:id/full", isAuthenticated, async (req: any, res) => {
+  app.get("/api/lenders/:id/full", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const lenderId = parseInt(req.params.id);
@@ -3279,7 +3292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lender Products API (user-scoped via lender ownership)
-  app.get("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
+  app.get("/api/lenders/:lenderId/products", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
       const userId = req.user.id;
@@ -3291,7 +3304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/lenders/:lenderId/products", isAuthenticated, async (req: any, res) => {
+  app.post("/api/lenders/:lenderId/products", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
       const userId = req.user.id;
@@ -3309,7 +3322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/lender-products/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const productId = parseInt(req.params.id);
       const userId = req.user.id;
@@ -3326,7 +3339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/lender-products/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/lender-products/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const productId = parseInt(req.params.id);
       const userId = req.user.id;
@@ -3342,7 +3355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lender Interactions API (user-scoped via lender ownership)
-  app.get("/api/lenders/:lenderId/interactions", isAuthenticated, async (req: any, res) => {
+  app.get("/api/lenders/:lenderId/interactions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const lenderId = parseInt(req.params.lenderId);
       const userId = req.user.id;
@@ -3354,7 +3367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/lender-interactions", isAuthenticated, async (req: any, res) => {
+  app.get("/api/lender-interactions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const interactions = await storage.listUserLenderInteractions(userId);
@@ -3365,7 +3378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/lender-interactions", isAuthenticated, async (req: any, res) => {
+  app.post("/api/lender-interactions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const { sentAt, respondedAt, ...rest } = req.body;
@@ -3395,7 +3408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/lender-interactions/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const interactionId = parseInt(req.params.id);
       const userId = req.user.id;
@@ -3412,7 +3425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/lender-interactions/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/lender-interactions/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const interactionId = parseInt(req.params.id);
       const userId = req.user.id;
@@ -3428,7 +3441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Application Submissions API - Protected routes
-  app.get("/api/submissions", isAuthenticated, async (req: any, res) => {
+  app.get("/api/submissions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const submissions = await storage.listApplicationSubmissions(userId);
@@ -3456,7 +3469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/submissions", isAuthenticated, async (req: any, res) => {
+  app.post("/api/submissions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const result = insertApplicationSubmissionSchema.safeParse(req.body);
@@ -3540,7 +3553,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        const reportDoc = generateProspectReport({
+
+        const { createProspectReportDocument, renderProspectReport } = await import("./utils/pdfGenerator");
+
+        const reportDoc = createProspectReportDocument({
           prospect,
           contacts,
           activities,
@@ -3551,10 +3567,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const chunks: Buffer[] = [];
         reportDoc.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+        // Render the report content
+        renderProspectReport(reportDoc, {
+          prospect,
+          contacts,
+          activities,
+          dueDiligence: dueDiligence || undefined,
+          companiesHouseData: companiesHouseData || undefined,
+          pdfLayoutPreferences: user?.pdfLayoutPreferences as any,
+        });
+
         await new Promise<void>((resolve, reject) => {
           reportDoc.on("end", () => resolve());
           reportDoc.on("error", reject);
-          reportDoc.end();
         });
         pdfBuffer = Buffer.concat(chunks);
       } catch (pdfError: any) {
@@ -3609,7 +3635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/submissions/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/submissions/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const submissionId = parseInt(req.params.id);
@@ -3635,7 +3661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== EMAIL INBOX API (AgentMail Integration) ======
 
   // Get or create user's email inbox
-  app.get("/api/email/inbox", isAuthenticated, async (req: any, res) => {
+  app.get("/api/email/inbox", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       let inbox = await storage.getEmailInbox(userId);
@@ -3723,7 +3749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Check if AgentMail is configured
-  app.get("/api/email/status", isAuthenticated, async (req: any, res) => {
+  app.get("/api/email/status", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { isAgentMailConfigured } = await import("./agentmail");
       const configured = await isAgentMailConfigured();
@@ -3734,7 +3760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sync messages from AgentMail to local database
-  app.post("/api/email/sync", isAuthenticated, async (req: any, res) => {
+  app.post("/api/email/sync", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const inbox = await storage.getEmailInbox(userId);
@@ -3783,7 +3809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all messages for user's inbox
-  app.get("/api/email/messages", isAuthenticated, async (req: any, res) => {
+  app.get("/api/email/messages", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const inbox = await storage.getEmailInbox(userId);
@@ -3800,7 +3826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get a single message
-  app.get("/api/email/messages/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/email/messages/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const messageId = parseInt(req.params.id);
@@ -3827,7 +3853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send an email
-  app.post("/api/email/send", isAuthenticated, async (req: any, res) => {
+  app.post("/api/email/send", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const { to, cc, subject, body, contactId, prospectId, replyToMessageId } = req.body;
@@ -3888,7 +3914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Link a message to a contact/prospect
-  app.patch("/api/email/messages/:id/link", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/email/messages/:id/link", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const messageId = parseInt(req.params.id);
@@ -3916,7 +3942,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get messages for a specific contact
-  app.get("/api/email/contact/:contactId/messages", isAuthenticated, async (req: any, res) => {
+  app.get("/api/email/contact/:contactId/messages", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const contactId = parseInt(req.params.contactId);
@@ -3934,7 +3960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get messages for a specific prospect
-  app.get("/api/email/prospect/:prospectId/messages", isAuthenticated, async (req: any, res) => {
+  app.get("/api/email/prospect/:prospectId/messages", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
@@ -3954,7 +3980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============= LEADS API =============
 
   // Get all lead uploads for the user
-  app.get("/api/leads/uploads", isAuthenticated, async (req: any, res) => {
+  app.get("/api/leads/uploads", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const uploads = await storage.listLeadUploads(userId);
@@ -3965,7 +3991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload CSV and parse leads
-  app.post("/api/leads/uploads", isAuthenticated, async (req: any, res) => {
+  app.post("/api/leads/uploads", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const { fileName, csvData } = req.body;
@@ -4154,15 +4180,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Get all leads for the user
-  app.get("/api/leads", isAuthenticated, async (req: any, res) => {
+  app.get("/api/leads", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
-      const { uploadId, matchStatus, search } = req.query;
+      const { uploadId, matchStatus, search } = req.query as { uploadId?: string; matchStatus?: string; search?: string };
 
       const filters: { uploadId?: number; matchStatus?: string; search?: string } = {};
-      if (uploadId) filters.uploadId = parseInt(uploadId);
-      if (matchStatus) filters.matchStatus = matchStatus;
-      if (search) filters.search = search;
+      if (uploadId) filters.uploadId = parseInt(uploadId as string);
+      if (matchStatus) filters.matchStatus = matchStatus as string;
+      if (search) filters.search = search as string;
 
       const leads = await storage.listLeads(userId, filters);
       res.json(leads);
@@ -4172,7 +4198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single lead
-  app.get("/api/leads/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/leads/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -4189,7 +4215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update lead
-  app.patch("/api/leads/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/leads/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -4206,7 +4232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete lead
-  app.delete("/api/leads/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/leads/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -4219,7 +4245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete all leads from an upload
-  app.delete("/api/leads/uploads/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/leads/uploads/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const id = parseInt(req.params.id);
@@ -4234,7 +4260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create prospect from lead
-  app.post("/api/leads/:id/prospects", isAuthenticated, async (req: any, res) => {
+  app.post("/api/leads/:id/prospects", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const leadId = parseInt(req.params.id);
@@ -4381,7 +4407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Get underwriting submissions (scoped by role)
-  app.get("/api/underwriting/submissions", isAuthenticated, async (req: any, res) => {
+  app.get("/api/underwriting/submissions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -4391,7 +4417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Admin roles see all submissions
         const { status, assigned } = req.query;
         const filters: { status?: string; assignedUnderwriterId?: string } = {};
-        if (status) filters.status = status;
+        if (status) filters.status = status as string;
         if (assigned === "me") filters.assignedUnderwriterId = userId;
         submissions = await storage.listUnderwritingSubmissions(filters);
       } else if (user?.role === "underwriter") {
@@ -4410,7 +4436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get broker's own underwriting submissions
-  app.get("/api/underwriting/my-submissions", isAuthenticated, async (req: any, res) => {
+  app.get("/api/underwriting/my-submissions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
@@ -4422,7 +4448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get underwriting status for all user's prospects (for pipeline view)
-  app.get("/api/underwriting/status", isAuthenticated, async (req: any, res) => {
+  app.get("/api/underwriting/status", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const submissions = await storage.listBrokerUnderwritingSubmissions(userId);
@@ -4446,14 +4472,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/underwriting/submissions/:id",
     isAuthenticated,
     requireSubmissionReadAccess({ storage, allowTriage: true }),
-    async (req: any, res) => {
-      const { submission } = req.ctx;
+    async (req: AuthenticatedRequest, res: Response) => {
+      const { submission } = req.ctx || {};
       res.json(submission);
     }
   );
 
   // Create underwriting submission (broker submits prospect for review)
-  app.post("/api/underwriting/submissions", isAuthenticated, async (req: any, res) => {
+  app.post("/api/underwriting/submissions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const { prospectId, priority, brokerComments } = req.body;
@@ -4514,7 +4540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/underwriting/submissions/:id/claim",
     isAuthenticated,
     isUnderwriter,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const id = parseInt(req.params.id);
         const userId = req.user.id;
@@ -4744,7 +4770,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/underwriting/prospects/:prospectId/submission",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const prospectId = parseInt(req.params.prospectId);
         const userId = req.user.id;
@@ -4781,7 +4807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Get current user role
-  app.get("/api/auth/role", isAuthenticated, async (req: any, res) => {
+  app.get("/api/auth/role", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -4799,7 +4825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update current user role
   // SECURITY: In production (NODE_ENV !== 'development'), only super_admin can change roles
   // DEVELOPMENT: Self role switching is allowed for testing when NODE_ENV === 'development'
-  app.post("/api/auth/role", isAuthenticated, async (req: any, res) => {
+  app.post("/api/auth/role", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const { role, targetUserId } = req.body;
@@ -4845,7 +4871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============ TEAM MANAGEMENT ============
 
   // Get all users (super_admin only)
-  app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
+  app.get("/api/admin/users", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const currentUser = await storage.getUser(userId);
@@ -4862,7 +4888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all teams (super_admin and sales_admin only)
-  app.get("/api/teams", isAuthenticated, async (req: any, res) => {
+  app.get("/api/teams", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -4879,7 +4905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new team (super_admin and sales_admin only)
-  app.post("/api/teams", isAuthenticated, async (req: any, res) => {
+  app.post("/api/teams", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -4901,7 +4927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get team by ID with members
-  app.get("/api/teams/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/teams/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -4934,7 +4960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add member to team
-  app.post("/api/teams/:id/members", isAuthenticated, async (req: any, res) => {
+  app.post("/api/teams/:id/members", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -4976,7 +5002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Remove member from team
-  app.delete("/api/teams/:teamId/members/:userId", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/teams/:teamId/members/:userId", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const currentUserId = req.user.id;
       const user = await storage.getUser(currentUserId);
@@ -5010,7 +5036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get user's teams
-  app.get("/api/my-teams", isAuthenticated, async (req: any, res) => {
+  app.get("/api/my-teams", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const teams = await storage.getUserTeams(userId);
@@ -5021,7 +5047,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all users for team management (super_admin and sales_admin only)
-  app.get("/api/users", isAuthenticated, async (req: any, res) => {
+  app.get("/api/users", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -5038,7 +5064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update user role (super_admin only)
-  app.patch("/api/users/:id/role", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/users/:id/role", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const currentUserId = req.user.id;
       const currentUser = await storage.getUser(currentUserId);
@@ -5068,7 +5094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const MAX_UNDERWRITING_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
   const MAX_UNDERWRITING_FILES = 10; // Maximum 10 files per request
 
-  app.post("/api/underwriting/upload/:submissionId", isAuthenticated, async (req: any, res) => {
+  app.post("/api/underwriting/upload/:submissionId", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user.id;
     const submissionId = parseInt(req.params.submissionId);
 
@@ -5212,7 +5238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/underwriting/download/:submissionId/:activityId/:fileIndex",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const submissionId = parseInt(req.params.submissionId);
@@ -5268,7 +5294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Broker responds to underwriter query with message and attachments
-  app.post("/api/underwriting/submissions/:id/respond", isAuthenticated, async (req: any, res) => {
+  app.post("/api/underwriting/submissions/:id/respond", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -5320,7 +5346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Underwriter sends message to broker
-  app.post("/api/underwriting/submissions/:id/message", isAuthenticated, async (req: any, res) => {
+  app.post("/api/underwriting/submissions/:id/message", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
@@ -5384,7 +5410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/underwriting/submissions/:id/broker-message",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const id = parseInt(req.params.id);
         const userId = req.user.id;
@@ -5427,7 +5453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Prospect Documents - List all documents for a prospect
-  app.get("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
+  app.get("/api/prospects/:prospectId/documents", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
@@ -5448,7 +5474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload document for a prospect - uses busboy streaming parser
   const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024; // 10MB per document
 
-  app.post("/api/prospects/:prospectId/documents", isAuthenticated, async (req: any, res) => {
+  app.post("/api/prospects/:prospectId/documents", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user.id;
     const prospectId = parseInt(req.params.prospectId);
 
@@ -5581,7 +5607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/prospects/:prospectId/documents/:id/download",
     isAuthenticated,
-    async (req: any, res) => {
+    async (req: AuthenticatedRequest, res: Response) => {
       try {
         const userId = req.user.id;
         const prospectId = parseInt(req.params.prospectId);
@@ -5612,7 +5638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Delete a prospect document
-  app.delete("/api/prospects/:prospectId/documents/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/prospects/:prospectId/documents/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const prospectId = parseInt(req.params.prospectId);
@@ -5650,7 +5676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
 
   // Generate or regenerate webhook API key for authenticated user
-  app.post("/api/user/webhook-key", isAuthenticated, async (req: any, res) => {
+  app.post("/api/user/webhook-key", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const apiKey = await storage.generateWebhookApiKey(userId);
@@ -5664,7 +5690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get webhook API key status (not the actual key, only suffix for identification)
-  app.get("/api/user/webhook-key", isAuthenticated, async (req: any, res) => {
+  app.get("/api/user/webhook-key", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -5684,7 +5710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Webhook endpoint to receive prospects from external applications
-  app.post("/api/webhooks/prospects", async (req: any, res) => {
+  app.post("/api/webhooks/prospects", async (req: AuthenticatedRequest, res: Response) => {
     try {
       // Authenticate via API key header using hash comparison
       const apiKey = req.headers["x-flowloan-api-key"];
@@ -5907,7 +5933,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get current user subscription status
-  app.get("/api/billing/subscription", isAuthenticated, async (req: any, res) => {
+  app.get("/api/billing/subscription", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -5939,7 +5965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create checkout session for subscription
-  app.post("/api/billing/checkout", isAuthenticated, async (req: any, res) => {
+  app.post("/api/billing/checkout", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -6012,7 +6038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create customer portal session for managing subscription
-  app.post("/api/billing/portal", isAuthenticated, async (req: any, res) => {
+  app.post("/api/billing/portal", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -6036,7 +6062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create one-time purchase (for add-ons like prospect packs)
-  app.post("/api/billing/purchase", isAuthenticated, async (req: any, res) => {
+  app.post("/api/billing/purchase", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const user = await storage.getUser(userId);
@@ -6173,3 +6199,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return httpServer;
 }
+

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
     Home,
     Search,
@@ -20,12 +21,14 @@ import {
     Plus,
     LogOut,
     Sparkles,
-    LayoutDashboard
+    LayoutDashboard,
+    Clock
 } from "lucide-react";
 import logoChrome from "@assets/logo-chrome.png";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 
 interface NavItem {
     path: string;
@@ -39,6 +42,7 @@ const brokerNavItems: NavItem[] = [
     { path: "/leads", label: "Leads Database", icon: FileSpreadsheet },
     { path: "/submissions", label: "Submissions", icon: Send },
     { path: "/lenders", label: "Lender Database", icon: Building2 },
+    { path: "/inbox", label: "Inbox", icon: Inbox },
 ];
 
 const underwriterNavItems: NavItem[] = [
@@ -68,6 +72,12 @@ export default function Sidebar() {
         queryKey: ["/api/auth/role"],
     });
 
+    // Query prospect count
+    const { data: prospectData } = useQuery<{ count: number }>({
+        queryKey: ["/api/prospects/count"],
+        enabled: !!user,
+    });
+
     const [isCollapsed, setIsCollapsed] = useState(() => {
         const saved = localStorage.getItem("sidebar-collapsed");
         return saved ? JSON.parse(saved) : false;
@@ -80,6 +90,13 @@ export default function Sidebar() {
     const toggleSidebar = () => setIsCollapsed(!isCollapsed);
 
     const role = roleData?.role || "broker";
+
+    // Calculate trial days remaining
+    const trialDaysRemaining = user?.trialEndsAt
+        ? Math.max(0, Math.ceil((new Date(user.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : 0;
+
+    const prospectCount = prospectData?.count || 0;
 
     const getNavItems = () => {
         switch (role) {
@@ -163,6 +180,19 @@ export default function Sidebar() {
                 </TooltipProvider>
             </div>
 
+            {/* Search Bar */}
+            {!isCollapsed && (
+                <div className="px-3 pb-3">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                            placeholder="Search database..."
+                            className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:bg-white/10 focus:border-[#D97706]"
+                        />
+                    </div>
+                </div>
+            )}
+
             <div className="flex-1 overflow-y-auto py-2 space-y-1 px-3">
                 {navItems.map((item) => {
                     const Icon = item.icon;
@@ -195,37 +225,48 @@ export default function Sidebar() {
                         </TooltipProvider>
                     );
                 })}
-
-                {/* Recent Activity / Useful Feature Placeholder */}
-                {!isCollapsed && (
-                    <div className="mt-8 px-3">
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                            Recent Activity
-                        </h4>
-                        <div className="space-y-3">
-                            {/* This would ideally connect to a recent activity API */}
-                            <div className="flex items-start gap-3 group cursor-pointer hover:bg-white/5 p-2 rounded-md transition-colors">
-                                <div className="h-8 w-8 rounded bg-blue-500/20 flex items-center justify-center shrink-0">
-                                    <Building2 className="h-4 w-4 text-blue-400" />
-                                </div>
-                                <div className="overflow-hidden">
-                                    <p className="text-sm font-medium text-gray-300 truncate group-hover:text-white">TechFlow Ltd</p>
-                                    <p className="text-xs text-gray-500">Proposal Sent</p>
-                                </div>
-                            </div>
-                            <div className="flex items-start gap-3 group cursor-pointer hover:bg-white/5 p-2 rounded-md transition-colors">
-                                <div className="h-8 w-8 rounded bg-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <Sparkles className="h-4 w-4 text-emerald-400" />
-                                </div>
-                                <div className="overflow-hidden">
-                                    <p className="text-sm font-medium text-gray-300 truncate group-hover:text-white">Acme Corp</p>
-                                    <p className="text-xs text-gray-500">Credit Check</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
+
+            {/* Prospect Quota Status */}
+            {!isCollapsed && (
+                <div className="px-3 pb-3">
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-medium text-gray-400">Prospect Quota</p>
+                            <p className="text-xs font-bold text-white">
+                                {prospectCount} / {user?.prospectLimit || 0}
+                            </p>
+                        </div>
+                        <Progress
+                            value={prospectCount / (user?.prospectLimit || 1) * 100}
+                            className="h-2"
+                        />
+                        <p className="text-xs text-gray-500 mt-2">
+                            {(user?.prospectLimit || 0) - prospectCount} prospects remaining
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Trial Status */}
+            {!isCollapsed && user?.subscriptionTier === "trial" && (
+                <div className="px-3 pb-3">
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Clock className="h-4 w-4 text-amber-400" />
+                            <p className="text-xs font-semibold text-amber-400">Free Trial</p>
+                        </div>
+                        <p className="text-xs text-gray-300">
+                            {trialDaysRemaining} days remaining
+                        </p>
+                        <Link href="/pricing">
+                            <Button size="sm" className="w-full mt-2 bg-[#D97706] hover:bg-[#B45309] text-white text-xs h-7">
+                                Upgrade Now
+                            </Button>
+                        </Link>
+                    </div>
+                </div>
+            )}
 
             <Separator className="bg-white/10" />
 
