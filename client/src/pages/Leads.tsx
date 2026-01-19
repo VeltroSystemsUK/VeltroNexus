@@ -40,6 +40,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import type { Lead } from "@shared/schema";
+import logoChrome from "@assets/logo-chrome.png";
+import ThemeToggle from "@/components/ThemeToggle";
+import { ArrowLeft } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   pending: "bg-gray-500/10 text-gray-700 dark:text-gray-300",
@@ -205,282 +208,307 @@ export default function Leads() {
   }
 
   return (
-    <div className="container max-w-7xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-leads-title">
-            Leads
-          </h1>
-          <p className="text-muted-foreground">Imported company leads ready for prospecting</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild data-testid="button-import-more">
-            <Link href="/settings">
-              <Plus className="h-4 w-4 mr-2" />
-              Import More
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <div className="text-sm text-muted-foreground">Total Leads</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-gray-600">{stats.pending}</div>
-            <div className="text-sm text-muted-foreground">Pending Review</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{stats.added}</div>
-            <div className="text-sm text-muted-foreground">Added to Pipeline</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-orange-600">{stats.ignored}</div>
-            <div className="text-sm text-muted-foreground">Ignored</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <CardTitle>All Leads</CardTitle>
-              <CardDescription>
-                Click a lead to search Companies House and add to your pipeline
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search leads..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-64"
-                  data-testid="input-search-leads"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40" data-testid="select-status-filter">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="matched">Matched</SelectItem>
-                  <SelectItem value="prospect_created">Added</SelectItem>
-                  <SelectItem value="ignored">Ignored</SelectItem>
-                </SelectContent>
-              </Select>
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-[#1e293b] bg-[#0f172a] sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/")}
+              className="text-gray-300 hover:text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <img
+                src={logoChrome}
+                alt="Veltro"
+                className="h-8 object-contain"
+              />
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {filteredLeads.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Leads Found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm || statusFilter !== "all"
-                  ? "Try adjusting your search or filters"
-                  : "Upload a CSV file in Settings to import leads"}
-              </p>
-              <Button asChild>
-                <Link href="/settings">Import Leads</Link>
-              </Button>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <div className="container max-w-7xl mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="text-leads-title">
+              Leads
+            </h1>
+            <p className="text-muted-foreground">Imported company leads ready for prospecting</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild data-testid="button-import-more">
+              <Link href="/settings">
+                <Plus className="h-4 w-4 mr-2" />
+                Import More
+              </Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-sm text-muted-foreground">Total Leads</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-gray-600">{stats.pending}</div>
+              <div className="text-sm text-muted-foreground">Pending Review</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-green-600">{stats.added}</div>
+              <div className="text-sm text-muted-foreground">Added to Pipeline</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-orange-600">{stats.ignored}</div>
+              <div className="text-sm text-muted-foreground">Ignored</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <CardTitle>All Leads</CardTitle>
+                <CardDescription>
+                  Click a lead to search Companies House and add to your pipeline
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search leads..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 w-64"
+                    data-testid="input-search-leads"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40" data-testid="select-status-filter">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="matched">Matched</SelectItem>
+                    <SelectItem value="prospect_created">Added</SelectItem>
+                    <SelectItem value="ignored">Ignored</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredLeads.map((lead) => (
-                <div
-                  key={lead.id}
-                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                  data-testid={`lead-${lead.id}`}
-                >
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="flex-shrink-0">
-                      <Building2 className="h-10 w-10 text-muted-foreground p-2 rounded-lg bg-muted" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-medium truncate" data-testid={`lead-name-${lead.id}`}>
-                          {lead.companyName}
-                        </h4>
-                        <Badge className={statusColors[lead.matchStatus] || statusColors.pending}>
-                          {statusLabels[lead.matchStatus] || "Pending"}
-                        </Badge>
+          </CardHeader>
+          <CardContent>
+            {filteredLeads.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Leads Found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchTerm || statusFilter !== "all"
+                    ? "Try adjusting your search or filters"
+                    : "Upload a CSV file in Settings to import leads"}
+                </p>
+                <Button asChild>
+                  <Link href="/settings">Import Leads</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredLeads.map((lead) => (
+                  <div
+                    key={lead.id}
+                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    data-testid={`lead-${lead.id}`}
+                  >
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="flex-shrink-0">
+                        <Building2 className="h-10 w-10 text-muted-foreground p-2 rounded-lg bg-muted" />
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap mt-1">
-                        {lead.companyNumber && (
-                          <span className="flex items-center gap-1">
-                            <FileText className="h-3 w-3" />
-                            {lead.companyNumber}
-                          </span>
-                        )}
-                        {lead.contactName && (
-                          <span className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {lead.contactName}
-                          </span>
-                        )}
-                        {lead.email && (
-                          <span className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {lead.email}
-                          </span>
-                        )}
-                        {lead.phone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {lead.phone}
-                          </span>
-                        )}
-                        {lead.postcode && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {lead.postcode}
-                          </span>
-                        )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-medium truncate" data-testid={`lead-name-${lead.id}`}>
+                            {lead.companyName}
+                          </h4>
+                          <Badge className={statusColors[lead.matchStatus] || statusColors.pending}>
+                            {statusLabels[lead.matchStatus] || "Pending"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap mt-1">
+                          {lead.companyNumber && (
+                            <span className="flex items-center gap-1">
+                              <FileText className="h-3 w-3" />
+                              {lead.companyNumber}
+                            </span>
+                          )}
+                          {lead.contactName && (
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {lead.contactName}
+                            </span>
+                          )}
+                          {lead.email && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {lead.email}
+                            </span>
+                          )}
+                          {lead.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {lead.phone}
+                            </span>
+                          )}
+                          {lead.postcode && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {lead.postcode}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {lead.matchStatus === "pending" && (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSearchCompaniesHouse(lead)}
-                          data-testid={`button-search-${lead.id}`}
-                        >
-                          <Search className="h-4 w-4 mr-2" />
-                          Search & Add
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {lead.matchStatus === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSearchCompaniesHouse(lead)}
+                            data-testid={`button-search-${lead.id}`}
+                          >
+                            <Search className="h-4 w-4 mr-2" />
+                            Search & Add
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => ignoreLeadMutation.mutate(lead.id)}
+                            data-testid={`button-ignore-${lead.id}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                      {lead.matchStatus === "prospect_created" && lead.linkedProspectId && (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/prospect/${lead.linkedProspectId}`}>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Prospect
+                          </Link>
                         </Button>
+                      )}
+                      {lead.matchStatus === "ignored" && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => ignoreLeadMutation.mutate(lead.id)}
-                          data-testid={`button-ignore-${lead.id}`}
+                          onClick={() => handleSearchCompaniesHouse(lead)}
+                          data-testid={`button-reconsider-${lead.id}`}
                         >
-                          <X className="h-4 w-4" />
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Reconsider
                         </Button>
-                      </>
-                    )}
-                    {lead.matchStatus === "prospect_created" && lead.linkedProspectId && (
-                      <Button size="sm" variant="outline" asChild>
-                        <Link href={`/prospect/${lead.linkedProspectId}`}>
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          View Prospect
-                        </Link>
-                      </Button>
-                    )}
-                    {lead.matchStatus === "ignored" && (
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleSearchCompaniesHouse(lead)}
-                        data-testid={`button-reconsider-${lead.id}`}
+                        onClick={() => deleteLeadMutation.mutate(lead.id)}
+                        disabled={deleteLeadMutation.isPending}
+                        data-testid={`button-delete-${lead.id}`}
                       >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Reconsider
+                        <Trash2 className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteLeadMutation.mutate(lead.id)}
-                      disabled={deleteLeadMutation.isPending}
-                      data-testid={`button-delete-${lead.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <Dialog open={showCompanySearchDialog} onOpenChange={setShowCompanySearchDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Retrieve Data</DialogTitle>
-            <DialogDescription>
-              {selectedLead && (
-                <>Searching for "{selectedLead.companyNumber || selectedLead.companyName}"</>
-              )}
-            </DialogDescription>
-          </DialogHeader>
+        <Dialog open={showCompanySearchDialog} onOpenChange={setShowCompanySearchDialog}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Retrieve Data</DialogTitle>
+              <DialogDescription>
+                {selectedLead && (
+                  <>Searching for "{selectedLead.companyNumber || selectedLead.companyName}"</>
+                )}
+              </DialogDescription>
+            </DialogHeader>
 
-          {isSearching ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : companiesHouseResults.length === 0 ? (
-            <div className="text-center py-8">
-              <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No companies found matching your search.</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Try searching with a different term on the main search page.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {companiesHouseResults.map((company) => (
-                <div
-                  key={company.company_number}
-                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                  onClick={() => handleSelectCompany(company)}
-                  data-testid={`ch-result-${company.company_number}`}
-                >
-                  <div>
-                    <h4 className="font-medium">{company.title}</h4>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                      <span>{company.company_number}</span>
-                      {company.company_status && (
-                        <Badge variant="outline" className="capitalize">
-                          {company.company_status}
-                        </Badge>
+            {isSearching ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : companiesHouseResults.length === 0 ? (
+              <div className="text-center py-8">
+                <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No companies found matching your search.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Try searching with a different term on the main search page.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {companiesHouseResults.map((company) => (
+                  <div
+                    key={company.company_number}
+                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 cursor-pointer"
+                    onClick={() => handleSelectCompany(company)}
+                    data-testid={`ch-result-${company.company_number}`}
+                  >
+                    <div>
+                      <h4 className="font-medium">{company.title}</h4>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                        <span>{company.company_number}</span>
+                        {company.company_status && (
+                          <Badge variant="outline" className="capitalize">
+                            {company.company_status}
+                          </Badge>
+                        )}
+                      </div>
+                      {company.address_snippet && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {company.address_snippet}
+                        </p>
                       )}
                     </div>
-                    {company.address_snippet && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {company.address_snippet}
-                      </p>
-                    )}
+                    <Button size="sm" disabled={createProspectMutation.isPending}>
+                      {createProspectMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add
+                        </>
+                      )}
+                    </Button>
                   </div>
-                  <Button size="sm" disabled={createProspectMutation.isPending}>
-                    {createProspectMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add
-                      </>
-                    )}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCompanySearchDialog(false)}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCompanySearchDialog(false)}>
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

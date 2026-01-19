@@ -105,6 +105,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertLenderSchema, type InsertLender, type Lender } from "@shared/schema";
 import { z } from "zod";
+import logoChrome from "@assets/logo-chrome.png";
+import ThemeToggle from "@/components/ThemeToggle";
+import { ArrowLeft } from "lucide-react";
 
 const LENDER_TYPES = [
   { value: "bank", label: "Bank" },
@@ -451,7 +454,30 @@ export default function Lenders() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b sticky top-0 bg-background z-10">
+      <header className="border-b border-[#1e293b] bg-[#0f172a] sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/pipeline")}
+              className="text-gray-300 hover:text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <img
+                src={logoChrome}
+                alt="Veltro"
+                className="h-8 object-contain"
+              />
+            </div>
+          </div>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <header className="border-b sticky top-16 bg-background z-40">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <Button

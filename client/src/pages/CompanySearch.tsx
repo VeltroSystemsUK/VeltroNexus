@@ -123,7 +123,7 @@ export default function CompanySearch() {
   const [locationPostcodeFilter, setLocationPostcodeFilter] = useState("");
   const [sicSearchTerm, setSicSearchTerm] = useState("");
   const [showSicHelper, setShowSicHelper] = useState(false);
-  
+
   const sicSuggestions = useMemo(() => {
     if (sicSearchTerm.length < 2) return [];
     return searchSicCodes(sicSearchTerm, 8);
@@ -481,13 +481,12 @@ export default function CompanySearch() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-3">
-              <img 
-                src={logoChrome} 
-                alt="Veltro" 
+              <img
+                src={logoChrome}
+                alt="Veltro"
                 className="h-8 object-contain"
                 data-testid="img-logo-nav"
               />
-              <span className="text-xl font-bold italic text-white">- Add Prospect</span>
             </div>
           </div>
           <ThemeToggle />
@@ -655,7 +654,7 @@ export default function CompanySearch() {
                             Search by industry keyword to find the right code
                           </span>
                         </div>
-                        
+
                         {showSicHelper && (
                           <div className="border rounded-md p-3 bg-muted/30 space-y-2">
                             <Input
@@ -700,7 +699,7 @@ export default function CompanySearch() {
                           </div>
                         )}
                       </div>
-                      
+
                       {/* Postcode Filter */}
                       <div className="space-y-2">
                         <Label htmlFor="sic-postcode-filter">Filter by Postcode (optional)</Label>
@@ -943,10 +942,10 @@ export default function CompanySearch() {
                   (searchType === "officers" &&
                     !selectedOfficer &&
                     officerResults?.items?.length === 0)) && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No results found. Try a different search term.
-                  </p>
-                )}
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No results found. Try a different search term.
+                    </p>
+                  )}
               </CardContent>
             </Card>
           </TabsContent>

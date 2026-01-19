@@ -32,7 +32,6 @@ import {
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 import { createRequire } from "module";
-import { generateProspectReport } from "./utils/pdfGenerator";
 import { generatePipelineExcel } from "./utils/excelExporter";
 import { getSicDescription } from "./utils/sicCodeLookup";
 import { createErrorResponse } from "./utils/errorResponse";
@@ -709,20 +708,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[PDF Report] Generating report for prospect ${id}, company: ${prospect.company.companyName}`);
 
-      let doc;
-      try {
-        doc = generateProspectReport({
-          prospect,
-          contacts,
-          activities,
-          dueDiligence,
-          companiesHouseData,
-          pdfLayoutPreferences: (user?.pdfLayoutPreferences as any) || null,
-        } as any);
-      } catch (pdfError) {
-        console.error("[PDF Report] Error generating PDF:", pdfError);
-        throw pdfError;
-      }
+      const { createProspectReportDocument, renderProspectReport } = await import("./utils/pdfGenerator");
+
+      console.log(`[PDF Report] Generating report for prospect ${id}, company: ${prospect.company.companyName}`);
+
+      const reportData = {
+        prospect,
+        contacts,
+        activities,
+        dueDiligence,
+        companiesHouseData,
+        pdfLayoutPreferences: (user?.pdfLayoutPreferences as any) || null,
+      };
+
+      // Create doc
+      const doc = createProspectReportDocument(reportData as any);
 
       // SECURITY: Use sanitized filename to prevent header injection
       // const { encodeContentDisposition } = await import("./utils/security");
@@ -732,8 +732,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Content-Disposition", encodeContentDisposition(filename));
 
       console.log(`[PDF Report] Streaming PDF response for: ${filename}`);
+
+      // Pipe BEFORE rendering to capture all data
       doc.pipe(res);
-      doc.end();
+
+      try {
+        renderProspectReport(doc, reportData as any);
+        doc.end();
+      } catch (pdfError) {
+        console.error("[PDF Report] Error generating PDF content:", pdfError);
+        // If we already started the stream, we can't easily send a JSON error.
+        // We could try to abort the stream or append an error text to the PDF if possible,
+        // but mostly we just log it. The client will get a truncated/invalid PDF.
+        if (!doc.closed) {
+          doc.end();
+        }
+      }
     } catch (error) {
       console.error("[PDF Report] Route error:", error);
       handleApiError(res, error, "api-error");
@@ -839,7 +853,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const doc = generateProspectReport({
+      // Use dynamic import for PDF generator functions
+      // const { searchBusinessOverview } = await import("./utils/tavilyClient");
+      const { createProspectReportDocument, renderProspectReport } = await import("./utils/pdfGenerator");
+
+      const doc = createProspectReportDocument({
+        prospect,
+        contacts,
+        activities,
+        dueDiligence,
+        companiesHouseData: companiesHouseData as any,
+        pdfLayoutPreferences: (user?.pdfLayoutPreferences || null) as any,
+      } as any);
+
+      // We still pass businessOverview in data incase we add support for it later,
+      // though currently renderProspectReport signature might not use it explicitly.
+      const reportData = {
         prospect,
         contacts,
         activities,
@@ -847,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companiesHouseData: companiesHouseData as any,
         pdfLayoutPreferences: (user?.pdfLayoutPreferences || null) as any,
         businessOverview,
-      } as any);
+      };
 
       const { encodeContentDisposition } = await import("./utils/security");
       const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`;
@@ -855,8 +884,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", encodeContentDisposition(filename));
 
+      // CRITICAL FIX: Pipe before rendering to capture all data
       doc.pipe(res);
-      doc.end();
+
+      try {
+        renderProspectReport(doc, reportData as any);
+        doc.end();
+      } catch (pdfError) {
+        console.error("[PDF Report Enhanced] Error generating PDF content:", pdfError);
+        if (!doc.closed) {
+          doc.end();
+        }
+      }
     } catch (error) {
       console.error("[PDF Report Enhanced] Route error:", error);
       handleApiError(res, error, "api-error");

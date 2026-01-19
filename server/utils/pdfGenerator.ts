@@ -202,8 +202,8 @@ function renderParagraphsWithBreaks(
 // MAIN GENERATOR
 // ============================================================================
 
-export function generateProspectReport(data: ProspectReportData): typeof PDFDocument.prototype {
-  const doc = new PDFDocument({
+export function createProspectReportDocument(data: ProspectReportData): typeof PDFDocument.prototype {
+  return new PDFDocument({
     size: "A4",
     margin: MARGIN,
     bufferPages: true,
@@ -214,7 +214,9 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
       Keywords: "credit, assessment, lending, commercial",
     },
   });
+}
 
+export function renderProspectReport(doc: typeof PDFDocument.prototype, data: ProspectReportData): void {
   const { prospect, contacts, activities, dueDiligence, companiesHouseData, pdfLayoutPreferences } = data;
   pageNumber = 0;
 
@@ -355,8 +357,6 @@ export function generateProspectReport(data: ProspectReportData): typeof PDFDocu
 
   // Add footers
   addFootersToAllPages(doc, prospect);
-
-  return doc;
 }
 
 // ============================================================================
