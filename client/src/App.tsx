@@ -14,6 +14,7 @@ import Pipeline from "@/pages/Pipeline";
 import CompanySearch from "@/pages/CompanySearch";
 import ProspectDetail from "@/pages/ProspectDetail";
 import SubscriptionComplete from "@/pages/SubscriptionComplete";
+import SubscriptionPage from "@/pages/SubscriptionPage";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Lenders from "@/pages/Lenders";
@@ -33,6 +34,7 @@ import TrialBanner from "@/components/TrialBanner";
 import LenderEnquiry from "@/pages/LenderEnquiry";
 
 import Compliance from "@/pages/Compliance";
+import Terms from "@/pages/Terms";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -53,6 +55,8 @@ function Router() {
           <Route path="/pricing" component={Pricing} />
           <Route path="/lender-enquiry" component={LenderEnquiry} />
           <Route path="/value-packages" component={ValuePackages} />
+          <Route path="/subscribe" component={SubscriptionPage} />
+          <Route path="/terms" component={Terms} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />
         </>
       ) : (
@@ -75,6 +79,8 @@ function Router() {
           <Route path="/pricing" component={Pricing} />
           <Route path="/lender-enquiry" component={LenderEnquiry} />
           <Route path="/value-packages" component={ValuePackages} />
+          <Route path="/subscribe" component={SubscriptionPage} />
+          <Route path="/terms" component={Terms} />
           <Route path="/subscription/complete" component={SubscriptionComplete} />
         </>
       )}

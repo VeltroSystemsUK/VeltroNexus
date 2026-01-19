@@ -164,14 +164,14 @@ export default function Pricing() {
 
                             <div className="w-full mb-5">
                                 <button
-                                    onClick={() => navigate(`/auth?plan=broker&interval=${billingInterval}`)}
+                                    onClick={() => navigate(`/subscribe?plan=broker&interval=${billingInterval}`)}
                                     className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all"
                                 >
                                     Subscribe Now
                                 </button>
                             </div>
-                            <p className="text-center text-[11px] text-muted-foreground -mt-3 mb-4 opacity-0">
-                                &nbsp;
+                            <p className="text-center text-[11px] text-muted-foreground -mt-3 mb-4 opacity-100">
+                                14-day free trial · Cancel anytime
                             </p>
 
                             <ul className="space-y-2 border-t border-border pt-4">
@@ -234,11 +234,14 @@ export default function Pricing() {
 
                             <div className="w-full mb-5">
                                 <button
-                                    onClick={() => navigate(`/auth?plan=team&interval=${billingInterval}`)}
+                                    onClick={() => navigate(`/subscribe?plan=team&interval=${billingInterval}`)}
                                     className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:brightness-110 hover:-translate-y-px transition-all shadow-sm"
                                 >
                                     Start Team Plan
                                 </button>
+                                <p className="text-center text-[11px] text-muted-foreground mt-3 opacity-100">
+                                    14-day free trial · Cancel anytime
+                                </p>
                             </div>
 
                             <ul className="space-y-2 pt-4">
