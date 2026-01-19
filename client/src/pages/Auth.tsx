@@ -16,6 +16,8 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Brain, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,6 +42,7 @@ const loginSchema = z.object({
 
 const registerSchema = insertUserSchema.extend({
     confirmPassword: z.string(),
+    wantsUnderwritingAccess: z.boolean().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
@@ -78,6 +81,7 @@ export default function AuthPage() {
             confirmPassword: "",
             firstName: "",
             lastName: "",
+            wantsUnderwritingAccess: false,
         },
     });
 
@@ -102,11 +106,12 @@ export default function AuthPage() {
 
     const registerMutation = useMutation({
         mutationFn: async (data: z.infer<typeof registerSchema>) => {
-            const { confirmPassword, ...registerData } = data;
-            // Pass selected plan to backend for trial setup
+            const { confirmPassword, wantsUnderwritingAccess, ...registerData } = data;
+            // Pass selected plan and underwriting preference to backend
             const res = await apiRequest("/api/register", "POST", {
                 ...registerData,
                 trialTier: selectedPlan || undefined,
+                wantsUnderwritingAccess: wantsUnderwritingAccess || false,
             });
             return res.json();
         },
@@ -315,6 +320,33 @@ export default function AuthPage() {
                                                             />
                                                         </FormControl>
                                                         <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+
+                                            {/* AI Underwriting Access Opt-in */}
+                                            <FormField
+                                                control={registerForm.control}
+                                                name="wantsUnderwritingAccess"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-primary/5">
+                                                        <FormControl>
+                                                            <Checkbox
+                                                                checked={field.value}
+                                                                onCheckedChange={field.onChange}
+                                                            />
+                                                        </FormControl>
+                                                        <div className="space-y-1 leading-none">
+                                                            <FormLabel className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                                                                <Brain className="h-4 w-4 text-primary" />
+                                                                AI Credit Underwriting Access
+                                                                <span className="text-primary font-semibold">£49/month</span>
+                                                            </FormLabel>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                <Sparkles className="h-3 w-3 inline mr-1" />
+                                                                Unlock AI-powered credit analysis, automated due diligence, and intelligent lender matching
+                                                            </p>
+                                                        </div>
                                                     </FormItem>
                                                 )}
                                             />
