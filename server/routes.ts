@@ -4479,7 +4479,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   );
 
   // Create underwriting submission (broker submits prospect for review)
-  app.post("/api/underwriting/submissions", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/underwriting/submissions", isAuthenticated, requireUnderwritingAccess, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
       const { prospectId, priority, brokerComments } = req.body;
