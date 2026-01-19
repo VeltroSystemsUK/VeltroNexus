@@ -356,6 +356,11 @@ export interface IStorage {
   getUserByWebhookApiKey(apiKey: string): Promise<User | undefined>;
   generateWebhookApiKey(userId: string): Promise<string>;
   updateWebhookApiKeyLastUsed(userId: string): Promise<void>;
+
+  // Underwriting Access
+  hasUnderwritingAccess(userId: string): Promise<boolean>;
+  grantUnderwritingAccess(userId: string, expiresAt?: Date): Promise<User | undefined>;
+  revokeUnderwritingAccess(userId: string): Promise<User | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1936,6 +1941,53 @@ export class DatabaseStorage implements IStorage {
         prospectLimit: data.prospectLimit,
       })
       .where(eq(users.id, userId));
+  }
+
+  // Underwriting Access Methods
+  async hasUnderwritingAccess(userId: string): Promise<boolean> {
+    const user = await this.getUser(userId);
+    if (!user) return false;
+
+    // Lender tier always has access
+    if (user.subscriptionTier === 'lender') return true;
+
+    // Underwriter role always has access
+    if (user.role === 'underwriter') return true;
+
+    // Check if user has explicitly granted access
+    if (user.hasUnderwritingAccess === 1) {
+      // Check if access hasn't expired
+      if (!user.underwritingAccessExpiresAt) return true;
+      return new Date() < new Date(user.underwritingAccessExpiresAt);
+    }
+
+    return false;
+  }
+
+  async grantUnderwritingAccess(userId: string, expiresAt?: Date): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({
+        hasUnderwritingAccess: 1,
+        underwritingAccessExpiresAt: expiresAt || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async revokeUnderwritingAccess(userId: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({
+        hasUnderwritingAccess: 0,
+        underwritingAccessExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
   }
 }
 

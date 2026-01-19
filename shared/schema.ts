@@ -134,6 +134,8 @@ export const users = pgTable("users", {
   webhookApiKeyLastUsedAt: timestamp("webhook_api_key_last_used_at"),
   aiDataConsent: integer("ai_data_consent").notNull().default(0),
   aiDataConsentAt: timestamp("ai_data_consent_at"),
+  hasUnderwritingAccess: integer("has_underwriting_access").notNull().default(0),
+  underwritingAccessExpiresAt: timestamp("underwriting_access_expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
