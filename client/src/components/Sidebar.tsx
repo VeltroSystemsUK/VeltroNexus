@@ -334,6 +334,20 @@ export default function Sidebar() {
                 </div>
             )}
 
+            {/* Permanent Upgrade Button for Free/Trial users */}
+            {!isCollapsed && (user?.subscriptionTier === "free" || user?.subscriptionTier === "trial") && (
+                <div className="px-3 pb-3">
+                    <Link href="/pricing">
+                        <Button
+                            className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-0 shadow-lg shadow-orange-500/20"
+                        >
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Upgrade Plan
+                        </Button>
+                    </Link>
+                </div>
+            )}
+
             <Separator className="bg-white/10" />
 
             {/* Footer / Profile */}

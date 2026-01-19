@@ -54,16 +54,47 @@ export default function AuthPage() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    // Get plan from URL query params (e.g., /auth?plan=broker)
+    // Get plan and interval from URL query params
     const urlParams = new URLSearchParams(window.location.search);
     const selectedPlan = urlParams.get("plan") as "broker" | "team" | null;
+    const selectedInterval = (urlParams.get("interval") as "monthly" | "annual") || "monthly";
 
-    // Redirect if already logged in
-    useEffect(() => {
-        if (user) {
+    const handleStripeCheckout = async () => {
+        if (!selectedPlan) {
+            setLocation("/pipeline");
+            return;
+        }
+
+        try {
+            // Create checkout session
+            const res = await apiRequest("/api/stripe/create-checkout-session", "POST", {
+                plan: selectedPlan,
+                interval: selectedInterval,
+            });
+            const { url } = await res.json();
+            if (url) {
+                window.location.href = url;
+            } else {
+                throw new Error("Failed to create checkout session");
+            }
+        } catch (error: any) {
+            console.error("Stripe checkout error:", error);
+            toast({
+                title: "Checkout failed",
+                description: "Could not initiate payment. Please try again later.",
+                variant: "destructive",
+            });
+            // Fallback to dashboard
             setLocation("/pipeline");
         }
-    }, [user, setLocation]);
+    };
+
+    // Redirect if already logged in and no plan selected
+    useEffect(() => {
+        if (user && !selectedPlan) {
+            setLocation("/pipeline");
+        }
+    }, [user, setLocation, selectedPlan]);
 
     const loginForm = useForm<z.infer<typeof loginSchema>>({
         resolver: zodResolver(loginSchema),
@@ -92,8 +123,13 @@ export default function AuthPage() {
         },
         onSuccess: (user) => {
             queryClient.setQueryData(["/api/auth/user"], user);
-            setLocation("/pipeline");
             toast({ title: "Welcome back!" });
+
+            if (selectedPlan) {
+                handleStripeCheckout();
+            } else {
+                setLocation("/pipeline");
+            }
         },
         onError: (error: Error) => {
             toast({
@@ -117,14 +153,19 @@ export default function AuthPage() {
         },
         onSuccess: (user) => {
             queryClient.setQueryData(["/api/auth/user"], user);
-            setLocation("/pipeline");
             const planName = selectedPlan === "team" ? "Team" : selectedPlan === "broker" ? "Broker" : null;
             toast({
                 title: "Account created",
                 description: planName
-                    ? `Welcome to Veltro! Your 14-day ${planName} trial has started.`
+                    ? `Welcome to Veltro! Proceeding to checkout for ${planName} plan.`
                     : "Welcome to Veltro!"
             });
+
+            if (selectedPlan) {
+                handleStripeCheckout();
+            } else {
+                setLocation("/pipeline");
+            }
         },
         onError: (error: Error) => {
             toast({

@@ -41,7 +41,7 @@ export default function Pricing() {
                         </Link>
                         <Link href="/auth">
                             <Button className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25">
-                                Start Free Trial
+                                Get Started
                             </Button>
                         </Link>
                         <ThemeToggle />
@@ -57,7 +57,7 @@ export default function Pricing() {
                                 size="sm"
                                 className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25 text-xs px-3 h-8"
                             >
-                                Start Trial
+                                Get Started
                             </Button>
                         </Link>
                         <Button
@@ -164,14 +164,14 @@ export default function Pricing() {
 
                             <div className="w-full mb-5">
                                 <button
-                                    onClick={() => navigate("/auth?plan=broker")}
+                                    onClick={() => navigate(`/auth?plan=broker&interval=${billingInterval}`)}
                                     className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all"
                                 >
-                                    Start 14-Day Free Trial
+                                    Subscribe Now
                                 </button>
                             </div>
-                            <p className="text-center text-[11px] text-muted-foreground -mt-3 mb-4">
-                                No credit card required
+                            <p className="text-center text-[11px] text-muted-foreground -mt-3 mb-4 opacity-0">
+                                &nbsp;
                             </p>
 
                             <ul className="space-y-2 border-t border-border pt-4">
@@ -234,10 +234,10 @@ export default function Pricing() {
 
                             <div className="w-full mb-5">
                                 <button
-                                    onClick={() => navigate("/auth?plan=team")}
+                                    onClick={() => navigate(`/auth?plan=team&interval=${billingInterval}`)}
                                     className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:brightness-110 hover:-translate-y-px transition-all shadow-sm"
                                 >
-                                    Start 14-Day Team Pilot
+                                    Start Team Plan
                                 </button>
                             </div>
 

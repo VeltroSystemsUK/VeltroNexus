@@ -70,7 +70,10 @@ interface AuthenticatedRequest extends Request {
 }
 
 
+import { stripeRoutes } from "./stripeRoutes";
+
 export async function registerRoutes(app: Application): Promise<Server> {
+
   // Backfill: Initialize prospects_created_count for existing users
   // This ensures users with existing prospects don't see 0/Limit quota
   (async () => {
@@ -176,6 +179,9 @@ export async function registerRoutes(app: Application): Promise<Server> {
 
   // Get object storage client - memoized to avoid repeated initialization and logging
   let objectStorageClient: ObjectStorageClient | null = null;
+
+  // Register Stripe routes after auth and rate limiting middleware
+  app.use("/api/stripe", stripeRoutes);
   const getObjectStorage = () => {
     if (objectStorageClient) {
       return objectStorageClient;
