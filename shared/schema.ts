@@ -128,6 +128,8 @@ export const users = pgTable("users", {
   brandingLogoUrl: varchar("branding_logo_url"),
   brandingPrimaryColor: varchar("branding_primary_color"),
   brandingAccentColor: varchar("branding_accent_color"),
+  brandingSidebarColor: varchar("branding_sidebar_color"),
+  brandingBackgroundColor: varchar("branding_background_color"),
   webhookApiKeyHash: varchar("webhook_api_key_hash", { length: 64 }),
   webhookApiKeySuffix: varchar("webhook_api_key_suffix", { length: 8 }),
   webhookApiKeyCreatedAt: timestamp("webhook_api_key_created_at"),
@@ -138,6 +140,9 @@ export const users = pgTable("users", {
   underwritingAccessExpiresAt: timestamp("underwriting_access_expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
+  lastLogoutAt: timestamp("last_logout_at"),
+  prospectsCreatedCount: integer("prospects_created_count").notNull().default(0),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -146,6 +151,15 @@ export const insertUserSchema = createInsertSchema(users).omit({
   updatedAt: true,
 });
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+// System Settings - Global configuration (e.g., SLA timers)
+export const systemSettings = pgTable("system_settings", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  key: varchar("key").notNull().unique(), // e.g. "underwriting_sla"
+  value: jsonb("value").notNull(),       // e.g. { green: 4, amber: 8, red: 24 }
+  updatedBy: varchar("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
 
 // Teams - Groups of brokers managed by Sales Admins
 export const teams = pgTable("teams", {

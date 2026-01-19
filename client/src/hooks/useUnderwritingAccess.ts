@@ -42,7 +42,7 @@ export function useUnderwritingAccess(): UnderwritingAccessInfo {
             ? new Date(user.underwritingAccessExpiresAt)
             : null;
 
-        const hasExpired = expiresAt && new Date() > expiresAt;
+        const hasExpired = expiresAt ? new Date() > expiresAt : false;
 
         return {
             hasAccess: !hasExpired,

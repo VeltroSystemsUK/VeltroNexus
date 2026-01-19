@@ -109,9 +109,9 @@ interface PricingTier {
 }
 
 const VELTRO_PRICING: Record<string, PricingTier> = {
-  starter: { name: "Starter", price: 39, prospects: 50, maxSeats: 1, aiModuleIncluded: false, aiModuleAddOn: 49 },
-  team: { name: "Team", price: 229, prospects: 250, maxSeats: 5, aiModuleIncluded: false, aiModuleAddOn: 99 },
-  lender: { name: "Lender", price: 999, prospects: Infinity, maxSeats: Infinity, aiModuleIncluded: true, aiModuleAddOn: 0 },
+  starter: { name: "Broker", price: 149, prospects: 50, maxSeats: 1, aiModuleIncluded: false, aiModuleAddOn: 49 },
+  team: { name: "Team", price: 549, prospects: 250, maxSeats: 5, aiModuleIncluded: false, aiModuleAddOn: 99 },
+  lender: { name: "Lender", price: 2499, prospects: Infinity, maxSeats: Infinity, aiModuleIncluded: true, aiModuleAddOn: 0 },
 };
 
 const AI_MODULE_ADD_ON_PRICE = 49; // Base price for AI Credit Underwriting add-on
@@ -120,12 +120,13 @@ function SavingsCalculator() {
   const [crmSpend, setCrmSpend] = useState(100);
   const [creditDataSpend, setCreditDataSpend] = useState(200);
   const [trackingSpend, setTrackingSpend] = useState(50);
+  const [fcaSpend, setFcaSpend] = useState(500);
   const [labourHours, setLabourHours] = useState(20);
   const [hourlyRate, setHourlyRate] = useState(25);
   const [numberOfUsers, setNumberOfUsers] = useState(1);
   const [needsAiModule, setNeedsAiModule] = useState(false);
 
-  const totalCurrentSpend = crmSpend + creditDataSpend + trackingSpend + (labourHours * hourlyRate);
+  const totalCurrentSpend = crmSpend + creditDataSpend + trackingSpend + fcaSpend + (labourHours * hourlyRate);
 
   // Calculate total Veltro cost for a tier (base + AI add-on if needed and not included)
   const getTierTotalCost = (tier: PricingTier): number => {
@@ -278,6 +279,33 @@ function SavingsCalculator() {
               step={10}
               className="w-full"
               data-testid="slider-tracking-spend"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <label className="text-white text-sm font-medium">FCA Compliance / Regulatory Costs</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex" aria-label="More info about compliance costs" data-testid="info-fca">
+                      <Info className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Monthly estimated allocation for FCA compliance, regulatory reporting, and external audit or consultancy fees.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <span className="text-indigo-400 font-semibold">£{fcaSpend}/mo</span>
+            </div>
+            <Slider
+              value={[fcaSpend]}
+              onValueChange={(v) => setFcaSpend(v[0])}
+              max={5000}
+              step={50}
+              className="w-full"
+              data-testid="slider-fca-spend"
             />
           </div>
 

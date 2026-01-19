@@ -47,6 +47,7 @@ import { format } from "date-fns";
 import ConversationThread from "@/components/ConversationThread";
 import { useUnderwritingAccess } from "@/hooks/useUnderwritingAccess";
 import { UnderwritingPaywall } from "@/components/UnderwritingPaywall";
+import { SLATimer } from "@/components/SLATimer";
 
 const statusColors: Record<string, string> = {
   submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
@@ -90,6 +91,11 @@ export default function UnderwriterInbox() {
 
   const { data: mySubmissions } = useQuery<UnderwritingSubmission[]>({
     queryKey: ["/api/underwriting/submissions", { assigned: "me" }],
+  });
+
+  // Fetch SLA Settings for timers
+  const { data: slaSettings } = useQuery<{ green: number; amber: number; red: number }>({
+    queryKey: ["/api/admin/settings/sla"],
   });
 
   const claimMutation = useMutation({
@@ -231,8 +237,17 @@ export default function UnderwriterInbox() {
           </div>
         </div>
 
+        {/* SLA Timer */}
+        <div className="mb-3">
+          <SLATimer
+            submittedAt={submission.submittedAt}
+            slaSettings={slaSettings || { green: 4, amber: 24, red: 48 }}
+          />
+        </div>
+
         {submission.brokerComments && (
           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+
             {submission.brokerComments}
           </p>
         )}

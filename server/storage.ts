@@ -77,6 +77,7 @@ import {
   type UserSession,
   type InsertUserSession,
   SESSION_LIMITS,
+  systemSettings,
 } from "@shared/schema";
 import { db, pool } from "./db";
 import { eq, sql, and, or, ilike, gte, lte, desc, inArray, isNull, isNotNull } from "drizzle-orm";
@@ -96,279 +97,19 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
 
-  // User Sessions - for concurrent login limiting
-  createUserSession(session: InsertUserSession): Promise<UserSession>;
-  getUserActiveSessions(userId: string): Promise<UserSession[]>;
-  getSessionBySessionId(sessionId: string): Promise<UserSession | undefined>;
-  updateSessionLastSeen(sessionId: string): Promise<void>;
-  revokeSession(sessionId: string, reason: string): Promise<void>;
-  revokeOldestSession(userId: string, reason: string): Promise<UserSession | undefined>;
-  destroyExpressSession(sessionId: string): Promise<void>;
-  cleanupExpiredSessions(): Promise<number>;
-  getSessionLimit(subscriptionTier: string): number;
-
-  // Companies
-  getCompanyByNumber(companyNumber: string): Promise<Company | undefined>;
-  getCompanyById(id: number): Promise<Company | undefined>;
-  createCompany(company: InsertCompany): Promise<Company>;
-  updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined>;
-
-  // Prospects
-  listProspects(userId: string): Promise<ProspectWithCompany[]>;
-  countProspects(userId: string): Promise<number>;
-  getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined>;
-  getProspectById(id: number): Promise<ProspectWithCompany | undefined>;
-  getProspectsByIds(ids: number[]): Promise<ProspectWithCompany[]>;
-  createProspect(prospect: InsertProspect, userId: string): Promise<Prospect>;
-  updateProspectStage(
-    prospectId: number,
-    userId: string,
-    stage: string
-  ): Promise<Prospect | undefined>;
-  updateProspect(
-    id: number,
-    userId: string,
-    updates: Partial<InsertProspect>
-  ): Promise<Prospect | undefined>;
-  deleteProspect(id: number, userId: string): Promise<void>;
-  reorderProspects(userId: string, stage: string, orderedIds: number[]): Promise<void>;
-
-  // Contacts (user-scoped via prospect ownership)
-  listContacts(prospectId: number, userId: string): Promise<Contact[]>;
-  getContact(id: number, userId: string): Promise<Contact | undefined>;
-  createContact(contact: InsertContact, userId: string): Promise<Contact | undefined>;
-  updateContact(
-    id: number,
-    userId: string,
-    updates: Partial<InsertContact>
-  ): Promise<Contact | undefined>;
-  deleteContact(id: number, userId: string): Promise<boolean>;
-
-  // Activities (user-scoped)
-  listActivities(prospectId: number, userId: string): Promise<Activity[]>;
-  listAllUserActivities(userId: string): Promise<Activity[]>;
-  getActivity(id: number, userId: string): Promise<Activity | undefined>;
-  createActivity(activity: InsertActivity, userId: string): Promise<Activity | undefined>;
-  updateActivity(
-    id: number,
-    userId: string,
-    updates: Partial<InsertActivity>
-  ): Promise<Activity | undefined>;
-  deleteActivity(id: number, userId: string): Promise<boolean>;
-
-  // Due Diligence (user-scoped via prospect ownership)
-  getDueDiligence(prospectId: number, userId: string): Promise<DueDiligence | undefined>;
-  getAllDueDiligenceSummaries(userId: string): Promise<{ prospectId: number; status: 'complete' | 'partial' | 'pending' }[]>;
-  upsertDueDiligence(
-    prospectId: number,
-    userId: string,
-    data: DueDiligenceData
-  ): Promise<DueDiligence | undefined>;
-
-  // Lenders
-  listLenders(userId: string): Promise<Lender[]>;
-  getLender(id: number, userId: string): Promise<Lender | undefined>;
-  getLenderWithProducts(id: number, userId: string): Promise<LenderWithProducts | undefined>;
-  createLender(lender: InsertLender, userId: string): Promise<Lender>;
-  updateLender(
-    id: number,
-    userId: string,
-    updates: Partial<InsertLender>
-  ): Promise<Lender | undefined>;
-  deleteLender(id: number, userId: string): Promise<void>;
-  searchLenders(
-    userId: string,
-    filters: {
-      search?: string;
-      lenderType?: string;
-      productType?: string;
-      minLoanAmount?: number;
-      maxLoanAmount?: number;
-      sector?: string;
-      region?: string;
-      panelStatus?: string;
-    }
-  ): Promise<Lender[]>;
-
-  // Lender Products (user-scoped via lender ownership)
-  listLenderProducts(lenderId: number, userId: string): Promise<LenderProduct[]>;
-  getLenderProduct(id: number, userId: string): Promise<LenderProduct | undefined>;
-  createLenderProduct(
-    product: InsertLenderProduct,
-    userId: string
-  ): Promise<LenderProduct | undefined>;
-  updateLenderProduct(
-    id: number,
-    userId: string,
-    updates: Partial<InsertLenderProduct>
-  ): Promise<LenderProduct | undefined>;
-  deleteLenderProduct(id: number, userId: string): Promise<boolean>;
-
-  // Lender Interactions (user-scoped)
-  listLenderInteractions(lenderId: number, userId: string): Promise<LenderInteraction[]>;
-  listUserLenderInteractions(userId: string): Promise<LenderInteraction[]>;
-  getLenderInteraction(id: number, userId: string): Promise<LenderInteraction | undefined>;
-  createLenderInteraction(
-    interaction: InsertLenderInteraction,
-    userId: string
-  ): Promise<LenderInteraction | undefined>;
-  updateLenderInteraction(
-    id: number,
-    userId: string,
-    updates: Partial<InsertLenderInteraction>
-  ): Promise<LenderInteraction | undefined>;
-  deleteLenderInteraction(id: number, userId: string): Promise<boolean>;
-
-  // Application Submissions
-  listApplicationSubmissions(userId: string): Promise<ApplicationSubmission[]>;
-  getApplicationSubmission(id: number, userId: string): Promise<ApplicationSubmission | undefined>;
-  createApplicationSubmission(
-    submission: InsertApplicationSubmission,
-    userId: string
-  ): Promise<ApplicationSubmission>;
-  updateApplicationSubmission(
-    id: number,
-    userId: string,
-    updates: Partial<InsertApplicationSubmission>
-  ): Promise<ApplicationSubmission | undefined>;
-  deleteApplicationSubmission(id: number, userId: string): Promise<void>;
-
-  // Email Inboxes
-  getEmailInbox(userId: string): Promise<EmailInbox | undefined>;
-  createEmailInbox(inbox: InsertEmailInbox): Promise<EmailInbox>;
-
-  // Email Messages
-  listEmailMessages(inboxId: number): Promise<EmailMessage[]>;
-  getEmailMessagesByInbox(inboxId: number): Promise<EmailMessage[]>;
-  getEmailMessage(id: number): Promise<EmailMessage | undefined>;
-  getEmailMessageByMessageId(messageId: string): Promise<EmailMessage | undefined>;
-  createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage>;
-  markEmailAsRead(id: number): Promise<void>;
-  updateEmailMessageLink(
-    id: number,
-    updates: { contactId?: number | null; prospectId?: number | null }
-  ): Promise<EmailMessage | undefined>;
-  getEmailMessagesForContact(inboxId: number, contactId: number): Promise<EmailMessage[]>;
-  getEmailMessagesForProspect(inboxId: number, prospectId: number): Promise<EmailMessage[]>;
-
-  // Companies
-  getCompany(id: number): Promise<Company | undefined>;
-
-  // Lead Uploads
-  listLeadUploads(userId: string): Promise<LeadUpload[]>;
-  getLeadUpload(id: number, userId: string): Promise<LeadUpload | undefined>;
-  createLeadUpload(upload: InsertLeadUpload): Promise<LeadUpload>;
-  updateLeadUpload(
-    id: number,
-    userId: string,
-    updates: Partial<InsertLeadUpload>
-  ): Promise<LeadUpload | undefined>;
-
-  // Leads
-  listLeads(
-    userId: string,
-    filters?: { uploadId?: number; matchStatus?: string; search?: string }
-  ): Promise<Lead[]>;
-  getLead(id: number, userId: string): Promise<Lead | undefined>;
-  createLead(lead: InsertLead, userId: string): Promise<Lead>;
-  createLeadsBulk(leads: InsertLead[], userId: string): Promise<Lead[]>;
-  updateLead(id: number, userId: string, updates: UpdateLead): Promise<Lead | undefined>;
-  deleteLead(id: number, userId: string): Promise<void>;
-  deleteLeadsByUpload(uploadId: number, userId: string): Promise<void>;
-
-  // Underwriting Submissions
-  listUnderwritingSubmissions(filters?: {
-    status?: string;
-    assignedUnderwriterId?: string;
-  }): Promise<UnderwritingSubmission[]>;
-  listUnderwriterScopedSubmissions(underwriterId: string): Promise<UnderwritingSubmission[]>;
-  listBrokerUnderwritingSubmissions(brokerId: string): Promise<UnderwritingSubmission[]>;
-  getUnderwritingSubmission(id: number): Promise<UnderwritingSubmission | undefined>;
-  createUnderwritingSubmission(
-    submission: InsertUnderwritingSubmission,
-    brokerId: string
-  ): Promise<UnderwritingSubmission>;
-  updateUnderwritingSubmission(
-    id: number,
-    updates: UpdateUnderwritingSubmission
-  ): Promise<UnderwritingSubmission | undefined>;
-  claimUnderwritingSubmission(
-    id: number,
-    underwriterId: string
-  ): Promise<UnderwritingSubmission | undefined>;
-  getUnderwritingSubmissionByProspect(
-    prospectId: number
-  ): Promise<UnderwritingSubmission | undefined>;
-
-  // Underwriting Activity
-  listUnderwritingActivities(submissionId: number): Promise<UnderwritingActivity[]>;
-  createUnderwritingActivity(
-    activity: InsertUnderwritingActivity,
-    userId: string
-  ): Promise<UnderwritingActivity>;
-
-  // Prospect Documents
-  listProspectDocuments(prospectId: number): Promise<ProspectDocument[]>;
-  getProspectDocument(id: number): Promise<ProspectDocument | undefined>;
-  createProspectDocument(document: InsertProspectDocument): Promise<ProspectDocument>;
-  deleteProspectDocument(id: number): Promise<void>;
-
-  // Teams
-  getTeams(adminUserId?: string): Promise<Team[]>;
-  getTeamWithMembers(
-    teamId: number
-  ): Promise<(Team & { members: (TeamMember & { user: User })[] }) | undefined>;
-  createTeam(team: InsertTeam, createdBy: string): Promise<Team>;
-  updateTeam(id: number, updates: Partial<InsertTeam>): Promise<Team | undefined>;
-  deleteTeam(id: number): Promise<void>;
-
-  // Team Members
-  addTeamMember(member: InsertTeamMember): Promise<TeamMember>;
-  removeTeamMember(teamId: number, userId: string): Promise<void>;
-  getUserTeams(userId: string): Promise<Team[]>;
-  getTeamMembers(teamId: number): Promise<(TeamMember & { user: User })[]>;
-
-  // Time Entries
-  listTimeEntries(prospectId: number, userId: string): Promise<TimeEntry[]>;
-  createTimeEntry(entry: InsertTimeEntry, userId: string): Promise<TimeEntry>;
-  updateTimeEntry(id: number, userId: string, updates: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined>;
-  deleteTimeEntry(id: number, userId: string): Promise<void>;
-  getProspectTotalTime(prospectId: number, userId: string): Promise<number>;
-
-  // Add-On Products
-  listAddOnProducts(activeOnly?: boolean): Promise<AddOnProduct[]>;
-  getAddOnProduct(id: number): Promise<AddOnProduct | undefined>;
-  createAddOnProduct(product: InsertAddOnProduct): Promise<AddOnProduct>;
-  updateAddOnProduct(id: number, updates: UpdateAddOnProduct): Promise<AddOnProduct | undefined>;
-
-  // Add-On Purchases
-  listUserAddOnPurchases(userId: string): Promise<(AddOnPurchase & { product: AddOnProduct })[]>;
-  getAddOnPurchase(id: number): Promise<AddOnPurchase | undefined>;
-  getAddOnPurchaseByIdempotencyKey(key: string): Promise<AddOnPurchase | undefined>;
-  createAddOnPurchase(purchase: InsertAddOnPurchase): Promise<AddOnPurchase>;
-  updateAddOnPurchase(
-    id: number,
-    updates: Partial<AddOnPurchase>
-  ): Promise<AddOnPurchase | undefined>;
-  getUserProspectCredits(userId: string): Promise<number>;
-
-  // Webhook API
-  getUserByWebhookApiKey(apiKey: string): Promise<User | undefined>;
-  generateWebhookApiKey(userId: string): Promise<string>;
-  updateWebhookApiKeyLastUsed(userId: string): Promise<void>;
-
-  // Underwriting Access
-  hasUnderwritingAccess(userId: string): Promise<boolean>;
-  grantUnderwritingAccess(userId: string, expiresAt?: Date): Promise<User | undefined>;
-  revokeUnderwritingAccess(userId: string): Promise<User | undefined>;
+  // System Settings (SLA, etc)
+  getSystemSetting(key: string): Promise<any>;
+  updateSystemSetting(key: string, value: any, userId?: string): Promise<any>;
 }
+
+
 
 export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
     this.sessionStore = new PostgresStore({
-      pool,
+      pool: pool as any,
       createTableIfMissing: false,
       tableName: 'sessions',
     });
@@ -438,6 +179,38 @@ export class DatabaseStorage implements IStorage {
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
   }
+
+  // System Settings
+  async getSystemSetting(key: string): Promise<any> {
+    const [setting] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key));
+    return setting?.value;
+  }
+
+  async updateSystemSetting(key: string, value: any, userId?: string): Promise<any> {
+    const [existing] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key));
+
+    if (existing) {
+      const [updated] = await db
+        .update(systemSettings)
+        .set({ value, updatedBy: userId, updatedAt: new Date() })
+        .where(eq(systemSettings.key, key))
+        .returning();
+      return updated.value;
+    } else {
+      const [created] = await db
+        .insert(systemSettings)
+        .values({ key, value, updatedBy: userId })
+        .returning();
+      return created.value;
+    }
+  }
+
 
   // User Sessions - for concurrent login limiting
   async createUserSession(session: InsertUserSession): Promise<UserSession> {
@@ -609,13 +382,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProspect(insertProspect: InsertProspect, userId: string): Promise<Prospect> {
-    const [prospect] = await db
-      .insert(prospects)
-      .values({
-        ...insertProspect,
-        userId,
-      } as any)
-      .returning();
+    const [prospect] = await db.transaction(async (tx) => {
+      const [newProspect] = await tx
+        .insert(prospects)
+        .values({
+          ...insertProspect,
+          userId,
+        } as any)
+        .returning();
+
+      await tx
+        .update(users)
+        .set({
+          prospectsCreatedCount: sql`${users.prospectsCreatedCount} + 1`,
+        })
+        .where(eq(users.id, userId));
+
+      return [newProspect];
+    });
+
     return prospect;
   }
 

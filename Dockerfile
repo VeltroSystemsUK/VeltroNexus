@@ -7,7 +7,7 @@ WORKDIR /app
 ENV NODE_ENV=development
 
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY . .
 RUN npm run build
@@ -22,7 +22,7 @@ ENV PORT=5000
 
 COPY package*.json ./
 # Install only production dependencies for the final image
-RUN npm ci --only=production
+RUN npm install --only=production
 
 # Copy built artifacts from builder
 COPY --from=builder /app/dist ./dist

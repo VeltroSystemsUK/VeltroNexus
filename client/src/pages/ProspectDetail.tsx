@@ -108,6 +108,7 @@ import type {
 } from "@shared/schema";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnderwritingAccess } from "@/hooks/useUnderwritingAccess";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
 import LoanRequirementCard from "@/components/LoanRequirementCard";
 import ResearchTab from "@/components/ResearchTab";
@@ -443,7 +444,44 @@ export default function ProspectDetail() {
   const [, navigate] = useLocation();
   const prospectId = params.id ? parseInt(params.id) : 0;
   const { user } = useAuth();
+  const { toast } = useToast();
   const [showLimitModal, setShowLimitModal] = useState(false);
+
+  const { hasAccess: hasUnderwritingAccess } = useUnderwritingAccess();
+
+  const { data: dueDiligenceData, refetch: refetchDueDiligence } = useQuery<DueDiligenceData>({
+    queryKey: [`/api/prospects/${prospectId}/due-diligence`],
+    enabled: prospectId > 0 && hasUnderwritingAccess,
+  });
+
+  const saveDueDiligenceMutation = useMutation({
+    mutationFn: async (data: Partial<DueDiligenceData>) => {
+      const res = await apiRequest(
+        `/api/prospects/${prospectId}/due-diligence`,
+        "POST",
+        data
+      );
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Changes saved",
+      });
+      refetchDueDiligence();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to save: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveDueDiligence = (data: Partial<DueDiligenceData>) => {
+    saveDueDiligenceMutation.mutate(data);
+  };
 
   const { data: prospect, isLoading } = useQuery<ProspectWithCompany>({
     queryKey: [`/api/prospects/${prospectId}`],
@@ -547,18 +585,28 @@ export default function ProspectDetail() {
   const deleteProspectMutation = useMutation({
     mutationFn: () => apiRequest(`/api/prospects/${prospectId}`, "DELETE"),
     onSuccess: () => {
-      toast.success("Prospect deleted successfully");
+      toast({
+        title: "Success",
+        description: "Prospect deleted successfully",
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       navigate("/");
     },
     onError: (error: Error) => {
-      toast.error(`Failed to delete prospect: ${error.message}`);
+      toast({
+        title: "Error",
+        description: `Failed to delete prospect: ${error.message}`,
+        variant: "destructive",
+      });
     },
   });
 
   const handleDownloadReport = () => {
     window.open(`/api/prospects/${prospectId}/report`, "_blank");
-    toast.success("Generating report...");
+    toast({
+      title: "Generating report...",
+      description: "Your report download will start shortly.",
+    });
   };
 
   const [showUnderwritingDialog, setShowUnderwritingDialog] = useState(false);
@@ -755,6 +803,11 @@ export default function ProspectDetail() {
                 Credit
               </TabsTrigger>
             )}
+            {hasUnderwritingAccess && (
+              <TabsTrigger value="underwriting" data-testid="tab-underwriting">
+                Underwriting
+              </TabsTrigger>
+            )}
             {user?.subscriptionTier === "premium" && (
               <TabsTrigger value="associations" data-testid="tab-associations">
                 Associations
@@ -813,6 +866,62 @@ export default function ProspectDetail() {
             </TabsContent>
           )}
 
+          {hasUnderwritingAccess && (
+            <TabsContent value="underwriting">
+              <div className="space-y-6">
+                <CreditUnderwritingTool
+                  prospect={prospect}
+                  data={(dueDiligenceData || {}) as DueDiligenceData}
+                  onSave={handleSaveDueDiligence}
+                  isSaving={saveDueDiligenceMutation.isPending}
+                />
+
+                <AutomaticCreditAnalysis data={(dueDiligenceData || {}) as DueDiligenceData} />
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <LenderRecommendations
+                    prospectId={prospectId}
+                    onSelectLender={(id) => navigate(`/lenders/${id}`)}
+                  />
+
+                  <DueDiligenceChecklist
+                    data={(dueDiligenceData || {}) as DueDiligenceData}
+                    onSave={handleSaveDueDiligence}
+                    isSaving={saveDueDiligenceMutation.isPending}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <LoanCalculatorTool
+                    data={(dueDiligenceData || {}) as DueDiligenceData}
+                    onSave={handleSaveDueDiligence}
+                    isSaving={saveDueDiligenceMutation.isPending}
+                  />
+                  <DSCRCalculatorTool
+                    data={(dueDiligenceData || {}) as DueDiligenceData}
+                    onSave={handleSaveDueDiligence}
+                    isSaving={saveDueDiligenceMutation.isPending}
+                  />
+                  <AffordabilityEstimatorTool
+                    data={(dueDiligenceData || {}) as DueDiligenceData}
+                    onSave={handleSaveDueDiligence}
+                    isSaving={saveDueDiligenceMutation.isPending}
+                  />
+                  <FinancialRatiosCalculatorTool
+                    data={(dueDiligenceData || {}) as DueDiligenceData}
+                    onSave={handleSaveDueDiligence}
+                    isSaving={saveDueDiligenceMutation.isPending}
+                  />
+                  <CharacterAssessmentTool
+                    data={(dueDiligenceData || {}) as DueDiligenceData}
+                    onSave={handleSaveDueDiligence}
+                    isSaving={saveDueDiligenceMutation.isPending}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+          )}
+
           {user?.subscriptionTier === "premium" && (
             <TabsContent value="associations">
               <AssociationsMediaTab prospect={prospect} />
@@ -832,7 +941,7 @@ export default function ProspectDetail() {
             />
           </TabsContent>
         </Tabs>
-      </main>
+      </main >
 
       <SubmitToUnderwritingDialog
         open={showUnderwritingDialog}
@@ -841,15 +950,44 @@ export default function ProspectDetail() {
         companyName={prospect.company.companyName}
       />
 
-      {underwritingSubmission && (
-        <ReplyToQueryDialog
-          open={showReplyDialog}
-          onOpenChange={setShowReplyDialog}
-          submissionId={underwritingSubmission.id}
-          prospectId={prospectId}
-          queryMessage={underwritingSubmission.decisionReason || undefined}
-        />
-      )}
+      {
+        underwritingSubmission && (
+          <ReplyToQueryDialog
+            open={showReplyDialog}
+            onOpenChange={setShowReplyDialog}
+            submissionId={underwritingSubmission.id}
+            prospectId={prospectId}
+          />
+        )
+      }
+
+      <ProspectLimitModal
+        open={showLimitModal}
+        onOpenChange={setShowLimitModal}
+        currentCount={0}
+        limit={user?.prospectLimit || 0}
+        subscriptionTier={user?.subscriptionTier || "free"}
+      />
+
+
+      <SubmitToUnderwritingDialog
+        open={showUnderwritingDialog}
+        onOpenChange={setShowUnderwritingDialog}
+        prospectId={prospectId}
+        companyName={prospect.company.companyName}
+      />
+
+      {
+        underwritingSubmission && (
+          <ReplyToQueryDialog
+            open={showReplyDialog}
+            onOpenChange={setShowReplyDialog}
+            submissionId={underwritingSubmission.id}
+            prospectId={prospectId}
+            queryMessage={underwritingSubmission.decisionReason || undefined}
+          />
+        )
+      }
 
       <ProspectLimitModal
         open={showLimitModal}
@@ -863,7 +1001,7 @@ export default function ProspectDetail() {
         limit={prospectLimit}
         subscriptionTier={subscriptionTier}
       />
-    </div>
+    </div >
   );
 }
 
@@ -4612,23 +4750,7 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
           </div>
         )}
       </CardContent>
-    </main>
-
-      {/* Dialogs */ }
-      <SubmitToUnderwritingDialog
-        open={showUnderwritingDialog}
-        onOpenChange={setShowUnderwritingDialog}
-        prospectId={prospectId}
-        companyName={prospect.company.companyName}
-      />
-      <ReplyToQueryDialog
-        open={showReplyDialog}
-        onOpenChange={setShowReplyDialog}
-        submissionId={underwritingSubmission?.id || 0}
-      />
-      <ProspectLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
-      <ContactEnrichmentDialog />
-      <EmailComposeDialog />
-    </div >
+    </Card>
   );
 }
+

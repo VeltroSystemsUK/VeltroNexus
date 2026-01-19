@@ -13,6 +13,7 @@ import {
   Users,
   Shield,
   Lock,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ const brokerNavItems: NavItem[] = [
   { path: "/search", label: "Search", icon: Search },
   { path: "/leads", label: "Leads", icon: FileSpreadsheet },
   { path: "/underwriting", label: "Underwriting", icon: Send },
+  { path: "/compliance", label: "Compliance", icon: Shield },
   { path: "/profile", label: "Profile", icon: User },
 ];
 
@@ -49,6 +51,7 @@ const superAdminNavItems: NavItem[] = [
   { path: "/", label: "Pipeline", icon: Home },
   { path: "/admin", label: "Admin", icon: Shield },
   { path: "/teams", label: "Teams", icon: Users },
+  { path: "/admin/settings/sla", label: "SLA Settings", icon: Clock },
   { path: "/settings", label: "Settings", icon: Settings },
   { path: "/profile", label: "Profile", icon: User },
 ];

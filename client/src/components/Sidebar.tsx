@@ -45,6 +45,7 @@ const brokerNavItems: NavItem[] = [
     { path: "/leads", label: "Leads Database", icon: FileSpreadsheet },
     { path: "/submissions", label: "Submissions", icon: Send },
     { path: "/lenders", label: "Lender Database", icon: Building2 },
+    { path: "/compliance", label: "Compliance", icon: Shield },
     { path: "/inbox", label: "Inbox", icon: Inbox },
 ];
 
@@ -52,6 +53,7 @@ const underwriterNavItems: NavItem[] = [
     { path: "/underwriting", label: "Inbox", icon: Inbox },
     { path: "/pipeline", label: "Pipeline", icon: Home },
     { path: "/search", label: "Search", icon: Search },
+    { path: "/compliance", label: "Compliance", icon: Shield },
 ];
 
 const salesAdminNavItems: NavItem[] = [
@@ -59,12 +61,15 @@ const salesAdminNavItems: NavItem[] = [
     { path: "/search", label: "Search", icon: Search },
     { path: "/teams", label: "Teams", icon: Users },
     { path: "/leads", label: "Leads", icon: FileSpreadsheet },
+    { path: "/compliance", label: "Compliance", icon: Shield },
 ];
 
 const superAdminNavItems: NavItem[] = [
     { path: "/", label: "Pipeline", icon: Home },
     { path: "/admin", label: "Admin", icon: Shield },
     { path: "/teams", label: "Teams", icon: Users },
+
+    { path: "/compliance", label: "Compliance", icon: Shield },
     { path: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -126,9 +131,10 @@ export default function Sidebar() {
     return (
         <div
             className={cn(
-                "flex flex-col h-screen border-r bg-[#0f172a] text-white transition-all duration-300 relative",
+                "flex flex-col h-screen border-r text-white transition-all duration-300 relative",
                 isCollapsed ? "w-16" : "w-64"
             )}
+            style={{ backgroundColor: "var(--sidebar-bg, #0f172a)" }}
         >
             {/* Toggle Button */}
             <Button
@@ -166,7 +172,7 @@ export default function Sidebar() {
                             <Link href="/search">
                                 <Button
                                     className={cn(
-                                        "w-full bg-[#D97706] hover:bg-[#B45309] text-white transition-all",
+                                        "w-full bg-primary hover:bg-primary/90 text-primary-foreground transition-all",
                                         isCollapsed ? "px-0 justify-center h-10 w-10" : "justify-start gap-2"
                                     )}
                                 >
@@ -215,7 +221,7 @@ export default function Sidebar() {
                                                 isCollapsed ? "px-0 justify-center h-10 w-10" : "px-3"
                                             )}
                                         >
-                                            <Icon className={cn("h-5 w-5", active && "text-[#D97706]")} />
+                                            <Icon className={cn("h-5 w-5", active && "text-primary")} />
                                             {!isCollapsed && <span className="ml-3">{item.label}</span>}
                                         </Button>
                                     </Link>
@@ -266,7 +272,7 @@ export default function Sidebar() {
                                                 isCollapsed ? "px-0 justify-center h-10 w-10" : "px-3"
                                             )}
                                         >
-                                            <Icon className={cn("h-5 w-5", active && "text-[#D97706]")} />
+                                            <Icon className={cn("h-5 w-5", active && "text-primary")} />
                                             {!isCollapsed && (
                                                 <span className="ml-3 flex items-center gap-2">
                                                     {item.label}
@@ -320,7 +326,7 @@ export default function Sidebar() {
                             {trialDaysRemaining} days remaining
                         </p>
                         <Link href="/pricing">
-                            <Button size="sm" className="w-full mt-2 bg-[#D97706] hover:bg-[#B45309] text-white text-xs h-7">
+                            <Button size="sm" className="w-full mt-2 bg-primary hover:bg-primary/90 text-white text-xs h-7">
                                 Upgrade Now
                             </Button>
                         </Link>
@@ -340,7 +346,7 @@ export default function Sidebar() {
                 >
                     <Avatar className="h-8 w-8 border border-white/10">
                         <AvatarImage src={user?.profileImageUrl || undefined} />
-                        <AvatarFallback className="bg-[#D97706] text-white text-xs">
+                        <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                             {user?.firstName?.[0] || "U"}
                         </AvatarFallback>
                     </Avatar>

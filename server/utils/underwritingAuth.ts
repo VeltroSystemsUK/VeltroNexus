@@ -2,9 +2,13 @@ import type { Request, Response, NextFunction } from "express";
 
 type Role = "broker" | "underwriter" | "sales_admin" | "super_admin" | string;
 
+
+
 export type AuthUser = {
   id: string;
   role?: Role;
+  hasUnderwritingAccess?: number; // 0 or 1
+  underwritingAccessExpiresAt?: Date | string | null;
 };
 
 export type UnderwritingSubmission = {
@@ -38,8 +42,20 @@ function isAdmin(role?: Role) {
   return isSuperAdmin(role) || isSalesAdmin(role);
 }
 
-function isUnderwriter(role?: Role) {
-  return role === "underwriter";
+function isUnderwriter(user: AuthUser) {
+  // Check explicit role
+  if (user.role === "underwriter") return true;
+
+  // Check specific access permission (e.g. from add-on)
+  // Ensure access hasn't expired if an expiry date is set
+  if (user.hasUnderwritingAccess) {
+    if (user.underwritingAccessExpiresAt) {
+      return new Date(user.underwritingAccessExpiresAt) > new Date();
+    }
+    return true;
+  }
+
+  return false;
 }
 
 function canReadSubmission(
@@ -56,7 +72,7 @@ function canReadSubmission(
 
   const triageAllowed =
     !!opts.allowTriage &&
-    isUnderwriter(user.role) &&
+    isUnderwriter(user) &&
     submission.status === "submitted" &&
     submission.assignedUnderwriterId == null;
 
@@ -71,7 +87,7 @@ function canWriteSubmission(submission: UnderwritingSubmission, user: AuthUser) 
   if (submission.brokerId === user.id) return false;
 
   // Underwriters can only write to submissions assigned to them
-  return isUnderwriter(user.role) && submission.assignedUnderwriterId === user.id;
+  return isUnderwriter(user) && submission.assignedUnderwriterId === user.id;
 }
 
 export function requireSubmissionReadAccess(params: { storage: any; allowTriage?: boolean }) {
@@ -79,7 +95,7 @@ export function requireSubmissionReadAccess(params: { storage: any; allowTriage?
 
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user?.claims?.sub;
+      const userId = (req as any).user?.claims?.sub || (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthenticated" });
 
       const submissionId = Number(req.params.id);
@@ -94,7 +110,14 @@ export function requireSubmissionReadAccess(params: { storage: any; allowTriage?
 
       if (!submission) return res.status(404).json({ error: "Not found" });
 
-      const authUser: AuthUser = { id: userId, role: user?.role };
+      // Pass full user object including underwriting access flags
+      const authUser: AuthUser = {
+        id: userId,
+        role: user?.role,
+        hasUnderwritingAccess: user?.hasUnderwritingAccess,
+        underwritingAccessExpiresAt: user?.underwritingAccessExpiresAt
+      };
+
       if (!canReadSubmission(submission, authUser, { allowTriage })) {
         return res.status(403).json({ error: "Access denied" });
       }
@@ -112,7 +135,7 @@ export function requireSubmissionWriteAccess(params: { storage: any }) {
 
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user?.claims?.sub;
+      const userId = (req as any).user?.claims?.sub || (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthenticated" });
 
       const submissionId = Number(req.params.id);
@@ -127,7 +150,14 @@ export function requireSubmissionWriteAccess(params: { storage: any }) {
 
       if (!submission) return res.status(404).json({ error: "Not found" });
 
-      const authUser: AuthUser = { id: userId, role: user?.role };
+      // Pass full user object including underwriting access flags
+      const authUser: AuthUser = {
+        id: userId,
+        role: user?.role,
+        hasUnderwritingAccess: user?.hasUnderwritingAccess,
+        underwritingAccessExpiresAt: user?.underwritingAccessExpiresAt
+      };
+
       if (!canWriteSubmission(submission, authUser)) {
         return res.status(403).json({ error: "Only the assigned underwriter can do that" });
       }
@@ -138,4 +168,39 @@ export function requireSubmissionWriteAccess(params: { storage: any }) {
       next(err);
     }
   };
+}
+
+
+export function requireUnderwritingAccess(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user;
+
+  if (!user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  // Lenders and Underwriters always have access
+  if (user.role === "lender" || user.role === "underwriter") {
+    return next();
+  }
+
+  // Check generic access flag
+  if (!user.hasUnderwritingAccess) {
+    return res.status(403).json({
+      error: "This feature requires the AI Underwriting add-on",
+      code: "UNDERWRITING_ACCESS_REQUIRED"
+    });
+  }
+
+  // Check expiration if set
+  if (user.underwritingAccessExpiresAt) {
+    const expiresAt = new Date(user.underwritingAccessExpiresAt);
+    if (expiresAt < new Date()) {
+      return res.status(403).json({
+        error: "Your AI Underwriting access has expired",
+        code: "UNDERWRITING_ACCESS_EXPIRED"
+      });
+    }
+  }
+
+  next();
 }

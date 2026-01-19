@@ -243,7 +243,7 @@ export default function Pipeline() {
           <div className="flex items-center gap-2 md:gap-3">
             <Button
               size="icon"
-              className="md:hidden h-9 w-9 bg-[#D97706] hover:bg-[#B45309] text-white"
+              className="md:hidden h-9 w-9 bg-primary hover:bg-primary/90 text-primary-foreground"
               onClick={() => navigate("/search")}
               data-testid="button-add-prospect-mobile"
             >
@@ -251,7 +251,7 @@ export default function Pipeline() {
             </Button>
             <Button
               size="lg"
-              className="hidden md:flex bg-[#D97706] hover:bg-[#B45309] text-white"
+              className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
               onClick={() => navigate("/search")}
               data-testid="button-add-prospect"
             >

@@ -50,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function Profile() {
   const [, navigate] = useLocation();
@@ -258,514 +259,438 @@ export default function Profile() {
   };
 
   return (
-    <div className="container max-w-6xl mx-auto p-6 space-y-6 pb-24">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")} data-testid="button-back">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-3xl font-bold" data-testid="heading-profile">
-          Profile & Subscription
-        </h1>
-      </div>
+    <div className="min-h-screen bg-background pb-24">
+      <PageHeader
+        title="Profile & Subscription"
+        showBackButton={true}
+      />
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card data-testid="card-account-info">
-          <CardHeader>
-            <CardTitle>Account Information</CardTitle>
-            <CardDescription>Your profile details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16" data-testid="avatar-user">
-                <AvatarImage src={user?.profileImageUrl} />
-                <AvatarFallback>{getInitials()}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-semibold text-lg" data-testid="text-user-name">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  <span data-testid="text-user-email">{user?.email}</span>
+      <div className="container max-w-6xl mx-auto p-6 space-y-6">
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card data-testid="card-account-info">
+            <CardHeader>
+              <CardTitle>Account Information</CardTitle>
+              <CardDescription>Your profile details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16" data-testid="avatar-user">
+                  <AvatarImage src={user?.profileImageUrl} />
+                  <AvatarFallback>{getInitials()}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold text-lg" data-testid="text-user-name">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Mail className="h-4 w-4" />
+                    <span data-testid="text-user-email">{user?.email}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <Separator />
-            <div className="space-y-2">
+              <Separator />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Member since</span>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm" data-testid="text-member-since">
+                      {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-GB") : "N/A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-subscription">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Crown className="h-5 w-5" />
+                Current Subscription
+              </CardTitle>
+              <CardDescription>Manage your subscription plan</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Member since</span>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm" data-testid="text-member-since">
-                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-GB") : "N/A"}
-                  </span>
+                <span className="text-sm text-muted-foreground">Plan</span>
+                <Badge className={currentTierInfo.color} data-testid="badge-current-tier">
+                  {currentTierInfo.name}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Price</span>
+                <span className="font-semibold" data-testid="text-current-price">
+                  {currentTierInfo.price}
+                </span>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Prospects Used</span>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold" data-testid="text-prospect-usage">
+                      {prospectCount} / {prospectLimit}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all"
+                    style={{ width: `${Math.min((prospectCount / prospectLimit) * 100, 100)}%` }}
+                  />
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              {currentTier !== "free" && user?.gocardlessSubscriptionId && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setCancellationDialogOpen(true)}
+                  data-testid="button-cancel-subscription"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Cancel Subscription
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card data-testid="card-subscription">
+        <Card data-testid="card-role-switcher">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Crown className="h-5 w-5" />
-              Current Subscription
+              <Users className="h-5 w-5" />
+              Role Switcher
             </CardTitle>
-            <CardDescription>Manage your subscription plan</CardDescription>
+            <CardDescription>
+              Switch between roles for testing (in production, only admins can change roles)
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Plan</span>
-              <Badge className={currentTierInfo.color} data-testid="badge-current-tier">
-                {currentTierInfo.name}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Price</span>
-              <span className="font-semibold" data-testid="text-current-price">
-                {currentTierInfo.price}
-              </span>
-            </div>
-            <Separator />
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Prospects Used</span>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-semibold" data-testid="text-prospect-usage">
-                    {prospectCount} / {prospectLimit}
-                  </span>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                {roleData?.role === "super_admin" && <Shield className="h-5 w-5 text-red-500" />}
+                {roleData?.role === "sales_admin" && <UserCog className="h-5 w-5 text-orange-500" />}
+                {roleData?.role === "broker" && <Briefcase className="h-5 w-5 text-primary" />}
+                {roleData?.role === "underwriter" && <Users className="h-5 w-5 text-purple-500" />}
+                <div>
+                  <p className="font-medium">
+                    Current Role:{" "}
+                    {roleData?.role?.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {roleData?.role === "super_admin" &&
+                      "Full platform access, manage users and teams"}
+                    {roleData?.role === "sales_admin" &&
+                      "Team-level prospect oversight and management"}
+                    {roleData?.role === "broker" && "Manage prospects and submit for review"}
+                    {roleData?.role === "underwriter" &&
+                      "Review and approve underwriting submissions"}
+                  </p>
                 </div>
               </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div
-                  className="bg-primary h-2 rounded-full transition-all"
-                  style={{ width: `${Math.min((prospectCount / prospectLimit) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-            {currentTier !== "free" && user?.gocardlessSubscriptionId && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setCancellationDialogOpen(true)}
-                data-testid="button-cancel-subscription"
+              <Select
+                value={roleData?.role || "broker"}
+                onValueChange={(value) => switchRoleMutation.mutate(value)}
+                disabled={switchRoleMutation.isPending}
               >
-                <CreditCard className="mr-2 h-4 w-4" />
-                Cancel Subscription
-              </Button>
+                <SelectTrigger className="w-44" data-testid="select-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="super_admin" data-testid="option-super-admin">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-red-500" />
+                      Super Admin
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="sales_admin" data-testid="option-sales-admin">
+                    <div className="flex items-center gap-2">
+                      <UserCog className="h-4 w-4 text-orange-500" />
+                      Sales Admin
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="broker" data-testid="option-broker">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4" />
+                      Broker
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="underwriter" data-testid="option-underwriter">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-purple-500" />
+                      Underwriter
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {switchRoleMutation.isPending && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Switching role...
+              </div>
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <Card data-testid="card-role-switcher">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Role Switcher
-          </CardTitle>
-          <CardDescription>
-            Switch between roles for testing (in production, only admins can change roles)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              {roleData?.role === "super_admin" && <Shield className="h-5 w-5 text-red-500" />}
-              {roleData?.role === "sales_admin" && <UserCog className="h-5 w-5 text-orange-500" />}
-              {roleData?.role === "broker" && <Briefcase className="h-5 w-5 text-primary" />}
-              {roleData?.role === "underwriter" && <Users className="h-5 w-5 text-purple-500" />}
-              <div>
-                <p className="font-medium">
-                  Current Role:{" "}
-                  {roleData?.role?.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {roleData?.role === "super_admin" &&
-                    "Full platform access, manage users and teams"}
-                  {roleData?.role === "sales_admin" &&
-                    "Team-level prospect oversight and management"}
-                  {roleData?.role === "broker" && "Manage prospects and submit for review"}
-                  {roleData?.role === "underwriter" &&
-                    "Review and approve underwriting submissions"}
-                </p>
-              </div>
-            </div>
-            <Select
-              value={roleData?.role || "broker"}
-              onValueChange={(value) => switchRoleMutation.mutate(value)}
-              disabled={switchRoleMutation.isPending}
-            >
-              <SelectTrigger className="w-44" data-testid="select-role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="super_admin" data-testid="option-super-admin">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-red-500" />
-                    Super Admin
-                  </div>
-                </SelectItem>
-                <SelectItem value="sales_admin" data-testid="option-sales-admin">
-                  <div className="flex items-center gap-2">
-                    <UserCog className="h-4 w-4 text-orange-500" />
-                    Sales Admin
-                  </div>
-                </SelectItem>
-                <SelectItem value="broker" data-testid="option-broker">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="h-4 w-4" />
-                    Broker
-                  </div>
-                </SelectItem>
-                <SelectItem value="underwriter" data-testid="option-underwriter">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-purple-500" />
-                    Underwriter
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {switchRoleMutation.isPending && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Switching role...
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {currentTier !== "premium" && (
-        <Card data-testid="card-upgrade">
-          <CardHeader>
-            <CardTitle>Upgrade Your Plan</CardTitle>
-            <CardDescription>Get more prospects and unlock premium features</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              {currentTier !== "standard" && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-xl">Standard</CardTitle>
-                    <div className="text-3xl font-bold">
-                      £29<span className="text-sm font-normal text-muted-foreground">/month</span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {tierInfo.standard.features.map((feature, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-primary" />
-                        <span className="text-sm">{feature}</span>
-                      </div>
-                    ))}
-                  </CardContent>
-                  <CardFooter>
-                    <Button
-                      className="w-full"
-                      onClick={() => handleUpgrade("standard")}
-                      disabled={createBillingRequestMutation.isPending}
-                      data-testid="button-upgrade-standard"
-                    >
-                      {createBillingRequestMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Crown className="mr-2 h-4 w-4" />
-                      )}
-                      Upgrade to Standard
-                    </Button>
-                  </CardFooter>
-                </Card>
-              )}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">Premium</CardTitle>
-                  <div className="text-3xl font-bold">
-                    £49<span className="text-sm font-normal text-muted-foreground">/month</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {tierInfo.premium.features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                      <span className="text-sm">{feature}</span>
-                    </div>
-                  ))}
-                </CardContent>
-                <CardFooter>
-                  <Button
-                    className="w-full"
-                    onClick={() => handleUpgrade("premium")}
-                    disabled={createBillingRequestMutation.isPending}
-                    data-testid="button-upgrade-premium"
-                  >
-                    {createBillingRequestMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Crown className="mr-2 h-4 w-4" />
-                    )}
-                    Upgrade to Premium
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Add-Ons Marketplace */}
-      <Card data-testid="card-add-ons">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5" />
-            Add-Ons Marketplace
-          </CardTitle>
-          <CardDescription>Purchase additional prospect packs and feature add-ons</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Credits Display */}
-          {creditsData?.credits !== undefined && creditsData.credits > 0 && (
-            <div className="bg-muted/50 rounded-lg p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-full">
-                  <Package className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">Available Prospect Credits</p>
-                  <p className="text-sm text-muted-foreground">From purchased add-on packs</p>
-                </div>
-              </div>
-              <Badge className="text-lg px-4 py-1" data-testid="badge-credits">
-                {creditsData.credits}
-              </Badge>
-            </div>
-          )}
-
-          {/* Products Grid */}
-          {addOnsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : addOnProducts && addOnProducts.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {addOnProducts.map((product) => (
-                <Card
-                  key={product.id}
-                  className="relative"
-                  data-testid={`card-product-${product.id}`}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-lg">{product.title}</CardTitle>
-                      <Badge variant={product.category === "prospects" ? "default" : "secondary"}>
-                        {product.category === "prospects" ? "Prospects" : "Feature"}
-                      </Badge>
-                    </div>
-                    {product.description && (
-                      <CardDescription>{product.description}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="pb-2">
-                    <div className="space-y-2">
-                      {product.category === "prospects" && product.quantityIncluded && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Plus className="h-4 w-4 text-primary" />
-                          <span>{product.quantityIncluded} additional prospects</span>
-                        </div>
-                      )}
-                      {product.featureKey && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <CheckCircle className="h-4 w-4 text-primary" />
-                          <span>Unlocks: {product.featureKey.replace(/_/g, " ")}</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                  <CardFooter className="pt-2">
-                    <div className="flex items-center justify-between w-full gap-2">
-                      <span className="text-2xl font-bold">
-                        £{(product.priceInPence / 100).toFixed(2)}
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => handlePurchase(product)}
-                        disabled={purchaseMutation.isPending || !user?.gocardlessMandateId}
-                        data-testid={`button-purchase-${product.id}`}
-                      >
-                        {purchaseMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ShoppingBag className="h-4 w-4 mr-1" />
-                        )}
-                        Buy Now
-                      </Button>
-                    </div>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No add-ons available at the moment</p>
-              <p className="text-sm">Check back later for prospect packs and feature add-ons</p>
-            </div>
-          )}
-
-          {!user?.gocardlessMandateId && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                <strong>Payment method required:</strong> Set up a subscription first to enable
-                one-click purchases.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Purchase History */}
-      {purchases && purchases.length > 0 && (
-        <Card data-testid="card-purchase-history">
+        {/* Add-Ons Marketplace */}
+        <Card data-testid="card-add-ons">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Purchase History
+              <ShoppingBag className="h-5 w-5" />
+              Add-Ons Marketplace
             </CardTitle>
-            <CardDescription>Your add-on purchase history</CardDescription>
+            <CardDescription>Purchase additional prospect packs and feature add-ons</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {purchases.map((purchase) => (
-                <div
-                  key={purchase.id}
-                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-                  data-testid={`row-purchase-${purchase.id}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary/10 p-2 rounded-full">
-                      <Package className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{purchase.product?.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(purchase.createdAt).toLocaleDateString("en-GB", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
+          <CardContent className="space-y-6">
+            {/* Credits Display */}
+            {creditsData?.credits !== undefined && creditsData.credits > 0 && (
+              <div className="bg-muted/50 rounded-lg p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-full">
+                    <Package className="h-5 w-5 text-primary" />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium">
-                      £{(purchase.totalPaidInPence / 100).toFixed(2)}
-                    </span>
-                    <Badge
-                      variant={purchase.status === "completed" ? "default" : "secondary"}
-                      className={purchase.status === "completed" ? "bg-green-600" : ""}
-                    >
-                      {purchase.status}
-                    </Badge>
+                  <div>
+                    <p className="font-medium">Available Prospect Credits</p>
+                    <p className="text-sm text-muted-foreground">From purchased add-on packs</p>
                   </div>
                 </div>
-              ))}
-            </div>
+                <Badge className="text-lg px-4 py-1" data-testid="badge-credits">
+                  {creditsData.credits}
+                </Badge>
+              </div>
+            )}
+
+            {/* Products Grid */}
+            {addOnsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : addOnProducts && addOnProducts.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {addOnProducts.map((product) => (
+                  <Card
+                    key={product.id}
+                    className="relative"
+                    data-testid={`card-product-${product.id}`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-lg">{product.title}</CardTitle>
+                        <Badge variant={product.category === "prospects" ? "default" : "secondary"}>
+                          {product.category === "prospects" ? "Prospects" : "Feature"}
+                        </Badge>
+                      </div>
+                      {product.description && (
+                        <CardDescription>{product.description}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <div className="space-y-2">
+                        {product.category === "prospects" && product.quantityIncluded && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Plus className="h-4 w-4 text-primary" />
+                            <span>{product.quantityIncluded} additional prospects</span>
+                          </div>
+                        )}
+                        {product.featureKey && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <CheckCircle className="h-4 w-4 text-primary" />
+                            <span>Unlocks: {product.featureKey.replace(/_/g, " ")}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                    <CardFooter className="pt-2">
+                      <div className="flex items-center justify-between w-full gap-2">
+                        <span className="text-2xl font-bold">
+                          £{(product.priceInPence / 100).toFixed(2)}
+                        </span>
+                        <Button
+                          size="sm"
+                          onClick={() => handlePurchase(product)}
+                          disabled={purchaseMutation.isPending || !user?.gocardlessMandateId}
+                          data-testid={`button-purchase-${product.id}`}
+                        >
+                          {purchaseMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ShoppingBag className="h-4 w-4 mr-1" />
+                          )}
+                          Buy Now
+                        </Button>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No add-ons available at the moment</p>
+                <p className="text-sm">Check back later for prospect packs and feature add-ons</p>
+              </div>
+            )}
+
+            {!user?.gocardlessMandateId && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <strong>Payment method required:</strong> Set up a subscription first to enable
+                  one-click purchases.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
 
-      <AlertDialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
-        <AlertDialogContent data-testid="dialog-upgrade-confirm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Upgrade</AlertDialogTitle>
-            <AlertDialogDescription>
-              You will be redirected to GoCardless to set up your Direct Debit payment for the{" "}
-              <span className="font-semibold">
-                {selectedTier === "standard" ? "Standard" : "Premium"}
-              </span>{" "}
-              plan. Your subscription will start immediately after authorization.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-upgrade">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmUpgrade} data-testid="button-confirm-upgrade">
-              Continue to Payment
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* Purchase History */}
+        {purchases && purchases.length > 0 && (
+          <Card data-testid="card-purchase-history">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Purchase History
+              </CardTitle>
+              <CardDescription>Your add-on purchase history</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {purchases.map((purchase) => (
+                  <div
+                    key={purchase.id}
+                    className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                    data-testid={`row-purchase-${purchase.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 p-2 rounded-full">
+                        <Package className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{purchase.product?.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(purchase.createdAt).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">
+                        £{(purchase.totalPaidInPence / 100).toFixed(2)}
+                      </span>
+                      <Badge
+                        variant={purchase.status === "completed" ? "default" : "secondary"}
+                        className={purchase.status === "completed" ? "bg-green-600" : ""}
+                      >
+                        {purchase.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      <AlertDialog open={cancellationDialogOpen} onOpenChange={setCancellationDialogOpen}>
-        <AlertDialogContent data-testid="dialog-cancel-confirm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Subscription</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to cancel your subscription? You will be downgraded to the Free
-              tier and your prospect limit will be reduced to 10.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-cancellation">
-              No, Keep Subscription
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmCancellation}
-              data-testid="button-confirm-cancellation"
-              disabled={cancelSubscriptionMutation.isPending}
-            >
-              {cancelSubscriptionMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Yes, Cancel Subscription
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+          <AlertDialogContent data-testid="dialog-upgrade-confirm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Upgrade</AlertDialogTitle>
+              <AlertDialogDescription>
+                You will be redirected to GoCardless to set up your Direct Debit payment for the{" "}
+                <span className="font-semibold">
+                  {selectedTier === "standard" ? "Standard" : "Premium"}
+                </span>{" "}
+                plan. Your subscription will start immediately after authorization.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-upgrade">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmUpgrade} data-testid="button-confirm-upgrade">
+                Continue to Payment
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      <AlertDialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
-        <AlertDialogContent data-testid="dialog-purchase-confirm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to purchase{" "}
-              <span className="font-semibold">{selectedProduct?.title}</span> for{" "}
-              <span className="font-semibold">
-                £{selectedProduct ? (selectedProduct.priceInPence / 100).toFixed(2) : "0.00"}
-              </span>
-              .
-              {selectedProduct?.category === "prospects" && selectedProduct?.quantityIncluded && (
-                <>
-                  {" "}
-                  This will add{" "}
-                  <span className="font-semibold">
-                    {selectedProduct.quantityIncluded} prospect credits
-                  </span>{" "}
-                  to your account.
-                </>
-              )}
-              <br />
-              <br />
-              The payment will be collected via your existing Direct Debit mandate.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-purchase">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmPurchase}
-              disabled={purchaseMutation.isPending}
-              data-testid="button-confirm-purchase"
-            >
-              {purchaseMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <ShoppingBag className="mr-2 h-4 w-4" />
-              )}
-              Confirm Purchase
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={cancellationDialogOpen} onOpenChange={setCancellationDialogOpen}>
+          <AlertDialogContent data-testid="dialog-cancel-confirm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel Subscription</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to cancel your subscription? You will be downgraded to the Free
+                tier and your prospect limit will be reduced to 10.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-cancellation">
+                No, Keep Subscription
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmCancellation}
+                data-testid="button-confirm-cancellation"
+                disabled={cancelSubscriptionMutation.isPending}
+              >
+                {cancelSubscriptionMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Yes, Cancel Subscription
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
+          <AlertDialogContent data-testid="dialog-purchase-confirm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
+              <AlertDialogDescription>
+                You are about to purchase{" "}
+                <span className="font-semibold">{selectedProduct?.title}</span> for{" "}
+                <span className="font-semibold">
+                  £{selectedProduct ? (selectedProduct.priceInPence / 100).toFixed(2) : "0.00"}
+                </span>
+                .
+                {selectedProduct?.category === "prospects" && selectedProduct?.quantityIncluded && (
+                  <>
+                    {" "}
+                    This will add{" "}
+                    <span className="font-semibold">
+                      {selectedProduct.quantityIncluded} prospect credits
+                    </span>{" "}
+                    to your account.
+                  </>
+                )}
+                <br />
+                <br />
+                The payment will be collected via your existing Direct Debit mandate.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-purchase">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmPurchase}
+                disabled={purchaseMutation.isPending}
+                data-testid="button-confirm-purchase"
+              >
+                {purchaseMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ShoppingBag className="mr-2 h-4 w-4" />
+                )}
+                Confirm Purchase
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
+
   );
 }

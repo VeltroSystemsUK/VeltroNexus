@@ -121,10 +121,12 @@ export function setupAuth(app: Express) {
             if (!user) {
                 return res.status(401).json(info);
             }
-            req.logIn(user, (err) => {
+            req.logIn(user, async (err) => {
                 if (err) {
                     return next(err);
                 }
+                // Update last login time
+                await storage.updateUser(user.id, { lastLoginAt: new Date() });
                 res.json(user);
             });
         })(req, res, next);
@@ -136,10 +138,20 @@ export function setupAuth(app: Express) {
 
         console.log("[Logout] Starting logout for user:", req.user?.id);
 
+        const userId = (req.user as any)?.id;
+
         // First, logout from passport
-        req.logout((err) => {
+        req.logout(async (err) => {
             if (err) {
                 console.error("[Logout] Passport logout error:", err);
+            }
+
+            if (userId) {
+                try {
+                    await storage.updateUser(userId, { lastLogoutAt: new Date() });
+                } catch (updateErr) {
+                    console.error("[Logout] Failed to update lastLogoutAt:", updateErr);
+                }
             }
 
             // Clear the session data

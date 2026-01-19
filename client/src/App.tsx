@@ -23,12 +23,16 @@ import Leads from "@/pages/Leads";
 import UnderwriterInbox from "@/pages/UnderwriterInbox";
 import Teams from "@/pages/Teams";
 import Admin from "@/pages/Admin";
+
 import ValuePackages from "@/pages/ValuePackages";
 import AuthPage from "@/pages/Auth";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { CookieConsent } from "@/components/CookieConsent";
+import { ThemeManager } from "@/components/ThemeManager";
 import TrialBanner from "@/components/TrialBanner";
 import LenderEnquiry from "@/pages/LenderEnquiry";
+
+import Compliance from "@/pages/Compliance";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -62,8 +66,10 @@ function Router() {
           <Route path="/submissions" component={Submissions} />
           <Route path="/leads" component={Leads} />
           <Route path="/underwriting" component={UnderwriterInbox} />
+          <Route path="/compliance" component={Compliance} />
           <Route path="/teams" component={Teams} />
           <Route path="/admin" component={Admin} />
+
           <Route path="/profile" component={Profile} />
           <Route path="/settings" component={Settings} />
           <Route path="/pricing" component={Pricing} />
@@ -109,6 +115,7 @@ function App() {
         <Toaster />
         <SonnerToaster position="top-right" />
         <AppContent />
+        <ThemeManager />
         <CookieConsent />
       </TooltipProvider>
     </QueryClientProvider>

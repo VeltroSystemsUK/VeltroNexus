@@ -42,6 +42,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 
 const CURRENCIES = [
   { value: "GBP", label: "£ GBP - British Pound", symbol: "£" },
@@ -120,6 +121,8 @@ export default function Settings() {
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [brandingPrimaryColor, setBrandingPrimaryColor] = useState<string>("");
   const [brandingAccentColor, setBrandingAccentColor] = useState<string>("");
+  const [brandingSidebarColor, setBrandingSidebarColor] = useState<string>("");
+  const [brandingBackgroundColor, setBrandingBackgroundColor] = useState<string>("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
@@ -189,6 +192,8 @@ export default function Settings() {
 
       setBrandingPrimaryColor(user.brandingPrimaryColor || "");
       setBrandingAccentColor(user.brandingAccentColor || "");
+      setBrandingSidebarColor(user.brandingSidebarColor || "");
+      setBrandingBackgroundColor(user.brandingBackgroundColor || "");
       setLogoPreview(user.brandingLogoUrl || null);
       setAiDataConsent(user.aiDataConsent === 1);
     }
@@ -224,6 +229,8 @@ export default function Settings() {
       pdfLayoutPreferences: { sections: pdfSections },
       brandingPrimaryColor: brandingPrimaryColor || null,
       brandingAccentColor: brandingAccentColor || null,
+      brandingSidebarColor: brandingSidebarColor || null,
+      brandingBackgroundColor: brandingBackgroundColor || null,
     });
   };
 
@@ -420,28 +427,17 @@ export default function Settings() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto p-6 space-y-6 pb-24">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/")}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold" data-testid="heading-settings">
-              Settings
-            </h1>
-            <p className="text-muted-foreground">Customise your Veltro experience</p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background pb-24">
+      <PageHeader
+        title="Settings"
+        description="Customise your Veltro experience"
+        showBackButton={true}
+      >
         <Button
           onClick={handleSave}
           disabled={updateSettingsMutation.isPending}
           data-testid="button-save-settings"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
         >
           {updateSettingsMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -450,782 +446,855 @@ export default function Settings() {
           )}
           Save Changes
         </Button>
-      </div>
+      </PageHeader>
 
-      <Card data-testid="card-appearance">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            Appearance
-          </CardTitle>
-          <CardDescription>Customise the look and feel of your workspace</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="theme">Theme</Label>
-            <Select value={theme} onValueChange={setTheme}>
-              <SelectTrigger id="theme" data-testid="select-theme">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {THEMES.map((t) => (
-                  <SelectItem key={t.value} value={t.value} data-testid={`option-theme-${t.value}`}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">
-              Choose how Veltro looks on your device
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="container max-w-4xl mx-auto p-6 space-y-6">
+        <Card data-testid="card-appearance">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              Appearance
+            </CardTitle>
+            <CardDescription>Customise the look and feel of your workspace</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="theme">Theme</Label>
+              <Select value={theme} onValueChange={setTheme}>
+                <SelectTrigger id="theme" data-testid="select-theme">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {THEMES.map((t) => (
+                    <SelectItem key={t.value} value={t.value} data-testid={`option-theme-${t.value}`}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Choose how Veltro looks on your device
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-      <Card data-testid="card-branding">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            White Label Branding
-          </CardTitle>
-          <CardDescription>
-            Add your corporate logo and customise colours for a branded experience
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Logo Upload */}
-          <div className="space-y-4">
-            <Label>Corporate Logo</Label>
-            <div className="flex flex-col md:flex-row items-start gap-6">
-              <div className="flex-shrink-0">
-                {logoPreview ? (
-                  <div className="space-y-2 text-center">
-                    <div className="border rounded-lg p-4 bg-muted/30">
-                      <img
-                        src={logoPreview}
-                        alt="Corporate logo preview"
-                        className="max-h-20 max-w-48 object-contain"
-                        data-testid="img-logo-preview"
-                      />
+        <Card data-testid="card-branding">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              White Label Branding
+            </CardTitle>
+            <CardDescription>
+              Add your corporate logo and customise colours for a branded experience
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Logo Upload */}
+            <div className="space-y-4">
+              <Label>Corporate Logo</Label>
+              <div className="flex flex-col md:flex-row items-start gap-6">
+                <div className="flex-shrink-0">
+                  {logoPreview ? (
+                    <div className="space-y-2 text-center">
+                      <div className="border rounded-lg p-4 bg-muted/30">
+                        <img
+                          src={logoPreview}
+                          alt="Corporate logo preview"
+                          className="max-h-20 max-w-48 object-contain"
+                          data-testid="img-logo-preview"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Powered by Veltro</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">Powered by Veltro</p>
-                  </div>
-                ) : (
-                  <div
-                    className="border-2 border-dashed rounded-lg p-8 text-center bg-muted/20"
-                    data-testid="logo-placeholder"
-                  >
-                    <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">No logo uploaded</p>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoFileChange}
-                    className="max-w-xs"
-                    data-testid="input-logo-file"
-                  />
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {logoFile && (
-                    <Button
-                      size="sm"
-                      onClick={handleLogoUpload}
-                      disabled={uploadLogoMutation.isPending}
-                      data-testid="button-upload-logo"
+                  ) : (
+                    <div
+                      className="border-2 border-dashed rounded-lg p-8 text-center bg-muted/20"
+                      data-testid="logo-placeholder"
                     >
-                      {uploadLogoMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="mr-2 h-4 w-4" />
-                      )}
-                      Upload Logo
-                    </Button>
+                      <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">No logo uploaded</p>
+                    </div>
                   )}
-                  {user?.brandingLogoUrl && (
+                </div>
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoFileChange}
+                      className="max-w-xs"
+                      data-testid="input-logo-file"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {logoFile && (
+                      <Button
+                        size="sm"
+                        onClick={handleLogoUpload}
+                        disabled={uploadLogoMutation.isPending}
+                        data-testid="button-upload-logo"
+                      >
+                        {uploadLogoMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="mr-2 h-4 w-4" />
+                        )}
+                        Upload Logo
+                      </Button>
+                    )}
+                    {user?.brandingLogoUrl && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleLogoRemove}
+                        disabled={deleteLogoMutation.isPending}
+                        data-testid="button-remove-logo"
+                      >
+                        {deleteLogoMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <X className="mr-2 h-4 w-4" />
+                        )}
+                        Remove Logo
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Upload your company logo (PNG, JPG, SVG). Max 2MB. Your logo will appear in the
+                    header.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Theme Colors */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="primaryColor">Button & Primary Color</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="color"
+                    id="primaryColor"
+                    value={brandingPrimaryColor || "#0f766e"}
+                    onChange={(e) => setBrandingPrimaryColor(e.target.value)}
+                    className="w-16 h-10 p-1 cursor-pointer"
+                    data-testid="input-primary-color"
+                  />
+                  <Input
+                    type="text"
+                    value={brandingPrimaryColor}
+                    onChange={(e) => setBrandingPrimaryColor(e.target.value)}
+                    placeholder="#0f766e"
+                    className="flex-1 max-w-32"
+                    data-testid="input-primary-color-hex"
+                  />
+                  {brandingPrimaryColor && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={handleLogoRemove}
-                      disabled={deleteLogoMutation.isPending}
-                      data-testid="button-remove-logo"
+                      variant="ghost"
+                      onClick={() => setBrandingPrimaryColor("")}
+                      data-testid="button-reset-primary"
                     >
-                      {deleteLogoMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <X className="mr-2 h-4 w-4" />
-                      )}
-                      Remove Logo
+                      Reset
                     </Button>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Upload your company logo (PNG, JPG, SVG). Max 2MB. Your logo will appear in the
-                  header.
+                  Main brand color, used for buttons and active states
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="accentColor">Accent Color</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="color"
+                    id="accentColor"
+                    value={brandingAccentColor || "#0d9488"}
+                    onChange={(e) => setBrandingAccentColor(e.target.value)}
+                    className="w-16 h-10 p-1 cursor-pointer"
+                    data-testid="input-accent-color"
+                  />
+                  <Input
+                    type="text"
+                    value={brandingAccentColor}
+                    onChange={(e) => setBrandingAccentColor(e.target.value)}
+                    placeholder="#0d9488"
+                    className="flex-1 max-w-32"
+                    data-testid="input-accent-color-hex"
+                  />
+                  {brandingAccentColor && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setBrandingAccentColor("")}
+                      data-testid="button-reset-accent"
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Secondary color for highlights and links
                 </p>
               </div>
             </div>
-          </div>
 
-          <Separator />
-
-          {/* Theme Colors */}
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="primaryColor">Primary Color</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  type="color"
-                  id="primaryColor"
-                  value={brandingPrimaryColor || "#0f766e"}
-                  onChange={(e) => setBrandingPrimaryColor(e.target.value)}
-                  className="w-16 h-10 p-1 cursor-pointer"
-                  data-testid="input-primary-color"
-                />
-                <Input
-                  type="text"
-                  value={brandingPrimaryColor}
-                  onChange={(e) => setBrandingPrimaryColor(e.target.value)}
-                  placeholder="#0f766e"
-                  className="flex-1 max-w-32"
-                  data-testid="input-primary-color-hex"
-                />
-                {brandingPrimaryColor && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setBrandingPrimaryColor("")}
-                    data-testid="button-reset-primary"
-                  >
-                    Reset
-                  </Button>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Main brand color used for buttons and accents
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="accentColor">Accent Color</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  type="color"
-                  id="accentColor"
-                  value={brandingAccentColor || "#0d9488"}
-                  onChange={(e) => setBrandingAccentColor(e.target.value)}
-                  className="w-16 h-10 p-1 cursor-pointer"
-                  data-testid="input-accent-color"
-                />
-                <Input
-                  type="text"
-                  value={brandingAccentColor}
-                  onChange={(e) => setBrandingAccentColor(e.target.value)}
-                  placeholder="#0d9488"
-                  className="flex-1 max-w-32"
-                  data-testid="input-accent-color-hex"
-                />
-                {brandingAccentColor && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setBrandingAccentColor("")}
-                    data-testid="button-reset-accent"
-                  >
-                    Reset
-                  </Button>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Secondary color for highlights and links
-              </p>
-            </div>
-          </div>
-
-          {(brandingPrimaryColor || brandingAccentColor) && (
-            <div className="bg-muted/30 rounded-lg p-4">
-              <p className="text-sm font-medium mb-2">Color Preview</p>
-              <div className="flex items-center gap-4">
-                <div
-                  className="w-24 h-10 rounded flex items-center justify-center text-white text-sm font-medium"
-                  style={{ backgroundColor: brandingPrimaryColor || "#0f766e" }}
-                >
-                  Primary
-                </div>
-                <div
-                  className="w-24 h-10 rounded flex items-center justify-center text-white text-sm font-medium"
-                  style={{ backgroundColor: brandingAccentColor || "#0d9488" }}
-                >
-                  Accent
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card data-testid="card-regional">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            Regional Settings
-          </CardTitle>
-          <CardDescription>Customise currency, timezone, and date formats</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="currency">Currency</Label>
-            <Select value={currency} onValueChange={setCurrency}>
-              <SelectTrigger id="currency" data-testid="select-currency">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CURRENCIES.map((c) => (
-                  <SelectItem
-                    key={c.value}
-                    value={c.value}
-                    data-testid={`option-currency-${c.value}`}
-                  >
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">Default currency for financial values</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="timezone">Timezone</Label>
-            <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger id="timezone" data-testid="select-timezone">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIMEZONES.map((tz) => (
-                  <SelectItem
-                    key={tz.value}
-                    value={tz.value}
-                    data-testid={`option-timezone-${tz.value}`}
-                  >
-                    {tz.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">Your local timezone for dates and times</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="dateFormat">Date Format</Label>
-            <Select value={dateFormat} onValueChange={setDateFormat}>
-              <SelectTrigger id="dateFormat" data-testid="select-date-format">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DATE_FORMATS.map((df) => (
-                  <SelectItem
-                    key={df.value}
-                    value={df.value}
-                    data-testid={`option-date-format-${df.value}`}
-                  >
-                    {df.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">
-              How dates are displayed throughout the app
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card data-testid="card-pipeline">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <SettingsIcon className="h-5 w-5" />
-                Pipeline Stage Names
-              </CardTitle>
-              <CardDescription>Customise the names of your pipeline stages</CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleResetStageNames}
-              data-testid="button-reset-stages"
-            >
-              Reset to Default
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="stage-lead">Lead</Label>
-              <Input
-                id="stage-lead"
-                value={stageNames.lead}
-                onChange={(e) => handleStageNameChange("lead", e.target.value)}
-                data-testid="input-stage-lead"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-contacted">Contacted</Label>
-              <Input
-                id="stage-contacted"
-                value={stageNames.contacted}
-                onChange={(e) => handleStageNameChange("contacted", e.target.value)}
-                data-testid="input-stage-contacted"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-qualified">Qualified</Label>
-              <Input
-                id="stage-qualified"
-                value={stageNames.qualified}
-                onChange={(e) => handleStageNameChange("qualified", e.target.value)}
-                data-testid="input-stage-qualified"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-proposal">Proposal</Label>
-              <Input
-                id="stage-proposal"
-                value={stageNames.proposal}
-                onChange={(e) => handleStageNameChange("proposal", e.target.value)}
-                data-testid="input-stage-proposal"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-dueDiligence">Due Diligence</Label>
-              <Input
-                id="stage-dueDiligence"
-                value={stageNames.dueDiligence}
-                onChange={(e) => handleStageNameChange("dueDiligence", e.target.value)}
-                data-testid="input-stage-dueDiligence"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-approval">Approval</Label>
-              <Input
-                id="stage-approval"
-                value={stageNames.approval}
-                onChange={(e) => handleStageNameChange("approval", e.target.value)}
-                data-testid="input-stage-approval"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-approved">Approved</Label>
-              <Input
-                id="stage-approved"
-                value={stageNames.approved}
-                onChange={(e) => handleStageNameChange("approved", e.target.value)}
-                data-testid="input-stage-approved"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-declined">Declined</Label>
-              <Input
-                id="stage-declined"
-                value={stageNames.declined}
-                onChange={(e) => handleStageNameChange("declined", e.target.value)}
-                data-testid="input-stage-declined"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stage-withdrawn">Withdrawn</Label>
-              <Input
-                id="stage-withdrawn"
-                value={stageNames.withdrawn}
-                onChange={(e) => handleStageNameChange("withdrawn", e.target.value)}
-                data-testid="input-stage-withdrawn"
-              />
-            </div>
-          </div>
-          <Separator />
-          <p className="text-sm text-muted-foreground">
-            Customise stage names to match your workflow. These names will appear throughout the
-            application including the pipeline view, prospect details, and reports.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card data-testid="card-pdf-layout">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                PDF Report Layout
-              </CardTitle>
-              <CardDescription>
-                Customise which sections appear in your PDF reports and their order
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleResetPdfLayout}
-              data-testid="button-reset-pdf-layout"
-            >
-              Reset to Default
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Drag and drop to reorder sections. Uncheck sections to exclude them from generated PDFs.
-          </p>
-          <DragDropContext onDragEnd={handlePdfSectionsReorder}>
-            <Droppable droppableId="pdf-sections">
-              {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                  {pdfSections.map((section, index) => (
-                    <Draggable key={section.id} draggableId={section.id} index={index}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          className={`flex items-center gap-3 p-3 rounded-md border bg-card ${snapshot.isDragging ? "shadow-lg" : ""
-                            }`}
-                          data-testid={`pdf-section-${section.id}`}
-                        >
-                          <div
-                            {...provided.dragHandleProps}
-                            className="flex-shrink-0 cursor-grab active:cursor-grabbing"
-                            data-testid={`drag-pdf-section-${section.id}`}
-                          >
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                          <Checkbox
-                            checked={section.enabled}
-                            onCheckedChange={() => handlePdfSectionToggle(section.id)}
-                            data-testid={`checkbox-pdf-section-${section.id}`}
-                          />
-                          <Label
-                            className={`flex-1 cursor-pointer ${!section.enabled ? "text-muted-foreground line-through" : ""
-                              }`}
-                            onClick={() => handlePdfSectionToggle(section.id)}
-                            data-testid={`label-pdf-section-${section.id}`}
-                          >
-                            {section.label}
-                          </Label>
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-          <Separator />
-          <p className="text-sm text-muted-foreground">
-            Changes will apply to all future PDF reports generated from prospect details.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card data-testid="card-pipeline-report">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Pipeline Report
-          </CardTitle>
-          <CardDescription>Export your entire pipeline as a comprehensive report</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Download a complete Excel report of all your prospects including company details, loan
-            information, pipeline stage, priority, and key dates.
-          </p>
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={() => window.open("/api/prospects/export/excel", "_blank")}
-              data-testid="button-download-pipeline-report"
-            >
-              <FileDown className="h-4 w-4 mr-2" />
-              Download Pipeline Report
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            The report includes all prospects visible to you based on your role and team membership.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Data Import
-          </CardTitle>
-          <CardDescription>
-            Upload CSV files to bulk import company leads for prospecting
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg border-2 border-dashed p-6 text-center">
-            <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
-            <p className="text-sm font-medium mb-2">Upload a CSV file with company data</p>
-            <p className="text-xs text-muted-foreground mb-4">
-              Required column: Company Name. Optional: Company Number, Contact Name, Email, Phone,
-              Address, Postcode, SIC Code
-            </p>
-            <div className="flex flex-col items-center gap-2">
-              <Input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvFileChange}
-                className="max-w-xs"
-                data-testid="input-csv-file"
-              />
-              {csvFile && (
-                <div className="flex items-center gap-2 text-sm">
-                  <FileText className="h-4 w-4" />
-                  <span>{csvFile.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setCsvFile(null)}
-                    data-testid="button-clear-csv"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-              <Button
-                onClick={handleCsvUpload}
-                disabled={!csvFile || uploadCsvMutation.isPending}
-                data-testid="button-upload-csv"
-              >
-                {uploadCsvMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload CSV
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {uploadResult && (
-            <div
-              className={`p-4 rounded-lg ${uploadResult.status === "failed" ? "bg-destructive/10" : "bg-green-500/10"}`}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                {uploadResult.status === "failed" ? (
-                  <AlertCircle className="h-5 w-5 text-destructive" />
-                ) : (
-                  <Check className="h-5 w-5 text-green-600" />
-                )}
-                <span className="font-medium">
-                  {uploadResult.status === "failed" ? "Upload Failed" : "Upload Complete"}
-                </span>
-              </div>
-              <div className="text-sm space-y-1">
-                <p>Total rows: {uploadResult.totalRows}</p>
-                <p className="text-green-600">Successful: {uploadResult.successRows}</p>
-                {uploadResult.errorRows > 0 && (
-                  <p className="text-destructive">Errors: {uploadResult.errorRows}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          <Separator />
-
-          <div>
-            <h4 className="font-medium mb-2">Recent Uploads</h4>
-            {uploadsLoading ? (
-              <div className="flex items-center justify-center p-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : uploads && uploads.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
-                {uploads.slice(0, 5).map((upload: any) => (
-                  <div
-                    key={upload.id}
-                    className="flex items-center justify-between p-3 rounded-md border bg-card"
-                    data-testid={`upload-${upload.id}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">{upload.fileName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {upload.successRows} leads imported •{" "}
-                          {new Date(upload.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {upload.status === "completed" ? (
-                        <Check className="h-4 w-4 text-green-600" />
-                      ) : upload.status === "failed" ? (
-                        <AlertCircle className="h-4 w-4 text-destructive" />
-                      ) : (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )}
-                    </div>
-                  </div>
-                ))}
+                <Label htmlFor="sidebarColor">Sidebar Background</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="color"
+                    id="sidebarColor"
+                    value={brandingSidebarColor || "#0f172a"}
+                    onChange={(e) => setBrandingSidebarColor(e.target.value)}
+                    className="w-16 h-10 p-1 cursor-pointer"
+                    data-testid="input-sidebar-color"
+                  />
+                  <Input
+                    type="text"
+                    value={brandingSidebarColor}
+                    onChange={(e) => setBrandingSidebarColor(e.target.value)}
+                    placeholder="#0f172a"
+                    className="flex-1 max-w-32"
+                    data-testid="input-sidebar-color-hex"
+                  />
+                  {brandingSidebarColor && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setBrandingSidebarColor("")}
+                      data-testid="button-reset-sidebar"
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Background color for the navigation sidebar
+                </p>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No uploads yet. Upload a CSV file to import leads.
-              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="backgroundColor">Page Background</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="color"
+                    id="backgroundColor"
+                    value={brandingBackgroundColor || "#ffffff"}
+                    onChange={(e) => setBrandingBackgroundColor(e.target.value)}
+                    className="w-16 h-10 p-1 cursor-pointer"
+                    data-testid="input-background-color"
+                  />
+                  <Input
+                    type="text"
+                    value={brandingBackgroundColor}
+                    onChange={(e) => setBrandingBackgroundColor(e.target.value)}
+                    placeholder="#ffffff"
+                    className="flex-1 max-w-32"
+                    data-testid="input-background-color-hex"
+                  />
+                  {brandingBackgroundColor && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setBrandingBackgroundColor("")}
+                      data-testid="button-reset-background"
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Resulting page background color
+                </p>
+              </div>
+            </div>
+
+            {(brandingPrimaryColor || brandingAccentColor) && (
+              <div className="bg-muted/30 rounded-lg p-4">
+                <p className="text-sm font-medium mb-2">Color Preview</p>
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-24 h-10 rounded flex items-center justify-center text-white text-sm font-medium"
+                    style={{ backgroundColor: brandingPrimaryColor || "#0f766e" }}
+                  >
+                    Primary
+                  </div>
+                  <div
+                    className="w-24 h-10 rounded flex items-center justify-center text-white text-sm font-medium"
+                    style={{ backgroundColor: brandingAccentColor || "#0d9488" }}
+                  >
+                    Accent
+                  </div>
+                </div>
+              </div>
             )}
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="flex justify-end">
-            <Button variant="outline" asChild data-testid="button-view-leads">
-              <a href="/leads">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View All Leads
-              </a>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <Card data-testid="card-regional">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Regional Settings
+            </CardTitle>
+            <CardDescription>Customise currency, timezone, and date formats</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger id="currency" data-testid="select-currency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map((c) => (
+                    <SelectItem
+                      key={c.value}
+                      value={c.value}
+                      data-testid={`option-currency-${c.value}`}
+                    >
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">Default currency for financial values</p>
+            </div>
 
-      <Card data-testid="card-api-integration">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Link2 className="h-5 w-5" />
-            API Integration
-          </CardTitle>
-          <CardDescription>
-            Connect external applications to Veltro using the webhook API
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="timezone">Timezone</Label>
+              <Select value={timezone} onValueChange={setTimezone}>
+                <SelectTrigger id="timezone" data-testid="select-timezone">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIMEZONES.map((tz) => (
+                    <SelectItem
+                      key={tz.value}
+                      value={tz.value}
+                      data-testid={`option-timezone-${tz.value}`}
+                    >
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">Your local timezone for dates and times</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dateFormat">Date Format</Label>
+              <Select value={dateFormat} onValueChange={setDateFormat}>
+                <SelectTrigger id="dateFormat" data-testid="select-date-format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DATE_FORMATS.map((df) => (
+                    <SelectItem
+                      key={df.value}
+                      value={df.value}
+                      data-testid={`option-date-format-${df.value}`}
+                    >
+                      {df.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                How dates are displayed throughout the app
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-pipeline">
+          <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <Label className="text-base">Webhook API Key</Label>
-                <p className="text-sm text-muted-foreground">
-                  Use this key to authenticate requests from your other applications
-                </p>
+                <CardTitle className="flex items-center gap-2">
+                  <SettingsIcon className="h-5 w-5" />
+                  Pipeline Stage Names
+                </CardTitle>
+                <CardDescription>Customise the names of your pipeline stages</CardDescription>
               </div>
               <Button
-                onClick={() => generateApiKeyMutation.mutate()}
-                disabled={generateApiKeyMutation.isPending}
-                variant={webhookKeyStatus?.hasApiKey ? "outline" : "default"}
-                data-testid="button-generate-api-key"
+                variant="outline"
+                size="sm"
+                onClick={handleResetStageNames}
+                data-testid="button-reset-stages"
               >
-                {generateApiKeyMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : webhookKeyStatus?.hasApiKey ? (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                ) : (
-                  <Key className="mr-2 h-4 w-4" />
-                )}
-                {webhookKeyStatus?.hasApiKey ? "Regenerate Key" : "Generate API Key"}
+                Reset to Default
               </Button>
             </div>
-
-            {newApiKey && (
-              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-800 dark:text-green-200">
-                    New API Key Generated
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={newApiKey}
-                    readOnly
-                    className="font-mono text-sm"
-                    data-testid="input-api-key"
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => copyToClipboard(newApiKey)}
-                    data-testid="button-copy-api-key"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Copy this key now. It won't be shown again for security reasons.
-                </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="stage-lead">Lead</Label>
+                <Input
+                  id="stage-lead"
+                  value={stageNames.lead}
+                  onChange={(e) => handleStageNameChange("lead", e.target.value)}
+                  data-testid="input-stage-lead"
+                />
               </div>
-            )}
-
-            {webhookKeyStatus?.hasApiKey && !newApiKey && (
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Key className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">API Key Active</span>
-                </div>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  {webhookKeyStatus.createdAt && (
-                    <p>Created: {new Date(webhookKeyStatus.createdAt).toLocaleDateString()}</p>
-                  )}
-                  {webhookKeyStatus.lastUsedAt && (
-                    <p>Last used: {new Date(webhookKeyStatus.lastUsedAt).toLocaleDateString()}</p>
-                  )}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-contacted">Contacted</Label>
+                <Input
+                  id="stage-contacted"
+                  value={stageNames.contacted}
+                  onChange={(e) => handleStageNameChange("contacted", e.target.value)}
+                  data-testid="input-stage-contacted"
+                />
               </div>
-            )}
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-qualified">Qualified</Label>
+                <Input
+                  id="stage-qualified"
+                  value={stageNames.qualified}
+                  onChange={(e) => handleStageNameChange("qualified", e.target.value)}
+                  data-testid="input-stage-qualified"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-proposal">Proposal</Label>
+                <Input
+                  id="stage-proposal"
+                  value={stageNames.proposal}
+                  onChange={(e) => handleStageNameChange("proposal", e.target.value)}
+                  data-testid="input-stage-proposal"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-dueDiligence">Due Diligence</Label>
+                <Input
+                  id="stage-dueDiligence"
+                  value={stageNames.dueDiligence}
+                  onChange={(e) => handleStageNameChange("dueDiligence", e.target.value)}
+                  data-testid="input-stage-dueDiligence"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-approval">Approval</Label>
+                <Input
+                  id="stage-approval"
+                  value={stageNames.approval}
+                  onChange={(e) => handleStageNameChange("approval", e.target.value)}
+                  data-testid="input-stage-approval"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-approved">Approved</Label>
+                <Input
+                  id="stage-approved"
+                  value={stageNames.approved}
+                  onChange={(e) => handleStageNameChange("approved", e.target.value)}
+                  data-testid="input-stage-approved"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-declined">Declined</Label>
+                <Input
+                  id="stage-declined"
+                  value={stageNames.declined}
+                  onChange={(e) => handleStageNameChange("declined", e.target.value)}
+                  data-testid="input-stage-declined"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-withdrawn">Withdrawn</Label>
+                <Input
+                  id="stage-withdrawn"
+                  value={stageNames.withdrawn}
+                  onChange={(e) => handleStageNameChange("withdrawn", e.target.value)}
+                  data-testid="input-stage-withdrawn"
+                />
+              </div>
+            </div>
+            <Separator />
+            <p className="text-sm text-muted-foreground">
+              Customise stage names to match your workflow. These names will appear throughout the
+              application including the pipeline view, prospect details, and reports.
+            </p>
+          </CardContent>
+        </Card>
 
-          <Separator />
+        <Card data-testid="card-pdf-layout">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  PDF Report Layout
+                </CardTitle>
+                <CardDescription>
+                  Customise which sections appear in your PDF reports and their order
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetPdfLayout}
+                data-testid="button-reset-pdf-layout"
+              >
+                Reset to Default
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Drag and drop to reorder sections. Uncheck sections to exclude them from generated PDFs.
+            </p>
+            <DragDropContext onDragEnd={handlePdfSectionsReorder}>
+              <Droppable droppableId="pdf-sections">
+                {(provided) => (
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                    {pdfSections.map((section, index) => (
+                      <Draggable key={section.id} draggableId={section.id} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`flex items-center gap-3 p-3 rounded-md border bg-card ${snapshot.isDragging ? "shadow-lg" : ""
+                              }`}
+                            data-testid={`pdf-section-${section.id}`}
+                          >
+                            <div
+                              {...provided.dragHandleProps}
+                              className="flex-shrink-0 cursor-grab active:cursor-grabbing"
+                              data-testid={`drag-pdf-section-${section.id}`}
+                            >
+                              <GripVertical className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <Checkbox
+                              checked={section.enabled}
+                              onCheckedChange={() => handlePdfSectionToggle(section.id)}
+                              data-testid={`checkbox-pdf-section-${section.id}`}
+                            />
+                            <Label
+                              className={`flex-1 cursor-pointer ${!section.enabled ? "text-muted-foreground line-through" : ""
+                                }`}
+                              onClick={() => handlePdfSectionToggle(section.id)}
+                              data-testid={`label-pdf-section-${section.id}`}
+                            >
+                              {section.label}
+                            </Label>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+            <Separator />
+            <p className="text-sm text-muted-foreground">
+              Changes will apply to all future PDF reports generated from prospect details.
+            </p>
+          </CardContent>
+        </Card>
 
-          <div className="space-y-4">
-            <div>
-              <Label className="text-base">Webhook Endpoint</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Send POST requests to create prospects from your other applications
+        <Card data-testid="card-pipeline-report">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Pipeline Report
+            </CardTitle>
+            <CardDescription>Export your entire pipeline as a comprehensive report</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Download a complete Excel report of all your prospects including company details, loan
+              information, pipeline stage, priority, and key dates.
+            </p>
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={() => window.open("/api/prospects/export/excel", "_blank")}
+                data-testid="button-download-pipeline-report"
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Download Pipeline Report
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The report includes all prospects visible to you based on your role and team membership.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Data Import
+            </CardTitle>
+            <CardDescription>
+              Upload CSV files to bulk import company leads for prospecting
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border-2 border-dashed p-6 text-center">
+              <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
+              <p className="text-sm font-medium mb-2">Upload a CSV file with company data</p>
+              <p className="text-xs text-muted-foreground mb-4">
+                Required column: Company Name. Optional: Company Number, Contact Name, Email, Phone,
+                Address, Postcode, SIC Code
               </p>
+              <div className="flex flex-col items-center gap-2">
+                <Input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCsvFileChange}
+                  className="max-w-xs"
+                  data-testid="input-csv-file"
+                />
+                {csvFile && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <FileText className="h-4 w-4" />
+                    <span>{csvFile.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setCsvFile(null)}
+                      data-testid="button-clear-csv"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <Button
+                  onClick={handleCsvUpload}
+                  disabled={!csvFile || uploadCsvMutation.isPending}
+                  data-testid="button-upload-csv"
+                >
+                  {uploadCsvMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload CSV
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
-            <div className="bg-muted/50 rounded-lg p-4 space-y-4">
-              <div>
-                <Label className="text-xs text-muted-foreground">Endpoint URL</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <code className="flex-1 bg-background px-3 py-2 rounded text-sm font-mono border">
-                    POST {window.location.origin}/api/webhooks/prospects
-                  </code>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() =>
-                      copyToClipboard(`${window.location.origin}/api/webhooks/prospects`)
-                    }
-                    data-testid="button-copy-endpoint"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
+            {uploadResult && (
+              <div
+                className={`p-4 rounded-lg ${uploadResult.status === "failed" ? "bg-destructive/10" : "bg-green-500/10"}`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  {uploadResult.status === "failed" ? (
+                    <AlertCircle className="h-5 w-5 text-destructive" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-600" />
+                  )}
+                  <span className="font-medium">
+                    {uploadResult.status === "failed" ? "Upload Failed" : "Upload Complete"}
+                  </span>
+                </div>
+                <div className="text-sm space-y-1">
+                  <p>Total rows: {uploadResult.totalRows}</p>
+                  <p className="text-green-600">Successful: {uploadResult.successRows}</p>
+                  {uploadResult.errorRows > 0 && (
+                    <p className="text-destructive">Errors: {uploadResult.errorRows}</p>
+                  )}
                 </div>
               </div>
+            )}
 
-              <div>
-                <Label className="text-xs text-muted-foreground">Required Header</Label>
-                <code className="block bg-background px-3 py-2 rounded text-sm font-mono border mt-1">
-                  x-veltro-api-key: YOUR_API_KEY
-                </code>
+            <Separator />
+
+            <div>
+              <h4 className="font-medium mb-2">Recent Uploads</h4>
+              {uploadsLoading ? (
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : uploads && uploads.length > 0 ? (
+                <div className="space-y-2">
+                  {uploads.slice(0, 5).map((upload: any) => (
+                    <div
+                      key={upload.id}
+                      className="flex items-center justify-between p-3 rounded-md border bg-card"
+                      data-testid={`upload-${upload.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">{upload.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {upload.successRows} leads imported •{" "}
+                            {new Date(upload.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {upload.status === "completed" ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : upload.status === "failed" ? (
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        ) : (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No uploads yet. Upload a CSV file to import leads.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="outline" asChild data-testid="button-view-leads">
+                <a href="/leads">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  View All Leads
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-api-integration">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              API Integration
+            </CardTitle>
+            <CardDescription>
+              Connect external applications to Veltro using the webhook API
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base">Webhook API Key</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Use this key to authenticate requests from your other applications
+                  </p>
+                </div>
+                <Button
+                  onClick={() => generateApiKeyMutation.mutate()}
+                  disabled={generateApiKeyMutation.isPending}
+                  variant={webhookKeyStatus?.hasApiKey ? "outline" : "default"}
+                  data-testid="button-generate-api-key"
+                >
+                  {generateApiKeyMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : webhookKeyStatus?.hasApiKey ? (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Key className="mr-2 h-4 w-4" />
+                  )}
+                  {webhookKeyStatus?.hasApiKey ? "Regenerate Key" : "Generate API Key"}
+                </Button>
               </div>
 
+              {newApiKey && (
+                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                      New API Key Generated
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newApiKey}
+                      readOnly
+                      className="font-mono text-sm"
+                      data-testid="input-api-key"
+                    />
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => copyToClipboard(newApiKey)}
+                      data-testid="button-copy-api-key"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Copy this key now. It won't be shown again for security reasons.
+                  </p>
+                </div>
+              )}
+
+              {webhookKeyStatus?.hasApiKey && !newApiKey && (
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">API Key Active</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    {webhookKeyStatus.createdAt && (
+                      <p>Created: {new Date(webhookKeyStatus.createdAt).toLocaleDateString()}</p>
+                    )}
+                    {webhookKeyStatus.lastUsedAt && (
+                      <p>Last used: {new Date(webhookKeyStatus.lastUsedAt).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
               <div>
-                <Label className="text-xs text-muted-foreground">Example Request Body</Label>
-                <pre className="bg-background px-3 py-2 rounded text-xs font-mono border mt-1 overflow-x-auto">
-                  {`{
+                <Label className="text-base">Webhook Endpoint</Label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Send POST requests to create prospects from your other applications
+                </p>
+              </div>
+
+              <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Endpoint URL</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="flex-1 bg-background px-3 py-2 rounded text-sm font-mono border">
+                      POST {window.location.origin}/api/webhooks/prospects
+                    </code>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() =>
+                        copyToClipboard(`${window.location.origin}/api/webhooks/prospects`)
+                      }
+                      data-testid="button-copy-endpoint"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">Required Header</Label>
+                  <code className="block bg-background px-3 py-2 rounded text-sm font-mono border mt-1">
+                    x-veltro-api-key: YOUR_API_KEY
+                  </code>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">Example Request Body</Label>
+                  <pre className="bg-background px-3 py-2 rounded text-xs font-mono border mt-1 overflow-x-auto">
+                    {`{
   "company": {
     "companyName": "Example Ltd",
     "companyNumber": "12345678"
@@ -1240,69 +1309,71 @@ export default function Settings() {
     "isPrimary": true
   }]
 }`}
-                </pre>
+                  </pre>
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card data-testid="card-ai-privacy">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            AI Data Processing
-          </CardTitle>
-          <CardDescription>
-            Manage how your financial data is processed by AI features
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <Label className="text-base">Enable AI-Powered Analysis</Label>
-              <p className="text-sm text-muted-foreground">
-                Allow Veltro to use AI to analyse financial documents (bank statements, accounts)
-                for credit underwriting, SWOT analysis, and CAMPARI assessments.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                <Shield className="h-3 w-3 inline mr-1" />
-                Your data is processed securely and never stored by our AI provider.
-              </p>
-            </div>
-            <Switch
-              checked={aiDataConsent}
-              onCheckedChange={(checked) => {
-                setAiDataConsent(checked);
-                updateSettingsMutation.mutate({
-                  aiDataConsent: checked ? 1 : 0,
-                });
-              }}
-              data-testid="switch-ai-consent"
-            />
-          </div>
-
-          {user?.aiDataConsentAt && aiDataConsent && (
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-green-600" />
-                <span className="text-sm">
-                  AI processing enabled since {new Date(user.aiDataConsentAt).toLocaleDateString()}
-                </span>
+        <Card data-testid="card-ai-privacy">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              AI Data Processing
+            </CardTitle>
+            <CardDescription>
+              Manage how your financial data is processed by AI features
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <Label className="text-base">Enable AI-Powered Analysis</Label>
+                <p className="text-sm text-muted-foreground">
+                  Allow Veltro to use AI to analyse financial documents (bank statements, accounts)
+                  for credit underwriting, SWOT analysis, and CAMPARI assessments.
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  <Shield className="h-3 w-3 inline mr-1" />
+                  Your data is processed securely and never stored by our AI provider.
+                </p>
               </div>
+              <Switch
+                checked={aiDataConsent}
+                onCheckedChange={(checked) => {
+                  setAiDataConsent(checked);
+                  updateSettingsMutation.mutate({
+                    aiDataConsent: checked ? 1 : 0,
+                  });
+                }}
+                data-testid="switch-ai-consent"
+              />
             </div>
-          )}
 
-          {!aiDataConsent && (
-            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                AI features are currently disabled. Enable this setting to use AI-powered financial
-                analysis, SWOT generation, and CAMPARI report auto-completion.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {user?.aiDataConsentAt && aiDataConsent && (
+              <div className="bg-muted/50 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <span className="text-sm">
+                    AI processing enabled since {new Date(user.aiDataConsentAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {!aiDataConsent && (
+              <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  AI features are currently disabled. Enable this setting to use AI-powered financial
+                  analysis, SWOT generation, and CAMPARI report auto-completion.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
+
   );
 }

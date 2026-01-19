@@ -51,6 +51,7 @@ import {
 import {
   requireSubmissionReadAccess,
   requireSubmissionWriteAccess,
+  requireUnderwritingAccess,
 } from "./utils/underwritingAuth";
 import { LocalStorageClient as ObjectStorageClient } from "./localStorage";
 import {
@@ -70,6 +71,25 @@ interface AuthenticatedRequest extends Request {
 
 
 export async function registerRoutes(app: Application): Promise<Server> {
+  // Backfill: Initialize prospects_created_count for existing users
+  // This ensures users with existing prospects don't see 0/Limit quota
+  (async () => {
+    try {
+      const users = await storage.getAllUsers();
+      for (const user of users) {
+        if (user.prospectsCreatedCount === 0) {
+          const currentCount = await storage.countProspects(user.id);
+          if (currentCount > 0) {
+            await storage.updateUser(user.id, { prospectsCreatedCount: currentCount });
+            console.log(`[Backfill] Updated user ${user.id} prospect count to ${currentCount}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Backfill] Failed to update prospect counts:", err);
+    }
+  })();
+
   // Simple health check endpoint for load balancers
   app.get("/api/health", async (req, res) => {
     try {
@@ -517,6 +537,20 @@ export async function registerRoutes(app: Application): Promise<Server> {
   });
 
   // Prospects API - Protected routes
+  app.get("/api/prospects/count", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      // Return cumulative count
+      res.json({ count: user.prospectsCreatedCount || 0 });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
   app.get("/api/prospects", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user.id;
@@ -573,10 +607,12 @@ export async function registerRoutes(app: Application): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      const prospectCount = await storage.countProspects(userId);
+      // Use cumulative count for quota enforcement
+      const prospectCount = user.prospectsCreatedCount || 0;
+
       if (prospectCount >= user.prospectLimit) {
         return res.status(403).json({
-          error: `Prospect limit reached. You have ${prospectCount} prospects and your ${user.subscriptionTier} plan allows ${user.prospectLimit}. Please upgrade your subscription to add more prospects.`,
+          error: `Prospect limit reached. You have used ${prospectCount} of your ${user.prospectLimit} allowed prospects on the ${user.subscriptionTier} plan. Deleting prospects does not restore your quota. Please upgrade your subscription to add more prospects.`,
           prospectCount,
           prospectLimit: user.prospectLimit,
           subscriptionTier: user.subscriptionTier,
@@ -2389,6 +2425,41 @@ export async function registerRoutes(app: Application): Promise<Server> {
     }
   );
 
+
+  // Get due diligence data
+  app.get(
+    "/api/prospects/:prospectId/due-diligence",
+    isAuthenticated,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const userId = req.user.id;
+        const prospectId = parseInt(req.params.prospectId);
+
+        const dueDiligence = await storage.getDueDiligence(prospectId, userId);
+        res.json(dueDiligence?.data || {});
+      } catch (error) {
+        handleApiError(res, error, "api-error");
+      }
+    }
+  );
+
+  // Save due diligence data
+  app.post(
+    "/api/prospects/:prospectId/due-diligence",
+    isAuthenticated,
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const userId = req.user.id;
+        const prospectId = parseInt(req.params.prospectId);
+
+        const dueDiligence = await storage.upsertDueDiligence(prospectId, userId, req.body);
+        res.json(dueDiligence);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
+      }
+    }
+  );
+
   // Analyze bank statement PDFs (alternative to CSV)
   app.post(
     "/api/prospects/:prospectId/underwriting/analyze-bank-pdfs",
@@ -2408,6 +2479,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
             error: `Maximum ${AI_GOVERNANCE_CONFIG.maxPdfFiles} bank statement PDFs allowed`,
           });
         }
+
 
         if (!loanAmount || !monthlyRepayment) {
           return res
@@ -4420,11 +4492,11 @@ export async function registerRoutes(app: Application): Promise<Server> {
         if (status) filters.status = status as string;
         if (assigned === "me") filters.assignedUnderwriterId = userId;
         submissions = await storage.listUnderwritingSubmissions(filters);
-      } else if (user?.role === "underwriter") {
-        // Underwriter sees: queue (submitted + unassigned) + their assigned
+      } else if (user?.role === "underwriter" || user?.hasUnderwritingAccess) {
+        // Underwriter (or user with add-on) sees: queue (submitted + unassigned) + their assigned
         submissions = await storage.listUnderwriterScopedSubmissions(userId);
       } else {
-        // Non-underwriters/admins get 403
+        // No access
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -6197,6 +6269,46 @@ export async function registerRoutes(app: Application): Promise<Server> {
 
   const httpServer = createServer(app);
 
+
+  // --- Admin Settings Routes ---
+
+  app.get("/api/admin/settings/sla", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      // Allow any authenticated user to read SLA settings (needed for timers)
+      // or restrict to admin/underwriter if preferred, but timers need it.
+      const settings = await storage.getSystemSetting("underwriting_sla");
+      // Default if not set
+      res.json(settings || { green: 4, amber: 24, red: 48 });
+    } catch (error) {
+      handleApiError(res, error, "settings-error");
+    }
+  });
+
+  app.post("/api/admin/settings/sla", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (req.user.role !== "super_admin" && req.user.role !== "sales_admin" && !req.user.hasUnderwritingAccess) { // Broaden access for "Underwriting Admin" logic if needed, but safe to keep strictly high-level for now
+        if (req.user.role !== "super_admin" && req.user.role !== "sales_admin") {
+          return res.status(403).json({ error: "Admin access required" });
+        }
+      }
+
+      const green = Number(req.body.green);
+      const amber = Number(req.body.amber);
+      const red = Number(req.body.red);
+
+      // Validate
+      if (isNaN(green) || isNaN(amber) || isNaN(red)) {
+        return res.status(400).json({ error: "Invalid SLA values" });
+      }
+
+      const result = await storage.updateSystemSetting("underwriting_sla", { green, amber, red }, req.user.id);
+      res.json(result);
+    } catch (error) {
+      handleApiError(res, error, "settings-error");
+    }
+  });
+
   return httpServer;
 }
+
 
