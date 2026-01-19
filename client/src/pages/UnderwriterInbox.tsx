@@ -45,6 +45,8 @@ import {
 import { Link } from "wouter";
 import { format } from "date-fns";
 import ConversationThread from "@/components/ConversationThread";
+import { useUnderwritingAccess } from "@/hooks/useUnderwritingAccess";
+import { UnderwritingPaywall } from "@/components/UnderwritingPaywall";
 
 const statusColors: Record<string, string> = {
   submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
@@ -68,6 +70,7 @@ type SubmissionWithDetails = UnderwritingSubmission & {
 };
 
 export default function UnderwriterInbox() {
+  const { hasAccess } = useUnderwritingAccess();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("queue");
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionWithDetails | null>(null);
@@ -320,6 +323,15 @@ export default function UnderwriterInbox() {
             <Skeleton key={i} className="h-32 w-full" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // Show paywall if user doesn't have access
+  if (!hasAccess) {
+    return (
+      <div className="container mx-auto p-4 md:p-6 max-w-4xl">
+        <UnderwritingPaywall />
       </div>
     );
   }

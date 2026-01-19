@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnderwritingAccess } from "@/hooks/useUnderwritingAccess";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,9 @@ import {
     LogOut,
     Sparkles,
     LayoutDashboard,
-    Clock
+    Clock,
+    Brain,
+    Lock
 } from "lucide-react";
 import logoChrome from "@assets/logo-chrome.png";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -68,6 +71,7 @@ const superAdminNavItems: NavItem[] = [
 export default function Sidebar() {
     const [location] = useLocation();
     const { user, logoutMutation } = useAuth();
+    const { hasAccess: hasUnderwritingAccess } = useUnderwritingAccess();
     const { data: roleData } = useQuery<{ role: string }>({
         queryKey: ["/api/auth/role"],
     });
@@ -219,6 +223,62 @@ export default function Sidebar() {
                                 {isCollapsed && (
                                     <TooltipContent side="right">
                                         <p>{item.label}</p>
+                                    </TooltipContent>
+                                )}
+                            </Tooltip>
+                        </TooltipProvider>
+                    );
+                })}
+
+                {/* AI Underwriting Section - Premium Feature */}
+                {!isCollapsed && role !== "underwriter" && (
+                    <>
+                        <Separator className="bg-white/10 my-3" />
+                        <div className="px-3 pb-2">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <Brain className="h-3 w-3" />
+                                AI Underwriting
+                                {!hasUnderwritingAccess && <Lock className="h-3 w-3" />}
+                            </p>
+                        </div>
+                    </>
+                )}
+
+                {/* Underwriting Navigation Items */}
+                {role !== "underwriter" && [
+                    { path: "/underwriting", label: "Submissions", icon: Send, premium: true },
+                ].map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.path);
+                    const isPremium = item.premium && !hasUnderwritingAccess;
+
+                    return (
+                        <TooltipProvider key={item.path} delayDuration={0}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Link href={item.path}>
+                                        <Button
+                                            variant="ghost"
+                                            className={cn(
+                                                "w-full justify-start text-gray-400 hover:text-white hover:bg-white/10 mb-1",
+                                                active && "bg-white/10 text-white font-medium",
+                                                isPremium && "opacity-60",
+                                                isCollapsed ? "px-0 justify-center h-10 w-10" : "px-3"
+                                            )}
+                                        >
+                                            <Icon className={cn("h-5 w-5", active && "text-[#D97706]")} />
+                                            {!isCollapsed && (
+                                                <span className="ml-3 flex items-center gap-2">
+                                                    {item.label}
+                                                    {isPremium && <Lock className="h-3 w-3" />}
+                                                </span>
+                                            )}
+                                        </Button>
+                                    </Link>
+                                </TooltipTrigger>
+                                {isCollapsed && (
+                                    <TooltipContent side="right">
+                                        <p>{item.label} {isPremium && "(Premium)"}</p>
                                     </TooltipContent>
                                 )}
                             </Tooltip>
