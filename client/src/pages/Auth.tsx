@@ -1,5 +1,5 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,7 +17,7 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Brain, Sparkles } from "lucide-react";
+import { Brain, Sparkles, AlertTriangle, ExternalLink, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -42,7 +42,6 @@ const loginSchema = z.object({
 
 const registerSchema = insertUserSchema.extend({
     confirmPassword: z.string(),
-    wantsUnderwritingAccess: z.boolean().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
@@ -112,9 +111,21 @@ export default function AuthPage() {
             confirmPassword: "",
             firstName: "",
             lastName: "",
-            wantsUnderwritingAccess: false,
         },
     });
+
+    // Terms State
+    const [termsState, setTermsState] = useState({
+        terms: false,
+        binding: false,
+        authority: false,
+        dpa: false
+    });
+    const [shakeCheckbox, setShakeCheckbox] = useState<string | null>(null);
+
+    const toggleTermsCheckbox = (key: keyof typeof termsState) => {
+        setTermsState(prev => ({ ...prev, [key]: !prev[key] }));
+    };
 
     const loginMutation = useMutation({
         mutationFn: async (data: z.infer<typeof loginSchema>) => {
@@ -142,12 +153,12 @@ export default function AuthPage() {
 
     const registerMutation = useMutation({
         mutationFn: async (data: z.infer<typeof registerSchema>) => {
-            const { confirmPassword, wantsUnderwritingAccess, ...registerData } = data;
-            // Pass selected plan and underwriting preference to backend
+            const { confirmPassword, ...registerData } = data;
+            // Pass selected plan to backend
             const res = await apiRequest("/api/register", "POST", {
                 ...registerData,
                 trialTier: selectedPlan || undefined,
-                wantsUnderwritingAccess: wantsUnderwritingAccess || false,
+                wantsUnderwritingAccess: false,
             });
             return res.json();
         },
@@ -266,9 +277,16 @@ export default function AuthPage() {
                                 <CardContent className="px-0">
                                     <Form {...registerForm}>
                                         <form
-                                            onSubmit={registerForm.handleSubmit((data) =>
-                                                registerMutation.mutate(data)
-                                            )}
+                                            onSubmit={registerForm.handleSubmit((data) => {
+                                                // Validate Terms
+                                                const unchecked = Object.entries(termsState).find(([_, checked]) => !checked);
+                                                if (unchecked) {
+                                                    setShakeCheckbox(unchecked[0]);
+                                                    setTimeout(() => setShakeCheckbox(null), 400);
+                                                    return;
+                                                }
+                                                registerMutation.mutate(data);
+                                            })}
                                             className="space-y-4"
                                         >
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -365,32 +383,80 @@ export default function AuthPage() {
                                                 )}
                                             />
 
-                                            {/* AI Underwriting Access Opt-in */}
-                                            <FormField
-                                                control={registerForm.control}
-                                                name="wantsUnderwritingAccess"
-                                                render={({ field }) => (
-                                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-primary/5">
-                                                        <FormControl>
-                                                            <Checkbox
-                                                                checked={field.value}
-                                                                onCheckedChange={field.onChange}
-                                                            />
-                                                        </FormControl>
-                                                        <div className="space-y-1 leading-none">
-                                                            <FormLabel className="text-sm font-medium cursor-pointer flex items-center gap-2">
-                                                                <Brain className="h-4 w-4 text-primary" />
-                                                                AI Credit Underwriting Access
-                                                                <span className="text-primary font-semibold">£49/month</span>
-                                                            </FormLabel>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                <Sparkles className="h-3 w-3 inline mr-1" />
-                                                                Unlock AI-powered credit analysis, automated due diligence, and intelligent lender matching
-                                                            </p>
+                                            {/* Terms & Conditions Section */}
+                                            <div className="space-y-4 pt-2">
+                                                <div className="text-center pb-2 border-b border-border">
+                                                    <h3 className="text-sm font-bold mb-1">Terms & Conditions</h3>
+                                                    <p className="text-xs text-muted-foreground">Please review and accept to continue</p>
+                                                </div>
+
+                                                <div className="bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-500 p-3 rounded-r-lg">
+                                                    <div className="flex items-start gap-2">
+                                                        <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                                        <p className="text-xs text-amber-800 dark:text-amber-200">
+                                                            <strong>IMPORTANT:</strong> Legally binding agreement.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="max-h-32 overflow-y-auto bg-muted/30 rounded-lg p-3 border border-border text-xs space-y-2">
+                                                    <h4 className="font-semibold text-foreground">Key Terms Summary:</h4>
+                                                    <ul className="space-y-1.5 text-muted-foreground">
+                                                        <li className="flex items-start gap-2">
+                                                            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                                                            <span>Subscription <strong className="text-foreground">auto-renews</strong></span>
+                                                        </li>
+                                                        <li className="flex items-start gap-2">
+                                                            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                                                            <span>You <strong className="text-foreground">own your data</strong> (UK GDPR)</span>
+                                                        </li>
+                                                        <li className="flex items-start gap-2">
+                                                            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                                                            <span><strong className="text-foreground">Cancel anytime</strong></span>
+                                                        </li>
+                                                    </ul>
+                                                    <a
+                                                        href="/terms"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-primary hover:underline mt-1"
+                                                    >
+                                                        View full Terms <ExternalLink className="w-3 h-3" />
+                                                    </a>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    {[
+                                                        { id: 'terms', label: <span>I agree to the <a href="/terms" target="_blank" className="text-primary hover:underline">Terms & Conditions</a></span> },
+                                                        { id: 'binding', label: <span>I acknowledge this is a <strong>legally binding agreement</strong></span> },
+                                                        { id: 'authority', label: <span>I have <strong>authority to bind</strong> my entity to these Terms</span> },
+                                                        { id: 'dpa', label: <span>I agree to the <a href="https://veltro.co.uk/dpa" target="_blank" className="text-primary hover:underline">DPA</a></span> }
+                                                    ].map((item) => (
+                                                        <div
+                                                            key={item.id}
+                                                            onClick={() => toggleTermsCheckbox(item.id as any)}
+                                                            className={`flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition-all
+                                                                ${termsState[item.id as keyof typeof termsState] ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}
+                                                                ${shakeCheckbox === item.id ? 'animate-[shake_0.3s] border-destructive' : ''}`}
+                                                        >
+                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-all
+                                                                ${termsState[item.id as keyof typeof termsState] ? 'bg-primary border-primary' : 'border-muted-foreground/50 bg-white'}`}>
+                                                                {termsState[item.id as keyof typeof termsState] && <Check className="w-3 h-3 text-white" />}
+                                                            </div>
+                                                            <div className="text-xs leading-snug">{item.label}</div>
                                                         </div>
-                                                    </FormItem>
-                                                )}
-                                            />
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <style>{`
+                                                @keyframes shake {
+                                                    0%, 100% { transform: translateX(0); }
+                                                    25% { transform: translateX(-4px); }
+                                                    75% { transform: translateX(4px); }
+                                                }
+                                            `}</style>
+
                                             <Button
                                                 type="submit"
                                                 className="w-full"
