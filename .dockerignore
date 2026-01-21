@@ -4,6 +4,7 @@
 
 # Node modules (should be installed fresh in container)
 node_modules
+package-lock.json
 
 # Development and test files
 .env

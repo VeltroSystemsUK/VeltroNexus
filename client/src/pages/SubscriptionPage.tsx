@@ -14,9 +14,12 @@ import { useToast } from '@/hooks/use-toast';
 import logoChrome from "@assets/logo-chrome.png";
 import TermsAcceptance, { TermsAcceptanceData } from '@/components/TermsAcceptance';
 
-// Make sure to call loadStripe outside of a component’s render to avoid
-// recreating the Stripe object on every render.
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// Make sure to call loadStripe outside of a component’s render
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_51Sh2YC3waJs9NQ1uDgAk6YSwo0dBVKwV1k2GMaYZKD0FPUjz1aV8rM8Mv8Jf9ejOo7tqvuHZ3VehGyP1hB0FYRRw00D6DVxhK5";
+if (!stripeKey) {
+    console.error("Stripe publishable key is missing!");
+}
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 const CARD_ELEMENT_OPTIONS = {
     style: {

@@ -11,7 +11,7 @@
                 "source": "/api/**",
                 "run": {
                     "serviceId": "veltro",
-                    "region": "europe-west2"
+                    "region": "us-central1"
                 }
             },
             {

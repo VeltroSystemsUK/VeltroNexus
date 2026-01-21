@@ -29,12 +29,13 @@ export function setupAuth(app: Express) {
         saveUninitialized: false,
         store: storage.sessionStore,
         cookie: {
-            secure: app.get("env") === "production",
+            secure: true,
+            sameSite: "none",
         },
     };
 
     if (app.get("env") === "production") {
-        app.set("trust proxy", 1);
+        app.set("trust proxy", true);
     }
 
     app.use(session(sessionSettings));
@@ -56,14 +57,18 @@ export function setupAuth(app: Express) {
     );
 
     passport.serializeUser((user, done) => {
+        console.log("Serialize User:", (user as SelectUser).id);
         done(null, (user as SelectUser).id);
     });
 
     passport.deserializeUser(async (id: string, done) => {
+        console.log("Deserialize User:", id);
         try {
             const user = await storage.getUser(id);
+            if (!user) console.warn("User not found during deserialization:", id);
             done(null, user);
         } catch (error) {
+            console.error("Deserialize Error:", error);
             done(error);
         }
     });
@@ -121,12 +126,20 @@ export function setupAuth(app: Express) {
             if (!user) {
                 return res.status(401).json(info);
             }
+            console.log("Login Request Protocol:", req.protocol);
+            console.log("Login Request Secure:", req.secure);
+            console.log("X-Forwarded-Proto:", req.headers['x-forwarded-proto']);
             req.logIn(user, async (err) => {
                 if (err) {
                     return next(err);
                 }
+                console.log("Login Successful for user:", (user as SelectUser).id);
                 // Update last login time
-                await storage.updateUser(user.id, { lastLoginAt: new Date() });
+                try {
+                    await storage.updateUser((user as SelectUser).id, { lastLoginAt: new Date() });
+                } catch (updateErr) {
+                    console.error("Failed to update last login time - ignoring:", updateErr);
+                }
                 res.json(user);
             });
         })(req, res, next);
@@ -169,8 +182,8 @@ export function setupAuth(app: Express) {
             res.clearCookie("connect.sid", {
                 path: "/",
                 httpOnly: true,
-                secure: isProduction,
-                sameSite: "lax",
+                secure: true,
+                sameSite: "none",
             });
 
             console.log("[Logout] Cookie cleared, isProduction:", isProduction);

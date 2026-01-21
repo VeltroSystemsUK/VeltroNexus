@@ -58,8 +58,8 @@ import {
   getUncachableStripeClient,
   getStripePublishableKey,
 } from "./stripeClient";
-import { sql } from "drizzle-orm";
-import { db } from "./db";
+// import { sql } from "drizzle-orm"; // REMOVED
+// import { db } from "./db"; // REMOVED
 const require = createRequire(import.meta.url);
 
 // Extended Request interface for authenticated routes
@@ -6092,67 +6092,39 @@ export async function registerRoutes(app: Application): Promise<Server> {
     }
   });
 
-  // List subscription products with prices
+  // List subscription products with prices via Stripe API
   app.get("/api/billing/products", isAuthenticated, async (req, res) => {
     try {
-      const result = await db.execute(sql`
-        WITH subscription_products AS (
-          SELECT id, name, description, metadata, active
-          FROM stripe.products
-          WHERE active = true
-          ORDER BY name
-        )
-        SELECT 
-          p.id as product_id,
-          p.name as product_name,
-          p.description as product_description,
-          p.metadata as product_metadata,
-          pr.id as price_id,
-          pr.unit_amount,
-          pr.currency,
-          pr.recurring,
-          pr.metadata as price_metadata
-        FROM subscription_products p
-        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-        ORDER BY p.name, pr.unit_amount
-      `);
+      const stripe = await getUncachableStripeClient();
+      const prices = await stripe.prices.list({
+        active: true,
+        limit: 100,
+        expand: ["data.product"]
+      });
 
-      // Helper to safely parse JSON fields from Stripe sync
-      const parseJson = (val: any) => {
-        if (val === null || val === undefined) return {};
-        if (typeof val === "object") return val;
-        if (typeof val === "string") {
-          if (val === "" || val === "null") return {};
-          try {
-            return JSON.parse(val);
-          } catch {
-            return {};
-          }
-        }
-        return {};
-      };
-
-      // Group prices by product
       const productsMap = new Map();
-      for (const row of result.rows as any[]) {
-        if (!productsMap.has(row.product_id)) {
-          productsMap.set(row.product_id, {
-            id: row.product_id,
-            name: row.product_name,
-            description: row.product_description,
-            metadata: parseJson(row.product_metadata),
-            prices: [],
+
+      for (const price of prices.data) {
+        const product = price.product as any; // Expanded
+        if (!product || typeof product === 'string') continue; // Should be expanded object
+
+        if (!productsMap.has(product.id)) {
+          productsMap.set(product.id, {
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            metadata: product.metadata,
+            prices: []
           });
         }
-        if (row.price_id) {
-          productsMap.get(row.product_id).prices.push({
-            id: row.price_id,
-            unit_amount: row.unit_amount,
-            currency: row.currency,
-            recurring: parseJson(row.recurring),
-            metadata: parseJson(row.price_metadata),
-          });
-        }
+
+        productsMap.get(product.id).prices.push({
+          id: price.id,
+          unit_amount: price.unit_amount,
+          currency: price.currency,
+          recurring: price.recurring,
+          metadata: price.metadata
+        });
       }
 
       res.json({ products: Array.from(productsMap.values()) });
@@ -6175,6 +6147,25 @@ export async function registerRoutes(app: Application): Promise<Server> {
         });
       }
 
+      const stripe = await getUncachableStripeClient();
+      const sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId, {
+        expand: ['items.data.price.product']
+      });
+
+      // Transform to match expected format if needed, or return raw
+      // The frontend expects: { subscription: ... }
+      // result.rows[0] had product_name etc joined.
+      // We might need to manually decorate it if the frontend relies on simplified fields.
+      // For now, return the stripe object which is richer.
+      res.json({
+        subscription: sub,
+        tier: user.subscriptionTier,
+        prospectLimit: user.prospectLimit
+      });
+      return; // Stop here
+
+      /* Legacy SQL Logic */
+      /*
       const result = await db.execute(sql`
         SELECT s.*, p.name as product_name, pr.unit_amount, pr.currency, pr.recurring
         FROM stripe.subscriptions s
@@ -6182,6 +6173,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
         LEFT JOIN stripe.products p ON pr.product = p.id
         WHERE s.id = ${user.stripeSubscriptionId}
       `);
+      */
 
       res.json({
         subscription: result.rows[0] || null,
