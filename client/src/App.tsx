@@ -89,8 +89,10 @@ function Router() {
   );
 }
 
+import { OnboardingProvider, WelcomeModal, CelebrationModal } from "@/components/onboarding";
+
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   return (
     <>
@@ -105,7 +107,15 @@ function AppContent() {
           {isAuthenticated && !isLoading && <TrialBanner />}
 
           <main className="flex-1 overflow-y-auto w-full">
-            <Router />
+            {isAuthenticated && !isLoading ? (
+              <OnboardingProvider userName={user?.firstName || "there"}>
+                <Router />
+                <WelcomeModal userName={user?.firstName || "there"} />
+                <CelebrationModal />
+              </OnboardingProvider>
+            ) : (
+              <Router />
+            )}
           </main>
         </div>
       </div>

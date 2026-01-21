@@ -38,11 +38,15 @@ import {
   Link2,
   Shield,
   Brain,
+  GraduationCap,
+  PlayCircle,
+  RotateCcw,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { useOnboarding, OnboardingTooltip } from "@/components/onboarding";
 
 const CURRENCIES = [
   { value: "GBP", label: "£ GBP - British Pound", symbol: "£" },
@@ -107,9 +111,84 @@ const DEFAULT_PDF_SECTIONS = [
   { id: "swotAnalysis", label: "SWOT Analysis", enabled: true },
 ];
 
+const OnboardingSettingsCard = () => {
+  const {
+    enabled,
+    toggleOnboarding,
+    resetOnboarding,
+    progressPercentage
+  } = useOnboarding();
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-primary" />
+              Onboarding & Tutorials
+            </CardTitle>
+            <CardDescription>
+              Manage your guided walkthroughs and onboarding progress
+            </CardDescription>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="onboarding-toggle" className="cursor-pointer">
+              {enabled ? "Enabled" : "Disabled"}
+            </Label>
+            <Switch
+              id="onboarding-toggle"
+              checked={enabled}
+              onCheckedChange={toggleOnboarding}
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
+            <div className="space-y-1">
+              <div className="font-medium flex items-center gap-2">
+                Onboarding Progress
+                <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
+                  {progressPercentage}%
+                </span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Resetting will restart the welcome tour and all checklists.
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetOnboarding}
+              className="gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset Onboarding
+            </Button>
+          </div>
+
+          <div className="text-sm text-muted-foreground flex items-start gap-2">
+            <PlayCircle className="h-4 w-4 mt-0.5 text-primary" />
+            <span>
+              Tip: You can re-enable the "First Run" experience by clicking Reset above if you skipped it.
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 export default function Settings() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const {
+    currentWalkthrough,
+    walkthroughStep,
+    skipWalkthrough
+  } = useOnboarding();
   const [currency, setCurrency] = useState("GBP");
   const [timezone, setTimezone] = useState("Europe/London");
   const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
@@ -449,35 +528,46 @@ export default function Settings() {
       </PageHeader>
 
       <div className="container max-w-4xl mx-auto p-6 space-y-6">
-        <Card data-testid="card-appearance">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Palette className="h-5 w-5" />
-              Appearance
-            </CardTitle>
-            <CardDescription>Customise the look and feel of your workspace</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="theme">Theme</Label>
-              <Select value={theme} onValueChange={setTheme}>
-                <SelectTrigger id="theme" data-testid="select-theme">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {THEMES.map((t) => (
-                    <SelectItem key={t.value} value={t.value} data-testid={`option-theme-${t.value}`}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                Choose how Veltro looks on your device
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <OnboardingTooltip
+          isActive={currentWalkthrough === "settings" && walkthroughStep === 0}
+          title="Customize Your Workspace"
+          message="Make Veltro your own. Choose a theme or upload your company logo for a white-label experience."
+          step={1}
+          totalSteps={1}
+          onNext={skipWalkthrough}
+          onSkip={skipWalkthrough}
+          position="right"
+        >
+          <Card data-testid="card-appearance">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                Appearance
+              </CardTitle>
+              <CardDescription>Customise the look and feel of your workspace</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="theme">Theme</Label>
+                <Select value={theme} onValueChange={setTheme}>
+                  <SelectTrigger id="theme" data-testid="select-theme">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {THEMES.map((t) => (
+                      <SelectItem key={t.value} value={t.value} data-testid={`option-theme-${t.value}`}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Choose how Veltro looks on your device
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </OnboardingTooltip>
 
         <Card data-testid="card-branding">
           <CardHeader>
@@ -736,6 +826,9 @@ export default function Settings() {
             )}
           </CardContent>
         </Card>
+
+        {/* Onboarding Settings */}
+        <OnboardingSettingsCard />
 
         <Card data-testid="card-regional">
           <CardHeader>

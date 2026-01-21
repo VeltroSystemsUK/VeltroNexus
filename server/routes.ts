@@ -482,6 +482,157 @@ export async function registerRoutes(app: Application): Promise<Server> {
     }
   });
 
+  // =====================================
+  // Onboarding API endpoints
+  // =====================================
+
+  // Get onboarding state
+  app.get("/api/user/onboarding", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json(createErrorResponse("User not found", 404, req.requestId));
+      }
+
+      const enabled = (user as any).onboardingEnabled === 1;
+      const progress = (user as any).onboardingProgress || {
+        completed: [],
+        currentStep: null,
+        startedAt: null,
+        completedAt: null,
+      };
+
+      res.json({ enabled, progress });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  // Update onboarding state
+  const updateOnboardingSchema = z.object({
+    enabled: z.boolean().optional(),
+    progress: z.object({
+      completed: z.array(z.string()).optional(),
+      currentStep: z.string().nullable().optional(),
+      startedAt: z.string().nullable().optional(),
+      completedAt: z.string().nullable().optional(),
+    }).optional(),
+  });
+
+  app.patch("/api/user/onboarding", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const result = updateOnboardingSchema.safeParse(req.body);
+
+      if (!result.success) {
+        return res.status(400).json({ error: fromZodError(result.error).message });
+      }
+
+      const updateData: any = {};
+
+      if (result.data.enabled !== undefined) {
+        updateData.onboardingEnabled = result.data.enabled ? 1 : 0;
+      }
+
+      if (result.data.progress) {
+        // Get current progress and merge with updates
+        const user = await storage.getUser(userId);
+        const currentProgress = (user as any)?.onboardingProgress || {
+          completed: [],
+          currentStep: null,
+          startedAt: null,
+          completedAt: null,
+        };
+
+        updateData.onboardingProgress = {
+          ...currentProgress,
+          ...result.data.progress,
+        };
+      }
+
+      const updatedUser = await storage.updateUser(userId, updateData);
+      if (!updatedUser) {
+        return res.status(404).json(createErrorResponse("User not found", 404, req.requestId));
+      }
+
+      res.json({
+        enabled: (updatedUser as any).onboardingEnabled === 1,
+        progress: (updatedUser as any).onboardingProgress,
+      });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  // Complete an onboarding step
+  app.post("/api/user/onboarding/complete-step", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { stepId } = req.body;
+
+      if (!stepId || typeof stepId !== "string") {
+        return res.status(400).json({ error: "stepId is required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json(createErrorResponse("User not found", 404, req.requestId));
+      }
+
+      const currentProgress = (user as any).onboardingProgress || {
+        completed: [],
+        currentStep: null,
+        startedAt: null,
+        completedAt: null,
+      };
+
+      // Add step to completed list if not already there
+      const completedSet = new Set(currentProgress.completed);
+      completedSet.add(stepId);
+
+      const newProgress = {
+        ...currentProgress,
+        completed: Array.from(completedSet),
+      };
+
+      // Check if all steps complete (5 total checklist items)
+      if (completedSet.size >= 5 && !currentProgress.completedAt) {
+        newProgress.completedAt = new Date().toISOString();
+      }
+
+      await storage.updateUser(userId, { onboardingProgress: newProgress });
+
+      res.json({ success: true, progress: newProgress });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  // Reset onboarding
+  app.post("/api/user/onboarding/reset", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+
+      const freshProgress = {
+        completed: [],
+        currentStep: null,
+        startedAt: null,
+        completedAt: null,
+      };
+
+      await storage.updateUser(userId, {
+        onboardingEnabled: 1,
+        onboardingProgress: freshProgress,
+      });
+
+      res.json({ success: true, enabled: true, progress: freshProgress });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
   // Serve public objects from object storage - restricted to allowed prefixes only
   // Security: Only serve from allowlisted directories to prevent arbitrary file access
   const ALLOWED_PUBLIC_PREFIXES = ["branding/"];

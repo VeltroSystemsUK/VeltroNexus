@@ -144,96 +144,99 @@ app.use((req: any, res, next) => {
 // so that req.user is available for user-keyed rate limits
 
 (async () => {
-  // Initialize Redis for rate limiting (falls back to memory if unavailable)
-  await initializeRateLimitRedis();
+  try {
+    // Initialize Redis for rate limiting (falls back to memory if unavailable)
+    await initializeRateLimitRedis();
 
-
-
-  // Log rate limit status on startup
-  const rateLimitStatus = getRateLimitStatus();
-  console.log(
-    JSON.stringify({
-      type: "rate_limit_status",
-      timestamp: new Date().toISOString(),
-      backend: rateLimitStatus.backend,
-      config: rateLimitStatus.config,
-    })
-  );
-
-  const server = await registerRoutes(app);
-
-  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const requestId = (req as any).requestId;
-
-    // Log error with context but don't crash the process
-    // Never log error.message in production as it may contain sensitive info
-    console.error(
-      JSON.stringify({
-        type: "error",
-        timestamp: new Date().toISOString(),
-        requestId,
-        method: req.method,
-        path: req.path,
-        status,
-        errorType: err.name || "Error",
-        stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
-      })
-    );
-
-    // Use sanitized error response
-    res.status(status).json(createErrorResponse(err, status, requestId));
-    // Don't throw - just return to keep the process alive
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => {
-      log(`serving on port ${port}`);
-    }
-  );
-
-  // Graceful shutdown handling
-  const gracefulShutdown = async (signal: string) => {
+    // Log rate limit status on startup
+    const rateLimitStatus = getRateLimitStatus();
     console.log(
       JSON.stringify({
-        type: "shutdown",
+        type: "rate_limit_status",
         timestamp: new Date().toISOString(),
-        signal,
+        backend: rateLimitStatus.backend,
+        config: rateLimitStatus.config,
       })
     );
 
-    // Close Redis connection
-    await closeRateLimitRedis();
+    const server = await registerRoutes(app);
 
-    // Close HTTP server
-    server.close(() => {
-      process.exit(0);
+    app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const requestId = (req as any).requestId;
+
+      // Log error with context but don't crash the process
+      // Never log error.message in production as it may contain sensitive info
+      console.error(
+        JSON.stringify({
+          type: "error",
+          timestamp: new Date().toISOString(),
+          requestId,
+          method: req.method,
+          path: req.path,
+          status,
+          errorType: err.name || "Error",
+          stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+        })
+      );
+
+      // Use sanitized error response
+      res.status(status).json(createErrorResponse(err, status, requestId));
+      // Don't throw - just return to keep the process alive
     });
 
-    // Force exit after 10 seconds
-    setTimeout(() => {
-      process.exit(1);
-    }, 10000);
-  };
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
 
-  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+    // ALWAYS serve the app on the port specified in the environment variable PORT
+    // Other ports are firewalled. Default to 5000 if not specified.
+    // this serves both the API and the client.
+    // It is the only port that is not firewalled.
+    const port = parseInt(process.env.PORT || "5000", 10);
+    server.listen(
+      {
+        port,
+        host: "0.0.0.0",
+      },
+      () => {
+        log(`serving on port ${port}`);
+      }
+    );
+
+    // Graceful shutdown handling
+    const gracefulShutdown = async (signal: string) => {
+      console.log(
+        JSON.stringify({
+          type: "shutdown",
+          timestamp: new Date().toISOString(),
+          signal,
+        })
+      );
+
+      // Close Redis connection
+      await closeRateLimitRedis();
+
+      // Close HTTP server
+      server.close(() => {
+        process.exit(0);
+      });
+
+      // Force exit after 10 seconds
+      setTimeout(() => {
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  } catch (error) {
+    console.error("FATAL ERROR DURING STARTUP:", error);
+    process.exit(1);
+  }
 })();

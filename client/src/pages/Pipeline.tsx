@@ -32,6 +32,7 @@ import { useLocation } from "wouter";
 import { useEffect, useState, useMemo } from "react";
 import type { ProspectWithCompany } from "@shared/schema";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
+import { OnboardingChecklist, OnboardingTooltip, useOnboarding } from "@/components/onboarding";
 
 type Stage =
   | "lead"
@@ -67,6 +68,12 @@ const ALL_STAGES = [...PROSPECT_STAGES, ...PROCESS_STAGES, ...FINAL_STAGES];
 export default function Pipeline() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, isLoading: isAuthLoading, logoutMutation } = useAuth();
+  const {
+    currentWalkthrough,
+    walkthroughStep,
+    nextWalkthroughStep,
+    skipWalkthrough
+  } = useOnboarding();
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   useEffect(() => {
@@ -249,14 +256,24 @@ export default function Pipeline() {
             >
               <TrendingUp className="h-4 w-4" />
             </Button>
-            <Button
-              size="lg"
-              className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
-              onClick={() => navigate("/search")}
-              data-testid="button-add-prospect"
+            <OnboardingTooltip
+              isActive={currentWalkthrough === "lead" && walkthroughStep === 0}
+              title="Start Here"
+              message="Click here to create your first prospect and see Veltro's AI in action."
+              step={1}
+              totalSteps={4}
+              onSkip={skipWalkthrough}
+              position="bottom"
             >
-              Add Prospect
-            </Button>
+              <Button
+                size="lg"
+                className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
+                onClick={() => navigate("/search")}
+                data-testid="button-add-prospect"
+              >
+                Add Prospect
+              </Button>
+            </OnboardingTooltip>
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -395,6 +412,9 @@ export default function Pipeline() {
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" data-testid="content-dashboard">
               <div className="space-y-6 md:space-y-10">
+                {/* Onboarding Checklist - Only appears if onboarding incomplete */}
+                <OnboardingChecklist className="mb-2" />
+
                 {/* Headline Metrics */}
                 <div>
                   <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">

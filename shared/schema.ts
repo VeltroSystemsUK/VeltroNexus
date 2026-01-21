@@ -143,6 +143,11 @@ export const users = pgTable("users", {
   lastLoginAt: timestamp("last_login_at"),
   lastLogoutAt: timestamp("last_logout_at"),
   prospectsCreatedCount: integer("prospects_created_count").notNull().default(0),
+  // Onboarding state
+  onboardingEnabled: integer("onboarding_enabled").notNull().default(1), // 1 = on, 0 = off
+  onboardingProgress: jsonb("onboarding_progress").default(
+    sql`'{"completed":[],"currentStep":null,"startedAt":null,"completedAt":null}'::jsonb`
+  ),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
