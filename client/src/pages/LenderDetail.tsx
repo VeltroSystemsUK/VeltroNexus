@@ -68,6 +68,7 @@ import {
   AlertCircle,
   Loader2,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -150,9 +151,8 @@ function RatingStars({ rating }: { rating: number | null | undefined }) {
       {[...Array(5)].map((_, i) => (
         <Star
           key={i}
-          className={`h-5 w-5 ${
-            i < fullStars ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
-          }`}
+          className={`h-5 w-5 ${i < fullStars ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
+            }`}
         />
       ))}
       <span className="ml-2 text-lg font-medium">{rating.toFixed(1)}</span>
@@ -251,6 +251,17 @@ export default function LenderDetail() {
     },
   });
 
+  const researchMutation = useMutation({
+    mutationFn: () => apiRequest(`/api/lenders/${lenderId}/research`, "POST"),
+    onSuccess: () => {
+      toast.success("AI Research completed! Fields updated.");
+      queryClient.invalidateQueries({ queryKey: ["/api/lenders", lenderId, "full"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`AI Research failed: ${error.message}`);
+    },
+  });
+
   const handleLogInteraction = (data: InteractionForm) => {
     createInteractionMutation.mutate(data);
   };
@@ -306,17 +317,42 @@ export default function LenderDetail() {
             >
               <ChevronLeft className="h-5 w-5" />
             </Button>
-            <div>
-              <h1 className="text-2xl font-bold" data-testid="text-lender-name">
-                {lender.institutionName}
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline">{LENDER_TYPES[lender.lenderType || ""] || "Lender"}</Badge>
-                <PanelBadge status={lender.panelStatus} />
+            <div className="flex items-center gap-4">
+              {lender.logoUrl ? (
+                <div className="h-16 w-16 rounded border bg-white p-1 flex-shrink-0 flex items-center justify-center shadow-sm">
+                  <img src={lender.logoUrl} alt={lender.institutionName} className="max-h-full max-w-full object-contain" />
+                </div>
+              ) : (
+                <div className="h-16 w-16 rounded bg-primary/10 flex-shrink-0 flex items-center justify-center">
+                  <Building2 className="h-8 w-8 text-primary/60" />
+                </div>
+              )}
+              <div>
+                <h1 className="text-2xl font-bold" data-testid="text-lender-name">
+                  {lender.institutionName}
+                </h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline">{LENDER_TYPES[lender.lenderType || ""] || "Lender"}</Badge>
+                  <PanelBadge status={lender.panelStatus} />
+                </div>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="text-primary hover:text-primary border-primary/20 hover:border-primary"
+              onClick={() => researchMutation.mutate()}
+              disabled={researchMutation.isPending}
+              data-testid="button-ai-research"
+            >
+              {researchMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
+              AI Research
+            </Button>
             <Button
               variant="outline"
               onClick={() => setIsInteractionDialogOpen(true)}

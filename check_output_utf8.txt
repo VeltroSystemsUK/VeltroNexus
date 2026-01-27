@@ -1,0 +1,147 @@
+﻿
+> rest-express@1.0.0 check
+> tsc
+
+client/src/components/AutomaticCreditAnalysis.tsx(218,54): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+client/src/components/AutomaticCreditAnalysis.tsx(218,60): error TS7006: Parameter 'index' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(62,54): error TS2305: Module '"@shared/schema"' has no exported member 'UnderwritingData'.
+client/src/components/CreditUnderwritingTool.tsx(2530,70): error TS7006: Parameter 'month' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2530,77): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2572,84): error TS7006: Parameter 'loan' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2572,90): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2602,36): error TS7006: Parameter 'item' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2602,42): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2625,58): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2625,64): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2761,66): error TS7006: Parameter 'result' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2761,74): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2822,46): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2822,52): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2934,61): error TS7006: Parameter 'f' implicitly has an 'any' type.
+client/src/components/DueDiligenceTools.tsx(19,15): error TS2305: Module '"@shared/schema"' has no exported member 'ChecklistItem'.
+client/src/components/SubmitApplicationDialog.tsx(180,36): error TS18048: 'lender.id' is possibly 'undefined'.
+client/src/pages/ProspectDetail.tsx(2487,64): error TS2345: Argument of type 'Date | null | undefined' is not assignable to parameter of type 'string | Date | null'.
+  Type 'undefined' is not assignable to type 'string | Date | null'.
+client/src/pages/ProspectDetail.tsx(2497,29): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+client/src/pages/ProspectDetail.tsx(2540,47): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'Date | null | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'Date | null | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+client/src/pages/ProspectDetail.tsx(2547,70): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+client/src/pages/ProspectDetail.tsx(2987,14): error TS18048: 'prospect.id' is possibly 'undefined'.
+server/routes.ts(2208,37): error TS2339: Property 'getCompany' does not exist on type 'FirestoreStorage'.
+server/routes.ts(2218,37): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(2226,42): error TS2339: Property 'getEmailMessagesByInbox' does not exist on type 'FirestoreStorage'.
+server/routes.ts(2394,37): error TS2339: Property 'listTimeEntries' does not exist on type 'FirestoreStorage'.
+server/routes.ts(2405,42): error TS2339: Property 'getProspectTotalTime' does not exist on type 'FirestoreStorage'.
+server/routes.ts(2422,35): error TS2339: Property 'createTimeEntry' does not exist on type 'FirestoreStorage'.
+server/routes.ts(2433,35): error TS2339: Property 'updateTimeEntry' does not exist on type 'FirestoreStorage'.
+server/routes.ts(2447,21): error TS2339: Property 'deleteTimeEntry' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3096,41): error TS2339: Property 'listProspectDocuments' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3108,48): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+server/routes.ts(3218,20): error TS2304: Cannot find name 'existingSections'.
+server/routes.ts(3296,38): error TS2339: Property 'listAddOnProducts' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3306,39): error TS2339: Property 'listUserAddOnPurchases' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3316,37): error TS2339: Property 'getUserProspectCredits' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3344,37): error TS2339: Property 'createAddOnProduct' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3512,42): error TS2339: Property 'listLenderInteractions' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3539,37): error TS2339: Property 'createLenderProduct' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3556,37): error TS2339: Property 'updateLenderProduct' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3573,37): error TS2551: Property 'deleteLenderProduct' does not exist on type 'FirestoreStorage'. Did you mean 'listLenderProducts'?
+server/routes.ts(3589,42): error TS2339: Property 'listLenderInteractions' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3600,42): error TS2339: Property 'listUserLenderInteractions' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3617,41): error TS2339: Property 'createLenderInteraction' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3642,41): error TS2339: Property 'updateLenderInteraction' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3659,37): error TS2339: Property 'deleteLenderInteraction' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3674,41): error TS2339: Property 'listApplicationSubmissions' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3678,32): error TS7006: Parameter 'submission' implicitly has an 'any' type.
+server/routes.ts(3825,40): error TS2339: Property 'createApplicationSubmission' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3829,23): error TS2339: Property 'updateApplicationSubmission' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3875,40): error TS2339: Property 'getApplicationSubmission' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3880,21): error TS2339: Property 'deleteApplicationSubmission' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3894,33): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(3958,33): error TS2554: Expected 2 arguments, but got 1.
+server/routes.ts(3993,35): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(4011,40): error TS2339: Property 'getEmailMessageByMessageId' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4013,25): error TS2339: Property 'createEmailMessage' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4042,35): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(4061,35): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(4066,37): error TS2551: Property 'getEmailMessage' does not exist on type 'FirestoreStorage'. Did you mean 'listEmailMessages'?
+server/routes.ts(4073,23): error TS2339: Property 'markEmailAsRead' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4092,35): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(4119,42): error TS2339: Property 'createEmailMessage' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4150,35): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(4155,37): error TS2551: Property 'getEmailMessage' does not exist on type 'FirestoreStorage'. Did you mean 'listEmailMessages'?
+server/routes.ts(4160,37): error TS2339: Property 'updateEmailMessageLink' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4177,35): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(4182,38): error TS2339: Property 'getEmailMessagesForContact' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4195,35): error TS2551: Property 'getEmailInbox' does not exist on type 'FirestoreStorage'. Did you mean 'createEmailInbox'?
+server/routes.ts(4200,38): error TS2339: Property 'getEmailMessagesForProspect' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4213,37): error TS2339: Property 'listLeadUploads' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4245,36): error TS2339: Property 'createLeadUpload' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4258,23): error TS2339: Property 'updateLeadUpload' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4363,23): error TS2339: Property 'createLeadsBulk' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4367,21): error TS2339: Property 'updateLeadUpload' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4375,43): error TS2339: Property 'getLeadUpload' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4420,35): error TS2339: Property 'listLeads' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4433,34): error TS2339: Property 'getLead' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4450,34): error TS2551: Property 'updateLead' does not exist on type 'FirestoreStorage'. Did you mean 'updateLender'?
+server/routes.ts(4467,21): error TS2551: Property 'deleteLead' does not exist on type 'FirestoreStorage'. Did you mean 'deleteLender'?
+server/routes.ts(4481,21): error TS2339: Property 'deleteLeadsByUpload' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4496,34): error TS2339: Property 'getLead' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4548,11): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(4555,21): error TS2551: Property 'updateLead' does not exist on type 'FirestoreStorage'. Did you mean 'updateLender'?
+server/routes.ts(4725,48): error TS2551: Property 'getUnderwritingSubmissionByProspect' does not exist on type 'FirestoreStorage'. Did you mean 'getUnderwritingSubmission'?
+server/routes.ts(4747,21): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4776,39): error TS2551: Property 'claimUnderwritingSubmission' does not exist on type 'FirestoreStorage'. Did you mean 'listUnderwritingSubmissions'?
+server/routes.ts(4783,23): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4835,25): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4879,25): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4940,40): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4969,42): error TS2339: Property 'listUnderwritingActivities' does not exist on type 'FirestoreStorage'.
+server/routes.ts(4973,33): error TS7006: Parameter 'activity' implicitly has an 'any' type.
+server/routes.ts(5006,42): error TS2551: Property 'getUnderwritingSubmissionByProspect' does not exist on type 'FirestoreStorage'. Did you mean 'getUnderwritingSubmission'?
+server/routes.ts(5127,35): error TS2339: Property 'getTeams' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5149,34): error TS2339: Property 'createTeam' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5167,34): error TS2339: Property 'getTeamWithMembers' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5176,12): error TS7006: Parameter 'm' implicitly has an 'any' type.
+server/routes.ts(5202,36): error TS2339: Property 'getTeamWithMembers' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5208,12): error TS7006: Parameter 'm' implicitly has an 'any' type.
+server/routes.ts(5220,36): error TS2339: Property 'addTeamMember' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5245,36): error TS2339: Property 'getTeamWithMembers' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5251,12): error TS7006: Parameter 'm' implicitly has an 'any' type.
+server/routes.ts(5258,21): error TS2339: Property 'removeTeamMember' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5269,35): error TS2339: Property 'getUserTeams' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5495,42): error TS2339: Property 'listUnderwritingActivities' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5496,43): error TS7006: Parameter 'a' implicitly has an 'any' type.
+server/routes.ts(5553,38): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5606,38): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5662,40): error TS2339: Property 'createUnderwritingActivity' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5694,39): error TS2339: Property 'listProspectDocuments' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5781,44): error TS2339: Property 'createProspectDocument' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5849,40): error TS2339: Property 'getProspectDocument' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5880,38): error TS2339: Property 'getProspectDocument' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5893,21): error TS2339: Property 'deleteProspectDocument' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5909,36): error TS2339: Property 'generateWebhookApiKey' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5951,34): error TS2339: Property 'getUserByWebhookApiKeyHash' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5957,21): error TS2339: Property 'updateWebhookApiKeyLastUsed' does not exist on type 'FirestoreStorage'.
+server/routes.ts(5973,45): error TS2339: Property 'getUserProspectCredits' does not exist on type 'FirestoreStorage'.
+server/routes.ts(6004,11): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(6029,15): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(6052,42): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(6057,9): error TS2345: Argument of type '{ prospectId: number | undefined; title: string; description: string; activityType: string; priority: "low"; }' is not assignable to parameter of type '{ title: string; completed: number; priority: "high" | "low" | "medium" | "urgent"; activityType: string; description?: string | null | undefined; prospectId?: number | null | undefined; dueDate?: Date | ... 1 more ... | undefined; }'.
+  Property 'completed' is missing in type '{ prospectId: number | undefined; title: string; description: string; activityType: string; priority: "low"; }' but required in type '{ title: string; completed: number; priority: "high" | "low" | "medium" | "urgent"; activityType: string; description?: string | null | undefined; prospectId?: number | null | undefined; dueDate?: Date | ... 1 more ... | undefined; }'.
+server/routes.ts(6177,23): error TS2304: Cannot find name 'result'.
+server/routes.ts(6178,15): error TS18048: 'user' is possibly 'undefined'.
+server/routes.ts(6179,24): error TS18048: 'user' is possibly 'undefined'.
+server/routes.ts(6340,15): error TS2339: Property 'lenderEnquiries' does not exist on type 'typeof import("C:/Users/Shaun/Downloads/Veltro/Veltro/shared/schema")'.
+server/routes.ts(6343,31): error TS2304: Cannot find name 'db'.

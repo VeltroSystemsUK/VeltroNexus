@@ -1,11 +1,11 @@
 steps:
   # 1. Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA', '.']
+    args: ['build', '-t', 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$SHORT_SHA', '.']
 
   # 2. Push the Docker image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA']
+    args: ['push', 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$SHORT_SHA']
 
   # 3. Deploy the new image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -13,9 +13,9 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'veltro-app'
+      - 'veltro'
       - '--image'
-      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA'
+      - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$SHORT_SHA'
       - '--region'
       - 'europe-west2'
       # Note: We do NOT set --set-env-vars here. 
@@ -26,4 +26,4 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 images:
-  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$COMMIT_SHA'
+  - 'europe-west2-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/veltro-app:$SHORT_SHA'

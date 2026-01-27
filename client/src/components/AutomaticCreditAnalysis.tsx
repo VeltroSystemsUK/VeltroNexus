@@ -56,7 +56,7 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Financial Data Available</h3>
             <p className="text-muted-foreground max-w-md">
-              Upload bank statements (CSV or PDF) or audited accounts in the Pre-Underwriting section 
+              Upload bank statements (CSV or PDF) or audited accounts in the Pre-Underwriting section
               to automatically calculate DSCR and credit ratios.
             </p>
           </div>
@@ -183,21 +183,21 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <PnLItem label="Turnover" value={formatCurrency(financialAnalysis.profitAndLoss.turnover)} />
                     <PnLItem label="Cost of Sales" value={formatCurrency(financialAnalysis.profitAndLoss.costOfSales)} />
-                    <PnLItem 
-                      label="Gross Profit" 
-                      value={formatCurrency(financialAnalysis.profitAndLoss.grossProfit)} 
+                    <PnLItem
+                      label="Gross Profit"
+                      value={formatCurrency(financialAnalysis.profitAndLoss.grossProfit)}
                       isPositive={(financialAnalysis.profitAndLoss.grossProfit ?? 0) > 0}
                     />
                     <PnLItem label="Total Expenses" value={formatCurrency(financialAnalysis.profitAndLoss.totalExpenses)} />
-                    <PnLItem 
-                      label="Net Profit" 
+                    <PnLItem
+                      label="Net Profit"
                       value={formatCurrency(financialAnalysis.profitAndLoss.netProfit)}
                       isPositive={(financialAnalysis.profitAndLoss.netProfit ?? 0) > 0}
                       highlight
                     />
                     {financialAnalysis.profitAndLoss.grossProfit && financialAnalysis.profitAndLoss.turnover && (
-                      <PnLItem 
-                        label="Gross Margin" 
+                      <PnLItem
+                        label="Gross Margin"
                         value={formatPercent((financialAnalysis.profitAndLoss.grossProfit / financialAnalysis.profitAndLoss.turnover) * 100)}
                       />
                     )}
@@ -215,9 +215,9 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
                     Risk Flags
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {financialAnalysis.redFlags.map((flag, index) => (
-                      <Badge 
-                        key={index} 
+                    {financialAnalysis.redFlags.map((flag: any, index: number) => (
+                      <Badge
+                        key={index}
                         variant={flag.isActive ? "destructive" : "outline"}
                         className="flex items-center gap-1"
                       >
@@ -252,65 +252,65 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
                     </tr>
                   </thead>
                   <tbody>
-                    <RatioTableRow 
-                      label="Current Ratio" 
-                      benchmark="≥ 1.5" 
+                    <RatioTableRow
+                      label="Current Ratio"
+                      benchmark="≥ 1.5"
                       values={accountsAnalysis.ratios.map(r => r.ratios.currentRatio)}
                       formatFn={formatRatio}
                       isGood={(v) => (v ?? 0) >= 1.5}
                     />
-                    <RatioTableRow 
-                      label="Quick Ratio" 
-                      benchmark="≥ 1.0" 
+                    <RatioTableRow
+                      label="Quick Ratio"
+                      benchmark="≥ 1.0"
                       values={accountsAnalysis.ratios.map(r => r.ratios.quickRatio)}
                       formatFn={formatRatio}
                       isGood={(v) => (v ?? 0) >= 1.0}
                     />
-                    <RatioTableRow 
-                      label="Debt to Equity" 
-                      benchmark="≤ 2.0" 
+                    <RatioTableRow
+                      label="Debt to Equity"
+                      benchmark="≤ 2.0"
                       values={accountsAnalysis.ratios.map(r => r.ratios.debtToEquity)}
                       formatFn={formatRatio}
                       isGood={(v) => (v ?? 0) <= 2.0}
                     />
-                    <RatioTableRow 
-                      label="Gross Profit Margin" 
-                      benchmark="≥ 20%" 
+                    <RatioTableRow
+                      label="Gross Profit Margin"
+                      benchmark="≥ 20%"
                       values={accountsAnalysis.ratios.map(r => r.ratios.grossProfitMargin)}
                       formatFn={formatPercent}
                       isGood={(v) => normalizePercent(v) >= 20}
                     />
-                    <RatioTableRow 
-                      label="Net Profit Margin" 
-                      benchmark="≥ 5%" 
+                    <RatioTableRow
+                      label="Net Profit Margin"
+                      benchmark="≥ 5%"
                       values={accountsAnalysis.ratios.map(r => r.ratios.netProfitMargin)}
                       formatFn={formatPercent}
                       isGood={(v) => normalizePercent(v) >= 5}
                     />
-                    <RatioTableRow 
-                      label="Interest Cover" 
-                      benchmark="≥ 2.0" 
+                    <RatioTableRow
+                      label="Interest Cover"
+                      benchmark="≥ 2.0"
                       values={accountsAnalysis.ratios.map(r => r.ratios.interestCover)}
                       formatFn={formatRatio}
                       isGood={(v) => (v ?? 0) >= 2.0}
                     />
-                    <RatioTableRow 
-                      label="ROCE" 
-                      benchmark="≥ 15%" 
+                    <RatioTableRow
+                      label="ROCE"
+                      benchmark="≥ 15%"
                       values={accountsAnalysis.ratios.map(r => r.ratios.returnOnCapitalEmployed)}
                       formatFn={formatPercent}
                       isGood={(v) => normalizePercent(v) >= 15}
                     />
-                    <RatioTableRow 
-                      label="Debtor Days" 
-                      benchmark="≤ 60" 
+                    <RatioTableRow
+                      label="Debtor Days"
+                      benchmark="≤ 60"
                       values={accountsAnalysis.ratios.map(r => r.ratios.debtorDays)}
                       formatFn={(v) => v?.toFixed(0) ?? "N/A"}
                       isGood={(v) => (v ?? 0) <= 60}
                     />
-                    <RatioTableRow 
-                      label="Creditor Days" 
-                      benchmark="≤ 45" 
+                    <RatioTableRow
+                      label="Creditor Days"
+                      benchmark="≤ 45"
                       values={accountsAnalysis.ratios.map(r => r.ratios.creditorDays)}
                       formatFn={(v) => v?.toFixed(0) ?? "N/A"}
                       isGood={(v) => (v ?? 0) <= 45}
@@ -342,7 +342,7 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
                     </tr>
                   </thead>
                   <tbody>
-                    {accountsAnalysis.years.map((year, index) => (
+                    {accountsAnalysis.years.map((year: any, index: number) => (
                       <tr key={index} className="border-b last:border-0">
                         <td className="py-2 px-3 font-medium">{year.yearEnding}</td>
                         <td className="text-right py-2 px-3">{formatCurrency(year.turnover)}</td>
@@ -421,13 +421,13 @@ function MetricCard({
   );
 }
 
-function PnLItem({ 
-  label, 
-  value, 
+function PnLItem({
+  label,
+  value,
   isPositive,
-  highlight 
-}: { 
-  label: string; 
+  highlight
+}: {
+  label: string;
   value: string;
   isPositive?: boolean;
   highlight?: boolean;
@@ -435,13 +435,12 @@ function PnLItem({
   return (
     <div className={`p-3 rounded-lg ${highlight ? 'bg-primary/10 border border-primary/20' : 'bg-muted/50'}`}>
       <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className={`font-semibold ${
-        isPositive !== undefined 
-          ? isPositive 
-            ? 'text-green-600 dark:text-green-400' 
+      <div className={`font-semibold ${isPositive !== undefined
+          ? isPositive
+            ? 'text-green-600 dark:text-green-400'
             : 'text-red-600 dark:text-red-400'
           : ''
-      }`}>
+        }`}>
         {value}
       </div>
     </div>
@@ -497,8 +496,8 @@ function RatioTableRow({
       {values.map((value, idx) => {
         const good = isGood(value);
         return (
-          <td 
-            key={idx} 
+          <td
+            key={idx}
             className={`text-right py-2 px-3 font-medium ${good ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}
           >
             <div className="flex items-center justify-end gap-1">

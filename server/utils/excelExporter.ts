@@ -116,7 +116,7 @@ export async function generatePipelineExcel(
       const dataRow = worksheet.getRow(currentRow);
 
       // Date of Enquiry
-      dataRow.getCell(1).value = new Date(prospect.createdAt);
+      dataRow.getCell(1).value = prospect.createdAt ? new Date(prospect.createdAt) : null;
       dataRow.getCell(1).numFmt = "dd/mm/yyyy";
 
       // Company name

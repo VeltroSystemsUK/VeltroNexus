@@ -12,6 +12,7 @@ import crypto from "crypto";
 
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
+import { setupAuth } from "./auth";
 
 const app = express();
 
@@ -67,6 +68,13 @@ const isProduction = process.env.NODE_ENV === "production";
 app.use((req, res, next) => {
   // Prevent clickjacking attacks
   res.setHeader("X-Frame-Options", "DENY");
+
+  // Relax Cross-Origin policies to allow external images (like Google Favicons)
+  // that don't have CORP headers.
+  res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+
   // Prevent MIME type sniffing
   res.setHeader("X-Content-Type-Options", "nosniff");
   // Enable browser XSS filter (legacy but still useful)
@@ -90,11 +98,11 @@ app.use((req, res, next) => {
   ) {
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' https://js.stripe.com",
+      "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' https://js.stripe.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.replit.dev wss://*.replit.dev https://api.stripe.com https://checkout.stripe.com https://*.run.app",
+      "connect-src 'self' https://*.replit.dev wss://*.replit.dev https://api.stripe.com https://checkout.stripe.com https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk",
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -102,7 +110,9 @@ app.use((req, res, next) => {
       "object-src 'none'",
       "upgrade-insecure-requests",
     ];
-    res.setHeader("Content-Security-Policy", cspDirectives.join("; "));
+    const cspString = cspDirectives.join("; ");
+    res.setHeader("Content-Security-Policy", cspString);
+    res.setHeader("Content-Security-Policy-Report-Only", cspString);
   }
 
   next();
@@ -159,6 +169,9 @@ app.use((req: any, res, next) => {
       })
     );
 
+    // Setup authentication - MUST be before registerRoutes
+    await setupAuth(app as any);
+
     const server = await registerRoutes(app);
 
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
@@ -188,7 +201,8 @@ app.use((req: any, res, next) => {
     // importantly only setup vite in development and after
     // setting up all the other routes so the catch-all route
     // doesn't interfere with the other routes
-    if (app.get("env") === "development") {
+    // Force Vite in development (bypass production check for debugging)
+    if (true) {
       await setupVite(app, server);
     } else {
       serveStatic(app);

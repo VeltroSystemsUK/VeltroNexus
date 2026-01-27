@@ -1,0 +1,69 @@
+﻿
+> rest-express@1.0.0 check
+> tsc
+
+client/src/components/AutomaticCreditAnalysis.tsx(218,54): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+client/src/components/AutomaticCreditAnalysis.tsx(218,60): error TS7006: Parameter 'index' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2530,70): error TS7006: Parameter 'month' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2530,77): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2572,84): error TS7006: Parameter 'loan' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2572,90): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2602,36): error TS7006: Parameter 'item' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2602,42): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2625,58): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2625,64): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2761,66): error TS7006: Parameter 'result' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2761,74): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2822,46): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2822,52): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/CreditUnderwritingTool.tsx(2934,61): error TS7006: Parameter 'f' implicitly has an 'any' type.
+client/src/components/SubmitApplicationDialog.tsx(180,36): error TS18048: 'lender.id' is possibly 'undefined'.
+client/src/pages/ProspectDetail.tsx(2487,64): error TS2345: Argument of type 'Date | null | undefined' is not assignable to parameter of type 'string | Date | null'.
+  Type 'undefined' is not assignable to type 'string | Date | null'.
+client/src/pages/ProspectDetail.tsx(2497,29): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+client/src/pages/ProspectDetail.tsx(2540,47): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'Date | null | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'Date | null | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+client/src/pages/ProspectDetail.tsx(2547,70): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+client/src/pages/ProspectDetail.tsx(2987,14): error TS18048: 'prospect.id' is possibly 'undefined'.
+server/routes.ts(3218,20): error TS2304: Cannot find name 'existingSections'.
+server/routes.ts(3463,37): error TS2339: Property 'searchLenders' does not exist on type 'FirestoreStorage'.
+server/routes.ts(3526,67): error TS2554: Expected 1 arguments, but got 2.
+server/routes.ts(3539,70): error TS2554: Expected 1 arguments, but got 2.
+server/routes.ts(3556,76): error TS2554: Expected 2 arguments, but got 3.
+server/routes.ts(3573,68): error TS2554: Expected 1 arguments, but got 2.
+server/routes.ts(3574,12): error TS1345: An expression of type 'void' cannot be tested for truthiness.
+server/routes.ts(3660,12): error TS1345: An expression of type 'void' cannot be tested for truthiness.
+server/routes.ts(3829,51): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(4160,37): error TS2554: Expected 3-4 arguments, but got 2.
+server/routes.ts(4182,75): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+server/routes.ts(4200,76): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+server/routes.ts(4258,59): error TS2345: Argument of type '{ status: string; errors: { row: number; message: string; }[]; }' is not assignable to parameter of type 'string'.
+server/routes.ts(4367,57): error TS2345: Argument of type '{ status: string; totalRows: number; successRows: number; errorRows: number; errors: { row: number; message: string; }[]; }' is not assignable to parameter of type 'string'.
+server/routes.ts(4420,53): error TS2345: Argument of type '{ uploadId?: number | undefined; matchStatus?: string | undefined; search?: string | undefined; }' is not assignable to parameter of type 'string'.
+server/routes.ts(4538,35): error TS2339: Property 'address' does not exist on type '{ id: number; companyName: string; matchStatus: string; email?: string | null | undefined; companyNumber?: string | null | undefined; postcode?: string | null | undefined; phone?: string | null | undefined; contactName?: string | ... 1 more ... | undefined; linkedProspectId?: number | ... 1 more ... | undefined; }'.
+server/routes.ts(4548,11): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(4555,48): error TS2345: Argument of type '{ matchStatus: string; matchedCompanyNumber: any; linkedProspectId: number | undefined; }' is not assignable to parameter of type 'string'.
+server/routes.ts(5174,30): error TS2339: Property 'createdBy' does not exist on type '{ id: number; name: string; description?: string | undefined; } & { members: { id: number; userId: string; teamId: number; memberRole: string; }[]; }'.
+server/routes.ts(5206,30): error TS2339: Property 'createdBy' does not exist on type '{ id: number; name: string; description?: string | undefined; } & { members: { id: number; userId: string; teamId: number; memberRole: string; }[]; }'.
+server/routes.ts(5249,30): error TS2339: Property 'createdBy' does not exist on type '{ id: number; name: string; description?: string | undefined; } & { members: { id: number; userId: string; teamId: number; memberRole: string; }[]; }'.
+server/routes.ts(6004,11): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(6029,15): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(6052,42): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/routes.ts(6057,9): error TS2345: Argument of type '{ prospectId: number | undefined; title: string; description: string; activityType: string; priority: "low"; }' is not assignable to parameter of type '{ priority: "medium" | "low" | "high" | "urgent"; title: string; activityType: string; completed: number; prospectId?: number | null | undefined; description?: string | null | undefined; dueDate?: Date | ... 1 more ... | undefined; }'.
+  Property 'completed' is missing in type '{ prospectId: number | undefined; title: string; description: string; activityType: string; priority: "low"; }' but required in type '{ priority: "medium" | "low" | "high" | "urgent"; title: string; activityType: string; completed: number; prospectId?: number | null | undefined; description?: string | null | undefined; dueDate?: Date | ... 1 more ... | undefined; }'.
+server/routes.ts(6177,23): error TS2304: Cannot find name 'result'.
+server/routes.ts(6178,15): error TS18048: 'user' is possibly 'undefined'.
+server/routes.ts(6179,24): error TS18048: 'user' is possibly 'undefined'.
+server/routes.ts(6343,31): error TS2304: Cannot find name 'db'.

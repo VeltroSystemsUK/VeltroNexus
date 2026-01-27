@@ -336,7 +336,7 @@ export default function Submissions() {
                               </AlertDialogCancel>
                               <AlertDialogAction
                                 data-testid={`button-confirm-delete-${submission.id}`}
-                                onClick={() => deleteMutation.mutate(submission.id)}
+                                onClick={() => deleteMutation.mutate(submission.id!)}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
                                 Delete

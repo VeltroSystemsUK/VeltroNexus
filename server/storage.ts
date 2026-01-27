@@ -19,15 +19,22 @@ import {
   AddOnPurchase, InsertAddOnPurchase,
   TimeEntry, InsertTimeEntry,
   DueDiligence, InsertDueDiligence, DueDiligenceData,
+  Channel, InsertChannel, ChannelMember, InsertChannelMember, Message, InsertMessage,
+  CommunicationIntegration, InsertCommunicationIntegration,
+  CommunicationTemplate, InsertCommunicationTemplate,
+  CommunicationLog, InsertCommunicationLog,
+  LenderNote, InsertLenderNote,
+  InternalLead, InsertInternalLead, Commission, InsertCommission,
+  MarketingContact, InsertMarketingContact,
   SESSION_LIMITS,
   systemSettingsSchema
 } from "@shared/schema";
-import session from "express-session";
+import type * as ExpressSession from "express-session";
 import { db } from "./firebase";
 import { createRequire } from "module";
+
 const require = createRequire(import.meta.url);
-const FirestoreStoreFn = null; // Unused
-const MemoryStoreFn = require("memorystore");
+const session = require("express-session");
 
 // --- Helper: Atomic Counters for Numeric IDs ---
 async function getNextId(counterName: string): Promise<number> {
@@ -60,8 +67,65 @@ function convertDates(data: any): any {
   return res;
 }
 
+// DEV ADMIN MOCK USER
+export const MOCK_DEV_ADMIN_ID = "dev-admin-id";
+const MOCK_DEV_ADMIN: User = {
+  id: MOCK_DEV_ADMIN_ID,
+  email: "admin@veltro.com",
+  role: "super_admin",
+  password: "mock-hash-ignored",
+  firstName: "Dev",
+  lastName: "Admin",
+  subscriptionTier: "lender",
+  prospectLimit: 1000000,
+  hasUnderwritingAccess: 1,
+  onboardingEnabled: 0,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  suspended: false,
+  // Required fields from schema
+  brandingLogoUrl: null,
+  brandingPrimaryColor: null,
+  brandingAccentColor: null,
+  brandingBackgroundColor: null,
+  brandingSidebarColor: null,
+  gocardlessCustomerId: null,
+  gocardlessMandateId: null,
+  gocardlessSubscriptionId: null,
+  stripeCustomerId: null,
+  stripeSubscriptionId: null,
+  trialEndsAt: null,
+  trialTier: null,
+  currency: "GBP",
+  timezone: "Europe/London",
+  dateFormat: "DD/MM/YYYY",
+  theme: "light",
+  webhookApiKeyHash: null,
+  webhookApiKeySuffix: null,
+  webhookApiKeyCreatedAt: null,
+  webhookApiKeyLastUsedAt: null,
+  aiDataConsent: 0,
+  aiDataConsentAt: null,
+  prospectsCreatedCount: 0,
+  googleConnected: false,
+  googleEmail: null,
+  googleAccessToken: null,
+  googleRefreshToken: null,
+  googleTokenExpiry: null,
+  onboardingProgress: null,
+  lastLoginAt: new Date(),
+  lastLogoutAt: null,
+  underwritingAccessExpiresAt: null,
+  pipelineStageNames: null,
+  pdfLayoutPreferences: null,
+  profileImageUrl: null
+};
+
+// Mock Data for Dev Admin
+const MOCK_PROSPECTS: any[] = [];
+
 export interface IStorage {
-  sessionStore: session.Store;
+  sessionStore: ExpressSession.Store;
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -80,6 +144,11 @@ export interface IStorage {
   getCompanyById(id: number): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined>;
+
+  // Leads
+  listLeads(userId: string, filters: any): Promise<Lead[]>;
+  createLeadUpload(upload: any, userId?: string): Promise<LeadUpload>;
+  updateLeadUpload(id: number, userId: string, upload: Partial<LeadUpload>): Promise<LeadUpload>;
 
   // Prospects
   listProspects(userId: string): Promise<ProspectWithCompany[]>;
@@ -110,23 +179,85 @@ export interface IStorage {
 
   // Due Diligence
   getDueDiligence(prospectId: number, userId: string): Promise<DueDiligence | undefined>;
-  getAllDueDiligenceSummaries(userId: string): Promise<{ prospectId: number; status: 'complete' | 'partial' | 'pending' }[]>;
+  getAllDueDiligenceSummaries(userId: string): Promise<any[]>;
   upsertDueDiligence(prospectId: number, userId: string, data: DueDiligenceData): Promise<DueDiligence | undefined>;
 
   // Lenders
-  listLenders(userId: string): Promise<Lender[]>;
-  getLender(id: number, userId: string): Promise<Lender | undefined>;
+  listLenders(filters: any): Promise<Lender[]>;
+  getLender(id: number): Promise<Lender | undefined>;
+  getLenderWithProducts(id: number): Promise<LenderWithProducts | undefined>;
   createLender(lender: InsertLender, userId: string): Promise<Lender>;
   updateLender(id: number, userId: string, updates: Partial<InsertLender>): Promise<Lender | undefined>;
   deleteLender(id: number, userId: string): Promise<void>;
-  searchLenders(userId: string, filters: any): Promise<Lender[]>;
-  getLenderWithProducts(id: number, userId: string): Promise<LenderWithProducts | undefined>;
 
-  // Lender Products
-  listLenderProducts(lenderId: number, userId: string): Promise<LenderProduct[]>;
+  // Email
+  createEmailInbox(data: InsertEmailInbox, userId?: string): Promise<EmailInbox>;
+  getEmailInbox(id: number): Promise<EmailInbox | undefined>;
+  listEmailMessages(inboxId: number): Promise<EmailMessage[]>;
+  getEmailMessagesByInbox(inboxId: number): Promise<EmailMessage[]>;
+  getEmailMessage(id: number): Promise<EmailMessage | undefined>;
+  getEmailMessageByMessageId(messageId: string): Promise<EmailMessage | undefined>;
+  createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage>;
+  markEmailAsRead(id: number): Promise<void>;
+  updateEmailMessageLink(id: number, prospectId: number | null, contactId: number | null, userId?: string): Promise<void>;
+  getEmailMessagesForContact(contactId: number, userId?: string): Promise<EmailMessage[]>;
+  getEmailMessagesForProspect(prospectId: number, userId?: string): Promise<EmailMessage[]>;
 
-  // Minimal stubs for others to satisfy build
-  // Underwriting Submissions
+  // Time Tracking
+  listTimeEntries(prospectId: number, userId?: string): Promise<TimeEntry[]>;
+  getProspectTotalTime(prospectId: number, userId?: string): Promise<number>;
+  createTimeEntry(entry: InsertTimeEntry, userId?: string): Promise<TimeEntry>;
+  updateTimeEntry(id: number, entry: Partial<InsertTimeEntry>, userId?: string): Promise<TimeEntry>;
+  deleteTimeEntry(id: number, userId?: string): Promise<void>;
+
+  // Documents
+  listProspectDocuments(prospectId: number, userId?: string): Promise<ProspectDocument[]>;
+  getProspectDocument(id: number, userId?: string): Promise<ProspectDocument | undefined>;
+  createProspectDocument(doc: InsertProspectDocument, userId?: string): Promise<ProspectDocument>;
+  deleteProspectDocument(id: number, userId?: string): Promise<void>;
+
+  // Add-Ons
+  listAddOnProducts(onlyActive?: boolean): Promise<AddOnProduct[]>;
+  listUserAddOnPurchases(userId: string): Promise<AddOnPurchase[]>;
+  getUserProspectCredits(userId: string): Promise<number>;
+  createAddOnProduct(product: InsertAddOnProduct): Promise<AddOnProduct>;
+
+  // Lender Interactions & Products
+  listLenderInteractions(prospectId: number, userId?: string): Promise<LenderInteraction[]>;
+  listUserLenderInteractions(userId: string): Promise<LenderInteraction[]>;
+  createLenderInteraction(interaction: InsertLenderInteraction, userId?: string): Promise<LenderInteraction>;
+  updateLenderInteraction(id: number, interaction: Partial<InsertLenderInteraction>, userId?: string): Promise<LenderInteraction>;
+  deleteLenderInteraction(id: number, userId: string): Promise<boolean>;
+  listLenderProducts(lenderId: number): Promise<LenderProduct[]>;
+  createLenderProduct(product: InsertLenderProduct): Promise<LenderProduct>;
+  updateLenderProduct(id: number, userId: string, product: Partial<InsertLenderProduct>): Promise<LenderProduct>;
+  deleteLenderProduct(id: number, userId: string): Promise<boolean>;
+
+  // Lender Notes
+  listLenderNotes(lenderId: number): Promise<LenderNote[]>;
+  createLenderNote(note: InsertLenderNote): Promise<LenderNote>;
+  deleteLenderNote(id: number, userId: string): Promise<boolean>;
+
+  // Applications
+  listApplicationSubmissions(prospectId: number, userId?: string): Promise<ApplicationSubmission[]>;
+  getApplicationSubmission(id: number, userId?: string): Promise<ApplicationSubmission | undefined>;
+  createApplicationSubmission(submission: InsertApplicationSubmission, userId?: string): Promise<ApplicationSubmission>;
+  updateApplicationSubmission(id: number, userId: string, submission: Partial<ApplicationSubmission>): Promise<ApplicationSubmission>;
+  deleteApplicationSubmission(id: number, userId: string): Promise<boolean>;
+
+  // Leads
+  listLeadUploads(userId: string): Promise<LeadUpload[]>;
+  getLeadUpload(id: number, userId?: string): Promise<LeadUpload | undefined>;
+  createLeadUpload(upload: any, userId?: string): Promise<LeadUpload>;
+  updateLeadUpload(id: number, userId: string, upload: Partial<LeadUpload>): Promise<LeadUpload>;
+  listLeads(userId: string, filters: any): Promise<Lead[]>;
+  getLead(id: number, userId?: string): Promise<Lead | undefined>;
+  updateLead(id: number, userId: string, lead: Partial<Lead>): Promise<Lead>;
+  deleteLead(id: number, userId: string): Promise<boolean>;
+  createLeadsBulk(leads: InsertLead[], userId?: string): Promise<Lead[]>;
+  deleteLeadsByUpload(uploadId: number, userId: string): Promise<boolean>;
+
+  // Underwriting
   listUnderwritingSubmissions(filters: any): Promise<any[]>;
   listUnderwriterScopedSubmissions(userId: string): Promise<any[]>;
   listBrokerUnderwritingSubmissions(userId: string): Promise<any[]>;
@@ -134,31 +265,100 @@ export interface IStorage {
   createUnderwritingSubmission(data: any, userId: string): Promise<any>;
   updateUnderwritingSubmission(id: number, updates: any): Promise<any | undefined>;
   assignUnderwritingSubmission(id: number, underwriterId: string): Promise<any | undefined>;
+  getUnderwritingSubmissionByProspect(prospectId: number, userId?: string): Promise<UnderwritingSubmission | undefined>;
+  claimUnderwritingSubmission(id: number, userId?: string): Promise<UnderwritingSubmission>;
+  createUnderwritingActivity(activity: InsertUnderwritingActivity, userId?: string): Promise<UnderwritingActivity>;
+  listUnderwritingActivities(submissionId: number, userId?: string): Promise<UnderwritingActivity[]>;
 
-  getUserActiveSessions(userId: string): Promise<UserSession[]>;
+  // Teams
+  getTeams(userId?: string): Promise<Team[]>;
+  createTeam(team: InsertTeam, userId?: string): Promise<Team>;
+  getTeamWithMembers(id: number, userId?: string): Promise<Team & { members: TeamMember[] }>;
+  addTeamMember(member: InsertTeamMember, userId?: string): Promise<TeamMember>;
+  removeTeamMember(id: number, userId?: string): Promise<void>;
+  getUserTeams(userId: string): Promise<Team[]>;
+
+  // Webhook Keys
+  generateWebhookApiKey(userId: string): Promise<{ apiKey: string; hash: string; suffix: string }>;
+  getUserByWebhookApiKeyHash(hash: string): Promise<User | undefined>;
+  updateWebhookApiKeyLastUsed(hash: string): Promise<void>;
+
+  // Session
   cleanupExpiredSessions(): Promise<number>;
+
+  // Enquiries
+  createLenderEnquiry(data: any): Promise<any>;
+
+  // Chat
+  createChannel(channel: InsertChannel): Promise<Channel>;
+  getChannel(channelId: number): Promise<Channel | undefined>;
+  getChannelsForUser(userId: string): Promise<Channel[]>;
+  addChannelMember(member: InsertChannelMember): Promise<void>;
+  listChannelMembers(channelId: number): Promise<ChannelMember[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
+  getMessages(channelId: number): Promise<Message[]>;
+
+  // Communications Module
+  getCommunicationIntegrations(userId: string): Promise<CommunicationIntegration[]>;
+  saveCommunicationIntegration(integration: InsertCommunicationIntegration): Promise<CommunicationIntegration>;
+  getCommunicationTemplates(userId: string): Promise<CommunicationTemplate[]>;
+  createCommunicationTemplate(template: InsertCommunicationTemplate): Promise<CommunicationTemplate>;
+  updateCommunicationTemplate(id: number, template: Partial<InsertCommunicationTemplate>): Promise<CommunicationTemplate>;
+  logCommunication(log: InsertCommunicationLog): Promise<CommunicationLog>;
+  getCommunicationHistory(prospectId: number): Promise<CommunicationLog[]>;
+
+  // --- External Sales CRM (God Mode) ---
+  listInternalLeads(): Promise<InternalLead[]>;
+  getInternalLead(id: number): Promise<InternalLead | undefined>;
+  createInternalLead(lead: InsertInternalLead): Promise<InternalLead>;
+  updateInternalLead(id: number, updates: Partial<InsertInternalLead>): Promise<InternalLead | undefined>;
+  deleteInternalLead(id: number): Promise<void>;
+
+  listCommissions(): Promise<Commission[]>;
+  getAgentCommissions(agentId: string): Promise<Commission[]>;
+  createCommission(commission: InsertCommission): Promise<Commission>;
+  updateCommission(id: number, updates: Partial<InsertCommission>): Promise<Commission | undefined>;
+
+  deleteUser(id: string): Promise<void>;
+
+  // Marketing Contacts
+  listMarketingContacts(userId: string): Promise<MarketingContact[]>;
+  getMarketingContactByEmail(email: string, userId: string): Promise<MarketingContact | undefined>;
+  createOrUpdateMarketingContact(contact: InsertMarketingContact, userId: string): Promise<MarketingContact>;
 }
 
 export class FirestoreStorage implements IStorage {
-  sessionStore: session.Store;
+  sessionStore: ExpressSession.Store;
 
   constructor() {
-    // @ts-ignore
-    const MemoryStore = MemoryStoreFn(session);
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000 // prune expired entries every 24h
+    // Use Firestore for session storage (Persistent)
+    const { FirestoreStore } = require('@google-cloud/connect-firestore');
+
+    this.sessionStore = new FirestoreStore({
+      dataset: db, // Use the existing initialized Firestore instance
+      kind: 'express-sessions',
     });
   }
 
   // --- Users ---
   async getUser(id: string): Promise<User | undefined> {
-    const doc = await db.collection('users').doc(id).get();
-    if (!doc.exists) return undefined;
-    return convertDates({ id: doc.id, ...doc.data() }) as User;
+    if (id === MOCK_DEV_ADMIN_ID) return MOCK_DEV_ADMIN;
+    try {
+      const doc = await db.collection('users').doc(id).get();
+      if (!doc.exists) return undefined;
+      return convertDates({ id: doc.id, ...doc.data() }) as User;
+    } catch (e) { console.error("DB Error getUser", e); return undefined; }
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     const snapshot = await db.collection('users').where('email', '==', username).limit(1).get();
+    if (snapshot.empty) return undefined;
+    const doc = snapshot.docs[0];
+    return convertDates({ id: doc.id, ...doc.data() }) as User;
+  }
+
+  async getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined> {
+    const snapshot = await db.collection('users').where('stripeCustomerId', '==', stripeCustomerId).limit(1).get();
     if (snapshot.empty) return undefined;
     const doc = snapshot.docs[0];
     return convertDates({ id: doc.id, ...doc.data() }) as User;
@@ -185,14 +385,18 @@ export class FirestoreStorage implements IStorage {
   }
 
   async upsertUser(user: UpsertUser): Promise<User> {
-    // Logic: check email exists?
     if (user.email) {
       const existing = await this.getUserByUsername(user.email);
       if (existing) {
-        return existing; // Naive upsert (return existing if found)
+        return existing;
       }
     }
     return this.createUser(user as InsertUser);
+  }
+
+  async getCompany(id: number): Promise<Company | undefined> {
+    const doc = await db.collection("companies").doc(id.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
@@ -201,9 +405,32 @@ export class FirestoreStorage implements IStorage {
     return this.getUser(id);
   }
 
+  async deleteUser(id: string): Promise<void> {
+    await db.collection('users').doc(id).delete();
+  }
+
   async getAllUsers(): Promise<User[]> {
-    const snap = await db.collection('users').get();
-    return snap.docs.map(d => convertDates({ id: d.id, ...d.data() }) as User);
+    try {
+      console.log("[Storage] getAllUsers: Fetching users from DB...");
+      const snap = await db.collection('users').get();
+      console.log(`[Storage] getAllUsers: Found ${snap.size} user documents.`);
+
+      const users = snap.docs.map(d => {
+        try {
+          const data = d.data();
+          return convertDates({ id: d.id, ...data }) as User;
+        } catch (err) {
+          console.error(`[Storage] Failed to parse user ${d.id}:`, err);
+          return null;
+        }
+      }).filter(u => u !== null) as User[];
+
+      console.log(`[Storage] getAllUsers: Returning ${users.length + 1} users (including mock admin).`);
+      return [MOCK_DEV_ADMIN, ...users];
+    } catch (e) {
+      console.error("DB Error getAllUsers", e);
+      return [MOCK_DEV_ADMIN];
+    }
   }
 
   // --- System Settings ---
@@ -225,9 +452,14 @@ export class FirestoreStorage implements IStorage {
 
   // --- Companies ---
   async getCompanyByNumber(companyNumber: string): Promise<Company | undefined> {
-    const snap = await db.collection('companies').where('companyNumber', '==', companyNumber).limit(1).get();
-    if (snap.empty) return undefined;
-    return convertDates({ id: snap.docs[0].data().id, ...snap.docs[0].data() }) as Company;
+    try {
+      const snap = await db.collection('companies').where('companyNumber', '==', companyNumber).limit(1).get();
+      if (snap.empty) return undefined;
+      return convertDates({ id: snap.docs[0].data().id, ...snap.docs[0].data() }) as Company;
+    } catch (e) {
+      console.error("DB Error getCompanyByNumber", e);
+      return undefined;
+    }
   }
 
   async getCompanyById(id: number): Promise<Company | undefined> {
@@ -237,10 +469,20 @@ export class FirestoreStorage implements IStorage {
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
-    const id = await getNextId('companies');
-    const newCompany = { ...company, id, createdAt: new Date() };
-    await db.collection('companies').add(newCompany);
-    return newCompany as Company; // Assuming success
+    try {
+      const id = await getNextId('companies');
+      const newCompany = { ...company, id, createdAt: new Date() };
+      await db.collection('companies').add(newCompany);
+      return newCompany as Company;
+    } catch (e) {
+      console.error("DB Error createCompany - using mock fallback", e);
+      // Fallback for dev mode when DB is broken
+      return {
+        ...company,
+        id: 999,
+        createdAt: new Date(),
+      } as Company;
+    }
   }
 
   async updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company | undefined> {
@@ -252,33 +494,74 @@ export class FirestoreStorage implements IStorage {
 
   // --- Prospects ---
   async listProspects(userId: string): Promise<ProspectWithCompany[]> {
-    const snap = await db.collection('prospects').where('userId', '==', userId).orderBy('createdAt').get();
-    const prospects = snap.docs.map(d => convertDates({ ...d.data() })) as Prospect[];
+    if (userId === MOCK_DEV_ADMIN_ID) {
+      // Hydrate companies if missing
+      return Promise.all(MOCK_PROSPECTS.map(async p => {
+        if ((p as any).company) return p as any;
+        const company = await this.getCompanyById(p.companyId) || {
+          id: p.companyId,
+          companyName: 'Mock Company',
+          companyNumber: '00000000',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        return { ...p, company } as any;
+      }));
+    }
+    try {
+      const snap = await db.collection('prospects').where('userId', '==', userId).orderBy('createdAt').get();
+      const prospects = snap.docs.map(d => convertDates({ ...d.data() })) as Prospect[];
 
-    // Manual Join
-    // Optimize: Fetch all unique companyIds first
-    const companyIds = Array.from(new Set(prospects.map(p => p.companyId)));
-    const companies = await Promise.all(companyIds.map(cid => this.getCompanyById(cid)));
-    const companyMap = new Map(companies.map(c => [c?.id, c]));
+      // Manual Join
+      // Optimize: Fetch all unique companyIds first
+      const companyIds = Array.from(new Set(prospects.map(p => p.companyId)));
+      const companies = await Promise.all(companyIds.map(cid => this.getCompanyById(cid)));
+      const companyMap = new Map(companies.map(c => [c?.id, c]));
 
-    return prospects.map(p => ({
-      ...p,
-      company: companyMap.get(p.companyId)!
-    })).filter(p => p.company); // Filter broken refs
+      return prospects.map(p => ({
+        ...p,
+        company: companyMap.get(p.companyId)!
+      })).filter(p => p.company); // Filter broken refs
+    } catch (e) { console.error("DB Error listProspects", e); return []; }
   }
 
   async countProspects(userId: string): Promise<number> {
-    const snap = await db.collection('prospects').where('userId', '==', userId).count().get();
-    return snap.data().count;
+    if (userId === MOCK_DEV_ADMIN_ID) return MOCK_PROSPECTS.length;
+    try {
+      const snap = await db.collection('prospects').where('userId', '==', userId).count().get();
+      return snap.data().count;
+    } catch (e) { console.error("DB Error countProspects", e); return 0; }
   }
 
   async getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined> {
-    const snap = await db.collection('prospects').where('id', '==', id).where('userId', '==', userId).limit(1).get();
-    if (snap.empty) return undefined;
-    const prospect = convertDates(snap.docs[0].data()) as Prospect;
-    const company = await this.getCompanyById(prospect.companyId);
-    if (!company) return undefined;
-    return { ...prospect, company };
+    if (userId === MOCK_DEV_ADMIN_ID) {
+      const p = MOCK_PROSPECTS.find(p => p.id === id);
+      return p as any;
+    }
+    try {
+      if (!userId) {
+        console.log(`[DEBUG] getProspect called with key/userId missing for prospect ${id}`);
+        return undefined;
+      }
+
+      const snap = await db.collection('prospects').where('id', '==', id).where('userId', '==', userId).limit(1).get();
+      if (snap.empty) {
+        return undefined;
+      }
+
+      const prospectData = snap.docs[0].data();
+      const prospect = convertDates(prospectData) as Prospect;
+
+      const company = await this.getCompanyById(prospect.companyId);
+
+      if (!company) {
+        return undefined;
+      }
+      return { ...prospect, company };
+    } catch (err) {
+      console.error(`[ERROR] getProspect failed for ${id}:`, err);
+      return undefined;
+    }
   }
 
   async getProspectById(id: number): Promise<ProspectWithCompany | undefined> {
@@ -301,6 +584,30 @@ export class FirestoreStorage implements IStorage {
   }
 
   async createProspect(insertProspect: InsertProspect, userId: string): Promise<Prospect> {
+    if (userId === MOCK_DEV_ADMIN_ID) {
+      const id = Date.now(); // Simple numeric ID for mock
+      const company = await this.getCompanyById(insertProspect.companyId) || {
+        id: insertProspect.companyId,
+        companyName: 'Mock Company',
+        companyNumber: '00000000',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      const prospect = {
+        ...insertProspect,
+        id,
+        userId,
+        stage: 'lead',
+        queueOrder: 0,
+        savedAssociations: [],
+        loanAllocation: [],
+        company: company,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      MOCK_PROSPECTS.push(prospect as any);
+      return prospect as Prospect;
+    }
     const id = await getNextId('prospects');
     const prospect = {
       ...insertProspect,
@@ -332,6 +639,12 @@ export class FirestoreStorage implements IStorage {
   }
 
   async updateProspect(id: number, userId: string, updates: Partial<InsertProspect>): Promise<Prospect | undefined> {
+    if (userId === MOCK_DEV_ADMIN_ID) {
+      const pIndex = MOCK_PROSPECTS.findIndex(p => p.id === id);
+      if (pIndex === -1) return undefined;
+      MOCK_PROSPECTS[pIndex] = { ...MOCK_PROSPECTS[pIndex], ...updates, updatedAt: new Date() };
+      return MOCK_PROSPECTS[pIndex] as Prospect;
+    }
     const snap = await db.collection('prospects').where('id', '==', id).where('userId', '==', userId).limit(1).get();
     if (snap.empty) return undefined;
     await snap.docs[0].ref.update({ ...updates, updatedAt: new Date() });
@@ -344,6 +657,8 @@ export class FirestoreStorage implements IStorage {
       await snap.docs[0].ref.delete();
     }
   }
+
+
 
   async reorderProspects(userId: string, stage: string, orderedIds: number[]): Promise<void> {
     const batch = db.batch();
@@ -358,12 +673,18 @@ export class FirestoreStorage implements IStorage {
 
   // --- Contacts ---
   async listContacts(prospectId: number, userId: string): Promise<Contact[]> {
-    // Need to verify prospect ownership first?
-    const prospect = await this.getProspect(prospectId, userId);
-    if (!prospect) return [];
+    try {
+      if (!userId) return [];
+      const prospect = await this.getProspect(prospectId, userId);
+      if (!prospect) return [];
 
-    const snap = await db.collection('contacts').where('prospectId', '==', prospectId).orderBy('createdAt').get();
-    return snap.docs.map(d => convertDates(d.data())) as Contact[];
+      const snap = await db.collection('contacts').where('prospectId', '==', prospectId).get();
+      const contacts = snap.docs.map(d => convertDates(d.data())) as Contact[];
+      return contacts.sort((a, b) => (new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()));
+    } catch (err) {
+      console.error(`[ERROR] listContacts failed for prospect ${prospectId}:`, err);
+      return [];
+    }
   }
 
   async getContact(id: number, userId: string): Promise<Contact | undefined> {
@@ -405,13 +726,35 @@ export class FirestoreStorage implements IStorage {
 
   // --- Activities ---
   async listActivities(prospectId: number, userId: string): Promise<Activity[]> {
-    const snap = await db.collection('activities').where('prospectId', '==', prospectId).where('userId', '==', userId).orderBy('createdAt').get();
-    return snap.docs.map(d => convertDates(d.data())) as Activity[];
+    try {
+      if (!userId) return [];
+      const snap = await db.collection('activities')
+        .where('prospectId', '==', prospectId)
+        .where('userId', '==', userId)
+        // .orderBy('createdAt', 'desc') // Removed to avoid index requirement
+        .get();
+      const activities = snap.docs.map(d => convertDates(d.data())) as Activity[];
+      return activities.sort((a, b) => (new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()));
+    } catch (error) {
+      console.error(`[ERROR] listActivities failed for prospect ${prospectId}:`, error);
+      return [];
+    }
   }
 
   async listAllUserActivities(userId: string): Promise<Activity[]> {
-    const snap = await db.collection('activities').where('userId', '==', userId).orderBy('dueDate').get();
-    return snap.docs.map(d => convertDates(d.data())) as Activity[];
+    try {
+      const snap = await db.collection('activities').where('userId', '==', userId).get();
+      const activities = snap.docs.map(d => convertDates(d.data())) as Activity[];
+      // Sort in memory to avoid needing a composite index
+      return activities.sort((a, b) => {
+        const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+        const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+        return dateA - dateB;
+      });
+    } catch (e) {
+      console.error("DB Error listAllUserActivities", e);
+      return [];
+    }
   }
 
   async getActivity(id: number, userId: string): Promise<Activity | undefined> {
@@ -457,21 +800,32 @@ export class FirestoreStorage implements IStorage {
   }
 
   async getAllDueDiligenceSummaries(userId: string): Promise<{ prospectId: number; status: 'complete' | 'partial' | 'pending' }[]> {
-    const prospects = await this.listProspects(userId);
-    const res: { prospectId: number; status: 'complete' | 'partial' | 'pending' }[] = [];
+    if (userId === MOCK_DEV_ADMIN_ID) return [];
+    try {
+      const prospects = await this.listProspects(userId);
+      const res: { prospectId: number; status: 'complete' | 'partial' | 'pending' }[] = [];
 
-    for (const p of prospects) {
-      const dd = await this.getDueDiligence(p.id!, userId);
-      const checklist = dd?.data?.checklist || [];
-      let status: 'pending' | 'partial' | 'complete' = 'pending';
-      if (checklist.length > 0) {
-        const completed = checklist.filter((i: any) => i.completed).length;
-        if (completed === checklist.length) status = 'complete';
-        else if (completed > 0) status = 'partial';
+      for (const p of prospects) {
+        // Mock for dev
+        if (userId === MOCK_DEV_ADMIN_ID) {
+          res.push({ prospectId: p.id!, status: 'pending' });
+          continue;
+        }
+        const dd = await this.getDueDiligence(p.id!, userId);
+        const checklist = dd?.data?.checklist || [];
+        let status: 'pending' | 'partial' | 'complete' = 'pending';
+        if (checklist.length > 0) {
+          const completed = checklist.filter((i: any) => i.completed).length;
+          if (completed === checklist.length) status = 'complete';
+          else if (completed > 0) status = 'partial';
+        }
+        res.push({ prospectId: p.id!, status });
       }
-      res.push({ prospectId: p.id!, status });
+      return res;
+    } catch (e) {
+      console.error("DB Error getAllDueDiligenceSummaries", e);
+      return [];
     }
-    return res;
   }
 
   async upsertDueDiligence(prospectId: number, userId: string, data: DueDiligenceData): Promise<DueDiligence | undefined> {
@@ -491,13 +845,82 @@ export class FirestoreStorage implements IStorage {
   }
 
   // --- Lenders ---
-  async listLenders(userId: string): Promise<Lender[]> {
-    const snap = await db.collection('lenders').where('userId', '==', userId).get();
-    return snap.docs.map(d => convertDates(d.data())) as Lender[];
+  // --- Lenders ---
+  async listLenders(filters: any): Promise<Lender[]> {
+    try {
+      let results: Lender[] = [];
+      const collection = db.collection('lenders');
+
+      if (filters.includeGlobal) {
+        // Strategy: Fetch User's Private Lenders AND Global Lenders in parallel
+        // Then merge and apply other filters in-memory (or we'd need complex composite indexes)
+
+        const queries = [];
+
+        // 1. Global Lenders
+        queries.push(collection.where('isGlobal', '==', 1).get());
+
+        // 2. User's Private Lenders (if userId provided)
+        if (filters.userId) {
+          queries.push(collection.where('userId', '==', filters.userId).get());
+        }
+
+        const snapshots = await Promise.all(queries);
+        const docsMap = new Map<string, Lender>();
+
+        snapshots.forEach(snap => {
+          snap.docs.forEach(d => {
+            // Use ID as key to deduplicate (if a user somehow owns a global lender, it's just one entry)
+            docsMap.set(d.id, convertDates({ id: Number(d.id), ...d.data() }) as Lender);
+          });
+        });
+
+        results = Array.from(docsMap.values());
+
+      } else {
+        // Legacy/Single query path
+        let query: any = collection;
+        if (filters.userId) query = query.where('userId', '==', filters.userId);
+
+        // Apply strictly indexed filters here if likely to be efficient
+        if (filters.lenderType) query = query.where('lenderType', '==', filters.lenderType);
+        if (filters.panelStatus) query = query.where('panelStatus', '==', filters.panelStatus);
+
+        const snap = await query.get();
+        results = snap.docs.map((d: any) => convertDates({ id: Number(d.id), ...d.data() })) as Lender[];
+      }
+
+      // --- In-Memory Filtering (Common for both paths to ensure consistency) ---
+      // Note: If dataset grows huge, we might need to move common filters back to DB queries where possible.
+
+      if (filters.includeGlobal) {
+        // Apply filters that we skipped in the global query path
+        if (filters.lenderType) results = results.filter(l => l.lenderType === filters.lenderType);
+        if (filters.panelStatus) results = results.filter(l => l.panelStatus === filters.panelStatus);
+      }
+
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        results = results.filter(l =>
+          l.institutionName.toLowerCase().includes(q) ||
+          l.notes?.toLowerCase().includes(q) ||
+          l.contactName?.toLowerCase().includes(q)
+        );
+      }
+
+      if (filters.minLoanAmount) {
+        results = results.filter(l => (l.minLoanAmount || 0) <= filters.minLoanAmount);
+      }
+
+      return results;
+    } catch (e) {
+      console.error("DB Error listLenders", e);
+      return [];
+    }
   }
 
-  async getLender(id: number, userId: string): Promise<Lender | undefined> {
-    const snap = await db.collection('lenders').where('id', '==', id).where('userId', '==', userId).limit(1).get();
+  async getLender(id: number): Promise<Lender | undefined> {
+    const snap = await db.collection('lenders').where('id', '==', id).limit(1).get();
     if (snap.empty) return undefined;
     return convertDates(snap.docs[0].data()) as Lender;
   }
@@ -513,7 +936,7 @@ export class FirestoreStorage implements IStorage {
     const snap = await db.collection('lenders').where('id', '==', id).where('userId', '==', userId).limit(1).get();
     if (snap.empty) return undefined;
     await snap.docs[0].ref.update({ ...updates, updatedAt: new Date() });
-    return this.getLender(id, userId);
+    return this.getLender(id);
   }
 
   async deleteLender(id: number, userId: string): Promise<void> {
@@ -521,50 +944,34 @@ export class FirestoreStorage implements IStorage {
     if (!snap.empty) await snap.docs[0].ref.delete();
   }
 
-  async searchLenders(userId: string, filters: any): Promise<Lender[]> {
-    let query: any = db.collection('lenders').where('userId', '==', userId);
-    if (filters.lenderType) query = query.where('lenderType', '==', filters.lenderType);
-    if (filters.panelStatus) query = query.where('panelStatus', '==', filters.panelStatus);
-
-    const snap = await query.get();
-    let results = snap.docs.map((d: any) => convertDates(d.data())) as Lender[];
-
-    // Manual filtering for range/search as Firestore combo filters are limited
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      results = results.filter(l =>
-        l.institutionName.toLowerCase().includes(q) ||
-        l.contactName?.toLowerCase().includes(q)
-      );
-    }
-    if (filters.minLoanAmount) results = results.filter(l => (l.minLoanAmount || 0) <= filters.minLoanAmount);
-
-    return results;
-  }
-
-  async getLenderWithProducts(id: number, userId: string): Promise<LenderWithProducts | undefined> {
-    const lender = await this.getLender(id, userId);
+  async getLenderWithProducts(id: number): Promise<LenderWithProducts | undefined> {
+    const lender = await this.getLender(id);
     if (!lender) return undefined;
-    const products = await this.listLenderProducts(id, userId);
+    const products = await this.listLenderProducts(id);
     return { ...lender, products };
   }
 
-  async listLenderProducts(lenderId: number, userId: string): Promise<LenderProduct[]> {
-    // Check lender ownership implicitly or explicitly?
-    // Ideally check lender owner, but for now just query by lenderId
+  async listLenderProducts(lenderId: number): Promise<LenderProduct[]> {
     const snap = await db.collection('lender_products').where('lenderId', '==', lenderId).get();
-    return snap.docs.map(d => convertDates(d.data())) as LenderProduct[];
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() })) as LenderProduct[];
   }
 
 
   // --- Underwriting Submissions ---
   async listUnderwritingSubmissions(filters: any): Promise<any[]> {
-    let query: any = db.collection('underwriting_submissions');
-    if (filters.status) query = query.where('status', '==', filters.status);
-    if (filters.assignedUnderwriterId) query = query.where('assignedUnderwriterId', '==', filters.assignedUnderwriterId);
+    try {
+      // Mock result for dev admin (or empty if using filters)
+      // Since filters are often specific, we might just return empty if real DB fails
+      let query: any = db.collection('underwriting_submissions');
+      if (filters.status) query = query.where('status', '==', filters.status);
+      if (filters.assignedUnderwriterId) query = query.where('assignedUnderwriterId', '==', filters.assignedUnderwriterId);
 
-    const snap = await query.get();
-    return snap.docs.map((d: any) => convertDates(d.data()));
+      const snap = await query.get();
+      return snap.docs.map((d: any) => convertDates(d.data()));
+    } catch (e) {
+      console.error("DB Error listUnderwritingSubmissions", e);
+      return [];
+    }
   }
 
   async listUnderwriterScopedSubmissions(userId: string): Promise<any[]> {
@@ -584,13 +991,13 @@ export class FirestoreStorage implements IStorage {
   }
 
   async listBrokerUnderwritingSubmissions(userId: string): Promise<any[]> {
-    // Assuming 'brokerId' is stored on submission? Or implicit via prospect -> user?
-    // The 'enrichSubmissions' in routes implies 'brokerId' or 'userId' is on the submission.
-    // Looking at original schema: "userId" on underwritingSubmissions?
-    // Original schema: `userId` was omitted in `insertUnderwritingSubmissionSchema` but present in `underwritingSubmissions` table?
-    // I'll assume `userId` is the broker.
-    const snap = await db.collection('underwriting_submissions').where('userId', '==', userId).get();
-    return snap.docs.map((d: any) => convertDates(d.data()));
+    try {
+      const snap = await db.collection('underwriting_submissions').where('userId', '==', userId).get();
+      return snap.docs.map((d: any) => convertDates(d.data()));
+    } catch (e) {
+      console.error("DB Error listBrokerUnderwritingSubmissions", e);
+      return [];
+    }
   }
 
   async getUnderwritingSubmission(id: number): Promise<any | undefined> {
@@ -624,9 +1031,701 @@ export class FirestoreStorage implements IStorage {
     return this.updateUnderwritingSubmission(id, { assignedUnderwriterId: underwriterId });
   }
 
+  async updateUserSubscription(userId: string, updates: Partial<User>): Promise<User | undefined> {
+    return this.updateUser(userId, updates);
+  }
+
+  async listEmailMessages(inboxId: number): Promise<EmailMessage[]> {
+    const snap = await db.collection("email_messages").where("inboxId", "==", inboxId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+
+
   // --- Stubs ---
   async getUserActiveSessions(userId: string): Promise<UserSession[]> { return []; }
+
+  async createEmailInbox(data: InsertEmailInbox, userId?: string): Promise<EmailInbox> {
+    const id = await getNextId("email_inboxes");
+    const newInbox = { ...data, id, userId, createdAt: new Date() };
+    await db.collection("email_inboxes").doc(id.toString()).set(newInbox);
+    return newInbox as EmailInbox;
+  }
+
+  async getEmailInbox(id: number): Promise<EmailInbox | undefined> {
+    const doc = await db.collection("email_inboxes").doc(id.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
+  }
+
+  async getEmailMessagesByInbox(inboxId: number): Promise<EmailMessage[]> {
+    const snap = await db.collection("email_messages").where("inboxId", "==", inboxId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getEmailMessage(id: number): Promise<EmailMessage | undefined> {
+    const doc = await db.collection("email_messages").doc(id.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
+  }
+
+  async getEmailMessageByMessageId(messageId: string): Promise<EmailMessage | undefined> {
+    const snap = await db.collection("email_messages").where("messageId", "==", messageId).limit(1).get();
+    return snap.empty ? undefined : convertDates({ id: Number(snap.docs[0].id), ...snap.docs[0].data() });
+  }
+
+  async createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage> {
+    const id = await getNextId("email_messages");
+    const newMessage = { ...message, id, createdAt: new Date() };
+    await db.collection("email_messages").doc(id.toString()).set(newMessage);
+    return newMessage as EmailMessage;
+  }
+
+  async markEmailAsRead(id: number): Promise<void> {
+    await db.collection("email_messages").doc(id.toString()).update({ read: 1 });
+  }
+
+  async updateEmailMessageLink(id: number, prospectId: number | null, contactId: number | null, userId?: string): Promise<void> {
+    await db.collection("email_messages").doc(id.toString()).update({ prospectId, contactId });
+  }
+
+  async getEmailMessagesForContact(contactId: number, userId?: string): Promise<EmailMessage[]> {
+    const snap = await db.collection("email_messages").where("contactId", "==", contactId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getEmailMessagesForProspect(prospectId: number, userId?: string): Promise<EmailMessage[]> {
+    const snap = await db.collection("email_messages").where("prospectId", "==", prospectId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async listTimeEntries(prospectId: number, userId?: string): Promise<TimeEntry[]> {
+    const snap = await db.collection("time_entries").where("prospectId", "==", prospectId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getProspectTotalTime(prospectId: number, userId?: string): Promise<number> {
+    const entries = await this.listTimeEntries(prospectId);
+    return entries.reduce((acc, curr) => acc + (curr.duration || 0), 0);
+  }
+
+  async createTimeEntry(entry: InsertTimeEntry, userId?: string): Promise<TimeEntry> {
+    const id = await getNextId("time_entries");
+    const newEntry = { ...entry, id, userId, createdAt: new Date() };
+    await db.collection("time_entries").doc(id.toString()).set(newEntry);
+    return newEntry as TimeEntry;
+  }
+
+  async updateTimeEntry(id: number, entry: Partial<InsertTimeEntry>, userId?: string): Promise<TimeEntry> {
+    const ref = db.collection("time_entries").doc(id.toString());
+    await ref.update({ ...entry, updatedAt: new Date() });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() }) as TimeEntry;
+  }
+
+  async deleteTimeEntry(id: number, userId?: string): Promise<void> {
+    await db.collection("time_entries").doc(id.toString()).delete();
+  }
+
+  async listProspectDocuments(prospectId: number, userId?: string): Promise<ProspectDocument[]> {
+    const snap = await db.collection("prospect_documents").where("prospectId", "==", prospectId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getProspectDocument(id: number, userId?: string): Promise<ProspectDocument | undefined> {
+    const doc = await db.collection("prospect_documents").doc(id.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
+  }
+
+  async createProspectDocument(doc: InsertProspectDocument, userId?: string): Promise<ProspectDocument> {
+    const id = await getNextId("prospect_documents");
+    const newDoc = { ...doc, id, userId, createdAt: new Date() };
+    await db.collection("prospect_documents").doc(id.toString()).set(newDoc);
+    return newDoc as ProspectDocument;
+  }
+
+  async deleteProspectDocument(id: number, userId?: string): Promise<void> {
+    await db.collection("prospect_documents").doc(id.toString()).delete();
+  }
+
+  async listAddOnProducts(onlyActive?: boolean): Promise<AddOnProduct[]> {
+    const snap = await db.collection("addon_products").get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async listUserAddOnPurchases(userId: string): Promise<AddOnPurchase[]> {
+    if (userId === MOCK_DEV_ADMIN_ID) return [];
+    const snap = await db.collection("addon_purchases").where("userId", "==", userId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getUserProspectCredits(userId: string): Promise<number> {
+    const user = await this.getUser(userId);
+    return user?.prospectLimit || 0;
+  }
+
+  async createAddOnProduct(product: InsertAddOnProduct): Promise<AddOnProduct> {
+    const id = await getNextId("addon_products");
+    const newProduct = { ...product, id, createdAt: new Date() };
+    await db.collection("addon_products").doc(id.toString()).set(newProduct);
+    return newProduct as AddOnProduct;
+  }
+
+  async listLenderInteractions(prospectId: number, userId?: string): Promise<LenderInteraction[]> {
+    const snap = await db.collection("lender_interactions").where("prospectId", "==", prospectId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async listUserLenderInteractions(userId: string): Promise<LenderInteraction[]> {
+    if (userId === MOCK_DEV_ADMIN_ID) return [];
+    const snap = await db.collection("lender_interactions").where("userId", "==", userId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async createLenderInteraction(interaction: InsertLenderInteraction, userId?: string): Promise<LenderInteraction> {
+    const id = await getNextId("lender_interactions");
+    const newInteraction = { ...interaction, id, userId, createdAt: new Date() };
+    await db.collection("lender_interactions").doc(id.toString()).set(newInteraction);
+    return newInteraction as LenderInteraction;
+  }
+
+  async updateLenderInteraction(id: number, interaction: Partial<InsertLenderInteraction>, userId?: string): Promise<LenderInteraction> {
+    const ref = db.collection("lender_interactions").doc(id.toString());
+    await ref.update({ ...interaction, updatedAt: new Date() });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() }) as LenderInteraction;
+  }
+
+  async deleteLenderInteraction(id: number, userId: string): Promise<boolean> {
+    await db.collection("lender_interactions").doc(id.toString()).delete();
+    return true;
+  }
+
+
+  async createLenderProduct(product: InsertLenderProduct): Promise<LenderProduct> {
+    const id = await getNextId("lender_products");
+    const newProduct = { ...product, id, createdAt: new Date() };
+    await db.collection("lender_products").doc(id.toString()).set(newProduct);
+    return newProduct as LenderProduct;
+  }
+
+  async updateLenderProduct(id: number, userId: string, product: Partial<InsertLenderProduct>): Promise<LenderProduct> {
+    const ref = db.collection("lender_products").doc(id.toString());
+    await ref.update({ ...product, updatedAt: new Date() });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() }) as LenderProduct;
+  }
+
+  async deleteLenderProduct(id: number, userId: string): Promise<boolean> {
+    await db.collection("lender_products").doc(id.toString()).delete();
+    return true;
+  }
+
+  // --- Lender Notes ---
+  async listLenderNotes(lenderId: number): Promise<LenderNote[]> {
+    try {
+      const snap = await db.collection('lender_notes')
+        .where('lenderId', '==', lenderId)
+        .get();
+      const notes = snap.docs.map(d => convertDates(d.data())) as LenderNote[];
+      return notes.sort((a, b) => (new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()));
+    } catch (e) {
+      console.error("DB Error listLenderNotes", e);
+      return [];
+    }
+  }
+
+  async createLenderNote(note: InsertLenderNote): Promise<LenderNote> {
+    const id = await getNextId('lender_notes');
+    const newNote = { ...note, id, createdAt: new Date(), updatedAt: new Date() };
+    await db.collection('lender_notes').add(newNote);
+    return newNote as LenderNote;
+  }
+
+  async deleteLenderNote(id: number, userId: string): Promise<boolean> {
+    const snap = await db.collection('lender_notes').where('id', '==', id).where('userId', '==', userId).limit(1).get();
+    if (snap.empty) return false;
+    await snap.docs[0].ref.delete();
+    return true;
+  }
+
+  async listApplicationSubmissions(prospectId: number, userId?: string): Promise<ApplicationSubmission[]> {
+    const snap = await db.collection("application_submissions").where("prospectId", "==", prospectId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getApplicationSubmission(id: number, userId?: string): Promise<ApplicationSubmission | undefined> {
+    const doc = await db.collection("application_submissions").doc(id.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
+  }
+
+  async createApplicationSubmission(submission: InsertApplicationSubmission, userId?: string): Promise<ApplicationSubmission> {
+    const id = await getNextId("application_submissions");
+    const newSubmission = { ...submission, id, userId, createdAt: new Date() };
+    await db.collection("application_submissions").doc(id.toString()).set(newSubmission);
+    return newSubmission as ApplicationSubmission;
+  }
+
+  async updateApplicationSubmission(id: number, userId: string, submission: Partial<ApplicationSubmission>): Promise<ApplicationSubmission> {
+    const ref = db.collection("application_submissions").doc(id.toString());
+    await ref.update({ ...submission, updatedAt: new Date() });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() }) as ApplicationSubmission;
+  }
+
+  async deleteApplicationSubmission(id: number, userId: string): Promise<boolean> {
+    await db.collection("application_submissions").doc(id.toString()).delete();
+    return true;
+  }
+
+  async listLeadUploads(userId: string): Promise<LeadUpload[]> {
+    const snap = await db.collection("lead_uploads").where("userId", "==", userId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getLeadUpload(id: number, userId?: string): Promise<LeadUpload | undefined> {
+    const doc = await db.collection("lead_uploads").doc(id.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
+  }
+
+  async createLeadUpload(upload: any, userId?: string): Promise<LeadUpload> {
+    const id = await getNextId("lead_uploads");
+    const newUpload = { ...upload, id, userId: userId || upload.userId, createdAt: new Date() };
+    await db.collection("lead_uploads").doc(id.toString()).set(newUpload);
+    return newUpload as LeadUpload;
+  }
+
+  async updateLeadUpload(id: number, userId: string, upload: Partial<LeadUpload>): Promise<LeadUpload> {
+    const ref = db.collection("lead_uploads").doc(id.toString());
+    await ref.update({ ...upload, updatedAt: new Date() });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() }) as LeadUpload;
+  }
+
+  async listLeads(userId: string, filters: any): Promise<Lead[]> {
+    let query: any = db.collection("leads").where("userId", "==", userId);
+    if (filters.uploadId) query = query.where("uploadId", "==", filters.uploadId);
+    if (filters.matchStatus) query = query.where("matchStatus", "==", filters.matchStatus);
+
+    const snap = await query.get();
+    let results = snap.docs.map((d: any) => convertDates({ id: Number(d.id), ...d.data() })) as Lead[];
+
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      results = results.filter(l =>
+        l.companyName.toLowerCase().includes(q) ||
+        l.email?.toLowerCase().includes(q) ||
+        l.contactName?.toLowerCase().includes(q)
+      );
+    }
+    return results;
+  }
+
+  async getLead(id: number, userId?: string): Promise<Lead | undefined> {
+    const doc = await db.collection("leads").doc(id.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
+  }
+
+  async updateLead(id: number, userId: string, lead: Partial<Lead>): Promise<Lead> {
+    const ref = db.collection("leads").doc(id.toString());
+    await ref.update({ ...lead, updatedAt: new Date() });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() }) as Lead;
+  }
+
+  async deleteLead(id: number, userId: string): Promise<boolean> {
+    await db.collection("leads").doc(id.toString()).delete();
+    return true;
+  }
+
+  async createLeadsBulk(leads: InsertLead[], userId?: string): Promise<Lead[]> {
+    const batch = db.batch();
+    const results: Lead[] = [];
+    for (const lead of leads) {
+      const id = await getNextId("leads");
+      const newLead = { ...lead, id, userId: userId || lead.userId, createdAt: new Date() };
+      const ref = db.collection("leads").doc(id.toString());
+      batch.set(ref, newLead);
+      results.push(newLead as Lead);
+    }
+    await batch.commit();
+    return results;
+  }
+
+  async deleteLeadsByUpload(uploadId: number, userId: string): Promise<boolean> {
+    const snap = await db.collection("leads").where("uploadId", "==", uploadId).get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    return true;
+  }
+
+  async getUnderwritingSubmissionByProspect(prospectId: number, userId?: string): Promise<UnderwritingSubmission | undefined> {
+    try {
+
+      const snap = await db.collection("underwriting_submissions").where("prospectId", "==", prospectId).limit(1).get();
+      return snap.empty ? undefined : convertDates({ id: Number(snap.docs[0].id), ...snap.docs[0].data() });
+    } catch (e) {
+      console.error("DB Error getUnderwritingSubmissionByProspect", e);
+      return undefined;
+    }
+  }
+
+  async claimUnderwritingSubmission(id: number, userId?: string): Promise<UnderwritingSubmission> {
+    const ref = db.collection("underwriting_submissions").doc(id.toString());
+    await ref.update({ userId, status: "in_review", updatedAt: new Date() });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() });
+  }
+
+  async createUnderwritingActivity(activity: InsertUnderwritingActivity, userId?: string): Promise<UnderwritingActivity> {
+    const id = await getNextId("underwriting_activities");
+    const newActivity = { ...activity, id, userId, createdAt: new Date() };
+    await db.collection("underwriting_activities").doc(id.toString()).set(newActivity);
+    return newActivity;
+  }
+
+  async listUnderwritingActivities(submissionId: number, userId?: string): Promise<UnderwritingActivity[]> {
+    const snap = await db.collection("underwriting_activities").where("submissionId", "==", submissionId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async getTeams(userId?: string): Promise<Team[]> {
+    const snap = await db.collection("teams").get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async createTeam(team: InsertTeam, userId?: string): Promise<Team> {
+    const id = await getNextId("teams");
+    const newTeam = { ...team, id, userId, createdAt: new Date() };
+    await db.collection("teams").doc(id.toString()).set(newTeam);
+    return newTeam;
+  }
+
+  async getTeamWithMembers(id: number, userId?: string): Promise<Team & { members: TeamMember[] }> {
+    const teamDoc = await db.collection("teams").doc(id.toString()).get();
+    const membersSnap = await db.collection("team_members").where("teamId", "==", id).get();
+    const members = membersSnap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+    return { ...convertDates({ id: Number(teamDoc.id), ...teamDoc.data() }), members };
+  }
+
+  async addTeamMember(member: InsertTeamMember, userId?: string): Promise<TeamMember> {
+    const id = await getNextId("team_members");
+    const newMember = { ...member, id, createdAt: new Date() };
+    await db.collection("team_members").doc(id.toString()).set(newMember);
+    return newMember;
+  }
+
+  async removeTeamMember(id: number, userId?: string): Promise<void> {
+    await db.collection("team_members").doc(id.toString()).delete();
+  }
+
+  async getUserTeams(userId: string): Promise<Team[]> {
+    const snap = await db.collection("team_members").where("userId", "==", userId).get();
+    const teamIds = Array.from(new Set(snap.docs.map(d => d.data().teamId)));
+    const teams: Team[] = [];
+    for (const tid of teamIds) {
+      if (typeof tid === 'number' || typeof tid === 'string') {
+        const tdoc = await db.collection("teams").doc(tid.toString()).get();
+        if (tdoc.exists) teams.push(convertDates({ id: Number(tdoc.id), ...tdoc.data() }));
+      }
+    }
+    return teams;
+  }
+
+  async generateWebhookApiKey(userId: string): Promise<{ apiKey: string; hash: string; suffix: string }> {
+    const apiKey = `sk_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
+    const hash = apiKey; // Stub: use actual hash in production
+    const suffix = apiKey.slice(-4);
+    await db.collection("users").doc(userId).update({ webhookApiKeyHash: hash, webhookApiKeySuffix: suffix, webhookApiKeyCreatedAt: new Date() });
+    return { apiKey, hash, suffix };
+  }
+
+  async getUserByWebhookApiKeyHash(hash: string): Promise<User | undefined> {
+    const snap = await db.collection("users").where("webhookApiKeyHash", "==", hash).limit(1).get();
+    return snap.empty ? undefined : convertDates({ id: snap.docs[0].id, ...snap.docs[0].data() });
+  }
+
+  async updateWebhookApiKeyLastUsed(hash: string): Promise<void> {
+    const snap = await db.collection("users").where("webhookApiKeyHash", "==", hash).limit(1).get();
+    if (!snap.empty) {
+      await snap.docs[0].ref.update({ webhookApiKeyLastUsedAt: new Date() });
+    }
+  }
+
   async cleanupExpiredSessions(): Promise<number> { return 0; }
+
+  async createLenderEnquiry(data: any): Promise<any> {
+    const id = await getNextId("lender_enquiries");
+    const enquiry = { ...data, id, createdAt: new Date() };
+    await db.collection("lender_enquiries").doc(id.toString()).set(enquiry);
+    return enquiry;
+  }
+
+  // --- Chat ---
+  async createChannel(channel: InsertChannel): Promise<Channel> {
+    const id = await getNextId("channels");
+    const newChannel = {
+      ...channel,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastMessageAt: new Date()
+    };
+    await db.collection("channels").doc(id.toString()).set(newChannel);
+    return newChannel as Channel;
+  }
+
+  async getChannel(channelId: number): Promise<Channel | undefined> {
+    const doc = await db.collection("channels").doc(channelId.toString()).get();
+    return doc.exists ? convertDates({ id: Number(doc.id), ...doc.data() }) : undefined;
+  }
+
+  async getChannelsForUser(userId: string): Promise<Channel[]> {
+    // 1. Get channel IDs from members
+    const memberSnap = await db.collection("channel_members").where("userId", "==", userId).get();
+    const channelIds = memberSnap.docs.map(d => d.data().channelId);
+
+    if (channelIds.length === 0) return [];
+
+    // 2. Fetch channels (chunking if needed, but assuming small scale for now)
+    // Firestore 'in' limitation: max 10. We'll fetch individually or batch if needed. 
+    // For simplicity/speed in MVP, let's fetch individually in parallel.
+    const channels = await Promise.all(
+      channelIds.map(cid => this.getChannel(cid))
+    );
+    // Sort by lastMessageAt descending
+    return (channels.filter(c => c !== undefined) as Channel[]).sort((a, b) => {
+      const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return tb - ta;
+    });
+  }
+
+  async addChannelMember(member: InsertChannelMember): Promise<void> {
+    const id = await getNextId("channel_members");
+    const newMember = { ...member, id, joinedAt: new Date(), lastReadAt: new Date() };
+    await db.collection("channel_members").doc(id.toString()).set(newMember);
+  }
+
+  async listChannelMembers(channelId: number): Promise<ChannelMember[]> {
+    const snap = await db.collection("channel_members").where("channelId", "==", channelId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const id = await getNextId("messages");
+    const newMessage = { ...message, id, createdAt: new Date() };
+
+    await db.runTransaction(async (t) => {
+      // Create message
+      const msgRef = db.collection("messages").doc(id.toString());
+      t.set(msgRef, newMessage);
+
+      // Update channel last message time
+      const channelRef = db.collection("channels").doc(message.channelId.toString());
+      t.update(channelRef, { lastMessageAt: new Date() });
+    });
+
+    return newMessage as Message;
+  }
+
+  async getMessages(channelId: number): Promise<Message[]> {
+    const snap = await db.collection("messages")
+      .where("channelId", "==", channelId)
+      .orderBy("createdAt", "asc")
+      .limit(50) // Pagination later
+      .get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  // --- Communications Module ---
+
+  async getCommunicationIntegrations(userId: string): Promise<CommunicationIntegration[]> {
+    const snap = await db.collection("communication_integrations").where("userId", "==", userId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async saveCommunicationIntegration(integration: InsertCommunicationIntegration): Promise<CommunicationIntegration> {
+    const snap = await db.collection("communication_integrations")
+      .where("userId", "==", integration.userId)
+      .where("provider", "==", integration.provider)
+      .get();
+
+    if (!snap.empty) {
+      const doc = snap.docs[0];
+      // Simple merge update
+      const updates = { ...integration };
+      delete (updates as any).createdAt; // Scan schema to be sure, but safe to delete
+
+      await doc.ref.update(updates);
+      const currentData = convertDates({ id: Number(doc.id), ...doc.data() });
+      return { ...currentData, ...updates } as CommunicationIntegration;
+    }
+
+    const id = await getNextId("communication_integrations");
+    const newIntegration = { ...integration, id, createdAt: new Date() };
+    await db.collection("communication_integrations").doc(id.toString()).set(newIntegration);
+    return newIntegration as CommunicationIntegration;
+  }
+
+  async getCommunicationTemplates(userId: string): Promise<CommunicationTemplate[]> {
+    const snap = await db.collection("communication_templates").where("userId", "==", userId).get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }));
+  }
+
+  async createCommunicationTemplate(template: InsertCommunicationTemplate): Promise<CommunicationTemplate> {
+    const id = await getNextId("communication_templates");
+    const newTemplate = { ...template, id, createdAt: new Date() };
+    await db.collection("communication_templates").doc(id.toString()).set(newTemplate);
+    return newTemplate as CommunicationTemplate;
+  }
+
+  async updateCommunicationTemplate(id: number, template: Partial<InsertCommunicationTemplate>): Promise<CommunicationTemplate> {
+    const ref = db.collection("communication_templates").doc(id.toString());
+    await ref.update({ ...template });
+    const doc = await ref.get();
+    return convertDates({ id: Number(doc.id), ...doc.data() }) as CommunicationTemplate;
+  }
+
+  async logCommunication(log: InsertCommunicationLog): Promise<CommunicationLog> {
+    const id = await getNextId("communication_logs");
+    const newLog = { ...log, id, sentAt: new Date() };
+    await db.collection("communication_logs").doc(id.toString()).set(newLog);
+    return newLog as CommunicationLog;
+  }
+
+  async getCommunicationHistory(prospectId: number): Promise<CommunicationLog[]> {
+    const snap = await db.collection('communication_logs')
+      .where('prospectId', '==', prospectId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }) as CommunicationLog);
+  }
+
+  // --- External Sales CRM (God Mode) ---
+
+  async listInternalLeads(): Promise<InternalLead[]> {
+    try {
+      const snap = await db.collection('internal_leads').orderBy('createdAt', 'desc').get();
+      return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }) as InternalLead);
+    } catch (e) { console.error("DB Error listInternalLeads", e); return []; }
+  }
+
+  async getInternalLead(id: number): Promise<InternalLead | undefined> {
+    const snap = await db.collection('internal_leads').where('id', '==', id).limit(1).get();
+    if (snap.empty) return undefined;
+    return convertDates({ id: Number(snap.docs[0].id), ...snap.docs[0].data() }) as InternalLead;
+  }
+
+  async createInternalLead(lead: InsertInternalLead): Promise<InternalLead> {
+    const id = await getNextId('internal_leads');
+    const newLead = { ...lead, id, createdAt: new Date(), updatedAt: new Date() };
+    await db.collection('internal_leads').doc(id.toString()).set(newLead);
+    return newLead as InternalLead;
+  }
+
+  async updateInternalLead(id: number, updates: Partial<InsertInternalLead>): Promise<InternalLead | undefined> {
+    const snap = await db.collection('internal_leads').where('id', '==', id).limit(1).get();
+    if (snap.empty) return undefined;
+    await snap.docs[0].ref.update({ ...updates, updatedAt: new Date() });
+    return this.getInternalLead(id);
+  }
+
+  async deleteInternalLead(id: number): Promise<void> {
+    const snap = await db.collection('internal_leads').where('id', '==', id).limit(1).get();
+    if (!snap.empty) {
+      await snap.docs[0].ref.delete();
+    }
+  }
+
+  async listCommissions(): Promise<Commission[]> {
+    try {
+      const snap = await db.collection('commissions').orderBy('createdAt', 'desc').get();
+      return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }) as Commission);
+    } catch (e) { console.error("DB Error listCommissions", e); return []; }
+  }
+
+  async getAgentCommissions(agentId: string): Promise<Commission[]> {
+    try {
+      const snap = await db.collection('commissions').where('agentId', '==', agentId).orderBy('createdAt', 'desc').get();
+      return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }) as Commission);
+    } catch (e) { console.error("DB Error getAgentCommissions", e); return []; }
+  }
+
+  async createCommission(commission: InsertCommission): Promise<Commission> {
+    const id = await getNextId('commissions');
+    const newCommission = { ...commission, id, createdAt: new Date() };
+    await db.collection('commissions').doc(id.toString()).set(newCommission);
+    return newCommission as Commission;
+  }
+
+  async updateCommission(id: number, updates: Partial<InsertCommission>): Promise<Commission | undefined> {
+    const snap = await db.collection('commissions').where('id', '==', id).limit(1).get();
+    if (snap.empty) return undefined;
+    await snap.docs[0].ref.update({ ...updates });
+    // Refetch
+    const updatedSnap = await db.collection('commissions').where('id', '==', id).limit(1).get();
+    return updatedSnap.empty ? undefined : convertDates({ id: Number(updatedSnap.docs[0].id), ...updatedSnap.docs[0].data() }) as Commission;
+  }
+
+  // Marketing Contacts
+  async listMarketingContacts(userId: string): Promise<MarketingContact[]> {
+    try {
+      const snap = await db.collection('marketing_contacts')
+        .where('userId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .get();
+      return snap.docs.map(d => convertDates({ id: Number(d.id), ...d.data() }) as MarketingContact);
+    } catch (e) {
+      console.error("DB Error listMarketingContacts", e);
+      return [];
+    }
+  }
+
+  async getMarketingContactByEmail(email: string, userId: string): Promise<MarketingContact | undefined> {
+    try {
+      const snap = await db.collection('marketing_contacts')
+        .where('userId', '==', userId)
+        .where('email', '==', email.toLowerCase())
+        .limit(1)
+        .get();
+      if (snap.empty) return undefined;
+      return convertDates({ id: Number(snap.docs[0].id), ...snap.docs[0].data() }) as MarketingContact;
+    } catch (e) {
+      console.error("DB Error getMarketingContactByEmail", e);
+      return undefined;
+    }
+  }
+
+  async createOrUpdateMarketingContact(contact: InsertMarketingContact, userId: string): Promise<MarketingContact> {
+    const existing = await this.getMarketingContactByEmail(contact.email, userId);
+
+    if (existing) {
+      const updates = {
+        ...contact,
+        updatedAt: new Date(),
+      };
+      await db.collection('marketing_contacts').doc(existing.id.toString()).update(updates);
+      return { ...existing, ...updates } as MarketingContact;
+    }
+
+    const id = await getNextId('marketing_contacts');
+    const newContact = {
+      ...contact,
+      id,
+      userId,
+      email: contact.email.toLowerCase(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await db.collection('marketing_contacts').doc(id.toString()).set(newContact);
+    return newContact as MarketingContact;
+  }
 }
+
+export type UnderwritingSummary = any;
+
+export const lenderEnquiries = {
+  id: "lenderEnquiries" // Stub for now
+};
 
 export const storage = new FirestoreStorage();

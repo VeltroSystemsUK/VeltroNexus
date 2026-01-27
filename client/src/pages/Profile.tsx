@@ -244,7 +244,7 @@ export default function Profile() {
   };
 
   const currentTier = user?.subscriptionTier || "free";
-  const currentTierInfo = tierInfo[currentTier as keyof typeof tierInfo];
+  const currentTierInfo = tierInfo[currentTier as keyof typeof tierInfo] || tierInfo.free;
   const prospectCount = prospects?.length || 0;
   const prospectLimit = user?.prospectLimit || 10;
 

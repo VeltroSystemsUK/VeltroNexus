@@ -7,7 +7,7 @@ WORKDIR /app
 ENV NODE_ENV=development
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
 RUN npm run build
@@ -22,7 +22,7 @@ ENV PORT=5000
 
 COPY package*.json ./
 # Install only production dependencies for the final image
-RUN npm install --only=production
+RUN npm install --legacy-peer-deps --only=production
 
 # Copy built artifacts from builder
 COPY --from=builder /app/dist ./dist

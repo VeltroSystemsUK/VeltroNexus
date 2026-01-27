@@ -973,10 +973,10 @@ export function CreditUnderwritingTool({
                 <button
                   onClick={() => setCurrentStep(step.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${currentStep === step.id
-                      ? "bg-primary text-primary-foreground"
-                      : currentStep > step.id
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-muted text-muted-foreground"
+                    ? "bg-primary text-primary-foreground"
+                    : currentStep > step.id
+                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-muted text-muted-foreground"
                     }`}
                   data-testid={`button-step-${step.id}`}
                 >
@@ -2271,7 +2271,7 @@ export function CreditUnderwritingTool({
                             </tr>
                           </thead>
                           <tbody>
-                            {accountsAnalysis.years.map((year: any, index: number) => (
+                            {accountsAnalysis.years.map((year: { yearEnding: string; turnover: number; grossProfit: number; netProfit: number; netAssets: number }, index: number) => (
                               <tr key={index} className="border-b last:border-0">
                                 <td className="py-2 px-3 font-medium">{year.yearEnding}</td>
                                 <td className="text-right py-2 px-3">{formatCurrency(year.turnover)}</td>
@@ -2527,7 +2527,7 @@ export function CreditUnderwritingTool({
                             </tr>
                           </thead>
                           <tbody>
-                            {financialAnalysis.monthlyBreakdown.map((month, idx) => (
+                            {financialAnalysis.monthlyBreakdown.map((month: { month: string; income: number; expenses: number; net: number; closingBalance: number }, idx: number) => (
                               <tr key={idx} className="border-b">
                                 <td className="py-2 px-3 font-medium">{month.month}</td>
                                 <td className="py-2 px-3 text-right text-green-600">
@@ -2569,7 +2569,7 @@ export function CreditUnderwritingTool({
                             </CardHeader>
                             <CardContent>
                               <div className="space-y-2">
-                                {financialAnalysis.preliminaryFindings.loans?.map((loan, idx) => (
+                                {financialAnalysis.preliminaryFindings.loans?.map((loan: { description: string; date: string; amount: number }, idx: number) => (
                                   <div
                                     key={idx}
                                     className="flex justify-between items-center p-2 bg-muted rounded"
@@ -2599,7 +2599,7 @@ export function CreditUnderwritingTool({
                             <CardContent>
                               <div className="space-y-2">
                                 {financialAnalysis.preliminaryFindings.anomalies?.map(
-                                  (item, idx) => (
+                                  (item: { description: string; details: string }, idx: number) => (
                                     <div
                                       key={idx}
                                       className="p-2 bg-yellow-50 dark:bg-yellow-950/30 rounded border border-yellow-200 dark:border-yellow-800"
@@ -2622,12 +2622,12 @@ export function CreditUnderwritingTool({
                   <TabsContent value="flags">
                     {financialAnalysis.redFlags && financialAnalysis.redFlags.length > 0 ? (
                       <div className="space-y-2">
-                        {financialAnalysis.redFlags.map((flag, idx) => (
+                        {financialAnalysis.redFlags.map((flag: { isActive: boolean; label: string }, index: number) => (
                           <div
-                            key={idx}
+                            key={index}
                             className={`flex items-center gap-3 p-3 rounded-lg ${flag.isActive
-                                ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
-                                : "bg-muted"
+                              ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
+                              : "bg-muted"
                               }`}
                           >
                             {flag.isActive ? (
@@ -2758,7 +2758,7 @@ export function CreditUnderwritingTool({
                           <p className="text-xs text-muted-foreground">
                             {adverseMedia.results.length} sources found
                           </p>
-                          {adverseMedia.results.slice(0, 3).map((result, idx) => (
+                          {adverseMedia.results.slice(0, 3).map((result: any, idx: number) => (
                             <a
                               key={idx}
                               href={result.url}
@@ -2819,7 +2819,7 @@ export function CreditUnderwritingTool({
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    {adverseMedia.flags.map((flag, idx) => (
+                    {adverseMedia.flags.map((flag: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-2 text-sm">
                         <AlertCircle className="h-4 w-4 mt-0.5 text-amber-500" />
                         {flag}
@@ -2931,7 +2931,7 @@ export function CreditUnderwritingTool({
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Red Flags</span>
                     <span className="font-medium">
-                      {financialAnalysis?.redFlags?.filter((f) => f.isActive).length || 0} active
+                      {financialAnalysis?.redFlags?.filter((f: any) => f.isActive).length || 0} active
                     </span>
                   </div>
                 </CardContent>

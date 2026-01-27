@@ -110,7 +110,7 @@ export default function ProspectLimitModal({
   // Stripe checkout mutation
   const checkoutMutation = useMutation({
     mutationFn: async ({ tier, interval }: { tier: string; interval: "monthly" | "annual" }) => {
-      const response = await apiRequest("POST", "/api/billing/checkout", {
+      const response = await apiRequest("/api/billing/checkout", "POST", {
         tier,
         interval,
       });

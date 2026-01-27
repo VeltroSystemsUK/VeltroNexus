@@ -25,6 +25,7 @@ export const SESSION_LIMITS: Record<string, number> = {
   starter: 1,
   team: 5,
   lender: Infinity,
+  god_mode: Infinity,
 };
 
 // --- Users ---
@@ -71,6 +72,13 @@ export const userSchema = z.object({
   prospectsCreatedCount: z.number().default(0),
   onboardingEnabled: z.number().default(1),
   onboardingProgress: z.any().optional(), // JSON
+  suspended: z.boolean().default(false),
+  // Google Workspace Integration
+  googleConnected: z.boolean().default(false),
+  googleEmail: z.string().nullable().optional(),
+  googleAccessToken: z.string().nullable().optional(),
+  googleRefreshToken: z.string().nullable().optional(),
+  googleTokenExpiry: dateSchema,
 });
 
 export type User = z.infer<typeof userSchema>;
@@ -135,6 +143,8 @@ export const lenderSchema = z.object({
   website: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   lenderType: z.string().default("bank"),
+  logoUrl: z.string().nullable().optional(),
+  isGlobal: z.number().default(0), // 0 = false, 1 = true
   productTypes: z.any().default([]),
   minLoanAmount: z.number().nullable().optional(),
   maxLoanAmount: z.number().nullable().optional(),
@@ -142,6 +152,8 @@ export const lenderSchema = z.object({
   maxTermMonths: z.number().nullable().optional(),
   minLtv: z.number().nullable().optional(),
   maxLtv: z.number().nullable().optional(),
+  linkedinUrl: z.string().nullable().optional(),
+  portalUrl: z.string().nullable().optional(),
   typicalRateFrom: z.string().nullable().optional(),
   typicalRateTo: z.string().nullable().optional(),
   arrangementFee: z.string().nullable().optional(),
@@ -169,6 +181,8 @@ export const lenderSchema = z.object({
   rating: z.number().nullable().optional(),
   isFavourite: z.number().default(0),
   introducerAgreementSigned: z.number().default(0),
+  lendingPolicy: z.string().nullable().optional(),
+  insights: z.string().nullable().optional(),
   lastContactedAt: dateSchema,
   createdAt: dateSchema,
   updatedAt: dateSchema
@@ -241,6 +255,7 @@ export const companySchema = z.object({
   incorporationDate: z.string().nullable().optional(),
   companyStatus: z.string().nullable().optional(),
   companyType: z.string().nullable().optional(),
+  website: z.string().nullable().optional(),
   sicCode: z.string().nullable().optional(),
   sicDescription: z.string().nullable().optional(),
   createdAt: dateSchema
@@ -300,17 +315,7 @@ export type InsertProspect = z.infer<typeof insertProspectSchema>;
 
 export const updateProspectStageSchema = z.object({
   prospectId: z.number(),
-  stage: z.enum([
-    "lead",
-    "contacted",
-    "qualified",
-    "proposal",
-    "due-diligence",
-    "submission",
-    "approved",
-    "declined",
-    "withdrawn",
-  ]),
+  stage: z.string().min(1),
 });
 
 
@@ -557,6 +562,22 @@ export const insertLenderInteractionSchema = lenderInteractionSchema.omit({
 });
 export type InsertLenderInteraction = z.infer<typeof insertLenderInteractionSchema>;
 
+// --- Lender Notes (Diary) ---
+export const lenderNoteSchema = z.object({
+  id: z.number().optional(),
+  lenderId: z.number(),
+  userId: z.string(),
+  content: z.string().min(1, "Note content cannot be empty"),
+  createdAt: dateSchema,
+  updatedAt: dateSchema
+});
+export type LenderNote = z.infer<typeof lenderNoteSchema>;
+
+export const insertLenderNoteSchema = lenderNoteSchema.omit({
+  id: true, createdAt: true, updatedAt: true
+});
+export type InsertLenderNote = z.infer<typeof insertLenderNoteSchema>;
+
 
 // --- Application Submissions ---
 export const applicationSubmissionSchema = z.object({
@@ -591,20 +612,143 @@ export type EmailMessage = any;
 
 // --- Lead Types ---
 // Minimal strict typing for now since they are less critical for core flow
-export const leadUploadSchema = z.object({ id: z.number(), userId: z.string(), fileName: z.string() });
+export const leadUploadSchema = z.object({
+  id: z.number(),
+  userId: z.string(),
+  fileName: z.string(),
+  status: z.string().default("pending"),
+  totalRows: z.number().default(0),
+  successRows: z.number().default(0),
+  errorRows: z.number().default(0),
+  errors: z.array(z.any()).default([]),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
 export type LeadUpload = z.infer<typeof leadUploadSchema>;
 export const insertLeadUploadSchema = z.any();
 
-export const leadSchema = z.object({ id: z.number(), companyName: z.string() });
+export const leadSchema = z.object({
+  id: z.number(),
+  companyName: z.string(),
+  companyNumber: z.string().nullable().optional(),
+  contactName: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  postcode: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  matchStatus: z.string().default("pending"),
+  matchedCompanyNumber: z.string().nullable().optional(),
+  linkedProspectId: z.number().nullable().optional(),
+});
 export type Lead = z.infer<typeof leadSchema>;
-export const insertLeadSchema = z.any();
-export const updateLeadSchema = z.any();
+export const insertLeadSchema = leadSchema.omit({ id: true });
+export const updateLeadSchema = leadSchema.partial();
 
 // --- Additional Exports for Type Compatibility ---
 export type DocumentCategory = "general" | "financial" | "legal" | "identity" | "property" | "insurance" | "correspondence" | "other";
 
+// --- Communications Module ---
+
+export const communicationIntegrationSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  provider: z.enum(["sendgrid", "twilio", "whatsapp"]),
+  credentials: z.any().optional(), // Encrypted JSON - Optional for updates
+  isEnabled: z.number().default(1),
+  createdAt: dateSchema,
+});
+export type CommunicationIntegration = z.infer<typeof communicationIntegrationSchema>;
+export const insertCommunicationIntegrationSchema = communicationIntegrationSchema.omit({
+  id: true, createdAt: true
+});
+export type InsertCommunicationIntegration = z.infer<typeof insertCommunicationIntegrationSchema>;
+
+export const communicationTemplateSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  name: z.string(),
+  channel: z.enum(["email", "sms", "whatsapp"]),
+  subject: z.string().nullable().optional(),
+  content: z.string(),
+  createdAt: dateSchema,
+});
+export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
+export const insertCommunicationTemplateSchema = communicationTemplateSchema.omit({
+  id: true, createdAt: true
+});
+export type InsertCommunicationTemplate = z.infer<typeof insertCommunicationTemplateSchema>;
+
+export const communicationLogSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  prospectId: z.number(),
+  contactId: z.number().nullable().optional(),
+  channel: z.enum(["email", "sms", "whatsapp"]),
+  direction: z.enum(["outbound", "inbound"]).default("outbound"),
+  status: z.enum(["sent", "delivered", "failed", "received"]).default("sent"),
+  subject: z.string().nullable().optional(),
+  content: z.string(),
+  metadata: z.any().optional(),
+  sentAt: dateSchema,
+});
+export type CommunicationLog = z.infer<typeof communicationLogSchema>;
+export const insertCommunicationLogSchema = communicationLogSchema.omit({
+  id: true, sentAt: true
+});
+export type InsertCommunicationLog = z.infer<typeof insertCommunicationLogSchema>;
+
+// Channels
+export const channelSchema = z.object({
+  id: z.number().optional(),
+  type: z.enum(["direct", "group", "prospect"]).default("direct"),
+  name: z.string().nullable().optional(), // For group chats
+  contextId: z.number().nullable().optional(), // e.g. linked prospect ID
+  lastMessageAt: dateSchema,
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type Channel = z.infer<typeof channelSchema>;
+export const insertChannelSchema = channelSchema.omit({
+  id: true, createdAt: true, updatedAt: true, lastMessageAt: true
+});
+export type InsertChannel = z.infer<typeof insertChannelSchema>;
+
+export const channelMemberSchema = z.object({
+  id: z.number().optional(),
+  channelId: z.number(),
+  userId: z.string(),
+  lastReadAt: dateSchema,
+  joinedAt: dateSchema,
+});
+export type ChannelMember = z.infer<typeof channelMemberSchema>;
+export const insertChannelMemberSchema = channelMemberSchema.omit({
+  id: true, joinedAt: true
+});
+export type InsertChannelMember = z.infer<typeof insertChannelMemberSchema>;
+
+export const messageSchema = z.object({
+  id: z.number().optional(),
+  channelId: z.number(),
+  senderId: z.string(),
+  content: z.string(),
+  attachments: z.any().default([]),
+  readBy: z.any().default([]), // simple array of userIds
+  createdAt: dateSchema,
+});
+export type Message = z.infer<typeof messageSchema>;
+export const insertMessageSchema = messageSchema.omit({
+  id: true, createdAt: true, readBy: true
+});
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+
+
 // Teams
-export const teamSchema = z.object({ id: z.number(), name: z.string(), description: z.string().optional() });
+export const teamSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string().optional(),
+  createdBy: z.string().optional()
+});
 export type Team = z.infer<typeof teamSchema>;
 export const insertTeamSchema = teamSchema.omit({ id: true });
 export type InsertTeam = z.infer<typeof insertTeamSchema>;
@@ -664,3 +808,166 @@ export const insertTimeEntrySchema = z.any();
 export const queryResponseSchema = z.any();
 export const webhookProspectPayloadSchema = z.any();
 export type WebhookProspect = any;
+export type UnderwritingData = any;
+export type ChecklistItem = any;
+export type UnderwritingSummary = any;
+
+export const lenderEnquiries = {
+  id: "lenderEnquiries" // Stub for now
+};
+
+// --- Session Limits ---
+// Re-exporting/Modifying here if needed, or just relying on what's defined earlier.
+// Actually SESSION_LIMITS is defined at line 23. Let's find it and add god_mode.
+
+
+// --- Constants ---
+export const LENDER_TYPES = [
+  { value: "bank", label: "Bank" },
+  { value: "challenger_bank", label: "Challenger Bank" },
+  { value: "building_society", label: "Building Society" },
+  { value: "specialist_lender", label: "Specialist Lender" },
+  { value: "specialist_cdfi", label: "Specialist - CDFI" },
+  { value: "bridging_lender", label: "Bridging Lender" },
+  { value: "asset_finance", label: "Asset Finance" },
+  { value: "invoice_finance", label: "Invoice Finance" },
+  { value: "development_finance", label: "Development Finance" },
+  { value: "peer_to_peer", label: "Peer-to-Peer" },
+  { value: "private_lender", label: "Private Lender" },
+];
+
+export const PRODUCT_TYPES = [
+  "Term Loan",
+  "Revolving Credit",
+  "Asset Finance",
+  "Invoice Finance",
+  "Merchant Cash Advance",
+  "Commercial Mortgages",
+  "Bridging",
+  "Trade Finance",
+  "Development Finance",
+  "Buy-to-Let",
+  "Mezzanine",
+  "Equity Release",
+  "Working Capital",
+];
+
+export const SECTORS = [
+  "Manufacturing",
+  "Retail",
+  "Technology",
+  "Healthcare",
+  "Construction",
+  "Real Estate",
+  "Hospitality",
+  "Transport",
+  "Agriculture",
+  "Energy",
+  "Professional Services",
+  "Wholesale",
+];
+
+export const REGIONS = [
+  "National",
+  "London",
+  "South East",
+  "South West",
+  "East of England",
+  "Midlands",
+  "North West",
+  "North East",
+  "Yorkshire",
+  "Scotland",
+  "Wales",
+  "Northern Ireland",
+];
+
+export const PANEL_STATUSES = [
+  { value: "panel", label: "On Panel", color: "default" as const },
+  { value: "preferred", label: "Preferred", color: "default" as const },
+  { value: "market", label: "Whole of Market", color: "secondary" as const },
+  { value: "restricted", label: "Restricted", color: "destructive" as const },
+];
+
+// --- Internal Sales CRM (Veltro God Mode) ---
+export const internalLeadSchema = z.object({
+  id: z.number(),
+  companyName: z.string(),
+  companyNumber: z.string().optional(),
+  contactName: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  status: z.string().default("new"), // new, contacted, demo_booked, trial, subscribed, churned
+  assignedAgentId: z.string().optional(), // User ID of the sales agent
+  commissionRate: z.number().default(0.1), // e.g. 10%
+  notes: z.string().optional(),
+  estimatedValue: z.number().optional(),
+
+  // Rich Data Fields
+  address: z.string().optional(),
+  companyType: z.string().optional(),
+  sicCode: z.string().optional(),
+  incorporationDate: z.string().optional(),
+
+  // JSON field for contacts array [{ name, role, email, phone }]
+  contacts: z.any().default([]),
+
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+
+export const insertInternalLeadSchema = internalLeadSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InternalLead = z.infer<typeof internalLeadSchema>;
+export type InsertInternalLead = z.infer<typeof insertInternalLeadSchema>;
+
+export const commissionSchema = z.object({
+  id: z.number(),
+  agentId: z.string(),
+  leadId: z.number(), // ID from internalLeadSchema
+  amount: z.number(),
+  status: z.string().default("pending"), // pending, paid, cancelled
+  paidAt: dateSchema.nullable().optional(),
+  createdAt: dateSchema,
+});
+
+export const insertCommissionSchema = commissionSchema.omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Commission = z.infer<typeof commissionSchema>;
+export type InsertCommission = z.infer<typeof insertCommissionSchema>;
+
+export const SALES_AGENT_ROLE = "sales_agent";
+
+// --- Marketing Contacts ---
+export const marketingContactSchema = z.object({
+  id: z.number(),
+  userId: z.string(),
+  email: z.string().email(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  companyName: z.string().optional(),
+  companyNumber: z.string().optional(),
+  qualityGrade: z.enum(["A", "B", "C", "D", "F"]).default("A"),
+  deliverabilityScore: z.number().default(100),
+  status: z.enum(["valid", "invalid", "risky"]).default("valid"),
+  tags: z.array(z.string()).default([]),
+  unsubscribed: z.boolean().default(false),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+
+export const insertMarketingContactSchema = marketingContactSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketingContact = z.infer<typeof marketingContactSchema>;
+export type InsertMarketingContact = z.infer<typeof insertMarketingContactSchema>;

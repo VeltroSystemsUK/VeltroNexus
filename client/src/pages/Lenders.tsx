@@ -1,8 +1,8 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import { LenderForm } from "@/components/LenderForm";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -98,108 +98,55 @@ import {
   Percent,
   PoundSterling,
   Calendar,
+  ChevronDown,
 } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertLenderSchema, type InsertLender, type Lender } from "@shared/schema";
+import { insertLenderSchema, type InsertLender, type Lender, LENDER_TYPES, PRODUCT_TYPES, SECTORS, REGIONS, PANEL_STATUSES } from "@shared/schema";
 import { z } from "zod";
 import logoChrome from "@assets/logo-chrome.png";
 import ThemeToggle from "@/components/ThemeToggle";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileUp } from "lucide-react";
+import { BulkLenderUpload } from "@/components/BulkLenderUpload";
 
-const LENDER_TYPES = [
-  { value: "bank", label: "Bank" },
-  { value: "challenger_bank", label: "Challenger Bank" },
-  { value: "building_society", label: "Building Society" },
-  { value: "specialist_lender", label: "Specialist Lender" },
-  { value: "specialist_cdfi", label: "Specialist - CDFI" },
-  { value: "bridging_lender", label: "Bridging Lender" },
-  { value: "asset_finance", label: "Asset Finance" },
-  { value: "invoice_finance", label: "Invoice Finance" },
-  { value: "development_finance", label: "Development Finance" },
-  { value: "peer_to_peer", label: "Peer-to-Peer" },
-  { value: "private_lender", label: "Private Lender" },
-];
 
-const PRODUCT_TYPES = [
-  "Term Loan",
-  "Revolving Credit",
-  "Asset Finance",
-  "Invoice Finance",
-  "Trade Finance",
-  "Development Finance",
-  "Bridging",
-  "Commercial Mortgage",
-  "Buy-to-Let",
-  "Mezzanine",
-  "Equity Release",
-  "Working Capital",
-];
-
-const SECTORS = [
-  "Manufacturing",
-  "Retail",
-  "Technology",
-  "Healthcare",
-  "Construction",
-  "Real Estate",
-  "Hospitality",
-  "Transport",
-  "Agriculture",
-  "Energy",
-  "Professional Services",
-  "Wholesale",
-];
-
-const REGIONS = [
-  "National",
-  "London",
-  "South East",
-  "South West",
-  "East of England",
-  "Midlands",
-  "North West",
-  "North East",
-  "Yorkshire",
-  "Scotland",
-  "Wales",
-  "Northern Ireland",
-];
-
-const PANEL_STATUSES = [
-  { value: "panel", label: "On Panel", color: "default" as const },
-  { value: "preferred", label: "Preferred", color: "default" as const },
-  { value: "market", label: "Whole of Market", color: "secondary" as const },
-  { value: "restricted", label: "Restricted", color: "destructive" as const },
-];
 
 const extendedLenderSchema = insertLenderSchema.extend({
   institutionName: z.string().min(1, "Institution name is required"),
   lenderType: z.string().optional(),
-  productTypes: z.array(z.string()).optional().default([]),
-  minLoanAmount: z.coerce.number().optional(),
-  maxLoanAmount: z.coerce.number().optional(),
-  minTermMonths: z.coerce.number().optional(),
-  maxTermMonths: z.coerce.number().optional(),
-  minLtv: z.coerce.number().optional(),
-  maxLtv: z.coerce.number().optional(),
-  typicalRateFrom: z.string().optional(),
-  typicalRateTo: z.string().optional(),
-  arrangementFee: z.string().optional(),
-  sectors: z.array(z.string()).optional().default([]),
-  regions: z.array(z.string()).optional().default([]),
-  turnaroundDays: z.coerce.number().optional(),
-  panelStatus: z.string().optional().default("market"),
-  bdmName: z.string().optional(),
-  bdmEmail: z.string().optional(),
-  bdmPhone: z.string().optional(),
-  submissionEmail: z.string().optional(),
-  creditAppetite: z.string().optional(),
-  keyStrengths: z.string().optional(),
-  keyWeaknesses: z.string().optional(),
-  rating: z.coerce.number().min(0).max(5).optional(),
+  productTypes: z.array(z.string()).optional(),
+  minLoanAmount: z.coerce.number().nullable().optional(),
+  maxLoanAmount: z.coerce.number().nullable().optional(),
+  minTermMonths: z.coerce.number().nullable().optional(),
+  maxTermMonths: z.coerce.number().nullable().optional(),
+  minLtv: z.coerce.number().nullable().optional(),
+  maxLtv: z.coerce.number().nullable().optional(),
+  typicalRateFrom: z.string().nullable().optional(),
+  typicalRateTo: z.string().nullable().optional(),
+  arrangementFee: z.string().nullable().optional(),
+  sectors: z.array(z.string()).optional(),
+  regions: z.array(z.string()).optional(),
+  turnaroundDays: z.coerce.number().nullable().optional(),
+  panelStatus: z.string().optional(),
+  bdmName: z.string().nullable().optional(),
+  bdmEmail: z.string().nullable().optional(),
+  bdmPhone: z.string().nullable().optional(),
+  submissionEmail: z.string().nullable().optional(),
+  creditAppetite: z.string().nullable().optional(),
+  keyStrengths: z.string().nullable().optional(),
+  keyWeaknesses: z.string().nullable().optional(),
+  rating: z.coerce.number().min(0).max(5).nullable().optional(),
+  logoUrl: z.string().nullable().optional(),
+  lendingPolicy: z.string().nullable().optional(),
+  insights: z.string().nullable().optional(),
 });
 
 type ExtendedLenderForm = z.infer<typeof extendedLenderSchema>;
@@ -253,15 +200,16 @@ function PanelBadge({ status }: { status: string | null | undefined }) {
 
 export default function Lenders() {
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLender, setEditingLender] = useState<Lender | null>(null);
   const [deletingLender, setDeletingLender] = useState<Lender | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPanelStatus, setFilterPanelStatus] = useState<string>("all");
   const [filterLenderType, setFilterLenderType] = useState<string>("all");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState("directory");
 
   const {
     data: lenders = [],
@@ -290,8 +238,11 @@ export default function Lenders() {
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: ExtendedLenderForm) => apiRequest("/api/lenders", "POST", data),
+  // Create lender mutation
+  const createLenderMutation = useMutation({
+    mutationFn: async (data: ExtendedLenderForm) => {
+      await apiRequest("/api/lenders", "POST", data);
+    },
     onSuccess: () => {
       toast.success("Lender created successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/lenders"] });
@@ -303,7 +254,8 @@ export default function Lenders() {
     },
   });
 
-  const updateMutation = useMutation({
+  // Update lender mutation
+  const updateLenderMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: ExtendedLenderForm }) =>
       apiRequest(`/api/lenders/${id}`, "PATCH", data),
     onSuccess: () => {
@@ -318,7 +270,7 @@ export default function Lenders() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteLenderMutation = useMutation({
     mutationFn: (id: number) => apiRequest(`/api/lenders/${id}`, "DELETE"),
     onSuccess: () => {
       toast.success("Lender deleted successfully");
@@ -352,11 +304,22 @@ export default function Lenders() {
     },
   });
 
-  const handleSubmit = (data: ExtendedLenderForm) => {
+  const researchLenderMutation = useMutation({
+    mutationFn: (id: number) => apiRequest(`/api/lenders/${id}/research`, "POST"),
+    onSuccess: () => {
+      toast.success("AI Research completed successfully");
+      queryClient.invalidateQueries({ queryKey: ["/api/lenders"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`AI Research failed: ${error.message}`);
+    },
+  });
+
+  const onSubmit = (data: ExtendedLenderForm) => {
     if (editingLender) {
-      updateMutation.mutate({ id: editingLender.id, data });
+      updateLenderMutation.mutate({ id: editingLender.id!, data });
     } else {
-      createMutation.mutate(data);
+      createLenderMutation.mutate(data);
     }
   };
 
@@ -392,6 +355,8 @@ export default function Lenders() {
       creditAppetite: lender.creditAppetite || "",
       keyStrengths: lender.keyStrengths || "",
       keyWeaknesses: lender.keyWeaknesses || "",
+      lendingPolicy: lender.lendingPolicy || "",
+      insights: lender.insights || "",
       rating: lender.rating || undefined,
     });
     setIsDialogOpen(true);
@@ -505,1016 +470,514 @@ export default function Lenders() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search lenders, contacts, BDMs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-              data-testid="input-search"
-            />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="flex items-center justify-between gap-4 flex-wrap pb-2 border-b">
+            <TabsList className="bg-muted/50 p-1">
+              <TabsTrigger value="directory" className="gap-2">
+                <Building2 className="h-4 w-4" />
+                Directory
+              </TabsTrigger>
+              <TabsTrigger value="bulk-upload" className="gap-2">
+                <FileUp className="h-4 w-4" />
+                Bulk Upload
+              </TabsTrigger>
+            </TabsList>
+
+            {activeTab === "directory" && (
+              <div className="flex border rounded-md h-9 bg-card">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setViewMode("grid")}
+                  className="h-full rounded-r-none"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "table" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setViewMode("table")}
+                  className="h-full rounded-l-none"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Select value={filterPanelStatus} onValueChange={setFilterPanelStatus}>
-              <SelectTrigger className="w-[150px]" data-testid="select-panel-status">
-                <SelectValue placeholder="Panel Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {PANEL_STATUSES.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
-                    {status.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterLenderType} onValueChange={setFilterLenderType}>
-              <SelectTrigger className="w-[160px]" data-testid="select-lender-type">
-                <SelectValue placeholder="Lender Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {LENDER_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex border rounded-md">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("grid")}
-                data-testid="button-view-grid"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "table" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("table")}
-                data-testid="button-view-table"
-              >
-                <List className="h-4 w-4" />
-              </Button>
+
+          <TabsContent value="directory" className="space-y-6 mt-0">
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search lenders, contacts, BDMs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-search"
+                />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Select value={filterPanelStatus} onValueChange={setFilterPanelStatus}>
+                  <SelectTrigger className="w-[150px]" data-testid="select-panel-status">
+                    <SelectValue placeholder="Panel Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    {PANEL_STATUSES.map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={filterLenderType} onValueChange={setFilterLenderType}>
+                  <SelectTrigger className="w-[160px]" data-testid="select-lender-type">
+                    <SelectValue placeholder="Lender Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {LENDER_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {error ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
-              <p className="text-destructive mb-2">Failed to load lenders</p>
-              <p className="text-sm text-muted-foreground">
-                {error instanceof Error ? error.message : "An error occurred"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-5 bg-muted rounded w-3/4"></div>
-                  <div className="h-4 bg-muted rounded w-1/2 mt-2"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="h-4 bg-muted rounded"></div>
-                    <div className="h-4 bg-muted rounded w-2/3"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filteredLenders.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              {lenders.length === 0 ? (
-                <>
-                  <h3 className="text-lg font-semibold mb-2">Build Your Lender Network</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Start adding lenders to create your whole-of-market directory
+            {error ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+                  <p className="text-destructive mb-2">Failed to load lenders</p>
+                  <p className="text-sm text-muted-foreground">
+                    {error instanceof Error ? error.message : "An error occurred"}
                   </p>
-                  <Button onClick={handleAdd} data-testid="button-add-first-lender">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Your First Lender
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-semibold mb-2">No matching lenders</h3>
-                  <p className="text-muted-foreground">Try adjusting your search or filters</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredLenders.map((lender) => (
-              <Card
-                key={lender.id}
-                className="hover-elevate cursor-pointer transition-all"
-                onClick={() => navigate(`/lenders/${lender.id}`)}
-                data-testid={`card-lender-${lender.id}`}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg truncate">{lender.institutionName}</CardTitle>
-                      <CardDescription className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {LENDER_TYPES.find((t) => t.value === lender.lenderType)?.label ||
-                            "Lender"}
-                        </Badge>
-                        <PanelBadge status={lender.panelStatus} />
-                      </CardDescription>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/lenders/${lender.id}`);
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(lender);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        {lender.email && (
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.location.href = `mailto:${lender.email}`;
-                            }}
-                          >
-                            <Mail className="h-4 w-4 mr-2" />
-                            Email
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletingLender(lender);
-                          }}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <RatingStars rating={lender.rating} />
-
-                  {(lender.minLoanAmount || lender.maxLoanAmount) && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <PoundSterling className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {formatCurrency(lender.minLoanAmount)} -{" "}
-                        {formatCurrency(lender.maxLoanAmount)}
-                      </span>
-                    </div>
-                  )}
-
-                  {(lender.typicalRateFrom || lender.typicalRateTo) && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Percent className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {lender.typicalRateFrom || "?"} - {lender.typicalRateTo || "?"}
-                      </span>
-                    </div>
-                  )}
-
-                  {lender.turnaroundDays && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>{lender.turnaroundDays} days turnaround</span>
-                    </div>
-                  )}
-
-                  {(lender.productTypes as string[])?.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {(lender.productTypes as string[]).slice(0, 3).map((product) => (
-                        <Badge key={product} variant="secondary" className="text-xs">
-                          {product}
-                        </Badge>
-                      ))}
-                      {(lender.productTypes as string[]).length > 3 && (
-                        <Badge variant="secondary" className="text-xs">
-                          +{(lender.productTypes as string[]).length - 3}
-                        </Badge>
-                      )}
-                    </div>
+                </CardContent>
+              </Card>
+            ) : isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardHeader>
+                      <div className="h-5 bg-muted rounded w-3/4"></div>
+                      <div className="h-4 bg-muted rounded w-1/2 mt-2"></div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-muted rounded"></div>
+                        <div className="h-4 bg-muted rounded w-2/3"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : filteredLenders.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  {lenders.length === 0 ? (
+                    <>
+                      <h3 className="text-lg font-semibold mb-2">Build Your Lender Network</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Start adding lenders to create your whole-of-market directory
+                      </p>
+                      <Button onClick={handleAdd} data-testid="button-add-first-lender">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Your First Lender
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-semibold mb-2">No matching lenders</h3>
+                      <p className="text-muted-foreground">Try adjusting your search or filters</p>
+                    </>
                   )}
                 </CardContent>
-                <CardFooter className="pt-0 flex-col gap-3">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground w-full">
-                    {lender.bdmName && (
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        <span className="truncate">{lender.bdmName}</span>
-                      </div>
-                    )}
-                    {lender.lastContactedAt && (
-                      <div className="flex items-center gap-1 ml-auto">
-                        <Calendar className="h-3 w-3" />
-                        <span>{new Date(lender.lastContactedAt).toLocaleDateString()}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between w-full pt-2 border-t">
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Switch
-                        checked={!!lender.isFavourite}
-                        onCheckedChange={(checked) =>
-                          toggleFavouriteMutation.mutate({ id: lender.id, isFavourite: checked })
-                        }
-                        data-testid={`switch-favourite-${lender.id}`}
-                      />
-                      <Star
-                        className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-xs text-muted-foreground">Introducer Agreement</span>
-                      <Switch
-                        checked={!!lender.introducerAgreementSigned}
-                        onCheckedChange={(checked) =>
-                          toggleAgreementMutation.mutate({ id: lender.id, signed: checked })
-                        }
-                        data-testid={`switch-agreement-${lender.id}`}
-                      />
-                      <CheckCircle2
-                        className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`}
-                      />
-                    </div>
-                  </div>
-                </CardFooter>
               </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">Fav</TableHead>
-                    <TableHead>Lender</TableHead>
-                    <TableHead className="hidden md:table-cell">Type</TableHead>
-                    <TableHead className="hidden md:table-cell">Panel</TableHead>
-                    <TableHead className="hidden md:table-cell">Loan Range</TableHead>
-                    <TableHead className="hidden md:table-cell">Rating</TableHead>
-                    <TableHead className="hidden md:table-cell">Agreement</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLenders.map((lender) => (
-                    <TableRow
-                      key={lender.id}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/lenders/${lender.id}`)}
-                      data-testid={`row-lender-${lender.id}`}
-                    >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
+            ) : viewMode === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredLenders.map((lender) => (
+                  <Card
+                    key={lender.id}
+                    className="group hover:shadow-xl hover:border-primary/20 border-border/50 transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col"
+                    onClick={() => navigate(`/lenders/${lender.id}`)}
+                  >
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start justify-between gap-4">
+                        {lender.logoUrl ? (
+                          <div className="h-14 w-14 rounded-xl border bg-white p-2 flex-shrink-0 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-300">
+                            <img src={lender.logoUrl} alt={lender.institutionName} className="max-h-full max-w-full object-contain" />
+                          </div>
+                        ) : (
+                          <div className="h-14 w-14 rounded-xl bg-primary/5 border border-primary/10 flex-shrink-0 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                            <Building2 className="h-7 w-7 text-primary/40" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors truncate">
+                            {lender.institutionName}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider px-2 h-5 bg-muted/50">
+                              {LENDER_TYPES.find((t) => t.value === lender.lenderType)?.label || "Lender"}
+                            </Badge>
+                            <PanelBadge status={lender.panelStatus} />
+                            {lender.isGlobal === 1 && (
+                              <Badge variant="outline" className="text-[10px] font-bold h-5 border-blue-200 bg-blue-50/50 text-blue-700">
+                                GLOBAL
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/lenders/${lender.id}`); }}>
+                              <Eye className="h-4 w-4 mr-2" /> View Profile
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                researchLenderMutation.mutate(lender.id!);
+                              }}
+                              disabled={researchLenderMutation.isPending}
+                            >
+                              <Globe className="h-4 w-4 mr-2" />
+                              {researchLenderMutation.isPending ? "Researching..." : "AI Deep Research"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={lender.isGlobal === 1 && lender.userId !== user?.id}
+                              onClick={(e) => { e.stopPropagation(); handleEdit(lender); }}
+                            >
+                              <Pencil className="h-4 w-4 mr-2" /> Edit Details
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              disabled={lender.isGlobal === 1 && lender.userId !== user?.id}
+                              onClick={(e) => { e.stopPropagation(); setDeletingLender(lender); }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete Lender
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4 flex-grow">
+                      <div className="flex flex-col gap-2.5">
+                        <RatingStars rating={lender.rating} />
+
+                        {(lender.minLoanAmount || lender.maxLoanAmount) && (
+                          <div className="flex items-center gap-2.5 text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg">
+                            <PoundSterling className="h-4 w-4 text-primary/60" />
+                            <span className="font-medium text-foreground">
+                              {formatCurrency(lender.minLoanAmount)} — {formatCurrency(lender.maxLoanAmount)}
+                            </span>
+                          </div>
+                        )}
+
+                        {(lender.typicalRateFrom || lender.typicalRateTo) && (
+                          <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                            <Percent className="h-4 w-4 opacity-70" />
+                            <span>Rates From {lender.typicalRateFrom || "?"} to {lender.typicalRateTo || "?"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {lender.productTypes && (lender.productTypes as string[]).length > 0 && (
+                        <div className="pt-2">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(lender.productTypes as string[]).slice(0, 3).map((p) => (
+                              <Badge key={p} variant="secondary" className="text-[10px] px-2 h-5 bg-primary/5 text-primary border-primary/10">
+                                {p}
+                              </Badge>
+                            ))}
+                            {(lender.productTypes as string[]).length > 3 && (
+                              <Badge variant="outline" className="text-[10px] px-2 h-5 text-muted-foreground">
+                                +{(lender.productTypes as string[]).length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter className="pt-4 border-t border-border/40 bg-muted/10 flex-col gap-4 mt-auto">
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <Switch
                             checked={!!lender.isFavourite}
-                            onCheckedChange={(checked) =>
-                              toggleFavouriteMutation.mutate({
-                                id: lender.id,
-                                isFavourite: checked,
-                              })
-                            }
-                            data-testid={`table-switch-favourite-${lender.id}`}
+                            onCheckedChange={(checked) => toggleFavouriteMutation.mutate({ id: lender.id!, isFavourite: checked })}
+                            className="scale-90"
                           />
-                          <Star
-                            className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
-                          />
+                          <Star className={`h-4 w-4 transition-colors ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground opacity-30"}`} />
                         </div>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          {lender.institutionName}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline" className="text-xs">
-                          {LENDER_TYPES.find((t) => t.value === lender.lenderType)?.label ||
-                            "Lender"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <PanelBadge status={lender.panelStatus} />
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {formatCurrency(lender.minLoanAmount)} -{" "}
-                        {formatCurrency(lender.maxLoanAmount)}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <RatingStars rating={lender.rating} />
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()} className="hidden md:table-cell">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Agreement</span>
                           <Switch
                             checked={!!lender.introducerAgreementSigned}
-                            onCheckedChange={(checked) =>
-                              toggleAgreementMutation.mutate({ id: lender.id, signed: checked })
-                            }
-                            data-testid={`table-switch-agreement-${lender.id}`}
-                          />
-                          <CheckCircle2
-                            className={`h-4 w-4 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground"}`}
+                            onCheckedChange={(checked) => toggleAgreementMutation.mutate({ id: lender.id!, signed: checked })}
+                            className="scale-90"
                           />
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(lender)}
-                            data-testid={`button-edit-${lender.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeletingLender(lender)}
-                            data-testid={`button-delete-${lender.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Accordion type="multiple" className="space-y-4" defaultValue={PRODUCT_TYPES}>
+                {[...PRODUCT_TYPES, "Other / Unspecified"].map((groupName) => {
+                  const groupLenders =
+                    groupName === "Other / Unspecified"
+                      ? filteredLenders.filter(
+                        (l) =>
+                          !l.productTypes ||
+                          (l.productTypes as string[]).length === 0 ||
+                          !(l.productTypes as string[]).some((p) => PRODUCT_TYPES.includes(p))
+                      )
+                      : filteredLenders.filter((l) => {
+                        const pts = (l.productTypes as string[]) || [];
+                        if (groupName === "Commercial Mortgages") {
+                          return pts.includes("Commercial Mortgages") || pts.includes("Commercial Mortgage");
+                        }
+                        return pts.includes(groupName);
+                      });
+
+                  if (groupLenders.length === 0) return null;
+
+                  return (
+                    <AccordionItem key={groupName} value={groupName} className="border border-border/60 rounded-xl bg-card overflow-hidden shadow-sm transition-all hover:border-primary/20">
+                      <AccordionTrigger className="px-6 py-5 hover:no-underline hover:bg-muted/30 transition-all group [&[data-state=open]]:bg-muted/50 [&[data-state=open]]:border-b">
+                        <div className="flex items-center gap-4">
+                          <div className="h-10 w-1.5 bg-primary/20 rounded-full group-hover:bg-primary transition-colors" />
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="text-xl font-bold tracking-tight">{groupName}</span>
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {groupLenders.length} {groupLenders.length === 1 ? "LENDER" : "LENDERS"}
+                            </span>
+                          </div>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+                      </AccordionTrigger>
+                      <AccordionContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent bg-muted/40 border-b border-border/50">
+                                <TableHead className="w-16 pl-8">FAV</TableHead>
+                                <TableHead className="min-w-[280px] font-semibold">LENDER</TableHead>
+                                <TableHead className="hidden lg:table-cell font-semibold">TYPE</TableHead>
+                                <TableHead className="hidden md:table-cell font-semibold">PANEL</TableHead>
+                                <TableHead className="hidden lg:table-cell font-semibold">LOAN RANGE</TableHead>
+                                <TableHead className="hidden sm:table-cell font-semibold">RATING</TableHead>
+                                <TableHead className="hidden xl:table-cell font-semibold text-center">AGREEMENT</TableHead>
+                                <TableHead className="text-right pr-8 font-semibold">ACTIONS</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {groupLenders.map((lender, index) => (
+                                <React.Fragment key={`${groupName}-${lender.id || index}`}>
+                                  <TableRow
+                                    className="cursor-pointer group hover:bg-muted/30 transition-colors border-border/40"
+                                    onClick={() => navigate(`/lenders/${lender.id}`)}
+                                  >
+                                    <TableCell className="pl-8" onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex items-center gap-3">
+                                        <Switch
+                                          checked={!!lender.isFavourite}
+                                          onCheckedChange={(checked) =>
+                                            toggleFavouriteMutation.mutate({ id: lender.id!, isFavourite: checked })
+                                          }
+                                          className="scale-90"
+                                        />
+                                        <Star className={`h-4 w-4 ${lender.isFavourite ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/10 group-hover:text-muted-foreground/30"}`} />
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-5">
+                                      <div className="flex items-center gap-4">
+                                        {lender.logoUrl ? (
+                                          <div className="h-14 w-14 rounded-xl border border-border/80 bg-white p-2 flex-shrink-0 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                                            <img src={lender.logoUrl} alt={lender.institutionName} className="max-h-full max-w-full object-contain" />
+                                          </div>
+                                        ) : (
+                                          <div className="h-14 w-14 rounded-xl bg-primary/5 border border-primary/10 flex-shrink-0 flex items-center justify-center group-hover:bg-primary/10">
+                                            <Building2 className="h-7 w-7 text-primary/30" />
+                                          </div>
+                                        )}
+                                        <div className="flex flex-col min-w-0">
+                                          <span className="font-bold text-base text-foreground group-hover:text-primary transition-colors truncate">
+                                            {lender.institutionName}
+                                          </span>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            {lender.isGlobal === 1 && (
+                                              <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-blue-50 text-blue-700 border-blue-100 font-bold uppercase tracking-tighter">GLOBAL</Badge>
+                                            )}
+                                            <span className="text-xs text-muted-foreground font-medium truncate">
+                                              {lender.contactName || lender.email || "No contact info"}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="hidden lg:table-cell">
+                                      <span className="text-muted-foreground text-sm font-medium">
+                                        {LENDER_TYPES.find((t) => t.value === lender.lenderType)?.label || "Lender"}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="hidden md:table-cell">
+                                      <PanelBadge status={lender.panelStatus} />
+                                      {!lender.introducerAgreementSigned && (
+                                        <div className="mt-1">
+                                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-200 text-amber-700 bg-amber-50 font-bold uppercase tracking-tight">PROSPECTIVE</Badge>
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="hidden lg:table-cell">
+                                      <div className="flex flex-col gap-0.5">
+                                        {(lender.minLoanAmount || lender.maxLoanAmount) ? (
+                                          <span className="text-sm font-bold text-foreground/80">
+                                            {formatCurrency(lender.minLoanAmount)} — {formatCurrency(lender.maxLoanAmount)}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground text-xs italic">Not specified</span>
+                                        )}
+                                        {lender.typicalRateFrom && (
+                                          <span className="text-[10px] text-muted-foreground font-semibold">
+                                            Rates from {lender.typicalRateFrom}%
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="hidden sm:table-cell">
+                                      <RatingStars rating={lender.rating} />
+                                    </TableCell>
+                                    <TableCell onClick={(e) => e.stopPropagation()} className="hidden xl:table-cell">
+                                      <div className="flex flex-col items-center gap-1.5">
+                                        <CheckCircle2
+                                          className={`h-5 w-5 ${lender.introducerAgreementSigned ? "text-green-500" : "text-muted-foreground/20"}`}
+                                        />
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${lender.introducerAgreementSigned ? "text-green-700" : "text-muted-foreground/60"}`}>
+                                          {lender.introducerAgreementSigned ? "SIGNED" : "PENDING"}
+                                        </span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-right pr-8" onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex items-center justify-end gap-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full"
+                                          onClick={() => researchLenderMutation.mutate(lender.id!)}
+                                          title="AI Research"
+                                          disabled={researchLenderMutation.isPending}
+                                        >
+                                          <Globe className={`h-4 w-4 ${researchLenderMutation.isPending ? "animate-pulse" : ""}`} />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full"
+                                          onClick={() => handleEdit(lender)}
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-full"
+                                          onClick={() => setDeletingLender(lender)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                  {(lender.lendingPolicy || lender.insights || lender.creditAppetite) && (
+                                    <TableRow className="bg-muted/5 border-b border-border/20">
+                                      <TableCell colSpan={8} className="py-4 pl-12 pr-8">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                          {lender.creditAppetite && (
+                                            <div>
+                                              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                                <Star className="h-3 w-3 text-primary" /> Credit Appetite
+                                              </h4>
+                                              <p className="text-xs text-foreground/80 leading-relaxed italic border-l-2 border-primary/20 pl-3">
+                                                {lender.creditAppetite}
+                                              </p>
+                                            </div>
+                                          )}
+                                          {lender.lendingPolicy && (
+                                            <div>
+                                              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                                <CheckCircle2 className="h-3 w-3 text-green-500" /> Lending Policy
+                                              </h4>
+                                              <p className="text-xs text-foreground/80 leading-relaxed border-l-2 border-green-500/20 pl-3">
+                                                {lender.lendingPolicy}
+                                              </p>
+                                            </div>
+                                          )}
+                                          {lender.insights && (
+                                            <div className="md:col-span-2">
+                                              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                                <Globe className="h-3 w-3 text-blue-500" /> AI Insights
+                                              </h4>
+                                              <p className="text-[11px] text-foreground/70 leading-relaxed bg-blue-50/30 p-2.5 rounded-lg border border-blue-100/30">
+                                                {lender.insights}
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
+            )}
+          </TabsContent>
+
+          <TabsContent value="bulk-upload" className="mt-0">
+            <BulkLenderUpload />
+          </TabsContent>
+        </Tabs>
       </main>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent
-          className="max-w-4xl max-h-[90vh] overflow-hidden"
-          data-testid="dialog-lender"
-        >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="dialog-lender-form">
           <DialogHeader>
-            <DialogTitle>{editingLender ? "Edit Lender" : "Add New Lender"}</DialogTitle>
+            <DialogTitle>
+              {editingLender ? "Edit Lender" : "Add New Lender"}
+            </DialogTitle>
             <DialogDescription>
               {editingLender
-                ? "Update lender information and criteria"
+                ? "Update lender details and criteria"
                 : "Add a new lender to your directory"}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[65vh] pr-4">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-                <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
-                    <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                    <TabsTrigger value="criteria">Lending Criteria</TabsTrigger>
-                    <TabsTrigger value="contacts">Contacts</TabsTrigger>
-                    <TabsTrigger value="notes">Notes & Rating</TabsTrigger>
-                  </TabsList>
 
-                  <TabsContent value="basic" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="institutionName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Institution Name *</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="e.g., Barclays Business"
-                                data-testid="input-institution-name"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="lenderType"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Lender Type</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value || undefined}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-lender-type-form">
-                                  <SelectValue placeholder="Select type" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {LENDER_TYPES.map((type) => (
-                                  <SelectItem key={type.value} value={type.value}>
-                                    {type.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="panelStatus"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Panel Status</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value || undefined}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-panel-status-form">
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {PANEL_STATUSES.map((status) => (
-                                  <SelectItem key={status.value} value={status.value}>
-                                    {status.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="website"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Website</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="https://..."
-                                data-testid="input-website"
-                                {...field}
-                                value={field.value || ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Address</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Full address..."
-                              data-testid="input-address"
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div>
-                      <Label>Product Types</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {PRODUCT_TYPES.map((product) => {
-                          const isSelected = form.watch("productTypes")?.includes(product);
-                          return (
-                            <Badge
-                              key={product}
-                              variant={isSelected ? "default" : "outline"}
-                              className="cursor-pointer"
-                              onClick={() => {
-                                const current = form.getValues("productTypes") || [];
-                                if (isSelected) {
-                                  form.setValue(
-                                    "productTypes",
-                                    current.filter((p) => p !== product)
-                                  );
-                                } else {
-                                  form.setValue("productTypes", [...current, product]);
-                                }
-                              }}
-                            >
-                              {product}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="criteria" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="minLoanAmount"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Minimum Loan Amount (£)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="e.g., 50000"
-                                data-testid="input-min-loan"
-                                {...field}
-                                value={field.value || ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="maxLoanAmount"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Maximum Loan Amount (£)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="e.g., 10000000"
-                                data-testid="input-max-loan"
-                                {...field}
-                                value={field.value || ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="minTermMonths"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Min Term (months)</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="e.g., 12" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="maxTermMonths"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Max Term (months)</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="e.g., 60" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="minLtv"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Min LTV (%)</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="e.g., 0" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="maxLtv"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Max LTV (%)</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="e.g., 75" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="typicalRateFrom"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Rate From</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g., 4.5%" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="typicalRateTo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Rate To</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g., 8.5%" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="arrangementFee"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Arrangement Fee</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g., 1.5%" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="turnaroundDays"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Typical Turnaround (days)</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="e.g., 14" {...field} value={field.value || ""} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div>
-                      <Label>Sectors</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {SECTORS.map((sector) => {
-                          const isSelected = form.watch("sectors")?.includes(sector);
-                          return (
-                            <Badge
-                              key={sector}
-                              variant={isSelected ? "default" : "outline"}
-                              className="cursor-pointer"
-                              onClick={() => {
-                                const current = form.getValues("sectors") || [];
-                                if (isSelected) {
-                                  form.setValue(
-                                    "sectors",
-                                    current.filter((s) => s !== sector)
-                                  );
-                                } else {
-                                  form.setValue("sectors", [...current, sector]);
-                                }
-                              }}
-                            >
-                              {sector}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>Regions</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {REGIONS.map((region) => {
-                          const isSelected = form.watch("regions")?.includes(region);
-                          return (
-                            <Badge
-                              key={region}
-                              variant={isSelected ? "default" : "outline"}
-                              className="cursor-pointer"
-                              onClick={() => {
-                                const current = form.getValues("regions") || [];
-                                if (isSelected) {
-                                  form.setValue(
-                                    "regions",
-                                    current.filter((r) => r !== region)
-                                  );
-                                } else {
-                                  form.setValue("regions", [...current, region]);
-                                }
-                              }}
-                            >
-                              {region}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="contacts" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="contactName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Primary Contact Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g., John Smith" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Primary Email *</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="email@example.com" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Primary Phone</FormLabel>
-                          <FormControl>
-                            <Input type="tel" placeholder="+44 20 1234 5678" {...field} value={field.value || ""} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Separator />
-                    <h4 className="font-medium">BDM Contact</h4>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="bdmName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>BDM Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g., Sarah Jones" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="bdmEmail"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>BDM Email</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="bdm@example.com" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="bdmPhone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>BDM Phone</FormLabel>
-                            <FormControl>
-                              <Input type="tel" placeholder="+44..." {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="submissionEmail"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Submission Email</FormLabel>
-                          <FormDescription>
-                            Email address for sending loan applications
-                          </FormDescription>
-                          <FormControl>
-                            <Input type="email" placeholder="submissions@example.com" {...field} value={field.value || ""} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="notes" className="space-y-4 mt-4">
-                    <FormField
-                      control={form.control}
-                      name="rating"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Your Rating (1-5)</FormLabel>
-                          <FormControl>
-                            <div className="flex items-center gap-2">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Button
-                                  key={star}
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => field.onChange(star)}
-                                >
-                                  <Star
-                                    className={`h-6 w-6 ${field.value && star <= field.value
-                                      ? "fill-yellow-400 text-yellow-400"
-                                      : "text-muted-foreground"
-                                      }`}
-                                  />
-                                </Button>
-                              ))}
-                              {field.value && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => field.onChange(undefined)}
-                                >
-                                  Clear
-                                </Button>
-                              )}
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="creditAppetite"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Credit Appetite</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Describe their current lending appetite..."
-                              className="resize-none"
-                              rows={2}
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="keyStrengths"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Key Strengths</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="What they're good at..."
-                              className="resize-none"
-                              rows={2}
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="keyWeaknesses"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Key Weaknesses</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Areas of concern or limitations..."
-                              className="resize-none"
-                              rows={2}
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>General Notes</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Any other relevant information..."
-                              className="resize-none"
-                              rows={3}
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TabsContent>
-                </Tabs>
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsDialogOpen(false);
-                      setEditingLender(null);
-                      form.reset();
-                    }}
-                    data-testid="button-cancel"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    data-testid="button-submit"
-                  >
-                    {editingLender ? "Update" : "Add"} Lender
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </ScrollArea>
+          <LenderForm
+            defaultValues={editingLender || {}}
+            onSubmit={onSubmit}
+            isSubmitting={createLenderMutation.isPending || updateLenderMutation.isPending}
+            onCancel={() => {
+              setIsDialogOpen(false);
+              setEditingLender(null);
+            }}
+            submitLabel={editingLender ? "Update Lender" : "Add Lender"}
+          />
         </DialogContent>
       </Dialog>
 
@@ -1533,16 +996,15 @@ export default function Lenders() {
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingLender && deleteMutation.mutate(deletingLender.id)}
-              disabled={deleteMutation.isPending}
+              onClick={() => deletingLender && deleteLenderMutation.mutate(deletingLender.id!)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-delete"
+              disabled={deleteLenderMutation.isPending}
             >
-              Delete
+              {deleteLenderMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div >
   );
 }

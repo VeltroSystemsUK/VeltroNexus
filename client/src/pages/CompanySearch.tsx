@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft,
   Building2,
@@ -96,7 +96,11 @@ const COMPANY_TYPES = [
 
 const NON_REGISTERED_TYPES = ["partnership", "sole-trader"];
 
-export default function CompanySearch() {
+interface CompanySearchProps {
+  mode?: "user" | "god_mode"; // 'user' is default (Prospects), 'god_mode' for Internal Leads
+}
+
+export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<"search" | "manual" | "confirmation">("search");
 
@@ -217,10 +221,31 @@ export default function CompanySearch() {
         ? generateUniqueId()
         : data.companyNumber;
 
+      if (mode === "god_mode") {
+        // GOD MODE: Create Internal Lead
+        // We don't need to create the 'Company' entity first in the user's scope, 
+        // we just store the rich data directly on the InternalLead or create a Company if we want shared DB.
+        // For now, InternalLead schema has basic fields.
+
+        return apiRequest("/api/god/crm/leads", "POST", {
+          companyName: data.companyName,
+          companyNumber: finalCompanyNumber,
+          address: `${data.registeredAddress || ""} ${data.postcode || ""}`.trim(),
+          companyType: data.companyType,
+          sicCode: data.sicCode,
+          incorporationDate: data.incorporationDate,
+          notes: data.notes || "",
+          status: "new",
+          estimatedValue: data.loanAmount ? data.loanAmount / 100 : undefined
+        });
+      }
+
+      // USER MODE: Create Company + Prospect
       // First create or get the company
       const company = await api.companies.create({
         companyName: data.companyName,
         companyNumber: finalCompanyNumber,
+
         registeredAddress: data.registeredAddress || null,
         postcode: data.postcode || null,
         incorporationDate: data.incorporationDate || null,
@@ -231,20 +256,40 @@ export default function CompanySearch() {
 
       // Then create the prospect
       return api.prospects.create({
-        companyId: company.id,
+        companyId: company.id!,
         stage: "lead",
         loanAmount: data.loanAmount || null,
         priority: data.priority || null,
         notes: data.notes || null,
+        directorsGuarantee: 0,
+        commercialProperty: 0,
+        homeEquity: 0,
+        propertyOther: 0,
+        queueOrder: 0,
+        loanAllocation: [],
+        savedAssociations: [],
+
+        debenture: 0,
+        parentCompanyGuarantee: 0,
+        collateral: 0,
+        crossCompanyGuarantee: 0,
       });
     },
     onSuccess: () => {
-      toast.success("Prospect created successfully");
-      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
-      navigate("/");
+      if (mode === "god_mode") {
+        toast.success("Lead added to Sales CRM");
+        // Don't navigate away, just reset or show success
+        setActiveTab("search");
+        setSearchQuery("");
+        setSelectedCompany(null);
+      } else {
+        toast.success("Prospect created successfully");
+        queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+        navigate("/");
+      }
     },
     onError: (error: Error) => {
-      toast.error(`Failed to create prospect: ${error.message}`);
+      toast.error(`Failed to create: ${error.message}`);
     },
   });
 
@@ -613,9 +658,11 @@ export default function CompanySearch() {
                 {/* Search Form */}
                 <form onSubmit={handleSearch} className="space-y-4">
                   <div className="space-y-2">
-                    <Label>{getSearchLabel()}</Label>
+                    <Label htmlFor="company-search-query">{getSearchLabel()}</Label>
                     <div className="flex gap-2">
                       <Input
+                        id="company-search-query"
+                        name="company-search-query"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder={getSearchPlaceholder()}
@@ -657,7 +704,10 @@ export default function CompanySearch() {
 
                         {showSicHelper && (
                           <div className="border rounded-md p-3 bg-muted/30 space-y-2">
+                            <Label htmlFor="sic-helper-search" className="sr-only">Industry Search</Label>
                             <Input
+                              id="sic-helper-search"
+                              name="sic-helper-search"
                               value={sicSearchTerm}
                               onChange={(e) => setSicSearchTerm(e.target.value)}
                               placeholder="Type industry keyword (e.g., restaurant, software, construction)..."
@@ -705,6 +755,7 @@ export default function CompanySearch() {
                         <Label htmlFor="sic-postcode-filter">Filter by Postcode (optional)</Label>
                         <Input
                           id="sic-postcode-filter"
+                          name="sic-postcode-filter"
                           value={sicPostcodeFilter}
                           onChange={(e) => setSicPostcodeFilter(e.target.value.toUpperCase())}
                           placeholder="e.g., SW1A, M1, EC2R..."
@@ -724,6 +775,7 @@ export default function CompanySearch() {
                       <Label htmlFor="location-postcode-filter">Filter by Postcode (optional)</Label>
                       <Input
                         id="location-postcode-filter"
+                        name="location-postcode-filter"
                         value={locationPostcodeFilter}
                         onChange={(e) => setLocationPostcodeFilter(e.target.value.toUpperCase())}
                         placeholder="e.g., SW1A, M1, EC2R..."

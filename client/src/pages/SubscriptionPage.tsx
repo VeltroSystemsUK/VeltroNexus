@@ -372,7 +372,7 @@ export default function SubscriptionPage() {
                         <div className="mb-6">
                             <img src={logoChrome} alt="Veltro" className="h-10 object-contain" />
                         </div>
-                        <h2 className="text-lg text-[#D97706] font-light mb-12">
+                        <h2 className="text-lg text-[#D97706] font-bold mb-12">
                             Professional Lending Infrastructure
                         </h2>
 
@@ -391,12 +391,13 @@ export default function SubscriptionPage() {
 
                         <ul className="space-y-6 mb-12">
                             {[
-                                "Unlimited Loan Applications",
-                                "Credit Bureau Integration",
+                                "Minumum 50 New Prospects Per User",
+                                "Generate Instant Prospect Data",
                                 "Automated Decision Engine",
-                                "Document Generation",
-                                "Priority Support",
-                                "White-Label Ready"
+                                "Detailed Proposal Generation",
+                                "Lender Matching Facilities",
+                                "AI Credit Underwriting (Upgrade)",
+                                "FCA Compliance Support (Upgrade)",
                             ].map((feature, i) => (
                                 <li key={i} className="flex gap-4 items-start animate-in slide-in-from-left-4 fade-in duration-500" style={{ animationDelay: `${i * 100}ms` }}>
                                     <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center mt-0.5 shrink-0">

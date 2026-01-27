@@ -68,12 +68,15 @@ export default function SubmitApplicationDialog({
 
   const submitMutation = useMutation({
     mutationFn: async (data: SubmitApplicationForm) => {
-      const response = await apiRequest("/api/submissions", "POST", {
-        prospectId,
-        lenderId: parseInt(data.lenderId),
-        commentary: data.commentary || undefined,
-      });
-      return response.json();
+      const submission = await apiRequest(
+        `/api/lenders/${data.lenderId}/applications/submit`,
+        "POST",
+        {
+          prospectId,
+          commentary: data.commentary || undefined,
+        }
+      );
+      return submission.json();
     },
     onSuccess: (result: any) => {
       let description = "The application has been submitted.";
@@ -177,8 +180,8 @@ export default function SubmitApplicationDialog({
                         lenders.map((lender) => (
                           <SelectItem
                             key={lender.id}
-                            value={lender.id.toString()}
-                            data-testid={`select-lender-option-${lender.id}`}
+                            value={lender.id!.toString()}
+                            data-testid={`select-lender-option-${lender.id!}`}
                           >
                             {lender.institutionName}
                             {lender.contactName && ` - ${lender.contactName}`}

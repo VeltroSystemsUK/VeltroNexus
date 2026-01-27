@@ -50,7 +50,7 @@ const UK_REGIONS: Record<string, string> = {
 function getRegionFromPostcode(postcode: string | null | undefined): string | null {
   if (!postcode) return null;
   const prefix = postcode.trim().toUpperCase().replace(/\s+/g, '');
-  
+
   const regionMap: Record<string, string> = {
     'AB': 'Scotland', 'AL': 'East of England', 'B': 'West Midlands',
     'BA': 'South West', 'BB': 'North West', 'BD': 'Yorkshire and Humber',
@@ -94,7 +94,7 @@ function getRegionFromPostcode(postcode: string | null | undefined): string | nu
     'WS': 'West Midlands', 'WV': 'West Midlands', 'YO': 'Yorkshire and Humber',
     'ZE': 'Scotland',
   };
-  
+
   for (const [code, region] of Object.entries(regionMap)) {
     if (prefix.startsWith(code)) {
       return region;
@@ -146,9 +146,9 @@ export async function buildProspectProfile(
   dueDiligence: DueDiligenceData | null
 ): Promise<ProspectProfile> {
   return {
-    prospectId: prospect.id,
-    loanAmount: prospect.loanAmount,
-    termMonths: prospect.term,
+    prospectId: prospect.id!,
+    loanAmount: prospect.loanAmount ?? null,
+    termMonths: prospect.term ?? null,
     companyType: prospect.company?.companyType ?? null,
     sicCode: prospect.company?.sicCode ?? null,
     sicDescription: prospect.company?.sicDescription ?? null,
@@ -242,7 +242,7 @@ function scoreLender(lender: Lender, profile: ProspectProfile): ScoreResult {
   const lenderSectors = (lender.sectors as string[]) || [];
   if (lenderSectors.length > 0 && profile.sicDescription) {
     maxScore += 15;
-    const sectorMatch = lenderSectors.some(sector => 
+    const sectorMatch = lenderSectors.some(sector =>
       profile.sicDescription?.toLowerCase().includes(sector.toLowerCase()) ||
       sector.toLowerCase().includes(profile.sicDescription?.toLowerCase() || '')
     );
@@ -257,7 +257,7 @@ function scoreLender(lender: Lender, profile: ProspectProfile): ScoreResult {
   const lenderRegions = (lender.regions as string[]) || [];
   if (lenderRegions.length > 0 && profile.region) {
     maxScore += 10;
-    const regionMatch = lenderRegions.some(region => 
+    const regionMatch = lenderRegions.some(region =>
       region.toLowerCase() === profile.region?.toLowerCase() ||
       region.toLowerCase() === 'nationwide' ||
       region.toLowerCase() === 'uk wide'
@@ -274,7 +274,7 @@ function scoreLender(lender: Lender, profile: ProspectProfile): ScoreResult {
   if (lenderSecurityTypes.length > 0 && profile.securityTypes.length > 0) {
     maxScore += 15;
     const matchingSecurities = profile.securityTypes.filter(st =>
-      lenderSecurityTypes.some(lst => 
+      lenderSecurityTypes.some(lst =>
         lst.toLowerCase().includes(st.toLowerCase()) ||
         st.toLowerCase().includes(lst.toLowerCase())
       )
@@ -373,7 +373,7 @@ export async function generateRecommendations(
 
   for (const lender of lenders) {
     const hardCriteriaResult = checkHardCriteria(lender, profile);
-    
+
     if (!hardCriteriaResult.passed) {
       matches.push({
         lender,
@@ -388,7 +388,7 @@ export async function generateRecommendations(
     }
 
     const scoreResult = scoreLender(lender, profile);
-    const matchPercentage = scoreResult.maxScore > 0 
+    const matchPercentage = scoreResult.maxScore > 0
       ? Math.round((scoreResult.score / scoreResult.maxScore) * 100)
       : 50;
 
@@ -422,10 +422,10 @@ export async function getTopRecommendations(
   limit: number = 5
 ): Promise<RecommendationResult> {
   const result = await generateRecommendations(userId, prospectId);
-  
+
   const qualified = result.recommendations.filter(m => !m.disqualified);
   const topQualified = qualified.slice(0, limit);
-  
+
   return {
     ...result,
     recommendations: topQualified,

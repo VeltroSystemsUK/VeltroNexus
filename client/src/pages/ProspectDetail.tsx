@@ -78,6 +78,9 @@ import {
   DollarSign,
   AlertTriangle,
   MoreVertical,
+  Sparkles,
+  Link as LinkIcon,
+  Building,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -121,6 +124,7 @@ import {
   CharacterAssessmentTool,
 } from "@/components/DueDiligenceTools";
 import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
+
 import { AutomaticCreditAnalysis } from "@/components/AutomaticCreditAnalysis";
 import { CompanyInformation } from "@/components/CompanyInformation";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
@@ -131,12 +135,14 @@ import ConversationThread from "@/components/ConversationThread";
 import TimeTracking from "@/components/TimeTracking";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
+import { CommunicationsTab } from "@/components/communications/CommunicationsTab";
 
 const STAGES = [
   { value: "lead", label: "Lead" },
   { value: "contacted", label: "Contacted" },
   { value: "qualified", label: "Qualified" },
   { value: "proposal", label: "Proposal" },
+  { value: "submission", label: "Submission" },
   { value: "due-diligence", label: "Due Diligence" },
   { value: "approval", label: "Approval" },
   { value: "approved", label: "Approved" },
@@ -775,10 +781,9 @@ export default function ProspectDetail() {
         {/* Company Overview */}
         <CompanyOverview prospect={prospect} />
 
-        {/* Tabbed Content */}
         <Tabs defaultValue="contacts" className="mt-8">
           <TabsList
-            className={`flex flex-nowrap overflow-x-auto w-full md:grid ${user?.subscriptionTier === "free" ? "md:grid-cols-8" : user?.subscriptionTier === "premium" ? "md:grid-cols-10" : "md:grid-cols-9"} mb-8 pb-2 md:pb-0 gap-2 md:gap-0 scrollbar-hide h-auto`}
+            className={`flex flex-nowrap overflow-x-auto w-full md:grid ${user?.subscriptionTier === "free" ? "md:grid-cols-7" : user?.subscriptionTier === "premium" ? "md:grid-cols-9" : "md:grid-cols-8"} mb-8 pb-2 md:pb-0 gap-2 md:gap-0 scrollbar-hide h-auto`}
           >
             <TabsTrigger value="contacts" data-testid="tab-contacts">
               Contacts
@@ -786,23 +791,15 @@ export default function ProspectDetail() {
             <TabsTrigger value="company" data-testid="tab-company">
               Company
             </TabsTrigger>
-            <TabsTrigger value="loan" data-testid="tab-loan">
-              Requirement
+            <TabsTrigger value="requirements" data-testid="tab-requirements">
+              Requirements
             </TabsTrigger>
-            <TabsTrigger value="research" data-testid="tab-research">
-              Research
+            <TabsTrigger value="assessment" data-testid="tab-assessment">
+              Assessment
             </TabsTrigger>
-            <TabsTrigger value="documents" data-testid="tab-documents">
-              Documents
+            <TabsTrigger value="contact-management" data-testid="tab-contact-management">
+              Contact Management
             </TabsTrigger>
-            <TabsTrigger value="activity" data-testid="tab-activity">
-              Activity
-            </TabsTrigger>
-            {user?.subscriptionTier !== "free" && (
-              <TabsTrigger value="diligence" data-testid="tab-diligence">
-                Credit
-              </TabsTrigger>
-            )}
             {hasUnderwritingAccess && (
               <TabsTrigger value="underwriting" data-testid="tab-underwriting">
                 Underwriting
@@ -832,24 +829,24 @@ export default function ProspectDetail() {
           <TabsContent value="company">
             <CompanyInformationTab
               companyNumber={prospect.company.companyNumber}
-              companyId={prospect.company.id}
+              companyId={prospect.company.id!}
               prospect={prospect}
             />
           </TabsContent>
 
-          <TabsContent value="loan">
+          <TabsContent value="requirements" className="space-y-6">
             <LoanRequirementCard prospect={prospect} />
-          </TabsContent>
-
-          <TabsContent value="research">
             <ResearchTab prospect={prospect} />
           </TabsContent>
 
-          <TabsContent value="documents">
+          <TabsContent value="assessment" className="space-y-6">
+            {user?.subscriptionTier !== "free" && (
+              <DueDiligenceTab prospect={prospect} userTier={user?.subscriptionTier || "free"} />
+            )}
             <DocumentsTab prospectId={prospectId} />
           </TabsContent>
 
-          <TabsContent value="activity">
+          <TabsContent value="contact-management" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2">
                 <SalesActivityTab prospectId={prospectId} activities={activities} />
@@ -858,66 +855,36 @@ export default function ProspectDetail() {
                 <TimeTracking prospectId={prospectId} />
               </div>
             </div>
+            <CommunicationsTab prospectId={prospectId} contacts={contacts} />
           </TabsContent>
-
-          {user?.subscriptionTier !== "free" && (
-            <TabsContent value="diligence">
-              <DueDiligenceTab prospect={prospect} userTier={user?.subscriptionTier || "free"} />
-            </TabsContent>
-          )}
 
           {hasUnderwritingAccess && (
             <TabsContent value="underwriting">
               <div className="space-y-6">
-                <CreditUnderwritingTool
-                  prospect={prospect}
-                  data={(dueDiligenceData || {}) as DueDiligenceData}
-                  onSave={handleSaveDueDiligence}
-                  isSaving={saveDueDiligenceMutation.isPending}
-                />
+                <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-primary" />
+                      Credit Underwriting Studio
+                    </CardTitle>
+                    <CardDescription>
+                      Access the full credit analysis and decisioning workspace.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Status: In Progress</p>
+                      </div>
+                      <Button onClick={() => navigate(`/prospect/${prospectId}/underwriting/dashboard`)} size="lg" className="gap-2">
+                        Enter Studio
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 <AutomaticCreditAnalysis data={(dueDiligenceData || {}) as DueDiligenceData} />
-
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <LenderRecommendations
-                    prospectId={prospectId}
-                    onSelectLender={(id) => navigate(`/lenders/${id}`)}
-                  />
-
-                  <DueDiligenceChecklist
-                    data={(dueDiligenceData || {}) as DueDiligenceData}
-                    onSave={handleSaveDueDiligence}
-                    isSaving={saveDueDiligenceMutation.isPending}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <LoanCalculatorTool
-                    data={(dueDiligenceData || {}) as DueDiligenceData}
-                    onSave={handleSaveDueDiligence}
-                    isSaving={saveDueDiligenceMutation.isPending}
-                  />
-                  <DSCRCalculatorTool
-                    data={(dueDiligenceData || {}) as DueDiligenceData}
-                    onSave={handleSaveDueDiligence}
-                    isSaving={saveDueDiligenceMutation.isPending}
-                  />
-                  <AffordabilityEstimatorTool
-                    data={(dueDiligenceData || {}) as DueDiligenceData}
-                    onSave={handleSaveDueDiligence}
-                    isSaving={saveDueDiligenceMutation.isPending}
-                  />
-                  <FinancialRatiosCalculatorTool
-                    data={(dueDiligenceData || {}) as DueDiligenceData}
-                    onSave={handleSaveDueDiligence}
-                    isSaving={saveDueDiligenceMutation.isPending}
-                  />
-                  <CharacterAssessmentTool
-                    data={(dueDiligenceData || {}) as DueDiligenceData}
-                    onSave={handleSaveDueDiligence}
-                    isSaving={saveDueDiligenceMutation.isPending}
-                  />
-                </div>
               </div>
             </TabsContent>
           )}
@@ -943,32 +910,6 @@ export default function ProspectDetail() {
         </Tabs>
       </main >
 
-      <SubmitToUnderwritingDialog
-        open={showUnderwritingDialog}
-        onOpenChange={setShowUnderwritingDialog}
-        prospectId={prospectId}
-        companyName={prospect.company.companyName}
-      />
-
-      {
-        underwritingSubmission && (
-          <ReplyToQueryDialog
-            open={showReplyDialog}
-            onOpenChange={setShowReplyDialog}
-            submissionId={underwritingSubmission.id}
-            prospectId={prospectId}
-          />
-        )
-      }
-
-      <ProspectLimitModal
-        open={showLimitModal}
-        onOpenChange={setShowLimitModal}
-        currentCount={0}
-        limit={user?.prospectLimit || 0}
-        subscriptionTier={user?.subscriptionTier || "free"}
-      />
-
 
       <SubmitToUnderwritingDialog
         open={showUnderwritingDialog}
@@ -977,17 +918,15 @@ export default function ProspectDetail() {
         companyName={prospect.company.companyName}
       />
 
-      {
-        underwritingSubmission && (
-          <ReplyToQueryDialog
-            open={showReplyDialog}
-            onOpenChange={setShowReplyDialog}
-            submissionId={underwritingSubmission.id}
-            prospectId={prospectId}
-            queryMessage={underwritingSubmission.decisionReason || undefined}
-          />
-        )
-      }
+      {underwritingSubmission && (
+        <ReplyToQueryDialog
+          open={showReplyDialog}
+          onOpenChange={setShowReplyDialog}
+          submissionId={underwritingSubmission.id}
+          prospectId={prospectId}
+          queryMessage={underwritingSubmission.decisionReason || undefined}
+        />
+      )}
 
       <ProspectLimitModal
         open={showLimitModal}
@@ -1001,7 +940,7 @@ export default function ProspectDetail() {
         limit={prospectLimit}
         subscriptionTier={subscriptionTier}
       />
-    </div >
+    </div>
   );
 }
 
@@ -1074,7 +1013,8 @@ function LoanAmountCard({ prospect }: { prospect: ProspectWithCompany }) {
 }
 
 function DateAddedCard({ prospect }: { prospect: ProspectWithCompany }) {
-  const formatDate = (date: string | Date) => {
+  const formatDate = (date?: string | Date | null) => {
+    if (!date) return "N/A";
     return new Date(date).toLocaleDateString("en-GB", {
       day: "numeric",
       month: "long",
@@ -1238,6 +1178,275 @@ function ReferralSourceCard({ prospect }: { prospect: ProspectWithCompany }) {
   );
 }
 
+interface CompanyEnrichmentResult {
+  companyName: string;
+  companyDetails: {
+    companyNumber?: string;
+    status?: string;
+    incorporationDate?: string;
+    registeredOffice?: string;
+    companyType?: string;
+  };
+  keyPeople: { name: string; role: string }[];
+  businessProfile: string;
+  sourceCommentary?: string;
+  sources: { url: string; title: string }[];
+}
+
+function PremiumResearchLock() {
+  return (
+    <Card className="border-dashed border-2 border-primary/20 bg-muted/10">
+      <CardContent className="flex flex-col items-center justify-center py-16 space-y-6 text-center">
+        <div className="bg-primary/10 p-4 rounded-full ring-8 ring-primary/5">
+          <Sparkles className="h-10 w-10 text-primary" />
+        </div>
+        <div className="space-y-2 max-w-md">
+          <h3 className="text-xl font-bold tracking-tight">AI Data Enrichment</h3>
+          <p className="text-muted-foreground">
+            Deep Research uses advanced AI to analyze business profiles, company financials, and key personnel.
+          </p>
+        </div>
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-200 flex items-start gap-3 max-w-md text-left">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold block mb-1">Premium Feature</span>
+            This tool is available exclusively with the
+            <span className="font-semibold"> AI Underwriting Subscription</span>.
+          </div>
+        </div>
+        <Button className="gap-2 px-8" size="lg" variant="default" onClick={() => window.location.href = '/settings'}>
+          <Shield className="h-4 w-4" />
+          Upgrade Subscription
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DeepResearchComponent({ companyName, websiteUrl, companyId, prospectId, initialBackground }: { companyName: string, websiteUrl?: string, companyId: number, prospectId: number, initialBackground?: string }) {
+  const [result, setResult] = useState<CompanyEnrichmentResult | null>(null);
+  const [localWebsite, setLocalWebsite] = useState(websiteUrl || "");
+  const [backgroundContent, setBackgroundContent] = useState(initialBackground || "");
+  const [isSavingBackground, setIsSavingBackground] = useState(false);
+  const [isSavingContacts, setIsSavingContacts] = useState(false);
+
+  const handleSaveBackground = async () => {
+    if (!result?.businessProfile) return;
+    setIsSavingBackground(true);
+    try {
+      await apiRequest(`/api/prospects/${prospectId}`, "PATCH", { background: result.businessProfile });
+      setBackgroundContent(result.businessProfile);
+      toast.success("Background field updated successfully");
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}`] });
+    } catch (e: any) {
+      toast.error("Failed to save background: " + e.message);
+    } finally {
+      setIsSavingBackground(false);
+    }
+  };
+
+  const handleSaveContacts = async () => {
+    if (!result?.keyPeople?.length) return;
+    setIsSavingContacts(true);
+    let successCount = 0;
+    try {
+      // Fetch existing contacts to avoid duplicates (naive check by name)
+      const existingRes = await fetch(`/api/prospects/${prospectId}/contacts`);
+      const existingContacts: any[] = await existingRes.json();
+      const existingNames = new Set(existingContacts.map(c => c.name.toLowerCase()));
+
+      for (const person of result.keyPeople) {
+        if (!existingNames.has(person.name.toLowerCase())) {
+          await apiRequest(`/api/contacts`, "POST", {
+            prospectId,
+            name: person.name,
+            role: person.role,
+            isPrimary: 0
+          });
+          successCount++;
+        }
+      }
+      if (successCount > 0) {
+        toast.success(`Saved ${successCount} new contacts`);
+        queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
+      } else {
+        toast.info("No new contacts to save (duplicates skipped)");
+      }
+    } catch (e: any) {
+      toast.error("Failed to save contacts: " + e.message);
+    } finally {
+      setIsSavingContacts(false);
+    }
+  };
+
+  // Sync local state if prop updates
+  useEffect(() => {
+    if (websiteUrl) setLocalWebsite(websiteUrl);
+  }, [websiteUrl]);
+
+  const saveWebsiteMutation = useMutation({
+    mutationFn: (newWebsite: string) =>
+      fetch(`/api/companies/${companyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ website: newWebsite }),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}`] });
+      // Don't toast here as it will be part of the flow
+    },
+  });
+
+  const enrichmentMutation = useMutation({
+    mutationFn: async () => {
+      // First save the website if it changed or is new
+      if (localWebsite !== websiteUrl && localWebsite.trim()) {
+        await saveWebsiteMutation.mutateAsync(localWebsite);
+      }
+      return apiRequest("/api/companies/enrich", "POST", { companyName, websiteUrl: localWebsite }).then(r => r.json());
+    },
+    onSuccess: (data: CompanyEnrichmentResult) => {
+      setResult(data);
+      toast.success("Company profile generated");
+    },
+    onError: (error: Error) => {
+      toast.error(`Analysis failed: ${error.message}`);
+    }
+  });
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="bg-primary/10 p-2 rounded-full">
+              <Search className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>AI Deep Research Agent</CardTitle>
+              <CardDescription>
+                Generate a comprehensive UK company profile using live web intelligence.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <Label className="mb-2 block">Target Company</Label>
+              <div className="p-3 bg-muted rounded-md font-medium border">
+                {companyName}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="research-website" className="mb-2 block">
+                Website URL <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="research-website"
+                placeholder="e.g. https://example.com"
+                value={localWebsite}
+                onChange={(e) => setLocalWebsite(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Required for accurate product and service analysis.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                onClick={() => enrichmentMutation.mutate()}
+                disabled={enrichmentMutation.isPending || !localWebsite.trim()}
+                size="lg"
+                className="w-full gap-2"
+              >
+                {enrichmentMutation.isPending ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Agent Researching...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Generate Profile
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {result && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Business Analysis Deep Dive */}
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                Business Analysis Deep Dive
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveBackground}
+                disabled={isSavingBackground}
+                className="h-8 gap-2"
+              >
+                {isSavingBackground ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                Save to Background
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed bg-muted/30 p-4 rounded-lg border">
+                {/* Render markdown safe content */}
+                <div style={{ whiteSpace: 'pre-line' }}>{result.businessProfile}</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Source Analysis & Commentary */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Shield className="h-4 w-4 text-amber-600" />
+                Source Intelligence & Credibility
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm bg-amber-50 dark:bg-amber-950/30 p-4 rounded-lg border border-amber-100 dark:border-amber-900 text-amber-900 dark:text-amber-100 italic">
+                {result.sourceCommentary || "No source commentary available."}
+              </div>
+
+              {result.sources.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-xs text-muted-foreground font-medium mb-3">Verified Sources Used:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {result.sources.map((source: any, i: number) => (
+                      <a
+                        key={i}
+                        href={source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs flex items-center gap-2 text-primary hover:underline bg-muted/50 p-2 rounded border hover:bg-muted transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{source.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CompanyOverview({ prospect }: { prospect: ProspectWithCompany }) {
   const formatDate = (date: string | Date | null | undefined) => {
     if (!date) return "N/A";
@@ -1341,13 +1550,24 @@ function ContactsTab({
       fetch(`/api/prospects/${prospectId}/sync-officers`, {
         method: "POST",
         credentials: "include",
-      }).then((r) => r.json()),
+      }).then(async (r) => {
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || err.message || "Failed to sync officers");
+        }
+        return r.json();
+      }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/contacts`] });
       if (data.synced > 0) {
         toast.success(data.message);
+      } else {
+        toast.info(data.message || "No new officers found.");
       }
     },
+    onError: (error) => {
+      toast.error(error.message || "Failed to sync officers.");
+    }
   });
 
   // Manual sync only - removed auto-sync to require explicit user action
@@ -1404,7 +1624,7 @@ function ContactsTab({
     }
 
     editContactMutation.mutate({
-      id: editingContact.id,
+      id: editingContact.id!,
       name: trimmedName,
       email: trimmedEmail || undefined,
       phone: trimmedPhone || undefined,
@@ -1478,6 +1698,7 @@ function ContactsTab({
                 <Label htmlFor="contact-name">Name *</Label>
                 <Input
                   id="contact-name"
+                  name="contact-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="John Smith"
@@ -1489,6 +1710,7 @@ function ContactsTab({
                   <Label htmlFor="contact-email">Email</Label>
                   <Input
                     id="contact-email"
+                    name="contact-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -1500,6 +1722,7 @@ function ContactsTab({
                   <Label htmlFor="contact-phone">Phone</Label>
                   <Input
                     id="contact-phone"
+                    name="contact-phone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+44 20 1234 5678"
@@ -1511,6 +1734,7 @@ function ContactsTab({
                 <Label htmlFor="contact-role">Role</Label>
                 <Input
                   id="contact-role"
+                  name="contact-role"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   placeholder="Finance Director"
@@ -1716,7 +1940,7 @@ function ContactsTab({
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => deleteContactMutation.mutate(contact.id)}
+                        onClick={() => deleteContactMutation.mutate(contact.id!)}
                         data-testid={`button-delete-contact-${contact.id}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1895,6 +2119,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
             <Label htmlFor="loan-amount">Loan Amount (£)</Label>
             <Input
               id="loan-amount"
+              name="loan-amount"
               type="number"
               value={loanAmount}
               onChange={(e) => setLoanAmount(e.target.value)}
@@ -1906,6 +2131,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
             <Label htmlFor="term">Term (Months)</Label>
             <Input
               id="term"
+              name="term"
               type="number"
               value={term}
               onChange={(e) => setTerm(e.target.value)}
@@ -1917,6 +2143,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
             <Label htmlFor="interest-rate">Interest Rate (APR %)</Label>
             <Input
               id="interest-rate"
+              name="interest-rate"
               type="number"
               step="0.1"
               value={interestRate}
@@ -2025,6 +2252,7 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
           <Label htmlFor="loan-notes">Purpose of Loan</Label>
           <Textarea
             id="loan-notes"
+            name="loan-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g., Looking to Refinance £120,000 with GOT Capital & Capify"
@@ -2068,19 +2296,25 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
                     data-testid={`allocation-row-${index}`}
                   >
                     <Input
+                      id={`allocation-desc-${index}`}
+                      name={`allocation-desc-${index}`}
                       className="col-span-6 h-8 text-sm"
                       value={item.description}
                       onChange={(e) => updateAllocationItem(item.id, "description", e.target.value)}
                       data-testid={`input-allocation-desc-${index}`}
+                      aria-label="Allocation description"
                     />
                     <div className="col-span-4 flex items-center">
                       <span className="text-sm text-muted-foreground mr-1">£</span>
                       <Input
+                        id={`allocation-amount-${index}`}
+                        name={`allocation-amount-${index}`}
                         className="h-8 text-sm text-right"
                         type="number"
                         value={item.amount}
                         onChange={(e) => updateAllocationItem(item.id, "amount", e.target.value)}
                         data-testid={`input-allocation-amount-${index}`}
+                        aria-label="Allocation amount"
                       />
                     </div>
                     <div className="col-span-2 flex justify-end">
@@ -2102,8 +2336,10 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
 
             <div className="flex gap-2 items-end">
               <div className="flex-1 space-y-1">
-                <Label className="text-xs">Description</Label>
+                <Label htmlFor="new-allocation-desc" className="text-xs">Description</Label>
                 <Input
+                  id="new-allocation-desc"
+                  name="new-allocation-desc"
                   placeholder="e.g., Working Capital"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
@@ -2112,8 +2348,10 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
                 />
               </div>
               <div className="w-32 space-y-1">
-                <Label className="text-xs">Amount (£)</Label>
+                <Label htmlFor="new-allocation-amount" className="text-xs">Amount (£)</Label>
                 <Input
+                  id="new-allocation-amount"
+                  name="new-allocation-amount"
                   type="number"
                   placeholder="0"
                   value={newAmount}
@@ -2405,6 +2643,7 @@ function SalesActivityTab({
                 <Label htmlFor="activity-title">Title *</Label>
                 <Input
                   id="activity-title"
+                  name="activity-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Follow up call"
@@ -2415,6 +2654,7 @@ function SalesActivityTab({
                 <Label htmlFor="activity-description">Description</Label>
                 <Textarea
                   id="activity-description"
+                  name="activity-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Discuss loan terms..."
@@ -2427,6 +2667,7 @@ function SalesActivityTab({
                   <Label htmlFor="activity-due-date">Due Date</Label>
                   <Input
                     id="activity-due-date"
+                    name="activity-due-date"
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
@@ -2437,6 +2678,7 @@ function SalesActivityTab({
                   <Label htmlFor="activity-due-time">Due Time</Label>
                   <Input
                     id="activity-due-time"
+                    name="activity-due-time"
                     type="time"
                     value={dueTime}
                     onChange={(e) => setDueTime(e.target.value)}
@@ -2483,18 +2725,18 @@ function SalesActivityTab({
               const prioConfig =
                 activityPriorityConfig[activity.priority as keyof typeof activityPriorityConfig] ||
                 activityPriorityConfig.medium;
-              const dueDateInfo = formatDueDate(activity.dueDate);
-              const overdue = !activity.completed && isOverdue(activity.dueDate);
+              const dueDateInfo = formatDueDate(activity.dueDate || null);
+              const overdue = !activity.completed && isOverdue(activity.dueDate || null);
 
               return (
-                <Card key={activity.id} className={overdue ? "border-red-500/50" : ""}>
+                <Card key={activity.id!} className={overdue ? "border-red-500/50" : ""}>
                   <CardContent className="pt-6">
                     <div className="flex items-start gap-4">
                       <Checkbox
                         checked={!!activity.completed}
                         onCheckedChange={(checked) =>
                           toggleActivityMutation.mutate({
-                            id: activity.id,
+                            id: activity.id!,
                             completed: checked ? 1 : 0,
                           })
                         }
@@ -2537,14 +2779,14 @@ function SalesActivityTab({
                             </span>
                           )}
                           <span>
-                            Created {new Date(activity.createdAt).toLocaleDateString("en-GB")}
+                            Created {new Date(activity.createdAt as any).toLocaleDateString("en-GB")}
                           </span>
                         </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => deleteActivityMutation.mutate(activity.id)}
+                        onClick={() => deleteActivityMutation.mutate(activity.id!)}
                         className="text-muted-foreground hover:text-destructive"
                         data-testid={`button-delete-activity-${activity.id}`}
                       >
@@ -2736,7 +2978,7 @@ function DueDiligenceTab({
   prospect: ProspectWithCompany;
   userTier: string;
 }) {
-  const [activeTool, setActiveTool] = useState<CreditTool>(null);
+  const [activeTool, setActiveTool] = useState<CreditTool>("loan-calc");
 
   const { data: dueDiligence } = useQuery<DueDiligence>({
     queryKey: [`/api/prospects/${prospect.id}/due-diligence`],
@@ -2763,10 +3005,6 @@ function DueDiligenceTab({
 
   const handleSave = (updates: Partial<DueDiligenceData>) => {
     saveDueDiligenceMutation.mutate(updates);
-  };
-
-  const handleToolClick = (toolId: CreditTool) => {
-    setActiveTool(activeTool === toolId ? null : toolId);
   };
 
   const renderToolContent = () => {
@@ -2817,45 +3055,23 @@ function DueDiligenceTab({
   };
 
   return (
-    <Tabs defaultValue="checklist" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 mb-6">
+    <Tabs defaultValue="tools" className="w-full">
+      <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsTrigger value="tools" data-testid="tab-credit-tools">
+          <Calculator className="h-4 w-4 mr-2" />
+          Financial Analysis Tools
+        </TabsTrigger>
         <TabsTrigger value="checklist" data-testid="tab-credit-checklist">
           <ClipboardList className="h-4 w-4 mr-2" />
           Due Diligence Checklist
         </TabsTrigger>
-        <TabsTrigger value="tools" data-testid="tab-credit-tools">
-          <Calculator className="h-4 w-4 mr-2" />
-          Credit Tools
-        </TabsTrigger>
-        <TabsTrigger
-          value="underwriting"
-          data-testid="tab-credit-underwriting"
-          className="relative"
-        >
-          <Shield className="h-4 w-4 mr-2" />
-          Pre-Underwriting
-          <Badge
-            variant="outline"
-            className="ml-2 text-xs bg-primary/10 text-primary border-primary/20"
-          >
-            Premium
-          </Badge>
-        </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="checklist" className="mt-0">
-        <DueDiligenceChecklist
-          data={dueDiligenceData}
-          onSave={handleSave}
-          isSaving={saveDueDiligenceMutation.isPending}
-        />
-      </TabsContent>
-
       <TabsContent value="tools" className="mt-0">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex gap-6">
-              <div className="flex flex-col gap-2 w-48 shrink-0">
+        <div className="flex flex-col md:flex-row gap-6">
+          <Card className="w-full md:w-64 shrink-0 h-fit">
+            <CardContent className="p-2">
+              <div className="flex flex-col gap-1">
                 {creditToolsConfig.map((tool) => {
                   const Icon = tool.icon;
                   const isActive = activeTool === tool.id;
@@ -2863,70 +3079,45 @@ function DueDiligenceTab({
                   return (
                     <button
                       key={tool.id}
-                      onClick={() => handleToolClick(tool.id)}
+                      onClick={() => setActiveTool(tool.id)}
                       className={`
-                        flex items-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium w-full justify-start
-                        transition-all duration-200 ease-in-out
-                        ${isActive ? tool.activeColor : tool.color}
-                        shadow-md hover:shadow-lg
+                        flex items-center gap-3 px-3 py-3 rounded-md text-sm font-medium w-full justify-start
+                        transition-all duration-200
+                        ${isActive
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                        }
                       `}
                       data-testid={`button-tool-${tool.id}`}
                     >
-                      <Icon
-                        className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isActive ? "rotate-12" : ""}`}
-                      />
+                      <Icon className={`h-4 w-4 shrink-0 ${isActive ? "" : "opacity-70"}`} />
                       <span>{tool.label}</span>
+                      {isActive && <div className="ml-auto w-1 h-1 rounded-full bg-white/50" />}
                     </button>
                   );
                 })}
               </div>
-
-              <div className="flex-1 min-w-0">
-                {activeTool ? (
-                  <div
-                    className="p-6 border rounded-lg bg-card animate-in fade-in slide-in-from-left-2 duration-300"
-                    data-testid={`content-tool-${activeTool}`}
-                  >
-                    {renderToolContent()}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full min-h-[200px] border rounded-lg bg-muted/30">
-                    <p className="text-muted-foreground">
-                      Select a tool from the left to get started
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="underwriting" className="mt-0 space-y-6">
-        <AutomaticCreditAnalysis data={dueDiligenceData} />
-        {userTier === "premium" ? (
-          <CreditUnderwritingTool
-            prospect={prospect}
-            data={dueDiligenceData}
-            onSave={handleSave}
-            isSaving={saveDueDiligenceMutation.isPending}
-          />
-        ) : (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Premium Feature</h3>
-              <p className="text-muted-foreground mb-4">
-                AI-powered pre-underwriting is available on Premium plans.
-              </p>
-              <Button variant="default" data-testid="button-upgrade-premium">
-                Upgrade to Premium
-              </Button>
             </CardContent>
           </Card>
-        )}
 
-        <AdviserRecommendationSection prospect={prospect} />
+          <div className="flex-1 min-w-0">
+            <div
+              key={activeTool}
+              className="animate-in fade-in slide-in-from-right-4 duration-300"
+              data-testid={`content-tool-${activeTool}`}
+            >
+              {renderToolContent()}
+            </div>
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="checklist" className="mt-0">
+        <DueDiligenceChecklist
+          data={dueDiligenceData}
+          onSave={handleSave}
+          isSaving={saveDueDiligenceMutation.isPending}
+        />
       </TabsContent>
     </Tabs>
   );
@@ -2983,8 +3174,8 @@ function SummaryTab({
   });
 
   const { data: dueDiligence } = useQuery<DueDiligence>({
-    queryKey: [`/api/prospects/${prospect.id}/due-diligence`],
-    enabled: prospect.id > 0,
+    queryKey: [`/api/prospects/${prospect.id!}/due-diligence`],
+    enabled: !!prospect.id && prospect.id > 0,
   });
 
   const dueDiligenceData = (dueDiligence?.data || {}) as DueDiligenceData & {
@@ -2994,7 +3185,7 @@ function SummaryTab({
   const savedAssociations = (prospect.savedAssociations || []) as any[];
 
   const handleDownloadReport = () => {
-    window.open(`/api/prospects/${prospect.id}/report`, "_blank");
+    window.open(`/api/prospects/${prospect.id!}/report`, "_blank");
     toast.success("Generating comprehensive report...");
   };
 
@@ -3737,6 +3928,7 @@ function CompanyInformationTab({
 }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [background, setBackground] = useState(prospect.background || "");
+  const { user } = useAuth();
 
   useEffect(() => {
     setBackground(prospect.background || "");
@@ -3754,6 +3946,23 @@ function CompanyInformationTab({
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
       toast.success("Background saved");
     },
+  });
+
+  const rewriteBackgroundMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await fetch("/api/ai/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error("Failed to rewrite text");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setBackground(data.text);
+      toast.success("Text rewritten successfully");
+    },
+    onError: () => toast.error("Failed to rewrite text with AI"),
   });
 
   const {
@@ -3837,56 +4046,88 @@ function CompanyInformationTab({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSyncCompanyData}
-          disabled={isSyncing || companyNumber.startsWith("UNREG-")}
-          data-testid="button-sync-companies-house"
-        >
-          {isSyncing ? (
-            <>
-              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-              Syncing...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Sync from Companies House
-            </>
-          )}
-        </Button>
-      </div>
-      <CompanyInformation companyProfile={companyProfile} />
+    <div className="space-y-6">
+      <Tabs defaultValue="official" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="official">Companies House Data</TabsTrigger>
+          <TabsTrigger value="research">Research Data</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Background</CardTitle>
-          <CardDescription>
-            Provide background information about the company and its principals
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Textarea
-            value={background}
-            onChange={(e) => setBackground(e.target.value)}
-            placeholder="Enter background information about the company, its history, principals, and any relevant context..."
-            className="min-h-[150px]"
-            data-testid="input-company-background"
-          />
-          <div className="flex justify-end">
-            <Button
-              onClick={() => saveBackgroundMutation.mutate({ background })}
-              disabled={saveBackgroundMutation.isPending}
-              data-testid="button-save-background"
-            >
-              {saveBackgroundMutation.isPending ? "Saving..." : "Save Background"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="official" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Official Company Register</CardTitle>
+                  <CardDescription>Verified data from Companies House</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncCompanyData}
+                  disabled={isSyncing || companyNumber.startsWith("UNREG-")}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+                  {isSyncing ? "Syncing..." : "Sync Data"}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CompanyInformation companyProfile={companyProfile} />
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="company-background" className="text-base font-semibold">Background & Notes</Label>
+                  {background.length > 10 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                      onClick={() => rewriteBackgroundMutation.mutate(background)}
+                      disabled={rewriteBackgroundMutation.isPending}
+                      title="Rewrite for clarity and conciseness"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {rewriteBackgroundMutation.isPending ? "Rewriting..." : "AI Rewrite"}
+                    </Button>
+                  )}
+                </div>
+                <Textarea
+                  id="company-background"
+                  name="company-background"
+                  value={background}
+                  onChange={(e) => setBackground(e.target.value)}
+                  placeholder="Enter background information about the company, its history, principals, and any relevant context..."
+                  className="min-h-[150px]"
+                  data-testid="input-company-background"
+                />
+                <div className="flex justify-end mt-2">
+                  <Button
+                    onClick={() => saveBackgroundMutation.mutate({ background })}
+                    disabled={saveBackgroundMutation.isPending}
+                    data-testid="button-save-background"
+                  >
+                    {saveBackgroundMutation.isPending ? "Saving..." : "Save Notes"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="research" className="space-y-6">
+          {user?.hasUnderwritingAccess ? (
+            <DeepResearchComponent
+              companyName={prospect.company.companyName}
+              websiteUrl={(prospect.company as any).website || undefined}
+              companyId={prospect.company.id || 0}
+              prospectId={prospect.id || 0}
+              initialBackground={prospect.background || ""}
+            />
+          ) : (
+            <PremiumResearchLock />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

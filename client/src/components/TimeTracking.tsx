@@ -68,7 +68,7 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
 
   const createMutation = useMutation({
     mutationFn: async (data: { durationMinutes: number; entryType: string; description?: string; startedAt?: Date; endedAt?: Date }) =>
-      apiRequest("POST", `/api/prospects/${prospectId}/time-entries`, data),
+      apiRequest(`/api/prospects/${prospectId}/time-entries`, "POST", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/prospects", prospectId, "time-entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/prospects", prospectId, "time-total"] });
@@ -81,7 +81,7 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) =>
-      apiRequest("DELETE", `/api/time-entries/${id}`),
+      apiRequest(`/api/time-entries/${id}`, "DELETE"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/prospects", prospectId, "time-entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/prospects", prospectId, "time-total"] });
@@ -147,7 +147,7 @@ export default function TimeTracking({ prospectId }: TimeTrackingProps) {
     const hours = parseInt(manualHours) || 0;
     const mins = parseInt(manualMinutes) || 0;
     const totalMins = hours * 60 + mins;
-    
+
     if (totalMins < 1) {
       toast.error("Please enter at least 1 minute");
       return;

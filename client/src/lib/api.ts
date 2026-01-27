@@ -9,6 +9,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
       "Content-Type": "application/json",
       ...options?.headers,
     },
+    credentials: "include", // Ensure cookies are sent with requests
   });
 
   if (!response.ok) {

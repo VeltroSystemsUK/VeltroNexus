@@ -9,6 +9,7 @@ import ProspectCard, {
   type ProspectCardData,
   type UnderwritingStatus,
 } from "@/components/ProspectCard";
+import SafeProspectCard from "@/components/SafeProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
 import ThemeToggle from "@/components/ThemeToggle";
 import ActivityCalendar from "@/components/ActivityCalendar";
@@ -34,36 +35,9 @@ import type { ProspectWithCompany } from "@shared/schema";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
 import { OnboardingChecklist, OnboardingTooltip, useOnboarding } from "@/components/onboarding";
 
-type Stage =
-  | "lead"
-  | "contacted"
-  | "qualified"
-  | "proposal"
-  | "due-diligence"
-  | "submission"
-  | "approved"
-  | "declined"
-  | "withdrawn";
+import { DEFAULT_STAGES, type PipelineStage } from "./Settings";
 
-const PROSPECT_STAGES: { value: Stage; label: string }[] = [
-  { value: "lead", label: "Lead" },
-  { value: "contacted", label: "Contacted" },
-  { value: "qualified", label: "Qualified" },
-];
-
-const PROCESS_STAGES: { value: Stage; label: string }[] = [
-  { value: "proposal", label: "Proposal" },
-  { value: "due-diligence", label: "Due Diligence" },
-  { value: "submission", label: "Submission" },
-];
-
-const FINAL_STAGES: { value: Stage; label: string }[] = [
-  { value: "approved", label: "Approved" },
-  { value: "declined", label: "Declined" },
-  { value: "withdrawn", label: "Withdrawn" },
-];
-
-const ALL_STAGES = [...PROSPECT_STAGES, ...PROCESS_STAGES, ...FINAL_STAGES];
+type Stage = string;
 
 export default function Pipeline() {
   const [, navigate] = useLocation();
@@ -75,6 +49,39 @@ export default function Pipeline() {
     skipWalkthrough
   } = useOnboarding();
   const [showLimitModal, setShowLimitModal] = useState(false);
+
+  // Compute dynamic stages from user settings
+  const { allStages, prospectStages, processStages, finalStages } = useMemo(() => {
+    let stages: { id: string; label: string; color?: string }[] = DEFAULT_STAGES;
+
+    if (user?.pipelineStageNames) {
+      if (Array.isArray(user.pipelineStageNames)) {
+        stages = user.pipelineStageNames;
+      } else {
+        // Legacy object support
+        stages = DEFAULT_STAGES.map(s => ({
+          ...s,
+          label: user.pipelineStageNames[s.id] || s.label
+        }));
+      }
+    }
+
+    const prospectIds = ["lead", "contacted", "qualified"];
+    const finalIds = ["approved", "declined", "withdrawn"];
+
+    return {
+      allStages: stages.map(s => ({ value: s.id, label: s.label })),
+      prospectStages: stages
+        .filter(s => prospectIds.includes(s.id))
+        .map(s => ({ value: s.id, label: s.label })),
+      processStages: stages
+        .filter(s => !prospectIds.includes(s.id) && !finalIds.includes(s.id))
+        .map(s => ({ value: s.id, label: s.label })),
+      finalStages: stages
+        .filter(s => finalIds.includes(s.id))
+        .map(s => ({ value: s.id, label: s.label }))
+    };
+  }, [user]);
 
   useEffect(() => {
     const pendingTier = sessionStorage.getItem("subscription_tier");
@@ -92,6 +99,12 @@ export default function Pipeline() {
     queryFn: () => api.prospects.list(),
     enabled: isAuthenticated,
   });
+
+  // Filter out any invalid prospects to prevent crashes
+  const safeProspects = useMemo(() => {
+    if (!Array.isArray(prospects)) return [];
+    return prospects.filter(p => p && p.id && (p.company || (p as any).companyName));
+  }, [prospects]);
 
   const prospectLimit = (user as any)?.prospectLimit || 10;
   const subscriptionTier = (user as any)?.subscriptionTier || "free";
@@ -122,8 +135,19 @@ export default function Pipeline() {
   const updateStageMutation = useMutation({
     mutationFn: ({ prospectId, stage }: { prospectId: number; stage: string }) =>
       api.prospects.updateStage(prospectId, stage),
-    onSuccess: () => {
-      toast.success("Stage updated successfully");
+    onSuccess: (_, { stage }) => {
+      let message = "Stage updated successfully";
+
+      // Contextual message for tab transitions
+      if (["lead", "contacted", "qualified"].includes(stage)) {
+        message = "Moved to Prospect Pipeline tab";
+      } else if (["approved", "declined", "withdrawn"].includes(stage)) {
+        message = "Moved to Final Outcomes";
+      } else {
+        message = "Moved to Process Pipeline tab";
+      }
+
+      toast.success(message);
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
     },
     onError: (error: Error) => {
@@ -159,7 +183,7 @@ export default function Pipeline() {
       const [removed] = newOrder.splice(source.index, 1);
       newOrder.splice(destination.index, 0, removed);
 
-      const orderedIds = newOrder.map((p) => p.id);
+      const orderedIds = newOrder.map((p) => p.id!);
       reorderMutation.mutate({ stage: sourceStage, orderedIds });
       return;
     }
@@ -181,7 +205,7 @@ export default function Pipeline() {
   };
 
   const getProspectsByStage = (stage: Stage) => {
-    return prospects
+    return safeProspects
       .filter((p) => p.stage === stage)
       .sort((a, b) => (a.queueOrder ?? 0) - (b.queueOrder ?? 0));
   };
@@ -210,12 +234,39 @@ export default function Pipeline() {
   }
 
   if (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isIndexError = errorMessage.includes('FAILED_PRECONDITION') || errorMessage.includes('requires an index');
+
+    if (isIndexError) {
+      // Show a friendly message for index creation
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center max-w-md px-4">
+            <div className="animate-pulse mb-4">
+              <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            </div>
+            <p className="text-lg font-semibold mb-2">Setting up your database...</p>
+            <p className="text-muted-foreground text-sm mb-4">
+              We're creating the necessary database indexes. This usually takes 1-2 minutes.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Please refresh the page in a moment.
+            </p>
+            <Button onClick={() => window.location.reload()} className="mt-4">
+              Refresh Page
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // For other errors, show a generic error
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-destructive font-semibold mb-2">Failed to load pipeline</p>
+        <div className="text-center max-w-md px-4">
+          <p className="text-destructive font-semibold mb-2">Unable to load pipeline</p>
           <p className="text-muted-foreground text-sm mb-4">
-            {error instanceof Error ? error.message : "An unexpected error occurred"}
+            There was an issue loading your data. Please try refreshing the page.
           </p>
           <Button onClick={() => window.location.reload()}>Reload Page</Button>
         </div>
@@ -450,7 +501,7 @@ export default function Pipeline() {
                     Stage Summary
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-5">
-                    {ALL_STAGES.filter(
+                    {allStages.filter(
                       (s) => !["approved", "declined", "withdrawn"].includes(s.value)
                     ).map((stage) => {
                       const count = getProspectsByStage(stage.value).length;
@@ -493,7 +544,7 @@ export default function Pipeline() {
                 </div>
                 <DragDropContext onDragEnd={onDragEnd}>
                   <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-4 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
-                    {PROSPECT_STAGES.map((stage) => {
+                    {prospectStages.map((stage) => {
                       const stageProspects = getProspectsByStage(stage.value);
                       const totalValue = getTotalValueByStage(stage.value);
 
@@ -507,36 +558,28 @@ export default function Pipeline() {
                                 totalValue={totalValue}
                                 isDraggingOver={snapshot.isDraggingOver}
                               >
-                                {stageProspects.map((prospect, index) => {
-                                  const cardData: ProspectCardData = {
-                                    id: prospect.id,
-                                    companyName: prospect.company.companyName,
-                                    companyNumber: prospect.company.companyNumber,
-                                    loanAmount: prospect.loanAmount ?? undefined,
-                                    priority: prospect.priority as any,
-                                  };
-
+                                {(stageProspects || []).filter(Boolean).map((prospect, index) => {
                                   return (
                                     <Draggable
-                                      key={prospect.id}
-                                      draggableId={`prospect-${prospect.id}`}
+                                      key={prospect.id!}
+                                      draggableId={`prospect-${prospect.id!}`}
                                       index={index}
                                     >
                                       {(provided, snapshot) => (
                                         <div ref={provided.innerRef} {...provided.draggableProps}>
-                                          <ProspectCard
-                                            prospect={cardData}
+                                          <SafeProspectCard
+                                            prospect={prospect}
                                             dragHandleProps={provided.dragHandleProps}
                                             isDragging={snapshot.isDragging}
                                             currentStage={stage.value}
-                                            availableStages={ALL_STAGES}
-                                            onClick={() => navigate(`/prospect/${prospect.id}`)}
-                                            onMove={(newStage) =>
-                                              handleStageChange(prospect.id, newStage as Stage)
+                                            availableStages={allStages}
+                                            onClick={() => navigate(`/prospect/${prospect.id!}`)}
+                                            onMove={(newStage: Stage) =>
+                                              handleStageChange(prospect.id!, newStage as Stage)
                                             }
-                                            underwritingStatus={underwritingStatuses[prospect.id]}
-                                            dueDiligenceStatus={dueDiligenceStatuses[prospect.id]}
-                                            isOverLimit={isProspectOverLimit(prospect.id)}
+                                            underwritingStatus={underwritingStatuses[prospect.id!]}
+                                            dueDiligenceStatus={dueDiligenceStatuses[prospect.id!]}
+                                            isOverLimit={isProspectOverLimit(prospect.id!)}
                                             onLimitClick={() => setShowLimitModal(true)}
                                             queuePosition={index + 1}
                                           />
@@ -572,7 +615,7 @@ export default function Pipeline() {
                   <div className="space-y-4 md:space-y-8">
                     {/* Active Process Stages */}
                     <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-4 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
-                      {PROCESS_STAGES.map((stage) => {
+                      {processStages.map((stage) => {
                         const stageProspects = getProspectsByStage(stage.value);
                         const totalValue = getTotalValueByStage(stage.value);
 
@@ -587,14 +630,6 @@ export default function Pipeline() {
                                   isDraggingOver={snapshot.isDraggingOver}
                                 >
                                   {stageProspects.map((prospect, index) => {
-                                    const cardData: ProspectCardData = {
-                                      id: prospect.id,
-                                      companyName: prospect.company.companyName,
-                                      companyNumber: prospect.company.companyNumber,
-                                      loanAmount: prospect.loanAmount ?? undefined,
-                                      priority: prospect.priority as any,
-                                    };
-
                                     return (
                                       <Draggable
                                         key={prospect.id}
@@ -603,19 +638,19 @@ export default function Pipeline() {
                                       >
                                         {(provided, snapshot) => (
                                           <div ref={provided.innerRef} {...provided.draggableProps}>
-                                            <ProspectCard
-                                              prospect={cardData}
+                                            <SafeProspectCard
+                                              prospect={prospect}
                                               dragHandleProps={provided.dragHandleProps}
                                               isDragging={snapshot.isDragging}
                                               currentStage={stage.value}
-                                              availableStages={ALL_STAGES}
-                                              onClick={() => navigate(`/prospect/${prospect.id}`)}
-                                              onMove={(newStage) =>
-                                                handleStageChange(prospect.id, newStage as Stage)
+                                              availableStages={allStages}
+                                              onClick={() => navigate(`/prospect/${prospect.id!}`)}
+                                              onMove={(newStage: Stage) =>
+                                                handleStageChange(prospect.id!, newStage as Stage)
                                               }
-                                              underwritingStatus={underwritingStatuses[prospect.id]}
-                                              dueDiligenceStatus={dueDiligenceStatuses[prospect.id]}
-                                              isOverLimit={isProspectOverLimit(prospect.id)}
+                                              underwritingStatus={underwritingStatuses[prospect.id!]}
+                                              dueDiligenceStatus={dueDiligenceStatuses[prospect.id!]}
+                                              isOverLimit={isProspectOverLimit(prospect.id!)}
                                               onLimitClick={() => setShowLimitModal(true)}
                                               queuePosition={index + 1}
                                             />
@@ -639,7 +674,7 @@ export default function Pipeline() {
                         Final Outcomes
                       </h3>
                       <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-5 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
-                        {FINAL_STAGES.map((stage) => {
+                        {finalStages.map((stage) => {
                           const stageProspects = getProspectsByStage(stage.value);
                           const totalValue = getTotalValueByStage(stage.value);
 
@@ -654,14 +689,6 @@ export default function Pipeline() {
                                     isDraggingOver={snapshot.isDraggingOver}
                                   >
                                     {stageProspects.map((prospect, index) => {
-                                      const cardData: ProspectCardData = {
-                                        id: prospect.id,
-                                        companyName: prospect.company.companyName,
-                                        companyNumber: prospect.company.companyNumber,
-                                        loanAmount: prospect.loanAmount ?? undefined,
-                                        priority: prospect.priority as any,
-                                      };
-
                                       return (
                                         <Draggable
                                           key={prospect.id}
@@ -673,21 +700,21 @@ export default function Pipeline() {
                                               ref={provided.innerRef}
                                               {...provided.draggableProps}
                                             >
-                                              <ProspectCard
-                                                prospect={cardData}
+                                              <SafeProspectCard
+                                                prospect={prospect}
                                                 dragHandleProps={provided.dragHandleProps}
                                                 isDragging={snapshot.isDragging}
                                                 currentStage={stage.value}
-                                                availableStages={ALL_STAGES}
-                                                onClick={() => navigate(`/prospect/${prospect.id}`)}
-                                                onMove={(newStage) =>
-                                                  handleStageChange(prospect.id, newStage as Stage)
+                                                availableStages={allStages}
+                                                onClick={() => navigate(`/prospect/${prospect.id!}`)}
+                                                onMove={(newStage: Stage) =>
+                                                  handleStageChange(prospect.id!, newStage as Stage)
                                                 }
                                                 underwritingStatus={
-                                                  underwritingStatuses[prospect.id]
+                                                  underwritingStatuses[prospect.id!]
                                                 }
-                                                dueDiligenceStatus={dueDiligenceStatuses[prospect.id]}
-                                                isOverLimit={isProspectOverLimit(prospect.id)}
+                                                dueDiligenceStatus={dueDiligenceStatuses[prospect.id!]}
+                                                isOverLimit={isProspectOverLimit(prospect.id!)}
                                                 onLimitClick={() => setShowLimitModal(true)}
                                                 queuePosition={index + 1}
                                               />

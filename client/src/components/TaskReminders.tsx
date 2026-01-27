@@ -57,7 +57,7 @@ export default function TaskReminders() {
 
   const deleteActivityMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/activities/${id}`);
+      await apiRequest(`/api/activities/${id}`, "DELETE");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
@@ -204,15 +204,14 @@ export default function TaskReminders() {
                     {task.priority && (
                       <Badge
                         variant="outline"
-                        className={`text-xs ${
-                          task.priority === "urgent"
+                        className={`text-xs ${task.priority === "urgent"
                             ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20"
                             : task.priority === "high"
                               ? "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20"
                               : task.priority === "medium"
                                 ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20"
                                 : "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
-                        }`}
+                          }`}
                       >
                         {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
                       </Badge>

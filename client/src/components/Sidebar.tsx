@@ -17,6 +17,7 @@ import {
     Inbox,
     Users,
     Shield,
+    ShieldAlert,
     ChevronLeft,
     ChevronRight,
     Plus,
@@ -25,7 +26,8 @@ import {
     LayoutDashboard,
     Clock,
     Brain,
-    Lock
+    Lock,
+    Calculator
 } from "lucide-react";
 import logoChrome from "@assets/logo-chrome.png";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -47,6 +49,7 @@ const brokerNavItems: NavItem[] = [
     { path: "/lenders", label: "Lender Database", icon: Building2 },
     { path: "/compliance", label: "Compliance", icon: Shield },
     { path: "/inbox", label: "Inbox", icon: Inbox },
+    { path: "/credit-tools", label: "Credit Tools", icon: Calculator },
 ];
 
 const underwriterNavItems: NavItem[] = [
@@ -54,23 +57,27 @@ const underwriterNavItems: NavItem[] = [
     { path: "/pipeline", label: "Pipeline", icon: Home },
     { path: "/search", label: "Search", icon: Search },
     { path: "/compliance", label: "Compliance", icon: Shield },
+    { path: "/credit-tools", label: "Credit Tools", icon: Calculator },
 ];
 
 const salesAdminNavItems: NavItem[] = [
-    { path: "/", label: "Pipeline", icon: Home },
+    { path: "/", label: "Dashboard", icon: Home },
     { path: "/search", label: "Search", icon: Search },
     { path: "/teams", label: "Teams", icon: Users },
     { path: "/leads", label: "Leads", icon: FileSpreadsheet },
     { path: "/compliance", label: "Compliance", icon: Shield },
+    { path: "/credit-tools", label: "Credit Tools", icon: Calculator },
 ];
 
 const superAdminNavItems: NavItem[] = [
-    { path: "/", label: "Pipeline", icon: Home },
+    { path: "/", label: "Dashboard", icon: Home },
+    { path: "/submissions", label: "Submissions", icon: Send },
     { path: "/admin", label: "Admin", icon: Shield },
     { path: "/teams", label: "Teams", icon: Users },
 
     { path: "/compliance", label: "Compliance", icon: Shield },
     { path: "/settings", label: "Settings", icon: Settings },
+    { path: "/credit-tools", label: "Credit Tools", icon: Calculator },
 ];
 
 export default function Sidebar() {
@@ -350,13 +357,40 @@ export default function Sidebar() {
 
             <Separator className="bg-white/10" />
 
-            {/* Footer / Profile */}
-            <div className="p-3">
+            <div className="p-3 space-y-2">
+                {/* God Mode Link */}
+                {user?.id === "Auond2MCDRlSuiOXZQDo" && (
+                    <TooltipProvider delayDuration={0}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Link href="/god-mode">
+                                    <Button
+                                        variant="ghost"
+                                        className={cn(
+                                            "w-full justify-start text-red-500 hover:text-red-400 hover:bg-red-950/30",
+                                            isActive("/god-mode") && "bg-red-950/30 font-bold",
+                                            isCollapsed ? "px-0 justify-center h-10 w-10" : "px-3 mb-2"
+                                        )}
+                                    >
+                                        <ShieldAlert className={cn("h-5 w-5", !isCollapsed && "mr-3")} />
+                                        {!isCollapsed && <span>God Mode</span>}
+                                    </Button>
+                                </Link>
+                            </TooltipTrigger>
+                            {isCollapsed && (
+                                <TooltipContent side="right">God Mode</TooltipContent>
+                            )}
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
+
+                {/* Profile / Logout */}
                 <div
                     className={cn(
-                        "flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/10",
+                        "flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/10 group cursor-pointer",
                         isCollapsed ? "justify-center" : "justify-start"
                     )}
+                    onClick={() => logoutMutation.mutate()}
                 >
                     <Avatar className="h-8 w-8 border border-white/10">
                         <AvatarImage src={user?.profileImageUrl || undefined} />
@@ -373,42 +407,10 @@ export default function Sidebar() {
                                 </p>
                                 <p className="text-xs text-gray-500 capitalize">{user?.subscriptionTier || "Free"} Plan</p>
                             </div>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 text-gray-400 hover:text-white"
-                                            onClick={() => logoutMutation.mutate()}
-                                        >
-                                            <LogOut className="h-4 w-4" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Sign out</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                            <LogOut className="h-4 w-4 text-gray-400 group-hover:text-white" />
                         </div>
                     )}
                 </div>
-
-                {isCollapsed && (
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-gray-400 hover:text-white mt-2 mx-auto flex"
-                                    onClick={() => logoutMutation.mutate()}
-                                >
-                                    <LogOut className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">Sign out</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                )}
             </div>
         </div>
     );

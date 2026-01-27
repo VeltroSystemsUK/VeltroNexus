@@ -4,6 +4,7 @@ export interface TavilyResult {
   content: string;
   score: number;
 }
+import { generateText, repairJson } from "./geminiClient";
 
 export interface TavilySearchResponse {
   results: TavilyResult[];
@@ -415,4 +416,178 @@ export function assessAdverseMediaRisk(results: TavilyResult[]): {
   }
 
   return { riskLevel, flags, summary };
+}
+export interface CompanyEnrichmentResult {
+  companyName: string;
+  businessProfile: string;
+  sourceCommentary: string;
+  sources: { url: string; title: string }[];
+}
+
+export async function enrichCompanyProfile(companyName: string, websiteUrl?: string): Promise<CompanyEnrichmentResult> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) throw new Error("TAVILY_API_KEY not configured");
+
+  const cleanName = companyName.replace(/"/g, "");
+  console.log(`\n[Research Agent] Starting multi-step intelligence gathering for: ${cleanName}`);
+
+  // --- PHASE 1: RESOURCE DISCOVERY ---
+  console.log(`[Phase 1] Discovery: Finding relevant UK business sources...`);
+
+  let discoveryQuery = `UK company "${cleanName}" official business profile operations about us`;
+  if (websiteUrl) {
+    let hostname = websiteUrl;
+    try {
+      const urlToParse = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`;
+      hostname = new URL(urlToParse).hostname;
+      discoveryQuery = `site:${hostname} OR "${cleanName}" UK corporate profile about us`;
+    } catch (e) {
+      console.warn(`[Tavily] Could not parse hostname for ${websiteUrl}`);
+    }
+  }
+
+  let discoveryData: any = {};
+  try {
+    const discoveryResponse = await fetch(BASE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: discoveryQuery,
+        search_depth: "advanced",
+        max_results: 10,
+        exclude_domains: [
+          "amazon.co.uk", "amazon.com", "ebay.co.uk", "ebay.com",
+          "etsy.com", "walmart.com", "target.com", "pinterest.com",
+          "youtube.com", "tiktok.com", "instagram.com", "facebook.com"
+        ],
+      }),
+    });
+
+    if (!discoveryResponse.ok) throw new Error(`Tavily Discovery Error: ${discoveryResponse.status}`);
+    discoveryData = await discoveryResponse.json();
+  } catch (error) {
+    console.error("[Phase 1] Discovery Failed:", error);
+    discoveryData = { results: [] };
+  }
+
+  const candidateResults = discoveryData.results || [];
+  console.log(`[Phase 1] Found ${candidateResults.length} candidate sources.`);
+
+  // --- PHASE 2: SOURCE INTERROGATION ---
+  console.log(`[Phase 2] Interrogation: Evaluating source relevance and extracting facts...`);
+
+  const sourcesForInterrogation = candidateResults.map((r: any, idx: number) =>
+    `Source [${idx}]: ${r.title} (${r.url})\nSnippet: ${r.content}`
+  ).join("\n\n");
+
+  const interrogationPrompt = `You are a Senior Investigator. Analyze the following 10 search results for "${companyName}".
+  
+  CANDIDATE SOURCES:
+  ${sourcesForInterrogation}
+  
+  TASK:
+  1. For each source, determine if it is "HIGHLY RELEVANT" (official site, news, gov.uk), "WEAK" (directory mention), or "NOISE" (ecommerce item, unrelated company).
+  2. Extract raw facts only from HIGHLY RELEVANT and WEAK sources.
+  3. Identify if we are missing critical info on: Core Operations, Scale, or Reputation.
+
+  OUTPUT FORMAT:
+  Return ONLY JSON:
+  {
+    "evaluations": [
+      { "id": number, "relevance": "HIGHLY RELEVANT" | "WEAK" | "NOISE", "facts": "string extracted facts" }
+    ],
+    "missingInfo": ["string description of what else we need to find"]
+  }
+  `;
+
+  let interrogationResult: any = { evaluations: [], missingInfo: [] };
+  try {
+    const aiResponse = await generateText(interrogationPrompt);
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      interrogationResult = JSON.parse(repairJson(jsonMatch[0]));
+    }
+  } catch (err) {
+    console.error("[Phase 2] Interrogation Level 1 Failed:", err);
+  }
+
+  const verifiedFacts = interrogationResult.evaluations
+    .filter((e: any) => e.relevance !== "NOISE")
+    .map((e: any) => e.facts)
+    .join("\n");
+
+  const highQualitySources = candidateResults.filter((r: any, idx: number) => {
+    const evalItem = interrogationResult.evaluations.find((ev: any) => ev.id === idx);
+    return evalItem && evalItem.relevance === "HIGHLY RELEVANT";
+  });
+
+  console.log(`[Phase 2] Interrogation complete. ${highQualitySources.length} high-quality sources identified.`);
+
+  // --- PHASE 3: TARGETED VERIFICATION (Conditional) ---
+  let extraFacts = "";
+  if (interrogationResult.missingInfo?.length > 0 && highQualitySources.length < 2) {
+    console.log(`[Phase 3] Verification: Filling gaps - ${interrogationResult.missingInfo.join(", ")}`);
+    const gapQuery = `"${cleanName}" UK ${interrogationResult.missingInfo[0]}`;
+    try {
+      const gapResponse = await fetch(BASE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: apiKey, query: gapQuery, max_results: 3 }),
+      });
+      const gapData = await gapResponse.json();
+      extraFacts = (gapData.results || []).map((r: any) => r.content).join("\n");
+    } catch (e) {
+      console.error("[Phase 3] Gap search failed");
+    }
+  }
+
+  // --- PHASE 4: FINAL SYNTHESIS ---
+  console.log(`[Phase 4] Synthesis: Creating final intelligence report...`);
+
+  const synthesisPrompt = `Perform a final Credit Underwriting Deep Dive on "${companyName}".
+  
+  VERIFIED CORE DATA:
+  ${verifiedFacts}
+  ${extraFacts}
+  
+  INSTRUCTIONS:
+  1. Write a professional Business Profile (Deep Dive). Connect the facts into a narrative.
+  2. Provide Source Commentary: Critique the evidence. If most results were "Weak" or "Noise", be honest about the data quality.
+  
+  OUTPUT FORMAT (JSON):
+  {
+    "businessProfile": "string (markdown)",
+    "sourceCommentary": "string (markdown)"
+  }
+  `;
+
+  try {
+    const finalAiResponse = await generateText(synthesisPrompt);
+    const finalJsonMatch = finalAiResponse.match(/\{[\s\S]*\}/);
+    if (!finalJsonMatch) throw new Error("No JSON in final synthesis");
+
+    const parsed = JSON.parse(repairJson(finalJsonMatch[0]));
+
+    return {
+      companyName,
+      businessProfile: parsed.businessProfile || "Synthesis failed.",
+      sourceCommentary: parsed.sourceCommentary || "Analysis incomplete.",
+      sources: (candidateResults || []).slice(0, 8).map((r: any) => ({ url: r.url, title: r.title }))
+    };
+  } catch (err) {
+    console.error("[Phase 4] Synthesis Failed:", err);
+    return {
+      companyName,
+      businessProfile: discoveryData.answer || "Intelligence gathering interrupted.",
+      sourceCommentary: "⚠️ Verification Conflict: The AI encountered conflicting or noisy data during interrogation. Manual verification of sources is highly recommended.",
+      sources: (candidateResults || []).slice(0, 8).map((r: any) => ({ url: r.url, title: r.title }))
+    };
+  }
+}
+
+function extractPattern(text: string, regex: RegExp): string | undefined {
+  if (!text) return undefined;
+  const match = text.match(regex);
+  return match ? match[1].trim() : undefined;
 }

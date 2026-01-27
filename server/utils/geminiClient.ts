@@ -2,11 +2,35 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
 });
+
+export async function generateText(prompt: string, model = "gemini-1.5-flash", systemInstruction?: string): Promise<string> {
+  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("Gemini API Error: AI_INTEGRATIONS_GEMINI_API_KEY is not set");
+    throw new Error("Gemini API key is not configured");
+  }
+
+  try {
+    const fullPrompt = systemInstruction
+      ? `[SYSTEM INSTRUCTION]\n${systemInstruction}\n\n[USER REQUEST]\n${prompt}`
+      : prompt;
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+    });
+    return response.text?.trim() || "";
+  } catch (error: any) {
+    console.error("Gemini API Error:", error);
+    // Fallback to 1.5 flash if 3.0 fails (e.g. model not found)
+    if ((model === "gemini-1.5-flash" || model === "gemini-3.0-flash-latest") && (error.status === 404 || error.message?.includes("not found"))) {
+      console.log("Falling back to gemini-1.5-flash");
+      return generateText(prompt, "gemini-1.5-flash", systemInstruction);
+    }
+    throw error;
+  }
+}
 
 export interface FinancialAnalysisResult {
   averageMonthlyRevenue: number;
@@ -108,7 +132,7 @@ function parseAmount(value: string, preserveSign = false): number {
 function parseDate(dateStr: string): Date | null {
   if (!dateStr || dateStr.trim() === '') return null;
   const cleaned = dateStr.trim();
-  
+
   // Try DD/MM/YYYY format
   const ukMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (ukMatch) {
@@ -116,13 +140,13 @@ function parseDate(dateStr: string): Date | null {
     const fullYear = year.length === 2 ? (parseInt(year) > 50 ? 1900 + parseInt(year) : 2000 + parseInt(year)) : parseInt(year);
     return new Date(fullYear, parseInt(month) - 1, parseInt(day));
   }
-  
+
   // Try YYYY-MM-DD format
   const isoMatch = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoMatch) {
     return new Date(cleaned);
   }
-  
+
   // Try other common formats
   const parsed = new Date(cleaned);
   return isNaN(parsed.getTime()) ? null : parsed;
@@ -153,29 +177,29 @@ export function preprocessCsvData(csvData: string): CsvPreProcessResult {
   // Parse header to identify columns - normalize by removing currency symbols and extra chars
   const headerLine = lines[0].toLowerCase();
   const headers = headerLine.split(',').map(h => h.trim().replace(/["'£$€()]/g, '').trim());
-  
+
   // Find column indices with flexible matching for common UK bank formats
   const dateIdx = headers.findIndex(h => h.includes('date') || h === 'posted');
-  const descIdx = headers.findIndex(h => 
-    h.includes('desc') || h.includes('details') || h.includes('narrative') || 
+  const descIdx = headers.findIndex(h =>
+    h.includes('desc') || h.includes('details') || h.includes('narrative') ||
     h.includes('reference') || h.includes('transaction') || h.includes('particulars')
   );
   // Match: "in", "paid in", "credit", "money in", "credits", "deposit", etc.
-  const inIdx = headers.findIndex(h => 
-    h === 'in' || h.includes('paid in') || h.includes('money in') || 
+  const inIdx = headers.findIndex(h =>
+    h === 'in' || h.includes('paid in') || h.includes('money in') ||
     h.includes('credit') || h.includes('deposit') || h.includes('receipts')
   );
   // Match: "out", "paid out", "debit", "money out", "debits", "withdrawal", etc.  
-  const outIdx = headers.findIndex(h => 
-    h === 'out' || h.includes('paid out') || h.includes('money out') || 
+  const outIdx = headers.findIndex(h =>
+    h === 'out' || h.includes('paid out') || h.includes('money out') ||
     h.includes('debit') || h.includes('withdrawal') || h.includes('payments')
   );
   const balanceIdx = headers.findIndex(h => h.includes('balance'));
   // Match "amount" but not if it's part of in/out column names already found
-  const amountIdx = headers.findIndex((h, i) => 
+  const amountIdx = headers.findIndex((h, i) =>
     (h === 'amount' || h.includes('value')) && i !== inIdx && i !== outIdx
   );
-  
+
   console.log(`[CSV Parser] Headers: ${headers.join(', ')}`);
   console.log(`[CSV Parser] Found columns - date:${dateIdx}, desc:${descIdx}, in:${inIdx}, out:${outIdx}, balance:${balanceIdx}, amount:${amountIdx}`);
 
@@ -187,7 +211,7 @@ export function preprocessCsvData(csvData: string): CsvPreProcessResult {
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
-    
+
     // Parse CSV line handling quoted values
     const values: string[] = [];
     let current = '';
@@ -209,10 +233,10 @@ export function preprocessCsvData(csvData: string): CsvPreProcessResult {
     if (!date) continue;
 
     const description = descIdx >= 0 ? values[descIdx]?.replace(/"/g, '') || '' : '';
-    
+
     let income = 0;
     let expense = 0;
-    
+
     if (inIdx >= 0 && outIdx >= 0) {
       // Separate IN/OUT columns
       income = parseAmount(values[inIdx]);
@@ -255,12 +279,12 @@ export function preprocessCsvData(csvData: string): CsvPreProcessResult {
     const txAmount = income || expense;
     const isLoanRelated = /loan|credit|finance/i.test(description);
     const isTransfer = /transfer/i.test(description);
-    
+
     if (txAmount > 5000 || isLoanRelated || isTransfer) {
       let txType = income > 0 ? 'LARGE_CREDIT' : 'LARGE_DEBIT';
       if (isLoanRelated) txType = 'LOAN_RELATED';
       if (isTransfer) txType = 'TRANSFER';
-      
+
       notableTransactions.push({
         date: date.toISOString().split('T')[0],
         description: description.substring(0, 80), // Longer truncation for display
@@ -274,7 +298,7 @@ export function preprocessCsvData(csvData: string): CsvPreProcessResult {
   const monthlyBreakdown = Array.from(monthlyData.values()).sort((a, b) => {
     const parseMonthKey = (key: string) => {
       const [mon, yr] = key.split(' ');
-      const monthNum = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mon);
+      const monthNum = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(mon);
       return parseInt('20' + yr) * 12 + monthNum;
     };
     return parseMonthKey(a.month) - parseMonthKey(b.month);
@@ -328,7 +352,7 @@ ${preProcessed.notableTransactions.length > 0 ? `NOTABLE LARGE TRANSACTIONS:\n${
 
   // Calculate DSCR from pre-processed data
   const calculatedDscr = monthlyRepayment > 0 ? preProcessed.netDisposableIncome / monthlyRepayment : 0;
-  
+
   // Determine risk score based on DSCR
   let riskScore: string;
   if (calculatedDscr > 2.0) riskScore = 'A';
@@ -377,14 +401,14 @@ Return ONLY the summary text, no JSON or formatting.`;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[Gemini CSV] Getting AI summary (attempt ${attempt}/${maxRetries})...`);
-      
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error(`Gemini API timeout after ${timeoutMs/1000}s`)), timeoutMs)
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Gemini API timeout after ${timeoutMs / 1000}s`)), timeoutMs)
       );
-      
+
       const response = await Promise.race([
         ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-1.5-flash",
           contents: prompt,
         }),
         timeoutPromise
@@ -537,7 +561,7 @@ IMPORTANT:
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.0-flash-latest",
         contents: prompt,
       });
 
@@ -555,12 +579,12 @@ IMPORTANT:
 
       result.averageMonthlyRevenue = result.averageMonthlyRevenue || 0;
       result.averageMonthlyExpenses = result.averageMonthlyExpenses || 0;
-      
+
       // Ensure netDisposableIncome is correctly calculated from revenue - expenses
       // The AI may return an inconsistent value, so we recalculate to ensure accuracy
       const calculatedNetDisposable = result.averageMonthlyRevenue - result.averageMonthlyExpenses;
       result.netDisposableIncome = calculatedNetDisposable;
-      
+
       result.monthlyBreakdown = result.monthlyBreakdown || [];
       result.transactionCount = result.transactionCount || 0;
       result.redFlags = result.redFlags || [];
@@ -582,14 +606,14 @@ IMPORTANT:
       // Calculate DSCR from the corrected netDisposableIncome
       if (monthlyRepayment > 0) {
         result.dscr = result.netDisposableIncome / monthlyRepayment;
-        
+
         // Recalculate risk score based on corrected DSCR
         if (result.dscr > 2.0) result.riskScore = 'A';
         else if (result.dscr > 1.5) result.riskScore = 'B';
         else if (result.dscr > 1.25) result.riskScore = 'C';
         else if (result.dscr > 1.0) result.riskScore = 'D';
         else result.riskScore = 'E';
-        
+
         console.log(`[Gemini PDF] DSCR calculated: ${result.netDisposableIncome.toFixed(2)} / ${monthlyRepayment.toFixed(2)} = ${result.dscr.toFixed(2)}, Risk: ${result.riskScore}`);
       }
 
@@ -608,7 +632,7 @@ IMPORTANT:
   throw new Error("Failed to analyze bank statement PDFs after multiple attempts");
 }
 
-function repairJson(jsonStr: string): string {
+export function repairJson(jsonStr: string): string {
   let result = jsonStr.trim();
 
   // Remove any markdown code fences
@@ -706,12 +730,12 @@ export interface AuditedAccountsAnalysisResult {
   };
   concerns: {
     category:
-      | "going_concern"
-      | "contingent_liability"
-      | "related_party"
-      | "auditor_opinion"
-      | "subsequent_event"
-      | "other";
+    | "going_concern"
+    | "contingent_liability"
+    | "related_party"
+    | "auditor_opinion"
+    | "subsequent_event"
+    | "other";
     description: string;
     severity: "low" | "medium" | "high";
     yearEnding: string;
@@ -817,7 +841,7 @@ IMPORTANT:
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.0-flash-latest",
         contents: prompt,
       });
 
@@ -917,7 +941,7 @@ IMPORTANT:
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.0-flash-latest",
         contents: prompt,
       });
 
@@ -1081,7 +1105,7 @@ Focus on facts and evidence from the provided data. Where data is limited, note 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.0-flash-latest",
         contents: prompt,
       });
 
@@ -1186,12 +1210,12 @@ Return ONLY the JSON object, no other text.`;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.0-flash-latest",
         contents: prompt,
       });
 
       const text = response.text || "";
-      
+
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
@@ -1199,7 +1223,7 @@ Return ONLY the JSON object, no other text.`;
       }
 
       const parsed = JSON.parse(jsonMatch[0]) as ManagementAccountsAnalysis;
-      
+
       // Validate required fields
       if (!parsed.summary || !parsed.commentary || !parsed.overallRating) {
         throw new Error("Missing required fields in response");
