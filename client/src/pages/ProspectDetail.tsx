@@ -1407,7 +1407,7 @@ function DeepResearchComponent({ companyName, websiteUrl, companyId, prospectId,
             <CardContent>
               <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed bg-muted/30 p-4 rounded-lg border">
                 {/* Render markdown safe content */}
-                <div style={{ whiteSpace: 'pre-line' }}>{result.businessProfile}</div>
+                <div className="whitespace-pre-line">{result.businessProfile}</div>
               </div>
             </CardContent>
           </Card>
@@ -4291,6 +4291,7 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                           href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
                           target="_blank"
                           rel="noopener noreferrer"
+                          aria-label="View on Companies House"
                         >
                           <Button
                             variant="ghost"
@@ -4394,6 +4395,7 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              aria-label="View on Companies House"
                             >
                               <Button
                                 variant="ghost"
@@ -4456,6 +4458,7 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              aria-label="View on Companies House"
                             >
                               <Button
                                 variant="ghost"
@@ -4515,6 +4518,7 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               href={`https://find-and-update.company-information.service.gov.uk/company/${company.company_number}`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              aria-label="View on Companies House"
                             >
                               <Button
                                 variant="ghost"
@@ -4645,7 +4649,7 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                                 {result.score?.toFixed(2) || "N/A"}
                               </p>
                             </div>
-                            <a href={result.url} target="_blank" rel="noopener noreferrer">
+                            <a href={result.url} target="_blank" rel="noopener noreferrer" aria-label="Open source link">
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -4883,6 +4887,7 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                   type="file"
                   onChange={handleFileSelect}
                   className="hidden"
+                  aria-label="Upload document"
                   data-testid="input-file-upload"
                 />
                 <Button
