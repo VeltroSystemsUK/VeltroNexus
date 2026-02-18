@@ -10,83 +10,71 @@ Veltro is a secure, multi-user commercial lending pipeline management system des
 
 ## Key Features
 
+### Ares AI Workforce
+
+- **Managed Autonomy**: Deploy specialized AI agents for lead enrichment, doc validation, and credit analysis.
+- **Agent Roster**: Digital associates with specific roles (Lead Finder, Underwriter, Outreach Manager).
+- **Mission Auditing**: Real-time tracking of agent activities and "deviation" logs for quality control.
+
+### Lead & Broker Discovery
+
+- **Lead Finder**: AI-powered discovery of UK companies based on sector, location, and financial triggers.
+- **Broker Finder**: Specialized search for brokerages and potential partners.
+- **Enrichment Engine**: Automatic data enrichment using Companies House, Apollo, and Exa.ai.
+
+### Companies House & iXBRL Intelligence
+
+- **Instant Search**: Search by company name, number, SIC code, postcode, or director.
+- **Financial Analysis**: Deep dive into iXBRL filings for advanced credit assessment.
+- **Officer Profiles**: Auto-sync and enrichment of director and shareholder data.
+
 ### Pipeline Management
-- Drag-and-drop Kanban board with 7 visual stages: Lead, Contacted, Qualified, Proposal, Due Diligence, Approval, and Final Status
-- User-specific data isolation
-- Editable priority system with color-coded cards
-- Bulk import leads from CSV files
 
-### Companies House Integration
-- Search by company name, number, SIC code, postcode, or director
-- Auto-populate company data instantly
-- Auto-sync officers as contacts with enriched profiles
+- **Visual Kanban**: 7-stage workflow: Lead, Contacted, Qualified, Proposal, Due Diligence, Approval, and Final Status.
+- **Multi-tenant Isolation**: Secure data separation for individual users and teams.
+- **Bulk Import**: Lead ingest via CSV with automatic field mapping.
 
-### Due Diligence Tools
-- Interactive Checklist
-- Loan Calculator
-- DSCR Calculator
-- Affordability Estimator
-- Financial Ratios Calculator
-- Character Assessment
-- AI-powered Credit Underwriting (Premium tier)
+### Google Workspace Integration
 
-### CRM Features
-- Activity Calendar for tasks, events, meetings, calls, and notes
-- To-Do List for task management
-- Task Reminders for urgent items
+- **Gmail CRM**: Sync emails, compose messages, and track outreach within the platform.
+- **Drive Storage**: Automatic document organization and synchronization with Google Drive.
+- **Docs/Sheets**: One-click generation of proposals and audit reports.
 
-### Master Broker Lender Directory
-- Comprehensive lender database with 250+ UK lenders
-- Favorite lenders with auto-sort to top
-- Introducer agreement tracking
-- Grid and table views with search and filters
-- Lender detail pages with products, BDM contacts, and interaction history
+### Due Diligence & Underwriting
 
-### Document Management
-- Upload, categorize, and organize files by prospect
-- Financial statements, ID documents, property files, and more
-- Secure cloud storage with metadata tracking
-
-### Role-Based Access Control
-- Super Admin: Full platform access
-- Sales Admin: Team and sales management
-- Broker User: Prospect and pipeline management
-- Underwriter: Dedicated inbox for credit review
-
-### Subscription Management
-- Tiered plans: Free (10 prospects), Standard (50 prospects), Premium (unlimited + AI)
-- GoCardless Direct Debit integration
-- Add-ons marketplace for prospect packs and features
-
-### White Label Branding
-- Custom logo upload
-- Customizable primary and accent theme colors
+- **Advanced Calculators**: DSCR, affordability, financial ratios, and character assessment.
+- **Secure Doc Portal**: Collaborative document collection with AI-powered requirement validation.
+- **Underwriter Inbox**: Dedicated queue for credit review and approval workflows.
 
 ## Tech Stack
 
 - **Frontend**: React, TypeScript, Vite, Tailwind CSS, Shadcn/UI
 - **Backend**: Express.js, Node.js
-- **Database**: PostgreSQL (Neon serverless)
-- **ORM**: Drizzle ORM
-- **Authentication**: Replit Auth (OpenID Connect)
-- **Payments**: GoCardless
-- **Email**: Resend
-- **AI**: Google Gemini
-- **File Storage**: Replit Object Storage
+- **Database**: Firebase Firestore (Highly scalable NoSQL)
+- **Authentication**: Firebase Authentication (Google, Email/Password)
+- **AI Engine**: Google Gemini (Flash & Pro models)
+- **Search & Data**: Apollo (Enrichment), Exa.ai (Web research), Companies House API
+- **Communications**: Gmail API, Resend
+- **Infrastructure**: Vercel / Google Cloud Platform
 
 ## Getting Started
 
 1. Clone the repository
 2. Install dependencies:
+
    ```bash
    npm install
    ```
+
 3. Set up environment variables (see Environment Variables section)
-4. Push database schema:
+4. Initialize Firebase:
+
    ```bash
-   npm run db:push
+   # Ensure you have the service account JSON configured
    ```
+
 5. Start the development server:
+
    ```bash
    npm run dev
    ```
@@ -96,30 +84,37 @@ The application will be available at `http://localhost:5000`.
 ## Environment Variables
 
 Required secrets:
-- `DATABASE_URL` - PostgreSQL connection string
-- `SESSION_SECRET` - Session encryption key
+
+- `FIREBASE_PROJECT_ID` - Firebase project identifier
+- `FIREBASE_SERVICE_ACCOUNT_JSON` - Credentials for Firestore access
 - `COMPANIES_HOUSE_API_KEY` - UK Companies House API key
-- `GOCARDLESS_ACCESS_TOKEN` - GoCardless API token
-- `GOCARDLESS_ENVIRONMENT` - GoCardless environment (sandbox/live)
+- `GEMINI_API_KEY` - Google Gemini AI API key
+- `EXA_API_KEY` - Exa.ai search API key
+- `APOLLO_API_KEY` - Apollo.io data enrichment key
+- `ZERO_BOUNCE_API_KEY` - Email verification service key
 - `RESEND_API_KEY` - Resend email API key
-- `RESEND_FROM_EMAIL` - Sender email address
+- `SESSION_SECRET` - Session encryption key
+- `GOOGLE_CLIENT_ID` - Google OAuth Client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret
 
 ## Project Structure
 
 ```
 ├── client/                 # Frontend React application
 │   ├── src/
-│   │   ├── components/     # Reusable UI components
-│   │   ├── hooks/          # Custom React hooks
-│   │   ├── lib/            # Utility functions
-│   │   └── pages/          # Page components
+│   │   ├── components/     # UI components (AgentForge, Charts, CRM)
+│   │   ├── hooks/          # Custom query/auth hooks
+│   │   ├── pages/          # Feature-driven pages (Workforce, Pipeline, Finders)
+│   │   └── lib/            # Shared utilities
 ├── server/                 # Backend Express application
-│   ├── routes.ts           # API route definitions
-│   ├── storage.ts          # Database operations
-│   └── auth.ts             # Authentication logic
+│   ├── routes/             # Modular API routes (God mode, CRM, Agents)
+│   ├── services/           # Business logic (Ares, Enrichment, Outreach)
+│   ├── utils/              # API Clients (Gemini, Exa, Apollo)
+│   └── storage.ts          # Firestore data access layer
 ├── shared/                 # Shared code between frontend/backend
-│   └── schema.ts           # Database schema and types
-└── design_guidelines.md    # UI/UX design specifications
+│   ├── schema.ts           # Zod schemas and TypeScript types
+│   └── agents.ts           # AI Agent definitions
+└── scripts/                # Database migrations and seed utilities
 ```
 
 ## License
