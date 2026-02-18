@@ -135,16 +135,17 @@ export class AresControlCenter {
             const onboardingProspects = await storage.listProspects(userId, "onboarding");
             console.log(`[ARES] Pipeline: Checking ${onboardingProspects.length} onboarding prospects.`);
 
-            const { getProspectRequirementStatus } = await import("./agentTools");
+            const { agentTools } = await import("./agentTools");
             const { zeusService } = await import("./zeusService");
 
             for (const prospect of onboardingProspects) {
+                if (!prospect.id) continue;
                 // 2. Check Exit Criteria: Are documents complete?
-                const requirementStatus = await getProspectRequirementStatus(prospect.id, userId);
-                const isComplete = requirementStatus.status === "Satisfied";
+                const requirementStatus = await agentTools.getProspectRequirementStatus.execute({ prospectId: prospect.id }, userId);
+                const isComplete = requirementStatus.every((r: { status: string }) => r.status === "uploaded");
 
                 if (isComplete) {
-                    console.log(`[ARES] 🚀 Auto-Promoting Prospect ${prospect.id} to Underwriting`);
+                    console.log(`[ARES] Auto-Promoting Prospect ${prospect.id} to Underwriting`);
 
                     // 3. Promote to Underwriting
                     await storage.updateProspectStage(prospect.id, userId, "underwriting");

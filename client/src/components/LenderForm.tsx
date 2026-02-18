@@ -628,7 +628,7 @@ export function LenderForm({
                                     <FormItem>
                                         <FormLabel>Arrangement Fee</FormLabel>
                                         <FormControl>
-                                            <Input id={field.name} name={field.name} placeholder="e.g., 1.5%" {...field} value={field.value || ""} />
+                                            <Input id={field.name} placeholder="e.g., 1.5%" {...field} value={field.value || ""} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

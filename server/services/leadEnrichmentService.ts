@@ -144,7 +144,7 @@ export async function enrichLead(lead: InternalLead): Promise<EnrichmentResult> 
         result.businessOverview = geminiData.businessOverview;
         result.emails.push(...(geminiData.emails || []));
         result.phones.push(...(geminiData.phones || []));
-        result.linkedinUrl = geminiData.linkedinUrl;
+        result.linkedinUrl = geminiData.linkedinUrls?.[0];
 
         if (geminiData.contacts) {
             result.contacts = geminiData.contacts.map(c => ({

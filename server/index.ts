@@ -211,7 +211,7 @@ app.use((req: any, res, next) => {
     // It is the only port that is not firewalled.
     const port = parseInt(process.env.PORT || "5000", 10);
 
-    function startServer(retries = 3) {
+    const startServer = (retries = 3) => {
       server.listen(
         {
           port,

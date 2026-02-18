@@ -91,7 +91,7 @@ router.post("/migrate/:placeId", async (req, res) => {
         const { placeId } = req.params;
         if (!placeId) return res.status(400).json({ error: "Place ID required" });
 
-        const businesses = getBusinessesForExport({});
+        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: false, requireEmail: false });
         const business = businesses.find(b => b.googlePlaceId === placeId);
 
         if (!business) {

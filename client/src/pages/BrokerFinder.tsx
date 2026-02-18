@@ -50,6 +50,10 @@ interface BrokerResult {
     email: string | null;
     migrated?: boolean;
     sicCode?: string;
+    // Fields required by LeadDetailsSheet; not populated for broker results
+    emailConfidence: string | null;
+    pecrStatus: string | null;
+    leadScore: number | null;
 }
 
 export default function BrokerFinder() {

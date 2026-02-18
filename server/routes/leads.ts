@@ -41,10 +41,9 @@ router.post("/search", isAuthenticated, async (req, res) => {
             return res.status(400).json({ error: "Query is required" });
         }
 
-        // Dynamically import to avoid load-time issues if module resolution is tricky
-        // Assuming the server can resolve this path. If not, we might need a barrel file or path alias.
-        // For now, relative path from server/routes/leads.ts -> server/Lead Agent/src/api.ts
-        const { LeadFinderAPI } = await import("../../Lead Agent/src/api");
+        // Dynamic import — path contains spaces; TS can't resolve statically but Node.js handles it.
+        // @ts-ignore
+        const { LeadFinderAPI } = await import("../Lead Agent/src/api");
         const api = new LeadFinderAPI();
 
         console.log(`[API] Triggering Lead Agent Search: ${query}`);
