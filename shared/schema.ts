@@ -145,7 +145,7 @@ export const lenderSchema = z.object({
   lenderType: z.string().default("bank"),
   logoUrl: z.string().nullable().optional(),
   isGlobal: z.number().default(0), // 0 = false, 1 = true
-  productTypes: z.any().default([]),
+  productTypes: z.array(z.string()).default([]),
   minLoanAmount: z.number().nullable().optional(),
   maxLoanAmount: z.number().nullable().optional(),
   minTermMonths: z.number().nullable().optional(),
@@ -157,10 +157,10 @@ export const lenderSchema = z.object({
   typicalRateFrom: z.string().nullable().optional(),
   typicalRateTo: z.string().nullable().optional(),
   arrangementFee: z.string().nullable().optional(),
-  sectors: z.any().default([]),
-  regions: z.any().default([]),
-  securityTypes: z.any().default([]),
-  borrowerTypes: z.any().default([]),
+  sectors: z.array(z.string()).default([]),
+  regions: z.array(z.string()).default([]),
+  securityTypes: z.array(z.string()).default([]),
+  borrowerTypes: z.array(z.string()).default([]),
   minTradingYears: z.number().nullable().optional(),
   minRevenue: z.number().nullable().optional(),
   minDscr: z.string().nullable().optional(),
@@ -226,8 +226,8 @@ export const lenderProductSchema = z.object({
   arrangementFee: z.string().nullable().optional(),
   exitFee: z.string().nullable().optional(),
   securityRequirements: z.string().nullable().optional(),
-  eligibilityCriteria: z.any().default({}),
-  features: z.any().default([]),
+  eligibilityCriteria: z.record(z.unknown()).default({}),
+  features: z.array(z.string()).default([]),
   isActive: z.number().default(1),
   notes: z.string().nullable().optional(),
   createdAt: dateSchema,
@@ -411,12 +411,19 @@ export const underwritingFinancialAnalysisSchema = z.object({
   summary: z.string().optional(),
   monthlyBreakdown: z.array(z.any()).optional(), // Simplified for now
   transactionCount: z.number().optional(),
-  profitAndLoss: z.any().optional(),
+  profitAndLoss: z.object({
+    periodMonths: z.number().optional(),
+    turnover: z.number().optional(),
+    costOfSales: z.number().optional(),
+    grossProfit: z.number().optional(),
+    totalExpenses: z.number().optional(),
+    netProfit: z.number().optional(),
+  }).optional(),
   excludedTransferValue: z.number().optional(),
   excludedTransferCount: z.number().optional(),
   scenarioModeling: z.any().optional(),
-  redFlags: z.any().optional(),
-  preliminaryFindings: z.any().optional(),
+  redFlags: z.array(z.string()).optional(),
+  preliminaryFindings: z.record(z.unknown()).optional(),
 });
 
 export const underwritingAdverseMediaSchema = z.object({
@@ -430,7 +437,7 @@ export const underwritingAdverseMediaSchema = z.object({
 export const underwritingAdviserSummarySchema = z.object({
   recommendation: z.string().optional(),
   // Allow other fields loosely
-}).catchall(z.any());
+}).catchall(z.unknown());
 
 export const accountsPdfSchema = z.object({
   year: z.string(),
@@ -443,8 +450,8 @@ export const accountsAnalysisSchema = z.object({
   years: z.array(z.any()).optional(),
   ratios: z.array(z.any()).optional(),
   trends: z.any().optional(),
-  dscr: z.any().optional(),
-  concerns: z.array(z.any()).optional(),
+  dscr: z.number().optional(),
+  concerns: z.array(z.string()).optional(),
   auditorOpinion: z.string().optional(),
   summary: z.string().optional(),
   riskAssessment: z.enum(["low", "medium", "high"]).optional(),
@@ -469,11 +476,11 @@ export const openBankingSchema = z.object({
 export const managementAccountsSchema = z.object({
   files: z.array(z.any()).optional(),
   analysis: z.any().optional(),
-}).catchall(z.any());
+}).catchall(z.unknown());
 
 export const accountingSoftwareSchema = z.object({
   status: z.string().optional(),
-}).catchall(z.any());
+}).catchall(z.unknown());
 
 export const underwritingDataSchema = z.object({
   eligibility: underwritingEligibilitySchema.optional(),
@@ -777,12 +784,12 @@ export const insertAddOnPurchaseSchema = z.any();
 export const webhookProspectSchema = z.object({
   loanAmount: z.number().positive().optional(),
   term: z.number().positive().optional(),
-}).catchall(z.any());
+}).catchall(z.unknown());
 
 export const webhookCompanySchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   companyNumber: z.string().optional(),
-}).catchall(z.any());
+}).catchall(z.unknown());
 
 // --- Missing Exports for Compatibility ---
 export type UpdateProspectStage = z.infer<typeof updateProspectStageSchema>;

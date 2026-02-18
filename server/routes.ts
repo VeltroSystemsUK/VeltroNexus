@@ -43,6 +43,7 @@ import {
   insertUserSchema,
   queryResponseSchema,
   webhookProspectPayloadSchema,
+  type User,
   type InsertApplicationSubmission,
   type UnderwritingAttachment,
   type DueDiligenceData,
@@ -87,10 +88,10 @@ import { LocalStorageClient as ObjectStorageClient } from "./localStorage";
 const require = createRequire(import.meta.url);
 
 // Extended Request interface for authenticated routes
+// TODO: user is guaranteed by isAuthenticated middleware — future refactor to add non-null assertion helper
 interface AuthenticatedRequest extends Request {
   user?: any;
   requestId?: string;
-  ctx?: any;
 }
 
 // import { stripeRoutes } from "./stripeRoutes"; // REMOVED
