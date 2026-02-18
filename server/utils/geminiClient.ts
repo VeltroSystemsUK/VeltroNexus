@@ -1,17 +1,26 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_API_KEY;
+
+export const ai = new GoogleGenAI({
+  apiKey: apiKey!,
 });
 
-export async function generateText(prompt: string, model = "gemini-1.5-flash", systemInstruction?: string): Promise<string> {
-  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"; // User requested 3.0 latest model
+
+export async function generateText(prompt: string, model = DEFAULT_GEMINI_MODEL, systemInstruction?: string): Promise<string> {
   if (!apiKey) {
-    console.error("Gemini API Error: AI_INTEGRATIONS_GEMINI_API_KEY is not set");
+    console.error("Gemini API Error: No API key set in AI_INTEGRATIONS_GEMINI_API_KEY, GEMINI_API_KEY, or GOOGLE_GENERATIVE_API_KEY");
     throw new Error("Gemini API key is not configured");
   }
 
   try {
+    // Force upgrade legacy models to current latest
+    if (model.includes("gemini-1.5") || model.includes("pro")) {
+      console.log(`[Gemini Client] Upgrading model ${model} to ${DEFAULT_GEMINI_MODEL}`);
+      model = DEFAULT_GEMINI_MODEL;
+    }
+
     const fullPrompt = systemInstruction
       ? `[SYSTEM INSTRUCTION]\n${systemInstruction}\n\n[USER REQUEST]\n${prompt}`
       : prompt;
@@ -22,13 +31,234 @@ export async function generateText(prompt: string, model = "gemini-1.5-flash", s
     });
     return response.text?.trim() || "";
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    // Fallback to 1.5 flash if 3.0 fails (e.g. model not found)
-    if ((model === "gemini-1.5-flash" || model === "gemini-3.0-flash-latest") && (error.status === 404 || error.message?.includes("not found"))) {
-      console.log("Falling back to gemini-1.5-flash");
-      return generateText(prompt, "gemini-1.5-flash", systemInstruction);
+    console.error(`Gemini API Error (${model}):`, error.message || error);
+
+    // Fallback hierarchy for 404/400 errors
+    if (error.status === 404 || error.message?.includes("not found") || error.status === 400 || error.status === 429) {
+      // 1. If 3.0 failed, try 2.5-flash
+      if (model === "gemini-3-flash-preview") {
+        console.log("3.0-flash failed, trying gemini-2.5-flash");
+        return generateText(prompt, "gemini-2.5-flash", systemInstruction);
+      }
+
+      // 2. If 2.5-flash failed, try 2.0-flash
+      if (model === "gemini-2.5-flash") {
+        console.log("2.5-flash failed, trying gemini-2.0-flash");
+        return generateText(prompt, "gemini-2.0-flash", systemInstruction);
+      }
+
+      // 3. Last fallback to generic flash-latest if specific versions fail
+      if (model !== "gemini-flash-latest") {
+        console.log(`Fallback to gemini-flash-latest from ${model}`);
+        return generateText(prompt, "gemini-flash-latest", systemInstruction);
+      }
     }
     throw error;
+  }
+}
+
+export async function searchCompanyInfo(companyName: string, website?: string): Promise<{
+  businessOverview: string;
+  emails: string[];
+  phones: string[];
+  linkedinUrls: string[];
+  profileImages: string[];
+  contacts: Array<{ name: string; role: string; email?: string }>;
+  sources: Array<{ url: string; title: string }>;
+}> {
+  if (!apiKey) throw new Error("Gemini API key not configured");
+
+  const prompt = `Research the UK company "${companyName}" ${website ? `(${website})` : ''}.
+  
+  Find the following current information:
+  1. A professional business overview (what they do, products/services).
+  2. Contact details (published emails, phone numbers).
+  3. Key people/directors and their roles.
+  4. The company's LinkedIn profile URL.
+  
+  Return JSON:
+  {
+    "businessOverview": "string",
+    "emails": ["string"],
+    "phones": ["string"],
+    "linkedinUrls": ["string"],
+    "profileImages": ["string"],
+    "contacts": [{ "name": "string", "role": "string", "email": "string" }],
+    "sources": [{ "url": "string", "title": "string" }]
+  }
+  `;
+
+  const timeoutMs = 60000; // 60s timeout for search
+  const defaultResult = { businessOverview: "", emails: [], phones: [], linkedinUrls: [], profileImages: [], contacts: [], sources: [] };
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Gemini Search timeout after ${timeoutMs / 1000}s`)), timeoutMs)
+    );
+
+    const apiCall = ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+      }
+    } as any);
+
+    const response = await Promise.race([apiCall, timeoutPromise]);
+    const text = response.text?.trim() || "{}";
+
+    if (!text || text === "{}") return defaultResult;
+    return JSON.parse(text);
+  } catch (error) {
+    console.warn(`[Gemini Client] Search failed for ${companyName}:`, error);
+    return defaultResult;
+  }
+}
+
+export async function researchCompany(companyName: string, website?: string): Promise<{
+  businessProfile: string;
+  sourceCommentary: string;
+  sources: Array<{ url: string; title: string }>;
+}> {
+  if (!apiKey) throw new Error("Gemini API key not configured");
+
+  const prompt = `Perform a deep dive research on the UK company "${companyName}" ${website ? `(website: ${website})` : ''}.
+  
+  Provide:
+  1. A comprehensive business profile narrative (operations, scale, reputation).
+  2. A critical commentary on the sources found (reliability, quality).
+  3. A list of sources used.
+  
+  Return JSON:
+  {
+    "businessProfile": "string (markdown)",
+    "sourceCommentary": "string (markdown)",
+    "sources": [{ "url": "string", "title": "string" }]
+  }
+  `;
+
+  const timeoutMs = 60000;
+  const defaultResult = {
+    businessProfile: "Research failed or timed out.",
+    sourceCommentary: "Verification Conflict: Could not reliably verify company data via grounded search within time limits.",
+    sources: []
+  };
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Gemini Research timeout after ${timeoutMs / 1000}s`)), timeoutMs)
+    );
+
+    const apiCall = ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+      }
+    } as any);
+
+    const response = await Promise.race([apiCall, timeoutPromise]);
+    const text = response.text?.trim() || "{}";
+    return JSON.parse(text);
+  } catch (error) {
+    console.warn(`[Gemini Client] Research failed for ${companyName}:`, error);
+    return defaultResult;
+  }
+}
+
+export async function groundedSearch(query: string, _maxResults: number = 5): Promise<{
+  bulletPoints: string[];
+  sources: Array<{ url: string, title: string }>;
+}> {
+  if (!apiKey) throw new Error("Gemini API key not configured");
+
+  const prompt = `Search for: ${query}.
+  Summarize the key findings into bullet points and provide sources.
+  
+  Return JSON:
+  {
+    "bulletPoints": ["string"],
+    "sources": [{ "url": "string", "title": "string" }]
+  }
+  `;
+
+  const timeoutMs = 60000;
+  const defaultResult = { bulletPoints: [], sources: [] };
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Grounded Search timeout after ${timeoutMs / 1000}s`)), timeoutMs)
+    );
+
+    const apiCall = ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+      }
+    } as any);
+
+    const response = await Promise.race([apiCall, timeoutPromise]);
+    const text = response.text?.trim() || "{}";
+    return JSON.parse(text);
+  } catch (error) {
+    console.warn(`[Gemini Client] Grounded Search failed for query: ${query}`, error);
+    return defaultResult;
+  }
+}
+
+export async function searchAdverseMedia(companyName: string, registrationNumber?: string): Promise<{
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  flags: string[];
+  summary: string;
+}> {
+  if (!apiKey) throw new Error("Gemini API key not configured");
+
+  const prompt = `Analyze adverse media, public records, court judgments, insolvency, or fraud records for the UK company "${companyName}" ${registrationNumber ? `(${registrationNumber})` : ''}.
+  
+  Identify:
+  1. Risk level (LOW, MEDIUM, HIGH).
+  2. Specific flags/findings.
+  3. A concise summary.
+  
+  Return JSON:
+  {
+    "riskLevel": "LOW" | "MEDIUM" | "HIGH",
+    "flags": ["string"],
+    "summary": "string"
+  }
+  `;
+
+  const timeoutMs = 60000;
+  const defaultResult: { riskLevel: "LOW"; flags: string[]; summary: string } = {
+    riskLevel: "LOW",
+    flags: [],
+    summary: "Could not perform adverse media check or operation timed out."
+  };
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Adverse Media Search timeout after ${timeoutMs / 1000}s`)), timeoutMs)
+    );
+
+    const apiCall = ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+      }
+    } as any);
+
+    const response = await Promise.race([apiCall, timeoutPromise]);
+    const text = response.text?.trim() || "{}";
+    return JSON.parse(text);
+  } catch (error) {
+    console.warn(`[Gemini Client] Adverse Media Search failed for ${companyName}:`, error);
+    return defaultResult;
   }
 }
 
@@ -408,7 +638,7 @@ Return ONLY the summary text, no JSON or formatting.`;
 
       const response = await Promise.race([
         ai.models.generateContent({
-          model: "gemini-1.5-flash",
+          model: DEFAULT_GEMINI_MODEL,
           contents: prompt,
         }),
         timeoutPromise
@@ -561,7 +791,7 @@ IMPORTANT:
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.0-flash-latest",
+        model: DEFAULT_GEMINI_MODEL,
         contents: prompt,
       });
 

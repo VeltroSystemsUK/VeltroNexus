@@ -1,4 +1,4 @@
-import { TavilyResult } from "./tavilyClient";
+
 
 const TAVILY_API_URL = "https://api.tavily.com/search";
 
@@ -27,46 +27,31 @@ export async function findLogoUrl(searchParams: { website?: string; name?: strin
         }
     }
 
-    // Strategy 2: Tavily Search (Fallback if no website or failed)
+    // Strategy 2: Gemini Search (Fallback if no website or failed)
     if (name) {
         try {
-            const apiKey = process.env.TAVILY_API_KEY;
-            if (!apiKey) throw new Error("TAVILY_API_KEY missing");
+            const query = `"${name}" company logo square transparent image URL`;
+            const prompt = `Find a high-quality square logo image URL for the UK company "${name}".
+            Return JSON: { "logoUrl": "string" }`;
 
-            const query = `"${name}" company logo square transparent`;
-
-            const response = await fetch(TAVILY_API_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    api_key: apiKey,
-                    query: query,
-                    search_depth: "basic",
-                    include_images: true, // Request images
-                    max_results: 3
-                }),
-            });
-
-            if (!response.ok) throw new Error(`Tavily API error: ${response.status}`);
-
-            const data = await response.json();
-            const images = data.images || []; // Tavily returns 'images' array if include_images: true
-
-            if (images.length > 0 && typeof images[0] === 'string') {
-                return { logoUrl: images[0], source: 'tavily' };
-            }
-
-            // Fallback: Check results for image-like URLs if 'images' array is empty (legacy API behavior check)
-            const results: TavilyResult[] = data.results || [];
-            for (const result of results) {
-                // Naive check for image in content/url
-                if (result.url.match(/\.(png|jpg|jpeg|svg|webp)$/i)) {
-                    return { logoUrl: result.url, source: 'tavily' };
+            const { ai, DEFAULT_GEMINI_MODEL } = await import("./geminiClient");
+            const response = await ai.models.generateContent({
+                model: "gemini-2.0-flash",
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                config: {
+                    tools: [{ googleSearch: {} }],
+                    responseMimeType: "application/json",
                 }
-            }
+            } as any);
 
+            const text = response.text?.trim() || "{}";
+            const data = JSON.parse(text);
+
+            if (data.logoUrl) {
+                return { logoUrl: data.logoUrl, source: 'tavily' as any }; // Keep source name or change to gemini
+            }
         } catch (error) {
-            console.error(`[LogoFetcher] Tavily search failed for ${name}:`, error);
+            console.error(`[LogoFetcher] Gemini logo search failed for ${name}:`, error);
         }
     }
 

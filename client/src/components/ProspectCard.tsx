@@ -136,13 +136,12 @@ export default function ProspectCard({
 
   return (
     <Card
-      className={`cursor-pointer transition-all hover-elevate active-elevate-2 ${stageColorClass} ${
-        isDragging ? "shadow-lg rotate-2" : ""
-      } ${isOverLimit ? "opacity-75" : ""}`}
+      className={`cursor-pointer transition-all hover-elevate active-elevate-2 card-surface ${stageColorClass} ${isDragging ? "shadow-lg rotate-2" : ""
+        } ${isOverLimit ? "opacity-75" : ""}`}
       onClick={handleCardClick}
       data-testid={`card-prospect-${prospect.id}`}
     >
-      <CardContent className="p-4 relative">
+      <CardContent className="p-3 relative">
         {isOverLimit && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
             <div className="flex flex-col items-center gap-2 text-center px-4">
@@ -185,10 +184,10 @@ export default function ProspectCard({
                   className="flex-shrink-0"
                   data-testid={`dd-status-${prospect.id}`}
                   title={
-                    dueDiligenceStatus === 'complete' 
-                      ? 'Due Diligence Complete' 
-                      : dueDiligenceStatus === 'partial' 
-                        ? 'Due Diligence In Progress' 
+                    dueDiligenceStatus === 'complete'
+                      ? 'Due Diligence Complete'
+                      : dueDiligenceStatus === 'partial'
+                        ? 'Due Diligence In Progress'
                         : 'Due Diligence Pending'
                   }
                 >

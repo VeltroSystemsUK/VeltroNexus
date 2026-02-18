@@ -52,26 +52,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-12 animate-in fade-in duration-1000">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div>
-          <h2 className="text-4xl font-black text-white tracking-tighter flex items-center">
-            System Status <Sparkles className="ml-3 w-6 h-6 text-indigo-400 animate-pulse" />
-          </h2>
-          <p className="text-slate-400 mt-2 font-medium">Platform orbit is stable. {user?.firstName || 'User'}, your recent campaigns are yielding +0% engagement.</p>
-        </div>
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setLocation('/god-mode/marketing/analytics')}
-            className="px-6 py-3 bg-white/5 border border-white/10 text-white rounded-2xl hover:bg-white/10 transition-all font-bold text-sm tracking-wide uppercase"
-          >
-            Intelligence
-          </button>
-          <button
-            onClick={() => setLocation('/god-mode/marketing/campaigns')}
-            className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] transition-all font-black text-sm tracking-widest uppercase"
-          >
-            Launch Campaign
-          </button>
-        </div>
+        {/* Header removed as it is now in the global layout */}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -119,7 +100,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setLocation('/god-mode/marketing/analytics')}
+            onClick={() => setLocation('/marketing/analytics')}
             className="mt-10 w-full py-3.5 text-xs font-black uppercase tracking-widest text-indigo-400 hover:text-white hover:bg-indigo-500/20 rounded-2xl transition-all border border-indigo-500/20"
           >
             Access Archives

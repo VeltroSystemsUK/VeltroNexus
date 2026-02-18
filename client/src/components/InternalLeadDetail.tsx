@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { format } from "date-fns";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -31,7 +30,10 @@ import {
     TrendingUp,
     Plus,
     Trash2,
-    Users
+    Users,
+    CheckCircle,
+    Linkedin,
+    ExternalLink
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -43,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { EmailLink } from "@/components/EmailLink";
 
 interface InternalLeadDetailProps {
     lead: InternalLead;
@@ -56,6 +59,7 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
     const [status, setStatus] = useState(lead.status);
     const [assignedAgentId, setAssignedAgentId] = useState(lead.assignedAgentId || "unassigned");
     const [address, setAddress] = useState(lead.address || "");
+    const [city, setCity] = useState(lead.city || "");
     const [sicCode, setSicCode] = useState(lead.sicCode || "");
     const [incorporationDate, setIncorporationDate] = useState(lead.incorporationDate || "");
 
@@ -78,6 +82,7 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
             status,
             assignedAgentId: assignedAgentId === "unassigned" ? undefined : assignedAgentId,
             address,
+            city,
             sicCode,
             incorporationDate
         });
@@ -113,6 +118,17 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
         deleteLeadMutation.mutate();
     };
 
+    const enrichLeadMutation = useMutation({
+        mutationFn: () => apiRequest(`/api/god/crm/enrich/${lead.id}`, "POST"),
+        onSuccess: (data: any) => {
+            toast.success(data.message || "Lead enriched successfully");
+            queryClient.invalidateQueries({ queryKey: ["/api/god/crm/leads"] });
+        },
+        onError: (error: any) => {
+            toast.error("Enrichment failed: " + error.message);
+        }
+    });
+
     const contacts = Array.isArray(lead.contacts) ? lead.contacts : [];
 
     return (
@@ -128,21 +144,44 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                             <DialogDescription className="flex items-center gap-2 mt-1">
                                 {lead.companyNumber && <Badge variant="outline" className="font-mono text-xs">{lead.companyNumber}</Badge>}
                                 {lead.companyType && <Badge variant="secondary" className="text-xs">{lead.companyType}</Badge>}
+                                {lead.hasCharges && (
+                                    <Badge variant="default" className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] h-5 px-1 py-0 flex items-center gap-0.5">
+                                        <CheckCircle className="h-3 w-3" />
+                                        Debt Registered
+                                    </Badge>
+                                )}
+                                {lead.linkedinUrl && (
+                                    <a href={lead.linkedinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline">
+                                        <Linkedin className="h-3 w-3" />
+                                        LinkedIn
+                                    </a>
+                                )}
                             </DialogDescription>
                         </div>
-                        <Select value={status} onValueChange={(val) => { setStatus(val); updateLeadMutation.mutate({ status: val }); }}>
-                            <SelectTrigger className="w-[140px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="new">New Lead</SelectItem>
-                                <SelectItem value="contacted">Contacted</SelectItem>
-                                <SelectItem value="demo_booked">Demo Booked</SelectItem>
-                                <SelectItem value="trial">Trial</SelectItem>
-                                <SelectItem value="subscribed">Subscribed</SelectItem>
-                                <SelectItem value="churned">Lost</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <div className="flex gap-2 items-center">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => enrichLeadMutation.mutate()}
+                                disabled={enrichLeadMutation.isPending}
+                            >
+                                <TrendingUp className="mr-2 h-4 w-4" />
+                                {enrichLeadMutation.isPending ? "Enriching..." : "Enrich with AI"}
+                            </Button>
+                            <Select value={status} onValueChange={(val) => { setStatus(val); updateLeadMutation.mutate({ status: val }); }}>
+                                <SelectTrigger className="w-[140px]">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="new">New Lead</SelectItem>
+                                    <SelectItem value="contacted">Contacted</SelectItem>
+                                    <SelectItem value="demo_booked">Demo Booked</SelectItem>
+                                    <SelectItem value="trial">Trial</SelectItem>
+                                    <SelectItem value="subscribed">Subscribed</SelectItem>
+                                    <SelectItem value="churned">Lost</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </DialogHeader>
 
@@ -161,19 +200,37 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                     <Label className="text-xs text-muted-foreground flex items-center gap-1">
                                         <MapPin className="h-3 w-3" /> Address
                                     </Label>
-                                    <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+                                    <Input id="lead-address" name="address" value={address} onChange={(e) => setAddress(e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                        <Building2 className="h-3 w-3" /> Town / City
+                                    </Label>
+                                    <Input id="lead-city" name="city" value={city} onChange={(e) => setCity(e.target.value)} />
                                 </div>
                                 <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground flex items-center gap-1">
                                         <Hash className="h-3 w-3" /> SIC Code
                                     </Label>
-                                    <Input value={sicCode} onChange={(e) => setSicCode(e.target.value)} />
+                                    <Input id="lead-sicCode" name="sicCode" value={sicCode} onChange={(e) => setSicCode(e.target.value)} />
                                 </div>
                                 <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground flex items-center gap-1">
                                         <Calendar className="h-3 w-3" /> Incorporation Date
                                     </Label>
-                                    <Input value={incorporationDate} onChange={(e) => setIncorporationDate(e.target.value)} />
+                                    <Input id="lead-incDate" name="incorporationDate" value={incorporationDate} onChange={(e) => setIncorporationDate(e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground flex items-center gap-1 font-semibold text-amber-600">
+                                        <TrendingUp className="h-3 w-3" /> Registered Charge Holder
+                                    </Label>
+                                    <Input
+                                        id="lead-lender"
+                                        name="identifiedLender"
+                                        value={lead.identifiedLender || (lead.hasCharges ? "AI Scan Required" : "None Detected")}
+                                        disabled
+                                        className={lead.identifiedLender ? "bg-amber-50 border-amber-200 text-amber-900 font-medium" : ""}
+                                    />
                                 </div>
                             </div>
 
@@ -205,6 +262,8 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                     <div className="relative">
                                         <span className="absolute left-2 top-2.5 text-xs">£</span>
                                         <Input
+                                            id="lead-value"
+                                            name="estimatedValue"
                                             disabled
                                             value={lead.estimatedValue || 0}
                                             className="pl-5"
@@ -259,6 +318,8 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                     <div className="space-y-1">
                                         <Label>Name</Label>
                                         <Input
+                                            id="new-contact-name"
+                                            name="name"
                                             value={newContact.name}
                                             onChange={e => setNewContact({ ...newContact, name: e.target.value })}
                                             placeholder="e.g. John Doe"
@@ -267,6 +328,8 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                     <div className="space-y-1">
                                         <Label>Role</Label>
                                         <Input
+                                            id="new-contact-role"
+                                            name="role"
                                             value={newContact.role}
                                             onChange={e => setNewContact({ ...newContact, role: e.target.value })}
                                             placeholder="e.g. Director"
@@ -275,6 +338,8 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                     <div className="space-y-1">
                                         <Label>Email</Label>
                                         <Input
+                                            id="new-contact-email"
+                                            name="email"
                                             value={newContact.email}
                                             onChange={e => setNewContact({ ...newContact, email: e.target.value })}
                                             placeholder="john@example.com"
@@ -283,6 +348,8 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                     <div className="space-y-1">
                                         <Label>Phone</Label>
                                         <Input
+                                            id="new-contact-phone"
+                                            name="phone"
                                             value={newContact.phone}
                                             onChange={e => setNewContact({ ...newContact, phone: e.target.value })}
                                             placeholder="+44 7..."
@@ -318,7 +385,7 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                         {contact.email && (
                                             <div className="flex items-center gap-1" title={contact.email}>
                                                 <Mail className="h-3 w-3" />
-                                                <span className="hidden sm:inline truncate max-w-[150px]">{contact.email}</span>
+                                                <EmailLink email={contact.email} name={contact.name} className="hidden sm:inline truncate max-w-[150px]" />
                                             </div>
                                         )}
                                         {contact.phone && (
@@ -326,6 +393,17 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                                 <Phone className="h-3 w-3" />
                                                 <span className="hidden sm:inline">{contact.phone}</span>
                                             </div>
+                                        )}
+                                        {contact.linkedinUrl && (
+                                            <a
+                                                href={contact.linkedinUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-800 transition-colors"
+                                                title="View LinkedIn Profile"
+                                            >
+                                                <Linkedin className="h-4 w-4" />
+                                            </a>
                                         )}
                                         <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteContact(idx)}>
                                             <Trash2 className="h-3 w-3" />
@@ -341,6 +419,8 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                         <div className="space-y-2">
                             <Label>Notes</Label>
                             <Textarea
+                                id="lead-notes"
+                                name="notes"
                                 className="min-h-[200px]"
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}

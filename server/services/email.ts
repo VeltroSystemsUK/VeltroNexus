@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 
 export async function sendEmail(
     credentials: any,
@@ -6,10 +7,6 @@ export async function sendEmail(
     content: string,
     variables: Record<string, any> = {}
 ) {
-    if (!credentials || !credentials.apiKey) {
-        throw new Error("Missing email credentials");
-    }
-
     // 1. Template variable replacement
     let finalContent = content;
     Object.keys(variables).forEach(key => {
@@ -17,26 +14,39 @@ export async function sendEmail(
         finalContent = finalContent.replace(regex, variables[key] || '');
     });
 
-    // 2. Send via SendGrid
-    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${credentials.apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            personalizations: [{ to: [{ email: to }] }],
-            from: { email: credentials.fromEmail || "noreply@veltro.com", name: credentials.fromName || "Veltro User" },
+    try {
+        // Create Transporter
+        // Uses Environment variables or passed credentials
+        const transportConfig = {
+            service: "gmail",
+            auth: {
+                user: credentials.user || process.env.GMAIL_USER,
+                pass: credentials.pass || process.env.GMAIL_APP_PASSWORD,
+            },
+        };
+
+        if (!transportConfig.auth.user || !transportConfig.auth.pass) {
+            console.warn("Missing Gmail credentials (GMAIL_USER, GMAIL_APP_PASSWORD). Logging email instead.");
+            console.log(`[MOCK EMAIL] To: ${to}\nSubject: ${subject}\nBody:\n${finalContent}`);
+            return { success: true, mock: true };
+        }
+
+        const transporter = nodemailer.createTransport(transportConfig);
+
+        const mailOptions = {
+            from: credentials.fromEmail || transportConfig.auth.user,
+            to: to,
             subject: subject,
-            content: [{ type: "text/plain", value: finalContent }] // simple text for now
-        })
-    });
+            text: finalContent,
+            html: finalContent.replace(/\n/g, "<br>"), // Simple conversion
+        };
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("SendGrid Error:", response.status, errorText);
-        throw new Error(`Email provider error: ${errorText}`);
+        const info = await transporter.sendMail(mailOptions);
+        console.log("Email sent: " + info.response);
+        return { success: true, messageId: info.messageId };
+
+    } catch (error: any) {
+        console.error("Error sending email:", error);
+        throw new Error(`Failed to send email: ${error.message}`);
     }
-
-    return { success: true };
 }

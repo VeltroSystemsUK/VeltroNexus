@@ -554,6 +554,7 @@ export default function Landing() {
             <nav className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-sm text-gray-300 hover:text-white transition-colors font-semibold">Features</a>
               <a href="#ai-powered" className="text-sm text-gray-300 hover:text-white transition-colors font-semibold">AI Automation</a>
+              <Link href="/refinance" className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors font-semibold">Refinance 2026</Link>
               <a href="#workflow" className="text-sm text-gray-300 hover:text-white transition-colors font-semibold">Workflow</a>
             </nav>
 
@@ -621,6 +622,11 @@ export default function Landing() {
                 >
                   AI Automation
                 </a>
+                <Link href="/refinance" onClick={() => setIsMobileMenuOpen(false)}>
+                  <span className="text-indigo-400 hover:text-indigo-300 font-medium py-2 block cursor-pointer">
+                    Refinance 2026
+                  </span>
+                </Link>
                 <a
                   href="#workflow"
                   className="text-gray-300 hover:text-white font-medium py-2"

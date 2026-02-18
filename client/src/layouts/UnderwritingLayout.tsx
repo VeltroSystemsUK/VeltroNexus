@@ -13,7 +13,8 @@ import {
     Settings,
     Calculator,
     Save,
-    Loader2
+    Loader2,
+    Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -170,6 +171,12 @@ export default function UnderwritingLayout() {
                             <Calculator className="h-4 w-4 mr-2" />
                             Quick Calculator
                         </Button>
+                        <Link href="/lenders">
+                            <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
+                                <Database className="h-4 w-4 mr-2" />
+                                Lender Database
+                            </Button>
+                        </Link>
                     </div>
                 </nav>
 

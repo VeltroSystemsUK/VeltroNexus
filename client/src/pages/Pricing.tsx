@@ -164,10 +164,10 @@ export default function Pricing() {
 
                             <div className="w-full mb-5">
                                 <button
-                                    onClick={() => navigate(`/subscribe?plan=broker&interval=${billingInterval}`)}
+                                    onClick={() => navigate("/subscribe")}
                                     className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-transparent text-foreground border border-border hover:bg-white/5 hover:border-muted-foreground transition-all"
                                 >
-                                    Subscribe Now
+                                    Contact Sales
                                 </button>
                             </div>
                             <p className="text-center text-[11px] text-muted-foreground -mt-3 mb-4 opacity-100">
@@ -234,10 +234,10 @@ export default function Pricing() {
 
                             <div className="w-full mb-5">
                                 <button
-                                    onClick={() => navigate(`/subscribe?plan=team&interval=${billingInterval}`)}
+                                    onClick={() => navigate("/subscribe")}
                                     className="w-full py-3 px-5 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:brightness-110 hover:-translate-y-px transition-all shadow-sm"
                                 >
-                                    Start Team Plan
+                                    Contact Sales
                                 </button>
                                 <p className="text-center text-[11px] text-muted-foreground mt-3 opacity-100">
                                     14-day free trial · Cancel anytime

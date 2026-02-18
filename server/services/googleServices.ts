@@ -76,6 +76,34 @@ export async function listDriveFiles(user: User) {
     return res.data.files;
 }
 
+export async function uploadFileToDrive(user: User, filePath: string, fileName: string, mimeType: string) {
+    const auth = await getGoogleAuthClient(user);
+    const drive = google.drive({ version: 'v3', auth });
+    const fs = await import('fs');
+
+    const fileMetadata = {
+        name: fileName,
+        // parents: ['folderId'] // Optional: if we want to organize by folder
+    };
+
+    const media = {
+        mimeType: mimeType,
+        body: fs.createReadStream(filePath),
+    };
+
+    const res = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: 'id, webViewLink, webContentLink',
+    });
+
+    return {
+        id: res.data.id,
+        webViewLink: res.data.webViewLink,
+        webContentLink: res.data.webContentLink
+    };
+}
+
 export async function createGoogleDoc(user: User, title: string, content: string) {
     const auth = await getGoogleAuthClient(user);
     const docs = google.docs({ version: 'v1', auth });

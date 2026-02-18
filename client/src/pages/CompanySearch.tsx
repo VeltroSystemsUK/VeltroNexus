@@ -1033,6 +1033,8 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                       <div className="space-y-2">
                         <Label>Company Name</Label>
                         <Input
+                          id="confirm-companyName"
+                          name="companyName"
                           value={companyName}
                           readOnly
                           className="bg-muted"
@@ -1042,6 +1044,8 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                       <div className="space-y-2">
                         <Label>Company Number</Label>
                         <Input
+                          id="confirm-companyNumber"
+                          name="companyNumber"
                           value={companyNumber}
                           readOnly
                           className="bg-muted"
@@ -1053,6 +1057,8 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                     <div className="space-y-2">
                       <Label>Registered Address</Label>
                       <Textarea
+                        id="confirm-registeredAddress"
+                        name="registeredAddress"
                         value={registeredAddress}
                         readOnly
                         rows={2}
@@ -1066,6 +1072,7 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                         <Label htmlFor="loanAmount">Loan Amount (£)</Label>
                         <Input
                           id="loanAmount"
+                          name="loanAmount"
                           type="number"
                           value={loanAmount}
                           onChange={(e) => setLoanAmount(e.target.value)}
@@ -1094,6 +1101,7 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                       <Label htmlFor="notes">Notes</Label>
                       <Textarea
                         id="notes"
+                        name="notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Add any relevant notes..."
@@ -1169,6 +1177,7 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                     </Label>
                     <Input
                       id="companyName"
+                      name="companyName"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder={
@@ -1186,6 +1195,7 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                       </Label>
                       <Input
                         id="companyNumber"
+                        name="companyNumber"
                         value={companyNumber}
                         onChange={(e) => setCompanyNumber(e.target.value)}
                         placeholder="e.g., 12345678"
@@ -1199,6 +1209,7 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                     <Label htmlFor="registeredAddress">Business Address</Label>
                     <Textarea
                       id="registeredAddress"
+                      name="registeredAddress"
                       value={registeredAddress}
                       onChange={(e) => setRegisteredAddress(e.target.value)}
                       placeholder="Enter the business address"
@@ -1211,7 +1222,8 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                     <div className="space-y-2">
                       <Label htmlFor="loanAmount">Loan Amount (£)</Label>
                       <Input
-                        id="loanAmount"
+                        id="loanAmount-manual"
+                        name="loanAmount"
                         type="number"
                         value={loanAmount}
                         onChange={(e) => setLoanAmount(e.target.value)}
@@ -1239,7 +1251,8 @@ export default function CompanySearch({ mode = "user" }: CompanySearchProps) {
                   <div className="space-y-2">
                     <Label htmlFor="notes">Notes</Label>
                     <Textarea
-                      id="notes"
+                      id="notes-manual"
+                      name="notes"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="Add any relevant notes about this prospect"

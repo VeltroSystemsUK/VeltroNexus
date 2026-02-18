@@ -265,7 +265,7 @@ export default function Profile() {
         showBackButton={true}
       />
 
-      <div className="container max-w-6xl mx-auto p-6 space-y-6">
+      <div className="w-full mx-auto p-6 space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
           <Card data-testid="card-account-info">
             <CardHeader>

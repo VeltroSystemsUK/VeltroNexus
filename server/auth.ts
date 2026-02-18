@@ -95,13 +95,15 @@ export async function setupAuth(app: Express) {
                 try {
                     console.log(`[Auth Debug] Login attempt for: '${username}'`);
 
-                    // Dev Admin Login (Case Insensitive)
-                    if (username.toLowerCase() === "admin@veltro.com" && password === "admin123") {
+                    const normalizedUsername = username.toLowerCase();
+
+                    // Dev Admin Login (Case Insensitive for username check)
+                    if (normalizedUsername === "admin@veltro.com" && password === "admin123") {
                         console.log("Dev Admin Login Detected");
                         return done(null, DEV_USER);
                     }
 
-                    const user = await storage.getUserByUsername(username);
+                    const user = await storage.getUserByUsername(normalizedUsername);
                     if (!user || !(await comparePasswords(password, user.password))) {
                         console.log("[Auth Debug] Auth failed for:", username);
                         return done(null, false, { message: "Invalid username or password" });
@@ -207,7 +209,8 @@ export async function setupAuth(app: Express) {
                 return res.status(400).send("Email and password are required");
             }
 
-            const existingUser = await storage.getUserByUsername(req.body.email);
+            const normalizedEmail = req.body.email.toLowerCase();
+            const existingUser = await storage.getUserByUsername(normalizedEmail);
             if (existingUser) {
                 return res.status(400).send("Username already exists");
             }
@@ -229,6 +232,7 @@ export async function setupAuth(app: Express) {
 
             const user = await storage.createUser({
                 ...req.body,
+                email: normalizedEmail,
                 password: hashedPassword,
                 role: 'broker',
                 subscriptionTier,
@@ -335,6 +339,31 @@ export async function setupAuth(app: Express) {
             res.json(req.user);
         } else {
             res.sendStatus(401);
+        }
+    });
+
+    // Combined auth session endpoint - returns user + role in single request
+    app.get("/api/auth/session", async (req, res) => {
+        if (req.isAuthenticated()) {
+            try {
+                const user = req.user as SelectUser;
+                const fullUser = await storage.getUser(user.id);
+                res.setHeader("Cache-Control", "no-store");
+                res.json({
+                    user,
+                    role: fullUser?.role || "broker",
+                    isAuthenticated: true
+                });
+            } catch (error) {
+                console.error("[Auth] Session fetch error:", error);
+                res.status(500).json({ error: "Failed to fetch session" });
+            }
+        } else {
+            res.json({
+                user: null,
+                role: null,
+                isAuthenticated: false
+            });
         }
     });
 }

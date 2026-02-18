@@ -12,17 +12,37 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
-import { Users, Shield, UserCog, Briefcase, Loader2, ArrowLeft, Search, Save, AlertCircle } from "lucide-react";
+import {
+  Users, Shield, UserCog, Briefcase, Loader2, ArrowLeft, Search, Save, AlertCircle,
+  MoreVertical, Edit, Key, Trash2, Crown, Gem, Zap, Coffee
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { PageHeader } from "@/components/PageHeader";
+import { usePageTitle } from "@/context/LayoutContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { format } from "date-fns";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface User {
   id: string;
@@ -34,6 +54,7 @@ interface User {
   createdAt: string;
   lastLoginAt?: string;
   lastLogoutAt?: string;
+  suspended?: boolean;
 }
 
 const slaSchema = z.object({
@@ -48,11 +69,13 @@ const slaSchema = z.object({
 type SLAFormValues = z.infer<typeof slaSchema>;
 
 export default function Admin() {
+  usePageTitle("ADMIN DASHBOARD", "Manage users, platform settings, and SLAs");
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  const { data: currentUser } = useQuery<any>({
+  const { data: currentUser } = useQuery<User>({
     queryKey: ["/api/auth/user"],
   });
 
@@ -62,7 +85,7 @@ export default function Admin() {
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
-    enabled: roleData?.role === "super_admin",
+    enabled: roleData?.role === "super_admin" || roleData?.role === "sales_admin",
   });
 
   const { data: slaSettings, isLoading: slaLoading } = useQuery<{ green: number; amber: number; red: number }>({
@@ -70,23 +93,71 @@ export default function Admin() {
     enabled: roleData?.role === "super_admin" || roleData?.role === "sales_admin",
   });
 
-  const updateUserRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      return apiRequest("/api/auth/role", "POST", { targetUserId: userId, role });
+  // Generalized Update Mutation (Role, Subscription, etc.)
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: string; data: Partial<User> }) => {
+      return apiRequest(`/api/admin/users/${userId}`, "PATCH", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingUser(null);
       toast({
-        title: "Role Updated",
-        description: "User role has been updated successfully.",
+        title: "User Updated",
+        description: "User details have been updated successfully.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to update role",
+        description: error.message || "Failed to update user",
         variant: "destructive",
       });
+    },
+  });
+
+  // Keep for backward compatibility if needed, using the new endpoint
+  const updateUserRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+      return apiRequest(`/api/admin/users/${userId}`, "PATCH", { role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Role Updated", description: "User role has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleSuspendUserMutation = useMutation({
+    mutationFn: async ({ userId, suspend }: { userId: string; suspend: boolean }) => {
+      return apiRequest(`/api/admin/users/${userId}`, "PATCH", { suspended: suspend });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: variables.suspend ? "User Suspended" : "User Unsuspended",
+        description: `User has been ${variables.suspend ? "suspended" : "unsuspended"}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest(`/api/admin/users/${userId}`, "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: "User Deleted",
+        description: "User has been permanently deleted.",
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
@@ -176,282 +247,388 @@ export default function Admin() {
     ) || [];
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <PageHeader
-        title="Admin Dashboard"
-        description="Manage users, platform settings, and SLAs"
-        showBackButton={true}
-      />
+    <main className="w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
+      <Tabs defaultValue="users" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="users" className="gap-2">
+            <Users className="h-4 w-4" />
+            User Management
+          </TabsTrigger>
+          <TabsTrigger value="sla" className="gap-2">
+            <Shield className="h-4 w-4" />
+            SLA Settings
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="container mx-auto p-6 space-y-6">
-        <Tabs defaultValue="users" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="users" className="gap-2">
-              <Users className="h-4 w-4" />
-              User Management
-            </TabsTrigger>
-            <TabsTrigger value="sla" className="gap-2">
-              <Shield className="h-4 w-4" />
-              SLA Settings
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="users" className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{users?.length || 0}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Super Admins
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
-                    {users?.filter((u) => u.role === "super_admin").length || 0}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Sales Admins
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-orange-600">
-                    {users?.filter((u) => u.role === "sales_admin").length || 0}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Underwriters
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-purple-600">
-                    {users?.filter((u) => u.role === "underwriter").length || 0}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
+        <TabsContent value="users" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  User Management
-                </CardTitle>
-                <CardDescription>View and manage all platform users</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search users by name or email..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                    data-testid="input-search-users"
-                  />
-                </div>
-
-                {usersLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : filteredUsers.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">No users found</div>
-                ) : (
-                  <div className="space-y-2">
-                    {filteredUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-4 rounded-lg border bg-card"
-                        data-testid={`user-row-${user.id}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarFallback>
-                              {user.firstName?.[0] || user.email?.[0] || "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">
-                              {user.firstName} {user.lastName}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                            <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                              {user.lastLoginAt && (
-                                <span>Last Login: {format(new Date(user.lastLoginAt), "MMM d, HH:mm")}</span>
-                              )}
-                              {user.lastLogoutAt && (
-                                <span>Last Logout: {format(new Date(user.lastLogoutAt), "MMM d, HH:mm")}</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <Badge variant="outline" className={getRoleBadgeColor(user.role)}>
-                            <span className="flex items-center gap-1">
-                              {getRoleIcon(user.role)}
-                              {user.role?.replace("_", " ")}
-                            </span>
-                          </Badge>
-                          <Badge variant="secondary" className="capitalize">
-                            {user.subscriptionTier || "free"}
-                          </Badge>
-                          <Select
-                            value={user.role}
-                            onValueChange={(newRole) => {
-                              if (user.id === currentUser?.id) {
-                                toast({
-                                  title: "Warning",
-                                  description: "You cannot change your own role from this interface.",
-                                  variant: "destructive",
-                                });
-                                return;
-                              }
-                              updateUserRoleMutation.mutate({ userId: user.id, role: newRole });
-                            }}
-                            disabled={updateUserRoleMutation.isPending || user.id === currentUser?.id}
-                          >
-                            <SelectTrigger className="w-[140px]" data-testid={`select-role-${user.id}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="broker">Broker</SelectItem>
-                              <SelectItem value="underwriter">Underwriter</SelectItem>
-                              <SelectItem value="sales_admin">Sales Admin</SelectItem>
-                              <SelectItem value="super_admin">Super Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="sla" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>SLA Thresholds (Hours)</CardTitle>
-                <CardDescription>
-                  Define the time limits for each status color. These apply to the time elapsed since submission.
-                </CardDescription>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
               </CardHeader>
               <CardContent>
-                {slaLoading ? (
-                  <div className="flex items-center justify-center p-8">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit((data) => slaMutation.mutate(data))} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <FormField
-                          control={form.control}
-                          name="green"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-green-600 font-bold">Green Phase</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Input
-                                    type="number"
-                                    step="0.5"
-                                    {...field}
-                                    onChange={e => field.onChange(parseFloat(e.target.value))}
-                                  />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">hrs</span>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="amber"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-amber-600 font-bold">Amber Phase</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Input
-                                    type="number"
-                                    step="0.5"
-                                    {...field}
-                                    onChange={e => field.onChange(parseFloat(e.target.value))}
-                                  />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">hrs</span>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="red"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-red-600 font-bold">Red Phase</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Input
-                                    type="number"
-                                    step="0.5"
-                                    {...field}
-                                    onChange={e => field.onChange(parseFloat(e.target.value))}
-                                  />
-                                  <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">hrs</span>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <div className="bg-muted/50 p-4 rounded-lg text-sm text-muted-foreground border">
-                        <p className="font-semibold mb-2">How it works:</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                          <li><span className="text-green-600 font-medium">Green</span>: 0 to {form.watch("green")} hours</li>
-                          <li><span className="text-amber-600 font-medium">Amber</span>: {form.watch("green")} to {form.watch("amber")} hours (Warning)</li>
-                          <li><span className="text-red-600 font-medium">Red</span>: {form.watch("amber")} hours+ (Breached)</li>
-                          <li>At {form.watch("red")} hours, a critical warning icon appears.</li>
-                        </ul>
-                      </div>
-
-                      <div className="flex justify-end">
-                        <Button type="submit" disabled={slaMutation.isPending}>
-                          {slaMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          <Save className="mr-2 h-4 w-4" />
-                          Save Settings
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                )}
+                <div className="text-2xl font-bold">{users?.length || 0}</div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Super Admins
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {users?.filter((u) => u.role === "super_admin").length || 0}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Sales Admins
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">
+                  {users?.filter((u) => u.role === "sales_admin").length || 0}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Underwriters
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600">
+                  {users?.filter((u) => u.role === "underwriter").length || 0}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                User Management
+              </CardTitle>
+              <CardDescription>View and manage all platform users</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="user-search"
+                  name="user-search"
+                  placeholder="Search users by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-search-users"
+                />
+              </div>
+
+              {usersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No users found</div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between p-4 rounded-lg border bg-card/50 hover:bg-card transition-colors"
+                      data-testid={`user-row-${user.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarFallback>
+                            {user.firstName?.[0] || user.email?.[0] || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium flex items-center gap-2">
+                            {user.firstName} {user.lastName}
+                            {user.suspended && (
+                              <Badge variant="destructive" className="text-[10px] h-4 px-1">SUSPENDED</Badge>
+                            )}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                          <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                            {user.lastLoginAt && (
+                              <span>Last Login: {format(new Date(user.lastLoginAt), "MMM d, HH:mm")}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-6">
+                        {/* Role Badge */}
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] uppercase text-muted-foreground font-semibold">Role</span>
+                          <div
+                            className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm border 
+                            ${user.role === "super_admin" ? "bg-red-100 text-red-700 border-red-200" :
+                                user.role === "broker" ? "bg-blue-100 text-blue-700 border-blue-200" :
+                                  user.role === "underwriter" ? "bg-purple-100 text-purple-700 border-purple-200" :
+                                    user.role === "sales_admin" ? "bg-orange-100 text-orange-700 border-orange-200" : // Mapped to Introducer/Sales Admin
+                                      "bg-green-100 text-green-700 border-green-200" // Default/Team
+                              }`}
+                            title={user.role}
+                          >
+                            {user.role === "super_admin" ? "A" :
+                              user.role === "broker" ? "B" :
+                                user.role === "underwriter" ? "U" :
+                                  user.role === "sales_admin" ? "I" : // Introducer
+                                    "T"}
+                          </div>
+                        </div>
+
+                        {/* Subscription Icon */}
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] uppercase text-muted-foreground font-semibold">Plan</span>
+                          <div className="h-8 w-8 flex items-center justify-center bg-muted rounded-md" title={user.subscriptionTier}>
+                            {user.subscriptionTier === "lender" || user.subscriptionTier === "enterprise" ? <Crown className="h-4 w-4 text-amber-500" /> :
+                              user.subscriptionTier === "pro" || user.subscriptionTier === "premium" ? <Gem className="h-4 w-4 text-indigo-500" /> :
+                                user.subscriptionTier === "starter" || user.subscriptionTier === "basic" ? <Zap className="h-4 w-4 text-blue-500" /> :
+                                  <Coffee className="h-4 w-4 text-slate-500" />}
+                          </div>
+                        </div>
+
+                        {/* Actions Menu */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setEditingUser(user)}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit User
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toggleSuspendUserMutation.mutate({ userId: user.id, suspend: !user.suspended })}>
+                              <Key className="mr-2 h-4 w-4" /> {user.suspended ? "Unsuspend" : "Suspend"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+                                  deleteUserMutation.mutate(user.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sla" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>SLA Thresholds (Hours)</CardTitle>
+              <CardDescription>
+                Define the time limits for each status color. These apply to the time elapsed since submission.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {slaLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit((data) => slaMutation.mutate(data))} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <FormField
+                        control={form.control}
+                        name="green"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-green-600 font-bold">Green Phase</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  id="sla-green"
+                                  type="number"
+                                  step="0.5"
+                                  {...field}
+                                  onChange={e => field.onChange(parseFloat(e.target.value))}
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">hrs</span>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="amber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-amber-600 font-bold">Amber Phase</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  id="sla-amber"
+                                  type="number"
+                                  step="0.5"
+                                  {...field}
+                                  onChange={e => field.onChange(parseFloat(e.target.value))}
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">hrs</span>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="red"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-red-600 font-bold">Red Phase</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  id="sla-red"
+                                  type="number"
+                                  step="0.5"
+                                  {...field}
+                                  onChange={e => field.onChange(parseFloat(e.target.value))}
+                                />
+                                <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">hrs</span>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="bg-muted/50 p-4 rounded-lg text-sm text-muted-foreground border">
+                      <p className="font-semibold mb-2">How it works:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li><span className="text-green-600 font-medium">Green</span>: 0 to {form.watch("green")} hours</li>
+                        <li><span className="text-amber-600 font-medium">Amber</span>: {form.watch("green")} to {form.watch("amber")} hours (Warning)</li>
+                        <li><span className="text-red-600 font-medium">Red</span>: {form.watch("amber")} hours+ (Breached)</li>
+                        <li>At {form.watch("red")} hours, a critical warning icon appears.</li>
+                      </ul>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={slaMutation.isPending}>
+                        {slaMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Settings
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user role and subscription tier.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="edit-name"
+                value={editingUser ? `${editingUser.firstName} ${editingUser.lastName}` : ""}
+                disabled
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-role" className="text-right">
+                Role
+              </Label>
+              <Select
+                value={editingUser?.role}
+                onValueChange={(val) => setEditingUser(prev => prev ? { ...prev, role: val } : null)}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="broker">Broker</SelectItem>
+                  <SelectItem value="underwriter">Underwriter</SelectItem>
+                  <SelectItem value="sales_admin">Sales Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-subscription" className="text-right">
+                Plan
+              </Label>
+              <Select
+                value={editingUser?.subscriptionTier}
+                onValueChange={(val) => setEditingUser(prev => prev ? { ...prev, subscriptionTier: val } : null)}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="free">Free</SelectItem>
+                  <SelectItem value="starter">Starter</SelectItem>
+                  <SelectItem value="pro">Pro</SelectItem>
+                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                  <SelectItem value="lender">Lender</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={updateUserMutation.isPending}
+              onClick={() => {
+                if (editingUser) {
+                  updateUserMutation.mutate({
+                    userId: editingUser.id,
+                    data: {
+                      role: editingUser.role,
+                      subscriptionTier: editingUser.subscriptionTier
+                    }
+                  });
+                }
+              }}
+            >
+              {updateUserMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </main>
   );
 }

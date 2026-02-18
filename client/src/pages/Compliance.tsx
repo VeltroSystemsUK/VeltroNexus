@@ -2,8 +2,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ComplianceLibrary } from "@/components/compliance/ComplianceLibrary";
 import { RegulatoryAssistant } from "@/components/compliance/RegulatoryAssistant";
 import { ComplianceChecklist } from "@/components/compliance/ComplianceChecklist";
+import { ReportingSchedule } from "@/components/compliance/ReportingSchedule";
 import { Badge } from "@/components/ui/badge";
-import { FileText, MessageSquare, CheckSquare } from "lucide-react";
+import { FileText, MessageSquare, CheckSquare, CalendarClock } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 
 export default function Compliance() {
@@ -21,18 +22,22 @@ export default function Compliance() {
 
             <div className="flex-1 overflow-hidden p-6">
                 <Tabs defaultValue="library" className="h-full flex flex-col space-y-6">
-                    <TabsList>
-                        <TabsTrigger value="library" className="flex items-center gap-2">
+                    <TabsList className="grid w-full grid-cols-4 h-auto p-1 gap-1 bg-muted/50">
+                        <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                             <FileText className="h-4 w-4" />
                             Compliance Library
                         </TabsTrigger>
-                        <TabsTrigger value="checklists" className="flex items-center gap-2">
+                        <TabsTrigger value="checklists" className="flex items-center gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
                             <CheckSquare className="h-4 w-4" />
                             Interactive Checklists
                         </TabsTrigger>
-                        <TabsTrigger value="assistant" className="flex items-center gap-2">
+                        <TabsTrigger value="assistant" className="flex items-center gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white">
                             <MessageSquare className="h-4 w-4" />
                             Regulatory Assistant
+                        </TabsTrigger>
+                        <TabsTrigger value="reporting" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                            <CalendarClock className="h-4 w-4" />
+                            Reporting Schedule
                         </TabsTrigger>
                     </TabsList>
 
@@ -46,6 +51,10 @@ export default function Compliance() {
 
                     <TabsContent value="assistant" className="flex-1 overflow-hidden">
                         <RegulatoryAssistant />
+                    </TabsContent>
+
+                    <TabsContent value="reporting" className="flex-1 overflow-y-auto pb-6">
+                        <ReportingSchedule />
                     </TabsContent>
                 </Tabs>
             </div>

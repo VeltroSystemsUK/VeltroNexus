@@ -15,6 +15,7 @@
    ========================= */
 
 /* LIGHT MODE */
+/* ANTI-TEMPLATE MODE - Surface Depth */
 :root {
   --button-outline: rgba(0, 0, 0, .10);
   --badge-outline: rgba(0, 0, 0, .05);
@@ -26,86 +27,78 @@
   --elevate-1: rgba(0, 0, 0, .03);
   --elevate-2: rgba(0, 0, 0, .08);
 
-  /* Light mode - Veltro Sleek/Tech palette */
-  /* Light Grey/Silver background (#F3F4F6) */
-  --background: 220 14% 96%;
-  --foreground: 220 13% 13%;
+  /* Surface Depth Palette */
+  /* Main Background: Off-White / Grey-50 */
+  --background: 210 40% 98%;
+  /* #F8F9FA */
+  --foreground: 225 15% 15%;
+  /* #202327 - Softer Black */
 
-  --border: 220 13% 86%;
-
+  /* Surface: Pure White Cards */
   --card: 0 0% 100%;
-  --card-foreground: 220 13% 13%;
-  --card-border: 220 13% 90%;
+  --card-foreground: 225 15% 15%;
+  --card-border: 210 20% 90%;
 
-  /* Deep Charcoal sidebar (#1F2937) */
-  --sidebar: 220 13% 18%;
-  --sidebar-foreground: 220 14% 96%;
-  --sidebar-border: 220 13% 25%;
-  --sidebar-primary: 35 92% 45%;
+  /* Sidebar: White Surface */
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 225 15% 40%;
+  --sidebar-border: 210 20% 94%;
+  --sidebar-primary: 243 75% 59%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 13% 25%;
-  --sidebar-accent-foreground: 220 14% 96%;
-  --sidebar-ring: 35 92% 45%;
+  --sidebar-accent: 210 40% 96%;
+  --sidebar-accent-foreground: 243 75% 59%;
+  --sidebar-ring: 243 75% 59%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 220 13% 13%;
-  --popover-border: 220 13% 88%;
+  --popover-foreground: 225 15% 15%;
+  --popover-border: 210 20% 90%;
 
-  /* Burnt Orange/Amber action buttons (#D97706) */
-  --primary: 35 92% 45%;
+  /* Brand Color: Deep Indigo (#4F46E5) */
+  --primary: 243 75% 59%;
   --primary-foreground: 0 0% 100%;
 
-  /* Electric Indigo for links/highlights (#4F46E5) */
-  --secondary: 243 75% 59%;
-  --secondary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
 
-  --muted: 220 13% 92%;
-  --muted-foreground: 220 10% 40%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
 
-  --accent: 243 75% 95%;
-  --accent-foreground: 220 13% 13%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
 
-  --destructive: 349 100% 65%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
 
-  --success: 142 71% 45%;
-  --success-foreground: 0 0% 100%;
+  /* Border is effectively transparent relying on shadow, but we define a very light one for strict separators */
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 243 75% 59%;
 
-  --warning: 45 93% 47%;
-  --warning-foreground: 0 0% 0%;
-
-  --input: 220 13% 85%;
-  --ring: 35 92% 45%;
-
-  /* Chart colors - Veltro palette */
-  --chart-1: 35 92% 45%;
-  --chart-2: 142 71% 45%;
-  --chart-3: 243 75% 59%;
-  --chart-4: 220 13% 45%;
-  --chart-5: 349 100% 65%;
+  /* Chart colors */
+  --chart-1: 243 75% 59%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
   --font-serif: 'Inter', system-ui, serif;
   --font-mono: 'Inter', sans-serif;
 
-  /* Sizing */
-  --radius: 0.875rem;
-  --radius-sm: 0.625rem;
-  --radius-lg: 1.125rem;
+  /* Micro-Radius: 10px */
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-lg: 14px;
+  /* Slightly larger for big containers */
 
-  /* Shadows */
-  --shadow-sm: 0 6px 18px rgba(0, 0, 0, .08);
-  --shadow: 0 8px 24px rgba(0, 0, 0, .10);
-  --shadow-md: 0 12px 32px rgba(0, 0, 0, .12);
-  --shadow-lg: 0 14px 40px rgba(0, 0, 0, .14);
-  --shadow-xl: 0 20px 50px rgba(0, 0, 0, .18);
-  --shadow-2xs: 0px 1px 2px rgba(0, 0, 0, .05);
-  --shadow-xs: 0px 2px 4px rgba(0, 0, 0, .06);
-  --shadow-2xl: 0 25px 60px rgba(0, 0, 0, .22);
-
-  --tracking-normal: 0em;
   --spacing: 0.25rem;
+
+  /* Surface Depth Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  /* Definition shadow */
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 
   /* Automatically computed borders */
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -117,99 +110,36 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
-/* DARK MODE - Veltro Sleek/Tech theme */
+/* Dark Mode - Mapped to match Light Mode structure but deep ease */
 .dark {
-  --button-outline: rgba(255, 255, 255, .10);
-  --badge-outline: rgba(255, 255, 255, .05);
-
-  --opaque-button-border-intensity: 9;
-
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(255, 255, 255, .04);
-  --elevate-2: rgba(255, 255, 255, .09);
-
-  /* Deeper Charcoal background for more premium feel */
-  --background: 222 47% 4%;
-  --foreground: 220 14% 96%;
-
-  --border: 220 13% 20%;
-
-  --card: 220 13% 14%;
-  --card-foreground: 220 14% 96%;
-  --card-border: 220 13% 18%;
-
-  /* Deep Charcoal sidebar */
-  --sidebar: 220 13% 12%;
-  --sidebar-foreground: 220 14% 92%;
-  --sidebar-border: 220 13% 20%;
-  --sidebar-primary: 35 92% 50%;
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 243 75% 65%;
+  /* Lighter Indigo */
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 243 75% 65%;
+  --sidebar: 222.2 84% 4.9%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 217.2 32.6% 17.5%;
+  --sidebar-primary: 243 75% 65%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 13% 22%;
-  --sidebar-accent-foreground: 220 14% 92%;
-  --sidebar-ring: 35 92% 50%;
-
-  --popover: 220 13% 14%;
-  --popover-foreground: 220 14% 96%;
-  --popover-border: 220 13% 20%;
-
-  /* Burnt Orange/Amber primary for dark mode */
-  --primary: 35 92% 50%;
-  --primary-foreground: 220 13% 10%;
-
-  /* Electric Indigo secondary */
-  --secondary: 243 75% 65%;
-  --secondary-foreground: 0 0% 100%;
-
-  --muted: 220 13% 20%;
-  --muted-foreground: 220 10% 65%;
-
-  --accent: 243 50% 25%;
-  --accent-foreground: 220 14% 92%;
-
-  --destructive: 349 100% 65%;
-  --destructive-foreground: 0 0% 100%;
-
-  --success: 142 71% 45%;
-  --success-foreground: 0 0% 100%;
-
-  --warning: 45 93% 55%;
-  --warning-foreground: 0 0% 0%;
-
-  --input: 220 13% 22%;
-  --ring: 35 92% 50%;
-
-  /* Chart colors - Veltro vibrant for dark mode */
-  --chart-1: 35 92% 50%;
-  --chart-2: 142 71% 45%;
-  --chart-3: 243 75% 65%;
-  --chart-4: 220 13% 55%;
-  --chart-5: 349 100% 65%;
-
-  /* Shadows - more dramatic for dark mode */
-  --shadow-sm: 0 6px 18px rgba(0, 0, 0, .35);
-  --shadow: 0 8px 24px rgba(0, 0, 0, .40);
-  --shadow-md: 0 12px 32px rgba(0, 0, 0, .45);
-  --shadow-lg: 0 14px 40px rgba(0, 0, 0, .50);
-  --shadow-xl: 0 20px 50px rgba(0, 0, 0, .55);
-  --shadow-2xs: 0px 1px 2px rgba(0, 0, 0, .25);
-  --shadow-xs: 0px 2px 4px rgba(0, 0, 0, .30);
-  --shadow-2xl: 0 25px 60px rgba(0, 0, 0, .60);
-
-  --radius: 0.875rem;
-  --spacing: 0.25rem;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-  --font-serif: 'Inter', system-ui, serif;
-  --tracking-normal: 0em;
-
-  /* Automatically computed borders */
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent: 217.2 32.6% 17.5%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-ring: 243 75% 65%;
 }
 
 /* Theme toggle support */
@@ -235,7 +165,7 @@ html[data-theme="light"] {
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -317,13 +247,22 @@ html[data-theme="light"] {
 }
 
 /* =========================
-   Modern Surface Styles
+   Anti-Template Surface Styles
    ========================= */
-.glass {
-  background: hsl(var(--card) / 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius-lg);
+.card-surface {
+  background: hsl(var(--card));
+  border: 0;
+  /* No border for surface depth */
+  box-shadow: var(--shadow-sm);
+  /* Definition shadow */
+  border-radius: var(--radius);
+}
+
+.sidebar-surface {
+  background: hsl(var(--sidebar));
+  border-right: 1px solid hsl(var(--sidebar-border));
+  /* Subtle separation */
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.02);
 }
 
 .surface-gradient {
@@ -890,4 +829,8 @@ html[data-theme="light"] {
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

@@ -1,1 +1,1 @@
-declare module 'connect-session-firestore';
+// Type declarations removed - using @google-cloud/connect-firestore instead

@@ -14,6 +14,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmailLink } from "@/components/EmailLink";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -141,24 +153,6 @@ function formatCurrency(amount: number | null | undefined): string {
   return `£${amount}`;
 }
 
-function RatingStars({ rating }: { rating: number | null | undefined }) {
-  if (!rating) return <span className="text-muted-foreground text-sm">Not rated</span>;
-
-  const fullStars = Math.floor(rating);
-
-  return (
-    <div className="flex items-center gap-0.5">
-      {[...Array(5)].map((_, i) => (
-        <Star
-          key={i}
-          className={`h-5 w-5 ${i < fullStars ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
-            }`}
-        />
-      ))}
-      <span className="ml-2 text-lg font-medium">{rating.toFixed(1)}</span>
-    </div>
-  );
-}
 
 function PanelBadge({ status }: { status: string | null | undefined }) {
   const panel = PANEL_STATUSES[status || "market"] || PANEL_STATUSES.market;
@@ -170,6 +164,42 @@ function PanelBadge({ status }: { status: string | null | undefined }) {
       {panel.label}
     </Badge>
   );
+}
+
+const LENDER_TIERS = [
+  { value: 1.0, label: "Tier 1.0 - Major Banks" },
+  { value: 1.5, label: "Tier 1.5 - Challenger & Vendor" },
+  { value: 2.0, label: "Tier 2.0 - Alternative & CDFI" },
+  { value: 2.5, label: "Tier 2.5 - Specialised Lenders" },
+  { value: 3.0, label: "Tier 3.0 - Sub Prime Lenders" },
+];
+
+const LENDER_TYPES_LIST = [
+  { value: "tier1", label: "Tier 1.0 - Major Banks" },
+  { value: "tier2", label: "Tier 2.0 - Alternative & CDFI" },
+  { value: "tier3", label: "Tier 3.0 - Specialized & Other" },
+];
+
+function TierBadge({ type, tier }: { type: string | null | undefined, tier?: number | null }) {
+  if (tier !== undefined && tier !== null) {
+    const config = LENDER_TIERS.find((t) => t.value === tier);
+    if (config) {
+      let colorClass = "bg-blue-500/10 text-blue-600 border-blue-200/50";
+      if (tier >= 3) colorClass = "bg-slate-500/10 text-slate-600 border-slate-200/50";
+      else if (tier >= 2) colorClass = "bg-emerald-500/10 text-emerald-600 border-emerald-200/50";
+
+      return (
+        <Badge className={`${colorClass} text-xs font-black uppercase tracking-wider px-2 shadow-none whitespace-nowrap`}>
+          {config.label}
+        </Badge>
+      );
+    }
+  }
+
+  const typeConfig = LENDER_TYPES_LIST.find(t => t.value === type);
+  const label = typeConfig ? typeConfig.label : (LENDER_TYPES[type || ""] || "Lender");
+
+  return <Badge variant="outline" className="text-xs">{label}</Badge>;
 }
 
 function InteractionIcon({ type }: { type: string }) {
@@ -202,7 +232,7 @@ type LenderWithDetails = Lender & {
 export default function LenderDetail() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [isInteractionDialogOpen, setIsInteractionDialogOpen] = useState(false);
 
   const lenderId = parseInt(params.id || "0");
@@ -248,6 +278,18 @@ export default function LenderDetail() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to log interaction: ${error.message}`);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiRequest(`/api/lenders/${lenderId}`, "DELETE"),
+    onSuccess: () => {
+      toast.success("Lender deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["/api/lenders"] });
+      navigate("/lenders");
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete lender: ${error.message}`);
     },
   });
 
@@ -332,7 +374,7 @@ export default function LenderDetail() {
                   {lender.institutionName}
                 </h1>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline">{LENDER_TYPES[lender.lenderType || ""] || "Lender"}</Badge>
+                  <TierBadge type={lender.lenderType} tier={lender.tier} />
                   <PanelBadge status={lender.panelStatus} />
                 </div>
               </div>
@@ -363,11 +405,44 @@ export default function LenderDetail() {
             </Button>
             {lender.email && (
               <Button asChild data-testid="button-email-lender">
-                <a href={`mailto:${lender.email}`}>
+                <EmailLink email={lender.email} className="flex items-center">
                   <Mail className="h-4 w-4 mr-2" />
                   Email
-                </a>
+                </EmailLink>
               </Button>
+            )}
+            {user?.role === "super_admin" && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    className="ml-2"
+                    data-testid="button-delete-lender"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Lender
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Lender?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete <strong>{lender.institutionName}</strong>?
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteMutation.mutate()}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      disabled={deleteMutation.isPending}
+                    >
+                      {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
         </div>
@@ -381,9 +456,6 @@ export default function LenderDetail() {
                 <CardTitle>Overview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <RatingStars rating={lender.rating} />
-                </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {(lender.minLoanAmount || lender.maxLoanAmount) && (
@@ -638,9 +710,9 @@ export default function LenderDetail() {
                 {lender.email && (
                   <div className="flex items-center gap-3">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${lender.email}`} className="text-sm hover:underline">
+                    <EmailLink email={lender.email} className="text-sm hover:underline">
                       {lender.email}
-                    </a>
+                    </EmailLink>
                   </div>
                 )}
 
@@ -710,9 +782,9 @@ export default function LenderDetail() {
                   {lender.bdmEmail && (
                     <div className="flex items-center gap-3">
                       <Mail className="h-4 w-4 text-muted-foreground" />
-                      <a href={`mailto:${lender.bdmEmail}`} className="text-sm hover:underline">
+                      <EmailLink email={lender.bdmEmail} className="text-sm hover:underline">
                         {lender.bdmEmail}
-                      </a>
+                      </EmailLink>
                     </div>
                   )}
 
@@ -737,12 +809,9 @@ export default function LenderDetail() {
                   <div className="flex items-center gap-3">
                     <Send className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <a
-                        href={`mailto:${lender.submissionEmail}`}
-                        className="text-sm hover:underline"
-                      >
+                      <EmailLink email={lender.submissionEmail} className="text-sm hover:underline">
                         {lender.submissionEmail}
-                      </a>
+                      </EmailLink>
                       <p className="text-xs text-muted-foreground">Application submissions</p>
                     </div>
                   </div>

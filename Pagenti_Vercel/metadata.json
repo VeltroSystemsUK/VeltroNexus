@@ -1,0 +1,8 @@
+{
+  "name": "Forward Talent - Digital Associates",
+  "description": "A recruitment platform for high-performance AI Digital Associates, featuring candidate rosters, interactive resumes, and a management dashboard.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

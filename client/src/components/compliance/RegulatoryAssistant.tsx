@@ -158,21 +158,43 @@ export function RegulatoryAssistant() {
         setIsTyping(true);
 
         // Logic processing
-        setTimeout(() => {
-            if (activeWorkflow && currentStateId) {
-                handleWorkflowStep(textToSend);
+        // Logic processing
+        if (activeWorkflow && currentStateId) {
+            setTimeout(() => handleWorkflowStep(textToSend), 1000);
+        } else {
+            // Check for triggers regarding workflows first
+            const triggeredWorkflow = checkForWorkflowTriggers(textToSend);
+            if (triggeredWorkflow) {
+                setTimeout(() => startWorkflow(triggeredWorkflow), 1000);
             } else {
-                // Check for triggers OR normal search
-                const triggeredWorkflow = checkForWorkflowTriggers(textToSend);
-                if (triggeredWorkflow) {
-                    startWorkflow(triggeredWorkflow);
-                } else {
-                    const response = generateSearchResponse(textToSend);
-                    setMessages((prev) => [...prev, response]);
-                    setIsTyping(false);
-                }
+                // Call Backend API for Exa + Gemini
+                fetch("/api/compliance/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query: textToSend }),
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.error) throw new Error(data.error);
+
+                        setMessages((prev) => [...prev, {
+                            id: Date.now().toString(),
+                            role: "assistant",
+                            content: data.answer,
+                            citations: data.citations
+                        }]);
+                    })
+                    .catch(err => {
+                        console.error("Compliance Chat failed", err);
+                        setMessages((prev) => [...prev, {
+                            id: Date.now().toString(),
+                            role: "assistant",
+                            content: "I'm having trouble connecting to the regulatory database right now. Please try again later.",
+                        }]);
+                    })
+                    .finally(() => setIsTyping(false));
             }
-        }, 1000);
+        }
     };
 
     const checkForWorkflowTriggers = (text: string): Workflow | null => {
@@ -417,9 +439,9 @@ export function RegulatoryAssistant() {
                     </CardDescription>
                 </CardHeader>
 
-                <CardContent className="flex-1 p-0 overflow-hidden relative">
-                    <ScrollArea className="h-full p-4">
-                        <div className="space-y-4 pb-4">
+                <CardContent className="flex-1 min-h-0 p-0 h-full">
+                    <ScrollArea className="h-full">
+                        <div className="space-y-4 p-4">
                             {messages.map((msg) => (
                                 <div
                                     key={msg.id}
@@ -462,11 +484,19 @@ export function RegulatoryAssistant() {
                                         {msg.citations && (
                                             <div className="grid gap-2">
                                                 {msg.citations.map((cite, idx) => (
-                                                    <div key={idx} className="flex items-center gap-2 p-2 rounded bg-background border text-xs">
-                                                        <BookOpen className="h-3 w-3 text-muted-foreground" />
-                                                        <span className="font-medium truncate flex-1">{cite.title}</span>
+                                                    <a
+                                                        key={idx}
+                                                        href={cite.source}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-2 p-2 rounded bg-background border text-xs hover:bg-muted transition-colors cursor-pointer group"
+                                                    >
+                                                        <BookOpen className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+                                                        <span className="font-medium truncate flex-1 text-primary underline-offset-4 group-hover:underline">
+                                                            {cite.title}
+                                                        </span>
                                                         <Badge variant="outline" className="text-[10px]">{cite.id}</Badge>
-                                                    </div>
+                                                    </a>
                                                 ))}
                                             </div>
                                         )}
@@ -527,6 +557,8 @@ export function RegulatoryAssistant() {
                             onChange={(e) => setInput(e.target.value)}
                             disabled={isTyping}
                             className="flex-1"
+                            id="compliance-query"
+                            name="compliance-query"
                         />
                         <Button type="submit" size="icon" disabled={!input.trim() || isTyping}>
                             <Send className="h-4 w-4" />

@@ -2,7 +2,6 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import logoChrome from "@assets/logo-chrome.png";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineColumn from "@/components/PipelineColumn";
 import ProspectCard, {
@@ -11,26 +10,23 @@ import ProspectCard, {
 } from "@/components/ProspectCard";
 import SafeProspectCard from "@/components/SafeProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
-import ThemeToggle from "@/components/ThemeToggle";
 import ActivityCalendar from "@/components/ActivityCalendar";
 import ToDoList from "@/components/ToDoList";
 import TaskReminders from "@/components/TaskReminders";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2, Plus, Menu } from "lucide-react"; // Added Menu
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
 import { useEffect, useState, useMemo } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"; // AddedDropdownMenu
 import type { ProspectWithCompany } from "@shared/schema";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
 import { OnboardingChecklist, OnboardingTooltip, useOnboarding } from "@/components/onboarding";
@@ -39,8 +35,27 @@ import { DEFAULT_STAGES, type PipelineStage } from "./Settings";
 
 type Stage = string;
 
+import { usePageTitle, usePageActions } from "@/context/LayoutContext";
+import { AutoQualifiedLeadsWidget } from "@/components/dashboard/AutoQualifiedLeadsWidget";
+
+// ... existing imports
+
 export default function Pipeline() {
   const [, navigate] = useLocation();
+
+  const actions = useMemo(() => (
+    <Button
+      className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
+      onClick={() => navigate("/search")}
+      data-testid="button-add-prospect"
+    >
+      <Plus className="mr-2 h-4 w-4" />
+      Add Prospect
+    </Button>
+  ), [navigate]);
+
+  usePageTitle("PIPELINE DASHBOARD", "Manage your commercial lending pipeline");
+  usePageActions(actions);
   const { user, isAuthenticated, isLoading: isAuthLoading, logoutMutation } = useAuth();
   const {
     currentWalkthrough,
@@ -49,6 +64,13 @@ export default function Pipeline() {
     skipWalkthrough
   } = useOnboarding();
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("dashboard");
+
+  const tabOptions = [
+    { id: "dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard, color: "bg-primary" },
+    { id: "prospect-pipeline", label: "Prospect Pipeline", shortLabel: "Prospects", icon: Users, color: "bg-amber-600" },
+    { id: "process-pipeline", label: "Process Pipeline", shortLabel: "Process", icon: Send, color: "bg-emerald-600" },
+  ];
 
   // Compute dynamic stages from user settings
   const { allStages, prospectStages, processStages, finalStages } = useMemo(() => {
@@ -275,189 +297,61 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
-      <header className="border-b border-[#1e293b] bg-[#0f172a] sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 md:px-6 py-3 md:py-5 flex items-center justify-between gap-2 md:gap-4">
-          <div className="flex items-center gap-2 md:gap-4">
-            {user?.brandingLogoUrl ? (
-              <div className="flex flex-col items-start">
-                <img
-                  src={user.brandingLogoUrl}
-                  alt="Company logo"
-                  className="max-h-10 md:max-h-12 max-w-32 md:max-w-48 object-contain"
-                  data-testid="img-custom-logo"
-                />
-                <p className="text-[10px] text-gray-400">Powered by Veltro</p>
-              </div>
-            ) : (
-              <img
-                src={logoChrome}
-                alt="Veltro"
-                className="h-8 md:h-10 object-contain"
-                data-testid="img-logo-nav"
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-2 md:gap-3">
-            <Button
-              size="icon"
-              className="md:hidden h-9 w-9 bg-primary hover:bg-primary/90 text-primary-foreground"
-              onClick={() => navigate("/search")}
-              data-testid="button-add-prospect-mobile"
-            >
-              <TrendingUp className="h-4 w-4" />
-            </Button>
-            <OnboardingTooltip
-              isActive={currentWalkthrough === "lead" && walkthroughStep === 0}
-              title="Start Here"
-              message="Click here to create your first prospect and see Veltro's AI in action."
-              step={1}
-              totalSteps={4}
-              onSkip={skipWalkthrough}
-              position="bottom"
-            >
-              <Button
-                size="lg"
-                className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
-                onClick={() => navigate("/search")}
-                data-testid="button-add-prospect"
-              >
-                Add Prospect
-              </Button>
-            </OnboardingTooltip>
-            <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 text-gray-300 hover:text-white hover:bg-white/10"
-                  data-testid="button-user-menu"
-                >
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage
-                      src={user?.profileImageUrl || undefined}
-                      alt={user?.firstName || "User"}
-                      style={{ objectFit: "cover" }}
-                    />
-                    <AvatarFallback className="text-base font-medium">
-                      {user?.firstName?.[0] || user?.email?.[0] || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <div className="px-3 py-3">
-                  <p className="font-semibold text-base">
-                    {user?.firstName} {user?.lastName}
-                  </p>
-                  <p className="text-muted-foreground text-sm">{user?.email}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <div className="px-3 py-3">
-                  <p className="text-xs text-muted-foreground mb-1.5 uppercase tracking-wide font-medium">
-                    Subscription
-                  </p>
-                  <p className="font-semibold text-base capitalize">
-                    {user?.subscriptionTier || "Free"} Plan
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {prospects.length} / {user?.prospectLimit || 10} prospects used
-                  </p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => navigate("/profile")}
-                  className="py-2.5 text-base"
-                  data-testid="menu-item-profile"
-                >
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate("/settings")}
-                  className="py-2.5 text-base"
-                  data-testid="menu-item-settings"
-                >
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate("/lenders")}
-                  className="py-2.5 text-base"
-                  data-testid="menu-item-lenders"
-                >
-                  Lender Database
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate("/submissions")}
-                  className="py-2.5 text-base"
-                  data-testid="menu-item-submissions"
-                >
-                  Submissions
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => logoutMutation.mutate()}
-                  className="py-2.5 text-base"
-                  data-testid="menu-item-logout"
-                >
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
-      <main className="container mx-auto px-4 md:px-6 py-6 md:py-10">
-        <div className="mb-6 md:mb-10">
-          <h2
-            className="md:text-4xl font-bold mb-2 md:mb-3 tracking-tight text-[32px]"
-            data-testid="text-page-title"
-          >
-            Pipeline Dashboard
-          </h2>
-          <p
-            className="text-sm md:text-lg text-muted-foreground"
-            data-testid="text-page-description"
-          >
-            Manage your commercial lending pipeline
-          </p>
-        </div>
+    <div className="min-h-screen bg-background pb-24 md:pb-28">
+      <main className="w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
 
         {prospects.length === 0 ? (
           <EmptyPipeline onAddProspect={() => navigate("/search")} />
         ) : (
-          <Tabs defaultValue="dashboard" className="w-full" data-testid="tabs-main">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" data-testid="tabs-main">
+
+            {/* Mobile View: Hamburger Menu */}
+            <div className="md:hidden flex items-center justify-between bg-muted/50 p-2 rounded-lg mb-4">
+              <div className="flex items-center gap-2 pl-2">
+                {(() => {
+                  const current = tabOptions.find(t => t.id === activeTab);
+                  const Icon = current?.icon || LayoutDashboard;
+                  return (
+                    <>
+                      <Icon className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-medium">{current?.label}</span>
+                    </>
+                  );
+                })()}
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px]">
+                  {tabOptions.map((tab) => (
+                    <DropdownMenuItem key={tab.id} onClick={() => setActiveTab(tab.id)}>
+                      <tab.icon className="mr-2 h-4 w-4" />
+                      {tab.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
             <TabsList
-              className="grid w-full grid-cols-3 mb-6 md:mb-10 h-12 md:h-14"
+              className="hidden md:grid w-full grid-cols-3 mb-6 md:mb-10 h-12 md:h-14 bg-muted/50 p-1 gap-1"
               data-testid="tabs-list"
             >
-              <TabsTrigger
-                value="dashboard"
-                className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5"
-                data-testid="tab-dashboard"
-              >
-                <LayoutDashboard className="h-4 w-4 md:h-5 md:w-5" />
-                <span className="hidden sm:inline">Dashboard</span>
-                <span className="sm:hidden">Home</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="prospect-pipeline"
-                className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5"
-                data-testid="tab-prospect-pipeline"
-              >
-                <Users className="h-4 w-4 md:h-5 md:w-5" />
-                <span className="hidden sm:inline">Prospect Pipeline</span>
-                <span className="sm:hidden">Prospects</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="process-pipeline"
-                className="text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5"
-                data-testid="tab-process-pipeline"
-              >
-                <Send className="h-4 w-4 md:h-5 md:w-5" />
-                <span className="hidden sm:inline">Process Pipeline</span>
-                <span className="sm:hidden">Process</span>
-              </TabsTrigger>
+              {tabOptions.map((tab) => (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className={`text-xs md:text-base py-2 md:py-3 gap-1 md:gap-2.5 data-[state=active]:${tab.color} data-[state=active]:text-white ${tab.id === 'dashboard' ? 'data-[state=active]:bg-primary data-[state=active]:text-primary-foreground' : ''}`}
+                  data-testid={`tab-${tab.id}`}
+                >
+                  <tab.icon className="h-4 w-4 md:h-5 md:w-5" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                </TabsTrigger>
+              ))}
             </TabsList>
 
             {/* Dashboard Tab */}
@@ -477,6 +371,13 @@ export default function Pipeline() {
                     totalValue={formatCurrency(totalValue)}
                     approvedCount={approvedCount}
                   />
+                </div>
+
+                {/* Auto-Qualified Leads Feed */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="h-[400px]">
+                    <AutoQualifiedLeadsWidget />
+                  </div>
                 </div>
 
                 {/* CRM Features */}

@@ -1,0 +1,141 @@
+import { Router } from "express";
+import { storage } from "../storage";
+import { handleApiError } from "../utils/errorHandler";
+import { requireGodMode } from "../utils/godModeAuth";
+import { insertBrokerLeadSchema, insertBrokerCommissionSchema } from "@shared/schema";
+
+const router = Router();
+
+// Protect all Broker routes with God Mode middleware
+router.use(requireGodMode);
+
+// --- Broker Discovery ---
+router.post("/discover", async (req, res) => {
+    try {
+        const { town, sicCodes, autoEnrich } = req.body;
+
+        if (!town && (!sicCodes || (Array.isArray(sicCodes) && sicCodes.length === 0))) {
+            return res.status(400).json({ error: "Either town or sicCodes is required" });
+        }
+
+        console.log(`[Broker Agent] Starting dynamic discovery. Town: ${town || 'Any'}, SIC: ${sicCodes || 'Any'}, Auto-Enrich: ${!!autoEnrich}`);
+        const { databaseBuilderService } = await import("../services/databaseBuilder");
+
+        // Prepare discovery target
+        const target: any = {};
+        if (town) target.location = town.trim();
+        if (sicCodes) {
+            target.sicCodes = Array.isArray(sicCodes) ? sicCodes : [sicCodes];
+        }
+
+        // Fire and forget - discovery runs in background
+        // Passing 'broker' as the type to databaseBuilderService (will update service next)
+        const userId = (req.user as any)?.id;
+        databaseBuilderService.runDiscoveryLoop([target], {
+            autoEnrich: !!autoEnrich,
+            userId: userId,
+            leadType: 'broker'
+        });
+
+        res.json({
+            success: true,
+            message: `Broker lead collection started for ${town || target.sicCodes.join(",")}`
+        });
+    } catch (error) {
+        handleApiError(res, error, "Broker Discovery error");
+    }
+});
+
+router.delete("/leads/clear-all", async (req, res) => {
+    try {
+        await storage.clearAllBrokerLeads();
+        res.json({ success: true, message: "All broker leads cleared from database" });
+    } catch (error) {
+        console.error("[Brokers] Clear all leads failed:", error);
+        res.status(500).json({ error: "Failed to clear broker leads" });
+    }
+});
+
+// --- Leads ---
+router.get("/leads", async (req, res) => {
+    try {
+        const leads = await storage.listBrokerLeads();
+        res.json(leads);
+    } catch (error) {
+        console.error("Brokers: Failed to fetch leads", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+router.post("/leads", async (req, res) => {
+    try {
+        const data = insertBrokerLeadSchema.parse(req.body);
+        const lead = await storage.createBrokerLead(data);
+        res.json(lead);
+    } catch (error) {
+        res.status(400).json({ error: "Invalid data" });
+    }
+});
+
+router.put("/leads/:id", async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const lead = await storage.updateBrokerLead(id, req.body);
+        if (!lead) return res.status(404).json({ error: "Lead not found" });
+        res.json(lead);
+    } catch (error) {
+        res.status(500).json({ error: "Update failed" });
+    }
+});
+
+router.delete("/leads/:id", async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        await storage.deleteBrokerLead(id);
+        res.status(204).send();
+    } catch (error) {
+        res.status(500).json({ error: "Delete failed" });
+    }
+});
+
+// --- Commissions ---
+router.get("/commissions", async (req, res) => {
+    try {
+        const commissions = await storage.listBrokerCommissions();
+        res.json(commissions);
+    } catch (error) {
+        res.status(500).json({ error: "Fetch failed" });
+    }
+});
+
+router.get("/commissions/agent/:agentId", async (req, res) => {
+    try {
+        const commissions = await storage.getBrokerAgentCommissions(req.params.agentId);
+        res.json(commissions);
+    } catch (error) {
+        res.status(500).json({ error: "Fetch failed" });
+    }
+});
+
+router.post("/commissions", async (req, res) => {
+    try {
+        const data = insertBrokerCommissionSchema.parse(req.body);
+        const commission = await storage.createBrokerCommission(data);
+        res.json(commission);
+    } catch (error) {
+        res.status(400).json({ error: "Invalid data" });
+    }
+});
+
+router.put("/commissions/:id", async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const commission = await storage.updateBrokerCommission(id, req.body);
+        if (!commission) return res.status(404).json({ error: "Commission not found" });
+        res.json(commission);
+    } catch (error) {
+        res.status(500).json({ error: "Update failed" });
+    }
+});
+
+export default router;

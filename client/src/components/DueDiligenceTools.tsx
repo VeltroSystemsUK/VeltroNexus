@@ -14,12 +14,14 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Slider } from "@/components/ui/slider";
-import { CheckCircle2, AlertCircle, XCircle, Save, Calculator, TrendingUp, Target, FileText, User } from "lucide-react";
+import { CheckCircle2, AlertCircle, XCircle, Save, Calculator, TrendingUp, Target, FileText, User, AlertTriangle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 import { CHECKLIST_SECTIONS } from "@shared/checklistData";
 import type { ChecklistItem, DueDiligenceData } from "@shared/schema";
 import {
   calculateLoan,
+  calculateHirePurchase,
   calculateDSCR,
   calculateAffordability,
   calculateFinancialRatios,
@@ -149,16 +151,32 @@ export function LoanCalculatorTool({
   const [loanAmount, setLoanAmount] = useState("");
   const [interestRate, setInterestRate] = useState("");
   const [term, setTerm] = useState("");
+  const [commissionRate, setCommissionRate] = useState("");
+  const [documentationFee, setDocumentationFee] = useState("");
+  const [addDocFeeToLoan, setAddDocFeeToLoan] = useState(false);
+  const [legalFee, setLegalFee] = useState("");
 
   useEffect(() => {
     setLoanAmount(data.loanCalculator?.loanAmount?.toString() || "");
     setInterestRate(data.loanCalculator?.interestRate?.toString() || "");
     setTerm(data.loanCalculator?.term?.toString() || "");
+    setCommissionRate(data.loanCalculator?.commissionRate?.toString() || "");
+    setDocumentationFee(data.loanCalculator?.documentationFee?.toString() || "");
+    setAddDocFeeToLoan(data.loanCalculator?.addDocFeeToLoan || false);
+    setLegalFee(data.loanCalculator?.legalFee?.toString() || "");
   }, [data.loanCalculator]);
 
   const calculation =
     loanAmount && interestRate && term
-      ? calculateLoan(parseFloat(loanAmount), parseFloat(interestRate), parseInt(term))
+      ? calculateLoan(
+        parseFloat(loanAmount),
+        parseFloat(interestRate),
+        parseInt(term),
+        commissionRate ? parseFloat(commissionRate) : undefined,
+        documentationFee ? parseFloat(documentationFee) : 0,
+        addDocFeeToLoan,
+        legalFee ? parseFloat(legalFee) : 0
+      )
       : null;
 
   const handleSave = () => {
@@ -167,6 +185,10 @@ export function LoanCalculatorTool({
         loanAmount: loanAmount ? parseFloat(loanAmount) : undefined,
         interestRate: interestRate ? parseFloat(interestRate) : undefined,
         term: term ? parseInt(term) : undefined,
+        commissionRate: commissionRate ? parseFloat(commissionRate) : undefined,
+        documentationFee: documentationFee ? parseFloat(documentationFee) : undefined,
+        addDocFeeToLoan,
+        legalFee: legalFee ? parseFloat(legalFee) : undefined,
       },
     });
   };
@@ -191,20 +213,38 @@ export function LoanCalculatorTool({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div className="grid gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="loan-amount">Loan Amount (£)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
-                  <Input
-                    id="loan-amount"
-                    type="number"
-                    className="pl-7"
-                    value={loanAmount}
-                    onChange={(e) => setLoanAmount(e.target.value)}
-                    placeholder="500000"
-                  />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="loan-amount">Loan Amount (£)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
+                    <Input
+                      id="loan-amount"
+                      type="number"
+                      value={loanAmount}
+                      onChange={(e) => setLoanAmount(e.target.value)}
+                      className="pl-7"
+                      placeholder="250000"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="commission-rate">Commission (%)</Label>
+                  <div className="relative">
+                    <Input
+                      id="commission-rate"
+                      type="number"
+                      step="0.1"
+                      className="pr-8"
+                      value={commissionRate}
+                      onChange={(e) => setCommissionRate(e.target.value)}
+                      placeholder="1.0"
+                    />
+                    <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
+                  </div>
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="interest-rate">Interest Rate (%)</Label>
@@ -232,6 +272,50 @@ export function LoanCalculatorTool({
                   />
                 </div>
               </div>
+
+              <div className="space-y-4 pt-2 border-t mt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="doc-fee">Documentation Fee (£)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
+                      <Input
+                        id="doc-fee"
+                        type="number"
+                        className="pl-7"
+                        value={documentationFee}
+                        onChange={(e) => setDocumentationFee(e.target.value)}
+                        placeholder="500"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="legal-fee">Legal Fees (£)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
+                      <Input
+                        id="legal-fee"
+                        type="number"
+                        className="pl-7"
+                        value={legalFee}
+                        onChange={(e) => setLegalFee(e.target.value)}
+                        placeholder="1000"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-dashed text-sm">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Add Documentation Fee to Loan</span>
+                    <span className="text-xs text-muted-foreground">Interest will be charged on this fee</span>
+                  </div>
+                  <Switch
+                    checked={addDocFeeToLoan}
+                    onCheckedChange={setAddDocFeeToLoan}
+                  />
+                </div>
+              </div>
             </div>
 
             {!calculation && (
@@ -249,21 +333,238 @@ export function LoanCalculatorTool({
                 <div className="text-4xl font-bold text-primary tracking-tight">
                   {formatCurrency(calculation.monthlyPayment)}
                 </div>
-                <div className="mt-4 pt-4 border-t border-primary/10 grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Total Interest</div>
-                    <div className="text-lg font-semibold mt-1">{formatCurrency(calculation.totalInterest)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Total Repayable</div>
-                    <div className="text-lg font-semibold mt-1">{formatCurrency(calculation.totalRepayment)}</div>
-                  </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="text-sm text-muted-foreground mb-1">Total Interest</div>
+                  <div className="font-semibold text-lg">{formatCurrency(calculation.totalInterest)}</div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="text-sm text-muted-foreground mb-1">Facility Fee</div>
+                  <div className="font-semibold text-lg">{formatCurrency(calculation.facilityFee)}</div>
                 </div>
               </div>
 
-              <div className="rounded-xl border bg-card p-4 flex items-center justify-between">
-                <span className="text-sm font-medium">Facility Fee (3.5%)</span>
-                <span className="font-semibold">{formatCurrency(calculation.facilityFee)}</span>
+              <div className="space-y-3 pt-4 border-t">
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  Schedule of Costs
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Facility Fee (3.5%)</span>
+                    <span className="font-medium">{formatCurrency(calculation.facilityFee)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Documentation Fee</span>
+                    <span className="font-medium">{formatCurrency(calculation.documentationFee || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Legal Fees (Est)</span>
+                    <span className="font-medium">{formatCurrency(calculation.legalFee || 0)}</span>
+                  </div>
+                  {calculation.commissionAmount !== undefined && calculation.commissionAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Broker Commission</span>
+                      <span className="font-medium">{formatCurrency(calculation.commissionAmount)}</span>
+                    </div>
+                  )}
+                  {addDocFeeToLoan && (calculation.documentationFee || 0) > 0 && (
+                    <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-100 flex gap-2 text-[11px] text-amber-800">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      Documentation fee capitalized to principal.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t flex justify-between items-end">
+                <span className="text-muted-foreground font-medium">Total Repayment</span>
+                <span className="text-xl font-bold">{formatCurrency(calculation.totalRepayment)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function HirePurchaseCalculatorTool({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
+  const [assetPrice, setAssetPrice] = useState("");
+  const [deposit, setDeposit] = useState("");
+  const [interestRate, setInterestRate] = useState("");
+  const [term, setTerm] = useState("");
+  const [commissionRate, setCommissionRate] = useState("");
+
+  useEffect(() => {
+    setAssetPrice(data.hirePurchase?.assetPrice?.toString() || "");
+    setDeposit(data.hirePurchase?.deposit?.toString() || "");
+    setInterestRate(data.hirePurchase?.interestRate?.toString() || "");
+    setTerm(data.hirePurchase?.term?.toString() || "");
+    setCommissionRate(data.hirePurchase?.commissionRate?.toString() || "");
+  }, [data.hirePurchase]);
+
+  const calculation =
+    assetPrice && interestRate && term
+      ? calculateHirePurchase(
+        parseFloat(assetPrice),
+        deposit ? parseFloat(deposit) : 0,
+        parseFloat(interestRate),
+        parseInt(term),
+        commissionRate ? parseFloat(commissionRate) : undefined
+      )
+      : null;
+
+  const handleSave = () => {
+    onSave({
+      hirePurchase: {
+        assetPrice: assetPrice ? parseFloat(assetPrice) : undefined,
+        deposit: deposit ? parseFloat(deposit) : undefined,
+        interestRate: interestRate ? parseFloat(interestRate) : undefined,
+        term: term ? parseInt(term) : undefined,
+        commissionRate: commissionRate ? parseFloat(commissionRate) : undefined,
+      },
+    });
+  };
+
+  return (
+    <Card className="h-full border-none shadow-none">
+      <CardHeader className="px-0 pt-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Hire Purchase Calculator</CardTitle>
+            <CardDescription>Calculate HP monthly payments and total costs</CardDescription>
+          </div>
+          {calculation && (
+            <Button onClick={handleSave} disabled={isSaving} size="sm" className="gap-2">
+              <Save className="w-4 h-4" />
+              {isSaving ? "Saving..." : "Save Assessment"}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="px-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="asset-price">Asset Price (£)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
+                  <Input
+                    id="asset-price"
+                    type="number"
+                    value={assetPrice}
+                    onChange={(e) => setAssetPrice(e.target.value)}
+                    className="pl-7"
+                    placeholder="50000"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="deposit">Deposit (£)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
+                  <Input
+                    id="deposit"
+                    type="number"
+                    value={deposit}
+                    onChange={(e) => setDeposit(e.target.value)}
+                    className="pl-7"
+                    placeholder="10000"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="hp-interest-rate">Interest Rate (%)</Label>
+                  <div className="relative">
+                    <Input
+                      id="hp-interest-rate"
+                      type="number"
+                      step="0.1"
+                      className="pr-8"
+                      value={interestRate}
+                      onChange={(e) => setInterestRate(e.target.value)}
+                      placeholder="6.5"
+                    />
+                    <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hp-term">Term (months)</Label>
+                  <Input
+                    id="hp-term"
+                    type="number"
+                    value={term}
+                    onChange={(e) => setTerm(e.target.value)}
+                    placeholder="36"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="hp-commission-rate">Commission (%)</Label>
+                <div className="relative">
+                  <Input
+                    id="hp-commission-rate"
+                    type="number"
+                    step="0.1"
+                    className="pr-8"
+                    value={commissionRate}
+                    onChange={(e) => setCommissionRate(e.target.value)}
+                    placeholder="1.0"
+                  />
+                  <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
+                </div>
+              </div>
+            </div>
+
+            {!calculation && (
+              <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+                <Calculator className="mx-auto h-8 w-8 mb-2 opacity-50" />
+                <p>Enter HP details to see calculation</p>
+              </div>
+            )}
+          </div>
+
+          {calculation && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="rounded-xl bg-primary/5 p-6 border border-primary/10">
+                <div className="text-sm font-medium text-muted-foreground mb-1">Monthly Payment</div>
+                <div className="text-4xl font-bold text-primary tracking-tight">
+                  {formatCurrency(calculation.monthlyPayment)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="text-sm text-muted-foreground mb-1">Total Interest</div>
+                  <div className="font-semibold text-lg">{formatCurrency(calculation.totalInterest)}</div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="text-sm text-muted-foreground mb-1">Option Fee</div>
+                  <div className="font-semibold text-lg">{formatCurrency(calculation.optionToPurchaseFee)}</div>
+                </div>
+              </div>
+
+              {calculation.commissionAmount !== undefined && (
+                <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-100">
+                  <div className="text-sm text-emerald-600 mb-1 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" /> Commission
+                  </div>
+                  <div className="font-bold text-lg text-emerald-700">{formatCurrency(calculation.commissionAmount)}</div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t flex justify-between items-end">
+                <span className="text-muted-foreground font-medium">Total Repayment</span>
+                <span className="text-xl font-bold">{formatCurrency(calculation.totalRepayment)}</span>
               </div>
             </div>
           )}
@@ -429,27 +730,35 @@ export function AffordabilityEstimatorTool({
   onSave,
   isSaving,
 }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [income, setIncome] = useState("");
-  const [commitments, setCommitments] = useState("");
+  const [revenue, setRevenue] = useState("");
+  const [ebitda, setEbitda] = useState("");
   const [loanPayment, setLoanPayment] = useState("");
+  const [existingDebt, setExistingDebt] = useState("");
 
   useEffect(() => {
-    setIncome(data.affordability?.personalIncome?.toString() || "");
-    setCommitments(data.affordability?.monthlyCommitments?.toString() || "");
-    setLoanPayment(data.affordability?.loanPayment?.toString() || "");
+    setRevenue(data.affordability?.annualRevenue?.toString() || "");
+    setEbitda(data.affordability?.annualEbitda?.toString() || "");
+    setLoanPayment(data.affordability?.monthlyLoanPayment?.toString() || "");
+    setExistingDebt(data.affordability?.existingMonthlyDebt?.toString() || "");
   }, [data.affordability]);
 
   const calculation =
-    income && commitments && loanPayment
-      ? calculateAffordability(parseFloat(income), parseFloat(commitments), parseFloat(loanPayment))
+    revenue && ebitda && loanPayment && existingDebt
+      ? calculateAffordability(
+        parseFloat(revenue),
+        parseFloat(ebitda),
+        parseFloat(loanPayment),
+        parseFloat(existingDebt)
+      )
       : null;
 
   const handleSave = () => {
     onSave({
       affordability: {
-        personalIncome: income ? parseFloat(income) : undefined,
-        monthlyCommitments: commitments ? parseFloat(commitments) : undefined,
-        loanPayment: loanPayment ? parseFloat(loanPayment) : undefined,
+        annualRevenue: revenue ? parseFloat(revenue) : undefined,
+        annualEbitda: ebitda ? parseFloat(ebitda) : undefined,
+        monthlyLoanPayment: loanPayment ? parseFloat(loanPayment) : undefined,
+        existingMonthlyDebt: existingDebt ? parseFloat(existingDebt) : undefined,
       },
     });
   };
@@ -459,8 +768,8 @@ export function AffordabilityEstimatorTool({
       <CardHeader className="px-0 pt-0">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Affordability Estimator</CardTitle>
-            <CardDescription>Personal income and commitments check</CardDescription>
+            <CardTitle>Business Affordability Estimator</CardTitle>
+            <CardDescription>Assess repayment capacity based on EBITDA</CardDescription>
           </div>
           {calculation && (
             <Button
@@ -479,37 +788,37 @@ export function AffordabilityEstimatorTool({
       <CardContent className="px-0">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-6">
-            <div className="space-y-4">
+            <div className="grid gap-4">
               <div className="space-y-2">
-                <Label htmlFor="personal-income">Monthly Personal Income (£)</Label>
+                <Label htmlFor="revenue">Annual Revenue (£)</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
                   <Input
-                    id="personal-income"
+                    id="revenue"
                     type="number"
                     className="pl-7"
-                    value={income}
-                    onChange={(e) => setIncome(e.target.value)}
-                    placeholder="10000"
+                    value={revenue}
+                    onChange={(e) => setRevenue(e.target.value)}
+                    placeholder="1000000"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="monthly-commitments">Monthly Commitments (£)</Label>
+                <Label htmlFor="ebitda">Annual EBITDA (£)</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
                   <Input
-                    id="monthly-commitments"
+                    id="ebitda"
                     type="number"
                     className="pl-7"
-                    value={commitments}
-                    onChange={(e) => setCommitments(e.target.value)}
-                    placeholder="3000"
+                    value={ebitda}
+                    onChange={(e) => setEbitda(e.target.value)}
+                    placeholder="200000"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="loan-payment">Proposed Loan Payment (£)</Label>
+                <Label htmlFor="loan-payment">Proposed Monthly Loan Payment (£)</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
                   <Input
@@ -519,6 +828,20 @@ export function AffordabilityEstimatorTool({
                     value={loanPayment}
                     onChange={(e) => setLoanPayment(e.target.value)}
                     placeholder="5000"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="existing-debt">Existing Monthly Debt Service (£)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-muted-foreground">£</span>
+                  <Input
+                    id="existing-debt"
+                    type="number"
+                    className="pl-7"
+                    value={existingDebt}
+                    onChange={(e) => setExistingDebt(e.target.value)}
+                    placeholder="2500"
                   />
                 </div>
               </div>
@@ -555,17 +878,17 @@ export function AffordabilityEstimatorTool({
                 </div>
                 <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                   <div>
-                    <span className="block opacity-70">Income</span>
-                    <span className="font-medium text-foreground">{formatCurrency(parseFloat(income))}</span>
+                    <span className="block opacity-70">EBITDA</span>
+                    <span className="font-medium text-foreground">{formatCurrency(parseFloat(ebitda))}</span>
                   </div>
                   <div>
-                    <span className="block opacity-70">Expenses</span>
-                    <span className="font-medium text-foreground">{formatCurrency(parseFloat(commitments) + parseFloat(loanPayment))}</span>
+                    <span className="block opacity-70">Debt Service</span>
+                    <span className="font-medium text-foreground">{formatCurrency((parseFloat(existingDebt) + parseFloat(loanPayment)) * 12)}</span>
                   </div>
                   <div>
-                    <span className="block opacity-70">Surplus</span>
-                    <span className={`font-medium ${calculation.disposableIncome < 0 ? "text-red-600" : "text-green-600"}`}>
-                      {((calculation.disposableIncome / parseFloat(income)) * 100).toFixed(0)}%
+                    <span className="block opacity-70">DSCR</span>
+                    <span className={`font-medium ${calculation.status === "fail" ? "text-red-600" : "text-green-600"}`}>
+                      {calculation.ratio.toFixed(2)}x
                     </span>
                   </div>
                 </div>
@@ -800,81 +1123,62 @@ export function CharacterAssessmentTool({
             <div className="text-sm mt-2">{score.recommendation}</div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Management Experience</Label>
-                <span className="text-sm font-medium">{getRatingLabel(managementExp)}</span>
+          <div className="space-y-6">
+            {[
+              { label: "Management Experience", value: managementExp, setValue: setManagementExp, id: "management" },
+              { label: "Credit History", value: creditHistory, setValue: setCreditHistory, id: "credit" },
+              { label: "Bank Conduct", value: bankConduct, setValue: setBankConduct, id: "bank" },
+              { label: "Contracts & Capacity", value: contracts, setValue: setContracts, id: "contracts" },
+            ].map((item) => (
+              <div key={item.id}>
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-base">{item.label}</Label>
+                  <span className={`text-sm font-medium px-2 py-0.5 rounded ${item.value >= 4 ? "bg-green-100 text-green-700" :
+                    item.value === 3 ? "bg-amber-100 text-amber-700" :
+                      "bg-red-100 text-red-700"
+                    }`}>
+                    {getRatingLabel(item.value)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <Button
+                      key={rating}
+                      variant={item.value === rating ? "default" : "outline"}
+                      onClick={() => item.setValue(rating)}
+                      className={`h-12 text-lg font-semibold transition-all ${item.value === rating
+                        ? "ring-2 ring-offset-2 ring-primary"
+                        : "hover:bg-primary/5 hover:border-primary/50 text-muted-foreground"
+                        }`}
+                      data-testid={`btn-${item.id}-${rating}`}
+                      title={getRatingLabel(rating)}
+                    >
+                      {rating}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex justify-between mt-1 px-1">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Very Poor</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Excellent</span>
+                </div>
               </div>
-              <Slider
-                value={[managementExp]}
-                onValueChange={(value) => setManagementExp(value[0])}
-                min={1}
-                max={5}
-                step={1}
-                data-testid="slider-management"
-              />
-            </div>
+            ))}
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Credit History</Label>
-                <span className="text-sm font-medium">{getRatingLabel(creditHistory)}</span>
-              </div>
-              <Slider
-                value={[creditHistory]}
-                onValueChange={(value) => setCreditHistory(value[0])}
-                min={1}
-                max={5}
-                step={1}
-                data-testid="slider-credit"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Bank Conduct</Label>
-                <span className="text-sm font-medium">{getRatingLabel(bankConduct)}</span>
-              </div>
-              <Slider
-                value={[bankConduct]}
-                onValueChange={(value) => setBankConduct(value[0])}
-                min={1}
-                max={5}
-                step={1}
-                data-testid="slider-bank"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Contracts & Capacity</Label>
-                <span className="text-sm font-medium">{getRatingLabel(contracts)}</span>
-              </div>
-              <Slider
-                value={[contracts]}
-                onValueChange={(value) => setContracts(value[0])}
-                min={1}
-                max={5}
-                step={1}
-                data-testid="slider-contracts"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="character-notes">Assessment Notes</Label>
+            <div className="pt-4 border-t">
+              <Label htmlFor="character-notes" className="mb-2 block">Assessment Notes</Label>
               <Textarea
                 id="character-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add detailed notes about the borrower's character..."
                 rows={4}
+                className="resize-none focus-visible:ring-primary"
                 data-testid="textarea-character-notes"
               />
             </div>
 
-            <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-character">
-              <Save className="w-4 h-4 mr-2" />
+            <Button onClick={handleSave} disabled={isSaving} className="w-full h-11 text-base" data-testid="button-save-character">
+              <Save className="w-5 h-5 mr-2" />
               {isSaving ? "Saving..." : "Save Assessment"}
             </Button>
           </div>

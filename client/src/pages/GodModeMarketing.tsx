@@ -22,12 +22,12 @@ export default function GodModeMarketing() {
     return (
         <MarketingLayout>
             <Switch>
-                <Route path="/god-mode/marketing" component={MarketingDashboard} />
-                <Route path="/god-mode/marketing/validate" component={MarketingVerification} />
-                <Route path="/god-mode/marketing/companies" component={CompanyVerification} />
-                <Route path="/god-mode/marketing/contacts" component={MarketingContacts} />
-                <Route path="/god-mode/marketing/campaigns" component={CampaignBuilder} />
-                <Route path="/god-mode/marketing/analytics" component={MarketingAnalytics} />
+                <Route path="/marketing" component={MarketingDashboard} />
+                <Route path="/marketing/validate" component={MarketingVerification} />
+                <Route path="/marketing/companies" component={CompanyVerification} />
+                <Route path="/marketing/contacts" component={MarketingContacts} />
+                <Route path="/marketing/campaigns" component={CampaignBuilder} />
+                <Route path="/marketing/analytics" component={MarketingAnalytics} />
 
                 {/* Catch-all for sub-routes that don't match */}
                 <Route component={PathDisplay} />

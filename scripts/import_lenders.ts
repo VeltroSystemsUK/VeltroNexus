@@ -49,6 +49,26 @@ function extractPhone(str: string): string | undefined {
     return match ? match[0].trim() : undefined;
 }
 
+function normalizeProduct(s: string): string {
+    const trimmed = s.trim();
+    // Normalize common variations to match PRODUCT_TYPES in schema.ts
+    const lower = trimmed.toLowerCase();
+    if (lower === 'invoice finance' || lower === 'factoring') return 'Invoice Finance';
+    if (lower === 'asset finance' || lower === 'leasing') return 'Asset Finance';
+    if (lower === 'commercial mortgages' || lower === 'commercial mortgage') return 'Commercial Mortgages';
+    if (lower === 'bridging finance' || lower === 'bridging') return 'Bridging';
+    if (lower === 'development finance') return 'Development Finance';
+    if (lower === 'trade finance') return 'Trade Finance';
+    if (lower === 'working capital') return 'Working Capital';
+    if (lower === 'merchant cash advance' || lower === 'mca') return 'Merchant Cash Advance';
+    if (lower === 'term loan' || lower === 'business loan') return 'Term Loan';
+    if (lower === 'revolving credit') return 'Revolving Credit';
+    if (lower === 'buy-to-let' || lower === 'btl') return 'Buy-to-Let';
+
+    // Capitalize first letter of each word as a fallback
+    return trimmed.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+}
+
 async function importLenders() {
     console.log("Starting Lender Import...");
 
@@ -84,6 +104,14 @@ async function importLenders() {
             const phone = extractPhone(contactInfo);
             const { min, max } = parseRange(loanRange);
 
+            // Determine product types with normalization and fallback to category
+            let productTypes: string[] = [];
+            if (products) {
+                productTypes = products.split(',').map(normalizeProduct);
+            } else if (category) {
+                productTypes = category.split(',').map(normalizeProduct);
+            }
+
             // Find existing lender by namme
             const lendersRef = db.collection("lenders");
             const snapshot = await lendersRef.where("institutionName", "==", name).get();
@@ -101,7 +129,7 @@ async function importLenders() {
                 // Just put geographic info in address for now if not structured?
                 // Or maybe 'regions'? Schema has 'regions' (json).
                 ...(geo ? { regions: [geo] } : {}),
-                ...(products ? { productTypes: products.split(',').map(s => s.trim()) } : {}),
+                productTypes,
                 // isGlobal defaults to 1 for this import? It's "Global Lenders" technically?
                 // User said "Scrape all the logos...". These are "UK Commercial Lenders".
                 // I will set isGlobal=1 for these "system" lenders.

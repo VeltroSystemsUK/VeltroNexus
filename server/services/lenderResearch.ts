@@ -1,5 +1,4 @@
-import { enrichCompanyProfile } from "../utils/tavilyClient";
-import { generateText, repairJson } from "../utils/geminiClient";
+import { researchCompany, generateText, repairJson } from "../utils/geminiClient";
 import { storage } from "../storage";
 import { z } from "zod";
 
@@ -34,8 +33,8 @@ export async function researchLender(
 
     console.log(`[Lender Research] Starting AI deep dive for: ${institutionName} (Target: ${params.targetField || 'All'})`);
 
-    // Step 1: Get raw intelligence from Tavily/Gemini synthesis
-    const enrichment = await enrichCompanyProfile(institutionName, website || undefined);
+    // Step 1: Get raw intelligence from Gemini grounded research
+    const enrichment = await researchCompany(institutionName, website || undefined);
 
     // Step 2: Refine specifically for LENDER criteria
     const targetContext = params.targetField ? `Focus specifically on providing a detailed result for the field "${params.targetField}".` : "";

@@ -1,0 +1,307 @@
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Loader2, CheckCircle, AlertCircle, Clock, Activity, Trash2, Search, Database } from "lucide-react";
+import { toast } from "sonner";
+
+interface AgentJob {
+  id: string;
+  agentId: string;
+  type: string;
+  status: "pending" | "running" | "completed" | "failed";
+  title: string;
+  description: string;
+  totalSteps: number;
+  completedSteps: number;
+  currentStep: string;
+  logs: Array<{
+    timestamp: string;
+    message: string;
+    type: "info" | "success" | "warning" | "error";
+  }>;
+  results: any;
+  startedAt: string;
+  completedAt?: string;
+}
+
+interface AgentJobProgressProps {
+  userId?: string;
+  refreshInterval?: number;
+}
+
+export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobProgressProps) {
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: jobs, isLoading } = useQuery<AgentJob[]>({
+    queryKey: ["/api/agent-jobs"],
+    refetchInterval: refreshInterval,
+  });
+
+  const { data: runningJobs } = useQuery<AgentJob[]>({
+    queryKey: ["/api/agent-jobs/running"],
+    refetchInterval: refreshInterval,
+  });
+
+  // Fetch agent roster to show agent names
+  const { data: agents } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["/api/workforce"],
+  });
+
+  const deleteJobMutation = useMutation({
+    mutationFn: (jobId: string) => apiRequest(`/api/agent-jobs/${jobId}`, "DELETE"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-jobs"] });
+      toast.success("Activity record deleted");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to delete record: " + error.message);
+    }
+  });
+
+  const getAgentName = (agentId: string) => {
+    if (agentId === "enrichment-agent") return "Agent B (Enrichment)";
+    if (agentId === "database-builder") return "Agent A (Discovery)";
+    const agent = agents?.find((a) => a.id === agentId);
+    return agent?.name || agentId;
+  };
+
+  const safeDate = (date: any) => {
+    if (!date) return new Date();
+    const d = new Date(date);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "running":
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case "completed":
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "failed":
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "data_enrichment":
+        return <Database className="h-3 w-3 text-purple-500" />;
+      case "scheduled_task":
+        return <Search className="h-3 w-3 text-blue-500" />;
+      default:
+        return <Activity className="h-3 w-3 text-gray-400" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "running":
+        return <Badge className="bg-blue-500">In Progress</Badge>;
+      case "completed":
+        return <Badge className="bg-green-500 border-none">Completed</Badge>;
+      case "failed":
+        return <Badge className="bg-red-500">Failed</Badge>;
+      default:
+        return <Badge className="bg-gray-500">Pending</Badge>;
+    }
+  };
+
+  const getLogIcon = (type: string) => {
+    switch (type) {
+      case "success":
+        return <CheckCircle className="h-3 w-3 text-green-500" />;
+      case "error":
+        return <AlertCircle className="h-3 w-3 text-red-500" />;
+      case "warning":
+        return <AlertCircle className="h-3 w-3 text-yellow-500" />;
+      default:
+        return <Activity className="h-3 w-3 text-blue-500" />;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span className="ml-2">Loading agent jobs...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!jobs || jobs.length === 0) {
+    return (
+      <Card className="mb-6 border-dashed bg-muted/20">
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center justify-center text-muted-foreground py-4">
+            <Activity className="h-8 w-8 mb-2 opacity-20" />
+            <p className="text-sm font-medium">No active agent tasks</p>
+            <p className="text-xs">Harvesting and enrichment activity will appear here</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show only recent jobs (last 5)
+  const recentJobs = jobs.slice(0, 5);
+  const hasRunningJobs = runningJobs && runningJobs.length > 0;
+
+  return (
+    <Card className="mb-6 bg-white/50 backdrop-blur-sm border-primary/10">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            Agent Activity History
+            {hasRunningJobs && (
+              <Badge className="bg-blue-500 animate-pulse ml-2">{runningJobs.length} Active</Badge>
+            )}
+          </CardTitle>
+          <CardDescription className="text-xs">Recent Discovery & Enrichment Logs</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {recentJobs.map((job) => (
+            <div
+              key={job.id}
+              className={`border rounded-lg p-3 transition-all relative group ${expandedJobId === job.id
+                ? "border-primary/30 bg-primary/[0.03]"
+                : "border-border hover:border-primary/20 hover:bg-muted/30"
+                }`}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div
+                  className="flex flex-col gap-1 cursor-pointer flex-1"
+                  onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
+                >
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(job.status)}
+                    <span className="font-semibold text-sm">{job.title}</span>
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                      {getTypeIcon(job.type)}
+                      {job.type === 'data_enrichment' ? 'Enrichment' : 'Discovery'}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground ml-6">
+                    {getAgentName(job.agentId)} • {safeDate(job.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(job.status)}
+                  {job.status !== 'running' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm("Delete this activity record?")) {
+                          deleteJobMutation.mutate(job.id);
+                        }
+                      }}
+                      disabled={deleteJobMutation.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {!expandedJobId || expandedJobId !== job.id ? (
+                <div className="ml-6 flex items-center gap-3">
+                  <div className="flex-1">
+                    <Progress value={(job.completedSteps / job.totalSteps) * 100} className="h-1" />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap min-w-[40px]">
+                    {Math.round((job.completedSteps / job.totalSteps) * 100)}%
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-3 ml-6 space-y-3">
+                  <p className="text-xs text-muted-foreground italic mb-2 border-l-2 border-primary/20 pl-2">
+                    {job.description}
+                  </p>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span className="font-medium text-foreground">{job.currentStep}</span>
+                      <span>
+                        {job.completedSteps} / {job.totalSteps} targets
+                      </span>
+                    </div>
+                    <Progress value={(job.completedSteps / job.totalSteps) * 100} className="h-1.5" />
+                  </div>
+
+                  {job.logs.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-primary/10">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Activity Log</h4>
+                      <ScrollArea className="h-32">
+                        <div className="space-y-1.5">
+                          {[...job.logs].reverse().map((log, index) => (
+                            <div key={index} className="flex items-start gap-2 text-xs">
+                              {getLogIcon(log.type)}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground text-[9px]">
+                                    {safeDate(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  </span>
+                                  <p
+                                    className={
+                                      log.type === "error"
+                                        ? "text-red-600 font-medium"
+                                        : log.type === "success"
+                                          ? "text-green-600 font-medium"
+                                          : "text-foreground"
+                                    }
+                                  >
+                                    {log.message}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {job.results && (
+                    <div className="mt-3 pt-3 border-t border-primary/10">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Execution Summary</h4>
+                      <div className="bg-muted/50 p-2 rounded text-[10px] font-mono whitespace-pre-wrap">
+                        {typeof job.results === 'object'
+                          ? Object.entries(job.results).map(([k, v]) => `${k}: ${v}`).join('\n')
+                          : String(job.results)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {job.status === "running" && expandedJobId !== job.id && (
+                <div className="mt-2 ml-6 flex items-center gap-1.5 text-[10px] text-blue-500 font-medium">
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                  <span>Researching...</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

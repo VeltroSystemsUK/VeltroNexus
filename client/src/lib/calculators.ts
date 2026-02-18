@@ -3,6 +3,18 @@ export interface LoanCalculation {
   totalInterest: number;
   totalRepayment: number;
   facilityFee: number;
+  commissionAmount?: number;
+  documentationFee?: number;
+  legalFee?: number;
+  totalCapitalBorrowed?: number;
+}
+
+export interface HirePurchaseCalculation {
+  monthlyPayment: number;
+  totalInterest: number;
+  totalRepayment: number;
+  commissionAmount?: number;
+  optionToPurchaseFee: number;
 }
 
 export interface DSCRCalculation {
@@ -29,32 +41,87 @@ export interface FinancialRatios {
 export function calculateLoan(
   loanAmount: number,
   interestRate: number,
-  termMonths: number
+  termMonths: number,
+  commissionRate?: number,
+  documentationFee: number = 0,
+  addDocFeeToLoan: boolean = false,
+  legalFee: number = 0
 ): LoanCalculation {
   const facilityFee = loanAmount * 0.035;
+  const commissionAmount = commissionRate ? loanAmount * (commissionRate / 100) : 0;
+
+  // Base capital for interest calculation
+  const capitalForInterest = addDocFeeToLoan ? loanAmount + documentationFee : loanAmount;
 
   if (interestRate === 0) {
+    const monthlyPayment = capitalForInterest / termMonths;
     return {
-      monthlyPayment: loanAmount / termMonths,
+      monthlyPayment,
       totalInterest: 0,
-      totalRepayment: loanAmount,
+      totalRepayment: capitalForInterest,
       facilityFee,
+      commissionAmount,
+      documentationFee,
+      legalFee,
+      totalCapitalBorrowed: capitalForInterest,
     };
   }
 
   const monthlyRate = interestRate / 100 / 12;
   const monthlyPayment =
-    (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, termMonths)) /
+    (capitalForInterest * monthlyRate * Math.pow(1 + monthlyRate, termMonths)) /
     (Math.pow(1 + monthlyRate, termMonths) - 1);
 
   const totalRepayment = monthlyPayment * termMonths;
-  const totalInterest = totalRepayment - loanAmount;
+  const totalInterest = totalRepayment - capitalForInterest;
 
   return {
     monthlyPayment,
     totalInterest,
     totalRepayment,
     facilityFee,
+    commissionAmount,
+    documentationFee,
+    legalFee,
+    totalCapitalBorrowed: capitalForInterest,
+  };
+}
+
+export function calculateHirePurchase(
+  assetPrice: number,
+  deposit: number,
+  interestRate: number,
+  termMonths: number,
+  commissionRate?: number
+): HirePurchaseCalculation {
+  const principal = assetPrice - deposit;
+  const optionToPurchaseFee = 10; // Standard nominal fee
+  const commissionAmount = commissionRate ? principal * (commissionRate / 100) : 0;
+
+  if (interestRate === 0) {
+    return {
+      monthlyPayment: principal / termMonths,
+      totalInterest: 0,
+      totalRepayment: principal + optionToPurchaseFee,
+      commissionAmount,
+      optionToPurchaseFee,
+    };
+  }
+
+  const monthlyRate = interestRate / 100 / 12;
+  const monthlyPayment =
+    (principal * monthlyRate * Math.pow(1 + monthlyRate, termMonths)) /
+    (Math.pow(1 + monthlyRate, termMonths) - 1);
+
+  const totalRepayment = (monthlyPayment * termMonths) + optionToPurchaseFee;
+  const totalInterest = totalRepayment - principal;
+
+  return {
+    monthlyPayment,
+    totalInterest,
+    totalRepayment,
+    commissionAmount,
+    optionToPurchaseFee,
   };
 }
 
@@ -93,15 +160,30 @@ export function calculateDSCR(
   return { dscr, status };
 }
 
+export interface AffordabilityCalculation {
+  ratio: number;
+  status: "pass" | "fail";
+  disposableIncome: number;
+}
+
+// ... existing code ...
+
 export function calculateAffordability(
-  personalIncome: number,
-  monthlyCommitments: number,
-  loanPayment: number
+  annualRevenue: number,
+  annualEbitda: number,
+  monthlyLoanPayment: number,
+  existingMonthlyDebt: number
 ): AffordabilityCalculation {
-  const totalCommitments = monthlyCommitments + loanPayment;
-  const ratio = personalIncome / totalCommitments;
+  const annualDebtService = (monthlyLoanPayment + existingMonthlyDebt) * 12;
+
+  // Affordability Ratio based on EBITDA / Total Debt Service
+  const ratio = annualDebtService > 0 ? annualEbitda / annualDebtService : 0;
+
+  // Pass if EBITDA covers debt service by at least 1.25x
   const status = ratio >= 1.25 ? "pass" : "fail";
-  const disposableIncome = personalIncome - totalCommitments;
+
+  // Surplus cash flow
+  const disposableIncome = annualEbitda - annualDebtService;
 
   return { ratio, status, disposableIncome };
 }

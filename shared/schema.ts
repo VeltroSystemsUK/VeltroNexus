@@ -168,6 +168,7 @@ export const lenderSchema = z.object({
   turnaroundDays: z.number().nullable().optional(),
   panelStatus: z.string().default("market"),
   accreditationStatus: z.string().nullable().optional(),
+  fcaReference: z.string().nullable().optional(), // Added for LenderFile integration
   accreditationExpiry: dateSchema,
   bdmName: z.string().nullable().optional(),
   bdmEmail: z.string().nullable().optional(),
@@ -183,6 +184,7 @@ export const lenderSchema = z.object({
   introducerAgreementSigned: z.number().default(0),
   lendingPolicy: z.string().nullable().optional(),
   insights: z.string().nullable().optional(),
+  tier: z.number().nullable().optional(),
   lastContactedAt: dateSchema,
   createdAt: dateSchema,
   updatedAt: dateSchema
@@ -504,6 +506,7 @@ export const underwritingDataSchema = z.object({
 export const dueDiligenceDataSchema = z.object({
   checklist: z.array(checklistItemSchema).default([]),
   loanCalculator: z.any().optional(),
+  hirePurchase: z.any().optional(), // Added
   dscr: z.any().optional(),
   affordability: z.any().optional(),
   financialRatios: z.any().optional(),
@@ -794,8 +797,27 @@ export type InsertLeadUpload = any;
 export type UpdateUnderwritingSubmission = any;
 export type InsertUnderwritingActivity = any;
 
-export type ProspectDocument = { id: number; prospectId: number; userId: string; fileName: string; fileType: string; fileSize: number; storagePath: string; category: string; notes?: string; createdAt: Date };
-export type InsertProspectDocument = any;
+// --- Document Management ---
+export const prospectDocumentSchema = z.object({
+  id: z.number().optional(),
+  prospectId: z.number(),
+  userId: z.string(),
+  fileName: z.string(),
+  fileType: z.string(),
+  fileSize: z.number(),
+  storagePath: z.string(),
+  category: z.string().default("general"),
+  status: z.enum(["pending", "approved", "rejected"]).default("pending"),
+  notes: z.string().nullable().optional(),
+  uploadedAt: dateSchema,
+  createdAt: dateSchema
+});
+export type ProspectDocument = z.infer<typeof prospectDocumentSchema>;
+export const insertProspectDocumentSchema = prospectDocumentSchema.omit({
+  id: true, createdAt: true, uploadedAt: true
+});
+export type InsertProspectDocument = z.infer<typeof insertProspectDocumentSchema>;
+
 
 export type InsertAddOnProduct = any;
 export type UpdateAddOnProduct = any;
@@ -822,18 +844,20 @@ export const lenderEnquiries = {
 
 
 // --- Constants ---
+export const LENDER_TIERS = [
+  { value: 1.0, label: "Tier 1.0 - Major Banks" },
+  { value: 1.5, label: "Tier 1.5 - Challenger & Vendor" },
+  { value: 2.0, label: "Tier 2.0 - Alternative & CDFI" },
+  { value: 2.5, label: "Tier 2.5 - Specialised Lenders" },
+  { value: 3.0, label: "Tier 3.0 - Sub Prime Lenders" },
+];
+
 export const LENDER_TYPES = [
-  { value: "bank", label: "Bank" },
-  { value: "challenger_bank", label: "Challenger Bank" },
-  { value: "building_society", label: "Building Society" },
-  { value: "specialist_lender", label: "Specialist Lender" },
-  { value: "specialist_cdfi", label: "Specialist - CDFI" },
-  { value: "bridging_lender", label: "Bridging Lender" },
-  { value: "asset_finance", label: "Asset Finance" },
-  { value: "invoice_finance", label: "Invoice Finance" },
-  { value: "development_finance", label: "Development Finance" },
-  { value: "peer_to_peer", label: "Peer-to-Peer" },
-  { value: "private_lender", label: "Private Lender" },
+  { value: "tier1.0", label: "Tier 1.0 - Major Banks" },
+  { value: "tier1.5", label: "Tier 1.5 - Challenger & Vendor" },
+  { value: "tier2.0", label: "Tier 2.0 - Alternative & CDFI" },
+  { value: "tier2.5", label: "Tier 2.5 - Specialised Lenders" },
+  { value: "tier3.0", label: "Tier 3.0 - Sub Prime Lenders" },
 ];
 
 export const PRODUCT_TYPES = [
@@ -850,6 +874,16 @@ export const PRODUCT_TYPES = [
   "Mezzanine",
   "Equity Release",
   "Working Capital",
+  "Vehicle Finance", // Added
+  "Equipment Leasing", // Added
+  "Stock Finance", // Added
+  "Supply Chain Finance", // Added
+  "Export Finance", // Added
+  "Import Finance", // Added
+  "Litigation Funding", // Added
+  "VAT Loans", // Added
+  "Tax Loans", // Added
+  "Unsecured Business Loans", // Added
 ];
 
 export const SECTORS = [
@@ -905,11 +939,21 @@ export const internalLeadSchema = z.object({
 
   // Rich Data Fields
   address: z.string().optional(),
+  city: z.string().optional(),
+  hasCharges: z.boolean().optional().default(false),
+  identifiedLender: z.string().optional(), // The Registered Charge holder
+  chargeDate: z.string().optional(),
+  chargeAmount: z.number().optional(),
+  chargeStatus: z.string().optional(), // active, satisfied, none
+  totalChargesCount: z.number().optional().default(0),
+  satisfiedChargesCount: z.number().optional().default(0),
   companyType: z.string().optional(),
   sicCode: z.string().optional(),
   incorporationDate: z.string().optional(),
+  website: z.string().optional(),
+  linkedinUrl: z.string().optional(), // Company LinkedIn Page
 
-  // JSON field for contacts array [{ name, role, email, phone }]
+  // JSON field for contacts array [{ name, role, email, phone, linkedinUrl }]
   contacts: z.any().default([]),
 
   createdAt: dateSchema,
@@ -971,3 +1015,103 @@ export const insertMarketingContactSchema = marketingContactSchema.omit({
 
 export type MarketingContact = z.infer<typeof marketingContactSchema>;
 export type InsertMarketingContact = z.infer<typeof insertMarketingContactSchema>;
+
+// --- Scraped Leads (Auto-Qualified) ---
+export const scrapedLeadSchema = z.object({
+  id: z.number().optional(),
+  companyName: z.string(),
+  companyNumber: z.string(),
+  sicCode: z.string().nullable().optional(),
+  incorporationDate: z.string().nullable().optional(),
+
+  // Google Maps Data
+  email: z.string().nullable().optional(),
+  website: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  rating: z.number().nullable().optional(),
+  reviewCount: z.number().nullable().optional(),
+  googlePlaceId: z.string().nullable().optional(),
+
+  // Scoring
+  score: z.number().default(0),
+  priority: z.enum(["low", "medium", "high"]).default("low"),
+  recommendedApproach: z.string().nullable().optional(),
+
+  // Debt Markers
+  identifiedLender: z.string().nullable().optional(),
+  chargeDate: dateSchema,
+  chargeAmount: z.number().nullable().optional(),
+
+  // Financial Audit
+  cashAtBank: z.number().nullable().optional(),
+  creditorsDue: z.number().nullable().optional(),
+  netAssets: z.number().nullable().optional(),
+  crisisRatio: z.number().nullable().optional(),
+
+  // Status
+  status: z.enum(["new", "contacted", "converted", "rejected"]).default("new"),
+  emailDraftId: z.number().nullable().optional(), // Link to Generated Email
+
+  createdAt: dateSchema,
+  updatedAt: dateSchema
+});
+export type ScrapedLead = z.infer<typeof scrapedLeadSchema>;
+export const insertScrapedLeadSchema = scrapedLeadSchema.omit({
+  id: true, createdAt: true, updatedAt: true
+});
+export type InsertScrapedLead = z.infer<typeof insertScrapedLeadSchema>;
+
+// --- ARES Campaigns (Regional & Sector Targeting) ---
+export const campaignsSchema = z.object({
+  id: z.number().optional(),
+  name: z.string().min(1, "Name is required"), // e.g. "Manchester M3"
+  type: z.enum(["region", "sector"]).default("region"),
+  value: z.string().min(1, "Value is required"), // e.g. "M3", "41202"
+  status: z.enum(["active", "paused", "completed"]).default("active"),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+
+  // Performance Metrics
+  lastRun: dateSchema.nullable().optional(),
+  leadsFound: z.number().default(0),
+
+  createdAt: dateSchema,
+  updatedAt: dateSchema
+});
+
+export type Campaign = z.infer<typeof campaignsSchema>;
+export const insertCampaignSchema = campaignsSchema.omit({
+  id: true, createdAt: true, updatedAt: true, lastRun: true, leadsFound: true
+});
+export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
+// --- Broker Sales CRM (Prospective Brokers) ---
+export const brokerLeadSchema = internalLeadSchema.extend({});
+export type BrokerLead = z.infer<typeof brokerLeadSchema>;
+export const insertBrokerLeadSchema = brokerLeadSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBrokerLead = z.infer<typeof insertBrokerLeadSchema>;
+
+export const brokerCommissionSchema = commissionSchema.extend({});
+export type BrokerCommission = z.infer<typeof brokerCommissionSchema>;
+export const insertBrokerCommissionSchema = brokerCommissionSchema.omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertBrokerCommission = z.infer<typeof insertBrokerCommissionSchema>;
+
+export const brokerCampaignSchema = campaignsSchema.extend({});
+export type BrokerCampaign = z.infer<typeof brokerCampaignSchema>;
+export const insertBrokerCampaignSchema = brokerCampaignSchema.omit({
+  id: true, createdAt: true, updatedAt: true, lastRun: true, leadsFound: true
+});
+export type InsertBrokerCampaign = z.infer<typeof insertBrokerCampaignSchema>;
+
+export const brokerScrapedLeadSchema = scrapedLeadSchema.extend({});
+export type BrokerScrapedLead = z.infer<typeof brokerScrapedLeadSchema>;
+export const insertBrokerScrapedLeadSchema = brokerScrapedLeadSchema.omit({
+  id: true, createdAt: true, updatedAt: true
+});
+export type InsertBrokerScrapedLead = z.infer<typeof insertBrokerScrapedLeadSchema>;

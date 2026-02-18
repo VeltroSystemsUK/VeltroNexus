@@ -2,9 +2,15 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 
+interface AuthSession {
+  user: User | null;
+  role: string | null;
+  isAuthenticated: boolean;
+}
+
 export function useAuth() {
-  const { data: user, isLoading } = useQuery<User | null>({
-    queryKey: ["/api/auth/user"],
+  const { data: session, isLoading } = useQuery<AuthSession>({
+    queryKey: ["/api/auth/session"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
   });
@@ -27,9 +33,10 @@ export function useAuth() {
   });
 
   return {
-    user: user || null,
+    user: session?.user || null,
+    role: session?.role || null,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: session?.isAuthenticated || false,
     logoutMutation,
   };
 }

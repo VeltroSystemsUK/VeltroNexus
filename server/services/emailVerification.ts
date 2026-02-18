@@ -1,6 +1,7 @@
 
 import { resolveMx } from 'dns/promises';
 import { Socket } from 'net';
+import { zeroBounceClient } from '../utils/zeroBounceClient';
 
 export interface EmailVerificationResult {
     email: string;
@@ -92,7 +93,36 @@ export class EmailVerificationService {
             }
         }
 
-        // Calculate Score
+        // 4. ZeroBounce Fallback (if SMTP failed and API key is configured)
+        if (deepMode && !smtpValid && zeroBounceClient.isConfigured()) {
+            try {
+                addLog('> SMTP UNAVAILABLE - Using ZeroBounce API...');
+                const zbResult = await zeroBounceClient.validateEmail(emailLower);
+
+                if (zbResult) {
+                    addLog(`> ZEROBOUNCE STATUS: ${zbResult.status.toUpperCase()}`);
+                    const mapped = zeroBounceClient.mapToQualityGrade(zbResult);
+
+                    return {
+                        email: emailLower,
+                        syntaxValid: true,
+                        domainValid: zbResult.mx_found === 'true',
+                        isFreeMail: zbResult.free_email,
+                        isRoleBased,
+                        isDisposable: ['spamtrap', 'abuse', 'do_not_mail'].includes(zbResult.status),
+                        deliverabilityScore: mapped.deliverabilityScore,
+                        qualityGrade: mapped.qualityGrade,
+                        status: mapped.status,
+                        explanation: mapped.explanation,
+                        logs
+                    };
+                }
+            } catch (err: any) {
+                addLog(`> ZEROBOUNCE FAILED: ${err.message}`);
+            }
+        }
+
+        // Calculate Score (fallback to local validation)
         let score = 100;
         if (isFreeMail) score -= 20;
         if (isRoleBased) score -= 15;
@@ -134,17 +164,28 @@ export class EmailVerificationService {
         return reasons.join(" ");
     }
 
-    private smtpCheck(host: string, email: string, addLog: (m: string) => void): Promise<boolean> {
+    private async smtpCheck(host: string, email: string, addLog: (m: string) => void): Promise<boolean> {
+        // Try port 587 first (submission port - more likely to be unblocked)
+        const result587 = await this.smtpCheckPort(587, host, email, addLog);
+        if (result587) return true;
+
+        addLog('> PORT 587 FAILED - Trying port 25 as fallback...');
+
+        // Fallback to port 25
+        return this.smtpCheckPort(25, host, email, addLog);
+    }
+
+    private smtpCheckPort(port: number, host: string, email: string, addLog: (m: string) => void): Promise<boolean> {
         return new Promise((resolve) => {
             const socket = new Socket();
             let step = 0;
             let success = false;
 
             socket.setTimeout(5000);
-            socket.connect(25, host);
+            socket.connect(port, host);
 
             socket.on('connect', () => {
-                addLog(`> CONNECTED TO ${host}:25`);
+                addLog(`> CONNECTED TO ${host}:${port}`);
             });
 
             socket.on('data', (data) => {

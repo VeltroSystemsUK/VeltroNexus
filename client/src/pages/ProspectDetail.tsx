@@ -136,6 +136,7 @@ import TimeTracking from "@/components/TimeTracking";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
 import { CommunicationsTab } from "@/components/communications/CommunicationsTab";
+import { EmailLink } from "@/components/EmailLink";
 
 const STAGES = [
   { value: "lead", label: "Lead" },
@@ -387,6 +388,8 @@ function UnderwritingStatusBanner({
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <Textarea
+                    id="broker-message"
+                    name="broker-message"
                     placeholder="Type your message here..."
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
@@ -1131,6 +1134,8 @@ function ReferralSourceCard({ prospect }: { prospect: ProspectWithCompany }) {
         {isEditing ? (
           <div className="flex items-center gap-2">
             <Input
+              id="referral-source"
+              name="referral-source"
               value={referralSource}
               onChange={(e) => setReferralSource(e.target.value)}
               placeholder="Enter referral source"
@@ -1782,6 +1787,7 @@ function ContactsTab({
                 <Label htmlFor="edit-name">Name *</Label>
                 <Input
                   id="edit-name"
+                  name="edit-name"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   data-testid="input-edit-contact-name"
@@ -1791,6 +1797,7 @@ function ContactsTab({
                 <Label htmlFor="edit-role">Role</Label>
                 <Input
                   id="edit-role"
+                  name="edit-role"
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value)}
                   placeholder="e.g. Director, Finance Manager"
@@ -1801,6 +1808,7 @@ function ContactsTab({
                 <Label htmlFor="edit-email">Email</Label>
                 <Input
                   id="edit-email"
+                  name="edit-email"
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
@@ -1812,6 +1820,7 @@ function ContactsTab({
                 <Label htmlFor="edit-phone">Telephone</Label>
                 <Input
                   id="edit-phone"
+                  name="edit-phone"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   placeholder="+44 20 1234 5678"
@@ -1881,11 +1890,9 @@ function ContactsTab({
                         )}
                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
                           {contact.email ? (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Mail className="h-4 w-4 text-muted-foreground" />
-                              <a href={`mailto:${contact.email}`} className="hover:underline">
-                                {contact.email}
-                              </a>
+                            <div className="flex items-center gap-2 text-sm text-gray-400">
+                              <Mail className="h-4 w-4" />
+                              <EmailLink email={contact.email} name={contact.name} className="hover:underline text-gray-400 hover:text-white" />
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground italic">

@@ -10,9 +10,10 @@ import {
 } from "./utils/rateLimit";
 import crypto from "crypto";
 
-import { getStripeSync } from "./stripeClient";
+// import { getStripeSync } from "./stripeClient"; // REMOVED
 import { WebhookHandlers } from "./webhookHandlers";
 import { setupAuth } from "./auth";
+import { agentService } from "./services/agentService";
 
 const app = express();
 
@@ -22,34 +23,7 @@ declare module "http" {
   }
 }
 
-// CRITICAL: Stripe webhook route MUST be registered BEFORE express.json()
-// because the webhook needs the raw Buffer, not parsed JSON
-app.post(
-  "/api/stripe/webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const signature = req.headers["stripe-signature"];
-
-    if (!signature) {
-      return res.status(400).json({ error: "Missing stripe-signature" });
-    }
-
-    try {
-      const sig = Array.isArray(signature) ? signature[0] : signature;
-
-      if (!Buffer.isBuffer(req.body)) {
-        console.error("STRIPE WEBHOOK ERROR: req.body is not a Buffer");
-        return res.status(500).json({ error: "Webhook processing error" });
-      }
-
-      await WebhookHandlers.processWebhook(req.body as Buffer, sig);
-      res.status(200).json({ received: true });
-    } catch (error: any) {
-      console.error("Webhook error:", error.message);
-      res.status(400).json({ error: "Webhook processing error" });
-    }
-  }
-);
+// CRITICAL: Stripe webhook route REMOVED
 
 // Reduced default body limits for security
 // Individual routes enforce their own limits for high-cost operations (AI, PDF parsing)
@@ -92,24 +66,48 @@ app.use((req, res, next) => {
   // Only applied to HTML pages in production (not API routes or static assets)
   // In development, Vite injects inline scripts for HMR which CSP would block
   if (
-    isProduction &&
     !req.path.startsWith("/api") &&
     !req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)
   ) {
+    if (res.getHeader("Content-Security-Policy")) {
+      console.log("WARNING: CSP Header already set:", res.getHeader("Content-Security-Policy"));
+    }
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' https://js.stripe.com",
+      "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' blob:",
+      "worker-src 'self' blob:",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.replit.dev wss://*.replit.dev https://api.stripe.com https://checkout.stripe.com https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk",
-      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+      "connect-src 'self' https://*.replit.dev wss://*.replit.dev https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk https://europe-west2-veltro-prod.cloudfunctions.net ws://localhost:* http://localhost:*",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
       "upgrade-insecure-requests",
     ];
+
+    // In development, we must allow more lenient policies for Vite HMR and other tools
+    if (!isProduction) {
+      // Remove upgrade-insecure-requests for localhost
+      const index = cspDirectives.indexOf("upgrade-insecure-requests");
+      if (index > -1) cspDirectives.splice(index, 1);
+
+      // Force unsafe-eval in script-src if not present
+      const scriptSrcIndex = cspDirectives.findIndex(d => d.startsWith("script-src"));
+      if (scriptSrcIndex > -1) {
+        if (!cspDirectives[scriptSrcIndex].includes("'unsafe-eval'")) {
+          cspDirectives[scriptSrcIndex] += " 'unsafe-eval'";
+        }
+      }
+
+      // Allow any connection in development (fixes 192.168.* errors)
+      const connectSrcIndex = cspDirectives.findIndex(d => d.startsWith("connect-src"));
+      if (connectSrcIndex > -1) {
+        cspDirectives[connectSrcIndex] += " ws: http:";
+      }
+    }
+
     const cspString = cspDirectives.join("; ");
     res.setHeader("Content-Security-Policy", cspString);
     res.setHeader("Content-Security-Policy-Report-Only", cspString);
@@ -201,8 +199,7 @@ app.use((req: any, res, next) => {
     // importantly only setup vite in development and after
     // setting up all the other routes so the catch-all route
     // doesn't interfere with the other routes
-    // Force Vite in development (bypass production check for debugging)
-    if (true) {
+    if (process.env.NODE_ENV !== "production") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
@@ -213,15 +210,58 @@ app.use((req: any, res, next) => {
     // this serves both the API and the client.
     // It is the only port that is not firewalled.
     const port = parseInt(process.env.PORT || "5000", 10);
-    server.listen(
-      {
-        port,
-        host: "0.0.0.0",
-      },
-      () => {
-        log(`serving on port ${port}`);
-      }
-    );
+
+    function startServer(retries = 3) {
+      server.listen(
+        {
+          port,
+          host: "0.0.0.0",
+        },
+        () => {
+          log(`serving on port ${port}`);
+
+          // Non-blocking: Initialize agent workforce after server is ready
+          (async () => {
+            try {
+              await agentService.initializeWorkforce();
+              console.log("[AgentService] Workforce initialized");
+
+              // Start ARES autonomous scheduler
+              const { aresScheduler } = await import("./services/aresScheduler");
+              aresScheduler.start();
+              console.log("[ARES] Autonomous scheduler started");
+
+              // Start Lead Finder autonomous agent
+              const { getScheduler } = await import("./Lead Agent/src/scheduler.js");
+              const leadFinderScheduler = getScheduler();
+              leadFinderScheduler.start();
+              console.log("[Lead Finder] Autonomous scheduler started");
+            } catch (error) {
+              console.error("[Startup] Failed to initialize agents/schedulers:", error);
+            }
+          })();
+        }
+      );
+
+      server.on("error", (e: any) => {
+        if (e.code === "EADDRINUSE") {
+          if (retries > 0) {
+            log(`Port ${port} in use, retrying in 1s... (${retries} retries left)`);
+            setTimeout(() => {
+              server.close();
+              startServer(retries - 1);
+            }, 1000);
+          } else {
+            console.error(`Error: Port ${port} is already in use after retries.`);
+            process.exit(1);
+          }
+        } else {
+          console.error("Server error:", e);
+        }
+      });
+    }
+
+    startServer();
 
     // Graceful shutdown handling
     const gracefulShutdown = async (signal: string) => {

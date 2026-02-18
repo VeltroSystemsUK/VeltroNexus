@@ -1,0 +1,7 @@
+{
+    "instruction": "ls",
+    "agentProfile": {
+        "name": "Maya"
+    },
+    "sessionId": "test-session"
+}
