@@ -102,6 +102,8 @@ import gmailRouter from "./routes/gmail.js";
 import leadsRouter from "./routes/leads";
 import campaignsRouter from "./routes/campaigns";
 import inboundRouter from "./routes/inbound"; // Added inbound router
+import activitiesRouter from "./routes/activities";
+import { getObjectStorage } from "./utils/routerHelpers";
 
 export async function registerRoutes(app: Application): Promise<Server> {
   // --- Multer Config for Document Uploads ---
@@ -1170,24 +1172,12 @@ export async function registerRoutes(app: Application): Promise<Server> {
   // Applied after auth so req.user is available for user-keyed limits
   app.use(rateLimitMiddleware());
 
-  // Get object storage client - memoized to avoid repeated initialization and logging
-  let objectStorageClient: ObjectStorageClient | null = null;
-
   // God Mode Routes (Must be after Auth)
   app.use("/api/god/crm", crmRouter);
   app.use("/api/god", godRouter);
-  const getObjectStorage = () => {
-    if (objectStorageClient) {
-      return objectStorageClient;
-    }
-    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-    if (!bucketId) {
-      throw new Error("Object storage bucket not configured");
-    }
-    console.info("Object storage initialized with bucket:", bucketId);
-    objectStorageClient = new ObjectStorageClient({ bucketId });
-    return objectStorageClient;
-  };
+
+  // Domain routers (extracted from this file)
+  app.use("/api", activitiesRouter);
 
   // NOTE: Agent Workforce routes are registered earlier in this file (before CSRF middleware)
   // to avoid duplication. See "--- AI WORKFORCE PLATFORM ROUTES ---" section above.
@@ -3548,197 +3538,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
   );
 
   // Activities API - Protected routes
-  app.get("/api/activities", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const userId = req.user.id;
-      const activities = await storage.listAllUserActivities(userId);
-      res.json(activities);
-    } catch (error) {
-      handleApiError(res, error, "api-error");
-    }
-  });
-
-  app.post("/api/activities", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const userId = req.user.id;
-      // SECURITY: Strip userId from request body to prevent injection attacks
-      const { userId: _, ...safeBody } = req.body;
-      const result = insertActivitySchema.safeParse(safeBody);
-      if (!result.success) {
-        return res.status(400).json({ error: fromZodError(result.error).toString() });
-      }
-      const activity = await storage.createActivity(result.data, userId);
-      if (!activity) {
-        return res
-          .status(403)
-          .json({ error: "Access denied - prospect not found or not owned by user" });
-      }
-      res.json(activity);
-    } catch (error) {
-      handleApiError(res, error, "api-error");
-    }
-  });
-
-  app.get(
-    "/api/prospects/:prospectId/activities",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        if (!req.user) return res.status(401).send("Not authenticated");
-        const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user.id;
-        const activities = await storage.listActivities(prospectId, userId);
-        res.json(activities);
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  app.post(
-    "/api/prospects/:prospectId/activities",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const userId = req.user.id;
-        const prospectId = parseInt(req.params.prospectId);
-        // SECURITY: Strip userId from request body to prevent injection attacks
-        const { userId: _, ...safeBody } = req.body;
-        const result = insertActivitySchema.safeParse({ ...safeBody, prospectId });
-        if (!result.success) {
-          return res.status(400).json({ error: fromZodError(result.error).toString() });
-        }
-        const activity = await storage.createActivity(result.data, userId);
-        if (!activity) {
-          return res
-            .status(403)
-            .json({ error: "Access denied - prospect not found or not owned by user" });
-        }
-        res.json(activity);
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  app.patch(
-    "/api/activities/:id",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const id = parseInt(req.params.id);
-        const userId = req.user.id;
-        const activity = await storage.updateActivity(id, userId, req.body);
-        if (!activity) {
-          return res.status(404).json({ error: "Activity not found or access denied" });
-        }
-        res.json(activity);
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  app.delete(
-    "/api/activities/:id",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const id = parseInt(req.params.id);
-        const userId = req.user.id;
-        await storage.deleteActivity(id, userId);
-        res.json({ success: true });
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  // Time Entries Routes
-  app.get(
-    "/api/prospects/:prospectId/time-entries",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user.id;
-        const entries = await storage.listTimeEntries(prospectId, userId);
-        res.json(entries);
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  app.get(
-    "/api/prospects/:prospectId/time-total",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user.id;
-        const totalMinutes = await storage.getProspectTotalTime(prospectId, userId);
-        res.json({ totalMinutes });
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  app.post(
-    "/api/prospects/:prospectId/time-entries",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user.id;
-
-        const parsed = insertTimeEntrySchema.safeParse({ ...req.body, prospectId });
-        if (!parsed.success) {
-          return res.status(400).json({ error: fromZodError(parsed.error).message });
-        }
-
-        const entry = await storage.createTimeEntry(parsed.data, userId);
-        res.status(201).json(entry);
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  app.patch(
-    "/api/time-entries/:id",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const id = parseInt(req.params.id);
-        const userId = req.user.id;
-        const entry = await storage.updateTimeEntry(id, userId, req.body);
-        if (!entry) {
-          return res.status(404).json({ error: "Time entry not found or access denied" });
-        }
-        res.json(entry);
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-  app.delete(
-    "/api/time-entries/:id",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const id = parseInt(req.params.id);
-        const userId = req.user.id;
-        await storage.deleteTimeEntry(id, userId);
-        res.json({ success: true });
-      } catch (error) {
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
   // Get due diligence status summaries for all prospects (for pipeline cards)
   app.get(
     "/api/due-diligence/summaries",
