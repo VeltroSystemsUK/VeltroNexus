@@ -103,7 +103,6 @@ interface AgentStatus {
 }
 
 export default function LeadFinder() {
-    console.log("LeadFinder loaded - version 2");
     const [location, setLocation] = useLocation();
     const [instruction, setInstruction] = useState("");
     const [isPolling, setIsPolling] = useState(false);

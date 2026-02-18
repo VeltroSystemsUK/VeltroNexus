@@ -25,7 +25,7 @@ export default function PipelineColumnExample() {
           <ProspectCard
             key={prospect.id}
             prospect={prospect}
-            onClick={() => console.log("Clicked:", prospect.companyName)}
+            onClick={() => {}}
           />
         ))}
       </PipelineColumn>

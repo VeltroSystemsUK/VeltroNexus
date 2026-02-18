@@ -80,7 +80,10 @@ export class ScraperService {
                             newLeadsCount++;
                             console.log(`   💾 Saved Lead: ${scoredLead.companyName} (ID: ${newLead.id})`);
                         } catch (err: any) {
-                            // Ignore duplicates logic handled by random ID or if we added unique index
+                            // Duplicate leads are expected; log unexpected errors
+                            if (!err?.message?.includes("duplicate") && !err?.code?.includes("already-exists")) {
+                                console.error(`[ScraperService] Failed to save lead ${scoredLead.companyName}:`, err?.message);
+                            }
                         }
                     }
                 } catch (err) {

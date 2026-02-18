@@ -307,7 +307,6 @@ export default function Gmail() {
     };
 
     const handleMoveToFolder = async (msgId: string, targetLabelId: string) => {
-        console.log(`[Gmail] Attempting move: msgId=${msgId}, targetLabel=${targetLabelId}, currentFolder=${activeFolder}`);
         try {
             // Validate IDs
             if (!msgId || !targetLabelId) {
@@ -321,7 +320,6 @@ export default function Gmail() {
 
             // 1. Handle Trash movement
             if (targetLabelId === "TRASH") {
-                console.log("[Gmail] Moving to system Trash...");
                 const res = await fetch(`/api/gmail/message/${msgId}/trash`, { method: "POST" });
                 if (!res.ok) throw new Error("Failed to move to Trash");
                 toast({ title: "Moved to Trash" });
@@ -331,7 +329,6 @@ export default function Gmail() {
 
             // 2. Handle move OUT of Trash (requires untrash first)
             if (activeFolder === "trash") {
-                console.log("[Gmail] Untrashing before move...");
                 const untrashRes = await fetch(`/api/gmail/message/${msgId}/untrash`, { method: "POST" });
                 if (!untrashRes.ok) throw new Error("Failed to restore from trash");
 
@@ -360,8 +357,6 @@ export default function Gmail() {
             let finalTargetId = targetLabelId;
             if (targetLabelId === "inbox") finalTargetId = "INBOX";
 
-            console.log(`[Gmail] Modify API request: add=[${finalTargetId}], remove=${JSON.stringify(removeLabelIds)}`);
-
             const modifyRes = await fetch(`/api/gmail/message/${msgId}/modify`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -376,8 +371,6 @@ export default function Gmail() {
                 console.error("[Gmail] Modify failed:", modifyData);
                 throw new Error(modifyData.error || "Failed to modify labels");
             }
-
-            console.log(`[Gmail] Move successful. Response:`, modifyData);
             toast({
                 title: "Message moved",
                 description: `Moved to ${labels.find(l => l.id === targetLabelId)?.name || targetLabelId}`

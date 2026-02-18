@@ -4214,9 +4214,6 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
     try {
       const response = await apiRequest(`/api/prospects/${prospect.id}/web-search`, "POST", {});
       const data = await response.json();
-      console.log("Web search data:", data);
-      console.log("Results array:", data?.results);
-      console.log("Answer:", data?.answer);
       setWebSearchResults(data);
     } catch (error: any) {
       console.error("Web search error:", error);

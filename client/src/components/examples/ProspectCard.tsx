@@ -21,8 +21,8 @@ export default function ProspectCardExample() {
         prospect={mockProspect}
         currentStage="lead"
         availableStages={mockStages}
-        onClick={() => console.log("Prospect clicked")}
-        onMove={(stage) => console.log("Move to:", stage)}
+        onClick={() => {}}
+        onMove={() => {}}
       />
     </div>
   );
