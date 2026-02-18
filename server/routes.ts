@@ -871,7 +871,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
           const currentCount = await storage.countProspects(user.id);
           if (currentCount > 0) {
             await storage.updateUser(user.id, { prospectsCreatedCount: currentCount });
-            console.log(`[Backfill] Updated user ${user.id} prospect count to ${currentCount}`);
+            console.log(`[Backfill] Updated user prospect count`);
           }
         }
       }
@@ -2140,7 +2140,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
 
         // 3. Run Web Search (Tavily Helper)
         // We search for the person at the company
-        console.log(`[Enrichment] Searching for ${contact.name} at ${companyName}`);
+        console.log(`[Enrichment] Searching for contact at ${companyName}`);
         const webResults = await searchCompanyInfo(`${contact.name} ${companyName}`);
 
         // 4. Run Internal Search (Email History)
@@ -2345,10 +2345,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
       const authString = `${trimmedApiKey}:`;
       const base64Auth = Buffer.from(authString).toString("base64");
 
-      console.log(
-        `Searching Companies House for: "${query}" (limit: ${limit}, activeOnly: ${activeOnly})`
-      );
-
       const response = await fetch(
         `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(query)}&items_per_page=${limit}`,
         {
@@ -2378,7 +2374,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
         );
       }
 
-      console.log(`Found ${data.items?.length || 0} companies`);
       res.json(data);
     } catch (error) {
       handleApiError(res, error, "api-error");
@@ -2408,35 +2403,29 @@ export async function registerRoutes(app: Application): Promise<Server> {
       // Build search parameters - can combine SIC codes with postcode filter
       if (sic_codes) {
         params.append("sic_codes", sic_codes as string);
-        console.log(`Advanced search by SIC code: ${sic_codes}`);
 
         // Optional postcode filter with SIC code search
         if (postcode) {
           const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
           params.append("location", formattedPostcode);
-          console.log(`  + filtered by postcode: ${formattedPostcode}`);
         }
       } else if (location) {
         // Filter by location (town/city in registered address)
         params.append("location", location as string);
-        console.log(`Advanced search by location: ${location}`);
 
         // Optional postcode filter with location search
         if (postcode) {
           const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
           // Append postcode to location for more specific search
           params.set("location", `${location} ${formattedPostcode}`);
-          console.log(`  + filtered by postcode: ${formattedPostcode}`);
         }
       } else if (postcode) {
         // Filter by postcode only (registered office address)
         const formattedPostcode = (postcode as string).replace(/\s+/g, "").toUpperCase();
         params.append("location", formattedPostcode);
-        console.log(`Advanced search by postcode: ${formattedPostcode} (limit: ${limit})`);
       } else {
         return res.status(400).json({ error: "At least one search parameter required" });
       }
-      console.log(`Search limit: ${limit}`);
 
       // Only search active companies if filter is enabled
       if (activeOnly) {
@@ -2444,7 +2433,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
       }
 
       const url = `https://api.company-information.service.gov.uk/advanced-search/companies?${params.toString()}`;
-      console.log(`Advanced search URL: ${url}`);
 
       const response = await fetch(url, {
         headers: { Authorization: `Basic ${base64Auth}` },
@@ -2456,7 +2444,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
 
         // If advanced search fails (e.g., not available on free tier), fall back to basic search
         if (response.status === 403 || response.status === 401) {
-          console.log("Falling back to basic company search...");
           const fallbackQuery = postcode || location || sic_codes;
           const fallbackResponse = await fetch(
             `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(fallbackQuery as string)}&items_per_page=20`,
@@ -2467,7 +2454,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
 
           if (fallbackResponse.ok) {
             const fallbackData = await fallbackResponse.json();
-            console.log(`Fallback search found ${fallbackData.items?.length || 0} companies`);
             return res.json(fallbackData);
           }
         }
@@ -3823,17 +3809,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
         const prospectId = parseInt(req.params.prospectId);
         const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
 
-        console.log("[CSV Analysis] Request received:", {
-          prospectId,
-          csvDataLength: csvData?.length || 0,
-          csvDataPreview: csvData?.substring(0, 200) || "empty",
-          loanAmount,
-          monthlyRepayment,
-          consentToAiProcessing,
-        });
-
         if (!csvData || !loanAmount || !monthlyRepayment) {
-          console.log("[CSV Analysis] Missing required fields");
           return res
             .status(400)
             .json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
@@ -3848,11 +3824,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
         // Use governance wrapper for consent, redaction, size limits, and audit logging
         const { analyzeFinancials } = await import("./utils/geminiClient");
 
-        console.log(
-          "[CSV Analysis] Starting analysis with",
-          csvData.length,
-          "bytes (server-side pre-processing)..."
-        );
         const result = await wrapAiRequest(
           {
             userId,
@@ -3862,22 +3833,11 @@ export async function registerRoutes(app: Application): Promise<Server> {
             consentToAiProcessing: !!consentToAiProcessing,
           },
           csvData,
-          async (processedData) => {
-            console.log(
-              "[CSV Analysis] Calling Gemini with processed data length:",
-              processedData.length
-            );
-            return analyzeFinancials(processedData, loanAmount, monthlyRepayment);
-          },
+          async (processedData) => analyzeFinancials(processedData, loanAmount, monthlyRepayment),
           { maxSize: AI_GOVERNANCE_CONFIG.maxCsvSize }
-        );
-        console.log(
-          "[CSV Analysis] AI analysis complete, result type:",
-          "error" in result ? "error" : "success"
         );
 
         if ("error" in result) {
-          console.log("[CSV Analysis] Error result:", result);
           return res.status(result.code).json({
             error: result.error,
             requiresConsent: result.code === 403,

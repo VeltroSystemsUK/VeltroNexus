@@ -20,6 +20,15 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
     Search,
     MapPin,
     Globe,
@@ -61,6 +70,7 @@ export default function BrokerFinder() {
     const [instruction, setInstruction] = useState("");
     const [isPolling, setIsPolling] = useState(false);
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const { data: results = [], isLoading } = useQuery<BrokerResult[]>({
         queryKey: ["/api/broker-finder/results"],
@@ -87,6 +97,20 @@ export default function BrokerFinder() {
     const selectedLead = useMemo(() =>
         results.find(r => r.googlePlaceId === selectedLeadId) || null
         , [results, selectedLeadId]);
+
+    const PAGE_SIZE = 25;
+    const totalPages = Math.ceil(results.length / PAGE_SIZE);
+    const paginatedResults = results.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    function getPageNumbers(current: number, total: number): (number | "...")[] {
+        if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+        const pages: (number | "...")[] = [1];
+        if (current > 3) pages.push("...");
+        for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
+        if (current < total - 2) pages.push("...");
+        pages.push(total);
+        return pages;
+    }
 
     return (
         <div className="space-y-6 pt-6 pb-12 w-full px-4 md:px-8">
@@ -139,7 +163,7 @@ export default function BrokerFinder() {
                         ) : results.length === 0 ? (
                             <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No brokers found yet.</TableCell></TableRow>
                         ) : (
-                            results.map((r) => (
+                            paginatedResults.map((r) => (
                                 <TableRow key={r.googlePlaceId}>
                                     <TableCell className="font-medium">
                                         <div className="flex items-center gap-2">
@@ -176,6 +200,42 @@ export default function BrokerFinder() {
                         )}
                     </TableBody>
                 </Table>
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 px-4 pb-4">
+                        <p className="text-sm text-muted-foreground">
+                            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, results.length)} of {results.length}
+                        </p>
+                        <Pagination>
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        aria-disabled={currentPage === 1}
+                                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+                                {getPageNumbers(currentPage, totalPages).map((page, i) =>
+                                    page === "..." ? (
+                                        <PaginationItem key={`ellipsis-${i}`}><PaginationEllipsis /></PaginationItem>
+                                    ) : (
+                                        <PaginationItem key={page}>
+                                            <PaginationLink isActive={currentPage === page} onClick={() => setCurrentPage(page)} className="cursor-pointer">
+                                                {page}
+                                            </PaginationLink>
+                                        </PaginationItem>
+                                    )
+                                )}
+                                <PaginationItem>
+                                    <PaginationNext
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        aria-disabled={currentPage === totalPages}
+                                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    </div>
+                )}
             </div>
 
             <LeadDetailsSheet

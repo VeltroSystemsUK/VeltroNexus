@@ -36,6 +36,15 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
     Search,
     Filter,
     MapPin,
@@ -65,6 +74,7 @@ export default function BrokersCRM() {
     const [searchQuery, setSearchQuery] = useState("");
     const [cityFilter, setCityFilter] = useState<string>("all");
     const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [currentPage, setCurrentPage] = useState(1);
 
     // Agent Discovery State
     const [discoveryTown, setDiscoveryTown] = useState("");
@@ -121,6 +131,22 @@ export default function BrokersCRM() {
             return matchesSearch && matchesCity && matchesStatus;
         });
     }, [leads, searchQuery, cityFilter, statusFilter]);
+
+    const PAGE_SIZE = 25;
+    const totalPages = Math.ceil(filteredLeads.length / PAGE_SIZE);
+    const paginatedLeads = filteredLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    useEffect(() => { setCurrentPage(1); }, [searchQuery, cityFilter, statusFilter]);
+
+    function getPageNumbers(current: number, total: number): (number | "...")[] {
+        if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+        const pages: (number | "...")[] = [1];
+        if (current > 3) pages.push("...");
+        for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
+        if (current < total - 2) pages.push("...");
+        pages.push(total);
+        return pages;
+    }
 
     return (
         <div className="space-y-6 pt-6 pb-12 w-full px-4 md:px-8">
@@ -257,7 +283,7 @@ export default function BrokersCRM() {
                         ) : filteredLeads.length === 0 ? (
                             <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No brokers found.</TableCell></TableRow>
                         ) : (
-                            filteredLeads.map((lead) => (
+                            paginatedLeads.map((lead) => (
                                 <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedLead(lead)}>
                                     <TableCell className="font-medium">{lead.companyName}</TableCell>
                                     <TableCell className="text-muted-foreground">{lead.city || "Unknown"}</TableCell>
@@ -274,6 +300,42 @@ export default function BrokersCRM() {
                         )}
                     </TableBody>
                 </Table>
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 px-4 pb-4">
+                        <p className="text-sm text-muted-foreground">
+                            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLeads.length)} of {filteredLeads.length}
+                        </p>
+                        <Pagination>
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        aria-disabled={currentPage === 1}
+                                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+                                {getPageNumbers(currentPage, totalPages).map((page, i) =>
+                                    page === "..." ? (
+                                        <PaginationItem key={`ellipsis-${i}`}><PaginationEllipsis /></PaginationItem>
+                                    ) : (
+                                        <PaginationItem key={page}>
+                                            <PaginationLink isActive={currentPage === page} onClick={() => setCurrentPage(page)} className="cursor-pointer">
+                                                {page}
+                                            </PaginationLink>
+                                        </PaginationItem>
+                                    )
+                                )}
+                                <PaginationItem>
+                                    <PaginationNext
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        aria-disabled={currentPage === totalPages}
+                                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    </div>
+                )}
             </div>
         </div>
     );

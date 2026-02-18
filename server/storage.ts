@@ -734,7 +734,6 @@ export class FirestoreStorage implements IStorage {
 
     try {
       if (!userId) {
-        console.log("[DEBUG] listProspects called with key/userId missing");
         return [];
       }
 
@@ -780,7 +779,6 @@ export class FirestoreStorage implements IStorage {
     }
     try {
       if (!userId) {
-        console.log(`[DEBUG] getProspect called with key/userId missing for prospect ${id}`);
         return undefined;
       }
 
