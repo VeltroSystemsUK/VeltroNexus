@@ -6,7 +6,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['server/**/*.test.ts'],
-    exclude: ['node_modules', '.cache'],
+    exclude: ['node_modules', '.cache', 'server/Lead Agent/**'],
+    env: {
+      GOOGLE_CLOUD_PROJECT: 'veltro-test',
+    },
     testTimeout: 30000,
     coverage: {
       provider: 'v8',

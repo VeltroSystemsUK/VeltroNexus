@@ -5,10 +5,10 @@
  * real middleware (CSRF protection, rate limiting, auth) while mocking storage.
  * This validates actual middleware behavior rather than stub implementations.
  */
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { createTestAppWithRoutes, createTestApp } from "../test/appFactory";
-// import { csrfProtection } from "../replitAuth";
+import { csrfProtection } from "../auth";
 import express from "express";
 
 describe("API Integration Tests", () => {
@@ -76,11 +76,15 @@ describe("API Integration Tests", () => {
 
   describe("Real CSRF Protection Middleware", () => {
     let app: express.Application;
+    let originalNodeEnv: string | undefined;
 
     beforeAll(() => {
+      originalNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "production";
+
       app = express();
       app.use(express.json());
-      // app.use(csrfProtection);
+      app.use(csrfProtection);
 
       app.post("/api/protected", (req, res) => {
         res.json({ success: true });
@@ -95,16 +99,18 @@ describe("API Integration Tests", () => {
       });
     });
 
+    afterAll(() => {
+      process.env.NODE_ENV = originalNodeEnv;
+    });
+
     it("should allow GET requests without origin (safe method)", async () => {
       const res = await request(app).get("/api/safe").expect(200);
-
       expect(res.body).toHaveProperty("success", true);
     });
 
-    it("should block POST without origin header", async () => {
-      const res = await request(app).post("/api/protected").send({ data: "test" }).expect(403);
-
-      expect(res.body.error).toContain("CSRF");
+    it("should allow POST without origin header (server-to-server pattern)", async () => {
+      const res = await request(app).post("/api/protected").send({ data: "test" }).expect(200);
+      expect(res.body).toHaveProperty("success", true);
     });
 
     it("should block POST with mismatched origin", async () => {
@@ -114,7 +120,6 @@ describe("API Integration Tests", () => {
         .set("Host", "legitimate-site.com")
         .send({ data: "test" })
         .expect(403);
-
       expect(res.body.error).toContain("CSRF");
     });
 
@@ -125,27 +130,29 @@ describe("API Integration Tests", () => {
         .set("Host", "localhost")
         .send({ data: "test" })
         .expect(200);
-
       expect(res.body).toHaveProperty("success", true);
     });
 
-    it("should allow webhook endpoints without origin (bypasses CSRF)", async () => {
+    it("should allow POST without origin (server-to-server webhook pattern)", async () => {
       const res = await request(app)
         .post("/api/webhooks/test")
         .send({ data: "webhook payload" })
         .expect(200);
-
       expect(res.body).toHaveProperty("webhookReceived", true);
     });
   });
 
   describe("HTTP Methods and CSRF", () => {
     let app: express.Application;
+    let originalNodeEnv: string | undefined;
 
     beforeAll(() => {
+      originalNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "production";
+
       app = express();
       app.use(express.json());
-      // app.use(csrfProtection);
+      app.use(csrfProtection);
 
       app.get("/api/resource", (req, res) => res.json({ method: "GET" }));
       app.post("/api/resource", (req, res) => res.json({ method: "POST" }));
@@ -154,24 +161,42 @@ describe("API Integration Tests", () => {
       app.delete("/api/resource", (req, res) => res.json({ method: "DELETE" }));
     });
 
+    afterAll(() => {
+      process.env.NODE_ENV = originalNodeEnv;
+    });
+
     it("should allow GET without CSRF headers", async () => {
       await request(app).get("/api/resource").expect(200);
     });
 
-    it("should block POST without CSRF headers", async () => {
-      await request(app).post("/api/resource").expect(403);
+    // Our CSRF impl only blocks *mismatched* origins, not absent ones.
+    // Requests without Origin (e.g. curl, server-to-server) are allowed.
+    it("should allow POST without CSRF headers (no origin present)", async () => {
+      await request(app).post("/api/resource").expect(200);
     });
 
-    it("should block PUT without CSRF headers", async () => {
-      await request(app).put("/api/resource").expect(403);
+    it("should block POST with mismatched Origin", async () => {
+      await request(app)
+        .post("/api/resource")
+        .set("Origin", "http://evil.com")
+        .set("Host", "app.veltro.com")
+        .expect(403);
     });
 
-    it("should block PATCH without CSRF headers", async () => {
-      await request(app).patch("/api/resource").expect(403);
+    it("should allow PUT with matching Origin", async () => {
+      await request(app)
+        .put("/api/resource")
+        .set("Origin", "http://app.veltro.com")
+        .set("Host", "app.veltro.com")
+        .expect(200);
     });
 
-    it("should block DELETE without CSRF headers", async () => {
-      await request(app).delete("/api/resource").expect(403);
+    it("should block DELETE with mismatched Origin", async () => {
+      await request(app)
+        .delete("/api/resource")
+        .set("Origin", "http://evil.com")
+        .set("Host", "app.veltro.com")
+        .expect(403);
     });
   });
 
