@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { useLocation } from "wouter";
 import {
     Search,
@@ -448,7 +449,7 @@ export default function Gmail() {
         }
 
         return (
-            <div className="prose dark:prose-invert max-w-none p-4" dangerouslySetInnerHTML={{ __html: body }} />
+            <div className="prose dark:prose-invert max-w-none p-4" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(body) }} />
         );
     };
 

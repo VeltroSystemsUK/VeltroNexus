@@ -225,20 +225,23 @@ function AppContent() {
 
 import { LayoutProvider } from "@/context/LayoutContext";
 import { UnifiedHeader } from "@/components/UnifiedHeader";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <LayoutProvider>
-          <Toaster />
-          <SonnerToaster position="top-right" />
-          <AppContent />
-          <ThemeManager />
-          <CookieConsent />
-        </LayoutProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <LayoutProvider>
+            <Toaster />
+            <SonnerToaster position="top-right" />
+            <AppContent />
+            <ThemeManager />
+            <CookieConsent />
+          </LayoutProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

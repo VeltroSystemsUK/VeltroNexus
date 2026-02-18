@@ -1,13 +1,12 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response, NextFunction } from "express";
-import session from "express-session"; // This import can stay as it is used for app.use(session(...)) which expects the value, BUT wait, storage.ts changed type? No, auth.ts is separate.
-// Actually, check auth.ts content. Line 28 uses session.SessionOptions.
-// If I changed storage.ts, auth.ts is fine UNLESS it imports storage.ts types? No.
+import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { rateLimitMiddleware } from "./utils/rateLimit";
 
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -49,29 +48,17 @@ export async function setupAuth(app: Express) {
         app.set("trust proxy", true);
     }
 
-    // Debug Middleware: Log Session & Cookie Details
-    app.use((req, res, next) => {
-        console.log(`[Session Debug] ${req.method} ${req.url}`);
-        console.log(`[Session Debug] Cookie Header:`, req.headers.cookie);
-        console.log(`[Session Debug] Session ID before:`, req.sessionID);
-        next();
-    });
-
     app.use(session(sessionSettings));
 
     app.use(passport.initialize());
     app.use(passport.session());
 
-    // Debug Middleware: Log Session Result
-    app.use((req, res, next) => {
-        console.log(`[Session Debug] Session ID after:`, req.sessionID);
-        console.log(`[Session Debug] User:`, req.user);
-        console.log(`[Session Debug] Is Authenticated:`, req.isAuthenticated());
-        next();
-    });
+    // Apply rate limiting to auth endpoints (must be after session but before route handlers)
+    app.use(rateLimitMiddleware());
 
+    const isDev = process.env.NODE_ENV !== "production";
     const DEV_USER_ID = "Auond2MCDRlSuiOXZQDo";
-    const DEV_USER = {
+    const DEV_USER = isDev ? {
         id: DEV_USER_ID,
         email: "admin@veltro.com",
         username: "admin@veltro.com",
@@ -85,32 +72,28 @@ export async function setupAuth(app: Express) {
         lastName: "Admin",
         createdAt: new Date(),
         updatedAt: new Date(),
-        isAdmin: true, // Helper flag if needed
-    } as unknown as SelectUser;
+        isAdmin: true,
+    } as unknown as SelectUser : null;
 
     passport.use(
         new LocalStrategy(
             { usernameField: "username", passwordField: "password" },
             async (username, password, done) => {
                 try {
-                    console.log(`[Auth Debug] Login attempt for: '${username}'`);
-
                     const normalizedUsername = username.toLowerCase();
 
-                    // Dev Admin Login (Case Insensitive for username check)
-                    if (normalizedUsername === "admin@veltro.com" && password === "admin123") {
-                        console.log("Dev Admin Login Detected");
+                    // Dev Admin Login — only available outside production
+                    if (isDev && DEV_USER && normalizedUsername === "admin@veltro.com" && password === "admin123") {
                         return done(null, DEV_USER);
                     }
 
                     const user = await storage.getUserByUsername(normalizedUsername);
                     if (!user || !(await comparePasswords(password, user.password))) {
-                        console.log("[Auth Debug] Auth failed for:", username);
                         return done(null, false, { message: "Invalid username or password" });
                     }
                     return done(null, user);
                 } catch (error) {
-                    console.error("[Auth Debug] Login error:", error);
+                    console.error("[Auth] Login error:", error);
                     return done(error);
                 }
             }
@@ -174,26 +157,22 @@ export async function setupAuth(app: Express) {
     );
 
     passport.serializeUser((user, done) => {
-        console.log("Serialize User:", (user as SelectUser).id);
         done(null, (user as SelectUser).id);
     });
 
     passport.deserializeUser(async (id: string, done) => {
-        console.log("Deserialize User:", id);
         try {
-            if (id === DEV_USER_ID) {
+            if (isDev && DEV_USER && id === DEV_USER_ID) {
                 return done(null, DEV_USER);
             }
 
             const user = await storage.getUser(id);
             if (!user) {
-                console.warn("User not found during deserialization:", id);
                 return done(null, null);
             }
 
             if (user.suspended) {
-                console.warn("Suspended user attempted access:", id);
-                return done(null, false); // passport-session will clear the session
+                return done(null, false);
             }
 
             done(null, user);
@@ -206,13 +185,24 @@ export async function setupAuth(app: Express) {
     app.post("/api/register", async (req, res, next) => {
         try {
             if (!req.body.email || !req.body.password) {
-                return res.status(400).send("Email and password are required");
+                return res.status(400).json({ message: "Email and password are required" });
+            }
+
+            const { password } = req.body;
+            if (password.length < 8) {
+                return res.status(400).json({ message: "Password must be at least 8 characters" });
+            }
+            if (!/[A-Z]/.test(password)) {
+                return res.status(400).json({ message: "Password must contain at least one uppercase letter" });
+            }
+            if (!/[0-9]/.test(password)) {
+                return res.status(400).json({ message: "Password must contain at least one number" });
             }
 
             const normalizedEmail = req.body.email.toLowerCase();
             const existingUser = await storage.getUserByUsername(normalizedEmail);
             if (existingUser) {
-                return res.status(400).send("Username already exists");
+                return res.status(400).json({ message: "An account with this email already exists" });
             }
 
             const hashedPassword = await hashPassword(req.body.password);
@@ -251,9 +241,6 @@ export async function setupAuth(app: Express) {
     });
 
     app.post("/api/login", (req, res, next) => {
-        console.log("[API DEBUG] Login Request Received. Body keys:", Object.keys(req.body));
-        console.log("[API DEBUG] Login Username:", req.body.username);
-
         passport.authenticate("local", (err: Error | null, user: Express.User | false, info: any) => {
             if (err) {
                 return next(err);
@@ -261,65 +248,58 @@ export async function setupAuth(app: Express) {
             if (!user) {
                 return res.status(401).json(info);
             }
-            console.log("Login Request Protocol:", req.protocol);
-            console.log("Login Request Secure:", req.secure);
-            console.log("X-Forwarded-Proto:", req.headers['x-forwarded-proto']);
-            req.logIn(user, async (err) => {
-                if (err) {
-                    return next(err);
+            // Regenerate session before login to prevent session fixation attacks
+            req.session.regenerate((regenerateErr) => {
+                if (regenerateErr) {
+                    return next(regenerateErr);
                 }
-                console.log("Login Successful for user:", (user as SelectUser).id);
+                req.logIn(user, async (loginErr) => {
+                    if (loginErr) {
+                        return next(loginErr);
+                    }
 
-                // Skip DB update for dev user
-                if ((user as SelectUser).id === DEV_USER_ID) {
-                    return res.json(user);
-                }
+                    // Skip DB update for dev user
+                    if ((user as SelectUser).id === DEV_USER_ID) {
+                        return res.json(user);
+                    }
 
-                // Update last login time
-                try {
-                    await storage.updateUser((user as SelectUser).id, { lastLoginAt: new Date() });
-                } catch (updateErr) {
-                    console.error("Failed to update last login time - ignoring:", updateErr);
-                }
-                res.json(user);
+                    // Update last login time
+                    try {
+                        await storage.updateUser((user as SelectUser).id, { lastLoginAt: new Date() });
+                    } catch (updateErr) {
+                        console.error("[Auth] Failed to update last login time:", updateErr);
+                    }
+                    res.json(user);
+                });
             });
         })(req, res, next);
     });
 
     app.post("/api/logout", (req, res) => {
-        // Get the environment check to match session cookie creation
         const isProduction = app.get("env") === "production";
-
-        console.log("[Logout] Starting logout for user:", req.user?.id);
-
         const userId = (req.user as any)?.id;
 
-        // First, logout from passport
         req.logout(async (err) => {
             if (err) {
-                console.error("[Logout] Passport logout error:", err);
+                console.error("[Auth] Logout error:", err);
             }
 
             if (userId) {
                 try {
                     await storage.updateUser(userId, { lastLogoutAt: new Date() });
                 } catch (updateErr) {
-                    console.error("[Logout] Failed to update lastLogoutAt:", updateErr);
+                    console.error("[Auth] Failed to update lastLogoutAt:", updateErr);
                 }
             }
 
-            // Clear the session data
             if (req.session) {
                 req.session.destroy((destroyErr) => {
                     if (destroyErr) {
-                        console.error("[Logout] Session destroy error:", destroyErr);
+                        console.error("[Auth] Session destroy error:", destroyErr);
                     }
-                    console.log("[Logout] Session destroyed");
                 });
             }
 
-            // Clear the session cookie with MATCHING options
-            // The cookie name is "__session"
             res.clearCookie("__session", {
                 path: "/",
                 httpOnly: true,
@@ -327,9 +307,6 @@ export async function setupAuth(app: Express) {
                 sameSite: "lax",
             });
 
-            console.log("[Logout] Cookie cleared, isProduction:", isProduction);
-
-            // Send success response
             res.status(200).json({ success: true, message: "Logged out successfully" });
         });
     });
