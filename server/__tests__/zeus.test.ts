@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { zeusService } from "../services/zeusService";
 import { storage } from "../storage";
-import { enrichCompanyProfile, searchContactInfo } from "../utils/tavilyClient";
 import { redactSensitiveData } from "../utils/aiGovernance";
-import { generateText } from "../utils/geminiClient";
+import { generateText, searchCompanyInfo } from "../utils/geminiClient";
 import { generateRecommendations } from "../services/lenderRecommendationEngine";
 
 // 1. Mock all external dependencies
@@ -19,23 +18,15 @@ vi.mock("../storage", () => ({
     },
 }));
 
-vi.mock("../utils/tavilyClient", () => ({
-    enrichCompanyProfile: vi.fn(),
-    searchContactInfo: vi.fn(),
+vi.mock("../utils/geminiClient", () => ({
+    generateText: vi.fn(),
+    searchCompanyInfo: vi.fn(),
 }));
 
 vi.mock("../utils/aiGovernance", () => ({
     redactSensitiveData: vi.fn(),
     logAiOperation: vi.fn(),
 }));
-
-vi.mock("../utils/geminiClient", async () => {
-    const actual = await vi.importActual<any>("../utils/geminiClient");
-    return {
-        ...actual,
-        generateText: vi.fn(),
-    };
-});
 
 vi.mock("../services/lenderRecommendationEngine", () => ({
     generateRecommendations: vi.fn(),
@@ -71,14 +62,14 @@ describe("Zeus Service: Phase 1 Autonomous Research", () => {
         });
 
         // Mock Tavily Enrichment
-        (enrichCompanyProfile as any).mockResolvedValue({
+        (searchCompanyInfo as any).mockResolvedValue({
             businessProfile: "Acme Corp is a giant cartoon anvil manufacturer.",
             sourceCommentary: "High quality sources found.",
             sources: [{ url: "acme.com", title: "Official Site" }]
         });
 
         // Mock Tavily Contact Search
-        (searchContactInfo as any).mockResolvedValue({
+        (searchCompanyInfo as any).mockResolvedValue({
             linkedinUrls: ["linkedin.com/in/wile-e-coyote"],
             sources: [{ url: "acme.com/team", title: "Our Team", content: "Wile E. Coyote, Founder" }]
         });
@@ -131,17 +122,17 @@ describe("Zeus Service: Phase 1 Autonomous Research", () => {
             redactionApplied: true
         });
 
-        (enrichCompanyProfile as any).mockResolvedValue({
+        (searchCompanyInfo as any).mockResolvedValue({
             businessProfile: "REDACTED PROFILE",
             sources: []
         });
 
-        (searchContactInfo as any).mockResolvedValue({ linkedinUrls: [], sources: [] });
+        (searchCompanyInfo as any).mockResolvedValue({ linkedinUrls: [], sources: [] });
 
         await zeusService.performInstantResearch(mockProspectId, mockUserId);
 
         // Verify that the REDACTED name was passed to research, not the raw one
-        expect(enrichCompanyProfile).toHaveBeenCalledWith("[REDACTED_NAME] & Co", undefined);
+        expect(searchCompanyInfo).toHaveBeenCalledWith("[REDACTED_NAME] & Co", undefined);
 
         // Verify research data reflects redaction state
         expect(storage.updateProspect).toHaveBeenCalledWith(

@@ -82,9 +82,6 @@ import {
 import { lenderNoteSchema, insertLenderNoteSchema } from "@shared/schema";
 import { sendEmail } from "./services/email";
 import { LocalStorageClient as ObjectStorageClient } from "./localStorage";
-// import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient"; // REMOVED
-// import { sql } from "drizzle-orm"; // REMOVED
-// import { db } from "./db"; // REMOVED
 const require = createRequire(import.meta.url);
 
 // Extended Request interface for authenticated routes
@@ -94,7 +91,6 @@ interface AuthenticatedRequest extends Request {
   requestId?: string;
 }
 
-// import { stripeRoutes } from "./stripeRoutes"; // REMOVED
 import godRouter from "./routes/god";
 import crmRouter from "./routes/crm";
 import adminRouter from "./routes/admin";
@@ -1177,9 +1173,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
   // Get object storage client - memoized to avoid repeated initialization and logging
   let objectStorageClient: ObjectStorageClient | null = null;
 
-  // Register Stripe routes after auth and rate limiting middleware
-  // app.use("/api/stripe", stripeRoutes); // REMOVED
-
   // God Mode Routes (Must be after Auth)
   app.use("/api/god/crm", crmRouter);
   app.use("/api/god", godRouter);
@@ -2073,14 +2066,12 @@ export async function registerRoutes(app: Application): Promise<Server> {
           return res.status(404).json({ error: "Prospect not found" });
         }
 
-        // const { searchBusinessOverview } = await import("./utils/tavilyClient");
-
         const companyName = prospect.company.companyName;
         const industry = prospect.company.sicDescription || prospect.company.sicCode || undefined;
 
-        console.log(`[Business Overview] Searching for company: ${companyName}`);
-
-        const result = await searchBusinessOverview(companyName, industry);
+        const result = await groundedSearch(
+          `${companyName} UK business overview${industry ? ` ${industry} industry` : ''}`
+        );
 
         res.json({
           companyName,
@@ -2109,7 +2100,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
         console.log(
           `[Enrichment] Request received for: "${companyName}", Website: "${websiteUrl}"`
         );
-        const result = await enrichCompanyProfile(companyName, websiteUrl);
+        const result = await searchCompanyInfo(companyName, websiteUrl);
         res.json(result);
       } catch (error) {
         console.error("[Enrichment] API Error:", error);
@@ -2150,7 +2141,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
         // 3. Run Web Search (Tavily Helper)
         // We search for the person at the company
         console.log(`[Enrichment] Searching for ${contact.name} at ${companyName}`);
-        const webResults = await searchContactInfo(contact.name, companyName);
+        const webResults = await searchCompanyInfo(`${contact.name} ${companyName}`);
 
         // 4. Run Internal Search (Email History)
         // fetch emails linked to this contact
@@ -2270,18 +2261,17 @@ export async function registerRoutes(app: Application): Promise<Server> {
         let businessOverview: string[] | null = null;
         if (includeBusinessOverview) {
           try {
-            // const { searchBusinessOverview } = await import("./utils/tavilyClient");
             const industry =
               prospect.company.sicDescription || prospect.company.sicCode || undefined;
-            const result = await searchBusinessOverview(prospect.company.companyName, industry);
+            const result = await groundedSearch(
+              `${prospect.company.companyName} UK business overview${industry ? ` ${industry} industry` : ''}`
+            );
             businessOverview = result.bulletPoints;
           } catch (overviewError) {
             console.error("[PDF Report] Business overview fetch error:", overviewError);
           }
         }
 
-        // Use dynamic import for PDF generator functions
-        // const { searchBusinessOverview } = await import("./utils/tavilyClient");
         const { createProspectReportDocument, renderProspectReport } =
           await import("./utils/pdfGenerator");
 
@@ -7983,248 +7973,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
       res.status(500).json({ error: "Internal server error" });
     }
   });
-
-  // ============= STRIPE BILLING ROUTES =============
-
-  // Get Stripe publishable key for frontend
-  app.get("/api/billing/config", isAuthenticated, async (req, res) => {
-    try {
-      const publishableKey = await getStripePublishableKey();
-      res.json({ publishableKey });
-    } catch (error) {
-      handleApiError(res, error, "Failed to get billing config", (req as any).requestId);
-    }
-  });
-
-  // List subscription products with prices via Stripe API
-  app.get("/api/billing/products", isAuthenticated, async (req, res) => {
-    try {
-      const stripe = await getUncachableStripeClient();
-      const prices = await stripe.prices.list({
-        active: true,
-        limit: 100,
-        expand: ["data.product"],
-      });
-
-      const productsMap = new Map();
-
-      for (const price of prices.data) {
-        const product = price.product as any; // Expanded
-        if (!product || typeof product === "string") continue; // Should be expanded object
-
-        if (!productsMap.has(product.id)) {
-          productsMap.set(product.id, {
-            id: product.id,
-            name: product.name,
-            description: product.description,
-            metadata: product.metadata,
-            prices: [],
-          });
-        }
-
-        productsMap.get(product.id).prices.push({
-          id: price.id,
-          unit_amount: price.unit_amount,
-          currency: price.currency,
-          recurring: price.recurring,
-          metadata: price.metadata,
-        });
-      }
-
-      res.json({ products: Array.from(productsMap.values()) });
-    } catch (error) {
-      handleApiError(res, error, "Failed to list products", (req as any).requestId);
-    }
-  });
-
-  // Get current user subscription status
-  app.get(
-    "/api/billing/subscription",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const userId = req.user.id;
-        const user = await storage.getUser(userId);
-
-        if (!user?.stripeSubscriptionId) {
-          return res.json({
-            subscription: null,
-            tier: user?.subscriptionTier || "free",
-            prospectLimit: user?.prospectLimit || 10,
-          });
-        }
-
-        const stripe = await getUncachableStripeClient();
-        const sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId, {
-          expand: ["items.data.price.product"],
-        });
-
-        // Transform to match expected format if needed, or return raw
-        // The frontend expects: { subscription: ... }
-        // result.rows[0] had product_name etc joined.
-        // We might need to manually decorate it if the frontend relies on simplified fields.
-        // For now, return the stripe object which is richer.
-        res.json({
-          subscription: sub,
-          tier: user.subscriptionTier,
-          prospectLimit: user.prospectLimit,
-        });
-      } catch (error) {
-        handleApiError(res, error, "Failed to get subscription", (req as any).requestId);
-      }
-    }
-  );
-
-  // Create checkout session for subscription
-  app.post(
-    "/api/billing/checkout",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const userId = req.user.id;
-        const user = await storage.getUser(userId);
-        const { priceId, tier, interval } = req.body;
-
-        // Map tier/interval to price ID if not provided directly
-        let finalPriceId = priceId;
-        if (!finalPriceId && tier && interval) {
-          // Price ID mapping from environment variables
-          // Format: STRIPE_PRICE_<TIER>_<INTERVAL> e.g., STRIPE_PRICE_BROKER_MONTHLY
-          const envKey = `STRIPE_PRICE_${tier.toUpperCase()}_${interval.toUpperCase()}`;
-          finalPriceId = process.env[envKey];
-
-          // Fallback mapping for common tiers if env vars not set
-          if (!finalPriceId) {
-            const priceMap: Record<string, Record<string, string>> = {
-              broker: {
-                monthly: process.env.STRIPE_PRICE_BROKER_MONTHLY || "",
-                annual: process.env.STRIPE_PRICE_BROKER_ANNUAL || "",
-              },
-              team: {
-                monthly: process.env.STRIPE_PRICE_TEAM_MONTHLY || "",
-                annual: process.env.STRIPE_PRICE_TEAM_ANNUAL || "",
-              },
-              lender: {
-                monthly: process.env.STRIPE_PRICE_LENDER_MONTHLY || "",
-                annual: process.env.STRIPE_PRICE_LENDER_ANNUAL || "",
-              },
-            };
-            finalPriceId = priceMap[tier]?.[interval];
-          }
-        }
-
-        if (!finalPriceId) {
-          return res.status(400).json({
-            error: "Price ID required. Please configure Stripe price IDs in environment variables.",
-            hint: `Set STRIPE_PRICE_${tier?.toUpperCase() || "TIER"}_${interval?.toUpperCase() || "INTERVAL"}`,
-          });
-        }
-
-        const stripe = await getUncachableStripeClient();
-
-        // Create or get Stripe customer
-        let customerId = user?.stripeCustomerId;
-        if (!customerId) {
-          const customer = await stripe.customers.create({
-            email: user?.email || undefined,
-            metadata: { userId },
-          });
-          await storage.updateUser(userId, { stripeCustomerId: customer.id });
-          customerId = customer.id;
-        }
-
-        // Create checkout session
-        const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-        const session = await stripe.checkout.sessions.create({
-          customer: customerId,
-          payment_method_types: ["card"],
-          line_items: [{ price: finalPriceId, quantity: 1 }],
-          mode: "subscription",
-          success_url: `${baseUrl}/settings?tab=billing&success=true`,
-          cancel_url: `${baseUrl}/settings?tab=billing&canceled=true`,
-          metadata: { userId, tier: tier || "unknown", interval: interval || "unknown" },
-        });
-
-        res.json({ url: session.url });
-      } catch (error) {
-        handleApiError(res, error, "Failed to create checkout session", (req as any).requestId);
-      }
-    }
-  );
-
-  // Create customer portal session for managing subscription
-  app.post(
-    "/api/billing/portal",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const userId = req.user.id;
-        const user = await storage.getUser(userId);
-
-        if (!user?.stripeCustomerId) {
-          return res.status(400).json({ error: "No billing account found" });
-        }
-
-        const stripe = await getUncachableStripeClient();
-        const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-
-        const session = await stripe.billingPortal.sessions.create({
-          customer: user.stripeCustomerId,
-          return_url: `${baseUrl}/settings?tab=billing`,
-        });
-
-        res.json({ url: session.url });
-      } catch (error) {
-        handleApiError(res, error, "Failed to create portal session", (req as any).requestId);
-      }
-    }
-  );
-
-  // Create one-time purchase (for add-ons like prospect packs)
-  app.post(
-    "/api/billing/purchase",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const userId = req.user.id;
-        const user = await storage.getUser(userId);
-        const { priceId, quantity = 1 } = req.body;
-
-        if (!priceId) {
-          return res.status(400).json({ error: "Price ID required" });
-        }
-
-        const stripe = await getUncachableStripeClient();
-
-        // Create or get Stripe customer
-        let customerId = user?.stripeCustomerId;
-        if (!customerId) {
-          const customer = await stripe.customers.create({
-            email: user?.email || undefined,
-            metadata: { userId },
-          });
-          await storage.updateUser(userId, { stripeCustomerId: customer.id });
-          customerId = customer.id;
-        }
-
-        // Create checkout session for one-time payment
-        const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-        const session = await stripe.checkout.sessions.create({
-          customer: customerId,
-          payment_method_types: ["card"],
-          line_items: [{ price: priceId, quantity }],
-          mode: "payment",
-          success_url: `${baseUrl}/settings?tab=billing&purchase=success`,
-          cancel_url: `${baseUrl}/settings?tab=billing&purchase=canceled`,
-          metadata: { userId, type: "addon" },
-        });
-
-        res.json({ url: session.url });
-      } catch (error) {
-        handleApiError(res, error, "Failed to create purchase session", (req as any).requestId);
-      }
-    }
-  );
 
   // ===========================================
   // LENDER ENQUIRY FORM SUBMISSION

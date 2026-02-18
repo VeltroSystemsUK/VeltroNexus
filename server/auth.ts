@@ -260,7 +260,10 @@ export async function setupAuth(app: Express) {
 
                     // Skip DB update for dev user
                     if ((user as SelectUser).id === DEV_USER_ID) {
-                        return res.json(user);
+                        return req.session.save((saveErr) => {
+                            if (saveErr) return next(saveErr);
+                            res.json(user);
+                        });
                     }
 
                     // Update last login time
@@ -269,7 +272,13 @@ export async function setupAuth(app: Express) {
                     } catch (updateErr) {
                         console.error("[Auth] Failed to update last login time:", updateErr);
                     }
-                    res.json(user);
+
+                    // Explicitly save session before responding — ensures Firestore persistence
+                    // completes before the client receives the user object and redirects
+                    req.session.save((saveErr) => {
+                        if (saveErr) return next(saveErr);
+                        res.json(user);
+                    });
                 });
             });
         })(req, res, next);
@@ -360,7 +369,26 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
 }
 
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
-    // Basic implementation to satisfy usage. 
-    // In a real app, verify X-CSRF-Token or use csurf middleware.
+    // Safe methods carry no state changes — skip check
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+
+    // In production, enforce Origin-header verification.
+    // Same-origin requests from the SPA always include an Origin matching the Host.
+    // Cross-origin CSRF attempts will either have a mismatched Origin or none at all.
+    if (process.env.NODE_ENV === 'production') {
+        const origin = req.get('Origin') || req.get('Referer');
+        const host = req.get('Host');
+        if (origin && host) {
+            try {
+                const originHost = new URL(origin).host;
+                if (originHost !== host) {
+                    return res.status(403).json({ error: 'CSRF check failed: origin mismatch' });
+                }
+            } catch {
+                return res.status(403).json({ error: 'CSRF check failed: invalid origin' });
+            }
+        }
+    }
+
     next();
 }

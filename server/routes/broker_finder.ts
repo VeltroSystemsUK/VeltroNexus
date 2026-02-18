@@ -120,8 +120,6 @@ router.post("/migrate/:placeId", async (req, res) => {
             chargeDate: business.lastChargeDate || undefined,
             sicCode: business.sicCode || undefined,
             contacts: [],
-            createdAt: new Date(),
-            updatedAt: new Date()
         };
 
         const saved = await storage.createBrokerLead(brokerLeadData);
