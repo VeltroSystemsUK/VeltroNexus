@@ -1,5 +1,5 @@
 import { InternalLead } from "../../shared/schema";
-import { generateText } from "../utils/geminiClient";
+import { ai } from "../utils/geminiClient";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
 
 export interface FoundContact {
@@ -164,7 +164,20 @@ Return ONLY valid JSON — no markdown, no explanation:
 Important: Only include contacts you have reasonable evidence for. Do not fabricate email addresses.`;
 
   try {
-    const raw = await generateText(prompt, undefined, "You are a UK business contact researcher. Return only valid JSON.");
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Contact search timeout after 30s")), 30000)
+    );
+
+    const apiCall = ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        tools: [{ googleSearch: {} }],
+      }
+    } as any);
+
+    const response = await Promise.race([apiCall, timeoutPromise]);
+    const raw = response.text?.trim() || "{}";
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return [];
 
@@ -173,7 +186,7 @@ Important: Only include contacts you have reasonable evidence for. Do not fabric
       (c: any) => c.name && typeof c.name === "string" && c.name.length > 2
     );
   } catch (err) {
-    console.warn("[ContactFinder] Gemini search failed:", err);
+    console.warn("[ContactFinder] Gemini grounded search failed:", err);
     return [];
   }
 }

@@ -36,6 +36,9 @@ import {
     ExternalLink,
     UserSearch,
     Loader2,
+    Pencil,
+    Check,
+    X,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -68,6 +71,8 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
     // Contact Form State
     const [newContact, setNewContact] = useState({ name: "", role: "", email: "", phone: "" });
     const [isAddingContact, setIsAddingContact] = useState(false);
+    const [editingContactIdx, setEditingContactIdx] = useState<number | null>(null);
+    const [editContactData, setEditContactData] = useState({ name: "", role: "", email: "", phone: "", linkedinUrl: "" });
 
     const updateLeadMutation = useMutation({
         mutationFn: (updates: Partial<InternalLead>) =>
@@ -105,6 +110,26 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
         const contacts = Array.isArray(lead.contacts) ? [...lead.contacts] : [];
         contacts.splice(index, 1);
         updateLeadMutation.mutate({ contacts });
+    };
+
+    const handleEditContact = (index: number) => {
+        const contact = (lead.contacts as any[])[index];
+        setEditContactData({
+            name: contact.name || "",
+            role: contact.role || "",
+            email: contact.email || "",
+            phone: contact.phone || "",
+            linkedinUrl: contact.linkedinUrl || "",
+        });
+        setEditingContactIdx(index);
+    };
+
+    const handleSaveEditContact = () => {
+        if (editingContactIdx === null) return;
+        const contacts = Array.isArray(lead.contacts) ? [...lead.contacts] : [];
+        contacts[editingContactIdx] = { ...editContactData };
+        updateLeadMutation.mutate({ contacts });
+        setEditingContactIdx(null);
     };
 
     const deleteLeadMutation = useMutation({
@@ -399,45 +424,93 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                                 </div>
                             )}
                             {contacts.map((contact: any, idx: number) => (
-                                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-9 w-9">
-                                            <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <div className="font-medium text-sm">{contact.name}</div>
-                                            <div className="text-xs text-muted-foreground">{contact.role}</div>
+                                editingContactIdx === idx ? (
+                                    <div key={idx} className="p-3 border rounded-lg bg-muted/50 space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <Input
+                                                value={editContactData.name}
+                                                onChange={e => setEditContactData({ ...editContactData, name: e.target.value })}
+                                                placeholder="Name"
+                                                className="h-8 text-sm"
+                                            />
+                                            <Input
+                                                value={editContactData.role}
+                                                onChange={e => setEditContactData({ ...editContactData, role: e.target.value })}
+                                                placeholder="Role"
+                                                className="h-8 text-sm"
+                                            />
+                                            <Input
+                                                value={editContactData.email}
+                                                onChange={e => setEditContactData({ ...editContactData, email: e.target.value })}
+                                                placeholder="Email"
+                                                className="h-8 text-sm"
+                                            />
+                                            <Input
+                                                value={editContactData.phone}
+                                                onChange={e => setEditContactData({ ...editContactData, phone: e.target.value })}
+                                                placeholder="Phone"
+                                                className="h-8 text-sm"
+                                            />
+                                        </div>
+                                        <Input
+                                            value={editContactData.linkedinUrl}
+                                            onChange={e => setEditContactData({ ...editContactData, linkedinUrl: e.target.value })}
+                                            placeholder="LinkedIn URL"
+                                            className="h-8 text-sm"
+                                        />
+                                        <div className="flex justify-end gap-1">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingContactIdx(null)}>
+                                                <X className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={handleSaveEditContact}>
+                                                <Check className="h-3.5 w-3.5" />
+                                            </Button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                        {contact.email && (
-                                            <div className="flex items-center gap-1" title={contact.email}>
-                                                <Mail className="h-3 w-3" />
-                                                <EmailLink email={contact.email} name={contact.name} className="hidden sm:inline truncate max-w-[150px]" />
+                                ) : (
+                                    <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-9 w-9">
+                                                <AvatarFallback>{contact.name?.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <div className="font-medium text-sm">{contact.name}</div>
+                                                <div className="text-xs text-muted-foreground">{contact.role}</div>
                                             </div>
-                                        )}
-                                        {contact.phone && (
-                                            <div className="flex items-center gap-1">
-                                                <Phone className="h-3 w-3" />
-                                                <span className="hidden sm:inline">{contact.phone}</span>
-                                            </div>
-                                        )}
-                                        {contact.linkedinUrl && (
-                                            <a
-                                                href={contact.linkedinUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 hover:text-blue-800 transition-colors"
-                                                title="View LinkedIn Profile"
-                                            >
-                                                <Linkedin className="h-4 w-4" />
-                                            </a>
-                                        )}
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteContact(idx)}>
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                            {contact.email && (
+                                                <div className="flex items-center gap-1" title={contact.email}>
+                                                    <Mail className="h-3 w-3" />
+                                                    <EmailLink email={contact.email} name={contact.name} className="hidden sm:inline truncate max-w-[150px]" />
+                                                </div>
+                                            )}
+                                            {contact.phone && (
+                                                <div className="flex items-center gap-1">
+                                                    <Phone className="h-3 w-3" />
+                                                    <span className="hidden sm:inline">{contact.phone}</span>
+                                                </div>
+                                            )}
+                                            {contact.linkedinUrl && (
+                                                <a
+                                                    href={contact.linkedinUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-blue-600 hover:text-blue-800 transition-colors"
+                                                    title="View LinkedIn Profile"
+                                                >
+                                                    <Linkedin className="h-4 w-4" />
+                                                </a>
+                                            )}
+                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEditContact(idx)}>
+                                                <Pencil className="h-3 w-3" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteContact(idx)}>
+                                                <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                        </div>
                                     </div>
-                                </div>
+                                )
                             ))}
                         </div>
                     </TabsContent>
