@@ -97,7 +97,7 @@ export function OnboardingProvider({ children, userName }: OnboardingProviderPro
         staleTime: 1000 * 60 * 5, // 5 minutes
     });
 
-    const enabled = onboardingData?.enabled ?? true;
+    const enabled = onboardingData?.enabled ?? false;
     const progress = onboardingData?.progress ?? {
         completed: [],
         currentStep: null,

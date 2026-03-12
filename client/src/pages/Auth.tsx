@@ -133,7 +133,11 @@ export default function AuthPage() {
             return res.json();
         },
         onSuccess: (user) => {
-            queryClient.setQueryData(["/api/auth/user"], user);
+            queryClient.setQueryData(["/api/auth/session"], {
+                user,
+                role: user.role || "broker",
+                isAuthenticated: true,
+            });
             toast({ title: "Welcome back!" });
 
             if (selectedPlan) {
@@ -163,7 +167,11 @@ export default function AuthPage() {
             return res.json();
         },
         onSuccess: (user) => {
-            queryClient.setQueryData(["/api/auth/user"], user);
+            queryClient.setQueryData(["/api/auth/session"], {
+                user,
+                role: user.role || "broker",
+                isAuthenticated: true,
+            });
             const planName = selectedPlan === "team" ? "Team" : selectedPlan === "broker" ? "Broker" : null;
             toast({
                 title: "Account created",
@@ -484,24 +492,24 @@ export default function AuthPage() {
             <div className="hidden lg:flex flex-col justify-center p-12 bg-[#0f172a] text-white relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-indigo-900/50" />
 
-                {/* Animated Background Elements */}
+                {/* Background Elements — static, no GPU-heavy animations */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    {/* Floating orbs */}
-                    <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/20 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]" />
-                    <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-[pulse_6s_ease-in-out_infinite_1s]" />
-                    <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/15 rounded-full blur-3xl animate-[pulse_5s_ease-in-out_infinite_2s]" />
+                    {/* Static glows */}
+                    <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/15 rounded-full blur-3xl" />
+                    <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/8 rounded-full blur-3xl" />
+                    <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/10 rounded-full blur-3xl" />
 
-                    {/* Moving grid lines */}
+                    {/* Grid lines */}
                     <div className="absolute inset-0 opacity-[0.03]" style={{
                         backgroundImage: `linear-gradient(#D97706 1px, transparent 1px), linear-gradient(90deg, #D97706 1px, transparent 1px)`,
                         backgroundSize: '60px 60px',
                     }} />
 
-                    {/* Floating particles */}
-                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-60 animate-[pulse_8s_ease-in-out_infinite]" />
-                    <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-40 animate-[pulse_6s_ease-in-out_infinite_1s]" />
-                    <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-50 animate-[pulse_10s_ease-in-out_infinite_2s]" />
-                    <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-30 animate-[pulse_7s_ease-in-out_infinite_3s]" />
+                    {/* Static particles */}
+                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-40" />
+                    <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-30" />
+                    <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-40" />
+                    <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-20" />
                 </div>
 
                 <div className="relative z-10 max-w-lg mx-auto text-center space-y-6">
@@ -509,10 +517,7 @@ export default function AuthPage() {
                     <img
                         src={logoChrome}
                         alt="Veltro"
-                        className="h-32 w-auto object-contain mx-auto mb-8 animate-[pulse_3s_ease-in-out_infinite]"
-                        style={{
-                            filter: "drop-shadow(0 0 20px rgba(217, 119, 6, 0.3))"
-                        }}
+                        className="h-32 w-auto object-contain mx-auto mb-8 drop-shadow-[0_0_20px_rgba(217,119,6,0.3)]"
                     />
 
                     <h1 className="text-5xl font-bold tracking-tight">

@@ -645,7 +645,7 @@ export default function Lenders() {
   );
 
   usePageTitle(
-    "Lender Matching",
+    "Lender Data",
     `${panelLenders.length} on panel · ${marketLenders.length} whole of market`
   );
   usePageActions(actions);

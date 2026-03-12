@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { LeadFinderAgent } from "../Lead Agent/src/agent";
-import { getRunStats, deleteBusiness, getBusinessesForExport, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/db";
+import { getRunStats, deleteBusiness, clearAllBusinesses, getBusinessesForExport, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/db";
 import { storage } from "../storage";
 import { insertInternalLeadSchema } from "@shared/schema";
 import automationRouter from "./leadFinderAutomation.js";
@@ -77,6 +77,61 @@ router.post("/run", async (req, res) => {
     }
 });
 
+
+// DELETE /all - Wipe all leads
+router.delete("/all", (req, res) => {
+    try {
+        clearAllBusinesses();
+        res.json({ success: true });
+    } catch (error) {
+        console.error("[LeadFinder] Failed to clear all businesses:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// POST /enrich/all - Bulk enrich all unenriched leads with a website
+router.post("/enrich/all", async (req, res) => {
+    try {
+        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: true, requireEmail: false });
+        const unenriched = businesses.filter(b => !b.enrichedAt && b.website);
+
+        res.json({ success: true, queued: unenriched.length, message: `Enrichment started for ${unenriched.length} leads` });
+
+        (async () => {
+            const { findEmail } = await import("../Lead Agent/src/scrapers/emailFinder");
+            const { validateEmail, assessPecrEligibility } = await import("../Lead Agent/src/enrichers/emailValidator");
+            const { upsertBusiness } = await import("../Lead Agent/src/database/db");
+            const { computeLeadScore } = await import("../Lead Agent/src/models/business");
+
+            for (const business of unenriched) {
+                try {
+                    const result = await findEmail(business.website!, business.contactName, true);
+                    const updated = { ...business };
+                    if (result) {
+                        const { valid } = await validateEmail(result.email);
+                        if (valid) {
+                            updated.email = result.email;
+                            updated.emailConfidence = result.confidence;
+                            updated.emailValidated = true;
+                        }
+                    }
+                    // @ts-ignore
+                    updated.pecrStatus = assessPecrEligibility(updated);
+                    updated.leadScore = computeLeadScore(updated);
+                    updated.enrichedAt = new Date();
+                    upsertBusiness(updated);
+                } catch (e) {
+                    console.error(`[LeadFinder] Bulk enrich failed for ${business.name}:`, e);
+                }
+            }
+            console.log(`[LeadFinder] Bulk enrichment complete for ${unenriched.length} leads`);
+        })();
+
+    } catch (error) {
+        console.error("[LeadFinder] Bulk enrich failed:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
 // DELETE /:placeId - Delete a lead
 router.delete("/:placeId", (req, res) => {
@@ -212,7 +267,16 @@ router.post("/migrate/:placeId", async (req, res) => {
 
         console.log(`[LeadFinder] Migrating business: ${business.name} -> CRM`);
 
-        // 2. Map to InternalLead schema
+        // 2. Check for duplicates by company number
+        let existingLead = null;
+        if (business.companyNumber && business.companyNumber !== "unknown") {
+            existingLead = await storage.getInternalLeadByCompanyNumber(business.companyNumber);
+            if (existingLead) {
+                console.log(`[LeadFinder] Duplicate detected: ${business.name} matches existing lead #${existingLead.id} (${existingLead.companyName})`);
+            }
+        }
+
+        // 3. Map to InternalLead schema
         const internalLeadData = {
             companyName: toTitleCase(business.name),
             companyNumber: business.companyNumber || "unknown",
@@ -238,18 +302,22 @@ router.post("/migrate/:placeId", async (req, res) => {
 
             contacts: [],
 
+            // Duplicate flagging
+            possibleDuplicate: !!existingLead,
+            duplicateOf: existingLead ? existingLead.id : null,
+
             createdAt: new Date(),
             updatedAt: new Date()
         };
 
-        // 3. Create in Firestore
+        // 4. Create in Firestore
         // @ts-ignore
         const saved = await storage.createInternalLead(internalLeadData);
 
-        // 4. Mark as migrated
+        // 5. Mark as migrated
         markBusinessAsMigrated(placeId);
 
-        res.json({ success: true, leadId: saved.id, migrated: true });
+        res.json({ success: true, leadId: saved.id, migrated: true, duplicate: !!existingLead, existingLeadId: existingLead?.id });
 
     } catch (error) {
         console.error("[LeadFinder] Failed to migrate business:", error);

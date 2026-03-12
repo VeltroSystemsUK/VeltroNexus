@@ -12,7 +12,7 @@ const router = Router();
   // --- AI WORKFORCE PLATFORM ROUTES ---
 
   // Get active workforce roster
-  router.get("/api/workforce", isAuthenticated, async (req: Request, res: Response) => {
+  router.get("/workforce", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const roster = await storage.getAgents();
       res.json(roster);
@@ -22,9 +22,9 @@ const router = Router();
   });
 
   // Get recent mission deviations (Shadow Audit log)
-  // IMPORTANT: This must be registered BEFORE /api/workforce/:id to avoid :id catching "deviations"
+  // IMPORTANT: This must be registered BEFORE /workforce/:id to avoid :id catching "deviations"
   router.get(
-    "/api/workforce/deviations",
+    "/workforce/deviations",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -41,7 +41,7 @@ const router = Router();
 
   // Get agent by ID
   router.get(
-    "/api/workforce/:id",
+    "/workforce/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -56,7 +56,7 @@ const router = Router();
 
   // Run instruction with agent (Interaction Mode)
   router.post(
-    "/api/workforce/:agentId/run",
+    "/workforce/:agentId/run",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -110,7 +110,7 @@ const router = Router();
 
   // Update an agent (Edit)
   router.put(
-    "/api/workforce/:id",
+    "/workforce/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -137,7 +137,7 @@ const router = Router();
 
   // Delete an agent
   router.delete(
-    "/api/workforce/:id",
+    "/workforce/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -156,7 +156,7 @@ const router = Router();
 
   // Get chat history for an agent
   router.get(
-    "/api/workforce/:agentId/chats",
+    "/workforce/:agentId/chats",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -174,7 +174,7 @@ const router = Router();
 
   // Clear chat history for an agent
   router.delete(
-    "/api/workforce/:agentId/chats",
+    "/workforce/:agentId/chats",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -190,7 +190,7 @@ const router = Router();
   );
 
   // Create a new agent
-  router.post("/api/workforce", isAuthenticated, async (req: Request, res: Response) => {
+  router.post("/workforce", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const agentData = req.body;
 
@@ -240,7 +240,7 @@ const router = Router();
   // --- END WORKFORCE ROUTES ---
 
   // Agent Job Tracking API
-  router.get("/api/agent-jobs", isAuthenticated, async (req: Request, res: Response) => {
+  router.get("/agent-jobs", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const { agentJobTracker } = await import("../services/agentJobTracker");
       const jobs = await agentJobTracker.getJobsForUser(req.user!.id, 20);
@@ -252,7 +252,7 @@ const router = Router();
   });
 
   router.get(
-    "/api/agent-jobs/running",
+    "/agent-jobs/running",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -267,7 +267,7 @@ const router = Router();
   );
 
   router.get(
-    "/api/agent-jobs/:jobId",
+    "/agent-jobs/:jobId",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -289,7 +289,7 @@ const router = Router();
   );
 
   router.delete(
-    "/api/agent-jobs/:jobId",
+    "/agent-jobs/:jobId",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {

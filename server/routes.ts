@@ -106,6 +106,14 @@ import workforceRouter from "./routes/workforce";
 import companiesRouter from "./routes/companies";
 import submissionsRouter from "./routes/submissions";
 import prospectsRouter from "./routes/prospects";
+import forecastsRouter from "./routes/forecasts";
+import invoicesRouter from "./routes/invoices";
+import incomeRouter from "./routes/income";
+import cashflowRouter from "./routes/cashflow";
+import expensesRouter from "./routes/expenses";
+import emailTemplatesRouter from "./routes/emailTemplates";
+import emailCampaignsRouter from "./routes/emailCampaigns";
+import mediaRouter from "./routes/media";
 import { getObjectStorage } from "./utils/routerHelpers";
 
 export async function registerRoutes(app: Application): Promise<Server> {
@@ -556,6 +564,14 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api", companiesRouter);
   app.use("/api", submissionsRouter);
   app.use("/api", prospectsRouter);
+  app.use("/api", forecastsRouter);
+  app.use("/api", invoicesRouter);
+  app.use("/api", incomeRouter);
+  app.use("/api", cashflowRouter);
+  app.use("/api", expensesRouter);
+  app.use("/api", emailTemplatesRouter);
+  app.use("/api", emailCampaignsRouter);
+  app.use("/api", mediaRouter);
 
   // NOTE: Agent Workforce routes are registered earlier in this file (before CSRF middleware)
   // to avoid duplication. See "--- AI WORKFORCE PLATFORM ROUTES ---" section above.
@@ -1193,179 +1209,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
   );
 
   // ==================
-  // Email Outreach Queue
-  // ==================
-  app.get(
-    "/api/outreach/pending",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        // Return emails from global storage (temporary for testing)
-        const emails = (global as any).pendingEmails || [];
-        res.json(emails);
-      } catch (error) {
-        handleApiError(res, error, "outreach-error");
-      }
-    }
-  );
-
-  app.post(
-    "/api/outreach/:emailId/approve",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { createGmailDraft } = await import("./utils/gmailClient");
-        const emails = (global as any).pendingEmails || [];
-        const email = emails.find((e: any) => e.id === req.params.emailId);
-
-        if (!email) {
-          return res.status(404).json({ error: "Email not found" });
-        }
-
-        // TODO: Get actual prospect email - for now using placeholder
-        const prospectEmail = `${email.prospectName.toLowerCase().replace(/\s+/g, ".")}@example.com`;
-
-        // Create draft in Gmail (shaun@veltro.co.uk)
-        const draft = await createGmailDraft(
-          prospectEmail,
-          email.subject,
-          email.body,
-          req.user.id
-        );
-
-        // Update status
-        email.status = "approved";
-        email.approvedAt = new Date().toISOString();
-        email.draftUrl = draft.url;
-
-        console.log(`[Outreach] Created draft: ${draft.url}`);
-
-        res.json({ success: true, draftUrl: draft.url });
-      } catch (error) {
-        handleApiError(res, error, "outreach-error");
-      }
-    }
-  );
-
-  app.post(
-    "/api/outreach/:emailId/reject",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { emailOutreach } = await import("./services/emailOutreach");
-        await emailOutreach.rejectEmail(
-          req.params.emailId,
-          req.body.reason || "Manual rejection",
-          req.user.id
-        );
-        res.json({ success: true });
-      } catch (error) {
-        handleApiError(res, error, "outreach-error");
-      }
-    }
-  );
-
-  // Test endpoint: Generate sample emails
-  app.post(
-    "/api/outreach/generate-test",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { emailOutreach } = await import("./services/emailOutreach");
-
-        const testProspects = [
-          {
-            id: "test_1",
-            name: "Sarah Mitchell",
-            company: "TechFlow Solutions Ltd",
-            turnover: "£12.5M",
-            sector: "Technology",
-            needs: ["Working capital", "Equipment finance"],
-          },
-          {
-            id: "test_2",
-            name: "James Robertson",
-            company: "Highland Manufacturing Co",
-            turnover: "£8.2M",
-            sector: "Manufacturing",
-            needs: ["Business expansion", "Invoice finance"],
-          },
-          {
-            id: "test_3",
-            name: "Emma Williams",
-            company: "Green Energy Consultants",
-            turnover: "£5.7M",
-            sector: "Renewable Energy",
-            needs: ["Growth capital", "Property finance"],
-          },
-        ];
-
-        const emails = [];
-        for (const prospect of testProspects) {
-          const email = await emailOutreach.generateOutreachEmail(
-            prospect.id,
-            prospect,
-            req.user.id
-          );
-          emails.push(email);
-        }
-
-        res.json({ success: true, emails });
-      } catch (error) {
-        handleApiError(res, error, "outreach-error");
-      }
-    }
-  );
-
-  // Mock test endpoint: Generate sample emails without AI
-  app.post(
-    "/api/outreach/generate-mock-test",
-    isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const mockEmails = [
-          {
-            id: `email_${Date.now()}_1`,
-            prospectId: "test_1",
-            prospectName: "Sarah Mitchell",
-            prospectCompany: "TechFlow Solutions Ltd",
-            subject: "Flexible Finance Solutions for Your Growing Tech Business",
-            body: "Dear Sarah,\n\nI hope this message finds you well. I'm reaching out from Veltro to introduce our specialized lending platform designed for technology companies like TechFlow Solutions Ltd.\n\nWith your turnover of £12.5M, you're at an exciting growth stage. We offer tailored working capital and equipment finance solutions with competitive rates and flexible terms that adapt to your business cycle.\n\nI'd love to discuss how we can support your expansion plans. Would you be available for a brief call next week?\n\nBest regards,\nThe Veltro Team",
-            status: "pending",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: `email_${Date.now()}_2`,
-            prospectId: "test_2",
-            prospectName: "James Robertson",
-            prospectCompany: "Highland Manufacturing Co",
-            subject: "Manufacturing Finance Solutions Tailored to Your Needs",
-            body: "Dear James,\n\nI noticed Highland Manufacturing Co's strong performance in the manufacturing sector. Congratulations on building such a solid business.\n\nAt Veltro, we specialize in supporting manufacturers with business expansion loans and invoice finance. Our platform streamlines the application process while offering competitive rates designed for your industry.\n\nGiven your £8.2M turnover, we have several options that could help accelerate your growth plans. I'd be delighted to explore these with you.\n\nCould we schedule a quick conversation this week?\n\nWarm regards,\nThe Veltro Team",
-            status: "pending",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: `email_${Date.now()}_3`,
-            prospectId: "test_3",
-            prospectName: "Emma Williams",
-            prospectCompany: "Green Energy Consultants",
-            subject: "Sustainable Finance for Your Green Energy Mission",
-            body: "Dear Emma,\n\nIt's inspiring to see Green Energy Consultants making such positive impact in renewable energy. We'd love to support your continued growth.\n\nVeltro offers specialized finance solutions for sustainable businesses, including growth capital and property finance options. With your £5.7M turnover, you qualify for our most competitive rates.\n\nWe understand the unique needs of the renewable sector and can structure financing that aligns with your project timelines and cash flow.\n\nWould you be interested in learning more? I'm happy to share details at your convenience.\n\nBest wishes,\nThe Veltro Team",
-            status: "pending",
-            createdAt: new Date().toISOString(),
-          },
-        ];
-
-        // Store in global state for testing
-        (global as any).pendingEmails = mockEmails;
-
-        res.json({ success: true, emails: mockEmails });
-      } catch (error) {
-        handleApiError(res, error, "outreach-error");
-      }
-    }
-  );
-
   // --- LEAD FINDER AGENT ROUTES ---
 
   app.post("/api/lead-finder/run", isAuthenticated, async (req, res) => {

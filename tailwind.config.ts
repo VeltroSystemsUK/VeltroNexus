@@ -6,9 +6,19 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        lg: "var(--radius-lg)",
+        md: "var(--radius)",
+        sm: "var(--radius-sm)",
+      },
+      fontSize: {
+        xs: ['0.7rem', { lineHeight: '1rem' }],
+        sm: ['0.8rem', { lineHeight: '1.25rem' }],
+        base: ['0.875rem', { lineHeight: '1.5rem' }],
+      },
+      boxShadow: {
+        'card': '0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)',
+        'elevated': '0 4px 16px rgba(0,0,0,0.5)',
+        'gold-glow': '0 0 20px rgba(212, 175, 55, 0.15)',
       },
       colors: {
         // Flat / base colors (regular buttons)

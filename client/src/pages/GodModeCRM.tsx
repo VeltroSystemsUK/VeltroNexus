@@ -74,7 +74,12 @@ import {
     Check,
     Loader2,
     Activity,
-    Clock
+    Clock,
+    AlertTriangle,
+    XCircle,
+    CheckCircle2,
+    Send,
+    UserSearch,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AgentJobProgress } from "@/components/AgentJobProgress";
@@ -83,6 +88,7 @@ import { InternalLead, Commission, User } from "@shared/schema";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
+import { usePageTitle } from "@/context/LayoutContext";
 
 // Reuse Components
 import InternalLeadDetail from "@/components/InternalLeadDetail";
@@ -251,6 +257,30 @@ export default function GodModeCRM() {
         }
     });
 
+    // Contact Finder mutations
+    const findContactsMutation = useMutation({
+        mutationFn: (leadId: number) => apiRequest(`/api/god/crm/find-contacts/${leadId}`, "POST"),
+        onSuccess: (data: any) => {
+            toast.success(data.message || "Contacts found");
+            queryClient.invalidateQueries({ queryKey: ["/api/god/crm/leads"] });
+        },
+        onError: (error: any) => {
+            toast.error("Contact search failed: " + error.message);
+        }
+    });
+
+    const findContactsBulkMutation = useMutation({
+        mutationFn: (leadIds: number[]) => apiRequest("/api/god/crm/find-contacts-bulk", "POST", { leadIds }),
+        onSuccess: (data: any) => {
+            toast.success(data.message || "Contact discovery started");
+            setSelectedLeadIds(new Set());
+            queryClient.invalidateQueries({ queryKey: ["/api/agent-jobs"] });
+        },
+        onError: (error: any) => {
+            toast.error("Bulk contact search failed: " + error.message);
+        }
+    });
+
     // Kanban Columns
     const stages = [
         { id: "new", label: "New Lead", color: "bg-blue-500/10 border-blue-500/20 text-blue-500" },
@@ -274,10 +304,10 @@ export default function GodModeCRM() {
                 const matchesCity = cityFilter === "all" || lead.city === cityFilter;
                 const matchesSic = sicFilter === "all" || lead.sicCode === sicFilter;
                 const matchesCharge = chargeFilter === "all" ||
-                    (chargeFilter === "charged" && lead.chargeStatus === "active") ||
-                    (chargeFilter === "none" && !lead.hasCharges) ||
-                    (chargeFilter === "satisfied" && lead.chargeStatus === "satisfied") ||
-                    (chargeFilter === "enrichment_required" && lead.hasCharges && !lead.chargeStatus);
+                    (chargeFilter === "active_lender" && !!lead.identifiedLender && lead.chargeStatus !== "satisfied") ||
+                    (chargeFilter === "former_lender" && !!lead.identifiedLender && lead.chargeStatus === "satisfied") ||
+                    (chargeFilter === "enrichment_needed" && lead.hasCharges && !lead.identifiedLender) ||
+                    (chargeFilter === "no_charges" && !lead.hasCharges && !lead.identifiedLender);
                 const matchesLender = lenderFilter === "all" || lead.identifiedLender === lenderFilter;
 
                 return matchesSearch && matchesCity && matchesSic && matchesCharge && matchesLender;
@@ -352,6 +382,8 @@ export default function GodModeCRM() {
         }
     };
 
+    usePageTitle("Client CRM", "Foundational data collected from Companies House");
+
     return (
         <div className="space-y-6 pt-6 pb-12 w-full">
             {/* Detail Dialog */}
@@ -365,13 +397,7 @@ export default function GodModeCRM() {
             )}
 
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                        <Briefcase className="h-8 w-8 text-primary" />
-                        Veltro Database Builder
-                    </h1>
-                    <p className="text-muted-foreground mt-1">Foundational data collected from Companies House.</p>
-                </div>
+                <div></div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setLocation("/god-mode")}>
                         Back to Dashboard
@@ -476,6 +502,37 @@ export default function GodModeCRM() {
                         >
                             <UserPlus className="mr-2 h-4 w-4" />
                             Enrich {selectedLeadIds.size > 0 ? `(${selectedLeadIds.size})` : "Leads"}
+                        </Button>
+
+                        {/* Contact Finder */}
+                        <Button
+                            variant="secondary"
+                            onClick={() => {
+                                if (selectedLeadIds.size === 0) {
+                                    toast.info("Select leads to find contacts for by clicking checkboxes in the table");
+                                } else {
+                                    findContactsBulkMutation.mutate(Array.from(selectedLeadIds));
+                                }
+                            }}
+                            disabled={findContactsBulkMutation.isPending}
+                        >
+                            <UserSearch className="mr-2 h-4 w-4" />
+                            Find Contacts {selectedLeadIds.size > 0 ? `(${selectedLeadIds.size})` : ""}
+                        </Button>
+
+                        <Button
+                            variant="secondary"
+                            onClick={() => {
+                                if (selectedLeadIds.size === 0) {
+                                    toast.info("Select leads to send a campaign to by clicking checkboxes in the table");
+                                } else {
+                                    const ids = Array.from(selectedLeadIds).join(",");
+                                    setLocation(`/email-campaigns?prefill=crm&source=client&ids=${ids}`);
+                                }
+                            }}
+                        >
+                            <Send className="mr-2 h-4 w-4" />
+                            Campaign {selectedLeadIds.size > 0 ? `(${selectedLeadIds.size})` : ""}
                         </Button>
 
                         <Button
@@ -592,10 +649,10 @@ export default function GodModeCRM() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Risk Types</SelectItem>
-                                <SelectItem value="charged">Active Charges ⚠️</SelectItem>
-                                <SelectItem value="satisfied">Expired Charges 🕓</SelectItem>
-                                <SelectItem value="enrichment_required">Enrichment Required 🔍</SelectItem>
-                                <SelectItem value="none">Clear Title ✅</SelectItem>
+                                <SelectItem value="active_lender">Active Lender ✅</SelectItem>
+                                <SelectItem value="former_lender">Former Lender 🔵</SelectItem>
+                                <SelectItem value="enrichment_needed">Enrichment Needed ⚠️</SelectItem>
+                                <SelectItem value="no_charges">No Charges ❌</SelectItem>
                             </SelectContent>
                         </Select>
                         <Popover open={lenderOpen} onOpenChange={setLenderOpen}>
@@ -806,38 +863,45 @@ export default function GodModeCRM() {
                                             </TableCell>
 
                                             <TableCell>
-                                                {lead.chargeStatus === "active" ? (
-                                                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 gap-1 px-1.5 py-0 flex items-center w-fit">
-                                                        <Activity className="h-3 w-3" />
-                                                        Active
-                                                    </Badge>
-                                                ) : lead.chargeStatus === "satisfied" ? (
-                                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 gap-1 px-1.5 py-0 flex items-center w-fit">
-                                                        <Clock className="h-3 w-3" />
-                                                        Expired
-                                                    </Badge>
+                                                {lead.identifiedLender ? (
+                                                    lead.chargeStatus === "satisfied" ? (
+                                                        <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                                    ) : (
+                                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                                    )
                                                 ) : lead.hasCharges ? (
-                                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 px-1.5 py-0 flex items-center w-fit">
-                                                        <Search className="h-3 w-3" />
-                                                        Check
-                                                    </Badge>
+                                                    <span className="text-xs text-amber-600 flex items-center gap-1">
+                                                        <AlertTriangle className="h-3 w-3" />
+                                                        Enrichment Needed
+                                                    </span>
                                                 ) : (
-                                                    <span className="text-muted-foreground opacity-20">—</span>
+                                                    <XCircle className="h-4 w-4 text-red-400" />
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-muted-foreground">
                                                 {lead.incorporationDate ? format(new Date(lead.incorporationDate), "dd MMM yyyy") : "N/A"}
                                             </TableCell>
                                             <TableCell className="text-muted-foreground">
-                                                {lead.city || lead.address?.split(",").pop()?.trim() || "N/A"}
+                                                {(() => {
+                                                    const city = lead.city || "";
+                                                    // Strip postcodes (UK format: letter+digit patterns at end)
+                                                    const cleaned = city.replace(/\s*[A-Z]{1,2}\d{1,2}\s*\d[A-Z]{2}\s*$/i, "").trim();
+                                                    if (cleaned) return cleaned;
+                                                    // Fallback: extract city from address (second-to-last segment, skip postcode)
+                                                    if (lead.address) {
+                                                        const parts = lead.address.split(",").map((p: string) => p.trim()).filter(Boolean);
+                                                        if (parts.length >= 2) return parts[parts.length - 2];
+                                                        if (parts.length === 1) return parts[0];
+                                                    }
+                                                    return "N/A";
+                                                })()}
                                             </TableCell>
                                             <TableCell>
                                                 {lead.identifiedLender ? (
-                                                    <Badge
-                                                        variant="outline"
+                                                    <span
                                                         className={cn(
-                                                            "text-[10px] border-amber-200 cursor-help",
-                                                            lead.chargeStatus === "satisfied" ? "bg-slate-50 text-slate-500 border-slate-200" : "bg-amber-50 text-amber-700"
+                                                            "text-xs truncate max-w-[180px] block cursor-help",
+                                                            lead.chargeStatus === "satisfied" ? "text-muted-foreground" : "text-foreground"
                                                         )}
                                                         title={lead.identifiedLender}
                                                     >
@@ -845,11 +909,11 @@ export default function GodModeCRM() {
                                                         {lead.identifiedLender.length > 30
                                                             ? lead.identifiedLender.slice(0, 30) + "..."
                                                             : lead.identifiedLender}
-                                                    </Badge>
+                                                    </span>
                                                 ) : lead.hasCharges ? (
-                                                    <span className="text-[10px] text-muted-foreground italic">Enrichment Required</span>
+                                                    <span className="text-xs text-muted-foreground italic">Enrichment Required</span>
                                                 ) : (
-                                                    <span className="text-[10px] text-muted-foreground opacity-30">-</span>
+                                                    <span className="text-xs text-muted-foreground opacity-30">-</span>
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-xs font-mono">

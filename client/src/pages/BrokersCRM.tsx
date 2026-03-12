@@ -62,6 +62,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { BrokerLead } from "@shared/schema";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { usePageTitle } from "@/context/LayoutContext";
 
 // Broker Details Component
 import BrokerLeadDetail from "@/components/BrokerLeadDetail";
@@ -148,6 +149,8 @@ export default function BrokersCRM() {
         return pages;
     }
 
+    usePageTitle("Broker CRM", "Manage and recruit external brokers for your lender network");
+
     return (
         <div className="space-y-6 pt-6 pb-12 w-full px-4 md:px-8">
             {selectedLead && (
@@ -159,13 +162,7 @@ export default function BrokersCRM() {
             )}
 
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                        <Users className="h-8 w-8 text-primary" />
-                        Brokers CRM
-                    </h1>
-                    <p className="text-muted-foreground mt-1">Manage and recruit external brokers for your lender network.</p>
-                </div>
+                <div></div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setLocation("/god-mode")}>
                         Admin Home

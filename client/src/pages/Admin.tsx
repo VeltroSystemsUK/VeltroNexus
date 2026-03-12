@@ -14,7 +14,7 @@ import {
 import { useState } from "react";
 import {
   Users, Shield, UserCog, Briefcase, Loader2, ArrowLeft, Search, Save, AlertCircle,
-  MoreVertical, Edit, Key, Trash2, Crown, Gem, Zap, Coffee
+  MoreVertical, Edit, Key, Trash2, Crown, Gem, Zap, Coffee, Mail, UserPlus, CheckCircle, XCircle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
@@ -43,6 +43,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+
+interface WaitlistEntry {
+  id: number;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  phone?: string;
+  source: string;
+  trialInterest: boolean;
+  status: "pending" | "contacted" | "converted";
+  unsubscribed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface User {
   id: string;
@@ -73,6 +88,7 @@ export default function Admin() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
+  const [waitlistSearch, setWaitlistSearch] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const { data: currentUser } = useQuery<User>({
@@ -91,6 +107,24 @@ export default function Admin() {
   const { data: slaSettings, isLoading: slaLoading } = useQuery<{ green: number; amber: number; red: number }>({
     queryKey: ["/api/admin/settings/sla"],
     enabled: roleData?.role === "super_admin" || roleData?.role === "sales_admin",
+  });
+
+  const { data: waitlistEntries, isLoading: waitlistLoading } = useQuery<WaitlistEntry[]>({
+    queryKey: ["/api/marketing/waitlist"],
+    enabled: roleData?.role === "super_admin" || roleData?.role === "sales_admin",
+  });
+
+  const updateWaitlistStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      return apiRequest(`/api/marketing/waitlist/${id}/status`, "PATCH", { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/waitlist"] });
+      toast({ title: "Status Updated", description: "Waitlist entry status has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update status", variant: "destructive" });
+    },
   });
 
   // Generalized Update Mutation (Role, Subscription, etc.)
@@ -257,6 +291,10 @@ export default function Admin() {
           <TabsTrigger value="sla" className="gap-2">
             <Shield className="h-4 w-4" />
             SLA Settings
+          </TabsTrigger>
+          <TabsTrigger value="waitlist" className="gap-2">
+            <Mail className="h-4 w-4" />
+            Waitlist
           </TabsTrigger>
         </TabsList>
 
@@ -545,6 +583,154 @@ export default function Admin() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="waitlist" className="space-y-6">
+          {(() => {
+            const total = waitlistEntries?.length || 0;
+            const pending = waitlistEntries?.filter(e => e.status === "pending").length || 0;
+            const trialInterested = waitlistEntries?.filter(e => e.trialInterest).length || 0;
+            const unsubscribed = waitlistEntries?.filter(e => e.unsubscribed).length || 0;
+            const filteredWaitlist = waitlistEntries?.filter(e =>
+              e.email?.toLowerCase().includes(waitlistSearch.toLowerCase()) ||
+              e.firstName?.toLowerCase().includes(waitlistSearch.toLowerCase()) ||
+              e.companyName?.toLowerCase().includes(waitlistSearch.toLowerCase())
+            ) || [];
+
+            return (
+              <>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Total Signups</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{total}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-amber-600">{pending}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Trial Interested</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-600">{trialInterested}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Unsubscribed</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-red-600">{unsubscribed}</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserPlus className="h-5 w-5" />
+                      Waitlist Entries
+                    </CardTitle>
+                    <CardDescription>Manage waitlist signups and marketing contacts</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="waitlist-search"
+                        name="waitlist-search"
+                        placeholder="Search by email, name, or company..."
+                        value={waitlistSearch}
+                        onChange={(e) => setWaitlistSearch(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+
+                    {waitlistLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      </div>
+                    ) : filteredWaitlist.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">No waitlist entries found</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-left text-muted-foreground">
+                              <th className="pb-3 font-medium">Contact</th>
+                              <th className="pb-3 font-medium">Company</th>
+                              <th className="pb-3 font-medium">Source</th>
+                              <th className="pb-3 font-medium">Trial</th>
+                              <th className="pb-3 font-medium">Status</th>
+                              <th className="pb-3 font-medium">Subscribed</th>
+                              <th className="pb-3 font-medium">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredWaitlist.map((entry) => (
+                              <tr key={entry.id} className="border-b last:border-0 hover:bg-muted/50">
+                                <td className="py-3">
+                                  <div>
+                                    <p className="font-medium">{entry.firstName || "—"} {entry.lastName || ""}</p>
+                                    <p className="text-xs text-muted-foreground">{entry.email}</p>
+                                  </div>
+                                </td>
+                                <td className="py-3 text-muted-foreground">{entry.companyName || "—"}</td>
+                                <td className="py-3">
+                                  <Badge variant="outline" className="text-xs">{entry.source}</Badge>
+                                </td>
+                                <td className="py-3">
+                                  {entry.trialInterest ? (
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </td>
+                                <td className="py-3">
+                                  <Select
+                                    value={entry.status}
+                                    onValueChange={(val) => updateWaitlistStatusMutation.mutate({ id: entry.id, status: val })}
+                                  >
+                                    <SelectTrigger className="h-7 w-[120px] text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="contacted">Contacted</SelectItem>
+                                      <SelectItem value="converted">Converted</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="py-3">
+                                  {entry.unsubscribed ? (
+                                    <Badge variant="destructive" className="text-xs">Unsubscribed</Badge>
+                                  ) : (
+                                    <Badge className="text-xs bg-green-500/10 text-green-600 border-green-500/20">Active</Badge>
+                                  )}
+                                </td>
+                                <td className="py-3 text-xs text-muted-foreground">
+                                  {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy") : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 

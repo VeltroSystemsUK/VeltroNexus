@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -71,10 +71,30 @@ import {
     Info,
     Filter,
     ArrowUpDown,
-    DollarSign
+    DollarSign,
+    Sparkles,
+    Eraser
 } from "lucide-react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { usePageTitle } from "@/context/LayoutContext";
 import { DomainContactPanel } from "@/components/DomainContactPanel";
 import { LeadDetailsSheet } from "@/components/LeadDetailsSheet";
 import { EmailLink } from "@/components/EmailLink";
@@ -112,9 +132,172 @@ interface AgentStatus {
     emails_found: number;
 }
 
+// Comprehensive business categories — aligned with Google Places API types + UK-specific sectors
+const BUSINESS_CATEGORIES = [
+    // Automotive
+    "Car Dealerships",
+    "Car Hire & Rental",
+    "Car Repair & MOT",
+    "Car Wash & Valeting",
+    "EV Charging Stations",
+    "Petrol Stations",
+    "Tyre Shops",
+    "Truck & Van Dealers",
+    // Business & Corporate
+    "Business Centres",
+    "Corporate Offices",
+    "Coworking Spaces",
+    "Manufacturers",
+    "Suppliers & Distributors",
+    // Finance & Professional
+    "Accountants & Tax Services",
+    "Banks & Building Societies",
+    "Commercial Finance Brokers",
+    "Financial Advisors",
+    "Insurance Brokers",
+    "Mortgage Brokers",
+    // Food & Drink
+    "Bakeries",
+    "Bars & Pubs",
+    "Breweries & Distilleries",
+    "Cafes & Coffee Shops",
+    "Catering Services",
+    "Delis & Sandwich Shops",
+    "Fast Food & Takeaways",
+    "Fine Dining Restaurants",
+    "Food Courts",
+    "Indian Restaurants",
+    "Italian Restaurants",
+    "Mexican Restaurants",
+    "Pizza Restaurants",
+    "Restaurants",
+    "Steak Houses",
+    "Sushi Restaurants",
+    // Health & Wellness
+    "Chiropractors",
+    "Dental Practices",
+    "Doctors & GPs",
+    "Hospitals & Clinics",
+    "Medical Centres",
+    "Opticians",
+    "Pharmacies",
+    "Physiotherapists",
+    "Spas & Wellness",
+    "Yoga Studios",
+    // Lodging & Hospitality
+    "Bed & Breakfasts",
+    "Campsites & Holiday Parks",
+    "Hotels",
+    "Guest Houses & Inns",
+    "Serviced Apartments",
+    // Personal Services
+    "Barber Shops",
+    "Beauty Salons",
+    "Hair Salons",
+    "Nail Salons",
+    "Tattoo & Piercing Studios",
+    // Professional Services
+    "Architects & Designers",
+    "Cleaning Services",
+    "Courier & Delivery Services",
+    "Driving Schools",
+    "Electricians",
+    "Engineering Firms",
+    "Estate Agents",
+    "Event Planning & Management",
+    "Florists",
+    "Funeral Directors",
+    "Garden & Landscaping",
+    "IT Consultants & Services",
+    "Lawyers & Solicitors",
+    "Locksmiths",
+    "Marketing & PR Agencies",
+    "Pest Control",
+    "Photography Studios",
+    "Plumbers",
+    "Printing & Signage",
+    "Property Management",
+    "Recruitment Agencies",
+    "Removal & Moving Companies",
+    "Security Services",
+    "Surveyors & Valuers",
+    "Training Providers",
+    "Travel Agents",
+    "Veterinary Practices",
+    // Shopping & Retail
+    "Bookshops",
+    "Charity Shops",
+    "Clothing & Fashion",
+    "Computer & Electronics",
+    "Convenience Stores",
+    "Department Stores",
+    "DIY & Hardware",
+    "Furniture Shops",
+    "Garden Centres",
+    "Gift Shops",
+    "Grocery & Supermarkets",
+    "Jewellers & Watch Shops",
+    "Liquor & Off Licences",
+    "Mobile Phone Shops",
+    "Musical Instrument Shops",
+    "Pet Shops",
+    "Shoe Shops",
+    "Shopping Centres",
+    "Sporting Goods",
+    "Toy Shops",
+    // Sports & Leisure
+    "Bowling Alleys",
+    "Cinemas",
+    "Dance Studios",
+    "Fitness & Gyms",
+    "Golf Courses",
+    "Leisure Centres",
+    "Martial Arts Schools",
+    "Swimming Pools",
+    // Education & Childcare
+    "Childcare & Nurseries",
+    "Language Schools",
+    "Music Schools",
+    "Private Schools",
+    "Tutoring Services",
+    // Construction & Trades
+    "Bathroom Fitters",
+    "Builders & Construction",
+    "Carpenters & Joiners",
+    "Fencing Contractors",
+    "Kitchen Fitters",
+    "Painters & Decorators",
+    "Plasterers",
+    "Roofers",
+    "Scaffolding",
+    "Tiling Services",
+    "Window & Door Installers",
+    // Transport & Logistics
+    "Bus & Coach Hire",
+    "Car Parks",
+    "Logistics & Haulage",
+    "Skip Hire & Waste",
+    "Taxi & Private Hire",
+    "Vehicle Recovery",
+    "Warehousing & Storage",
+    // Other Commercial
+    "Art Galleries",
+    "Churches & Religious Organisations",
+    "Dry Cleaners & Laundry",
+    "Key Cutting & Shoe Repair",
+    "Self Storage",
+    "Vending Machine Services",
+    "Wedding Services",
+    "Wholesale Trade",
+];
+
 export default function LeadFinder() {
     const [location, setLocation] = useLocation();
     const [instruction, setInstruction] = useState("");
+    const [searchTab, setSearchTab] = useState<"category" | "custom">("category");
+    const [selectedCategory, setSelectedCategory] = useState("");
+    const [searchLocation, setSearchLocation] = useState("");
+    const [categoryOpen, setCategoryOpen] = useState(false);
     const [isPolling, setIsPolling] = useState(false);
 
     // Filters & Sort
@@ -168,8 +351,12 @@ export default function LeadFinder() {
 
     const migrateMutation = useMutation({
         mutationFn: (placeId: string) => apiRequest(`/api/lead-finder/migrate/${placeId}`, "POST"),
-        onSuccess: () => {
-            toast.success("Lead migrated to CRM!");
+        onSuccess: (data: any) => {
+            if (data.duplicate) {
+                toast.warning(`Lead migrated but may be a duplicate of existing record #${data.existingLeadId}`);
+            } else {
+                toast.success("Lead migrated to CRM!");
+            }
             queryClient.invalidateQueries({ queryKey: ["/api/lead-finder/results"] });
         },
         onError: (error: any) => {
@@ -189,6 +376,42 @@ export default function LeadFinder() {
         }
     });
 
+    const enrichMutation = useMutation({
+        mutationFn: (placeId: string) => apiRequest(`/api/lead-finder/${placeId}/deep-search`, "POST"),
+        onSuccess: () => {
+            toast.success("Enrichment complete");
+            queryClient.invalidateQueries({ queryKey: ["/api/lead-finder/results"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/lead-finder/status"] });
+        },
+        onError: (error: any) => {
+            toast.error("Enrichment failed: " + error.message);
+        }
+    });
+
+    const enrichAllMutation = useMutation({
+        mutationFn: () => apiRequest("/api/lead-finder/enrich/all", "POST"),
+        onSuccess: (data: any) => {
+            toast.success(data?.message ?? "Bulk enrichment started");
+            setIsPolling(true);
+            setTimeout(() => setIsPolling(false), 120000);
+        },
+        onError: (error: any) => {
+            toast.error("Bulk enrichment failed: " + error.message);
+        }
+    });
+
+    const clearAllMutation = useMutation({
+        mutationFn: () => apiRequest("/api/lead-finder/all", "DELETE"),
+        onSuccess: () => {
+            toast.success("All leads cleared");
+            queryClient.invalidateQueries({ queryKey: ["/api/lead-finder/results"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/lead-finder/status"] });
+        },
+        onError: (error: any) => {
+            toast.error("Failed to clear leads: " + error.message);
+        }
+    });
+
     // Toggle polling if results change significantly or if user wants to stop
     useEffect(() => {
         if (leads.length > 0 && isPolling) {
@@ -197,6 +420,7 @@ export default function LeadFinder() {
     }, [leads.length, isPolling]);
 
     // Derived State
+    const unenrichedCount = leads.filter(l => !l.email && l.website).length;
     const cities = Array.from(new Set(leads.map(l => l.address?.split(',').slice(-2)[0]?.trim()).filter(Boolean))) as string[];
     const sicCodes = Array.from(new Set(leads.map(l => l.sicCode).filter(Boolean))) as string[];
     const lenders = Array.from(new Set(leads.flatMap(l => l.lenderNames || []).filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -271,18 +495,11 @@ export default function LeadFinder() {
         leads.find(l => l.googlePlaceId === selectedLeadId) || null
         , [leads, selectedLeadId]);
 
+    usePageTitle("Lead Finder", "AI-powered lead discovery and enrichment");
+
     return (
         <div className="space-y-6 pt-6 pb-12 w-full">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                        <Search className="h-8 w-8 text-primary" />
-                        Lead Finder Agent
-                    </h1>
-                    <p className="text-muted-foreground mt-1">
-                        AI-powered lead discovery and enrichment.
-                    </p>
-                </div>
+            <div className="flex items-center justify-end">
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setLocation("/")}>
                         Back to Dashboard
@@ -290,37 +507,163 @@ export default function LeadFinder() {
                 </div>
             </div>
 
-            {/* Instruction Panel */}
+            {/* Search Panel — Tabbed */}
             <Card className="bg-muted/30 border-dashed">
-                <CardHeader>
-                    <CardTitle className="text-lg">Agent Instruction</CardTitle>
-                    <CardDescription>
-                        Tell the agent what to find. Be specific about location and criteria.
-                    </CardDescription>
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 w-fit">
+                        <button
+                            type="button"
+                            onClick={() => setSearchTab("category")}
+                            className={cn(
+                                "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+                                searchTab === "category"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            <Search className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+                            Category Search
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSearchTab("custom")}
+                            className={cn(
+                                "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+                                searchTab === "custom"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            <Play className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+                            Custom Search
+                        </button>
+                    </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex gap-4">
-                        <Input
-                            id="agent-instruction"
-                            name="instruction"
-                            placeholder="e.g., 'Find finance brokers in Manchester, minimum 4 stars'"
-                            value={instruction}
-                            onChange={(e) => setInstruction(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && instruction.trim()) {
-                                    runAgentMutation.mutate(instruction.trim());
-                                }
-                            }}
-                            className="bg-background"
-                        />
-                        <Button
-                            onClick={() => runAgentMutation.mutate(instruction.trim())}
-                            disabled={!instruction.trim() || runAgentMutation.isPending}
-                        >
-                            {runAgentMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                            Run Agent
-                        </Button>
-                    </div>
+                    {searchTab === "category" ? (
+                        <>
+                            <p className="text-sm text-muted-foreground mb-3">
+                                Select a business category and location to find leads.
+                            </p>
+                            <div className="flex gap-4 items-end">
+                                {/* Searchable Category Dropdown */}
+                                <div className="flex-1 min-w-[220px]">
+                                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Business Category</label>
+                                    <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                aria-expanded={categoryOpen}
+                                                className="w-full justify-between font-normal bg-background"
+                                            >
+                                                <div className="flex items-center truncate">
+                                                    <Briefcase className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    {selectedCategory || "Select category..."}
+                                                </div>
+                                                <ArrowUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[320px] p-0" align="start">
+                                            <Command>
+                                                <CommandInput
+                                                    placeholder="Search categories..."
+                                                    id="category-search"
+                                                    name="category-search"
+                                                />
+                                                <CommandList>
+                                                    <CommandEmpty>No category found.</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {BUSINESS_CATEGORIES.map((cat) => (
+                                                            <CommandItem
+                                                                key={cat}
+                                                                value={cat}
+                                                                onSelect={(value) => {
+                                                                    setSelectedCategory(value === selectedCategory ? "" : value);
+                                                                    setCategoryOpen(false);
+                                                                }}
+                                                            >
+                                                                <Check
+                                                                    className={cn(
+                                                                        "mr-2 h-4 w-4",
+                                                                        selectedCategory === cat ? "opacity-100" : "opacity-0"
+                                                                    )}
+                                                                />
+                                                                {cat}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+
+                                {/* Location Input */}
+                                <div className="flex-1 min-w-[200px]">
+                                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Location / Area</label>
+                                    <div className="relative">
+                                        <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="category-location"
+                                            name="category-location"
+                                            placeholder="e.g. Manchester, Leeds, SW1"
+                                            value={searchLocation}
+                                            onChange={(e) => setSearchLocation(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" && selectedCategory && searchLocation.trim()) {
+                                                    runAgentMutation.mutate(`Find ${selectedCategory} in ${searchLocation.trim()}`);
+                                                    setSelectedCategory("");
+                                                    setSearchLocation("");
+                                                }
+                                            }}
+                                            className="pl-9 bg-background"
+                                        />
+                                    </div>
+                                </div>
+
+                                <Button
+                                    onClick={() => {
+                                        runAgentMutation.mutate(`Find ${selectedCategory} in ${searchLocation.trim()}`);
+                                        setSelectedCategory("");
+                                        setSearchLocation("");
+                                    }}
+                                    disabled={!selectedCategory || !searchLocation.trim() || runAgentMutation.isPending}
+                                >
+                                    {runAgentMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                                    Search
+                                </Button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-sm text-muted-foreground mb-3">
+                                Give the agent a custom instruction. Be specific about location and criteria.
+                            </p>
+                            <div className="flex gap-4">
+                                <Input
+                                    id="agent-instruction"
+                                    name="instruction"
+                                    placeholder="e.g., 'Find finance brokers in Manchester, minimum 4 stars'"
+                                    value={instruction}
+                                    onChange={(e) => setInstruction(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && instruction.trim()) {
+                                            runAgentMutation.mutate(instruction.trim());
+                                        }
+                                    }}
+                                    className="bg-background"
+                                />
+                                <Button
+                                    onClick={() => runAgentMutation.mutate(instruction.trim())}
+                                    disabled={!instruction.trim() || runAgentMutation.isPending}
+                                >
+                                    {runAgentMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                                    Run Agent
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
 
@@ -369,6 +712,69 @@ export default function LeadFinder() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="px-0">
+                    {/* Toolbar */}
+                    {leads.length > 0 && (
+                        <div className="flex items-center justify-between mb-4">
+                            <span className="text-sm text-muted-foreground">{leads.length} lead{leads.length !== 1 ? "s" : ""} in database</span>
+                            <div className="flex items-center gap-2">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-violet-500 border-violet-500/30 hover:bg-violet-500/10"
+                                                onClick={() => enrichAllMutation.mutate()}
+                                                disabled={enrichAllMutation.isPending || unenrichedCount === 0}
+                                            >
+                                                {enrichAllMutation.isPending ? (
+                                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <Sparkles className="mr-2 h-3.5 w-3.5" />
+                                                )}
+                                                Enrich all ({unenrichedCount})
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Scrape websites for emails on all unenriched leads</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                                            disabled={clearAllMutation.isPending}
+                                        >
+                                            {clearAllMutation.isPending ? (
+                                                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <Eraser className="mr-2 h-3.5 w-3.5" />
+                                            )}
+                                            Wipe all results
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Wipe all leads?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete all {leads.length} leads from the Lead Finder database. This cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                                className="bg-destructive hover:bg-destructive/90"
+                                                onClick={() => clearAllMutation.mutate()}
+                                            >
+                                                Wipe all
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        </div>
+                    )}
                     {/* Filter Bar */}
                     <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-muted/30 rounded-lg border border-dashed">
                         <div className="flex-1 min-w-[200px] relative">
@@ -718,6 +1124,20 @@ export default function LeadFinder() {
                                                         onClick={() => setSelectedLeadId(lead.googlePlaceId || null)}
                                                     >
                                                         <Info className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className={`h-8 w-8 hover:text-violet-500 ${lead.email ? "text-violet-400" : "text-muted-foreground"}`}
+                                                        title={lead.email ? "Re-enrich" : "Enrich (scrape for email)"}
+                                                        onClick={() => lead.googlePlaceId && enrichMutation.mutate(lead.googlePlaceId)}
+                                                        disabled={enrichMutation.isPending || !lead.website}
+                                                    >
+                                                        {enrichMutation.isPending && enrichMutation.variables === lead.googlePlaceId ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <Sparkles className="h-4 w-4" />
+                                                        )}
                                                     </Button>
                                                     <Button
                                                         variant="ghost"

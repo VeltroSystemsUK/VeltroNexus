@@ -124,6 +124,75 @@ router.post("/enrich-bulk", async (req, res) => {
     }
 });
 
+// --- Contact Finder ---
+
+// Find contacts for a single lead
+router.post("/find-contacts/:id", async (req, res) => {
+    try {
+        const leadId = parseInt(req.params.id);
+        if (isNaN(leadId)) return res.status(400).json({ error: "Invalid lead ID" });
+
+        const lead = await storage.getInternalLead(leadId);
+        if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+        console.log(`[CRM] Starting contact discovery for lead ${leadId} (${lead.companyName})`);
+        const { findContacts } = await import("../services/contactFinderService");
+
+        const contacts = await findContacts(lead);
+
+        // Update lead with found contacts
+        const contactsForSchema = contacts.map((c) => ({
+            name: c.name,
+            role: c.role,
+            email: c.email,
+            phone: c.phone,
+            linkedinUrl: c.linkedinUrl,
+        }));
+
+        const bestContact = contacts.find((c) => c.email) || contacts[0];
+
+        await storage.updateInternalLead(leadId, {
+            contacts: contactsForSchema.length > 0 ? contactsForSchema : lead.contacts || [],
+            contactName: bestContact?.name || lead.contactName,
+            email: bestContact?.email || lead.email,
+            phone: bestContact?.phone || lead.phone,
+            linkedinUrl: bestContact?.linkedinUrl || lead.linkedinUrl,
+        });
+
+        res.json({
+            success: true,
+            contacts,
+            message: `Found ${contacts.length} contacts (${contacts.filter((c) => c.email).length} with email)`,
+        });
+    } catch (error) {
+        handleApiError(res, error, "Contact finder error");
+    }
+});
+
+// Bulk contact discovery
+router.post("/find-contacts-bulk", async (req, res) => {
+    try {
+        const { leadIds } = req.body;
+
+        if (!Array.isArray(leadIds) || leadIds.length === 0) {
+            return res.status(400).json({ error: "leadIds array is required" });
+        }
+
+        console.log(`[CRM] Starting bulk contact discovery for ${leadIds.length} leads`);
+        const { findContactsBulk } = await import("../services/contactFinderService");
+
+        const userId = (req.user as any)?.id;
+        findContactsBulk(leadIds, userId);
+
+        res.json({
+            success: true,
+            message: `Contact discovery started for ${leadIds.length} leads`,
+        });
+    } catch (error) {
+        handleApiError(res, error, "Bulk contact finder error");
+    }
+});
+
 // --- Leads ---
 
 router.get("/leads", async (req, res) => {

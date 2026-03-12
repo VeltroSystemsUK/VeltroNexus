@@ -21,7 +21,7 @@ import { getObjectStorage } from "../utils/routerHelpers";
 
 const router = Router();
 
-  router.get("/api/submissions", isAuthenticated, async (req: Request, res: Response) => {
+  router.get("/submissions", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const submissions = await storage.listApplicationSubmissions(userId as any);

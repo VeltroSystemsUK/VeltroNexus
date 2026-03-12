@@ -57,6 +57,17 @@ docs
 codebase_audit.txt
 /tmp
 
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Claude Code
+.claude
+
+# Windows artifacts
+nul
+
 # Replit specific
 .replit
 replit.nix

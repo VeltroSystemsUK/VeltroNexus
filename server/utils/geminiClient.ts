@@ -101,12 +101,13 @@ export async function searchCompanyInfo(companyName: string, website?: string): 
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
       }
     } as any);
 
     const response = await Promise.race([apiCall, timeoutPromise]);
-    const text = response.text?.trim() || "{}";
+    const raw = response.text?.trim() || "{}";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const text = jsonMatch ? jsonMatch[0] : "{}";
 
     if (!text || text === "{}") return defaultResult;
     return JSON.parse(text);
@@ -155,12 +156,13 @@ export async function researchCompany(companyName: string, website?: string): Pr
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
       }
     } as any);
 
     const response = await Promise.race([apiCall, timeoutPromise]);
-    const text = response.text?.trim() || "{}";
+    const raw = response.text?.trim() || "{}";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const text = jsonMatch ? jsonMatch[0] : "{}";
     return JSON.parse(text);
   } catch (error) {
     console.warn(`[Gemini Client] Research failed for ${companyName}:`, error);
@@ -197,12 +199,13 @@ export async function groundedSearch(query: string, _maxResults: number = 5): Pr
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
       }
     } as any);
 
     const response = await Promise.race([apiCall, timeoutPromise]);
-    const text = response.text?.trim() || "{}";
+    const raw = response.text?.trim() || "{}";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const text = jsonMatch ? jsonMatch[0] : "{}";
     return JSON.parse(text);
   } catch (error) {
     console.warn(`[Gemini Client] Grounded Search failed for query: ${query}`, error);
@@ -249,12 +252,13 @@ export async function searchAdverseMedia(companyName: string, registrationNumber
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
       }
     } as any);
 
     const response = await Promise.race([apiCall, timeoutPromise]);
-    const text = response.text?.trim() || "{}";
+    const raw = response.text?.trim() || "{}";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const text = jsonMatch ? jsonMatch[0] : "{}";
     return JSON.parse(text);
   } catch (error) {
     console.warn(`[Gemini Client] Adverse Media Search failed for ${companyName}:`, error);

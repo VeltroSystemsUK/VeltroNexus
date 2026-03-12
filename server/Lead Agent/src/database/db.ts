@@ -26,13 +26,22 @@ function addColumn(db: Database.Database, table: string, column: string, type: s
   }
 }
 
-const DB_PATH = process.env['DATABASE_PATH'] ?? resolve('./lead_finder.db');
-
 let _db: Database.Database | null = null;
+let _dbPath: string | null = null;
+
+/** Call before/after switching DATABASE_PATH env var to pick up the new path. */
+export function resetDbConnection(): void {
+  _db?.close();
+  _db = null;
+  _dbPath = null;
+}
 
 function getDb(): Database.Database {
-  if (!_db) {
-    _db = new Database(DB_PATH);
+  const currentPath = process.env['DATABASE_PATH'] ?? resolve('./lead_finder.db');
+  if (!_db || _dbPath !== currentPath) {
+    _db?.close();
+    _db = new Database(currentPath);
+    _dbPath = currentPath;
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');
   }
@@ -334,6 +343,10 @@ export function getRunStats(searchQuery?: string): {
 
 export function deleteBusiness(placeId: string): void {
   getDb().prepare('DELETE FROM businesses WHERE google_place_id = ?').run(placeId);
+}
+
+export function clearAllBusinesses(): void {
+  getDb().prepare('DELETE FROM businesses').run();
 }
 
 export function updateBusinessContact(placeId: string, contact: { email: string, context?: string }): void {

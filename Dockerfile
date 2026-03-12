@@ -17,8 +17,6 @@ FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-# Default port for Cloud Run
-ENV PORT=5000
 
 COPY package*.json ./
 # Install only production dependencies for the final image
@@ -27,8 +25,8 @@ RUN npm install --legacy-peer-deps --only=production
 # Copy built artifacts from builder
 COPY --from=builder /app/dist ./dist
 
-# Expose the port
-EXPOSE 5000
+# Cloud Run sets PORT automatically (default 8080)
+EXPOSE 8080
 
 # Start command
 CMD ["npm", "start"]

@@ -1,19 +1,14 @@
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useUnderwritingAccess } from "@/hooks/useUnderwritingAccess";
 import {
   Home,
   Search,
   User,
   Settings,
-  Send,
-  Building2,
-  FileSpreadsheet,
   Inbox,
   Users,
   Shield,
-  Lock,
-  Clock,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,69 +16,33 @@ interface NavItem {
   path: string;
   label: string;
   icon: typeof Home;
+  roles?: string[];
 }
 
-const brokerNavItems: NavItem[] = [
-  { path: "/", label: "Pipeline", icon: Home },
-  { path: "/search", label: "Search", icon: Search },
-  { path: "/leads", label: "Leads", icon: FileSpreadsheet },
-  { path: "/underwriting", label: "Underwriting", icon: Send },
-  { path: "/compliance", label: "Compliance", icon: Shield },
-  { path: "/profile", label: "Profile", icon: User },
-];
-
-const underwriterNavItems: NavItem[] = [
+// Simplified mobile nav — key items from each section
+const mobileNavItems: NavItem[] = [
+  { path: "/pipeline", label: "Dashboard", icon: LayoutDashboard },
   { path: "/underwriting", label: "Inbox", icon: Inbox },
-  { path: "/pipeline", label: "Pipeline", icon: Home },
-  { path: "/search", label: "Search", icon: Search },
-  { path: "/profile", label: "Profile", icon: User },
-];
-
-const salesAdminNavItems: NavItem[] = [
-  { path: "/", label: "Pipeline", icon: Home },
-  { path: "/search", label: "Search", icon: Search },
-  { path: "/teams", label: "Teams", icon: Users },
-  { path: "/leads", label: "Leads", icon: FileSpreadsheet },
-  { path: "/profile", label: "Profile", icon: User },
-];
-
-const superAdminNavItems: NavItem[] = [
-  { path: "/", label: "Pipeline", icon: Home },
-  { path: "/admin", label: "Admin", icon: Shield },
-  { path: "/teams", label: "Teams", icon: Users },
-  { path: "/admin/settings/sla", label: "SLA Settings", icon: Clock },
+  { path: "/teams", label: "Teams", icon: Users, roles: ["super_admin", "sales_admin"] },
+  { path: "/admin", label: "Admin", icon: Shield, roles: ["super_admin", "sales_admin"] },
   { path: "/settings", label: "Settings", icon: Settings },
-  { path: "/profile", label: "Profile", icon: User },
 ];
 
 export default function MobileNav() {
   const [location, navigate] = useLocation();
-  const { hasAccess: hasUnderwritingAccess } = useUnderwritingAccess();
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/role"],
   });
 
   const role = roleData?.role || "broker";
 
-  const getNavItems = () => {
-    switch (role) {
-      case "super_admin":
-        return superAdminNavItems;
-      case "sales_admin":
-        return salesAdminNavItems;
-      case "underwriter":
-        return underwriterNavItems;
-      default:
-        return brokerNavItems;
-    }
-  };
-
-  const navItems = getNavItems();
+  const navItems = mobileNavItems.filter(
+    (item) => !item.roles || item.roles.includes(role)
+  );
 
   const isActive = (path: string) => {
     if (path === "/" && location === "/pipeline") return true;
-    if (path === "/" && location === "/") return true;
-    if (path === "/underwriting" && location === "/" && role === "underwriter") return true;
+    if (path === "/pipeline" && location === "/") return true;
     return location === path;
   };
 
@@ -106,9 +65,6 @@ export default function MobileNav() {
             >
               <div className="relative">
                 <Icon className={cn("h-5 w-5 mb-1", active && "stroke-[2.5px]")} />
-                {item.path === "/underwriting" && !hasUnderwritingAccess && (
-                  <Lock className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-amber-500" />
-                )}
               </div>
               <span
                 className={cn(

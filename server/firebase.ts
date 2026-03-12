@@ -1,6 +1,7 @@
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
 
 // Initialize Firebase Admin SDK
 // This automatically uses Application Default Credentials (ADC)
@@ -19,6 +20,7 @@ if (!admin.apps.length) {
 
     admin.initializeApp({
         projectId: projectId,
+        storageBucket: `${projectId}.firebasestorage.app`,
     });
 }
 
@@ -28,5 +30,6 @@ db.settings({
 });
 
 export const auth = getAuth();
+export const bucket = getStorage().bucket();
 
-console.log("[Firebase] Firestore (veltrodb) and Auth initialized successfully");
+console.log("[Firebase] Firestore (veltrodb), Auth, and Storage initialized successfully");

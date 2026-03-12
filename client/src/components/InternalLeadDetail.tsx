@@ -33,7 +33,9 @@ import {
     Users,
     CheckCircle,
     Linkedin,
-    ExternalLink
+    ExternalLink,
+    UserSearch,
+    Loader2,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -126,6 +128,17 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
         },
         onError: (error: any) => {
             toast.error("Enrichment failed: " + error.message);
+        }
+    });
+
+    const findContactsMutation = useMutation({
+        mutationFn: () => apiRequest(`/api/god/crm/find-contacts/${lead.id}`, "POST"),
+        onSuccess: (data: any) => {
+            toast.success(data.message || "Contacts found");
+            queryClient.invalidateQueries({ queryKey: ["/api/god/crm/leads"] });
+        },
+        onError: (error: any) => {
+            toast.error("Contact search failed: " + error.message);
         }
     });
 
@@ -305,11 +318,26 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
                     <TabsContent value="contacts" className="space-y-4 py-4">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="text-sm font-semibold">Key Contacts</h3>
-                            {!isAddingContact && (
-                                <Button size="sm" variant="outline" onClick={() => setIsAddingContact(true)}>
-                                    <Plus className="h-4 w-4 mr-1" /> Add Contact
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => findContactsMutation.mutate()}
+                                    disabled={findContactsMutation.isPending}
+                                >
+                                    {findContactsMutation.isPending ? (
+                                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    ) : (
+                                        <UserSearch className="h-4 w-4 mr-1" />
+                                    )}
+                                    {findContactsMutation.isPending ? "Searching..." : "Find Contacts"}
                                 </Button>
-                            )}
+                                {!isAddingContact && (
+                                    <Button size="sm" variant="outline" onClick={() => setIsAddingContact(true)}>
+                                        <Plus className="h-4 w-4 mr-1" /> Add Contact
+                                    </Button>
+                                )}
+                            </div>
                         </div>
 
                         {isAddingContact && (

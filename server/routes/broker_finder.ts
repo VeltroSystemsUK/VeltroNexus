@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { LeadFinderAgent } from "../Lead Agent/src/agent";
-import { getRunStats, deleteBusiness, getBusinessesForExport, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/db";
+import { getRunStats, deleteBusiness, clearAllBusinesses, getBusinessesForExport, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/broker_db";
+import { resetDbConnection } from "../Lead Agent/src/database/db";
+import { resolve } from "path";
+
+const BROKER_DB_PATH = resolve("./broker_finder.db");
 import { storage } from "../storage";
 import { insertBrokerLeadSchema } from "@shared/schema";
 
@@ -58,12 +62,24 @@ router.post("/run", async (req, res) => {
         const agent = new LeadFinderAgent();
 
         (async () => {
+            // Redirect the Lead Agent's db singleton to broker_finder.db for this run
+            const previousPath = process.env['DATABASE_PATH'];
+            process.env['DATABASE_PATH'] = BROKER_DB_PATH;
+            resetDbConnection();
             try {
-                console.log("[BrokerFinder] Starting background agent run...");
+                console.log("[BrokerFinder] Starting background agent run (broker_finder.db)...");
                 await agent.run(instruction);
                 console.log("[BrokerFinder] Background agent run complete.");
             } catch (e) {
                 console.error("[BrokerFinder] Background agent run failed:", e);
+            } finally {
+                // Restore lead_finder.db for the Lead Finder
+                if (previousPath !== undefined) {
+                    process.env['DATABASE_PATH'] = previousPath;
+                } else {
+                    delete process.env['DATABASE_PATH'];
+                }
+                resetDbConnection();
             }
         })();
 
@@ -71,6 +87,111 @@ router.post("/run", async (req, res) => {
 
     } catch (error) {
         console.error("[BrokerFinder] Failed to start agent:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// POST /enrich/all - Enrich all unenriched businesses with a website
+let bulkEnrichRunning = false;
+
+router.post("/enrich/all", async (req, res) => {
+    try {
+        if (bulkEnrichRunning) {
+            return res.status(409).json({ error: "Bulk enrichment already running", queued: 0 });
+        }
+
+        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: true, requireEmail: false });
+        const unenriched = businesses.filter(b => !b.enrichedAt && b.website);
+
+        bulkEnrichRunning = true;
+        res.json({ success: true, queued: unenriched.length, message: `Enrichment started for ${unenriched.length} brokers` });
+
+        // Run in background — don't await
+        (async () => {
+            const { findEmail } = await import("../Lead Agent/src/scrapers/emailFinder");
+            const { validateEmail, assessPecrEligibility } = await import("../Lead Agent/src/enrichers/emailValidator");
+            const { upsertBusiness } = await import("../Lead Agent/src/database/broker_db");
+            const { computeLeadScore } = await import("../Lead Agent/src/models/business");
+
+            for (const business of unenriched) {
+                try {
+                    const result = await findEmail(business.website!, business.contactName, true);
+                    const updated = { ...business };
+                    if (result) {
+                        const { valid } = await validateEmail(result.email);
+                        if (valid) {
+                            updated.email = result.email;
+                            updated.emailConfidence = result.confidence;
+                            updated.emailValidated = true;
+                        }
+                    }
+                    // @ts-ignore
+                    updated.pecrStatus = assessPecrEligibility(updated);
+                    updated.leadScore = computeLeadScore(updated);
+                    updated.enrichedAt = new Date();
+                    upsertBusiness(updated);
+                } catch (e) {
+                    console.error(`[BrokerFinder] Bulk enrich failed for ${business.name}:`, e);
+                }
+            }
+            console.log(`[BrokerFinder] Bulk enrichment complete for ${unenriched.length} brokers`);
+        })().finally(() => { bulkEnrichRunning = false; });
+
+    } catch (error) {
+        bulkEnrichRunning = false;
+        console.error("[BrokerFinder] Bulk enrich failed:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// POST /enrich/:placeId - Scrape website for email + validate + rescore
+router.post("/enrich/:placeId", async (req, res) => {
+    try {
+        const { placeId } = req.params;
+        if (!placeId) return res.status(400).json({ error: "Place ID required" });
+
+        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: false, requireEmail: false });
+        const business = businesses.find(b => b.googlePlaceId === placeId);
+
+        if (!business) return res.status(404).json({ error: "Business not found" });
+        if (!business.website) return res.status(400).json({ error: "No website to scrape" });
+
+        const { findEmail } = await import("../Lead Agent/src/scrapers/emailFinder");
+        const { validateEmail, assessPecrEligibility } = await import("../Lead Agent/src/enrichers/emailValidator");
+        const { upsertBusiness } = await import("../Lead Agent/src/database/broker_db");
+        const { computeLeadScore } = await import("../Lead Agent/src/models/business");
+
+        const result = await findEmail(business.website, business.contactName, true);
+        const updated = { ...business };
+
+        if (result) {
+            const { valid } = await validateEmail(result.email);
+            if (valid) {
+                updated.email = result.email;
+                updated.emailConfidence = result.confidence;
+                updated.emailValidated = true;
+            }
+        }
+
+        // @ts-ignore
+        updated.pecrStatus = assessPecrEligibility(updated);
+        updated.leadScore = computeLeadScore(updated);
+        updated.enrichedAt = new Date();
+
+        upsertBusiness(updated);
+        res.json({ success: true, business: updated });
+
+    } catch (error) {
+        console.error("[BrokerFinder] Enrich failed:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+router.delete("/all", (req, res) => {
+    try {
+        clearAllBusinesses();
+        res.json({ success: true });
+    } catch (error) {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
@@ -100,6 +221,15 @@ router.post("/migrate/:placeId", async (req, res) => {
 
         console.log(`[BrokerFinder] Migrating business: ${business.name} -> Broker CRM`);
 
+        // Check for duplicates by company number
+        let existingLead = null;
+        if (business.companyNumber && business.companyNumber !== "unknown") {
+            existingLead = await storage.getBrokerLeadByCompanyNumber(business.companyNumber);
+            if (existingLead) {
+                console.log(`[BrokerFinder] Duplicate detected: ${business.name} matches existing broker #${existingLead.id} (${existingLead.companyName})`);
+            }
+        }
+
         const brokerLeadData = {
             companyName: toTitleCase(business.name),
             companyNumber: business.companyNumber || "unknown",
@@ -120,12 +250,16 @@ router.post("/migrate/:placeId", async (req, res) => {
             chargeDate: business.lastChargeDate || undefined,
             sicCode: business.sicCode || undefined,
             contacts: [],
+
+            // Duplicate flagging
+            possibleDuplicate: !!existingLead,
+            duplicateOf: existingLead ? existingLead.id : null,
         };
 
         const saved = await storage.createBrokerLead(brokerLeadData);
         markBusinessAsMigrated(placeId);
 
-        res.json({ success: true, leadId: saved.id, migrated: true });
+        res.json({ success: true, leadId: saved.id, migrated: true, duplicate: !!existingLead, existingLeadId: existingLead?.id });
 
     } catch (error) {
         console.error("[BrokerFinder] Failed to migrate business:", error);

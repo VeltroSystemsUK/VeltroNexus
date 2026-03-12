@@ -87,6 +87,18 @@ import {
   InsertBrokerCampaign,
   BrokerScrapedLead,
   InsertBrokerScrapedLead,
+  Invoice,
+  InsertInvoice,
+  Expense,
+  InsertExpense,
+  EmailTemplate,
+  InsertEmailTemplate,
+  EmailCampaign,
+  InsertEmailCampaign,
+  CampaignRecipient,
+  InsertCampaignRecipient,
+  WaitlistEntry,
+  InsertWaitlistEntry,
 } from "@shared/schema";
 import { DigitalAssociate, AgentSession, MissionDeviation, AgentChatMessage } from "@shared/agents";
 import type * as ExpressSession from "express-session";
@@ -470,6 +482,13 @@ export interface IStorage {
     userId: string
   ): Promise<MarketingContact>;
 
+  // Waitlist
+  listWaitlistEntries(): Promise<WaitlistEntry[]>;
+  getWaitlistEntryByEmail(email: string): Promise<WaitlistEntry | undefined>;
+  createWaitlistEntry(entry: InsertWaitlistEntry): Promise<WaitlistEntry>;
+  updateWaitlistEntryStatus(id: number, status: string): Promise<void>;
+  unsubscribeWaitlistEntry(email: string): Promise<boolean>;
+
   // Agents
   getAgents(): Promise<DigitalAssociate[]>;
   getAgentById(id: string): Promise<DigitalAssociate | undefined>;
@@ -525,6 +544,43 @@ export interface IStorage {
   listBrokerCampaigns(): Promise<BrokerCampaign[]>;
   updateBrokerCampaign(id: number, updates: Partial<BrokerCampaign>): Promise<BrokerCampaign>;
   deleteBrokerCampaign(id: number): Promise<void>;
+
+  // --- Invoices ---
+  listInvoices(userId: string): Promise<Invoice[]>;
+  getInvoice(id: number, userId: string): Promise<Invoice | undefined>;
+  createInvoice(invoice: InsertInvoice, userId: string): Promise<Invoice>;
+  updateInvoice(id: number, userId: string, updates: Partial<InsertInvoice>): Promise<Invoice | undefined>;
+  deleteInvoice(id: number, userId: string): Promise<void>;
+  getNextInvoiceNumber(userId: string): Promise<string>;
+
+  // Expenses
+  listExpenses(userId: string): Promise<Expense[]>;
+  getExpense(id: number, userId: string): Promise<Expense | undefined>;
+  createExpense(expense: InsertExpense, userId: string): Promise<Expense>;
+  updateExpense(id: number, userId: string, updates: Partial<InsertExpense>): Promise<Expense | undefined>;
+  deleteExpense(id: number, userId: string): Promise<void>;
+
+  // Email Templates
+  listEmailTemplates(userId: string): Promise<EmailTemplate[]>;
+  getEmailTemplate(id: number, userId: string): Promise<EmailTemplate | undefined>;
+  createEmailTemplate(template: InsertEmailTemplate, userId: string): Promise<EmailTemplate>;
+  updateEmailTemplate(id: number, userId: string, updates: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined>;
+  deleteEmailTemplate(id: number, userId: string): Promise<void>;
+  duplicateEmailTemplate(id: number, userId: string): Promise<EmailTemplate>;
+
+  // Email Campaigns
+  listEmailCampaigns(userId: string): Promise<EmailCampaign[]>;
+  getEmailCampaign(id: number, userId: string): Promise<EmailCampaign | undefined>;
+  createEmailCampaign(campaign: InsertEmailCampaign, userId: string): Promise<EmailCampaign>;
+  updateEmailCampaign(id: number, userId: string, updates: Partial<InsertEmailCampaign>): Promise<EmailCampaign | undefined>;
+  deleteEmailCampaign(id: number, userId: string): Promise<void>;
+
+  // Campaign Recipients
+  listCampaignRecipients(campaignId: number, userId: string): Promise<CampaignRecipient[]>;
+  addCampaignRecipients(recipients: InsertCampaignRecipient[]): Promise<CampaignRecipient[]>;
+  getCampaignRecipientById(id: number): Promise<CampaignRecipient | undefined>;
+  updateCampaignRecipient(id: number, updates: Partial<CampaignRecipient>): Promise<CampaignRecipient | undefined>;
+  clearCampaignRecipients(campaignId: number, userId: string): Promise<void>;
 }
 
 export class FirestoreStorage implements IStorage {
@@ -2224,6 +2280,58 @@ export class FirestoreStorage implements IStorage {
     return newContact as MarketingContact;
   }
 
+  // --- Waitlist ---
+
+  async listWaitlistEntries(): Promise<WaitlistEntry[]> {
+    try {
+      const snap = await db.collection("waitlist").orderBy("createdAt", "desc").get();
+      return snap.docs.map(
+        (d) => convertDates({ id: Number(d.id), ...d.data() }) as WaitlistEntry
+      );
+    } catch (e) {
+      console.error("DB Error listWaitlistEntries", e);
+      return [];
+    }
+  }
+
+  async getWaitlistEntryByEmail(email: string): Promise<WaitlistEntry | undefined> {
+    try {
+      const snap = await db.collection("waitlist").where("email", "==", email.toLowerCase()).limit(1).get();
+      if (snap.empty) return undefined;
+      const d = snap.docs[0];
+      return convertDates({ id: Number(d.id), ...d.data() }) as WaitlistEntry;
+    } catch (e) {
+      console.error("DB Error getWaitlistEntryByEmail", e);
+      return undefined;
+    }
+  }
+
+  async createWaitlistEntry(entry: InsertWaitlistEntry): Promise<WaitlistEntry> {
+    const id = await getNextId("waitlist");
+    const newEntry = {
+      ...entry,
+      id,
+      email: entry.email.toLowerCase(),
+      status: entry.status || "pending",
+      source: entry.source || "landing",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await db.collection("waitlist").doc(id.toString()).set(newEntry);
+    return newEntry as WaitlistEntry;
+  }
+
+  async updateWaitlistEntryStatus(id: number, status: string): Promise<void> {
+    await db.collection("waitlist").doc(id.toString()).update({ status, updatedAt: new Date() });
+  }
+
+  async unsubscribeWaitlistEntry(email: string): Promise<boolean> {
+    const entry = await this.getWaitlistEntryByEmail(email.toLowerCase());
+    if (!entry) return false;
+    await db.collection("waitlist").doc(entry.id.toString()).update({ unsubscribed: true, updatedAt: new Date() });
+    return true;
+  }
+
   // --- Agents ---
   async getAgents(): Promise<DigitalAssociate[]> {
     try {
@@ -2603,6 +2711,358 @@ export class FirestoreStorage implements IStorage {
 
   async deleteBrokerCampaign(id: number): Promise<void> {
     await db.collection("broker_campaigns").doc(id.toString()).delete();
+  }
+
+  // --- Invoices ---
+
+  async listInvoices(userId: string): Promise<Invoice[]> {
+    const snap = await db.collection("invoices")
+      .where("userId", "==", userId)
+      .orderBy("createdAt", "desc")
+      .get();
+    return snap.docs.map((d: any) => convertDates({ id: Number(d.id), ...d.data() }) as Invoice);
+  }
+
+  async getInvoice(id: number, userId: string): Promise<Invoice | undefined> {
+    const snap = await db.collection("invoices")
+      .where("id", "==", id)
+      .where("userId", "==", userId)
+      .limit(1)
+      .get();
+    if (snap.empty) return undefined;
+    return convertDates({ id: Number(snap.docs[0].id), ...snap.docs[0].data() }) as Invoice;
+  }
+
+  async createInvoice(invoice: InsertInvoice, userId: string): Promise<Invoice> {
+    const id = await getNextId("invoices");
+    const newInvoice = {
+      ...invoice,
+      id,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await db.collection("invoices").doc(id.toString()).set(newInvoice);
+    return newInvoice as Invoice;
+  }
+
+  async updateInvoice(id: number, userId: string, updates: Partial<InsertInvoice>): Promise<Invoice | undefined> {
+    const existing = await this.getInvoice(id, userId);
+    if (!existing) return undefined;
+    const ref = db.collection("invoices").doc(id.toString());
+    await ref.update({ ...updates, updatedAt: new Date() });
+    return convertDates({ id, ...(await ref.get()).data() }) as Invoice;
+  }
+
+  async deleteInvoice(id: number, userId: string): Promise<void> {
+    const existing = await this.getInvoice(id, userId);
+    if (!existing) return;
+    await db.collection("invoices").doc(id.toString()).delete();
+  }
+
+  async getNextInvoiceNumber(userId: string): Promise<string> {
+    const year = new Date().getFullYear();
+    const snap = await db.collection("invoices")
+      .where("userId", "==", userId)
+      .orderBy("id", "desc")
+      .limit(1)
+      .get();
+    const lastNum = snap.empty ? 0 : (snap.docs[0].data().id || 0);
+    const seq = (lastNum % 1000) + 1;
+    return `INV-${year}-${String(seq).padStart(3, "0")}`;
+  }
+
+  // --- Expenses ---
+
+  async listExpenses(userId: string): Promise<Expense[]> {
+    const snap = await db.collection("expenses")
+      .where("userId", "==", userId)
+      .orderBy("date", "desc")
+      .get();
+    return snap.docs.map((d: any) => convertDates({ id: Number(d.id), ...d.data() }) as Expense);
+  }
+
+  async getExpense(id: number, userId: string): Promise<Expense | undefined> {
+    const snap = await db.collection("expenses")
+      .where("id", "==", id)
+      .where("userId", "==", userId)
+      .limit(1)
+      .get();
+    if (snap.empty) return undefined;
+    return convertDates({ id: Number(snap.docs[0].id), ...snap.docs[0].data() }) as Expense;
+  }
+
+  async createExpense(expense: InsertExpense, userId: string): Promise<Expense> {
+    const id = await getNextId("expenses");
+    const newExpense = {
+      ...expense,
+      id,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await db.collection("expenses").doc(id.toString()).set(newExpense);
+    return newExpense as Expense;
+  }
+
+  async updateExpense(id: number, userId: string, updates: Partial<InsertExpense>): Promise<Expense | undefined> {
+    const existing = await this.getExpense(id, userId);
+    if (!existing) return undefined;
+    const ref = db.collection("expenses").doc(id.toString());
+    await ref.update({ ...updates, updatedAt: new Date() });
+    return convertDates({ id, ...(await ref.get()).data() }) as Expense;
+  }
+
+  async deleteExpense(id: number, userId: string): Promise<void> {
+    const existing = await this.getExpense(id, userId);
+    if (!existing) return;
+    await db.collection("expenses").doc(id.toString()).delete();
+  }
+
+  // ---- Email Templates ----
+
+  async listEmailTemplates(userId: string): Promise<EmailTemplate[]> {
+    try {
+      const snap = await db
+        .collection("email_templates")
+        .where("userId", "==", userId)
+        .get();
+      const templates = snap.docs.map(
+        (d) => convertDates({ id: Number(d.id), ...d.data() }) as EmailTemplate
+      );
+      return templates.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
+        return dateB - dateA;
+      });
+    } catch (e) {
+      console.error("DB Error listEmailTemplates", e);
+      return [];
+    }
+  }
+
+  async getEmailTemplate(id: number, userId: string): Promise<EmailTemplate | undefined> {
+    try {
+      const doc = await db.collection("email_templates").doc(id.toString()).get();
+      if (!doc.exists) return undefined;
+      const data = convertDates({ id: Number(doc.id), ...doc.data() }) as EmailTemplate;
+      if (data.userId !== userId) return undefined;
+      return data;
+    } catch (e) {
+      console.error("DB Error getEmailTemplate", e);
+      return undefined;
+    }
+  }
+
+  async createEmailTemplate(template: InsertEmailTemplate, userId: string): Promise<EmailTemplate> {
+    const id = await getNextId("email_templates");
+    const now = new Date();
+    const newTemplate = {
+      ...template,
+      id,
+      userId,
+      useCount: 0,
+      lastUsedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.collection("email_templates").doc(id.toString()).set(newTemplate);
+    return newTemplate as EmailTemplate;
+  }
+
+  async updateEmailTemplate(id: number, userId: string, updates: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined> {
+    const existing = await this.getEmailTemplate(id, userId);
+    if (!existing) return undefined;
+    const ref = db.collection("email_templates").doc(id.toString());
+    await ref.update({ ...updates, updatedAt: new Date() });
+    return convertDates({ id, ...(await ref.get()).data() }) as EmailTemplate;
+  }
+
+  async deleteEmailTemplate(id: number, userId: string): Promise<void> {
+    const existing = await this.getEmailTemplate(id, userId);
+    if (!existing) return;
+    await db.collection("email_templates").doc(id.toString()).delete();
+  }
+
+  async duplicateEmailTemplate(id: number, userId: string): Promise<EmailTemplate> {
+    const original = await this.getEmailTemplate(id, userId);
+    if (!original) throw new Error("Template not found");
+    const newId = await getNextId("email_templates");
+    const now = new Date();
+    const duplicate = {
+      ...original,
+      id: newId,
+      name: `Copy of ${original.name}`,
+      useCount: 0,
+      lastUsedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.collection("email_templates").doc(newId.toString()).set(duplicate);
+    return duplicate as EmailTemplate;
+  }
+
+  // ---- Email Campaigns ----
+
+  async listEmailCampaigns(userId: string): Promise<EmailCampaign[]> {
+    try {
+      const snap = await db
+        .collection("email_campaigns")
+        .where("userId", "==", userId)
+        .get();
+      const campaigns = snap.docs.map(
+        (d) => convertDates({ id: Number(d.id), ...d.data() }) as EmailCampaign
+      );
+      return campaigns.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
+        return dateB - dateA;
+      });
+    } catch (e) {
+      console.error("DB Error listEmailCampaigns", e);
+      return [];
+    }
+  }
+
+  async getEmailCampaign(id: number, userId: string): Promise<EmailCampaign | undefined> {
+    try {
+      const doc = await db.collection("email_campaigns").doc(id.toString()).get();
+      if (!doc.exists) return undefined;
+      const data = convertDates({ id: Number(doc.id), ...doc.data() }) as EmailCampaign;
+      if (data.userId !== userId) return undefined;
+      return data;
+    } catch (e) {
+      console.error("DB Error getEmailCampaign", e);
+      return undefined;
+    }
+  }
+
+  async createEmailCampaign(campaign: InsertEmailCampaign, userId: string): Promise<EmailCampaign> {
+    const id = await getNextId("email_campaigns");
+    const now = new Date();
+    const newCampaign = {
+      ...campaign,
+      id,
+      userId,
+      totalSent: 0,
+      totalDelivered: 0,
+      totalOpened: 0,
+      totalClicked: 0,
+      totalBounced: 0,
+      totalUnsubscribed: 0,
+      totalFailed: 0,
+      sentAt: null,
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.collection("email_campaigns").doc(id.toString()).set(newCampaign);
+    return newCampaign as EmailCampaign;
+  }
+
+  async updateEmailCampaign(id: number, userId: string, updates: Partial<InsertEmailCampaign>): Promise<EmailCampaign | undefined> {
+    const existing = await this.getEmailCampaign(id, userId);
+    if (!existing) return undefined;
+    const ref = db.collection("email_campaigns").doc(id.toString());
+    await ref.update({ ...updates, updatedAt: new Date() });
+    return convertDates({ id, ...(await ref.get()).data() }) as EmailCampaign;
+  }
+
+  async deleteEmailCampaign(id: number, userId: string): Promise<void> {
+    const existing = await this.getEmailCampaign(id, userId);
+    if (!existing) return;
+    await db.collection("email_campaigns").doc(id.toString()).delete();
+  }
+
+  // ---- Campaign Recipients ----
+
+  async listCampaignRecipients(campaignId: number, userId: string): Promise<CampaignRecipient[]> {
+    try {
+      const snap = await db
+        .collection("campaign_recipients")
+        .where("campaignId", "==", campaignId)
+        .where("userId", "==", userId)
+        .get();
+      const recipients = snap.docs.map(
+        (d) => convertDates({ id: Number(d.id), ...d.data() }) as CampaignRecipient
+      );
+      return recipients.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
+        return dateB - dateA;
+      });
+    } catch (e) {
+      console.error("DB Error listCampaignRecipients", e);
+      return [];
+    }
+  }
+
+  async addCampaignRecipients(recipients: InsertCampaignRecipient[]): Promise<CampaignRecipient[]> {
+    const results: CampaignRecipient[] = [];
+    const batchSize = 500;
+    for (let i = 0; i < recipients.length; i += batchSize) {
+      const batch = db.batch();
+      const chunk = recipients.slice(i, i + batchSize);
+      for (const recipient of chunk) {
+        const id = await getNextId("campaign_recipients");
+        const now = new Date();
+        const newRecipient = {
+          ...recipient,
+          id,
+          sentAt: null,
+          openedAt: null,
+          clickedAt: null,
+          bouncedAt: null,
+          createdAt: now,
+        };
+        batch.set(db.collection("campaign_recipients").doc(id.toString()), newRecipient);
+        results.push(newRecipient as CampaignRecipient);
+      }
+      await batch.commit();
+    }
+    return results;
+  }
+
+  async getCampaignRecipientById(id: number): Promise<CampaignRecipient | undefined> {
+    try {
+      const doc = await db.collection("campaign_recipients").doc(id.toString()).get();
+      if (!doc.exists) return undefined;
+      return convertDates({ id, ...doc.data() }) as CampaignRecipient;
+    } catch (e) {
+      console.error("DB Error getCampaignRecipientById", e);
+      return undefined;
+    }
+  }
+
+  async updateCampaignRecipient(id: number, updates: Partial<CampaignRecipient>): Promise<CampaignRecipient | undefined> {
+    try {
+      const ref = db.collection("campaign_recipients").doc(id.toString());
+      const doc = await ref.get();
+      if (!doc.exists) return undefined;
+      await ref.update(updates);
+      return convertDates({ id, ...(await ref.get()).data() }) as CampaignRecipient;
+    } catch (e) {
+      console.error("DB Error updateCampaignRecipient", e);
+      return undefined;
+    }
+  }
+
+  async clearCampaignRecipients(campaignId: number, userId: string): Promise<void> {
+    try {
+      const snap = await db
+        .collection("campaign_recipients")
+        .where("campaignId", "==", campaignId)
+        .where("userId", "==", userId)
+        .get();
+      const batchSize = 500;
+      for (let i = 0; i < snap.docs.length; i += batchSize) {
+        const batch = db.batch();
+        snap.docs.slice(i, i + batchSize).forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+      }
+    } catch (e) {
+      console.error("DB Error clearCampaignRecipients", e);
+    }
   }
 }
 

@@ -963,6 +963,10 @@ export const internalLeadSchema = z.object({
   // JSON field for contacts array [{ name, role, email, phone, linkedinUrl }]
   contacts: z.any().default([]),
 
+  // Duplicate detection
+  possibleDuplicate: z.boolean().optional().default(false),
+  duplicateOf: z.number().nullable().optional(), // ID of the existing record this may be a duplicate of
+
   createdAt: dateSchema,
   updatedAt: dateSchema,
 });
@@ -996,6 +1000,33 @@ export type InsertCommission = z.infer<typeof insertCommissionSchema>;
 
 export const SALES_AGENT_ROLE = "sales_agent";
 
+// --- Media Assets ---
+export const MEDIA_CATEGORIES = [
+  { value: "business_corporate", label: "Business & Corporate" },
+  { value: "finance_banking", label: "Finance & Banking" },
+  { value: "property_real_estate", label: "Property & Real Estate" },
+  { value: "professional_people", label: "Professional People" },
+  { value: "technology_digital", label: "Technology & Digital" },
+  { value: "charts_data", label: "Charts & Data" },
+  { value: "city_architecture", label: "City & Architecture" },
+  { value: "abstract_backgrounds", label: "Abstract & Backgrounds" },
+  { value: "uncategorised", label: "Uncategorised" },
+] as const;
+
+export const mediaAssetSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  filename: z.string(),
+  url: z.string(),
+  size: z.number(),
+  mimeType: z.string(),
+  category: z.string().optional(),
+  isStock: z.boolean().optional(),
+  credit: z.string().optional(),
+  createdAt: dateSchema,
+});
+export type MediaAsset = z.infer<typeof mediaAssetSchema>;
+
 // --- Marketing Contacts ---
 export const marketingContactSchema = z.object({
   id: z.number(),
@@ -1022,6 +1053,192 @@ export const insertMarketingContactSchema = marketingContactSchema.omit({
 
 export type MarketingContact = z.infer<typeof marketingContactSchema>;
 export type InsertMarketingContact = z.infer<typeof insertMarketingContactSchema>;
+
+// --- Waitlist ---
+
+export const waitlistEntrySchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  companyName: z.string().optional(),
+  phone: z.string().optional(),
+  source: z.string().default("landing"),
+  trialInterest: z.boolean().default(false),
+  status: z.enum(["pending", "contacted", "converted"]).default("pending"),
+  unsubscribed: z.boolean().default(false),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+
+export const insertWaitlistEntrySchema = waitlistEntrySchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type WaitlistEntry = z.infer<typeof waitlistEntrySchema>;
+export type InsertWaitlistEntry = z.infer<typeof insertWaitlistEntrySchema>;
+
+// --- Email Marketing Templates ---
+export const emailTemplateCategoryEnum = z.enum([
+  "cold_outreach",
+  "follow_up",
+  "newsletter",
+  "announcement",
+  "onboarding",
+  "re_engagement",
+  "custom",
+]);
+export type EmailTemplateCategory = z.infer<typeof emailTemplateCategoryEnum>;
+
+export const emailTemplateSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  name: z.string().min(1, "Template name is required"),
+  subject: z.string().min(1, "Subject line is required"),
+  content: z.string(),
+  designJson: z.any().optional(),
+  previewText: z.string().nullable().optional(),
+  category: emailTemplateCategoryEnum.default("custom"),
+  tags: z.array(z.string()).default([]),
+  thumbnailColor: z.string().default("#D4A843"),
+  isArchived: z.boolean().default(false),
+  lastUsedAt: dateSchema,
+  useCount: z.number().default(0),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type EmailTemplate = z.infer<typeof emailTemplateSchema>;
+export const insertEmailTemplateSchema = emailTemplateSchema.omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+  lastUsedAt: true,
+  useCount: true,
+});
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+
+// --- Email Marketing Campaigns ---
+export const emailCampaignStatusEnum = z.enum([
+  "draft",
+  "scheduled",
+  "sending",
+  "sent",
+  "paused",
+  "cancelled",
+]);
+export type EmailCampaignStatus = z.infer<typeof emailCampaignStatusEnum>;
+
+export const emailCampaignSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  name: z.string().min(1, "Campaign name is required"),
+  subject: z.string().min(1, "Subject line is required"),
+  templateId: z.number().nullable().optional(),
+  content: z.string(),
+  designJson: z.any().optional(),
+  status: emailCampaignStatusEnum.default("draft"),
+  recipientSource: z.enum(["manual", "marketing_contacts", "prospects", "leads", "mixed"]).default("manual"),
+  recipientFilter: z.any().optional(),
+  recipientCount: z.number().default(0),
+  scheduledAt: dateSchema,
+  sentAt: dateSchema,
+  completedAt: dateSchema,
+  totalSent: z.number().default(0),
+  totalDelivered: z.number().default(0),
+  totalOpened: z.number().default(0),
+  totalClicked: z.number().default(0),
+  totalBounced: z.number().default(0),
+  totalUnsubscribed: z.number().default(0),
+  totalFailed: z.number().default(0),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type EmailCampaign = z.infer<typeof emailCampaignSchema>;
+export const insertEmailCampaignSchema = emailCampaignSchema.omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+  sentAt: true,
+  completedAt: true,
+  totalSent: true,
+  totalDelivered: true,
+  totalOpened: true,
+  totalClicked: true,
+  totalBounced: true,
+  totalUnsubscribed: true,
+  totalFailed: true,
+});
+export type InsertEmailCampaign = z.infer<typeof insertEmailCampaignSchema>;
+
+// --- Campaign Recipients ---
+export const campaignRecipientStatusEnum = z.enum([
+  "pending",
+  "sent",
+  "delivered",
+  "opened",
+  "clicked",
+  "bounced",
+  "failed",
+  "unsubscribed",
+]);
+
+export const campaignRecipientSchema = z.object({
+  id: z.number().optional(),
+  campaignId: z.number(),
+  userId: z.string(),
+  email: z.string().email(),
+  firstName: z.string().nullable().optional(),
+  lastName: z.string().nullable().optional(),
+  companyName: z.string().nullable().optional(),
+  sourceType: z.enum(["marketing_contact", "prospect", "lead", "manual"]),
+  sourceId: z.number().nullable().optional(),
+  status: campaignRecipientStatusEnum.default("pending"),
+  sentAt: dateSchema,
+  openedAt: dateSchema,
+  clickedAt: dateSchema,
+  bouncedAt: dateSchema,
+  errorMessage: z.string().nullable().optional(),
+  verificationStatus: z.enum(["unverified", "valid", "risky", "invalid"]).default("unverified"),
+  verificationGrade: z.enum(["A", "B", "C", "D", "F"]).nullable().optional(),
+  verificationScore: z.number().nullable().optional(),
+  createdAt: dateSchema,
+});
+export type CampaignRecipient = z.infer<typeof campaignRecipientSchema>;
+export const insertCampaignRecipientSchema = campaignRecipientSchema.omit({
+  id: true,
+  createdAt: true,
+  sentAt: true,
+  openedAt: true,
+  clickedAt: true,
+  bouncedAt: true,
+});
+export type InsertCampaignRecipient = z.infer<typeof insertCampaignRecipientSchema>;
+
+// --- Email Marketing Constants ---
+export const EMAIL_MERGE_TAGS = [
+  { tag: "{{firstName}}", description: "Recipient first name" },
+  { tag: "{{lastName}}", description: "Recipient last name" },
+  { tag: "{{companyName}}", description: "Recipient company name" },
+  { tag: "{{email}}", description: "Recipient email address" },
+  { tag: "{{senderName}}", description: "Your name" },
+  { tag: "{{senderCompany}}", description: "Your company (Veltro)" },
+  { tag: "{{unsubscribeLink}}", description: "Unsubscribe link" },
+  { tag: "{{currentDate}}", description: "Current date" },
+] as const;
+
+export const EMAIL_TEMPLATE_CATEGORIES = [
+  { value: "cold_outreach", label: "Cold Outreach" },
+  { value: "follow_up", label: "Follow Up" },
+  { value: "newsletter", label: "Newsletter" },
+  { value: "announcement", label: "Announcement" },
+  { value: "onboarding", label: "Onboarding" },
+  { value: "re_engagement", label: "Re-engagement" },
+  { value: "custom", label: "Custom" },
+] as const;
 
 // --- Scraped Leads (Auto-Qualified) ---
 export const scrapedLeadSchema = z.object({
@@ -1122,3 +1339,100 @@ export const insertBrokerScrapedLeadSchema = brokerScrapedLeadSchema.omit({
   id: true, createdAt: true, updatedAt: true
 });
 export type InsertBrokerScrapedLead = z.infer<typeof insertBrokerScrapedLeadSchema>;
+
+// --- Invoices ---
+
+export const invoiceLineItemSchema = z.object({
+  description: z.string().min(1),
+  quantity: z.number().positive(),
+  unitPrice: z.number().positive(), // in pence
+  total: z.number(), // quantity * unitPrice, in pence
+});
+export type InvoiceLineItem = z.infer<typeof invoiceLineItemSchema>;
+
+export const invoiceStatusEnum = z.enum(["draft", "sent", "paid", "overdue", "cancelled"]);
+export type InvoiceStatus = z.infer<typeof invoiceStatusEnum>;
+
+export const invoiceSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  prospectId: z.number(),
+  invoiceNumber: z.string(),
+  clientName: z.string(),
+  amount: z.number(), // total in pence
+  currency: z.string().default("GBP"),
+  status: invoiceStatusEnum.default("draft"),
+  issueDate: dateSchema,
+  dueDate: dateSchema,
+  paidDate: dateSchema,
+  lineItems: z.array(invoiceLineItemSchema).default([]),
+  notes: z.string().nullable().optional(),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type Invoice = z.infer<typeof invoiceSchema>;
+
+export const insertInvoiceSchema = invoiceSchema.omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  prospectId: numberOrString,
+});
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+
+// --- Expenses ---
+
+export const expenseCategoryEnum = z.enum([
+  "travel_mileage",
+  "office_supplies",
+  "telecoms",
+  "professional_services",
+  "marketing_advertising",
+  "insurance",
+  "training_development",
+  "meals_entertainment",
+  "rent_utilities",
+  "bank_finance",
+  "other",
+]);
+export type ExpenseCategory = z.infer<typeof expenseCategoryEnum>;
+
+export const expenseStatusEnum = z.enum(["pending", "approved", "rejected"]);
+export type ExpenseStatus = z.infer<typeof expenseStatusEnum>;
+
+export const mileageDetailSchema = z.object({
+  miles: z.number().positive(),
+  ratePerMile: z.number(), // in pence
+  from: z.string(),
+  to: z.string(),
+  vehicleType: z.enum(["car", "motorcycle", "bicycle"]).default("car"),
+});
+export type MileageDetail = z.infer<typeof mileageDetailSchema>;
+
+export const expenseSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  date: dateSchema,
+  category: expenseCategoryEnum,
+  description: z.string().min(1),
+  amount: z.number(), // in pence
+  currency: z.string().default("GBP"),
+  status: expenseStatusEnum.default("pending"),
+  vendor: z.string().nullable().optional(),
+  receiptUrl: z.string().nullable().optional(),
+  mileageDetails: mileageDetailSchema.nullable().optional(),
+  notes: z.string().nullable().optional(),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type Expense = z.infer<typeof expenseSchema>;
+
+export const insertExpenseSchema = expenseSchema.omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertExpense = z.infer<typeof insertExpenseSchema>;

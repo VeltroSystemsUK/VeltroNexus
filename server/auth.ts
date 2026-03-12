@@ -377,7 +377,8 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     // Cross-origin CSRF attempts will either have a mismatched Origin or none at all.
     if (process.env.NODE_ENV === 'production') {
         const origin = req.get('Origin') || req.get('Referer');
-        const host = req.get('Host');
+        // Use X-Forwarded-Host when behind a reverse proxy (Firebase Hosting → Cloud Run)
+        const host = req.get('X-Forwarded-Host') || req.get('Host');
         if (origin && host) {
             try {
                 const originHost = new URL(origin).host;

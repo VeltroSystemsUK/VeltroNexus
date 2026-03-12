@@ -46,7 +46,9 @@ import {
   Mail,
   Zap,
   Users,
-  Menu // Added
+  Menu, // Added
+  MessageSquare,
+  Bell,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
@@ -62,6 +64,9 @@ import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { useOnboarding, OnboardingTooltip } from "@/components/onboarding";
 import { usePageTitle, usePageActions } from "@/context/LayoutContext";
+
+const WA_URL = import.meta.env.VITE_WA_SERVICE_URL || "";
+import { applyTheme } from "@/components/ThemeToggle";
 
 import {
   DropdownMenu,
@@ -298,11 +303,28 @@ export default function Settings() {
   const [aiDataConsent, setAiDataConsent] = useState<boolean>(false);
   const [emailApiKey, setEmailApiKey] = useState("");
   const [emailIntegrationEnabled, setEmailIntegrationEnabled] = useState(false);
+  const [waStatus, setWaStatus] = useState<{ status: string; jid: string | null; qr: string | null }>({ status: "disconnected", jid: null, qr: null });
+  const [showWaQR, setShowWaQR] = useState(false);
 
   // Fetch Integrations
   const { data: integrations, refetch: refetchIntegrations } = useQuery<any[]>({
     queryKey: ["/api/communications/settings"],
   });
+
+  // Fetch WhatsApp status
+  const { data: waData, refetch: refetchWaStatus } = useQuery<{ status: string; jid: string | null; qr: string | null }>({
+    queryKey: ["wa-status"],
+    queryFn: async () => {
+      const res = await fetch(`${WA_URL}/api/wa/status`);
+      if (!res.ok) throw new Error("Failed to fetch WA status");
+      return res.json();
+    },
+    refetchInterval: waStatus.status === "qr" || waStatus.status === "connecting" ? 3000 : false,
+  });
+
+  useEffect(() => {
+    if (waData) setWaStatus(waData);
+  }, [waData]);
 
   useEffect(() => {
     if (integrations) {
@@ -685,6 +707,16 @@ export default function Settings() {
     reader.readAsText(csvFile);
   };
 
+  const [activeTab, setActiveTab] = useState("general");
+
+  const tabOptions = [
+    { id: "general", label: "General", icon: SettingsIcon, color: "bg-primary" },
+    { id: "integrations", label: "Integrations", icon: Zap, color: "bg-blue-600" },
+    { id: "crm", label: "CRM", icon: Users, color: "bg-emerald-600" },
+    { id: "reports", label: "Reports", icon: FileText, color: "bg-purple-600" },
+    { id: "data", label: "Data", icon: FileSpreadsheet, color: "bg-amber-600" },
+  ];
+
   usePageTitle("Settings", "Customise your Veltro experience");
 
   usePageActions(
@@ -710,16 +742,6 @@ export default function Settings() {
       </div>
     );
   }
-
-  const [activeTab, setActiveTab] = useState("general");
-
-  const tabOptions = [
-    { id: "general", label: "General", icon: SettingsIcon, color: "bg-primary" },
-    { id: "integrations", label: "Integrations", icon: Zap, color: "bg-blue-600" },
-    { id: "crm", label: "CRM", icon: Users, color: "bg-emerald-600" },
-    { id: "reports", label: "Reports", icon: FileText, color: "bg-purple-600" },
-    { id: "data", label: "Data", icon: FileSpreadsheet, color: "bg-amber-600" },
-  ];
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -882,6 +904,107 @@ export default function Settings() {
                 )}
               </CardContent>
             </Card>
+
+            {/* WhatsApp Integration */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-green-500" />
+                  WhatsApp Integration
+                </CardTitle>
+                <CardDescription>
+                  Connect your personal WhatsApp to send messages and notifications directly from Veltro.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${waStatus.status === "connected" ? "bg-green-100" : "bg-muted"}`}>
+                      {waStatus.status === "connected" ? <Check className="h-5 w-5 text-green-600" /> : <MessageSquare className="h-5 w-5 text-muted-foreground" />}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">
+                        {waStatus.status === "connected" ? "WhatsApp Connected" : waStatus.status === "qr" ? "Scan QR to Connect" : waStatus.status === "connecting" ? "Connecting..." : "Not Connected"}
+                      </p>
+                      {waStatus.jid && (
+                        <p className="text-xs text-muted-foreground">
+                          Linked: {waStatus.jid.split(":")[0]}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {waStatus.status === "connected" ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={async () => {
+                        if (confirm("Disconnect WhatsApp? You'll need to scan the QR code again to reconnect.")) {
+                          await fetch(`${WA_URL}/api/wa/logout`, { method: "POST" });
+                          refetchWaStatus();
+                          toast({ title: "Disconnected", description: "WhatsApp has been disconnected." });
+                        }
+                      }}
+                    >
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        setShowWaQR(true);
+                        refetchWaStatus();
+                      }}
+                    >
+                      Connect WhatsApp
+                    </Button>
+                  )}
+                </div>
+                {waStatus.status === "connected" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center gap-2 p-2 rounded bg-green-500/10">
+                      <MessageSquare className="h-4 w-4 text-green-500" />
+                      <span>Direct Messaging</span>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 rounded bg-green-500/10">
+                      <Bell className="h-4 w-4 text-green-500" />
+                      <span>Workflow Notifications</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* QR Dialog */}
+                {showWaQR && (
+                  <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center" onClick={() => setShowWaQR(false)}>
+                    <div className="bg-card border rounded-xl p-6 max-w-sm w-[90%]" onClick={e => e.stopPropagation()}>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-bold">Connect WhatsApp</h3>
+                        <Button variant="ghost" size="sm" onClick={() => setShowWaQR(false)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Open WhatsApp → Linked Devices → Link a Device
+                      </p>
+                      {waStatus.qr ? (
+                        <img src={waStatus.qr} alt="WhatsApp QR Code" className="w-full rounded-lg bg-white p-2" />
+                      ) : waStatus.status === "connected" ? (
+                        <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center text-green-500 font-medium">
+                          Connected!
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                          <Loader2 className="h-6 w-6 animate-spin mr-2" /> Generating QR...
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-3">
+                        Your phone must stay online. Uses one of your 4 linked device slots.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="general" className="space-y-6 mt-0">
@@ -906,7 +1029,12 @@ export default function Settings() {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="theme">Theme</Label>
-                    <Select value={theme} onValueChange={setTheme}>
+                    <Select value={theme} onValueChange={(val) => {
+                      setTheme(val);
+                      // Apply immediately without waiting for save
+                      localStorage.setItem("theme", val);
+                      applyTheme(val as any);
+                    }}>
                       <SelectTrigger id="theme" data-testid="select-theme">
                         <SelectValue />
                       </SelectTrigger>

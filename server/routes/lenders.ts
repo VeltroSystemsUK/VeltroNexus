@@ -19,7 +19,7 @@ const router = Router();
 
 
   // Logo Upload Endpoint
-  router.post("/api/lenders/upload-logo", isAuthenticated, (req, res) => {
+  router.post("/lenders/upload-logo", isAuthenticated, (req, res) => {
     const busboyInstance = busboy({ headers: req.headers });
     const logosDir = path.resolve("client/public/logos");
 
@@ -73,7 +73,7 @@ const router = Router();
 
 
   // AI Lender Research Endpoint
-  router.post("/api/lenders/:id/research", isAuthenticated, async (req, res) => {
+  router.post("/lenders/:id/research", isAuthenticated, async (req, res) => {
     try {
       const lenderId = parseInt(req.params.id);
       if (isNaN(lenderId)) return res.status(400).json({ error: "Invalid lender ID" });
@@ -87,7 +87,7 @@ const router = Router();
     }
   });
 
-  router.post("/api/lenders/research-prospect", isAuthenticated, async (req, res) => {
+  router.post("/lenders/research-prospect", isAuthenticated, async (req, res) => {
     try {
       const { name, website, targetField } = req.body;
       if (!name) return res.status(400).json({ error: "Lender name is required" });
@@ -129,7 +129,7 @@ const router = Router();
     }
   );
 
-  router.post("/api/lenders/bulk-upload", isAuthenticated, async (req, res) => {
+  router.post("/lenders/bulk-upload", isAuthenticated, async (req, res) => {
     try {
       const { lenders } = req.body;
       if (!Array.isArray(lenders)) {
@@ -163,7 +163,7 @@ const router = Router();
   });
 
   // Lenders API - Protected routes
-  router.get("/api/lenders", isAuthenticated, async (req: Request, res: Response) => {
+  router.get("/lenders", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const lenders = await storage.listLenders({
         userId: req.user!.id,
@@ -176,7 +176,7 @@ const router = Router();
     }
   });
 
-  router.get("/api/lenders/:id", isAuthenticated, async (req: Request, res: Response) => {
+  router.get("/lenders/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const lenderId = parseInt(req.params.id);
@@ -212,7 +212,7 @@ const router = Router();
     }
   );
 
-  router.post("/api/lenders", isAuthenticated, async (req: Request, res: Response) => {
+  router.post("/lenders", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const result = insertLenderSchema.safeParse(req.body);

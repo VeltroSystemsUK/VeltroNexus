@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { usePageTitle } from "@/context/LayoutContext";
 
 interface GmailMessage {
     id: string;
@@ -74,6 +75,7 @@ interface GmailLabel {
 }
 
 export default function Gmail() {
+    usePageTitle("Gmail", "Email management");
     const [location] = useLocation();
     const [messages, setMessages] = useState<GmailMessage[]>([]);
     const [labels, setLabels] = useState<GmailLabel[]>([]);
@@ -631,14 +633,6 @@ export default function Gmail() {
 
                     <div className="flex items-center gap-2">
                         <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setIsSettingsOpen(true)}
-                            title="Gmail Settings"
-                        >
-                            <Settings className="h-5 w-5" />
-                        </Button>
-                        <Button
                             variant="outline"
                             size="icon"
                             onClick={() => loadMessages()}
@@ -650,11 +644,15 @@ export default function Gmail() {
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" title="Settings">
                                     <Settings className="h-5 w-5 text-muted-foreground" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                                    <Mail className="h-4 w-4 mr-2" /> Gmail Settings
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuLabel>View Density</DropdownMenuLabel>
                                 <DropdownMenuRadioGroup value={density} onValueChange={(v: any) => setDensity(v)}>
                                     <DropdownMenuRadioItem value="default">
@@ -679,10 +677,6 @@ export default function Gmail() {
                                 </DropdownMenuRadioGroup>
                             </DropdownMenuContent>
                         </DropdownMenu>
-
-                        <Button variant="ghost" size="icon" onClick={() => loadMessages()} disabled={loading}>
-                            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                        </Button>
                     </div>
                 </div>
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 interface LayoutContextType {
     pageTitle: string;
@@ -15,10 +15,10 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
     const [pageDescription, setPageDescription] = useState("");
     const [headerActions, setPageActions] = useState<React.ReactNode>(null);
 
-    const setPageDetails = (title: string, description?: string) => {
+    const setPageDetails = useCallback((title: string, description?: string) => {
         setPageTitle(title);
         setPageDescription(description || "");
-    };
+    }, []);
 
     return (
         <LayoutContext.Provider value={{ pageTitle, pageDescription, headerActions, setPageDetails, setPageActions }}>

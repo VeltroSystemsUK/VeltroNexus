@@ -2399,13 +2399,12 @@ function LoanRequirementTab({ prospect }: { prospect: ProspectWithCompany }) {
                 </span>
               </div>
               {loanAmountNum > 0 && (
-                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                  <div
-                    className={`h-full transition-all ${remainingToAllocate === 0 ? "bg-green-500" : remainingToAllocate < 0 ? "bg-destructive" : "bg-primary"}`}
-                    style={{ width: `${Math.min(100, (totalAllocated / loanAmountNum) * 100)}%` }}
-                    data-testid="progress-allocation"
-                  />
-                </div>
+                <progress
+                  value={Math.min(100, (totalAllocated / loanAmountNum) * 100)}
+                  max={100}
+                  className={`progress-bar w-full ${remainingToAllocate === 0 ? "[&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500" : remainingToAllocate < 0 ? "[&::-webkit-progress-value]:bg-destructive [&::-moz-progress-bar]:bg-destructive" : "[&::-webkit-progress-value]:bg-primary [&::-moz-progress-bar]:bg-primary"}`}
+                  data-testid="progress-allocation"
+                />
               )}
               {remainingToAllocate === 0 && loanAmountNum > 0 && (
                 <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
@@ -2549,14 +2548,14 @@ function SalesActivityTab({
 
   const deleteActivityMutation = useMutation({
     mutationFn: (id: number) =>
-      fetch(`/api/activities/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      }).then((r) => r.json()),
+      apiRequest(`/api/activities/${id}`, "DELETE"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/activities`] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       toast.success("Activity deleted");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to delete activity");
     },
   });
 
@@ -3588,12 +3587,11 @@ function SummaryTab({
                           {checklistProgress()!.completed}/{checklistProgress()!.total} items
                         </span>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-500 transition-all"
-                          style={{ width: `${checklistProgress()!.percentage}%` }}
-                        />
-                      </div>
+                      <progress
+                        value={checklistProgress()!.percentage}
+                        max={100}
+                        className="progress-bar w-full [&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500"
+                      />
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">No checklist data</p>
@@ -3902,17 +3900,11 @@ function SummaryTab({
                         {activities.length - completedActivities}
                       </span>
                     </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden mt-2">
-                      <div
-                        className="h-full bg-green-500 transition-all"
-                        style={{
-                          width:
-                            activities.length > 0
-                              ? `${(completedActivities / activities.length) * 100}%`
-                              : "0%",
-                        }}
-                      />
-                    </div>
+                    <progress
+                      value={activities.length > 0 ? (completedActivities / activities.length) * 100 : 0}
+                      max={100}
+                      className="progress-bar w-full mt-2 [&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500"
+                    />
                   </div>
                 </CardContent>
               </Card>

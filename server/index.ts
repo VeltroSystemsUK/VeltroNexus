@@ -74,12 +74,13 @@ app.use((req, res, next) => {
     }
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' blob:",
+      "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' blob: https://editor.unlayer.com",
       "worker-src 'self' blob:",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://editor.unlayer.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.replit.dev wss://*.replit.dev https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk https://europe-west2-veltro-prod.cloudfunctions.net ws://localhost:* http://localhost:*",
+      "font-src 'self' data: https://fonts.gstatic.com https://editor.unlayer.com",
+      "connect-src 'self' wss: ws: https://*.replit.dev wss://*.replit.dev https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk https://europe-west2-veltro-prod.cloudfunctions.net ws://localhost:* http://localhost:* https://editor.unlayer.com https://*.unlayer.com",
+      "frame-src 'self' https://editor.unlayer.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -110,7 +111,6 @@ app.use((req, res, next) => {
 
     const cspString = cspDirectives.join("; ");
     res.setHeader("Content-Security-Policy", cspString);
-    res.setHeader("Content-Security-Policy-Report-Only", cspString);
   }
 
   next();
@@ -236,6 +236,7 @@ app.use((req: any, res, next) => {
               const leadFinderScheduler = getScheduler();
               leadFinderScheduler.start();
               console.log("[Lead Finder] Autonomous scheduler started");
+
             } catch (error) {
               console.error("[Startup] Failed to initialize agents/schedulers:", error);
             }

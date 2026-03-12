@@ -35,7 +35,7 @@ const router = Router();
   );
 
   // Companies House Search API - Protected route
-  router.get("/api/companies-house/search", isAuthenticated, async (req, res) => {
+  router.get("/companies-house/search", isAuthenticated, async (req, res) => {
     try {
       const query = req.query.q as string;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100); // Max 100 per API
@@ -94,7 +94,7 @@ const router = Router();
   });
 
   // Companies House Advanced Search API - Search by SIC, location, postcode
-  router.get("/api/companies-house/advanced-search", isAuthenticated, async (req, res) => {
+  router.get("/companies-house/advanced-search", isAuthenticated, async (req, res) => {
     try {
       const { sic_codes, location, postcode } = req.query;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
@@ -216,7 +216,7 @@ const router = Router();
   });
 
   // Companies House Officers Search API - Search for directors/officers
-  router.get("/api/companies-house/search-officers", isAuthenticated, async (req, res) => {
+  router.get("/companies-house/search-officers", isAuthenticated, async (req, res) => {
     try {
       const query = req.query.q as string;
       if (!query || query.trim().length === 0) {
@@ -257,7 +257,7 @@ const router = Router();
   });
 
   // Get officer appointments (companies they are a director of)
-  router.get("/api/companies-house/officer-appointments", isAuthenticated, async (req, res) => {
+  router.get("/companies-house/officer-appointments", isAuthenticated, async (req, res) => {
     try {
       const officerId = req.query.officer_id as string;
       const redirectUrl = (req.query.redirect as string) || "/underwriting";
@@ -299,7 +299,7 @@ const router = Router();
   });
 
   // Companies House Company Profile API - Protected route
-  router.get("/api/companies-house/company/:companyNumber", isAuthenticated, async (req, res) => {
+  router.get("/companies-house/company/:companyNumber", isAuthenticated, async (req, res) => {
     try {
       const companyNumber = req.params.companyNumber;
       if (!companyNumber || companyNumber.trim().length === 0) {
@@ -792,7 +792,7 @@ const router = Router();
   // Companies API - Protected routes
 
   // Specific route for fetching by numeric ID
-  router.get("/api/companies/:id(\\d+)", isAuthenticated, async (req, res) => {
+  router.get("/companies/:id(\\d+)", isAuthenticated, async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       console.log(`[API] Fetching company by ID: ${companyId}`);
@@ -809,7 +809,7 @@ const router = Router();
   });
 
   // Fallback for company number (string)
-  router.get("/api/companies/:number", isAuthenticated, async (req, res) => {
+  router.get("/companies/:number", isAuthenticated, async (req, res) => {
     try {
       const company = await storage.getCompanyByNumber(req.params.number);
       if (!company) {
@@ -821,7 +821,7 @@ const router = Router();
     }
   });
 
-  router.post("/api/companies", isAuthenticated, async (req, res) => {
+  router.post("/companies", isAuthenticated, async (req, res) => {
     try {
       const result = insertCompanySchema.safeParse(req.body);
       if (!result.success) {
@@ -847,7 +847,7 @@ const router = Router();
   });
 
   // Update company details (e.g., sync incorporation date from Companies House)
-  router.patch("/api/companies/:id", isAuthenticated, async (req, res) => {
+  router.patch("/companies/:id", isAuthenticated, async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       if (isNaN(companyId)) {
@@ -894,7 +894,7 @@ const router = Router();
   });
 
   // Sync company data from Companies House (SIC codes, postcode, etc.)
-  router.post("/api/companies/:id/sync-companies-house", isAuthenticated, async (req, res) => {
+  router.post("/companies/:id/sync-companies-house", isAuthenticated, async (req, res) => {
     try {
       const companyId = parseInt(req.params.id);
       if (isNaN(companyId)) {
@@ -992,7 +992,7 @@ const router = Router();
   });
 
   // Auto-sync officers from Companies House to contacts
-  router.post("/api/prospects/:prospectId/sync-officers", isAuthenticated, async (req, res) => {
+  router.post("/prospects/:prospectId/sync-officers", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.prospectId);
       const userId = req.user!.id;

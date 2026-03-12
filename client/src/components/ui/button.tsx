@@ -10,7 +10,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground border border-primary-border",
+        default: "bg-primary text-primary-foreground border border-primary-border tracking-wide text-xs font-semibold uppercase",
         destructive: "bg-destructive text-destructive-foreground border border-destructive-border",
         outline:
           // Shows the background color of whatever card / sidebar / accent background it is inside of.

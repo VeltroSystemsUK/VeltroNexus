@@ -51,7 +51,7 @@ const upload = multer({
 
 const router = Router();
 
-  router.get("/api/prospects/:id/requirements", isAuthenticated, async (req, res) => {
+  router.get("/prospects/:id/requirements", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.id);
       if (isNaN(prospectId)) return res.status(400).json({ error: "Invalid prospect ID" });
@@ -99,7 +99,7 @@ const router = Router();
   });
 
   // 2. Upload Document
-  router.post("/api/prospects/:id/documents/upload", isAuthenticated, upload.single("file"), async (req, res) => {
+  router.post("/prospects/:id/documents/upload", isAuthenticated, upload.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -168,7 +168,7 @@ const router = Router();
   });
 
   // 3. List Documents
-  router.get("/api/prospects/:id/documents", isAuthenticated, async (req, res) => {
+  router.get("/prospects/:id/documents", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.id);
       const userId = req.user!.id;
@@ -180,7 +180,7 @@ const router = Router();
   });
 
   // 4. Delete Document
-  router.delete("/api/documents/:id", isAuthenticated, async (req, res) => {
+  router.delete("/documents/:id", isAuthenticated, async (req, res) => {
     try {
       const docId = parseInt(req.params.id);
       const userId = req.user!.id;
@@ -210,7 +210,7 @@ const router = Router();
     }
   );
 
-  router.get("/api/prospects", isAuthenticated, async (req: Request, res: Response) => {
+  router.get("/prospects", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const prospects = await storage.listProspects(userId);
@@ -264,7 +264,7 @@ const router = Router();
     }
   );
 
-  router.post("/api/prospects", isAuthenticated, async (req: Request, res: Response) => {
+  router.post("/prospects", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
 
@@ -1327,7 +1327,7 @@ const router = Router();
   // Note: 7.5MB decoded limit (base64 encoded ~10MB represents ~7.5MB binary)
   const MAX_PDF_DECODED_SIZE = 7.5 * 1024 * 1024; // 7.5MB decoded binary limit
 
-  router.post("/api/parse-pdf", isAuthenticated, async (req: Request, res: Response) => {
+  router.post("/parse-pdf", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const { pdfBase64 } = req.body;
 

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { applyTheme, type ThemeMode } from "@/components/ThemeToggle";
 
 function hexToHSL(hex: string): string | null {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -17,7 +18,7 @@ function hexToHSL(hex: string): string | null {
     let h = 0, s, l = (max + min) / 2;
 
     if (max === min) {
-        h = s = 0; // achromatic
+        h = s = 0;
     } else {
         const d = max - min;
         s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -41,47 +42,66 @@ function hexToHSL(hex: string): string | null {
 export function ThemeManager() {
     const { user } = useAuth();
 
+    // Sync theme preference from user DB to DOM
+    useEffect(() => {
+        if (!user?.theme) return;
+        const validModes: ThemeMode[] = ["light", "dark", "system"];
+        const mode = validModes.includes(user.theme as ThemeMode)
+            ? (user.theme as ThemeMode)
+            : "dark";
+
+        // Only sync from DB if localStorage doesn't already have a value
+        // (ThemeToggle manages localStorage directly for instant feedback)
+        const stored = localStorage.getItem("theme") as ThemeMode | null;
+        if (!stored) {
+            localStorage.setItem("theme", mode);
+            applyTheme(mode);
+        }
+    }, [user?.theme]);
+
+    // Apply branding colors
     useEffect(() => {
         if (!user) return;
 
         const root = document.documentElement;
 
-        // Apply Primary Color
+        // Primary Color
         if (user.brandingPrimaryColor) {
             const hsl = hexToHSL(user.brandingPrimaryColor);
             if (hsl) {
                 root.style.setProperty("--primary", hsl);
                 root.style.setProperty("--ring", hsl);
-                // Also update chart color 1 to match primary
                 root.style.setProperty("--chart-1", hsl);
+                root.style.setProperty("--sidebar-primary", hsl);
             }
         } else {
             root.style.removeProperty("--primary");
             root.style.removeProperty("--ring");
             root.style.removeProperty("--chart-1");
+            root.style.removeProperty("--sidebar-primary");
         }
 
-        // Apply Accent Color (Mapping to Secondary for now, or we could add a specific accent variable)
+        // Accent Color → secondary
         if (user.brandingAccentColor) {
             const hsl = hexToHSL(user.brandingAccentColor);
             if (hsl) {
-                // We can map this to secondary or use it as a separate accent if css uses it
-                // The CSS defines --secondary as "Electric Indigo", let's override it if user provides one
                 root.style.setProperty("--secondary", hsl);
             }
         } else {
             root.style.removeProperty("--secondary");
         }
 
-        // Apply Sidebar Color
+        // Sidebar Color → --sidebar (correct variable name)
         if (user.brandingSidebarColor) {
-            // We'll set a custom property for the sidebar to consume
-            root.style.setProperty("--sidebar-bg", user.brandingSidebarColor);
+            const hsl = hexToHSL(user.brandingSidebarColor);
+            if (hsl) {
+                root.style.setProperty("--sidebar", hsl);
+            }
         } else {
-            root.style.removeProperty("--sidebar-bg");
+            root.style.removeProperty("--sidebar");
         }
 
-        // Apply Page Background Color
+        // Page Background Color
         if (user.brandingBackgroundColor) {
             const hsl = hexToHSL(user.brandingBackgroundColor);
             if (hsl) {

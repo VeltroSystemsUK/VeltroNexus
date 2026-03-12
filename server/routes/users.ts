@@ -13,7 +13,7 @@ import { getObjectStorage } from "../utils/routerHelpers";
 
 const router = Router();
 
-router.get("/api/auth/user", isAuthenticated, async (req: Request, res: Response) => {
+router.get("/auth/user", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const user = await storage.getUser(userId);
@@ -501,7 +501,7 @@ router.post(
     }
   );
 
-router.get("/api/auth/role", isAuthenticated, async (req: Request, res: Response) => {
+router.get("/auth/role", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const user = await storage.getUser(userId);
@@ -519,7 +519,7 @@ router.get("/api/auth/role", isAuthenticated, async (req: Request, res: Response
   // Update current user role
   // SECURITY: In production (NODE_ENV !== 'development'), only super_admin can change roles
   // DEVELOPMENT: Self role switching is allowed for testing when NODE_ENV === 'development'
-router.post("/api/auth/role", isAuthenticated, async (req: Request, res: Response) => {
+router.post("/auth/role", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const { role, targetUserId } = req.body;
@@ -565,7 +565,7 @@ router.post("/api/auth/role", isAuthenticated, async (req: Request, res: Respons
   // ============ TEAM MANAGEMENT ============
 
   // Get all users (super_admin only)
-router.get("/api/admin/users", isAuthenticated, async (req: Request, res: Response) => {
+router.get("/admin/users", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const currentUser = await storage.getUser(userId);
@@ -582,7 +582,7 @@ router.get("/api/admin/users", isAuthenticated, async (req: Request, res: Respon
   });
 
   // Get all teams (super_admin and sales_admin only)
-router.get("/api/teams", isAuthenticated, async (req: Request, res: Response) => {
+router.get("/teams", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const user = await storage.getUser(userId);
@@ -599,7 +599,7 @@ router.get("/api/teams", isAuthenticated, async (req: Request, res: Response) =>
   });
 
   // Create a new team (super_admin and sales_admin only)
-router.post("/api/teams", isAuthenticated, async (req: Request, res: Response) => {
+router.post("/teams", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const user = await storage.getUser(userId);
@@ -621,7 +621,7 @@ router.post("/api/teams", isAuthenticated, async (req: Request, res: Response) =
   });
 
   // Get team by ID with members
-router.get("/api/teams/:id", isAuthenticated, async (req: Request, res: Response) => {
+router.get("/teams/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const user = await storage.getUser(userId);
@@ -738,7 +738,7 @@ router.delete(
   );
 
   // Get user's teams
-router.get("/api/my-teams", isAuthenticated, async (req: Request, res: Response) => {
+router.get("/my-teams", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const teams = await storage.getUserTeams(userId);
@@ -749,7 +749,7 @@ router.get("/api/my-teams", isAuthenticated, async (req: Request, res: Response)
   });
 
   // Get all users for team management (super_admin and sales_admin only)
-router.get("/api/users", isAuthenticated, async (req: Request, res: Response) => {
+router.get("/users", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const user = await storage.getUser(userId);
