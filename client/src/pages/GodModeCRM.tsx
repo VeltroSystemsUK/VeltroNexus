@@ -259,7 +259,7 @@ export default function GodModeCRM() {
 
     // Contact Finder mutations
     const findContactsMutation = useMutation({
-        mutationFn: (leadId: number) => apiRequest(`/api/god/crm/find-contacts/${leadId}`, "POST"),
+        mutationFn: async (leadId: number) => { const res = await apiRequest(`/api/god/crm/find-contacts/${leadId}`, "POST"); return res.json(); },
         onSuccess: (data: any) => {
             toast.success(data.message || "Contacts found");
             queryClient.invalidateQueries({ queryKey: ["/api/god/crm/leads"] });
@@ -270,7 +270,7 @@ export default function GodModeCRM() {
     });
 
     const findContactsBulkMutation = useMutation({
-        mutationFn: (leadIds: number[]) => apiRequest("/api/god/crm/find-contacts-bulk", "POST", { leadIds }),
+        mutationFn: async (leadIds: number[]) => { const res = await apiRequest("/api/god/crm/find-contacts-bulk", "POST", { leadIds }); return res.json(); },
         onSuccess: (data: any) => {
             toast.success(data.message || "Contact discovery started");
             setSelectedLeadIds(new Set());

@@ -132,7 +132,7 @@ export default function InternalLeadDetail({ lead, open, onOpenChange, available
     });
 
     const findContactsMutation = useMutation({
-        mutationFn: () => apiRequest(`/api/god/crm/find-contacts/${lead.id}`, "POST"),
+        mutationFn: async () => { const res = await apiRequest(`/api/god/crm/find-contacts/${lead.id}`, "POST"); return res.json(); },
         onSuccess: (data: any) => {
             toast.success(data.message || "Contacts found");
             queryClient.invalidateQueries({ queryKey: ["/api/god/crm/leads"] });
