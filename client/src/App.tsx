@@ -11,13 +11,12 @@ import { lazy, Suspense } from "react";
 
 // Lazy load all page components for better performance
 const NotFound = lazy(() => import("@/pages/not-found"));
-const Landing = lazy(() => import("@/pages/Landing"));
-const Pricing = lazy(() => import("@/pages/Pricing"));
+
+
 const Pipeline = lazy(() => import("@/pages/Pipeline"));
 const CompanySearch = lazy(() => import("@/pages/CompanySearch"));
 const ProspectDetail = lazy(() => import("@/pages/ProspectDetail"));
-const SubscriptionComplete = lazy(() => import("@/pages/SubscriptionComplete"));
-const SubscriptionPage = lazy(() => import("@/pages/SubscriptionPage"));
+
 const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Lenders = lazy(() => import("@/pages/Lenders"));
@@ -29,21 +28,17 @@ const Teams = lazy(() => import("@/pages/Teams"));
 const Inbox = lazy(() => import("@/pages/Inbox"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const GodModeCRM = lazy(() => import("@/pages/GodModeCRM"));
-const LeadFinder = lazy(() => import("@/pages/LeadFinder"));
 const BrokersCRM = lazy(() => import("@/pages/BrokersCRM"));
-const BrokerFinder = lazy(() => import("@/pages/BrokerFinder"));
-const GodModeMarketing = lazy(() => import("@/pages/GodModeMarketing"));
+const Prospects = lazy(() => import("@/pages/GodModeCRM")); // CRM alias for Prospects
+const Introducers = lazy(() => import("@/pages/BrokersCRM")); // Brokers alias for Introducers
 const CreditTools = lazy(() => import("@/pages/CreditTools"));
 const Workforce = lazy(() => import("@/pages/Workforce"));
 const ContactEnrichmentTest = lazy(() => import("@/pages/ContactEnrichmentTest"));
-const ValuePackages = lazy(() => import("@/pages/ValuePackages"));
+
 const AuthPage = lazy(() => import("@/pages/Auth"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const Compliance = lazy(() => import("@/pages/Compliance"));
 const Terms = lazy(() => import("@/pages/Terms"));
-const RefinanceLanding = lazy(() => import("@/pages/marketing/RefinanceLanding"));
-const RefinanceAnalysis = lazy(() => import("@/pages/marketing/RefinanceAnalysis"));
-const RefinanceApplication = lazy(() => import("@/pages/marketing/RefinanceApplication"));
 const LenderEnquiry = lazy(() => import("@/pages/LenderEnquiry"));
 const Gmail = lazy(() => import("@/pages/Gmail"));
 const UnderwritingLayout = lazy(() => import("@/layouts/UnderwritingLayout"));
@@ -58,13 +53,12 @@ const EmailTemplates = lazy(() => import("@/pages/EmailTemplates"));
 const EmailCampaigns = lazy(() => import("@/pages/EmailCampaigns"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
-const Waitlist = lazy(() => import("@/pages/Waitlist"));
 const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
 
 
 import { CookieConsent } from "@/components/CookieConsent";
 import { ThemeManager } from "@/components/ThemeManager";
-import TrialBanner from "@/components/TrialBanner";
+
 
 // Loading component for lazy routes
 const PageLoader = () => (
@@ -73,34 +67,16 @@ const PageLoader = () => (
   </div>
 );
 
-// Trial broker can only access these paths
-const TRIAL_ALLOWED = new Set([
-  "/pipeline", "/search", "/prospect", "/lenders", "/lead-finder",
-  "/profile", "/settings", "/pricing", "/auth",
-]);
 
-function isTrialAllowed(path: string): boolean {
-  if (TRIAL_ALLOWED.has(path)) return true;
-  // Allow /prospect/:id and /lenders/:id
-  if (path.startsWith("/prospect/") || path.startsWith("/lenders/")) return true;
-  return false;
-}
 
 function Router() {
   const { isAuthenticated, role, isLoading: isAuthLoading } = useAuth();
-  const [location] = useLocation();
 
   if (isAuthLoading) {
     return <PageLoader />;
   }
 
   const isUnderwriter = role === "underwriter";
-  const isTrialBroker = role === "trial_broker";
-
-  // Route guard: redirect trial_broker away from restricted pages
-  if (isAuthenticated && isTrialBroker && !isTrialAllowed(location)) {
-    return <Redirect to="/pipeline" />;
-  }
 
   return (
     <Suspense fallback={<PageLoader />}>
@@ -109,15 +85,11 @@ function Router() {
         <Route path="/auth" component={AuthPage} />
         <Route path="/privacy" component={PrivacyPolicy} />
         <Route path="/terms" component={Terms} />
-        <Route path="/refinance" component={RefinanceLanding} />
-        <Route path="/refinance/analysis" component={RefinanceAnalysis} />
-        <Route path="/refinance/apply" component={RefinanceApplication} />
-        <Route path="/waitlist" component={Waitlist} />
         <Route path="/unsubscribe" component={Unsubscribe} />
 
-        {/* Redirect for root */}
+        {/* Redirect for root — send unauthenticated users to login */}
         <Route path="/">
-          {!isAuthenticated ? <Landing /> : (
+          {!isAuthenticated ? <Redirect to="/auth" /> : (
             isUnderwriter ? <Redirect to="/underwriting" /> : <Redirect to="/pipeline" />
           )}
         </Route>
@@ -149,6 +121,12 @@ function Router() {
         </Route>
         <Route path="/leads">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Leads />}
+        </Route>
+        <Route path="/crm">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Prospects />}
+        </Route>
+        <Route path="/brokers">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Introducers />}
         </Route>
         <Route path="/underwriting">
           {!isAuthenticated ? <Redirect to="/auth" /> : <UnderwriterInbox />}
@@ -187,19 +165,11 @@ function Router() {
         <Route path="/media">
           {!isAuthenticated ? <Redirect to="/auth" /> : <MediaGallery />}
         </Route>
-        <Route path="/marketing/:rest*" component={GodModeMarketing} />
-        <Route path="/marketing" component={GodModeMarketing} />
         <Route path="/crm">
           {!isAuthenticated ? <Redirect to="/auth" /> : <GodModeCRM />}
         </Route>
-        <Route path="/lead-finder">
-          {!isAuthenticated ? <Redirect to="/auth" /> : <LeadFinder />}
-        </Route>
         <Route path="/brokers">
           {!isAuthenticated ? <Redirect to="/auth" /> : <BrokersCRM />}
-        </Route>
-        <Route path="/broker-finder">
-          {!isAuthenticated ? <Redirect to="/auth" /> : <BrokerFinder />}
         </Route>
 
         <Route path="/credit-tools">
@@ -230,11 +200,7 @@ function Router() {
           {!isAuthenticated ? <Redirect to="/auth" /> : <Settings />}
         </Route>
 
-        <Route path="/pricing" component={Pricing} />
         <Route path="/lender-enquiry" component={LenderEnquiry} />
-        <Route path="/value-packages" component={ValuePackages} />
-        <Route path="/subscribe" component={SubscriptionPage} />
-        <Route path="/subscription/complete" component={SubscriptionComplete} />
 
         <Route component={NotFound} />
       </Switch>
@@ -260,7 +226,7 @@ function AppContent() {
 
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           {isAuthenticated && !isLoading && <UnifiedHeader />}
-          {isAuthenticated && !isLoading && <TrialBanner />}
+
 
           <main className="flex-1 overflow-y-auto w-full">
             <Suspense fallback={<PageLoader />}>
