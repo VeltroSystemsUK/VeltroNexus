@@ -7,13 +7,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -77,125 +70,122 @@ export default function AuthPage() {
     });
 
     return (
-        <div className="min-h-screen grid lg:grid-cols-2">
+        <div className="dark min-h-screen grid lg:grid-cols-2 bg-[#0A0B0D] text-foreground relative overflow-hidden grain">
+            {/* Ambient aurora behind everything */}
+            <div className="aurora-field">
+                <div className="aurora-blob b1" />
+                <div className="aurora-blob b2" />
+                <div className="aurora-blob b3" />
+            </div>
 
-            {/* Left Column — Login Form */}
-            <div className="flex items-center justify-center p-8 bg-background">
-                <div className="w-full max-w-md space-y-8">
-
-                    <div className="flex justify-center mb-8">
-                        <img src={logoChrome} alt="Veltro" className="h-12 w-auto" />
+            {/* Left Column — Login */}
+            <div className="relative z-10 flex items-center justify-center p-6 sm:p-8">
+                <div className="w-full max-w-md">
+                    <div className="flex justify-center mb-7">
+                        <img src={logoChrome} alt="Veltro" className="h-11 w-auto" />
                     </div>
 
-                    <Card className="border shadow-sm">
-                        <CardHeader className="pb-4">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Lock className="h-4 w-4 text-muted-foreground" />
-                                <CardTitle className="text-lg">Internal Access</CardTitle>
-                            </div>
-                            <CardDescription>
-                                Authorised personnel only. Contact your administrator if you need access.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Form {...loginForm}>
-                                <form
-                                    onSubmit={loginForm.handleSubmit((data) =>
-                                        loginMutation.mutate(data)
-                                    )}
-                                    className="space-y-4"
-                                >
-                                    <FormField
-                                        control={loginForm.control}
-                                        name="username"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Email</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="Enter your email"
-                                                        autoComplete="username"
-                                                        autoFocus
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={loginForm.control}
-                                        name="password"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Password</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="password"
-                                                        placeholder="Enter your password"
-                                                        autoComplete="current-password"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <Button
-                                        type="submit"
-                                        className="w-full mt-2"
-                                        disabled={loginMutation.isPending}
-                                    >
-                                        {loginMutation.isPending ? "Signing in..." : "Sign In"}
-                                    </Button>
-                                </form>
-                            </Form>
-                        </CardContent>
-                    </Card>
+                    <div className="glass p-6 sm:p-8">
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <Lock className="h-4 w-4 text-primary" />
+                            <h2 className="text-lg font-semibold tracking-tight">Internal access</h2>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-6">
+                            Authorised personnel only. Contact your administrator if you need access.
+                        </p>
 
-                    <p className="text-center text-xs text-muted-foreground">
-                        Veltro &mdash; Internal Delivery System
+                        <Form {...loginForm}>
+                            <form
+                                onSubmit={loginForm.handleSubmit((data) =>
+                                    loginMutation.mutate(data)
+                                )}
+                                className="space-y-4"
+                            >
+                                <FormField
+                                    control={loginForm.control}
+                                    name="username"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Email</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="you@veltro.co.uk"
+                                                    autoComplete="username"
+                                                    autoFocus
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={loginForm.control}
+                                    name="password"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Password</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="password"
+                                                    placeholder="Enter your password"
+                                                    autoComplete="current-password"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <Button
+                                    type="submit"
+                                    className="w-full mt-2 accent-glow"
+                                    disabled={loginMutation.isPending}
+                                >
+                                    {loginMutation.isPending ? "Signing in..." : "Sign in"}
+                                </Button>
+                            </form>
+                        </Form>
+                    </div>
+
+                    <p className="text-center text-xs text-muted-foreground mt-7">
+                        Veltro &mdash; internal delivery system
                     </p>
                 </div>
             </div>
 
-            {/* Right Column — Branding Panel */}
-            <div className="hidden lg:flex flex-col justify-center p-12 bg-[#0f172a] text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-indigo-900/50" />
+            {/* Right Column — Brand showcase */}
+            <div className="hidden lg:flex relative z-10 flex-col justify-center p-12 overflow-hidden border-l border-white/5">
+                <div className="absolute inset-0 mesh-grid opacity-70 pointer-events-none" />
 
-                {/* Background decorative elements */}
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/15 rounded-full blur-3xl" />
-                    <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/8 rounded-full blur-3xl" />
-                    <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/10 rounded-full blur-3xl" />
-                    <div className="absolute inset-0 opacity-[0.03]" style={{
-                        backgroundImage: `linear-gradient(#D97706 1px, transparent 1px), linear-gradient(90deg, #D97706 1px, transparent 1px)`,
-                        backgroundSize: '60px 60px',
-                    }} />
-                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-40" />
-                    <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-30" />
-                    <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-40" />
-                    <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-20" />
-                </div>
+                <div className="relative z-10 max-w-lg mx-auto">
+                    <div className="inline-flex items-center gap-2 mb-8 px-3 py-1.5 rounded-full glass-subtle text-[11px] font-medium tracking-wide text-muted-foreground">
+                        <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                        Restricted &mdash; authorised users only
+                    </div>
 
-                <div className="relative z-10 max-w-lg mx-auto text-center space-y-6">
-                    <img
-                        src={logoChrome}
-                        alt="Veltro"
-                        className="h-32 w-auto object-contain mx-auto mb-8 drop-shadow-[0_0_20px_rgba(217,119,6,0.3)]"
-                    />
-                    <h1 className="text-5xl font-bold tracking-tight italic">
-                        VELTRO
+                    <h1 className="text-6xl font-semibold tracking-tight leading-[0.95] chrome-text">
+                        Veltro
                     </h1>
-                    <h2 className="text-xl font-semibold tracking-wide text-[#D97706]">
-                        Built for Speed. Bred for Business.
-                    </h2>
-                    <p className="text-slate-400 text-sm leading-relaxed max-w-sm mx-auto">
-                        Internal commercial lending delivery platform. Powering the full lifecycle from lead discovery to funded deal.
+                    <p className="mt-5 text-2xl font-light text-foreground/90 leading-snug">
+                        Built for speed.<br />Bred for business.
                     </p>
-                    <div className="flex items-center justify-center gap-2 text-slate-500 text-xs pt-4">
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        <span>Restricted access &mdash; authorised users only</span>
+                    <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground max-w-md">
+                        The internal commercial-lending delivery platform &mdash; the full lifecycle from lead discovery to funded deal, in one quiet, fast surface.
+                    </p>
+
+                    <div className="mt-10 space-y-3">
+                        {[
+                            { k: "Speed", v: "Instant Companies House intelligence" },
+                            { k: "Pedigree", v: "Underwriting-grade credit analysis" },
+                            { k: "Payout", v: "Pipeline to submission, end to end" },
+                        ].map((f) => (
+                            <div key={f.k} className="flex items-center gap-3 glass-subtle rounded-xl px-4 py-3">
+                                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0 shadow-[0_0_10px_2px_hsl(var(--primary)/0.5)]" />
+                                <span className="text-sm font-medium text-foreground w-24 shrink-0">{f.k}</span>
+                                <span className="text-[13px] text-muted-foreground">{f.v}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
