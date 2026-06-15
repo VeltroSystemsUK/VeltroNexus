@@ -90,7 +90,6 @@ import adminRouter from "./routes/admin";
 import leadFinderRouter from "./routes/lead_finder";
 import brokersRouter from "./routes/brokers";
 import brokerFinderRouter from "./routes/broker_finder";
-import gmailRouter from "./routes/gmail.js";
 
 import leadsRouter from "./routes/leads";
 import campaignsRouter from "./routes/campaigns";
@@ -102,6 +101,7 @@ import webhooksRouter from "./routes/webhooks";
 import emailRouter from "./routes/email";
 import usersRouter from "./routes/users";
 import lendersRouter from "./routes/lenders";
+import cdfiRouter from "./routes/cdfis";
 import workforceRouter from "./routes/workforce";
 import companiesRouter from "./routes/companies";
 import submissionsRouter from "./routes/submissions";
@@ -118,10 +118,7 @@ import { getObjectStorage } from "./utils/routerHelpers";
 
 export async function registerRoutes(app: Application): Promise<Server> {
 
-  // --- Document Portal Routes ---
 
-  // Gmail API
-  app.use("/api/gmail", gmailRouter);
 
   // 1. Get Requirements & Status
 
@@ -167,6 +164,52 @@ export async function registerRoutes(app: Application): Promise<Server> {
     }
   });
 
+  // Local Domain Contacts Scraper
+  app.post("/api/crm/scrape-domain", isAuthenticated, async (req, res) => {
+    try {
+      const { domain, contactName } = req.body;
+      if (!domain) return res.status(400).json({ error: "domain is required" });
+
+      const { findEmail } = await import("./utils/scraperUtils");
+      console.log(`[Local Scraper] Scraping domain: ${domain} with contactName: ${contactName || "none"}`);
+
+      const emailResult = await findEmail(domain, contactName);
+      
+      const emailsList = emailResult ? [
+        {
+          email: emailResult.email,
+          source: "homepage",
+          context: `Found email with confidence: ${emailResult.confidence}`,
+          isGeneric: ["info", "hello", "contact", "support", "sales", "enquiries", "office", "admin"].includes(emailResult.email.split("@")[0].toLowerCase()),
+        }
+      ] : [];
+
+      const result = {
+        domain,
+        scrapedAt: new Date().toISOString(),
+        emails: emailsList,
+        phones: [],
+        names: contactName ? [contactName] : [],
+        linkedInUrl: null,
+        pagesScraped: ["/"],
+        pageResults: [
+          {
+            url: `https://${domain}/`,
+            status: "ok" as const,
+            emailsFound: emailsList.length,
+            phonesFound: 0
+          }
+        ],
+        status: emailsList.length > 0 ? ("success" as const) : ("partial" as const),
+      };
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Local Scraper Error:", err);
+      res.status(500).json({ error: err.message || "Failed to scrape domain" });
+    }
+  });
+
   // Automation Triggers (For Testing/Scheduler)
   app.post("/api/automation/chase", isAuthenticated, async (req, res) => {
     try {
@@ -181,73 +224,6 @@ export async function registerRoutes(app: Application): Promise<Server> {
   });
 
 
-
-
-  app.get(
-    "/api/auth/google",
-    passport.authenticate("google", {
-      scope: [
-        "profile",
-        "email",
-        "https://www.googleapis.com/auth/gmail.readonly",
-        "https://www.googleapis.com/auth/gmail.compose",
-        "https://www.googleapis.com/auth/gmail.send",
-        "https://www.googleapis.com/auth/gmail.modify",
-        "https://www.googleapis.com/auth/gmail.settings.basic",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/documents",
-        "https://www.googleapis.com/auth/spreadsheets",
-      ],
-      accessType: "offline",
-      prompt: "consent",
-    })
-  );
-
-  app.get(
-    "/api/auth/google/callback",
-    passport.authenticate("google", { failureRedirect: "/settings?error=google_auth_failed" }),
-    (req, res) => {
-      res.redirect("/settings?success=google_connected");
-    }
-  );
-
-  app.post("/api/auth/google/disconnect", isAuthenticated, async (req, res) => {
-    try {
-      await storage.updateUser((req as any).user.id, {
-        googleConnected: false,
-        googleAccessToken: null,
-        googleRefreshToken: null,
-        googleTokenExpiry: null,
-      });
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to disconnect Google account" });
-    }
-  });
-
-  app.post("/api/google/gmail/draft", isAuthenticated, async (req, res) => {
-    try {
-      const { to, subject, body } = req.body;
-      const { sendEmail } = await import("./services/googleServices");
-      await sendEmail((req as any).user, to, subject, body);
-      res.json({ success: true });
-    } catch (err: any) {
-      console.error("Gmail Draft Error:", err);
-      res.status(500).json({ error: err.message || "Failed to draft email" });
-    }
-  });
-
-  app.post("/api/google/docs/create", isAuthenticated, async (req, res) => {
-    try {
-      const { title, content } = req.body;
-      const { createGoogleDoc } = await import("./services/googleServices");
-      const result = await createGoogleDoc((req as any).user, title, content);
-      res.json(result);
-    } catch (err: any) {
-      console.error("Google Doc Creation Error:", err);
-      res.status(500).json({ error: err.message || "Failed to create Google Doc" });
-    }
-  });
 
 
   // God Mode Routes moved to after auth setup
@@ -561,6 +537,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api/email", emailRouter);
   app.use("/api", usersRouter);
   app.use("/api", lendersRouter);
+  app.use("/api/cdfis", cdfiRouter);
   app.use("/api", companiesRouter);
   app.use("/api", submissionsRouter);
   app.use("/api", prospectsRouter);
