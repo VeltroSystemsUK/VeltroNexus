@@ -1,7 +1,8 @@
 import { storage } from "../storage";
 import { researchLender } from "./lenderResearch";
 import { groundedSearch } from "../utils/geminiClient";
-import { db } from "../firebase";
+import fs from "fs";
+import path from "path";
 import type { Lender } from "@shared/schema";
 import { agentJobTracker } from "./agentJobTracker";
 
@@ -177,14 +178,30 @@ async function getLenderDetails(lenderId: number) {
 async function scheduleTask(task: string, schedule: string, userId: string) {
   console.log(`[AgentTool] Scheduling task: ${task} for ${schedule}`);
 
-  // For now, log it. In production, this would integrate with a job scheduler
-  await db.collection("scheduled_tasks").add({
+  const tasksPath = path.join(process.cwd(), "uploads", "scheduled_tasks.json");
+  let tasks = [];
+  try {
+    if (fs.existsSync(tasksPath)) {
+      tasks = JSON.parse(fs.readFileSync(tasksPath, "utf-8"));
+    }
+  } catch (e) {}
+
+  tasks.push({
     task,
     schedule,
     userId,
-    createdAt: new Date(),
+    createdAt: new Date().toISOString(),
     status: "active",
   });
+
+  try {
+    if (!fs.existsSync(path.dirname(tasksPath))) {
+      fs.mkdirSync(path.dirname(tasksPath), { recursive: true });
+    }
+    fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), "utf-8");
+  } catch (err: any) {
+    console.error("[AgentTool] Failed to save scheduled task:", err.message);
+  }
 
   return {
     success: true,

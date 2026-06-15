@@ -2,7 +2,8 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import busboy from "busboy";
 import crypto from "crypto";
-import { db, bucket } from "../firebase";
+import fs from "fs";
+import path from "path";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { isSvgContent, hasValidImageMagicBytes } from "../utils/security";
@@ -13,6 +14,49 @@ const router = Router();
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"];
+
+const MEDIA_METADATA_FILE = path.resolve(process.cwd(), "uploads", "media_metadata.json");
+
+interface MediaAsset {
+  id: string;
+  userId: string;
+  filename: string;
+  url: string;
+  size: number;
+  mimeType: string;
+  category: string;
+  isStock: boolean;
+  credit?: string;
+  createdAt: string;
+}
+
+function readMediaMetadata(): Record<string, MediaAsset> {
+  try {
+    if (!fs.existsSync(MEDIA_METADATA_FILE)) {
+      const dir = path.dirname(MEDIA_METADATA_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(MEDIA_METADATA_FILE, JSON.stringify({}));
+      return {};
+    }
+    const data = fs.readFileSync(MEDIA_METADATA_FILE, "utf8");
+    return JSON.parse(data);
+  } catch (err) {
+    console.error("[Media] Error reading media metadata file:", err);
+    return {};
+  }
+}
+
+function writeMediaMetadata(metadata: Record<string, MediaAsset>) {
+  try {
+    const dir = path.dirname(MEDIA_METADATA_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(MEDIA_METADATA_FILE, JSON.stringify(metadata, null, 2));
+  } catch (err) {
+    console.error("[Media] Error writing media metadata file:", err);
+  }
+}
 
 // Upload a media file
 router.post(
@@ -65,16 +109,14 @@ router.post(
         const timestamp = Date.now();
         const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
         const storagePath = `media/${userId}/${timestamp}_${safeFilename}`;
+        const localFilePath = path.resolve(process.cwd(), "uploads", storagePath);
 
         uploadPromise = (async () => {
-          const file = bucket.file(storagePath);
-          const writeStream = file.createWriteStream({
-            metadata: {
-              contentType: normalizedMime,
-              metadata: { uploadedBy: userId },
-            },
-            resumable: false,
-          });
+          const dir = path.dirname(localFilePath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          const writeStream = fs.createWriteStream(localFilePath);
 
           let limitExceeded = false;
           let magicBytesValidated = false;
@@ -144,19 +186,17 @@ router.post(
 
             writeStream.on("finish", async () => {
               if (limitExceeded || validationError) {
-                try { await file.delete(); } catch {}
+                try { fs.unlinkSync(localFilePath); } catch {}
                 reject(new Error(validationError || "File size limit exceeded"));
                 return;
               }
 
               try {
-                // Make the file publicly readable
-                await file.makePublic();
-                const publicUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
-
-                // Store metadata in Firestore
+                const publicUrl = `/uploads/${storagePath}`;
                 const docId = crypto.randomUUID();
-                await db.collection("media_assets").doc(docId).set({
+                
+                const metadata = readMediaMetadata();
+                metadata[docId] = {
                   id: docId,
                   userId,
                   filename: safeFilename,
@@ -165,8 +205,9 @@ router.post(
                   mimeType: normalizedMime,
                   category: categoryValue,
                   isStock: false,
-                  createdAt: new Date(),
-                });
+                  createdAt: new Date().toISOString(),
+                };
+                writeMediaMetadata(metadata);
 
                 resolve({ id: docId, url: publicUrl, filename: safeFilename });
               } catch (err) {
@@ -219,30 +260,20 @@ router.get("/media", isAuthenticated, async (req: Request, res: Response) => {
     const type = (req.query.type as string) || "mine";
     const category = req.query.category as string | undefined;
 
-    let assets: any[] = [];
+    let assets: MediaAsset[] = [];
+    const metadata = readMediaMetadata();
 
     if (type === "mine") {
-      const snapshot = await db
-        .collection("media_assets")
-        .where("userId", "==", userId)
-        .orderBy("createdAt", "desc")
-        .get();
-      assets = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return { ...data, createdAt: data.createdAt?.toDate?.() || data.createdAt };
-      });
+      assets = Object.values(metadata)
+        .filter((asset) => asset.userId === userId)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     } else if (type === "stock") {
-      let query: FirebaseFirestore.Query = db
-        .collection("media_assets")
-        .where("isStock", "==", true);
+      assets = Object.values(metadata)
+        .filter((asset) => asset.isStock === true);
       if (category && category !== "all") {
-        query = query.where("category", "==", category);
+        assets = assets.filter((asset) => asset.category === category);
       }
-      const snapshot = await query.orderBy("createdAt", "desc").get();
-      assets = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return { ...data, createdAt: data.createdAt?.toDate?.() || data.createdAt };
-      });
+      assets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
     res.json(assets);
@@ -258,31 +289,35 @@ router.delete("/media/:id", isAuthenticated, async (req: Request, res: Response)
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const doc = await db.collection("media_assets").doc(id).get();
-    if (!doc.exists) {
+    const metadata = readMediaMetadata();
+    const asset = metadata[id];
+    if (!asset) {
       return res.status(404).json({ error: "Media asset not found" });
     }
 
-    const data = doc.data()!;
-    if (data.isStock) {
+    if (asset.isStock) {
       return res.status(403).json({ error: "Stock library images cannot be deleted" });
     }
-    if (data.userId !== userId) {
+    if (asset.userId !== userId) {
       return res.status(403).json({ error: "Not authorized to delete this asset" });
     }
 
-    // Extract storage path from public URL
-    const urlPrefix = `https://storage.googleapis.com/${bucket.name}/`;
-    if (data.url.startsWith(urlPrefix)) {
-      const storagePath = data.url.slice(urlPrefix.length);
+    // Extract storage path from URL
+    const urlPrefix = "/uploads/";
+    if (asset.url.startsWith(urlPrefix)) {
+      const storagePath = asset.url.slice(urlPrefix.length);
+      const localFilePath = path.resolve(process.cwd(), "uploads", storagePath);
       try {
-        await bucket.file(storagePath).delete();
+        if (fs.existsSync(localFilePath)) {
+          fs.unlinkSync(localFilePath);
+        }
       } catch (err: any) {
-        console.warn("Could not delete file from storage:", err.message);
+        console.warn("Could not delete file from local storage:", err.message);
       }
     }
 
-    await db.collection("media_assets").doc(id).delete();
+    delete metadata[id];
+    writeMediaMetadata(metadata);
     res.json({ message: "Media asset deleted" });
   } catch (error: any) {
     console.error("Error deleting media:", error);
@@ -296,7 +331,6 @@ router.get("/media/search-images", isAuthenticated, async (req: Request, res: Re
     const query = req.query.q as string;
     if (!query) return res.status(400).json({ error: "Query parameter 'q' is required" });
 
-    // Use Unsplash source for free image search via their public API
     const searchUrl = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=20&content_filter=high`;
 
     const response = await fetch(searchUrl, {
@@ -391,24 +425,25 @@ router.post("/media/ai-generate", isAuthenticated, async (req: Request, res: Res
       });
     }
 
-    // Upload the generated image to Firebase Storage
     const extension = generatedMimeType.split("/")[1] || "png";
     const filename = `ai-generated-${Date.now()}.${extension}`;
     const storagePath = `media/${userId}/${filename}`;
-    const file = bucket.file(storagePath);
+    const localFilePath = path.resolve(process.cwd(), "uploads", storagePath);
+    
+    const dir = path.dirname(localFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
 
     const imageBuffer = Buffer.from(generatedImageData, "base64");
-    await file.save(imageBuffer, {
-      metadata: { contentType: generatedMimeType },
-      resumable: false,
-    });
-    await file.makePublic();
+    fs.writeFileSync(localFilePath, imageBuffer);
 
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+    const publicUrl = `/uploads/${storagePath}`;
 
     // Store metadata
     const docId = crypto.randomUUID();
-    await db.collection("media_assets").doc(docId).set({
+    const metadata = readMediaMetadata();
+    metadata[docId] = {
       id: docId,
       userId,
       filename,
@@ -417,8 +452,9 @@ router.post("/media/ai-generate", isAuthenticated, async (req: Request, res: Res
       mimeType: generatedMimeType,
       category: "uncategorised",
       isStock: false,
-      createdAt: new Date(),
-    });
+      createdAt: new Date().toISOString(),
+    };
+    writeMediaMetadata(metadata);
 
     res.json({ id: docId, url: publicUrl, filename });
   } catch (error: any) {
@@ -430,43 +466,30 @@ router.post("/media/ai-generate", isAuthenticated, async (req: Request, res: Res
 // Seed stock library with curated images
 router.post("/media/seed-stock", isAuthenticated, async (req: Request, res: Response) => {
   try {
-    // Check if stock images already exist
-    const existing = await db
-      .collection("media_assets")
-      .where("isStock", "==", true)
-      .limit(1)
-      .get();
+    const metadata = readMediaMetadata();
+    const hasStock = Object.values(metadata).some((asset) => asset.isStock);
 
-    if (!existing.empty) {
+    if (hasStock) {
       return res.status(409).json({ error: "Stock library already seeded" });
     }
 
     const stockImages = getStockImageData();
-    const batchSize = 500;
-
-    for (let i = 0; i < stockImages.length; i += batchSize) {
-      const batch = db.batch();
-      const chunk = stockImages.slice(i, i + batchSize);
-
-      for (const img of chunk) {
-        const docId = crypto.randomUUID();
-        const ref = db.collection("media_assets").doc(docId);
-        batch.set(ref, {
-          id: docId,
-          userId: "__stock__",
-          filename: img.filename,
-          url: img.url,
-          size: 0,
-          mimeType: "image/jpeg",
-          category: img.category,
-          isStock: true,
-          credit: img.credit,
-          createdAt: new Date(),
-        });
-      }
-
-      await batch.commit();
+    for (const img of stockImages) {
+      const docId = crypto.randomUUID();
+      metadata[docId] = {
+        id: docId,
+        userId: "__stock__",
+        filename: img.filename,
+        url: img.url,
+        size: 0,
+        mimeType: "image/jpeg",
+        category: img.category,
+        isStock: true,
+        credit: img.credit,
+        createdAt: new Date().toISOString(),
+      };
     }
+    writeMediaMetadata(metadata);
 
     res.json({ message: "Stock library seeded", count: stockImages.length });
   } catch (error: any) {
