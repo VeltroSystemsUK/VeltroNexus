@@ -18,12 +18,12 @@ router.get("/expenses", isAuthenticated, async (req: Request, res: Response) => 
     const { from, to, category, status } = req.query;
     if (from) {
       const fromDate = new Date(from as string);
-      expenses = expenses.filter((e) => new Date(e.date) >= fromDate);
+      expenses = expenses.filter((e) => new Date(e.date as any) >= fromDate);
     }
     if (to) {
       const toDate = new Date(to as string);
       toDate.setHours(23, 59, 59, 999);
-      expenses = expenses.filter((e) => new Date(e.date) <= toDate);
+      expenses = expenses.filter((e) => new Date(e.date as any) <= toDate);
     }
     if (category) {
       expenses = expenses.filter((e) => e.category === category);
@@ -49,12 +49,12 @@ router.get("/expenses/report", isAuthenticated, async (req: Request, res: Respon
     const { from, to } = req.query;
     if (from) {
       const fromDate = new Date(from as string);
-      expenses = expenses.filter((e) => new Date(e.date) >= fromDate);
+      expenses = expenses.filter((e) => new Date(e.date as any) >= fromDate);
     }
     if (to) {
       const toDate = new Date(to as string);
       toDate.setHours(23, 59, 59, 999);
-      expenses = expenses.filter((e) => new Date(e.date) <= toDate);
+      expenses = expenses.filter((e) => new Date(e.date as any) <= toDate);
     }
 
     // By category
@@ -78,7 +78,8 @@ router.get("/expenses/report", isAuthenticated, async (req: Request, res: Respon
     // Monthly totals
     const byMonth: Record<string, number> = {};
     for (const e of expenses) {
-      const d = new Date(e.date);
+      if (!e.date) continue;
+      const d = new Date(e.date as any);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       byMonth[key] = (byMonth[key] || 0) + e.amount;
     }

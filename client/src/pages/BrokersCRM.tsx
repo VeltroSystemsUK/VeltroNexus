@@ -1,15 +1,12 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BrokerFinderTab } from "@/components/BrokerFinderTab";
+
 import {
     Dialog,
     DialogContent,
@@ -46,15 +43,17 @@ import {
 } from "@/components/ui/pagination";
 import {
     Search,
-    Filter,
     MapPin,
-    Briefcase,
-    CheckCircle,
     Loader2,
     Activity,
-    Users,
     Trash2,
-    Plus
+    Linkedin,
+    Mail,
+    MessageCircle,
+    ArrowUp,
+    ArrowDown,
+    ChevronsUpDown,
+    ShieldCheck
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AgentJobProgress } from "@/components/AgentJobProgress";
@@ -73,9 +72,13 @@ export default function BrokersCRM() {
 
     const [selectedLead, setSelectedLead] = useState<BrokerLead | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const [cityFilter, setCityFilter] = useState<string>("all");
+    const [postcodeFilter, setPostcodeFilter] = useState<string>("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [currentPage, setCurrentPage] = useState(1);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof BrokerLead | "location" | undefined; direction: "asc" | "desc" | undefined }>({
+        key: undefined,
+        direction: undefined
+    });
 
     // Agent Discovery State
     const [discoveryTown, setDiscoveryTown] = useState("");
@@ -121,23 +124,92 @@ export default function BrokersCRM() {
         });
     };
 
-    const cities = useMemo(() => Array.from(new Set(leads.map(l => l.city).filter(Boolean))) as string[], [leads]);
+    const verifyEmailMutation = useMutation({
+        mutationFn: async (leadId: number) => {
+            const res = await apiRequest(`/api/brokers/leads/${leadId}/verify-email`, "POST");
+            return await res.json();
+        },
+        onSuccess: (data) => {
+            if (data.status === "valid") {
+                toast.success(`Email verified: ${data.verification.status}`);
+            } else if (data.status === "enriched") {
+                toast.success(`New email found: ${data.email}`);
+                queryClient.invalidateQueries({ queryKey: ["/api/brokers/leads"] });
+            } else {
+                toast.warning(`Status: ${data.status}. ${data.message || ''}`);
+            }
+        },
+        onError: (error: any) => {
+            toast.error(error.message || "Email verification failed");
+        }
+    });
 
     const filteredLeads = useMemo(() => {
         return leads.filter(lead => {
             const matchesSearch = lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 lead.companyNumber?.includes(searchQuery);
-            const matchesCity = cityFilter === "all" || lead.city === cityFilter;
+
+            // Postcode matching logic
+            let matchesPostcode = true;
+            if (postcodeFilter) {
+                const pcMatch = lead.address?.match(/([A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2})/i);
+                if (pcMatch) {
+                    const pc = pcMatch[1].replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                    const filter = postcodeFilter.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                    matchesPostcode = pc.startsWith(filter);
+                } else {
+                    matchesPostcode = false;
+                }
+            }
+
             const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
-            return matchesSearch && matchesCity && matchesStatus;
+            return matchesSearch && matchesPostcode && matchesStatus;
+        }).sort((a, b) => {
+            if (!sortConfig.key || !sortConfig.direction) return 0;
+
+            let aValue: any;
+            let bValue: any;
+
+            if (sortConfig.key === "location") {
+                const getPC = (addr: string) => addr?.match(/([A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2})/i)?.[1] || "";
+                aValue = getPC(a.address || "");
+                bValue = getPC(b.address || "");
+            } else {
+                aValue = a[sortConfig.key as keyof BrokerLead];
+                bValue = b[sortConfig.key as keyof BrokerLead];
+            }
+
+            if (aValue === bValue) return 0;
+            if (aValue === null || aValue === undefined) return 1;
+            if (bValue === null || bValue === undefined) return -1;
+
+            const comparison = String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: 'base' });
+            return sortConfig.direction === "asc" ? comparison : -comparison;
         });
-    }, [leads, searchQuery, cityFilter, statusFilter]);
+    }, [leads, searchQuery, postcodeFilter, statusFilter, sortConfig]);
 
     const PAGE_SIZE = 25;
     const totalPages = Math.ceil(filteredLeads.length / PAGE_SIZE);
     const paginatedLeads = filteredLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-    useEffect(() => { setCurrentPage(1); }, [searchQuery, cityFilter, statusFilter]);
+    useEffect(() => { setCurrentPage(1); }, [searchQuery, postcodeFilter, statusFilter]);
+
+    const requestSort = (key: keyof BrokerLead | "location") => {
+        let direction: "asc" | "desc" | undefined = "asc";
+        if (sortConfig.key === key && sortConfig.direction === "asc") {
+            direction = "desc";
+        } else if (sortConfig.key === key && sortConfig.direction === "desc") {
+            direction = undefined;
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const SortIcon = ({ column }: { column: keyof BrokerLead | "location" }) => {
+        if (sortConfig.key !== column) return <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />;
+        if (sortConfig.direction === "asc") return <ArrowUp className="ml-2 h-4 w-4 text-primary" />;
+        if (sortConfig.direction === "desc") return <ArrowDown className="ml-2 h-4 w-4 text-primary" />;
+        return <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />;
+    };
 
     function getPageNumbers(current: number, total: number): (number | "...")[] {
         if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -149,7 +221,7 @@ export default function BrokersCRM() {
         return pages;
     }
 
-    usePageTitle("Broker CRM", "Manage and recruit external brokers for your lender network");
+    usePageTitle("Introducers", "Manage and recruit external brokers for your lender network");
 
     return (
         <div className="space-y-6 pt-6 pb-12 w-full px-4 md:px-8">
@@ -238,16 +310,15 @@ export default function BrokersCRM() {
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
-                <Select value={cityFilter} onValueChange={setCityFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <MapPin className="h-3 w-3 mr-2" />
-                        <SelectValue placeholder="All Cities" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Cities</SelectItem>
-                        {cities.map(city => <SelectItem key={city} value={city}>{city}</SelectItem>)}
-                    </SelectContent>
-                </Select>
+                <div className="w-[200px] relative">
+                    <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Postcode (e.g. SW1)"
+                        className="pl-9"
+                        value={postcodeFilter}
+                        onChange={(e) => setPostcodeFilter(e.target.value)}
+                    />
+                </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[180px]">
                         <Activity className="h-3 w-3 mr-2" />
@@ -266,11 +337,44 @@ export default function BrokersCRM() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Broker Company</TableHead>
-                            <TableHead>Location</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>SIC Code</TableHead>
-                            <TableHead>Commission</TableHead>
+                            <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => requestSort("companyName")}
+                            >
+                                <div className="flex items-center">
+                                    Broker Company
+                                    <SortIcon column="companyName" />
+                                </div>
+                            </TableHead>
+                            <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => requestSort("location")}
+                            >
+                                <div className="flex items-center">
+                                    Location
+                                    <SortIcon column="location" />
+                                </div>
+                            </TableHead>
+                            <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => requestSort("contactName")}
+                            >
+                                <div className="flex items-center">
+                                    Contact Name
+                                    <SortIcon column="contactName" />
+                                </div>
+                            </TableHead>
+                            <TableHead>Telephone</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => requestSort("status")}
+                            >
+                                <div className="flex items-center">
+                                    Status
+                                    <SortIcon column="status" />
+                                </div>
+                            </TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -282,16 +386,101 @@ export default function BrokersCRM() {
                         ) : (
                             paginatedLeads.map((lead) => (
                                 <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedLead(lead)}>
-                                    <TableCell className="font-medium">{lead.companyName}</TableCell>
-                                    <TableCell className="text-muted-foreground">{lead.city || "Unknown"}</TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary" className="capitalize">{lead.status}</Badge>
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs">{lead.sicCode || "—"}</TableCell>
-                                    <TableCell>{(lead.commissionRate * 100).toFixed(1)}%</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); }}>Details</Button>
-                                    </TableCell>
+                                    {(() => {
+                                        const pcMatch = lead.address?.match(/([A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2})/i);
+                                        const loc = pcMatch ? (() => {
+                                            const raw = pcMatch[1].replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                                            return raw.length > 3 ? `${raw.slice(0, -3)} ${raw.slice(-3)}` : raw;
+                                        })() : "—";
+                                        
+                                        const phoneRaw = lead.phone || "";
+                                        const waNumber = phoneRaw.startsWith('0') ? '44' + phoneRaw.slice(1).replace(/[^0-9]/g, '') : phoneRaw.replace(/[^0-9]/g, '');
+
+                                        return (
+                                            <>
+                                                <TableCell className="font-medium">{lead.companyName}</TableCell>
+                                                <TableCell className="text-muted-foreground font-mono text-sm">{loc}</TableCell>
+                                                <TableCell>{lead.contactName || "—"}</TableCell>
+                                                <TableCell>{lead.phone || "—"}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-1">
+                                                        {lead.email ? (
+                                                            <button 
+                                                                className="text-blue-500 hover:underline truncate max-w-[150px] text-left bg-transparent border-none p-0 cursor-pointer"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setLocation(`/gmail?compose=true&to=${lead.email}&name=${encodeURIComponent(lead.contactName || '')}`);
+                                                                }}
+                                                            >
+                                                                {lead.email}
+                                                            </button>
+                                                        ) : "—"}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                verifyEmailMutation.mutate(lead.id);
+                                                            }}
+                                                            disabled={verifyEmailMutation.isPending && verifyEmailMutation.variables === lead.id}
+                                                            title="Verify Email Quality & Find Alternatives"
+                                                        >
+                                                            {verifyEmailMutation.isPending && verifyEmailMutation.variables === lead.id ? (
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                            ) : (
+                                                                <ShieldCheck className="h-3 w-3" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="secondary" className="capitalize">{lead.status}</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-1">
+                                                        <Button 
+                                                            variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent((lead.contactName || "") + ' ' + lead.companyName)}`, '_blank');
+                                                            }}
+                                                            title="Search LinkedIn"
+                                                        >
+                                                            <Linkedin className="h-4 w-4" />
+                                                        </Button>
+                                                        {lead.email && (
+                                                            <Button 
+                                                                variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    setLocation(`/gmail?compose=true&to=${lead.email}&name=${encodeURIComponent(lead.contactName || '')}`);
+                                                                }}
+                                                                title="Send Email"
+                                                            >
+                                                                <Mail className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                        {waNumber && (
+                                                            <Button 
+                                                                variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    window.open(`https://wa.me/${waNumber}`, '_blank');
+                                                                }}
+                                                                title="WhatsApp"
+                                                            >
+                                                                <MessageCircle className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); }}>
+                                                            Details
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </>
+                                        );
+                                    })()}
                                 </TableRow>
                             ))
                         )}

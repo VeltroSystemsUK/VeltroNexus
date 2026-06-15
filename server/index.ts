@@ -1,5 +1,6 @@
 import "./types";
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { createErrorResponse } from "./utils/errorResponse";
@@ -36,6 +37,7 @@ app.use(
   })
 );
 app.use(express.urlencoded({ extended: false, limit: "5mb" }));
+app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
 // Security headers middleware
 const isProduction = process.env.NODE_ENV === "production";
@@ -211,55 +213,54 @@ app.use((req: any, res, next) => {
     // It is the only port that is not firewalled.
     const port = parseInt(process.env.PORT || "5000", 10);
 
-    const startServer = (retries = 3) => {
-      server.listen(
-        {
-          port,
-          host: "0.0.0.0",
-        },
-        () => {
-          log(`serving on port ${port}`);
+    let retriesLeft = 3;
 
-          // Non-blocking: Initialize agent workforce after server is ready
-          (async () => {
-            try {
-              await agentService.initializeWorkforce();
-              console.log("[AgentService] Workforce initialized");
-
-              // Start ARES autonomous scheduler
-              const { aresScheduler } = await import("./services/aresScheduler");
-              aresScheduler.start();
-              console.log("[ARES] Autonomous scheduler started");
-
-              // Start Lead Finder autonomous agent
-              const { getScheduler } = await import("./Lead Agent/src/scheduler.js");
-              const leadFinderScheduler = getScheduler();
-              leadFinderScheduler.start();
-              console.log("[Lead Finder] Autonomous scheduler started");
-
-            } catch (error) {
-              console.error("[Startup] Failed to initialize agents/schedulers:", error);
-            }
-          })();
-        }
-      );
-
-      server.on("error", (e: any) => {
-        if (e.code === "EADDRINUSE") {
-          if (retries > 0) {
-            log(`Port ${port} in use, retrying in 1s... (${retries} retries left)`);
-            setTimeout(() => {
-              server.close();
-              startServer(retries - 1);
-            }, 1000);
-          } else {
-            console.error(`Error: Port ${port} is already in use after retries.`);
-            process.exit(1);
-          }
+    server.on("error", (e: any) => {
+      if (e.code === "EADDRINUSE") {
+        if (retriesLeft > 0) {
+          retriesLeft--;
+          log(`Port ${port} in use, retrying in 1s... (${retriesLeft} retries left)`);
+          setTimeout(() => {
+            server.close();
+            server.listen({ port, host: "0.0.0.0" }, onListening);
+          }, 1000);
         } else {
-          console.error("Server error:", e);
+          console.error(`Error: Port ${port} is already in use after retries.`);
+          process.exit(1);
         }
-      });
+      } else {
+        console.error("Server error:", e);
+      }
+    });
+
+    const onListening = () => {
+      log(`serving on port ${port}`);
+
+      // Non-blocking: Initialize agent workforce after server is ready
+      (async () => {
+        try {
+          await agentService.initializeWorkforce();
+          console.log("[AgentService] Workforce initialized");
+
+          // Start ARES autonomous scheduler
+          const { aresScheduler } = await import("./services/aresScheduler");
+          aresScheduler.start();
+          console.log("[ARES] Autonomous scheduler started");
+
+          // Start Lead Finder autonomous agent
+          const { getScheduler } = await import("./Lead Agent/src/scheduler.js");
+          const leadFinderScheduler = getScheduler();
+          leadFinderScheduler.start();
+          console.log("[Lead Finder] Autonomous scheduler started");
+
+        } catch (error) {
+          console.error("[Startup] Failed to initialize agents/schedulers:", error);
+        }
+      })();
+    };
+
+    const startServer = () => {
+      server.listen({ port, host: "0.0.0.0" }, onListening);
     }
 
     startServer();

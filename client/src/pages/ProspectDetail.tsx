@@ -495,6 +495,7 @@ export default function ProspectDetail() {
   const { data: prospect, isLoading } = useQuery<ProspectWithCompany>({
     queryKey: [`/api/prospects/${prospectId}`],
     enabled: prospectId > 0,
+    refetchInterval: 15000, // Frequent refresh for research updates
   });
 
   const { data: allProspects = [] } = useQuery<ProspectWithCompany[]>({

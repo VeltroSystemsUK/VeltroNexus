@@ -123,11 +123,20 @@ export const DomainContactPanel: React.FC<DomainContactPanelProps> = ({
         setErrorMessage("");
 
         try {
-            // Firebase Cloud Functions retired — this app now runs locally on SQL.
-            // TODO: wire domain contact scraping to the local contact-finder API.
-            throw new Error(
-                "Domain contact scraping is being migrated to the local API and is temporarily unavailable."
-            );
+            const res = await fetch("/api/crm/scrape-domain", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ domain, contactName }),
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP error! status: ${res.status}`);
+            }
+            const data = await res.json();
+            setResult(data);
+            setStatus("success");
         } catch (err: unknown) {
             console.error("Scrape function error:", err);
             const msg =

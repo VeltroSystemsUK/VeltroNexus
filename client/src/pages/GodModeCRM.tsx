@@ -382,7 +382,7 @@ export default function GodModeCRM() {
         }
     };
 
-    usePageTitle("Client CRM", "Foundational data collected from Companies House");
+    usePageTitle("Prospects", "Foundational data collected from Companies House");
 
     return (
         <div className="space-y-6 pt-6 pb-12 w-full">

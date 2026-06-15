@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LeadFinderTab } from "@/components/LeadFinderTab";
+
 import {
   Select,
   SelectContent,
@@ -73,6 +76,7 @@ export default function Leads() {
       "/api/leads",
       { search: searchTerm, matchStatus: statusFilter !== "all" ? statusFilter : undefined },
     ],
+    refetchInterval: 30000,
   });
 
   const { data: uploads } = useQuery<any[]>({
@@ -233,6 +237,19 @@ export default function Leads() {
       </header>
 
       <div className="container max-w-7xl mx-auto p-6 space-y-6">
+        <Tabs defaultValue="directory" className="space-y-6">
+          <TabsList className="bg-muted/50 border border-border">
+            <TabsTrigger value="directory" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <User className="w-4 h-4 mr-2" />
+              Prospect Directory
+            </TabsTrigger>
+            <TabsTrigger value="find" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Search className="w-4 h-4 mr-2" />
+              Find Prospects
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="directory" className="space-y-6 mt-0">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold" data-testid="text-leads-title">

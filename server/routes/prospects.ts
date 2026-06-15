@@ -193,7 +193,7 @@ const router = Router();
 
   // Prospects API - Protected routes
   router.get(
-    "/api/prospects/count",
+    "/prospects/count",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -221,7 +221,7 @@ const router = Router();
   });
 
   router.get(
-    "/api/prospects/export/excel",
+    "/prospects/export/excel",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -247,7 +247,7 @@ const router = Router();
   );
 
   router.get(
-    "/api/prospects/:id",
+    "/prospects/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -309,7 +309,7 @@ const router = Router();
   });
 
   router.patch(
-    "/api/prospects/:id/stage",
+    "/prospects/:id/stage",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -334,7 +334,7 @@ const router = Router();
   );
 
   router.post(
-    "/api/prospects/reorder",
+    "/prospects/reorder",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -354,7 +354,7 @@ const router = Router();
   );
 
   router.patch(
-    "/api/prospects/:id",
+    "/prospects/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -373,7 +373,7 @@ const router = Router();
   );
 
   router.delete(
-    "/api/prospects/:id",
+    "/prospects/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -389,7 +389,7 @@ const router = Router();
   );
 
   router.get(
-    "/api/prospects/:id/report",
+    "/prospects/:id/report",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -504,7 +504,7 @@ const router = Router();
 
   // Business Overview API - AI-powered web search for company info
   router.get(
-    "/api/prospects/:id/business-overview",
+    "/prospects/:id/business-overview",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -618,7 +618,7 @@ const router = Router();
 
   // Enhanced PDF report with business overview
   router.get(
-    "/api/prospects/:id/report-enhanced",
+    "/prospects/:id/report-enhanced",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -752,7 +752,7 @@ const router = Router();
 
   // Contact enrichment - search web and email inbox for contact info
   router.get(
-    "/api/prospects/:prospectId/contacts",
+    "/prospects/:prospectId/contacts",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -769,7 +769,7 @@ const router = Router();
 
 
   router.post(
-    "/api/prospects/:prospectId/contacts",
+    "/prospects/:prospectId/contacts",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -850,7 +850,7 @@ const router = Router();
         }
 
         // Get company name for search context
-        const company = await storage.getCompany(prospect.companyId!);
+        const company = await storage.getCompanyById(prospect.companyId!);
         const companyName = company?.companyName || "";
 
         // Search the web for contact info using Gemini
@@ -962,7 +962,7 @@ const router = Router();
   );
 
   router.get(
-    "/api/prospects/:prospectId/due-diligence",
+    "/prospects/:prospectId/due-diligence",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -977,7 +977,7 @@ const router = Router();
   );
 
   router.patch(
-    "/api/prospects/:prospectId/due-diligence",
+    "/prospects/:prospectId/due-diligence",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1004,7 +1004,7 @@ const router = Router();
   // Size limits are now managed by AI_GOVERNANCE_CONFIG
 
   router.post(
-    "/api/prospects/:prospectId/underwriting/analyze-csv",
+    "/prospects/:prospectId/underwriting/analyze-csv",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1075,7 +1075,7 @@ const router = Router();
 
   // Get due diligence data
   router.get(
-    "/api/prospects/:prospectId/due-diligence",
+    "/prospects/:prospectId/due-diligence",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1092,7 +1092,7 @@ const router = Router();
 
   // Save due diligence data
   router.post(
-    "/api/prospects/:prospectId/due-diligence",
+    "/prospects/:prospectId/due-diligence",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1109,7 +1109,7 @@ const router = Router();
 
   // Analyze bank statement PDFs (alternative to CSV)
   router.post(
-    "/api/prospects/:prospectId/underwriting/analyze-bank-pdfs",
+    "/prospects/:prospectId/underwriting/analyze-bank-pdfs",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1237,7 +1237,7 @@ const router = Router();
 
   // Analyze audited accounts PDFs
   router.post(
-    "/api/prospects/:prospectId/underwriting/analyze-accounts",
+    "/prospects/:prospectId/underwriting/analyze-accounts",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1367,7 +1367,7 @@ const router = Router();
 
   // Analyze Management Accounts with AI commentary
   router.post(
-    "/api/prospects/:prospectId/analyze-management-accounts",
+    "/prospects/:prospectId/analyze-management-accounts",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1469,7 +1469,7 @@ const router = Router();
 
   // Generate SWOT analysis
   router.post(
-    "/api/prospects/:prospectId/underwriting/swot-analysis",
+    "/prospects/:prospectId/underwriting/swot-analysis",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1567,7 +1567,7 @@ const router = Router();
 
   // CAMPARI section AI generation
   router.post(
-    "/api/prospects/:prospectId/underwriting/campari-section",
+    "/prospects/:prospectId/underwriting/campari-section",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1738,7 +1738,7 @@ const router = Router();
   );
 
   router.post(
-    "/api/prospects/:prospectId/underwriting/adverse-media",
+    "/prospects/:prospectId/underwriting/adverse-media",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1796,7 +1796,7 @@ const router = Router();
 
   // PATCH /api/prospects/:id - Update prospect details (including background)
   router.patch(
-    "/api/prospects/:id",
+    "/prospects/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1826,7 +1826,7 @@ const router = Router();
 
   // Prospect Documents - List all documents for a prospect
   router.get(
-    "/api/prospects/:prospectId/documents",
+    "/prospects/:prospectId/documents",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1851,7 +1851,7 @@ const router = Router();
   const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024; // 10MB per document
 
   router.post(
-    "/api/prospects/:prospectId/documents",
+    "/prospects/:prospectId/documents",
     isAuthenticated,
     async (req: Request, res: Response) => {
       const userId = req.user!.id;
@@ -1991,7 +1991,7 @@ const router = Router();
 
   // Download a prospect document
   router.get(
-    "/api/prospects/:prospectId/documents/:id/download",
+    "/prospects/:prospectId/documents/:id/download",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -2025,7 +2025,7 @@ const router = Router();
 
   // Delete a prospect document
   router.delete(
-    "/api/prospects/:prospectId/documents/:id",
+    "/prospects/:prospectId/documents/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -2063,7 +2063,7 @@ const router = Router();
 
   // Sync officers from Companies House
   router.post(
-    "/api/prospects/:id/sync-officers",
+    "/prospects/:id/sync-officers",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
