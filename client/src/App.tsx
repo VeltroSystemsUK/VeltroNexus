@@ -29,8 +29,8 @@ const Inbox = lazy(() => import("@/pages/Inbox"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const GodModeCRM = lazy(() => import("@/pages/GodModeCRM"));
 const BrokersCRM = lazy(() => import("@/pages/BrokersCRM"));
-const Prospects = lazy(() => import("@/pages/GodModeCRM")); // CRM alias for Prospects
-const Introducers = lazy(() => import("@/pages/BrokersCRM")); // Brokers alias for Introducers
+const Clients = lazy(() => import("@/pages/GodModeCRM")); // Clients page
+const Brokers = lazy(() => import("@/pages/BrokersCRM")); // Brokers page
 const CreditTools = lazy(() => import("@/pages/CreditTools"));
 const Workforce = lazy(() => import("@/pages/Workforce"));
 const ContactEnrichmentTest = lazy(() => import("@/pages/ContactEnrichmentTest"));
@@ -122,11 +122,11 @@ function Router() {
         <Route path="/leads">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Leads />}
         </Route>
-        <Route path="/crm">
-          {!isAuthenticated ? <Redirect to="/auth" /> : <Prospects />}
+        <Route path="/clients">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Clients />}
         </Route>
         <Route path="/brokers">
-          {!isAuthenticated ? <Redirect to="/auth" /> : <Introducers />}
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Brokers />}
         </Route>
         <Route path="/underwriting">
           {!isAuthenticated ? <Redirect to="/auth" /> : <UnderwriterInbox />}
