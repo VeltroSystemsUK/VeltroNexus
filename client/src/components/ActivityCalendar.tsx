@@ -841,7 +841,7 @@ export default function ActivityCalendar() {
                   <FormItem>
                     <FormLabel>Time (Optional)</FormLabel>
                     <FormControl>
-                      <Input {...field} type="time" data-testid="input-activity-time" />
+                      <Input {...field} type="time" data-testid="input-activity-time" id="dueTime" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -14,6 +14,7 @@ import 'dotenv/config';
 import { GoogleGenerativeAI, Tool, FunctionDeclarationSchemaType } from '@google/generative-ai';
 import { LeadFinderAPI, LEAD_FINDER_TOOLS } from './api.js';
 import { SearchFilters } from './models/business.js';
+import { Ollama } from './ollama.js';
 
 const SYSTEM_PROMPT = `You are the Lead Finder Agent for Veltro's commercial finance brokerage operation.
 
@@ -52,17 +53,22 @@ After every completed run, return this JSON summary block:
 You report to the Strategy Agent. Shaun triggers you manually.`;
 
 export class LeadFinderAgent {
-  private genAI: GoogleGenerativeAI;
+  private genAI?: GoogleGenerativeAI;
+  private ollama?: Ollama;
   private api: LeadFinderAPI;
   private modelName: string;
 
-  constructor(model = 'gemini-3-flash-preview') {
-    const apiKey = process.env['GEMINI_API_KEY'];
-    if (!apiKey) throw new Error('GEMINI_API_KEY not found in environment');
-
-    this.genAI = new GoogleGenerativeAI(apiKey);
+  constructor(model = process.env['DEFAULT_MODEL'] || 'gemini-3-flash-preview') {
     this.api = new LeadFinderAPI();
     this.modelName = model;
+
+    if (model.startsWith('ollama/')) {
+      this.ollama = new Ollama();
+    } else {
+      const apiKey = process.env['GEMINI_API_KEY'];
+      if (!apiKey) throw new Error('GEMINI_API_KEY not found in environment');
+      this.genAI = new GoogleGenerativeAI(apiKey);
+    }
   }
 
   /**
@@ -72,6 +78,15 @@ export class LeadFinderAgent {
    * @returns Final structured summary for Strategy Agent
    */
   async run(instruction: string): Promise<{ agentResponse: string }> {
+    if (this.ollama) {
+      return this.runOllama(instruction);
+    }
+    return this.runGemini(instruction);
+  }
+
+  private async runGemini(instruction: string): Promise<{ agentResponse: string }> {
+    if (!this.genAI) throw new Error('Gemini not initialized');
+
     // Map Anthropic-style tools to Gemini format
     const tools: Tool[] = [{
       functionDeclarations: LEAD_FINDER_TOOLS.map(t => ({
@@ -136,6 +151,52 @@ export class LeadFinderAgent {
 
       // Send results back to continue the loop
       result = await chat.sendMessage(toolResults);
+    }
+  }
+
+  private async runOllama(instruction: string): Promise<{ agentResponse: string }> {
+    if (!this.ollama) throw new Error('Ollama not initialized');
+
+    console.log(`[agent] Running with local Ollama model: ${this.modelName}`);
+
+    const messages: any[] = [
+      { role: 'system', content: SYSTEM_PROMPT + "\n\nAvailable tools:\n" + JSON.stringify(LEAD_FINDER_TOOLS, null, 2) + "\n\nIf you need to use a tool, return only a JSON object like: {\"tool\": \"tool_name\", \"args\": {...}}. Otherwise, return your text response." },
+      { role: 'user', content: instruction }
+    ];
+
+    while (true) {
+      const responseText = await this.ollama.chat(messages, { 
+        model: this.modelName.replace('ollama/', ''),
+        temperature: 0.2
+      });
+
+      // Try to parse tool call from response
+      let toolCall = null;
+      try {
+        const potentialJson = responseText.match(/\{.*\}/s);
+        if (potentialJson) {
+          const parsed = JSON.parse(potentialJson[0]);
+          if (parsed.tool && parsed.args) {
+            toolCall = parsed;
+          }
+        }
+      } catch (e) {
+        // Not a tool call or malformed
+      }
+
+      if (!toolCall) {
+        return { agentResponse: responseText };
+      }
+
+      console.log(`[agent] Ollama requested tool call: ${toolCall.tool}`, toolCall.args);
+      messages.push({ role: 'assistant', content: responseText });
+
+      try {
+        const output = await this.dispatchTool(toolCall.tool, toolCall.args);
+        messages.push({ role: 'user', content: `Tool result for ${toolCall.tool}: ${JSON.stringify(output)}` });
+      } catch (error) {
+        messages.push({ role: 'user', content: `Tool error for ${toolCall.tool}: ${String(error)}` });
+      }
     }
   }
 

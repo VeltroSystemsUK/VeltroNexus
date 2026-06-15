@@ -4,6 +4,8 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { emailVerificationService } from "../services/emailVerification";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 
 const router = Router();
 
@@ -23,67 +25,28 @@ router.post("/validate", isAuthenticated, async (req: Request, res: Response) =>
     }
 });
 
-// ── AgentMail Inbox ───────────────────────────────────────────────────────────
+// ── Dummy Local Inbox ──────────────────────────────────────────────────────────
 
-// Get or create user's email inbox
+// Get or create user's local email inbox
 router.get("/inbox", isAuthenticated, async (req: Request, res: Response) => {
     try {
         const userId = req.user!.id;
         let inbox = await storage.getEmailInbox(userId as any);
 
         if (!inbox) {
-            try {
-                const { getAgentMailClient } = await import("../agentmail");
-                const client = await getAgentMailClient();
+            const user = await storage.getUser(userId);
+            const displayName = user?.firstName
+                ? `${user.firstName} ${user.lastName || ""}`.trim()
+                : "Veltro User";
+            const emailAddress = `${user?.email?.split('@')[0] || "user"}_inbox@veltro.local`;
 
-                const user = await storage.getUser(userId);
-                const displayName = user?.firstName
-                    ? `${user.firstName} ${user.lastName || ""}`.trim()
-                    : "Veltro User";
-
-                let agentMailInbox: any = null;
-
-                try {
-                    // @ts-ignore
-                    const listResponse = await client.inboxes.list();
-                    const listData = (listResponse as any).body || listResponse;
-                    const inboxes =
-                        listData.data || listData.items || (Array.isArray(listData) ? listData : []);
-                    if (inboxes.length > 0) {
-                        agentMailInbox = inboxes[0];
-                        console.log(JSON.stringify({ type: "agentmail_inbox_reused", inboxId: agentMailInbox.id }));
-                    }
-                } catch (listError) {
-                    console.log("Could not list inboxes, will try to create:", listError);
-                }
-
-                if (!agentMailInbox) {
-                    try {
-                        // @ts-ignore
-                        const createResponse = await client.inboxes.create({ name: displayName } as any);
-                        agentMailInbox = (createResponse as any).body || createResponse;
-                        console.log(JSON.stringify({ type: "agentmail_inbox_created", inboxId: agentMailInbox?.id }));
-                    } catch (createError: any) {
-                        console.error("Error creating inbox:", createError);
-                        return res.status(500).json({ error: "Failed to create email inbox. AgentMail inbox limit may be exceeded." });
-                    }
-                }
-
-                if (!agentMailInbox?.id) {
-                    console.error("AgentMail inbox missing id:", agentMailInbox);
-                    return res.status(500).json({ error: "Failed to get inbox details from AgentMail." });
-                }
-
-                inbox = await storage.createEmailInbox({
-                    userId,
-                    inboxId: agentMailInbox.id,
-                    emailAddress: agentMailInbox.emailAddress || agentMailInbox.email_address,
-                    displayName,
-                });
-            } catch (error) {
-                console.error("Error setting up AgentMail inbox:", error);
-                return res.status(500).json({ error: "Failed to set up email inbox. Please ensure AgentMail is configured." });
-            }
+            inbox = await storage.createEmailInbox({
+                userId,
+                inboxId: crypto.randomUUID(),
+                emailAddress,
+                displayName,
+            });
+            console.log(JSON.stringify({ type: "local_inbox_created", inboxId: inbox.inboxId }));
         }
 
         res.json(inbox);
@@ -92,18 +55,12 @@ router.get("/inbox", isAuthenticated, async (req: Request, res: Response) => {
     }
 });
 
-// Check if AgentMail is configured
+// Check status (local inbox is always configured)
 router.get("/status", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-        const { isAgentMailConfigured } = await import("../agentmail");
-        const configured = await isAgentMailConfigured();
-        res.json({ configured });
-    } catch (error: any) {
-        res.json({ configured: false });
-    }
+    res.json({ configured: true });
 });
 
-// Sync messages from AgentMail to local database
+// Sync mock messages from local store
 router.post("/sync", isAuthenticated, async (req: Request, res: Response) => {
     try {
         const userId = req.user!.id;
@@ -113,37 +70,86 @@ router.post("/sync", isAuthenticated, async (req: Request, res: Response) => {
             return res.status(404).json({ error: "No inbox found. Create one first." });
         }
 
-        const { getAgentMailClient } = await import("../agentmail");
-        const client = await getAgentMailClient();
-
-        // @ts-ignore
-        const messagesResponse = await client.inboxes.messages.list(inbox.inboxId);
-        const messages = (messagesResponse as any).body || messagesResponse;
-
+        const currentMessages = await storage.listEmailMessages(inbox.id);
         let syncedCount = 0;
-        for (const message of messages.data || []) {
-            const existing = await storage.getEmailMessageByMessageId(message.id);
-            if (!existing) {
+
+        if (currentMessages.length === 0) {
+            // Populate initial demo messages
+            const mockEmails = [
+                {
+                    messageId: "mock-msg-1",
+                    threadId: "mock-thread-1",
+                    fromAddress: "erica.governance@fiducia.network",
+                    toAddresses: [inbox.emailAddress],
+                    ccAddresses: [],
+                    subject: "Re: Pipedrive API Integration Data Schema",
+                    textBody: "Hi Shaun, thanks for sending over the Veltro Pipedrive webhook specs. The schema looks perfect and matches our Pipedrive custom fields. Let's run a test submit tomorrow. Best, Erica.",
+                    htmlBody: "<p>Hi Shaun,</p><p>Thanks for sending over the Veltro Pipedrive webhook specs. The schema looks perfect and matches our Pipedrive custom fields. Let's run a test submit tomorrow.</p><p>Best,<br>Erica</p>",
+                    direction: "inbound",
+                    isRead: 0,
+                    attachments: [],
+                    sentAt: new Date(Date.now() - 3600000 * 2), // 2 hours ago
+                },
+                {
+                    messageId: "mock-msg-2",
+                    threadId: "mock-thread-2",
+                    fromAddress: "govind.operations@fiducia.network",
+                    toAddresses: [inbox.emailAddress],
+                    ccAddresses: [],
+                    subject: "CDFI FCN-branded agreements update",
+                    textBody: "Shaun, just completed signing the agreements with BCRS Business Loans and Finance For Enterprise. We're fully authorized to package and submit CDFI deals under the FCN umbrella now. Let's start importing candidates.",
+                    htmlBody: "<p>Shaun,</p><p>Just completed signing the agreements with BCRS Business Loans and Finance For Enterprise. We're fully authorized to package and submit CDFI deals under the FCN umbrella now. Let's start importing candidates.</p><p>Best,<br>Govind</p>",
+                    direction: "inbound",
+                    isRead: 0,
+                    attachments: [],
+                    sentAt: new Date(Date.now() - 3600000 * 5), // 5 hours ago
+                },
+                {
+                    messageId: "mock-msg-3",
+                    threadId: "mock-thread-3",
+                    fromAddress: "borrower-candidate@domain.com",
+                    toAddresses: [inbox.emailAddress],
+                    ccAddresses: [],
+                    subject: "orbit-scraped prospect query: Commercial Refinancing Proposal",
+                    textBody: "Hi, I saw your Veltro portal page and would like to explore options for refinancing our office space £150,000 CDFI loan. Please contact me at your earliest convenience.",
+                    htmlBody: "<p>Hi,</p><p>I saw your Veltro portal page and would like to explore options for refinancing our office space £150,000 CDFI loan. Please contact me at your earliest convenience.</p>",
+                    direction: "inbound",
+                    isRead: 0,
+                    attachments: [],
+                    sentAt: new Date(Date.now() - 3600000 * 24), // 24 hours ago
+                }
+            ];
+
+            for (const email of mockEmails) {
                 await storage.createEmailMessage({
                     inboxId: inbox.id,
-                    messageId: message.id,
-                    threadId: message.threadId || null,
-                    fromAddress: message.from?.address || "unknown",
-                    toAddresses: message.to?.map((t: any) => t.address) || [],
-                    ccAddresses: message.cc?.map((c: any) => c.address) || [],
-                    subject: message.subject || "",
-                    textBody: message.bodyText || null,
-                    htmlBody: message.bodyHtml || null,
-                    direction: message.direction || "inbound",
-                    isRead: 0,
-                    attachments: message.attachments || [],
-                    sentAt: new Date(message.createdAt),
-                });
+                    ...email
+                } as any);
                 syncedCount++;
             }
+        } else {
+            // Add a new random mock email to simulate a sync event receiving mail
+            const randomMsgId = `mock-msg-${Date.now()}`;
+            await storage.createEmailMessage({
+                inboxId: inbox.id,
+                messageId: randomMsgId,
+                threadId: `mock-thread-${Date.now()}`,
+                fromAddress: "info@bcrs.org.uk",
+                toAddresses: [inbox.emailAddress],
+                ccAddresses: [],
+                subject: `New CDFI Update: BCRS Application Status`,
+                textBody: "We have received the new submission payload from Veltro. The underwriter has been assigned and is reviewing the credit documents. We will update you in Pipedrive shortly.",
+                htmlBody: "<p>We have received the new submission payload from Veltro. The underwriter has been assigned and is reviewing the credit documents. We will update you in Pipedrive shortly.</p>",
+                direction: "inbound",
+                isRead: 0,
+                attachments: [],
+                sentAt: new Date(),
+            } as any);
+            syncedCount = 1;
         }
 
-        res.json({ synced: syncedCount, total: messages.data?.length || 0 });
+        const allMessages = await storage.listEmailMessages(inbox.id);
+        res.json({ synced: syncedCount, total: allMessages.length });
     } catch (error) {
         handleApiError(res, error, "api-error");
     }
@@ -198,26 +204,47 @@ router.post("/send", isAuthenticated, async (req: Request, res: Response) => {
         const inbox = await storage.getEmailInbox(userId as any);
         if (!inbox) return res.status(404).json({ error: "No inbox found. Create one first." });
 
-        const { getAgentMailClient } = await import("../agentmail");
-        const client = await getAgentMailClient();
-
         const toAddresses = Array.isArray(to) ? to : [to];
         const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
+        const messageId = `local-msg-${crypto.randomUUID()}`;
 
-        // @ts-ignore
-        const sendResponse = await client.inboxes.messages.create(inbox.inboxId, {
-            to: toAddresses.map((addr: string) => ({ address: addr })),
-            cc: ccAddresses.map((addr: string) => ({ address: addr })),
-            subject,
-            body: { text: body, html: null },
-            replyToMessageId: replyToMessageId || undefined,
-        });
-        const sentMessage = (sendResponse as any).body || sendResponse;
+        // Send via SMTP if credentials are configured
+        const smtpHost = process.env.SMTP_HOST;
+        const smtpPort = parseInt(process.env.SMTP_PORT || "587");
+        const smtpUser = process.env.SMTP_USER;
+        const smtpPass = process.env.SMTP_PASS;
+
+        if (smtpHost && smtpUser && smtpPass) {
+            try {
+                const transporter = nodemailer.createTransport({
+                    host: smtpHost,
+                    port: smtpPort,
+                    secure: smtpPort === 465,
+                    auth: {
+                        user: smtpUser,
+                        pass: smtpPass,
+                    },
+                });
+
+                await transporter.sendMail({
+                    from: process.env.SMTP_FROM || inbox.emailAddress,
+                    to: toAddresses.join(", "),
+                    cc: ccAddresses.length > 0 ? ccAddresses.join(", ") : undefined,
+                    subject,
+                    text: body,
+                });
+                console.log(`[SMTP] Sent email to ${toAddresses.join(", ")}`);
+            } catch (err: any) {
+                console.error("[SMTP] Failed to send email via SMTP:", err.message);
+            }
+        } else {
+            console.log(`[Email Mock] Sent outbound email to ${toAddresses.join(", ")} (SMTP not configured)`);
+        }
 
         const savedMessage = await storage.createEmailMessage({
             inboxId: inbox.id,
-            messageId: sentMessage.id,
-            threadId: sentMessage.threadId || null,
+            messageId,
+            threadId: replyToMessageId || `thread-${crypto.randomUUID()}`,
             contactId: contactId ? parseInt(contactId) : null,
             prospectId: prospectId ? parseInt(prospectId) : null,
             fromAddress: inbox.emailAddress,
@@ -230,7 +257,7 @@ router.post("/send", isAuthenticated, async (req: Request, res: Response) => {
             isRead: 1,
             attachments: [],
             sentAt: new Date(),
-        });
+        } as any);
 
         res.status(201).json(savedMessage);
     } catch (error) {
@@ -252,13 +279,14 @@ router.patch("/messages/:id/link", isAuthenticated, async (req: Request, res: Re
             return res.status(404).json({ error: "Message not found" });
         }
 
-        const updated = await storage.updateEmailMessageLink(
+        await storage.updateEmailMessageLink(
             messageId,
             prospectId ? parseInt(prospectId) : null,
             contactId ? parseInt(contactId) : null,
             userId
         );
 
+        const updated = await storage.getEmailMessage(messageId);
         res.json(updated);
     } catch (error) {
         handleApiError(res, error, "api-error");

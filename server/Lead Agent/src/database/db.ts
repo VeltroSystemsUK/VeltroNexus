@@ -16,7 +16,7 @@ import {
 } from '../models/business.js';
 
 // Helper to safely add column
-function addColumn(db: Database.Database, table: string, column: string, type: string) {
+function addColumn(db: InstanceType<typeof Database>, table: string, column: string, type: string) {
   try {
     db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).run();
   } catch (error: any) {
@@ -26,7 +26,7 @@ function addColumn(db: Database.Database, table: string, column: string, type: s
   }
 }
 
-let _db: Database.Database | null = null;
+let _db: InstanceType<typeof Database> | null = null;
 let _dbPath: string | null = null;
 
 /** Call before/after switching DATABASE_PATH env var to pick up the new path. */
@@ -36,7 +36,7 @@ export function resetDbConnection(): void {
   _dbPath = null;
 }
 
-function getDb(): Database.Database {
+function getDb(): InstanceType<typeof Database> {
   const currentPath = process.env['DATABASE_PATH'] ?? resolve('./lead_finder.db');
   if (!_db || _dbPath !== currentPath) {
     _db?.close();
@@ -75,7 +75,10 @@ export function initDb(): void {
       search_query  TEXT NOT NULL,
       search_hash   TEXT NOT NULL UNIQUE,
       scraped_at    TEXT NOT NULL DEFAULT (datetime('now')),
-      enriched_at   TEXT
+      enriched_at   TEXT,
+
+      strategy_analysis TEXT,
+      strategy_email    TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_email         ON businesses(email);
@@ -92,6 +95,10 @@ export function initDb(): void {
   addColumn(db, 'businesses', 'last_charge_date', 'TEXT');
   addColumn(db, 'businesses', 'lender_names', 'TEXT'); // Stored as JSON string
   addColumn(db, 'businesses', 'migrated', 'INTEGER DEFAULT 0'); // 0 = false, 1 = true
+  
+  // Migration for Strategy Agent
+  addColumn(db, 'businesses', 'strategy_analysis', 'TEXT');
+  addColumn(db, 'businesses', 'strategy_email', 'TEXT');
 }
 
 // ─────────────────────────────────────────────
@@ -127,6 +134,8 @@ interface DbRow {
   last_charge_date: string | null;
   lender_names: string | null;
   migrated: number;
+  strategy_analysis: string | null;
+  strategy_email: string | null;
 }
 
 function rowToBusiness(row: DbRow): Business {
@@ -158,6 +167,8 @@ function rowToBusiness(row: DbRow): Business {
     activeChargeCount: row.active_charge_count || 0,
     lastChargeDate: row.last_charge_date,
     migrated: row.migrated === 1,
+    strategyAnalysis: row.strategy_analysis,
+    strategyEmail: row.strategy_email,
     lenderNames: (() => {
       try {
         return row.lender_names ? JSON.parse(row.lender_names) : [];
@@ -199,7 +210,9 @@ export function upsertBusiness(business: Business): Business {
         has_charges      = ?,
         active_charge_count = ?,
         last_charge_date = COALESCE(?, last_charge_date),
-        lender_names     = COALESCE(?, lender_names)
+        lender_names     = COALESCE(?, lender_names),
+        strategy_analysis = COALESCE(?, strategy_analysis),
+        strategy_email    = COALESCE(?, strategy_email)
       WHERE search_hash = ?
     `).run(
       business.email ?? null,
@@ -218,6 +231,8 @@ export function upsertBusiness(business: Business): Business {
       business.activeChargeCount ?? 0,
       business.lastChargeDate ?? null,
       JSON.stringify(business.lenderNames ?? []),
+      business.strategyAnalysis ?? null,
+      business.strategyEmail ?? null,
       hash,
     );
 
@@ -283,6 +298,19 @@ export function getUnenrichedBusinesses(limit = 50): Business[] {
     .prepare(`
       SELECT * FROM businesses
       WHERE website IS NOT NULL AND email IS NULL
+      LIMIT ?
+    `)
+    .all(limit) as DbRow[];
+  return rows.map(rowToBusiness);
+}
+
+export function getHighQualityLeadsForStrategy(limit = 100): Business[] {
+  const rows = getDb()
+    .prepare(`
+      SELECT * FROM businesses
+      WHERE lead_score >= 0.7 
+      AND strategy_analysis IS NULL
+      AND email IS NOT NULL
       LIMIT ?
     `)
     .all(limit) as DbRow[];

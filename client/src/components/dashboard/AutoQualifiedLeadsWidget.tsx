@@ -7,8 +7,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Mail, ArrowRight, AlertTriangle, CheckCircle, Search } from "lucide-react";
 import { ScrapedLead } from "@shared/schema";
+import { useLocation } from "wouter";
 
 export function AutoQualifiedLeadsWidget() {
+    const [, navigate] = useLocation();
     const { data: leads, isLoading } = useQuery<ScrapedLead[]>({
         queryKey: ["/api/scraped-leads", { status: "new" }],
     });
@@ -98,11 +100,24 @@ export function AutoQualifiedLeadsWidget() {
                                     </div>
 
                                     <div className="flex items-center gap-2 mt-2">
-                                        <Button size="sm" variant="outline" className="h-7 text-xs flex-1 gap-1">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="h-7 text-xs flex-1 gap-1"
+                                            onClick={() => {
+                                                const to = lead.email || '';
+                                                const name = lead.companyName || '';
+                                                navigate(`/gmail?compose=true&to=${encodeURIComponent(to)}&name=${encodeURIComponent(name)}`);
+                                            }}
+                                        >
                                             <Mail className="h-3 w-3" />
                                             {lead.emailDraftId ? "Review Draft" : "Draft Email"}
                                         </Button>
-                                        <Button size="sm" className="h-7 text-xs gap-1 bg-primary/90 hover:bg-primary">
+                                        <Button 
+                                            size="sm" 
+                                            className="h-7 text-xs gap-1 bg-primary/90 hover:bg-primary"
+                                            onClick={() => navigate('/leads')}
+                                        >
                                             View Report <ArrowRight className="h-3 w-3" />
                                         </Button>
                                     </div>

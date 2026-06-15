@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Send, CheckCircle2 } from "lucide-react";
+import { GmailComposer } from "./GmailComposer";
 
 // Extended schema to handle array fields for UI that might be null in DB
 const formSchema = insertLenderSchema.extend({
@@ -233,16 +234,12 @@ export function LenderForm({
         }
     };
 
-    const handleDraftGmail = async () => {
-        const name = form.getValues("institutionName");
+    const [isComposerOpen, setIsComposerOpen] = useState(false);
 
+    const handleDraftGmail = async (payload: any) => {
         try {
             setIsDraftingEmail(true);
-            const res = await apiRequest("/api/google/gmail/draft", "POST", {
-                to: "team@example.com",
-                subject: `Outreach: ${name}`,
-                body: `<p>Hi team,</p><p>We are considering <strong>${name}</strong> for several upcoming deals. Their current credit appetite is: ${form.getValues("creditAppetite") || "TBD"}.</p>`
-            });
+            const res = await apiRequest("/api/google/gmail/draft", "POST", payload);
             if (res.ok) {
                 toast.success("Draft email sent to your Gmail!");
             }
@@ -294,12 +291,11 @@ export function LenderForm({
                 )}
 
                 <Tabs defaultValue="basic" className="w-full">
-                    <TabsList className={`grid w-full ${user?.googleConnected ? "grid-cols-2 md:grid-cols-5" : "grid-cols-2 md:grid-cols-4"} h-auto`}>
+                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
                         <TabsTrigger value="basic">Basic Info</TabsTrigger>
                         <TabsTrigger value="criteria">Lending Criteria</TabsTrigger>
                         <TabsTrigger value="contacts">Contacts</TabsTrigger>
                         <TabsTrigger value="notes">Notes & Assessment</TabsTrigger>
-                        {user?.googleConnected && <TabsTrigger value="workspace">Workspace</TabsTrigger>}
                     </TabsList>
 
                     <TabsContent value="basic" className="space-y-4 mt-4">
@@ -1283,39 +1279,7 @@ export function LenderForm({
                         />
                     </TabsContent>
 
-                    <TabsContent value="workspace" className="space-y-4 mt-4 text-center py-8">
-                        <div className="flex flex-col items-center justify-center space-y-4">
-                            <div className="h-16 w-16 bg-blue-50 rounded-full flex items-center justify-center">
-                                <Globe className="h-8 w-8 text-blue-600" />
-                            </div>
-                            <div className="space-y-1">
-                                <h3 className="font-semibold text-lg">Google Workspace Tools</h3>
-                                <p className="text-sm text-muted-foreground">Quickly generate documentation or communicate with your team.</p>
-                            </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-md pt-4">
-                                <Card className="hover:bg-accent/50 cursor-pointer transition-colors" onClick={handleCreateGoogleDoc}>
-                                    <CardContent className="p-4 flex flex-col items-center gap-3">
-                                        <div className="h-10 w-10 bg-white shadow-sm rounded border flex items-center justify-center">
-                                            <FileText className="h-6 w-6 text-blue-500" />
-                                        </div>
-                                        <div className="text-sm font-medium">Create Review Doc</div>
-                                        {isCreatingDoc && <Loader2 className="h-4 w-4 animate-spin ms-2" />}
-                                    </CardContent>
-                                </Card>
-
-                                <Card className="hover:bg-accent/50 cursor-pointer transition-colors" onClick={handleDraftGmail}>
-                                    <CardContent className="p-4 flex flex-col items-center gap-3">
-                                        <div className="h-10 w-10 bg-white shadow-sm rounded border flex items-center justify-center">
-                                            <Mail className="h-6 w-6 text-red-500" />
-                                        </div>
-                                        <div className="text-sm font-medium">Draft Outreach Email</div>
-                                        {isDraftingEmail && <Loader2 className="h-4 w-4 animate-spin ms-2" />}
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        </div>
-                    </TabsContent>
                 </Tabs>
 
                 <div className="flex justify-end gap-2">
@@ -1335,6 +1299,15 @@ export function LenderForm({
                         {isSubmitting ? "Saving..." : submitLabel}
                     </Button>
                 </div>
+
+                <GmailComposer
+                    isOpen={isComposerOpen}
+                    onClose={() => setIsComposerOpen(false)}
+                    onSend={handleDraftGmail}
+                    defaultTo={form.getValues("submissionEmail") || form.getValues("bdmEmail") || "team@example.com"}
+                    defaultSubject={`Outreach: ${form.getValues("institutionName")}`}
+                    defaultBody={`<p>Hi team,</p><p>We are considering <strong>${form.getValues("institutionName")}</strong> for several upcoming deals. Their current credit appetite is: ${form.getValues("creditAppetite") || "TBD"}.</p>`}
+                />
             </form>
         </Form >
     );

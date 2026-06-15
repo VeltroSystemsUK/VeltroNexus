@@ -274,16 +274,7 @@ export default function Settings() {
     document.documentElement.style.fontSize = `${fontSize}px`;
   }, [fontFamily, fontSize]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "google_connected") {
-      toast({ title: "Connected", description: "Google account successfully linked!" });
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (params.get("error") === "google_auth_failed") {
-      toast({ title: "Error", description: "Failed to connect Google account.", variant: "destructive" });
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
+
 
   const [currency, setCurrency] = useState("GBP");
   const [timezone, setTimezone] = useState("Europe/London");
@@ -837,73 +828,7 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-blue-500" />
-                  Google Workspace Integration
-                </CardTitle>
-                <CardDescription>
-                  Connect for Gmail outreach, Drive storage, and Google Docs/Sheets generation.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
-                  <div className="flex items-center gap-4">
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${user?.googleConnected ? "bg-green-100" : "bg-muted"}`}>
-                      {user?.googleConnected ? <Check className="h-5 w-5 text-green-600" /> : <Globe className="h-5 w-5 text-muted-foreground" />}
-                    </div>
-                    <div className="space-y-0.5">
-                      <div className="font-medium">
-                        {user?.googleConnected ? "Google Account Connected" : "Not Connected"}
-                      </div>
-                      {user?.googleConnected && (
-                        <div className="text-sm text-muted-foreground">
-                          Account: {user.googleConnectedEmail || user.googleEmail || "Connected"}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {user?.googleConnected ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        if (confirm("Disconnect Google Workspace?")) {
-                          await apiRequest("/api/auth/google/disconnect", "POST");
-                          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-                          toast({ title: "Disconnected", description: "Google Workspace access removed." });
-                        }
-                      }}
-                    >
-                      Disconnect
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700"
-                      onClick={() => window.location.href = "/api/auth/google"}
-                    >
-                      Connect Google
-                    </Button>
-                  )}
-                </div>
 
-                {user?.googleConnected && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div className="flex items-center gap-2 p-2 rounded bg-primary/5">
-                      <Mail className="h-4 w-4 text-primary" />
-                      <span>Gmail Enabled</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded bg-primary/5">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <span>Drive & Docs Enabled</span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
             {/* WhatsApp Integration */}
             <Card>

@@ -92,6 +92,10 @@ export const BusinessSchema = z.object({
   searchHash: z.string().optional(),
   scrapedAt: z.date().optional(),
   enrichedAt: z.date().nullable().default(null),
+
+  // Strategy Agent Output
+  strategyAnalysis: z.string().nullable().default(null),
+  strategyEmail: z.string().nullable().default(null),
 });
 export type Business = z.infer<typeof BusinessSchema>;
 

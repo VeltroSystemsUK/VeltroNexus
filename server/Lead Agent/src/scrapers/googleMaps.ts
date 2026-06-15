@@ -271,6 +271,8 @@ export async function scrapeGoogleMaps(
         lastChargeDate: null,
         lenderNames: [],
         migrated: false,
+        strategyAnalysis: null,
+        strategyEmail: null,
       };
 
       business.searchHash = computeSearchHash(business);

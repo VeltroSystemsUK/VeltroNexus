@@ -1,6 +1,4 @@
 import React, { useState, useCallback } from "react";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
 import { EmailLink } from "@/components/EmailLink";
 
 // ─── Types (mirror the function types) ───────────────────────────────────────
@@ -125,12 +123,19 @@ export const DomainContactPanel: React.FC<DomainContactPanelProps> = ({
         setErrorMessage("");
 
         try {
-            const scrape = httpsCallable<{ domain: string; contactName?: string }, ScrapeResult>(
-                functions,
-                "scrapeDomainContactsEU"
-            );
-            const response = await scrape({ domain, contactName });
-            setResult(response.data);
+            const res = await fetch("/api/crm/scrape-domain", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ domain, contactName }),
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP error! status: ${res.status}`);
+            }
+            const data = await res.json();
+            setResult(data);
             setStatus("success");
         } catch (err: unknown) {
             console.error("Scrape function error:", err);

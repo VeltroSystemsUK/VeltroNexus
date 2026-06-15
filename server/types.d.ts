@@ -1,1 +1,2 @@
-// Type declarations removed - using @google-cloud/connect-firestore instead
+declare module 'better-sqlite3';
+declare module 'better-sqlite3-session-store';

@@ -15,7 +15,7 @@ import {
   computeSearchHash,
 } from '../models/business.js';
 
-function addColumn(db: Database.Database, table: string, column: string, type: string) {
+function addColumn(db: InstanceType<typeof Database>, table: string, column: string, type: string) {
   try {
     db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).run();
   } catch (error: any) {
@@ -27,9 +27,9 @@ function addColumn(db: Database.Database, table: string, column: string, type: s
 
 const BROKER_DB_PATH = process.env['BROKER_DATABASE_PATH'] ?? resolve('./broker_finder.db');
 
-let _db: Database.Database | null = null;
+let _db: InstanceType<typeof Database> | null = null;
 
-function getDb(): Database.Database {
+function getDb(): InstanceType<typeof Database> {
   if (!_db) {
     _db = new Database(BROKER_DB_PATH);
     _db.pragma('journal_mode = WAL');
@@ -81,6 +81,8 @@ export function initDb(): void {
   addColumn(db, 'businesses', 'last_charge_date', 'TEXT');
   addColumn(db, 'businesses', 'lender_names', 'TEXT');
   addColumn(db, 'businesses', 'migrated', 'INTEGER DEFAULT 0');
+  addColumn(db, 'businesses', 'strategy_analysis', 'TEXT');
+  addColumn(db, 'businesses', 'strategy_email', 'TEXT');
 }
 
 // ─────────────────────────────────────────────
@@ -116,6 +118,8 @@ interface DbRow {
   last_charge_date: string | null;
   lender_names: string | null;
   migrated: number;
+  strategy_analysis: string | null;
+  strategy_email: string | null;
 }
 
 function rowToBusiness(row: DbRow): Business {
@@ -151,6 +155,8 @@ function rowToBusiness(row: DbRow): Business {
       try { return row.lender_names ? JSON.parse(row.lender_names) : []; }
       catch { return []; }
     })(),
+    strategyAnalysis: row.strategy_analysis ?? null,
+    strategyEmail: row.strategy_email ?? null,
   };
 }
 
@@ -183,7 +189,9 @@ export function upsertBusiness(business: Business): Business {
         has_charges      = ?,
         active_charge_count = ?,
         last_charge_date = COALESCE(?, last_charge_date),
-        lender_names     = COALESCE(?, lender_names)
+        lender_names     = COALESCE(?, lender_names),
+        strategy_analysis = COALESCE(?, strategy_analysis),
+        strategy_email    = COALESCE(?, strategy_email)
       WHERE search_hash = ?
     `).run(
       business.email ?? null,
@@ -202,6 +210,8 @@ export function upsertBusiness(business: Business): Business {
       business.activeChargeCount ?? 0,
       business.lastChargeDate ?? null,
       JSON.stringify(business.lenderNames ?? []),
+      business.strategyAnalysis ?? null,
+      business.strategyEmail ?? null,
       hash,
     );
 

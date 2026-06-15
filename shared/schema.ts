@@ -206,6 +206,47 @@ export const insertLenderSchema = lenderSchema.omit({
 export type InsertLender = z.infer<typeof insertLenderSchema>;
 
 
+// --- CDFIs (Community Development Financial Institutions) ---
+export const cdfiSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  website: z.string().nullable().optional(),
+  contactName: z.string().nullable().optional(),
+  contactPhone: z.string().nullable().optional(),
+  contactEmail: z.string().nullable().optional(),
+  postalAddress: z.string().nullable().optional(),
+  lendingMinQuantum: z.number().nullable().optional(),
+  lendingMaxQuantum: z.number().nullable().optional(),
+  geographicalScope: z.array(z.string()).default([]),
+  preferredClientTypes: z.array(z.string()).default([]),
+  backgroundInfo: z.string().nullable().optional(),
+  lastContacted: dateSchema,
+  contactOutcome: z.enum(["not_contacted", "no_answer", "interested", "not_interested", "negotiating"]).default("not_contacted"),
+  agreementStatus: z.enum(["unsigned", "in_progress", "signed"]).default("unsigned"),
+  agreementSignedDate: dateSchema,
+  notes: z.string().nullable().optional(),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type CDFI = z.infer<typeof cdfiSchema>;
+
+export const insertCdfiSchema = cdfiSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).extend({
+  id: z.string().optional(),
+});
+export type InsertCDFI = z.infer<typeof insertCdfiSchema>;
+
+export const updateCdfiSchema = cdfiSchema.partial().omit({
+  userId: true,
+  createdAt: true,
+});
+export type UpdateCDFI = z.infer<typeof updateCdfiSchema>;
+
+
 // --- Lender Products ---
 export const lenderProductSchema = z.object({
   id: z.number().optional(),

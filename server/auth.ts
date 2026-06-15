@@ -100,62 +100,6 @@ export async function setupAuth(app: Express) {
         )
     );
 
-    // Dynamic import for Google Strategy to avoid issues if not configured, although we installed it
-    const { Strategy: GoogleStrategy } = await import("passport-google-oauth20");
-
-    passport.use(
-        new GoogleStrategy(
-            {
-                clientID: process.env.GOOGLE_CLIENT_ID || "temp",
-                clientSecret: process.env.GOOGLE_CLIENT_SECRET || "temp",
-                callbackURL: "/api/auth/google/callback",
-                passReqToCallback: true,
-            },
-            async (req: any, accessToken: string, refreshToken: string, params: any, profile: any, done: any) => {
-                try {
-                    // Check if we have an authenticated user already (linking)
-                    if (req.user) {
-                        const currentUser = req.user as SelectUser;
-                        const expiryDate = new Date();
-                        expiryDate.setSeconds(expiryDate.getSeconds() + (params.expires_in || 3600));
-
-                        const updatedUser = await storage.updateUser(currentUser.id, {
-                            googleConnected: true,
-                            googleEmail: profile.emails?.[0]?.value,
-                            googleAccessToken: accessToken,
-                            googleRefreshToken: refreshToken || currentUser.googleRefreshToken, // refresh token only sent once usually
-                            googleTokenExpiry: expiryDate
-                        });
-                        return done(null, updatedUser);
-                    }
-
-                    // Not logged in? Try to find user by google email or just fail if we only support linking
-                    // For now, let's allow login with Google if email matches
-                    const email = profile.emails?.[0]?.value;
-                    if (email) {
-                        const user = await storage.getUserByUsername(email);
-                        if (user) {
-                            const expiryDate = new Date();
-                            expiryDate.setSeconds(expiryDate.getSeconds() + (params.expires_in || 3600));
-
-                            const updatedUser = await storage.updateUser(user.id, {
-                                googleConnected: true,
-                                googleAccessToken: accessToken,
-                                googleRefreshToken: refreshToken || user.googleRefreshToken,
-                                googleTokenExpiry: expiryDate
-                            });
-                            return done(null, updatedUser);
-                        }
-                    }
-
-                    return done(null, false, { message: "Please log in with your account first to link Google" });
-                } catch (err) {
-                    return done(err);
-                }
-            }
-        )
-    );
-
     passport.serializeUser((user, done) => {
         done(null, (user as SelectUser).id);
     });

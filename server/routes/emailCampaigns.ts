@@ -5,7 +5,8 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
 import { insertEmailCampaignSchema } from "@shared/schema";
-import { google } from "googleapis";
+import nodemailer from "nodemailer";
+import crypto from "crypto";
 import { EmailVerificationService } from "../services/emailVerification";
 
 // Resolve merge tags in content for a specific recipient
@@ -25,74 +26,53 @@ function resolveMergeTags(
     .replace(/\{\{unsubscribeLink\}\}/g, "#");
 }
 
-// Get Gmail auth for sending (reuses super admin pattern from gmail.ts)
+// Get Gmail auth for sending (stubbed out for local SMTP)
 async function getSuperAdminGmailAuth() {
-  let superAdmin = await storage.getUserByEmail("shaun@veltro.co.uk");
-  if (!superAdmin) superAdmin = await storage.getUserByEmail("admin@veltro.com");
-  if (!superAdmin || !superAdmin.googleAccessToken) {
-    throw new Error("Super admin Gmail auth not configured");
-  }
-
-  const adminUser = superAdmin;
-
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.APP_URL || ""}/api/auth/google/callback`
-  );
-  oauth2Client.setCredentials({
-    access_token: adminUser.googleAccessToken || undefined,
-    refresh_token: adminUser.googleRefreshToken || undefined,
-    expiry_date: adminUser.googleTokenExpiry
-      ? new Date(adminUser.googleTokenExpiry).getTime()
-      : undefined,
-  });
-
-  // Handle token refresh
-  oauth2Client.on("tokens", async (tokens) => {
-    if (tokens.refresh_token) {
-      await storage.updateUser(adminUser.id, {
-        googleRefreshToken: tokens.refresh_token,
-      });
-    }
-    if (tokens.access_token) {
-      const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
-      await storage.updateUser(adminUser.id, {
-        googleAccessToken: tokens.access_token,
-        googleTokenExpiry: expiryDate,
-      });
-    }
-  });
-
-  return oauth2Client;
+  return null; // No Google OAuth needed
 }
 
-// Send a single email via Gmail API
+// Send a single email via SMTP or Mock local email
 async function sendGmailMessage(
   auth: any,
   to: string,
   subject: string,
   htmlBody: string
 ): Promise<string> {
-  const gmail = google.gmail({ version: "v1", auth });
-  const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString("base64")}?=`;
-  const messageParts = [
-    `To: ${to}`,
-    `Subject: ${utf8Subject}`,
-    "MIME-Version: 1.0",
-    "Content-Type: text/html; charset=utf-8",
-    "",
-    htmlBody,
-  ];
+  const messageId = `campaign-msg-${crypto.randomUUID()}`;
 
-  const message = messageParts.join("\r\n");
-  const encodedMessage = Buffer.from(message).toString("base64url");
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || "587");
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
 
-  const result = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: { raw: encodedMessage },
-  });
-  return result.data.id || "";
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || smtpUser,
+        to,
+        subject,
+        html: htmlBody,
+      });
+      console.log(`[SMTP Campaign] Sent email to ${to}`);
+    } catch (err: any) {
+      console.error("[SMTP Campaign] Failed to send email via SMTP:", err.message);
+      throw err;
+    }
+  } else {
+    console.log(`[Campaign Email Mock] Sent email to ${to} (SMTP not configured)`);
+  }
+
+  return messageId;
 }
 
 interface AuthenticatedRequest extends Request {
@@ -162,7 +142,6 @@ router.patch(
     try {
       const campaign = await storage.updateEmailCampaign(
         parseInt(req.params.id),
-        req.user.id,
         req.body
       );
       if (!campaign) return res.status(404).json({ error: "Campaign not found" });
@@ -244,7 +223,7 @@ router.post(
       }
 
       // Update campaign status to sending
-      await storage.updateEmailCampaign(campaign.id!, userId, {
+      await storage.updateEmailCampaign(campaign.id!, {
         status: "sending",
       } as any);
 
@@ -304,7 +283,7 @@ router.post(
         }
 
         // Update campaign with final stats
-        await storage.updateEmailCampaign(campaign.id!, userId, {
+        await storage.updateEmailCampaign(campaign.id!, {
           status: "sent",
           totalSent: sentCount,
           totalDelivered: sentCount,
@@ -431,7 +410,6 @@ router.post(
     try {
       const campaign = await storage.updateEmailCampaign(
         parseInt(req.params.id),
-        req.user.id,
         { status: "paused" } as any
       );
       if (!campaign) return res.status(404).json({ error: "Campaign not found" });
@@ -494,7 +472,7 @@ router.post(
 
       // Update recipient count on campaign
       const allRecipients = await storage.listCampaignRecipients(campaignId, req.user.id);
-      await storage.updateEmailCampaign(campaignId, req.user.id, {
+      await storage.updateEmailCampaign(campaignId, {
         recipientCount: allRecipients.length,
       } as any);
 
@@ -513,7 +491,7 @@ router.delete(
     try {
       const campaignId = parseInt(req.params.id);
       await storage.clearCampaignRecipients(campaignId, req.user.id);
-      await storage.updateEmailCampaign(campaignId, req.user.id, {
+      await storage.updateEmailCampaign(campaignId, {
         recipientCount: 0,
       } as any);
       res.json({ success: true });

@@ -164,13 +164,19 @@ export class DatabaseBuilderService {
                             console.warn(`[Database Builder] Failed to fetch profile for ${item.company_number}:`, err);
                         }
 
+                        let pc = addr?.postal_code || "";
+                        if (pc) {
+                            const raw = pc.replace(/[^A-Z0-9]/ig, '').toUpperCase();
+                            pc = raw.length > 3 ? `${raw.slice(0, -3)} ${raw.slice(-3)}` : raw;
+                        }
+
                         const fullAddressFormatted = [
                             addr?.premises,
                             addr?.address_line_1,
                             addr?.address_line_2,
                             addr?.locality,
                             addr?.region,
-                            addr?.postal_code,
+                            pc,
                             addr?.country,
                         ]
                             .filter(Boolean)
@@ -189,6 +195,7 @@ export class DatabaseBuilderService {
                                 sicCode: item.sic_codes ? item.sic_codes[0] : undefined,
                                 contacts: [],
                                 commissionRate: 0.1,
+                                possibleDuplicate: false,
                                 notes: `Discovered by Broker Agent (Target: ${target.location || "Anywhere"}${target.sicCodes ? `, SIC: ${target.sicCodes.join(",")}` : ""}). ${hasCharges ? "Registered charges found." : "No registered charges."}`,
                             };
                             const created = await storage.createBrokerLead(lead);
@@ -208,6 +215,7 @@ export class DatabaseBuilderService {
                                 incorporationDate: item.date_of_creation,
                                 contacts: [],
                                 commissionRate: 0.1,
+                                possibleDuplicate: false,
                                 notes: `Discovered by Database Builder (Target: ${target.location || "Anywhere"}${target.sicCodes ? `, SIC: ${target.sicCodes.join(",")}` : ""}). ${hasCharges ? "Registered charges found." : "No registered charges."}`,
                             };
 

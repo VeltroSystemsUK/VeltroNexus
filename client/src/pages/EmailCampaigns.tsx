@@ -1320,44 +1320,47 @@ export default function EmailCampaigns() {
                         size="sm"
                         onClick={() => { setCrmSubSource("client"); setSelectedRecipients(new Set()); }}
                       >
-                        Client CRM
+                        Prospects
                       </Button>
                       <Button
                         variant={crmSubSource === "broker" ? "default" : "outline"}
                         size="sm"
                         onClick={() => { setCrmSubSource("broker"); setSelectedRecipients(new Set()); }}
                       >
-                        Broker CRM
+                        Introducers
                       </Button>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder={`Search ${crmSubSource === "client" ? "client" : "broker"} leads...`}
+                          placeholder={`Search ${crmSubSource === "client" ? "prospect" : "introducer"} leads...`}
                           value={recipientSearch}
                           onChange={(e) => setRecipientSearch(e.target.value)}
                           className="pl-9"
                         />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{selectedRecipients.size} selected</Badge>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleAll(filteredRecipientItems)}
-                        >
-                          {filteredRecipientItems.every((i) => selectedRecipients.has(i.key))
-                            ? "Deselect All"
-                            : "Select All"}
-                        </Button>
+                      <div className="text-xs text-muted-foreground font-mono">
+                        {selectedRecipients.size} selected / {filteredRecipientItems.length} total
                       </div>
                     </div>
-                    <div className="max-h-[350px] overflow-y-auto border rounded-md">
+
+                    <div className="rounded-md border max-h-[300px] overflow-y-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-10"></TableHead>
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={filteredRecipientItems.length > 0 && selectedRecipients.size === filteredRecipientItems.length}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedRecipients(new Set(filteredRecipientItems.map((item) => item.key)));
+                                  } else {
+                                    setSelectedRecipients(new Set());
+                                  }
+                                }}
+                              />
+                            </TableHead>
                             <TableHead>Email</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Company</TableHead>
@@ -1381,7 +1384,7 @@ export default function EmailCampaigns() {
                           {filteredRecipientItems.length === 0 && (
                             <TableRow>
                               <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                                No {crmSubSource === "client" ? "client" : "broker"} leads with email addresses
+                                No {crmSubSource === "client" ? "prospect" : "introducer"} leads with email addresses
                               </TableCell>
                             </TableRow>
                           )}

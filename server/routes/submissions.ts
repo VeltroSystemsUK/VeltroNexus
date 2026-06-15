@@ -376,18 +376,20 @@ const router = Router();
     if (submissions.length === 0) return [];
 
     // Collect unique IDs for batch loading
-    const prospectIds = Array.from(new Set(submissions.map((s) => s.prospectId).filter(Boolean)));
-    const brokerIds = Array.from(new Set(submissions.map((s) => s.brokerId).filter(Boolean)));
+    const prospectIds = Array.from(new Set(submissions.map((s) => s.prospectId).filter(Boolean))) as number[];
+    const brokerIds = Array.from(new Set(submissions.map((s) => s.brokerId).filter(Boolean))) as string[];
 
     // Batch load all prospects and brokers in single queries
-    const [prospectsArr, brokersArr] = await Promise.all([
-      storage.getProspectsByIds(prospectIds),
+    const [prospectsResult, brokersArr] = await Promise.all([
+      Promise.all(prospectIds.map((id) => storage.getProspectById(id))),
       storage.getUsersByIds(brokerIds),
     ]);
 
+    const prospectsArr = prospectsResult.filter((p): p is NonNullable<typeof p> => !!p);
+
     // Create lookup maps
-    const prospectsMap = new Map(prospectsArr.map((p) => [p.id, p]));
-    const brokersMap = new Map(brokersArr.map((b) => [b.id, b]));
+    const prospectsMap = new Map<number, any>(prospectsArr.map((p: any) => [p.id, p]));
+    const brokersMap = new Map<string, any>(brokersArr.map((b: any) => [b.id, b]));
 
     // Enrich submissions using maps
     return submissions.map((submission) => {

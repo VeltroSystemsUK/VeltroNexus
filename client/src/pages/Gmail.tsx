@@ -290,11 +290,12 @@ export default function Gmail() {
                 setSelectedMessageId(null);
             }
 
-            await fetch(`/api/gmail/messages/batch-trash`, {
+            const response = await fetch(`/api/gmail/messages/batch-trash`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: idsToDelete }),
             });
+            if (!response.ok) throw new Error("Batch trash failed");
 
             toast({ title: `${idsToDelete.length} messages moved to trash` });
             setTimeout(() => loadMessages(), 1000);

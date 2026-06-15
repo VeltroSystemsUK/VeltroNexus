@@ -120,6 +120,8 @@ export default function Pipeline() {
     queryKey: ["/api/prospects"],
     queryFn: () => api.prospects.list(),
     enabled: isAuthenticated,
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
+    refetchOnWindowFocus: true,
   });
 
   // Filter out any invalid prospects to prevent crashes
@@ -407,8 +409,25 @@ export default function Pipeline() {
                     ).map((stage) => {
                       const count = getProspectsByStage(stage.value).length;
                       const totalValue = getTotalValueByStage(stage.value);
-                      return (
-                        <Card key={stage.value} className="hover-elevate">
+                        const isProspectStage = ["lead", "contacted", "qualified"].includes(stage.value);
+                        return (
+                          <Card 
+                            key={stage.value} 
+                            className="hover-elevate cursor-pointer border-l-4 transition-all"
+                            style={{ borderLeftColor: (stage as any).color }}
+                            onClick={() => {
+                              setActiveTab(isProspectStage ? "prospect-pipeline" : "process-pipeline");
+                              // Give React a moment to render the tab before scrolling
+                              setTimeout(() => {
+                                const el = document.getElementById(`column-${stage.value}`);
+                                if (el) {
+                                  el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+                                  el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+                                  setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 2000);
+                                }
+                              }, 150);
+                            }}
+                          >
                           <CardHeader className="pb-1 md:pb-2 pt-3 md:pt-5 px-3 md:px-5">
                             <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wide">
                               {stage.label}

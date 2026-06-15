@@ -3,6 +3,8 @@ import { storage } from "../storage";
 import { handleApiError } from "../utils/errorHandler";
 import { requireGodMode } from "../utils/godModeAuth";
 import { insertBrokerLeadSchema, insertBrokerCommissionSchema } from "@shared/schema";
+import { emailVerificationService } from "../services/emailVerificationService";
+import { enrichLead } from "../services/leadEnrichmentService";
 
 const router = Router();
 
@@ -95,6 +97,70 @@ router.delete("/leads/:id", async (req, res) => {
         res.status(204).send();
     } catch (error) {
         res.status(500).json({ error: "Delete failed" });
+    }
+});
+
+router.post("/leads/:id/verify-email", async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const lead = await storage.getBrokerLead(id);
+        if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+        const email = lead.email;
+        if (!email) {
+            // If no email, try enrichment immediately
+            console.log(`[Broker CRM] No email for ${lead.companyName}, triggering enrichment...`);
+            const enrichment = await enrichLead(lead as any);
+            if (enrichment.emails && enrichment.emails.length > 0) {
+                const newEmail = enrichment.emails[0];
+                const updatedLead = await storage.updateBrokerLead(id, { email: newEmail });
+                return res.json({ 
+                    status: "enriched", 
+                    email: newEmail,
+                    lead: updatedLead,
+                    message: "New email found through research" 
+                });
+            }
+            return res.status(400).json({ error: "No email address found to verify" });
+        }
+
+        console.log(`[Broker CRM] Verifying email for ${lead.companyName}: ${email}`);
+        const verification = await emailVerificationService.verifyEmail(email);
+
+        if (!verification) {
+            return res.status(500).json({ error: "Email verification service unavailable" });
+        }
+
+        if (verification.status === "valid") {
+            return res.json({ status: "valid", verification });
+        }
+
+        // If invalid or catch-all/unknown, try enrichment fallback
+        console.log(`[Broker CRM] Verification ${verification.status} for ${email}, triggering enrichment fallback...`);
+        const enrichment = await enrichLead(lead as any);
+        
+        if (enrichment.emails && enrichment.emails.length > 0) {
+            const newEmail = enrichment.emails[0];
+            if (newEmail !== email) {
+                const updatedLead = await storage.updateBrokerLead(id, { email: newEmail });
+                return res.json({ 
+                    status: "enriched", 
+                    email: newEmail,
+                    lead: updatedLead,
+                    originalVerification: verification,
+                    message: `Verification failed (${verification.status}), found alternative: ${newEmail}` 
+                });
+            }
+        }
+
+        res.json({ 
+            status: verification.status, 
+            verification,
+            message: `Verification ${verification.status}. No alternative found.` 
+        });
+
+    } catch (error) {
+        handleApiError(res, error, "Email verification failed");
     }
 });
 

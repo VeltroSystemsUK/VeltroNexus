@@ -218,4 +218,30 @@ program
     }
   });
 
+// ─────────────────────────────────────────────
+// strategy
+// ─────────────────────────────────────────────
+
+program
+  .command('strategy')
+  .description('Run the Strategy Agent to analyze high-quality leads')
+  .option('-l, --limit <n>', 'Max records to analyze', '10')
+  .option('-m, --model <name>', 'Ollama model to use', process.env['DEFAULT_MODEL'] || 'ollama/llama3')
+  .action(async (opts) => {
+    const spinner = ora('Strategy Agent thinking...').start();
+
+    try {
+      const { StrategyAgent } = await import('./strategyAgent.js');
+      const agent = new StrategyAgent(opts.model);
+      const result = await agent.processLeads(parseInt(opts.limit, 10));
+
+      spinner.succeed(`Strategy Agent complete. Analyzed ${chalk.green(String(result))} leads.`);
+      console.log(chalk.dim('\n  Check your leads for "strategyAnalysis" and "strategyEmail" fields.'));
+    } catch (err) {
+      spinner.fail('Strategy Agent failed');
+      console.error(chalk.red(String(err)));
+      process.exit(1);
+    }
+  });
+
 program.parse();
