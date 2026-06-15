@@ -196,14 +196,22 @@ export default function AuthPage() {
     });
 
     return (
-        <div className="min-h-screen grid lg:grid-cols-2">
+        <div className="dark min-h-screen grid lg:grid-cols-2 bg-[#0A0B0D] text-foreground relative overflow-hidden grain">
+            {/* Ambient aurora behind everything */}
+            <div className="aurora-field">
+                <div className="aurora-blob b1" />
+                <div className="aurora-blob b2" />
+                <div className="aurora-blob b3" />
+            </div>
+
             {/* Left Column - Form */}
-            <div className="flex items-center justify-center p-8 bg-background">
-                <div className="w-full max-w-md space-y-8">
-                    <div className="flex justify-center mb-8">
-                        <img src={logoChrome} alt="Veltro Logo" className="h-12 w-auto" />
+            <div className="relative z-10 flex items-center justify-center p-6 sm:p-8">
+                <div className="w-full max-w-md">
+                    <div className="flex justify-center mb-7">
+                        <img src={logoChrome} alt="Veltro" className="h-11 w-auto" />
                     </div>
 
+                    <div className="glass p-6 sm:p-8">
                     <Tabs defaultValue="login" className="w-full">
                         <TabsList className="grid w-full grid-cols-2 mb-8">
                             <TabsTrigger value="login">Login</TabsTrigger>
@@ -411,15 +419,15 @@ export default function AuthPage() {
                                                     <h4 className="font-semibold text-foreground">Key Terms Summary:</h4>
                                                     <ul className="space-y-1.5 text-muted-foreground">
                                                         <li className="flex items-start gap-2">
-                                                            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                                                            <Check className="w-3 h-3 text-primary flex-shrink-0 mt-0.5" />
                                                             <span>Subscription <strong className="text-foreground">auto-renews</strong></span>
                                                         </li>
                                                         <li className="flex items-start gap-2">
-                                                            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                                                            <Check className="w-3 h-3 text-primary flex-shrink-0 mt-0.5" />
                                                             <span>You <strong className="text-foreground">own your data</strong> (UK GDPR)</span>
                                                         </li>
                                                         <li className="flex items-start gap-2">
-                                                            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                                                            <Check className="w-3 h-3 text-primary flex-shrink-0 mt-0.5" />
                                                             <span><strong className="text-foreground">Cancel anytime</strong></span>
                                                         </li>
                                                     </ul>
@@ -480,7 +488,8 @@ export default function AuthPage() {
                             </Card>
                         </TabsContent>
                     </Tabs>
-                    <div className="text-center text-sm text-muted-foreground mt-8">
+                    </div>
+                    <div className="text-center text-sm text-muted-foreground mt-7">
                         <Link href="/privacy" className="hover:text-primary transition-colors underline underline-offset-4">
                             Privacy Policy
                         </Link>
@@ -488,47 +497,42 @@ export default function AuthPage() {
                 </div>
             </div>
 
-            {/* Right Column - Image/Gradient */}
-            <div className="hidden lg:flex flex-col justify-center p-12 bg-[#0f172a] text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-indigo-900/50" />
+            {/* Right Column - Brand showcase */}
+            <div className="hidden lg:flex relative z-10 flex-col justify-center p-12 overflow-hidden border-l border-white/5">
+                <div className="absolute inset-0 mesh-grid opacity-70 pointer-events-none" />
 
-                {/* Background Elements — static, no GPU-heavy animations */}
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    {/* Static glows */}
-                    <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/15 rounded-full blur-3xl" />
-                    <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/8 rounded-full blur-3xl" />
-                    <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/10 rounded-full blur-3xl" />
+                <div className="relative z-10 max-w-lg mx-auto">
+                    <div className="inline-flex items-center gap-2 mb-8 px-3 py-1.5 rounded-full glass-subtle text-[11px] font-medium tracking-wide text-muted-foreground">
+                        <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                        </span>
+                        Live underwriting desk
+                    </div>
 
-                    {/* Grid lines */}
-                    <div className="absolute inset-0 opacity-[0.03]" style={{
-                        backgroundImage: `linear-gradient(#D97706 1px, transparent 1px), linear-gradient(90deg, #D97706 1px, transparent 1px)`,
-                        backgroundSize: '60px 60px',
-                    }} />
-
-                    {/* Static particles */}
-                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-40" />
-                    <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-30" />
-                    <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-40" />
-                    <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-20" />
-                </div>
-
-                <div className="relative z-10 max-w-lg mx-auto text-center space-y-6">
-                    {/* Animated Logo */}
-                    <img
-                        src={logoChrome}
-                        alt="Veltro"
-                        className="h-32 w-auto object-contain mx-auto mb-8 drop-shadow-[0_0_20px_rgba(217,119,6,0.3)]"
-                    />
-
-                    <h1 className="text-5xl font-bold tracking-tight">
-                        STREAMLINE
+                    <h1 className="text-6xl font-semibold tracking-tight leading-[0.95] chrome-text">
+                        Veltro
                     </h1>
-                    <h2 className="text-3xl font-bold tracking-tight text-[#D97706]">
-                        Your Lending Pipeline
-                    </h2>
-                    <p className="text-lg text-slate-300">
-                        Veltro will REVOLUTIONISE your workflow. From finding new prospects, assessing credit viability, managing your pipeline through to submitting applications and everything else in between!
+                    <p className="mt-5 text-2xl font-light text-foreground/90 leading-snug">
+                        The lending desk,<br />reimagined.
                     </p>
+                    <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground max-w-md">
+                        From Companies House signal to funded deal — prospecting, credit, pipeline and submission, in one quiet, fast surface.
+                    </p>
+
+                    <div className="mt-10 space-y-3">
+                        {[
+                            { k: "Speed", v: "Instant Companies House intelligence" },
+                            { k: "Pedigree", v: "Underwriting-grade credit analysis" },
+                            { k: "Payout", v: "Pipeline to submission, end to end" },
+                        ].map((f) => (
+                            <div key={f.k} className="flex items-center gap-3 glass-subtle rounded-xl px-4 py-3">
+                                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0 shadow-[0_0_10px_2px_hsl(var(--primary)/0.5)]" />
+                                <span className="text-sm font-medium text-foreground w-24 shrink-0">{f.k}</span>
+                                <span className="text-[13px] text-muted-foreground">{f.v}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

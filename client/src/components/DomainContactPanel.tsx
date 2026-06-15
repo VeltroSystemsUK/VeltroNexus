@@ -1,6 +1,4 @@
 import React, { useState, useCallback } from "react";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
 import { EmailLink } from "@/components/EmailLink";
 
 // ─── Types (mirror the function types) ───────────────────────────────────────
@@ -125,13 +123,11 @@ export const DomainContactPanel: React.FC<DomainContactPanelProps> = ({
         setErrorMessage("");
 
         try {
-            const scrape = httpsCallable<{ domain: string; contactName?: string }, ScrapeResult>(
-                functions,
-                "scrapeDomainContactsEU"
+            // Firebase Cloud Functions retired — this app now runs locally on SQL.
+            // TODO: wire domain contact scraping to the local contact-finder API.
+            throw new Error(
+                "Domain contact scraping is being migrated to the local API and is temporarily unavailable."
             );
-            const response = await scrape({ domain, contactName });
-            setResult(response.data);
-            setStatus("success");
         } catch (err: unknown) {
             console.error("Scrape function error:", err);
             const msg =

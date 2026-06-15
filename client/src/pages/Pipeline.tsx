@@ -68,8 +68,8 @@ export default function Pipeline() {
 
   const tabOptions = [
     { id: "dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard, color: "bg-primary" },
-    { id: "prospect-pipeline", label: "Prospect Pipeline", shortLabel: "Prospects", icon: Users, color: "bg-amber-600" },
-    { id: "process-pipeline", label: "Process Pipeline", shortLabel: "Process", icon: Send, color: "bg-emerald-600" },
+    { id: "prospect-pipeline", label: "Prospect Pipeline", shortLabel: "Prospects", icon: Users, color: "bg-primary" },
+    { id: "process-pipeline", label: "Process Pipeline", shortLabel: "Process", icon: Send, color: "bg-primary" },
   ];
 
   // Compute dynamic stages from user settings
@@ -297,7 +297,7 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-28">
+    <div className="min-h-screen bg-transparent pb-24 md:pb-28">
       <main className="w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
 
         {prospects.length === 0 ? (
@@ -362,9 +362,12 @@ export default function Pipeline() {
 
                 {/* Headline Metrics */}
                 <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
-                    Overview
-                  </h3>
+                  <div className="mb-4 md:mb-6">
+                    <span className="kicker">Dashboard</span>
+                    <h3 className="text-lg md:text-2xl font-semibold tracking-tight mt-1">
+                      Overview
+                    </h3>
+                  </div>
                   <PipelineStats
                     totalProspects={prospects.length}
                     activeProspects={activeProspects}

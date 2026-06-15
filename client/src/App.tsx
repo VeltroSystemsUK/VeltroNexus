@@ -251,14 +251,21 @@ function AppContent() {
 
   return (
     <>
-      <div className="flex bg-background h-screen overflow-hidden">
+      <div className="flex app-atmosphere h-screen overflow-hidden">
         {isAuthenticated && !isLoading && (
-          <div className="hidden md:block">
+          <div className="aurora-field">
+            <div className="aurora-blob b1" />
+            <div className="aurora-blob b2" />
+            <div className="aurora-blob b3" />
+          </div>
+        )}
+        {isAuthenticated && !isLoading && (
+          <div className="hidden md:block relative z-10">
             <Sidebar />
           </div>
         )}
 
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
           {isAuthenticated && !isLoading && <UnifiedHeader />}
           {isAuthenticated && !isLoading && <TrialBanner />}
 

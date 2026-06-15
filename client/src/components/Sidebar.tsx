@@ -243,7 +243,7 @@ export default function Sidebar() {
   return (
     <div
       className={cn(
-        "flex flex-col h-screen bg-sidebar border-r border-sidebar-border text-white transition-all duration-300 relative",
+        "flex flex-col h-screen bg-sidebar/85 backdrop-blur-xl border-r border-white/5 text-white transition-all duration-300 relative",
         isCollapsed ? "w-16" : "w-64"
       )}
     >
@@ -335,7 +335,7 @@ export default function Sidebar() {
                     "w-full flex items-center justify-between px-3 pt-2 pb-1.5 group/header hover:bg-white/[0.03] rounded-md transition-colors"
                   )}
                 >
-                  <span className={cn("text-[11px] font-bold uppercase tracking-wider", group.color)}>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35">
                     {group.label}
                   </span>
                   <ChevronDown
@@ -348,7 +348,7 @@ export default function Sidebar() {
               ) : (
                 /* Collapsed: thin color indicator line */
                 <div className="flex justify-center py-1.5">
-                  <div className={cn("w-4 h-px", group.color.replace("text-", "bg-"))} />
+                  <div className="w-4 h-px bg-white/20" />
                 </div>
               )}
 
@@ -459,7 +459,7 @@ export default function Sidebar() {
         (user?.subscriptionTier === "free" || user?.subscriptionTier === "trial") && (
           <div className="px-3 pb-3">
             <Link href="/pricing">
-              <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-0 shadow-lg shadow-orange-500/20">
+              <Button className="w-full bg-primary text-primary-foreground border-0 accent-glow hover:brightness-110 transition-all">
                 <Sparkles className="mr-2 h-4 w-4" />
                 Upgrade Plan
               </Button>
