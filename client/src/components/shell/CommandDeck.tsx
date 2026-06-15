@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LensRail } from "./LensRail";
 import { CommandBar } from "./CommandBar";
 import { CommandPalette } from "./CommandPalette";
+import { CopilotRail } from "./CopilotRail";
 
 /**
  * The Command Deck — the signed-in shell.
@@ -11,12 +12,19 @@ import { CommandPalette } from "./CommandPalette";
  */
 export function CommandDeck({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [copilotCollapsed, setCopilotCollapsed] = useState(
+    () => localStorage.getItem("copilot-collapsed") === "1"
+  );
   const { data: roleData } = useQuery<{ role: string }>({
     queryKey: ["/api/auth/role"],
   });
   const role = roleData?.role || "broker";
 
   const openPalette = () => setPaletteOpen(true);
+
+  useEffect(() => {
+    localStorage.setItem("copilot-collapsed", copilotCollapsed ? "1" : "0");
+  }, [copilotCollapsed]);
 
   return (
     <div className="flex app-atmosphere h-screen overflow-hidden">
@@ -33,6 +41,11 @@ export function CommandDeck({ children }: { children: ReactNode }) {
         <CommandBar onCommand={openPalette} />
         {children}
       </div>
+
+      <CopilotRail
+        collapsed={copilotCollapsed}
+        onToggle={() => setCopilotCollapsed((v) => !v)}
+      />
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} role={role} />
     </div>
