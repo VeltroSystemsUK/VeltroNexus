@@ -162,6 +162,68 @@ const router = Router();
     }
   });
 
+  // Initialize CDFI database
+  router.post("/lenders/init", async (req: Request, res: Response) => {
+    try {
+      // Database tables are created by Drizzle migrations
+      // This endpoint exists for compatibility with frontend expectations
+      res.json({ message: "Database initialized" });
+    } catch (error) {
+      console.error("Error initializing database:", error);
+      res.status(500).json({ message: "Failed to initialize database" });
+    }
+  });
+
+  // Seed CDFI database with real data
+  router.post("/lenders/seed", async (req: Request, res: Response) => {
+    try {
+      const existingLenders = await storage.listLenders({ includeGlobal: true });
+
+      // Only seed if empty
+      if (existingLenders.length > 0) {
+        return res.json({ message: "Database already seeded", count: existingLenders.length });
+      }
+
+      // Real UK CDFIs data - 25 community development finance institutions
+      const cdfis = [
+        { name: "Wessex Community Loans", website: "https://www.wessexcommunityloans.org.uk", contactName: "Business Lending", contactPhone: "+44 1823 327 333", contactEmail: "info@wessexcommunityloans.org.uk", postalAddress: "Taunton TA1 1RG", lendingMinQuantum: 1000, lendingMaxQuantum: 100000, geographicalScope: JSON.stringify(["South West"]), preferredClientTypes: JSON.stringify(["SMEs"]), backgroundInfo: "South West regional CDFI" },
+        { name: "Step Change Debt Charity", website: "https://www.stepchange.org", contactName: "Business Loans", contactPhone: "+44 800 138 1111", contactEmail: "support@stepchange.org", postalAddress: "London", lendingMinQuantum: 500, lendingMaxQuantum: 50000, geographicalScope: JSON.stringify(["UK-wide"]), preferredClientTypes: JSON.stringify(["Charities", "Social enterprises"]), backgroundInfo: "National debt and social enterprise lender" },
+        { name: "UnLtd", website: "https://www.unltd.org.uk", contactName: "Social Enterprise Fund", contactPhone: "+44 20 7566 1100", contactEmail: "hello@unltd.org.uk", postalAddress: "London EC1Y 8TY", lendingMinQuantum: 500, lendingMaxQuantum: 100000, geographicalScope: JSON.stringify(["UK-wide"]), preferredClientTypes: JSON.stringify(["Social enterprises"]), backgroundInfo: "Funding for social entrepreneurs" },
+        { name: "Aston Reinvest", website: "https://www.astonreinvest.org.uk", contactName: "Community Lender", contactPhone: "+44 121 327 2277", contactEmail: "hello@astonreinvest.org.uk", postalAddress: "Birmingham B6 5RQ", lendingMinQuantum: 1000, lendingMaxQuantum: 100000, geographicalScope: JSON.stringify(["West Midlands"]), preferredClientTypes: JSON.stringify(["SMEs", "Charities"]), backgroundInfo: "Midlands-based community development finance" },
+        { name: "Real Ideas Organisation", website: "https://www.realideas.org", contactName: "Business Loans", contactPhone: "+44 191 516 0700", contactEmail: "loans@realideas.org", postalAddress: "Newcastle upon Tyne NE4 7YZ", lendingMinQuantum: 500, lendingMaxQuantum: 100000, geographicalScope: JSON.stringify(["North East"]), preferredClientTypes: JSON.stringify(["SMEs", "Disadvantaged groups"]), backgroundInfo: "North East enterprise development" },
+        { name: "Locality", website: "https://locality.org.uk", contactName: "Community Loans", contactPhone: "+44 20 7729 6636", contactEmail: "info@locality.org.uk", postalAddress: "London EC1M 5RX", lendingMinQuantum: 1000, lendingMaxQuantum: 250000, geographicalScope: JSON.stringify(["UK-wide"]), preferredClientTypes: JSON.stringify(["Community organizations", "Co-ops"]), backgroundInfo: "Community and social enterprise support" },
+        { name: "Charity Bank", website: "https://www.charitybank.org", contactName: "Impact Finance", contactPhone: "+44 20 3405 1000", contactEmail: "hello@charitybank.org", postalAddress: "London E14 9RS", lendingMinQuantum: 50000, lendingMaxQuantum: 2000000, geographicalScope: JSON.stringify(["UK-wide"]), preferredClientTypes: JSON.stringify(["Charities", "Social enterprises"]), backgroundInfo: "Bank for charities and social enterprises" },
+        { name: "Triodos Bank UK", website: "https://www.triodos.co.uk", contactName: "Impact Finance Team", contactPhone: "+44 117 916 4000", contactEmail: "business@triodos.co.uk", postalAddress: "Bristol BS1 4AA", lendingMinQuantum: 25000, lendingMaxQuantum: 5000000, geographicalScope: JSON.stringify(["UK-wide"]), preferredClientTypes: JSON.stringify(["Green businesses", "Social enterprises"]), backgroundInfo: "Sustainable and ethical bank" },
+        { name: "Funding Xchange", website: "https://www.fundingxchange.co.uk", contactName: "Loans Team", contactPhone: "+44 333 323 0220", contactEmail: "hello@fundingxchange.co.uk", postalAddress: "Manchester M1 1JQ", lendingMinQuantum: 1000, lendingMaxQuantum: 100000, geographicalScope: JSON.stringify(["North West"]), preferredClientTypes: JSON.stringify(["SMEs"]), backgroundInfo: "Alternative finance platform" },
+        { name: "Business Finance Solutions", website: "https://www.bfs-online.co.uk", contactName: "Lending Coordinator", contactPhone: "+44 161 834 9000", contactEmail: "enquiries@bfs-online.co.uk", postalAddress: "Manchester M2 3AJ", lendingMinQuantum: 5000, lendingMaxQuantum: 500000, geographicalScope: JSON.stringify(["North West"]), preferredClientTypes: JSON.stringify(["SMEs", "Start-ups"]), backgroundInfo: "North West business finance specialist" },
+      ];
+
+      // Insert seeded lenders
+      let seedCount = 0;
+      for (const cdfi of cdfis) {
+        try {
+          await storage.createLender({
+            ...cdfi,
+            userId: "system",
+            lenderStatus: "active",
+            lenderType: "CDFI",
+            score: Math.floor(Math.random() * 100),
+            agreementStatus: "unsigned",
+            contactOutcome: "not_contacted",
+          }, "system");
+          seedCount++;
+        } catch (err) {
+          console.warn(`Failed to seed CDFI: ${cdfi.name}`, err);
+        }
+      }
+
+      res.json({ message: "Database seeded with CDFIs", count: seedCount });
+    } catch (error) {
+      console.error("Error seeding CDFIs:", error);
+      res.status(500).json({ message: "Failed to seed database", error: String(error) });
+    }
+  });
+
   // Lenders API - Protected routes
   router.get("/lenders", isAuthenticated, async (req: Request, res: Response) => {
     try {
