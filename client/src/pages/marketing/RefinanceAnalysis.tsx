@@ -55,7 +55,7 @@ export default function RefinanceAnalysis() {
                         Your Cash Flow Forecast
                     </h1>
                     <p className="text-xl text-slate-500">
-                        Based on the data provided for <span className="font-semibold text-indigo-600">{companyName}</span>.
+                        Based on the data provided for <span className="font-semibold text-emerald-600">{companyName}</span>.
                     </p>
                 </div>
 
@@ -119,28 +119,28 @@ export default function RefinanceAnalysis() {
                         </Card>
 
                         {/* The Solution */}
-                        <Card className="shadow-xl border-indigo-200 bg-white relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
+                        <Card className="shadow-xl border-emerald-200 bg-white relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
                             <CardHeader>
-                                <CardTitle className="text-indigo-900">2026 Refinancing Plan</CardTitle>
+                                <CardTitle className="text-emerald-900">2026 Refinancing Plan</CardTitle>
                                 <CardDescription>Secure, long-term stability.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="flex justify-between items-center py-2 border-b border-indigo-50">
+                                <div className="flex justify-between items-center py-2 border-b border-emerald-50">
                                     <span className="text-slate-500 text-sm">New Payment</span>
-                                    <span className="font-bold text-indigo-700">£{Math.round(newPayment).toLocaleString()}/mo</span>
+                                    <span className="font-bold text-emerald-700">£{Math.round(newPayment).toLocaleString()}/mo</span>
                                 </div>
-                                <div className="flex justify-between items-center py-2 border-b border-indigo-50">
+                                <div className="flex justify-between items-center py-2 border-b border-emerald-50">
                                     <span className="text-slate-500 text-sm">Term</span>
-                                    <span className="font-bold text-indigo-700">60 Months</span>
+                                    <span className="font-bold text-emerald-700">60 Months</span>
                                 </div>
-                                <div className="flex justify-between items-center py-2 border-b border-indigo-50">
+                                <div className="flex justify-between items-center py-2 border-b border-emerald-50">
                                     <span className="text-slate-500 text-sm">Rate (Est.)</span>
-                                    <span className="font-bold text-indigo-700">~8.5%</span>
+                                    <span className="font-bold text-emerald-700">~8.5%</span>
                                 </div>
                             </CardContent>
                             <CardFooter>
-                                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 h-12 text-lg shadow-lg shadow-indigo-200" asChild>
+                                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 h-12 text-lg shadow-lg shadow-emerald-200" asChild>
                                     <Link href="/refinance/apply">
                                         Start Application <ArrowRight className="ml-2 w-4 h-4" />
                                     </Link>

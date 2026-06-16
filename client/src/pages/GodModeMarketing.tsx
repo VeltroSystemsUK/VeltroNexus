@@ -12,7 +12,7 @@ const PathDisplay = () => {
     return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
             <h2 className="text-2xl font-black uppercase tracking-widest opacity-20">Path Not Indexed</h2>
-            <p className="mt-2 font-bold text-xs uppercase tracking-widest text-indigo-400">Current Scope: {location}</p>
+            <p className="mt-2 font-bold text-xs uppercase tracking-widest text-emerald-400">Current Scope: {location}</p>
             <p className="mt-2 font-bold text-xs uppercase tracking-widest">Select a valid signal from the sidebar</p>
         </div>
     );

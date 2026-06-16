@@ -58,9 +58,9 @@ import { EMAIL_TEMPLATE_CATEGORIES } from "@shared/schema";
 const categoryColors: Record<string, string> = {
   cold_outreach: "bg-blue-500/20 text-blue-400",
   follow_up: "bg-amber-500/20 text-amber-400",
-  newsletter: "bg-purple-500/20 text-purple-400",
+  newsletter: "bg-emerald-500/20 text-emerald-400",
   announcement: "bg-emerald-500/20 text-emerald-400",
-  onboarding: "bg-cyan-500/20 text-cyan-400",
+  onboarding: "bg-emerald-500/20 text-emerald-400",
   re_engagement: "bg-orange-500/20 text-orange-400",
   custom: "bg-gray-500/20 text-muted-foreground",
 };

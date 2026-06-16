@@ -77,11 +77,11 @@ const EmailValidation: React.FC = () => {
           <p className="text-slate-400 mt-1">Multi-step validation including simulated SMTP handshake logic.</p>
         </div>
         <div className="flex items-center space-x-3 bg-white/5 p-2 rounded-2xl border border-white/10 backdrop-blur-md">
-          <Shield className={`w-4 h-4 ${isDeepMode ? 'text-indigo-400' : 'text-white/20'}`} />
+          <Shield className={`w-4 h-4 ${isDeepMode ? 'text-emerald-400' : 'text-white/20'}`} />
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deep SMTP Protocol</span>
           <button
             onClick={() => setIsDeepMode(!isDeepMode)}
-            className={`w-10 h-5 rounded-full relative transition-colors ${isDeepMode ? 'bg-indigo-600' : 'bg-white/10'}`}
+            className={`w-10 h-5 rounded-full relative transition-colors ${isDeepMode ? 'bg-emerald-600' : 'bg-white/10'}`}
           >
             <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isDeepMode ? 'left-6' : 'left-1'}`}></div>
           </button>
@@ -92,7 +92,7 @@ const EmailValidation: React.FC = () => {
         <div className="lg:col-span-4 space-y-6">
           <div className="antigravity-card p-6 rounded-3xl space-y-4">
             <div className="flex items-center space-x-2 mb-2">
-              <Plus className="w-4 h-4 text-indigo-400" />
+              <Plus className="w-4 h-4 text-emerald-400" />
               <h3 className="font-black text-white text-xs uppercase tracking-widest">Verify Batch</h3>
             </div>
             <textarea
@@ -101,13 +101,13 @@ const EmailValidation: React.FC = () => {
               value={manualInput}
               onChange={(e) => setManualInput(e.target.value)}
               placeholder="Enter emails (comma or newline separated)..."
-              className="w-full h-32 p-4 text-sm bg-black/40 border border-white/5 rounded-2xl focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all resize-none font-bold text-white placeholder:text-white/20"
+              className="w-full h-32 p-4 text-sm bg-black/40 border border-white/5 rounded-2xl focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all resize-none font-bold text-white placeholder:text-white/20"
               disabled={isProcessing}
             />
             <button
               onClick={handleStartVerification}
               disabled={isProcessing || !manualInput.trim()}
-              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-2xl hover:scale-[1.02] disabled:opacity-30 font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/10 transition-all flex items-center justify-center"
+              className="w-full py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-2xl hover:scale-[1.02] disabled:opacity-30 font-black uppercase tracking-widest text-xs shadow-lg shadow-emerald-500/10 transition-all flex items-center justify-center"
             >
               {isProcessing ? (
                 <span className="flex items-center">
@@ -137,7 +137,7 @@ const EmailValidation: React.FC = () => {
           )}
 
           <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
-            <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-6 flex items-center">
+            <h4 className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-6 flex items-center">
               <Activity className="w-3 h-3 mr-2" /> Signal Integrity
             </h4>
             <div className="space-y-4">
@@ -148,7 +148,7 @@ const EmailValidation: React.FC = () => {
               ].map((item, i) => (
                 <div key={i} className="flex justify-between items-center text-[11px]">
                   <span className="text-slate-500 font-bold uppercase tracking-wider">{item.label}</span>
-                  <span className={`${item.status === 'Deep' ? 'text-indigo-400' : 'text-emerald-400'} font-black flex items-center`}>
+                  <span className={`${item.status === 'Deep' ? 'text-emerald-400' : 'text-emerald-400'} font-black flex items-center`}>
                     <CheckCircle2 className="w-3 h-3 mr-1.5" /> {item.status}
                   </span>
                 </div>
@@ -169,7 +169,7 @@ const EmailValidation: React.FC = () => {
                   placeholder="Filter results..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-11 pr-6 py-2.5 bg-black/20 border border-white/5 rounded-xl text-xs w-72 focus:ring-1 focus:ring-indigo-500 outline-none text-white font-bold"
+                  className="pl-11 pr-6 py-2.5 bg-black/20 border border-white/5 rounded-xl text-xs w-72 focus:ring-1 focus:ring-emerald-500 outline-none text-white font-bold"
                 />
               </div>
               <button
@@ -210,7 +210,7 @@ const EmailValidation: React.FC = () => {
                               {item.qualityGrade}
                             </span>
                           </td>
-                          <td className="px-8 py-5 text-center font-mono text-[11px] font-black text-indigo-400">{item.deliverabilityScore}%</td>
+                          <td className="px-8 py-5 text-center font-mono text-[11px] font-black text-emerald-400">{item.deliverabilityScore}%</td>
                           <td className="px-8 py-5 text-right">
                             <div className="flex flex-col items-end space-y-2">
                               <span className={`text-[10px] font-black uppercase tracking-widest ${item.status === 'valid' ? 'text-emerald-500' : item.status === 'invalid' ? 'text-red-500' : 'text-amber-500'}`}>

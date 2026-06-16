@@ -60,7 +60,7 @@ const WITH_TRIAL = ["broker", "super_admin", "sales_admin", "trial_broker"];
 const navGroups: NavGroup[] = [
   {
     label: "Workplace",
-    color: "text-indigo-400",
+    color: "text-emerald-400",
     items: [
       { path: "/workforce", label: "Workforce", icon: Sparkles, roles: FULL },
       { path: "/admin", label: "Admin", icon: ShieldCheck, roles: ["super_admin", "sales_admin"] },
@@ -102,7 +102,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Underwriting",
-    color: "text-violet-400",
+    color: "text-emerald-400",
     items: [
       { path: "/underwriting", label: "Inbox", icon: Inbox, roles: FULL_UW },
       { path: "/credit-tools", label: "Credit Tools", icon: Calculator, roles: FULL_UW },

@@ -86,7 +86,7 @@ export default function RefinanceApplication() {
             <div className="max-w-3xl mx-auto">
 
                 <div className="mb-8">
-                    <Link href="/" className="text-sm text-indigo-600 hover:underline mb-4 block">&larr; Back to Home</Link>
+                    <Link href="/" className="text-sm text-emerald-600 hover:underline mb-4 block">&larr; Back to Home</Link>
                     <h1 className="text-3xl font-bold text-slate-900">Priority Refinance Application</h1>
                     <p className="text-slate-500 mt-2">Complete this form to secure your 2026 rate.</p>
                 </div>
@@ -97,7 +97,7 @@ export default function RefinanceApplication() {
                     <Card className="mb-6 shadow-md border-slate-200">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Building2 className="w-5 h-5 text-indigo-500" /> Company Details
+                                <Building2 className="w-5 h-5 text-emerald-500" /> Company Details
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-4">
@@ -121,7 +121,7 @@ export default function RefinanceApplication() {
                     <Card className="mb-6 shadow-md border-slate-200">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <User className="w-5 h-5 text-indigo-500" /> Director Information
+                                <User className="w-5 h-5 text-emerald-500" /> Director Information
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-4">
@@ -151,7 +151,7 @@ export default function RefinanceApplication() {
                     <Card className="mb-8 shadow-md border-slate-200">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <PoundSterling className="w-5 h-5 text-indigo-500" /> Financial Overview
+                                <PoundSterling className="w-5 h-5 text-emerald-500" /> Financial Overview
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="grid md:grid-cols-2 gap-4">
@@ -172,7 +172,7 @@ export default function RefinanceApplication() {
                         </CardContent>
                     </Card>
 
-                    <Button type="submit" size="lg" className="w-full bg-indigo-600 hover:bg-indigo-700 h-14 text-lg font-bold shadow-lg shadow-indigo-200" disabled={isSubmitting}>
+                    <Button type="submit" size="lg" className="w-full bg-emerald-600 hover:bg-emerald-700 h-14 text-lg font-bold shadow-lg shadow-emerald-200" disabled={isSubmitting}>
                         {isSubmitting ? (
                             <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Submitting Application...</>
                         ) : (

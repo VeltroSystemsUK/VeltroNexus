@@ -78,7 +78,7 @@ interface ConnectionStatus {
 
 const CATEGORY_COLORS = [
   "#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6",
-  "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
+  "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#10b981",
 ];
 
 const formatGBP = (amount: number, currency = "GBP") =>

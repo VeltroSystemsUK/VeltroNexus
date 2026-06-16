@@ -31,7 +31,7 @@ export default function Compliance() {
                             <CheckSquare className="h-4 w-4" />
                             Interactive Checklists
                         </TabsTrigger>
-                        <TabsTrigger value="assistant" className="flex items-center gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+                        <TabsTrigger value="assistant" className="flex items-center gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
                             <MessageSquare className="h-4 w-4" />
                             Regulatory Assistant
                         </TabsTrigger>

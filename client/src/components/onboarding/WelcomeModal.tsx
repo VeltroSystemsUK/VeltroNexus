@@ -40,8 +40,8 @@ const paths: {
         label: "Configure preferences",
         description: "Tailor the platform to your workflow",
         icon: Settings,
-        accent: "group-hover:text-violet-500",
-        iconBg: "bg-violet-500/10 text-violet-500",
+        accent: "group-hover:text-emerald-500",
+        iconBg: "bg-emerald-500/10 text-emerald-500",
         testId: "onboarding-path-settings",
     },
     {
@@ -83,7 +83,7 @@ export function WelcomeModal({ userName = "there" }: WelcomeModalProps) {
                 {/* ── Header ── */}
                 <div className="relative overflow-hidden px-8 pt-10 pb-9">
                     {/* Ambient glow */}
-                    <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl" />
+                    <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-48 w-48 rounded-full bg-emerald-500/20 blur-3xl" />
                     <div className="pointer-events-none absolute -bottom-8 -right-8 h-40 w-40 rounded-full bg-primary/10 blur-2xl" />
 
                     {/* Logo */}

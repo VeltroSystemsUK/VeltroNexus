@@ -45,10 +45,10 @@ const categoryColors: Record<string, string> = {
   business_corporate: "bg-blue-500/20 text-blue-400",
   finance_banking: "bg-emerald-500/20 text-emerald-400",
   property_real_estate: "bg-amber-500/20 text-amber-400",
-  professional_people: "bg-purple-500/20 text-purple-400",
-  technology_digital: "bg-cyan-500/20 text-cyan-400",
+  professional_people: "bg-emerald-500/20 text-emerald-400",
+  technology_digital: "bg-emerald-500/20 text-emerald-400",
   charts_data: "bg-orange-500/20 text-orange-400",
-  city_architecture: "bg-indigo-500/20 text-indigo-400",
+  city_architecture: "bg-emerald-500/20 text-emerald-400",
   abstract_backgrounds: "bg-pink-500/20 text-pink-400",
   uncategorised: "bg-gray-500/20 text-muted-foreground",
 };

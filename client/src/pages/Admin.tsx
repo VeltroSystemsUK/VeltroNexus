@@ -253,7 +253,7 @@ export default function Admin() {
       case "sales_admin":
         return <UserCog className="h-4 w-4 text-orange-500" />;
       case "underwriter":
-        return <Users className="h-4 w-4 text-purple-500" />;
+        return <Users className="h-4 w-4 text-emerald-500" />;
       default:
         return <Briefcase className="h-4 w-4 text-blue-500" />;
     }
@@ -266,7 +266,7 @@ export default function Admin() {
       case "sales_admin":
         return "bg-orange-500/10 text-orange-600 border-orange-500/20";
       case "underwriter":
-        return "bg-purple-500/10 text-purple-600 border-purple-500/20";
+        return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
       default:
         return "bg-blue-500/10 text-blue-600 border-blue-500/20";
     }
@@ -339,7 +339,7 @@ export default function Admin() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-2xl font-bold text-emerald-600">
                   {users?.filter((u) => u.role === "underwriter").length || 0}
                 </div>
               </CardContent>
@@ -412,7 +412,7 @@ export default function Admin() {
                             className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm border 
                             ${user.role === "super_admin" ? "bg-red-100 text-red-700 border-red-200" :
                                 user.role === "broker" ? "bg-blue-100 text-blue-700 border-blue-200" :
-                                  user.role === "underwriter" ? "bg-purple-100 text-purple-700 border-purple-200" :
+                                  user.role === "underwriter" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
                                     user.role === "sales_admin" ? "bg-orange-100 text-orange-700 border-orange-200" : // Mapped to Introducer/Sales Admin
                                       "bg-green-100 text-green-700 border-green-200" // Default/Team
                               }`}
@@ -431,7 +431,7 @@ export default function Admin() {
                           <span className="text-[10px] uppercase text-muted-foreground font-semibold">Plan</span>
                           <div className="h-8 w-8 flex items-center justify-center bg-muted rounded-md" title={user.subscriptionTier}>
                             {user.subscriptionTier === "lender" || user.subscriptionTier === "enterprise" ? <Crown className="h-4 w-4 text-amber-500" /> :
-                              user.subscriptionTier === "pro" || user.subscriptionTier === "premium" ? <Gem className="h-4 w-4 text-indigo-500" /> :
+                              user.subscriptionTier === "pro" || user.subscriptionTier === "premium" ? <Gem className="h-4 w-4 text-emerald-500" /> :
                                 user.subscriptionTier === "starter" || user.subscriptionTier === "basic" ? <Zap className="h-4 w-4 text-blue-500" /> :
                                   <Coffee className="h-4 w-4 text-slate-500" />}
                           </div>

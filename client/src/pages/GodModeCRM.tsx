@@ -285,8 +285,8 @@ export default function GodModeCRM() {
     const stages = [
         { id: "new", label: "New Lead", color: "bg-blue-500/10 border-blue-500/20 text-blue-500" },
         { id: "contacted", label: "Contacted", color: "bg-yellow-500/10 border-yellow-500/20 text-yellow-500" },
-        { id: "demo_booked", label: "Demo Booked", color: "bg-purple-500/10 border-purple-500/20 text-purple-500" },
-        { id: "trial", label: "Trial Active", color: "bg-indigo-500/10 border-indigo-500/20 text-indigo-500" },
+        { id: "demo_booked", label: "Demo Booked", color: "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" },
+        { id: "trial", label: "Trial Active", color: "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" },
         { id: "subscribed", label: "Subscribed", color: "bg-green-500/10 border-green-500/20 text-green-500" },
         { id: "churned", label: "Lost/Churned", color: "bg-red-500/10 border-red-500/20 text-red-500" },
     ];

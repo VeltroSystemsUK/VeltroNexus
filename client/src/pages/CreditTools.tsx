@@ -39,10 +39,10 @@ export default function CreditTools() {
 
     const tabOptions = [
         { id: "loan-calc", label: "Loans", icon: Calculator, color: "bg-primary" },
-        { id: "hire-purchase", label: "Hire Purchase", icon: Building2, color: "bg-cyan-600" },
+        { id: "hire-purchase", label: "Hire Purchase", icon: Building2, color: "bg-emerald-600" },
         { id: "dscr", label: "DSCR", icon: TrendingUp, color: "bg-emerald-600" },
         { id: "affordability", label: "Affordability", icon: Target, color: "bg-amber-600" },
-        { id: "ratios", label: "Ratios", icon: FileText, color: "bg-purple-600" },
+        { id: "ratios", label: "Ratios", icon: FileText, color: "bg-emerald-600" },
         { id: "character", label: "Character", icon: User, color: "bg-rose-600" },
     ];
 

@@ -17,9 +17,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Contact } from './types';
 
 const StatCard = ({ title, value, icon, change, trend }: any) => (
-  <div className="antigravity-card p-8 rounded-[2rem] transition-all duration-500 hover:scale-105 hover:shadow-[0_20px_50px_rgba(99,102,241,0.2)] group">
+  <div className="antigravity-card p-8 rounded-[2rem] transition-all duration-500 hover:scale-105 hover:shadow-[0_20px_50px_rgba(16, 185, 129,0.2)] group">
     <div className="flex justify-between items-start mb-6">
-      <div className="p-3 bg-indigo-500/20 rounded-2xl text-indigo-400 border border-indigo-500/30 group-hover:rotate-12 transition-transform">
+      <div className="p-3 bg-emerald-500/20 rounded-2xl text-emerald-400 border border-emerald-500/30 group-hover:rotate-12 transition-transform">
         {icon}
       </div>
       <div className={`flex items-center text-xs font-black px-2 py-1 rounded-full ${trend === 'up' ? 'text-emerald-400 bg-emerald-400/10' : 'text-slate-400 bg-slate-400/10'}`}>
@@ -45,7 +45,7 @@ const Dashboard: React.FC = () => {
 
   const chartData = [
     { name: 'Grade A', value: gradeA, color: '#10b981' },
-    { name: 'Grade B', value: gradeB, color: '#6366f1' },
+    { name: 'Grade B', value: gradeB, color: '#10b981' },
     { name: 'Risky/Other', value: contacts.length - (gradeA + gradeB), color: '#fbbf24' },
   ];
 
@@ -101,7 +101,7 @@ const Dashboard: React.FC = () => {
           </div>
           <button
             onClick={() => setLocation('/marketing/analytics')}
-            className="mt-10 w-full py-3.5 text-xs font-black uppercase tracking-widest text-indigo-400 hover:text-white hover:bg-indigo-500/20 rounded-2xl transition-all border border-indigo-500/20"
+            className="mt-10 w-full py-3.5 text-xs font-black uppercase tracking-widest text-emerald-400 hover:text-white hover:bg-emerald-500/20 rounded-2xl transition-all border border-emerald-500/20"
           >
             Access Archives
           </button>

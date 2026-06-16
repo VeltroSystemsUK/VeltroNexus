@@ -240,7 +240,7 @@ export default function ReplyToQueryDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5 text-purple-600" />
+            <Send className="h-5 w-5 text-emerald-600" />
             Reply to Underwriter Query
           </DialogTitle>
           <DialogDescription>
@@ -250,15 +250,15 @@ export default function ReplyToQueryDialog({
 
         <div className="space-y-6 py-4">
           {queryMessage && (
-            <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800">
+            <Card className="bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-medium text-sm text-purple-900 dark:text-purple-100 mb-1">
+                    <p className="font-medium text-sm text-emerald-900 dark:text-emerald-100 mb-1">
                       Underwriter Query:
                     </p>
-                    <p className="text-sm text-purple-800 dark:text-purple-200">{queryMessage}</p>
+                    <p className="text-sm text-emerald-800 dark:text-emerald-200">{queryMessage}</p>
                   </div>
                 </div>
               </CardContent>

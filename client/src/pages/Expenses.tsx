@@ -75,9 +75,9 @@ interface ReportData {
 
 const CATEGORIES: Record<string, { label: string; color: string; bg: string }> = {
   travel_mileage: { label: "Travel & Mileage", color: "text-blue-400", bg: "bg-blue-500/10" },
-  office_supplies: { label: "Office & Supplies", color: "text-indigo-400", bg: "bg-indigo-500/10" },
-  telecoms: { label: "Telecoms", color: "text-cyan-400", bg: "bg-cyan-500/10" },
-  professional_services: { label: "Professional Services", color: "text-violet-400", bg: "bg-violet-500/10" },
+  office_supplies: { label: "Office & Supplies", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+  telecoms: { label: "Telecoms", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+  professional_services: { label: "Professional Services", color: "text-emerald-400", bg: "bg-emerald-500/10" },
   marketing_advertising: { label: "Marketing & Advertising", color: "text-amber-400", bg: "bg-amber-500/10" },
   insurance: { label: "Insurance", color: "text-emerald-400", bg: "bg-emerald-500/10" },
   training_development: { label: "Training & Development", color: "text-pink-400", bg: "bg-pink-500/10" },
@@ -413,8 +413,8 @@ export default function Expenses() {
             label: "This Month",
             value: formatGBP(thisMonthTotal),
             icon: TrendingUp,
-            color: "text-violet-400",
-            bg: "bg-violet-500/10",
+            color: "text-emerald-400",
+            bg: "bg-emerald-500/10",
           },
         ].map((card) => {
           const Icon = card.icon;

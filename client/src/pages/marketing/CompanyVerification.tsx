@@ -81,9 +81,9 @@ const CompanyVerification: React.FC = () => {
           <h2 className="text-3xl font-black text-white tracking-tighter">Entity Intelligence</h2>
           <p className="text-slate-400 mt-1">Direct synchronization with Companies House and Neural Social Graphing.</p>
         </div>
-        <form onSubmit={handleSearch} className="flex-1 max-w-xl flex items-center bg-black/40 border border-white/10 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all shadow-2xl">
+        <form onSubmit={handleSearch} className="flex-1 max-w-xl flex items-center bg-black/40 border border-white/10 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/50 transition-all shadow-2xl">
           <div className="pl-5 pr-2">
-            {isSearching ? <Loader2 className="w-5 h-5 animate-spin text-indigo-400" /> : <Search className="w-5 h-5 text-white/20" />}
+            {isSearching ? <Loader2 className="w-5 h-5 animate-spin text-emerald-400" /> : <Search className="w-5 h-5 text-white/20" />}
           </div>
           <input
             type="text"
@@ -94,7 +94,7 @@ const CompanyVerification: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-1 py-4 px-3 outline-none bg-transparent text-white font-bold placeholder:text-white/20"
           />
-          <button type="submit" className="bg-indigo-600 text-white px-8 py-4 font-black uppercase tracking-widest text-[10px] hover:bg-indigo-500 transition-colors">
+          <button type="submit" className="bg-emerald-600 text-white px-8 py-4 font-black uppercase tracking-widest text-[10px] hover:bg-emerald-500 transition-colors">
             Scan Registry
           </button>
         </form>
@@ -107,7 +107,7 @@ const CompanyVerification: React.FC = () => {
               key={c.companyNumber}
               onClick={() => handleSelectCompany(c)}
               className={`p-6 rounded-3xl border cursor-pointer transition-all duration-500 ${selectedCompany?.companyNumber === c.companyNumber
-                ? 'border-indigo-500/50 bg-indigo-500/10 shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.02]'
+                ? 'border-emerald-500/50 bg-emerald-500/10 shadow-[0_0_30px_rgba(16, 185, 129,0.15)] scale-[1.02]'
                 : 'border-white/5 bg-white/5 hover:bg-white/10'
                 }`}
             >
@@ -138,10 +138,10 @@ const CompanyVerification: React.FC = () => {
         <div className="lg:col-span-8">
           {selectedCompany ? (
             <div className="antigravity-card rounded-[2.5rem] overflow-hidden animate-in zoom-in-95 duration-500">
-              <div className="p-10 bg-indigo-600/10 border-b border-white/5 flex justify-between items-center">
+              <div className="p-10 bg-emerald-600/10 border-b border-white/5 flex justify-between items-center">
                 <div>
                   <h3 className="text-3xl font-black tracking-tighter text-white">{selectedCompany.companyName}</h3>
-                  <p className="text-indigo-400 font-black uppercase tracking-widest text-[10px] mt-1">Entity Verification Record</p>
+                  <p className="text-emerald-400 font-black uppercase tracking-widest text-[10px] mt-1">Entity Verification Record</p>
                 </div>
                 <div className="flex flex-col items-end">
                   <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-3 ${selectedCompany.riskLevel === 'low' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
@@ -174,16 +174,16 @@ const CompanyVerification: React.FC = () => {
 
                   <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
                     <div className="flex items-center space-x-3 mb-6">
-                      <Linkedin className="w-5 h-5 text-indigo-400" />
+                      <Linkedin className="w-5 h-5 text-emerald-400" />
                       <h4 className="text-xs font-black text-white uppercase tracking-widest">Neural Graph Findings</h4>
                     </div>
                     {isSearchingSocial ? (
-                      <div className="flex flex-col items-center py-8"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
+                      <div className="flex flex-col items-center py-8"><Loader2 className="w-6 h-6 text-emerald-400 animate-spin" /></div>
                     ) : socialProfiles.length > 0 ? (
                       <div className="space-y-3">
                         {socialProfiles.map((p, i) => (
-                          <a key={i} href={p.url} target="_blank" className="flex items-center justify-between p-3.5 bg-black/40 border border-white/5 rounded-2xl hover:border-indigo-400/50 transition-all group">
-                            <span className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors">{p.name}</span>
+                          <a key={i} href={p.url} target="_blank" className="flex items-center justify-between p-3.5 bg-black/40 border border-white/5 rounded-2xl hover:border-emerald-400/50 transition-all group">
+                            <span className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">{p.name}</span>
                             <ExternalLink className="w-3 h-3 text-white/20" />
                           </a>
                         ))}
@@ -193,13 +193,13 @@ const CompanyVerification: React.FC = () => {
                 </div>
 
                 <div className="space-y-10">
-                  <div className="bg-gradient-to-br from-indigo-500/10 to-transparent p-8 rounded-3xl border border-indigo-500/20">
+                  <div className="bg-gradient-to-br from-emerald-500/10 to-transparent p-8 rounded-3xl border border-emerald-500/20">
                     <div className="flex items-center space-x-3 mb-6">
-                      <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
                       <h4 className="text-xs font-black text-white uppercase tracking-widest">Signal Synthesis</h4>
                     </div>
                     {isAnalyzing ? (
-                      <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto" />
+                      <Loader2 className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
                     ) : (
                       <p className="text-sm text-slate-300 leading-relaxed font-bold italic opacity-80">
                         {analysis || "Select an entity for automated financial capability analysis."}

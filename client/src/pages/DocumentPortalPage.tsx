@@ -41,13 +41,13 @@ export default function DocumentPortalPage() {
     return (
         <div className="min-h-screen bg-slate-50">
             {/* Header */}
-            <header className="bg-white border-b border-indigo-50 shadow-sm sticky top-0 z-10">
+            <header className="bg-white border-b border-emerald-50 shadow-sm sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="bg-indigo-600 p-1.5 rounded-lg">
+                        <div className="bg-emerald-600 p-1.5 rounded-lg">
                             <ShieldCheck className="w-5 h-5 text-white" />
                         </div>
-                        <span className="font-bold text-xl text-slate-900 tracking-tight">Veltro<span className="text-indigo-600">Secure</span></span>
+                        <span className="font-bold text-xl text-slate-900 tracking-tight">Veltro<span className="text-emerald-600">Secure</span></span>
                     </div>
                     <div className="text-xs text-slate-500 hidden sm:block">
                         <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> 256-bit Encryption</span>

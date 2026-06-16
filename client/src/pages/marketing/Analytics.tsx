@@ -24,7 +24,7 @@ import { Contact } from './types';
 const AnalyticsCard = ({ title, value, subValue, icon, color }: any) => (
   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
     <div className="flex items-center space-x-4">
-      <div className={`p-3 rounded-xl bg-indigo-50 text-indigo-600`}>
+      <div className={`p-3 rounded-xl bg-emerald-50 text-emerald-600`}>
         {icon}
       </div>
       <div>
@@ -49,7 +49,7 @@ const Analytics: React.FC = () => {
 
   const gradeDistribution = [
     { name: 'Grade A', value: gradeA, color: '#10b981' },
-    { name: 'Grade B', value: gradeB, color: '#6366f1' },
+    { name: 'Grade B', value: gradeB, color: '#10b981' },
     { name: 'Risky/Other', value: others, color: '#fbbf24' },
   ].filter(g => g.value > 0);
 
@@ -79,15 +79,15 @@ const Analytics: React.FC = () => {
               <AreaChart data={campaignData}>
                 <defs>
                   <linearGradient id="colorOpens" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip />
-                <Area type="monotone" dataKey="opens" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorOpens)" />
+                <Area type="monotone" dataKey="opens" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorOpens)" />
                 <Area type="monotone" dataKey="clicks" stroke="#10b981" strokeWidth={3} fill="transparent" />
               </AreaChart>
             </ResponsiveContainer>

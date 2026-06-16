@@ -73,7 +73,7 @@ const underwritingStatusConfig: Record<string, { label: string; className: strin
   in_review: {
     label: "In Review",
     className:
-      "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 border-purple-200 dark:border-purple-800",
+      "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800",
   },
   queried: {
     label: "Queried",

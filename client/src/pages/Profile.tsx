@@ -373,7 +373,7 @@ export default function Profile() {
                 {roleData?.role === "super_admin" && <Shield className="h-5 w-5 text-red-500" />}
                 {roleData?.role === "sales_admin" && <UserCog className="h-5 w-5 text-orange-500" />}
                 {roleData?.role === "broker" && <Briefcase className="h-5 w-5 text-primary" />}
-                {roleData?.role === "underwriter" && <Users className="h-5 w-5 text-purple-500" />}
+                {roleData?.role === "underwriter" && <Users className="h-5 w-5 text-emerald-500" />}
                 <div>
                   <p className="font-medium">
                     Current Role:{" "}
@@ -419,7 +419,7 @@ export default function Profile() {
                   </SelectItem>
                   <SelectItem value="underwriter" data-testid="option-underwriter">
                     <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-purple-500" />
+                      <Users className="h-4 w-4 text-emerald-500" />
                       Underwriter
                     </div>
                   </SelectItem>

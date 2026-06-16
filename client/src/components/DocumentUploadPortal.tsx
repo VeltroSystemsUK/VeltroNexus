@@ -118,7 +118,7 @@ export function DocumentUploadPortal({ prospectId, className }: DocumentPortalPr
     if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center p-12 space-y-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
                 <p className="text-slate-500">Retrieving secure session...</p>
             </div>
         );
@@ -134,10 +134,10 @@ export function DocumentUploadPortal({ prospectId, className }: DocumentPortalPr
 
             {/* Sidebar / Top Summary */}
             <div className="lg:col-span-1 space-y-6">
-                <Card className="border-indigo-100 shadow-sm">
+                <Card className="border-emerald-100 shadow-sm">
                     <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
                         <CardTitle className="text-lg flex items-center gap-2">
-                            <Building2 className="w-5 h-5 text-indigo-600" />
+                            <Building2 className="w-5 h-5 text-emerald-600" />
                             Application Summary
                         </CardTitle>
                     </CardHeader>
@@ -162,21 +162,21 @@ export function DocumentUploadPortal({ prospectId, className }: DocumentPortalPr
                         </div>
                         <div>
                             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Deal Type</p>
-                            <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200 uppercase text-[10px]">
+                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 uppercase text-[10px]">
                                 {data?.dealType.replace(/_/g, " ")}
                             </Badge>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-indigo-600 text-white border-none shadow-md hidden lg:block">
+                <Card className="bg-emerald-600 text-white border-none shadow-md hidden lg:block">
                     <CardContent className="pt-6">
                         <h3 className="font-semibold text-lg mb-2">Need Help?</h3>
-                        <p className="text-indigo-100 text-sm mb-4">
+                        <p className="text-emerald-100 text-sm mb-4">
                             If you're unsure about any document, please contact your Case Manager.
                         </p>
                         <div className="flex items-center gap-3 text-sm font-medium">
-                            <div className="p-2 bg-indigo-500 rounded-full">
+                            <div className="p-2 bg-emerald-500 rounded-full">
                                 <Phone className="w-4 h-4" />
                             </div>
                             020 7123 4567
@@ -196,7 +196,7 @@ export function DocumentUploadPortal({ prospectId, className }: DocumentPortalPr
                     </div>
                     <div className="w-full sm:w-32 bg-slate-100 rounded-full h-3 overflow-hidden">
                         <div
-                            className="bg-indigo-600 h-full transition-all duration-700 ease-out"
+                            className="bg-emerald-600 h-full transition-all duration-700 ease-out"
                             style={{ width: `${progress}%` }}
                         />
                     </div>
@@ -206,7 +206,7 @@ export function DocumentUploadPortal({ prospectId, className }: DocumentPortalPr
                     {checklist.map((item) => (
                         <Card key={item.id} className={cn(
                             "transition-all duration-200 border",
-                            item.status === "uploaded" ? "border-green-200 bg-green-50/30" : "border-slate-200 hover:border-indigo-300"
+                            item.status === "uploaded" ? "border-green-200 bg-green-50/30" : "border-slate-200 hover:border-emerald-300"
                         )}>
                             <div className="p-5">
                                 <div className="flex items-start gap-4">
@@ -228,8 +228,8 @@ export function DocumentUploadPortal({ prospectId, className }: DocumentPortalPr
                                         <p className="text-slate-600 text-sm">{item.description}</p>
 
                                         {item.longDescription && item.status !== "uploaded" && (
-                                            <div className="mt-3 text-sm bg-indigo-50/50 p-3 rounded-lg border border-indigo-100/50 text-indigo-900 flex gap-2">
-                                                <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                                            <div className="mt-3 text-sm bg-emerald-50/50 p-3 rounded-lg border border-emerald-100/50 text-emerald-900 flex gap-2">
+                                                <Info className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                                                 <span>{item.longDescription}</span>
                                             </div>
                                         )}
@@ -261,7 +261,7 @@ export function DocumentUploadPortal({ prospectId, className }: DocumentPortalPr
                                                     <Button
                                                         size="lg"
                                                         className={cn(
-                                                            "bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all active:scale-95",
+                                                            "bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all active:scale-95",
                                                             uploading === item.id && "opacity-70"
                                                         )}
                                                         asChild

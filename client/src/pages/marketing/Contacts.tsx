@@ -29,7 +29,7 @@ const Contacts: React.FC = () => {
           <button className="flex items-center px-6 py-3 bg-white/5 border border-white/10 text-white rounded-2xl hover:bg-white/10 transition-all font-black text-[10px] uppercase tracking-widest">
             Export Signal Data
           </button>
-          <button className="flex items-center px-8 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-500 transition-all font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-500/20">
+          <button className="flex items-center px-8 py-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-500 transition-all font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">
             <UserPlus className="w-4 h-4 mr-3" /> Add Entity
           </button>
         </div>
@@ -46,7 +46,7 @@ const Contacts: React.FC = () => {
               placeholder="Query by name, email or corporation..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-6 py-3.5 bg-black/20 border border-white/5 rounded-2xl text-xs font-black text-white focus:ring-1 focus:ring-indigo-500 outline-none"
+              className="w-full pl-12 pr-6 py-3.5 bg-black/20 border border-white/5 rounded-2xl text-xs font-black text-white focus:ring-1 focus:ring-emerald-500 outline-none"
             />
           </div>
           <div className="flex items-center space-x-3">
@@ -59,7 +59,7 @@ const Contacts: React.FC = () => {
         <div className="overflow-x-auto min-h-[300px]">
           {isLoading ? (
             <div className="py-32 text-center">
-              <Loader2 className="w-12 h-12 mx-auto text-indigo-500 animate-spin mb-6" />
+              <Loader2 className="w-12 h-12 mx-auto text-emerald-500 animate-spin mb-6" />
               <p className="text-slate-500 font-black text-xs uppercase tracking-widest">Querying Archive...</p>
             </div>
           ) : filteredContacts.length > 0 ? (
@@ -78,7 +78,7 @@ const Contacts: React.FC = () => {
                   <tr key={c.id} className="hover:bg-white/5 transition-colors group">
                     <td className="px-10 py-6">
                       <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-gradient-to-tr from-indigo-500/20 to-cyan-500/20 text-white rounded-2xl flex items-center justify-center font-black text-sm border border-white/10">
+                        <div className="w-12 h-12 bg-gradient-to-tr from-emerald-500/20 to-emerald-500/20 text-white rounded-2xl flex items-center justify-center font-black text-sm border border-white/10">
                           {c.firstName?.[0] || '?'}{c.lastName?.[0] || ''}
                         </div>
                         <div>

@@ -67,7 +67,7 @@ import {
 const statusColors: Record<string, string> = {
   submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
   in_review: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
-  queried: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200",
+  queried: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
   approved: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200",
   declined: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200",
   withdrawn: "bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200",
@@ -337,8 +337,8 @@ export default function UnderwriterInbox() {
             <AreaChart data={analyticsData.trend}>
               <defs>
                 <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <RechartsTooltip
@@ -346,7 +346,7 @@ export default function UnderwriterInbox() {
                 itemStyle={{ color: '#fff' }}
                 cursor={{ stroke: '#334155' }}
               />
-              <Area type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorCount)" />
+              <Area type="monotone" dataKey="count" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCount)" />
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>

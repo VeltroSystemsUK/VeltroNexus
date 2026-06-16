@@ -70,7 +70,7 @@ const SectionIcon = ({ section }: { section: PdfSection }) => {
     if (section.subtype === "pageBreak") return <ArrowDownToLine className="h-4 w-4 text-orange-500" />;
     if (section.subtype === "divider") return <SeparatorHorizontal className="h-4 w-4 text-gray-500" />;
     if (section.subtype === "spacer") return <Minus className="h-4 w-4 text-gray-400" />;
-    if (section.subtype === "2-column") return <Columns className="h-4 w-4 text-purple-500" />;
+    if (section.subtype === "2-column") return <Columns className="h-4 w-4 text-emerald-500" />;
     return <LayoutTemplate className="h-4 w-4" />;
 };
 

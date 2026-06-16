@@ -43,8 +43,8 @@ const activityIcons: Record<string, any> = {
 const activityColors: Record<string, string> = {
   submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
   claimed: "bg-slate-100 text-slate-800 dark:bg-slate-900/50 dark:text-slate-200",
-  queried: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200",
-  responded: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-200",
+  queried: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
+  responded: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
   approved: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200",
   declined: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200",
   withdrawn: "bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200",
@@ -159,10 +159,10 @@ export default function ConversationThread({
                   {format(new Date(activity.createdAt), "dd MMM, HH:mm")}
                 </span>
                 <Icon
-                  className={`h-3.5 w-3.5 flex-shrink-0 ${isUnderwriter ? "text-purple-600" : "text-blue-600"}`}
+                  className={`h-3.5 w-3.5 flex-shrink-0 ${isUnderwriter ? "text-emerald-600" : "text-blue-600"}`}
                 />
                 <span
-                  className={`font-medium ${isUnderwriter ? "text-purple-700 dark:text-purple-400" : "text-blue-700 dark:text-blue-400"}`}
+                  className={`font-medium ${isUnderwriter ? "text-emerald-700 dark:text-emerald-400" : "text-blue-700 dark:text-blue-400"}`}
                 >
                   {label}
                 </span>

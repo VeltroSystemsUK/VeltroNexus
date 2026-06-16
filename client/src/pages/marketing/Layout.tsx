@@ -44,9 +44,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/marketing', icon: <LayoutDashboard className="w-4 h-4 mr-2" />, label: 'Dashboard', value: 'dashboard', color: 'bg-primary' },
     { to: '/marketing/validate', icon: <MailCheck className="w-4 h-4 mr-2" />, label: 'Verification', value: 'validate', color: 'bg-emerald-600' },
     { to: '/marketing/companies', icon: <Building2 className="w-4 h-4 mr-2" />, label: 'Companies', value: 'companies', color: 'bg-blue-600' },
-    { to: '/marketing/contacts', icon: <Users className="w-4 h-4 mr-2" />, label: 'Contacts', value: 'contacts', color: 'bg-purple-600' },
+    { to: '/marketing/contacts', icon: <Users className="w-4 h-4 mr-2" />, label: 'Contacts', value: 'contacts', color: 'bg-emerald-600' },
     { to: '/marketing/campaigns', icon: <Send className="w-4 h-4 mr-2" />, label: 'Campaigns', value: 'campaigns', color: 'bg-amber-600' },
-    { to: '/marketing/analytics', icon: <BarChart3 className="w-4 h-4 mr-2" />, label: 'Analytics', value: 'analytics', color: 'bg-cyan-600' },
+    { to: '/marketing/analytics', icon: <BarChart3 className="w-4 h-4 mr-2" />, label: 'Analytics', value: 'analytics', color: 'bg-emerald-600' },
   ];
 
   // Determine active tab based on location

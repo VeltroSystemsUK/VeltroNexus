@@ -41,7 +41,7 @@ const CampaignBuilder: React.FC = () => {
       <div className="flex items-center justify-center space-x-12">
         {[1, 2, 3].map((s) => (
           <div key={s} className="flex flex-col items-center group cursor-pointer" onClick={() => step > s && setStep(s)}>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all duration-500 border-2 ${step === s ? 'bg-indigo-600 text-white border-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.5)] scale-110' :
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all duration-500 border-2 ${step === s ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_30px_rgba(16, 185, 129,0.5)] scale-110' :
               step > s ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-white/5 text-white/20 border-white/10'
               }`}>
               {s}
@@ -71,7 +71,7 @@ const CampaignBuilder: React.FC = () => {
                     name="campaign-name"
                     value={campaign.name}
                     onChange={e => setCampaign({ ...campaign, name: e.target.value })}
-                    className="w-full px-6 py-4 bg-black/40 text-white border border-white/10 rounded-2xl focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-black"
+                    className="w-full px-6 py-4 bg-black/40 text-white border border-white/10 rounded-2xl focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all font-black"
                   />
                 </div>
                 <div className="space-y-3">
@@ -82,7 +82,7 @@ const CampaignBuilder: React.FC = () => {
                     name="campaign-subject"
                     value={campaign.subject}
                     onChange={e => setCampaign({ ...campaign, subject: e.target.value })}
-                    className="w-full px-6 py-4 bg-black/40 text-white border border-white/10 rounded-2xl focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-black"
+                    className="w-full px-6 py-4 bg-black/40 text-white border border-white/10 rounded-2xl focus:ring-2 focus:ring-emerald-500/50 outline-none transition-all font-black"
                   />
                 </div>
               </div>
@@ -114,12 +114,12 @@ const CampaignBuilder: React.FC = () => {
             <div className="w-full lg:w-[400px] border-r border-white/5 p-10 space-y-10 bg-white/2 backdrop-blur-2xl overflow-y-auto">
               <div>
                 <h3 className="text-xs font-black text-white uppercase tracking-[0.3em] mb-6 flex items-center">
-                  <Zap className="w-4 h-4 mr-3 text-indigo-400" /> AI Core
+                  <Zap className="w-4 h-4 mr-3 text-emerald-400" /> AI Core
                 </h3>
                 <button
                   onClick={handleAiDraft}
                   disabled={isGenerating}
-                  className="w-full py-5 px-6 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-30"
+                  className="w-full py-5 px-6 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-30"
                 >
                   {isGenerating ? "Synthesizing Draft..." : "Generate Neural Template"}
                 </button>
@@ -133,7 +133,7 @@ const CampaignBuilder: React.FC = () => {
                   {['firstName', 'companyName', 'sector'].map(tag => (
                     <button
                       key={tag}
-                      className="px-4 py-3 bg-black/40 border border-white/5 rounded-xl text-[10px] font-black text-white/60 hover:border-indigo-500 hover:text-indigo-400 transition-all"
+                      className="px-4 py-3 bg-black/40 border border-white/5 rounded-xl text-[10px] font-black text-white/60 hover:border-emerald-500 hover:text-emerald-400 transition-all"
                       onClick={() => setCampaign({ ...campaign, content: campaign.content + ` {{${tag}}}` })}
                     >
                       {`{{${tag}}}`}
@@ -177,7 +177,7 @@ const CampaignBuilder: React.FC = () => {
             </div>
 
             <div className="flex justify-center space-x-6">
-              <button className="px-12 py-5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs hover:shadow-[0_0_60px_rgba(99,102,241,0.6)] transition-all">
+              <button className="px-12 py-5 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs hover:shadow-[0_0_60px_rgba(16, 185, 129,0.6)] transition-all">
                 Execute Launch
               </button>
             </div>

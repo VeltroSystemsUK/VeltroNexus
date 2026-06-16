@@ -99,7 +99,7 @@ const campaignStatusConfig: Record<string, { label: string; color: string; icon:
 const recipientStatusConfig: Record<string, { label: string; color: string }> = {
   pending: { label: "Pending", color: "bg-gray-500/20 text-muted-foreground" },
   sent: { label: "Sent", color: "bg-blue-500/20 text-blue-400" },
-  delivered: { label: "Delivered", color: "bg-cyan-500/20 text-cyan-400" },
+  delivered: { label: "Delivered", color: "bg-emerald-500/20 text-emerald-400" },
   opened: { label: "Opened", color: "bg-emerald-500/20 text-emerald-400" },
   clicked: { label: "Clicked", color: "bg-primary/20 text-primary" },
   bounced: { label: "Bounced", color: "bg-red-500/20 text-red-400" },
@@ -835,7 +835,7 @@ export default function EmailCampaigns() {
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                               {[
                                 { label: "Sent", value: expandedAnalytics?.totalSent ?? campaign.totalSent, icon: Send, color: "text-blue-500" },
-                                { label: "Delivered", value: expandedAnalytics?.totalDelivered ?? campaign.totalDelivered, icon: CheckCircle, color: "text-cyan-500" },
+                                { label: "Delivered", value: expandedAnalytics?.totalDelivered ?? campaign.totalDelivered, icon: CheckCircle, color: "text-emerald-500" },
                                 { label: "Opened", value: expandedAnalytics?.totalOpened ?? campaign.totalOpened, icon: Eye, color: "text-emerald-500" },
                                 { label: "Clicked", value: expandedAnalytics?.totalClicked ?? campaign.totalClicked, icon: MousePointerClick, color: "text-primary" },
                                 { label: "Bounced", value: expandedAnalytics?.totalBounced ?? campaign.totalBounced, icon: AlertTriangle, color: "text-red-500" },

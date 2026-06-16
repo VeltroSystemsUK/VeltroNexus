@@ -212,7 +212,7 @@ export default function Teams() {
       case "sales_admin":
         return <UserCog className="h-4 w-4 text-orange-500" />;
       case "underwriter":
-        return <Users className="h-4 w-4 text-purple-500" />;
+        return <Users className="h-4 w-4 text-emerald-500" />;
       default:
         return <Briefcase className="h-4 w-4" />;
     }

@@ -201,7 +201,7 @@ export default function Landing() {
           {/* Animated Background Elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/20 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]" />
-            <div className="absolute top-40 right-[15%] w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-[pulse_6s_ease-in-out_infinite_1s]" />
+            <div className="absolute top-40 right-[15%] w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-[pulse_6s_ease-in-out_infinite_1s]" />
             <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/15 rounded-full blur-3xl animate-[pulse_5s_ease-in-out_infinite_2s]" />
 
             <div className="absolute inset-0 opacity-[0.03] landing-grid-bg" />
@@ -209,7 +209,7 @@ export default function Landing() {
             <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-60 animate-[floatParticle_8s_ease-in-out_infinite]" />
             <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-40 animate-[floatParticle_6s_ease-in-out_infinite_1s]" />
             <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-50 animate-[floatParticle_10s_ease-in-out_infinite_2s]" />
-            <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-indigo-400 rounded-full opacity-30 animate-[floatParticle_7s_ease-in-out_infinite_3s]" />
+            <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-emerald-400 rounded-full opacity-30 animate-[floatParticle_7s_ease-in-out_infinite_3s]" />
             <div className="absolute bottom-1/3 right-1/2 w-1.5 h-1.5 bg-[#D97706] rounded-full opacity-40 animate-[floatParticle_9s_ease-in-out_infinite_4s]" />
 
             <div className="absolute top-0 left-0 w-full h-full">
@@ -516,11 +516,11 @@ export default function Landing() {
             <Card className="bg-white/[0.03] border-white/[0.06] backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="grid grid-cols-1 lg:grid-cols-5">
-                  <div className="lg:col-span-2 bg-gradient-to-br from-indigo-500/15 to-[#1e293b] p-8 flex flex-col items-center justify-center min-h-[200px]">
-                    <div className="w-20 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4 animate-[float_3s_ease-in-out_infinite]">
-                      <BarChart3 className="h-10 w-10 text-indigo-400" />
+                  <div className="lg:col-span-2 bg-gradient-to-br from-emerald-500/15 to-[#1e293b] p-8 flex flex-col items-center justify-center min-h-[200px]">
+                    <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-4 animate-[float_3s_ease-in-out_infinite]">
+                      <BarChart3 className="h-10 w-10 text-emerald-400" />
                     </div>
-                    <Badge className="bg-indigo-500/20 text-indigo-400 border-indigo-500/30">
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
                       In Development
                     </Badge>
                   </div>
@@ -546,7 +546,7 @@ export default function Landing() {
                         "Weekly summary reports sent straight to your inbox — no chasing required",
                       ].map((item, i) => (
                         <div key={i} className="flex items-start gap-3">
-                          <CheckCircle className="h-5 w-5 text-indigo-400 mt-0.5 shrink-0" />
+                          <CheckCircle className="h-5 w-5 text-emerald-400 mt-0.5 shrink-0" />
                           <span className="text-gray-300 text-sm">{item}</span>
                         </div>
                       ))}

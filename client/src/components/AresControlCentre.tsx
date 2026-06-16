@@ -148,7 +148,7 @@ export function AresControlCentre() {
                         <Button
                             onClick={() => runMutation.mutate()}
                             disabled={runMutation.isPending}
-                            className="bg-indigo-600 hover:bg-indigo-700"
+                            className="bg-emerald-600 hover:bg-emerald-700"
                         >
                             <Play className="w-4 h-4 mr-2" />
                             {runMutation.isPending ? "Running..." : "Run ARES Loop"}

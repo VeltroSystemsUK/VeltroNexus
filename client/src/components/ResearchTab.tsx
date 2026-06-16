@@ -165,7 +165,7 @@ function AIActionButton({ action, label }: { action: string; label: string }) {
             size="sm"
             onClick={handleClick}
             disabled={loading}
-            className="gap-1 text-xs h-7 px-2 border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-700"
+            className="gap-1 text-xs h-7 px-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
         >
             <Sparkles className="h-3 w-3" />
             {loading ? "Processing..." : label}
@@ -428,7 +428,7 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base flex items-center gap-2">
-                                <Target className="h-4 w-4 text-purple-600" />
+                                <Target className="h-4 w-4 text-emerald-600" />
                                 Purpose
                             </CardTitle>
                         </CardHeader>
@@ -452,7 +452,7 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base flex items-center gap-2">
-                                <CreditCard className="h-4 w-4 text-indigo-600" />
+                                <CreditCard className="h-4 w-4 text-emerald-600" />
                                 Repayment
                             </CardTitle>
                         </CardHeader>
@@ -678,7 +678,7 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                     <Card className="md:col-span-2">
                         <CardHeader>
                             <CardTitle className="text-base flex items-center gap-2">
-                                <Shield className="h-4 w-4 text-purple-600" />
+                                <Shield className="h-4 w-4 text-emerald-600" />
                                 Security Position
                             </CardTitle>
                         </CardHeader>
@@ -749,12 +749,12 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                                 <p className="text-sm text-amber-600">Concentration Limit</p>
                             </CardContent>
                         </Card>
-                        <Card className="bg-purple-50 border-purple-200">
+                        <Card className="bg-emerald-50 border-emerald-200">
                             <CardContent className="pt-4">
-                                <div className="text-2xl font-bold text-purple-700">
+                                <div className="text-2xl font-bold text-emerald-700">
                                     {ledgerData.risk_factors.dilution_rate_percent || 0}%
                                 </div>
-                                <p className="text-sm text-purple-600">Dilution Rate</p>
+                                <p className="text-sm text-emerald-600">Dilution Rate</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -1058,7 +1058,7 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                     <Card className="md:col-span-2">
                         <CardHeader>
                             <CardTitle className="text-base flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4 text-purple-600" />
+                                <TrendingUp className="h-4 w-4 text-emerald-600" />
                                 Income & Yield
                             </CardTitle>
                         </CardHeader>

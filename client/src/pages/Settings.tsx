@@ -128,7 +128,7 @@ export interface PipelineStage {
 
 export const DEFAULT_STAGES: PipelineStage[] = [
   { id: "lead", label: "Lead", color: "#3B82F6" },
-  { id: "contacted", label: "Contacted", color: "#6366F1" },
+  { id: "contacted", label: "Contacted", color: "#10b981" },
   { id: "qualified", label: "Qualified", color: "#8B5CF6" },
   { id: "proposal", label: "Proposal", color: "#EC4899" },
   { id: "due-diligence", label: "Due Diligence", color: "#F43F5E" },
@@ -704,7 +704,7 @@ export default function Settings() {
     { id: "general", label: "General", icon: SettingsIcon, color: "bg-primary" },
     { id: "integrations", label: "Integrations", icon: Zap, color: "bg-blue-600" },
     { id: "crm", label: "CRM", icon: Users, color: "bg-emerald-600" },
-    { id: "reports", label: "Reports", icon: FileText, color: "bg-purple-600" },
+    { id: "reports", label: "Reports", icon: FileText, color: "bg-emerald-600" },
     { id: "data", label: "Data", icon: FileSpreadsheet, color: "bg-amber-600" },
   ];
 

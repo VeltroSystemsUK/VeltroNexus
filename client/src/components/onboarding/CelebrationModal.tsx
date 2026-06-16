@@ -21,7 +21,7 @@ export function CelebrationModal() {
     // Generate confetti on open
     useEffect(() => {
         if (showCelebration) {
-            const colors = ["#D97706", "#4F46E5", "#22C55E", "#EAB308", "#EC4899"];
+            const colors = ["#D97706", "#059669", "#22C55E", "#EAB308", "#EC4899"];
             const pieces: ConfettiPiece[] = [];
             for (let i = 0; i < 50; i++) {
                 pieces.push({

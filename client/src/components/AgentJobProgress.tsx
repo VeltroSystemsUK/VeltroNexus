@@ -93,7 +93,7 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
   const getTypeIcon = (type: string) => {
     switch (type) {
       case "data_enrichment":
-        return <Database className="h-3 w-3 text-purple-500" />;
+        return <Database className="h-3 w-3 text-emerald-500" />;
       case "scheduled_task":
         return <Search className="h-3 w-3 text-blue-500" />;
       default:

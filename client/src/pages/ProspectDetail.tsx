@@ -253,10 +253,10 @@ function UnderwritingStatusBanner({
       description: "An underwriter is currently reviewing this submission.",
     },
     queried: {
-      bg: "bg-purple-50 dark:bg-purple-950",
-      border: "border-purple-200 dark:border-purple-800",
+      bg: "bg-emerald-50 dark:bg-emerald-950",
+      border: "border-emerald-200 dark:border-emerald-800",
       icon: MessageSquare,
-      iconColor: "text-purple-600 dark:text-purple-400",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
       title: "Query from Underwriter",
       description: "The underwriter has requested additional information.",
     },
@@ -348,7 +348,7 @@ function UnderwritingStatusBanner({
               {submission.status === "queried" && onReplyClick && (
                 <Button
                   onClick={onReplyClick}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  className="bg-emerald-600 hover:bg-emerald-700"
                   data-testid="button-reply-to-query"
                 >
                   <Reply className="h-4 w-4 mr-2" />
@@ -2474,7 +2474,7 @@ const activityTypeConfig = {
   event: {
     label: "Event",
     icon: Calendar,
-    color: "bg-purple-500/10 text-purple-700 dark:text-purple-300",
+    color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   note: { label: "Note", icon: FileText, color: "bg-gray-500/10 text-gray-700 dark:text-gray-300" },
 };
@@ -2963,9 +2963,9 @@ const creditToolsConfig = [
     label: "Financial Ratios",
     shortLabel: "Ratios",
     icon: FileText,
-    color: "bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700",
+    color: "bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700",
     activeColor:
-      "bg-purple-600 dark:bg-purple-700 ring-2 ring-purple-400 ring-offset-2 ring-offset-background",
+      "bg-emerald-600 dark:bg-emerald-700 ring-2 ring-emerald-400 ring-offset-2 ring-offset-background",
   },
   {
     id: "character" as CreditTool,
@@ -3758,8 +3758,8 @@ function SummaryTab({
         >
           <AccordionTrigger className="px-6 hover:no-underline">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Network className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <Network className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <span className="text-lg font-semibold">Associations & Media</span>
               {savedAssociations.length > 0 && (
@@ -3794,7 +3794,7 @@ function SummaryTab({
                           {typeAssociations.map((company: any, idx: number) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between text-sm border-l-2 border-purple-500 pl-3"
+                              className="flex items-center justify-between text-sm border-l-2 border-emerald-500 pl-3"
                             >
                               <div>
                                 <span className="font-medium">{company.company_name}</span>
@@ -3832,8 +3832,8 @@ function SummaryTab({
         >
           <AccordionTrigger className="px-6 hover:no-underline">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                <Users className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+              <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <span className="text-lg font-semibold">Contacts & Activity</span>
               <Badge variant="secondary">{contacts.length} contacts</Badge>

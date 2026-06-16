@@ -102,8 +102,8 @@ export default function Forecasts() {
       label: "Avg Deal Size",
       value: formatGBP(data.summary.avgDealSize),
       icon: Target,
-      color: "text-violet-400",
-      bg: "bg-violet-500/10",
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
     },
   ];
 

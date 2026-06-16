@@ -118,7 +118,7 @@ const activityTypeIcons = {
 
 const activityTypeColors = {
   task: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  event: "bg-purple-500/10 text-purple-700 dark:text-purple-300",
+  event: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   meeting: "bg-green-500/10 text-green-700 dark:text-green-300",
   call: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
   note: "bg-gray-500/10 text-gray-700 dark:text-gray-300",
@@ -728,7 +728,7 @@ export default function ActivityCalendar() {
               variant="outline"
               size="sm"
               onClick={() => handleQuickCreate("event")}
-              className="flex items-center gap-1.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-500/20"
+              className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-500/20"
               data-testid="button-quick-event"
             >
               <CalendarIcon className="h-4 w-4" />

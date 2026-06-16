@@ -76,12 +76,12 @@ export default function RefinanceLanding() {
             {/* Hero Section */}
             <header className="bg-slate-900 text-white pt-20 pb-32 px-6">
                 <div className="max-w-4xl mx-auto text-center">
-                    <Badge className="mb-6 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1 text-sm font-medium rounded-full">
+                    <Badge className="mb-6 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1 text-sm font-medium rounded-full">
                         2026 Refinancing Initiative
                     </Badge>
                     <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
                         Eliminate Expensive Debts. <br />
-                        <span className="text-indigo-400">Set Your Business Free...</span>
+                        <span className="text-emerald-400">Set Your Business Free...</span>
                     </h1>
                     <p className="text-xl md:text-2xl text-slate-300 max-w-2xl mx-auto mb-10">
                         Stop suffering in silence. Let us help you transition your high-interest, short-term debts to a stable 5 year term loan. Recover your cashflow and create a brighter future.
@@ -98,7 +98,7 @@ export default function RefinanceLanding() {
                         <Card className="bg-white/95 backdrop-blur shadow-xl border-slate-200">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <ShieldCheck className="h-5 w-5 text-indigo-600" />
+                                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
                                     Why Refinance Now?
                                 </CardTitle>
                             </CardHeader>
@@ -124,11 +124,11 @@ export default function RefinanceLanding() {
                             </CardContent>
                         </Card>
 
-                        <div className="bg-indigo-900 rounded-xl p-6 text-white shadow-lg">
-                            <div className="text-sm font-medium text-indigo-200 uppercase tracking-wider mb-1">Live Market Data</div>
+                        <div className="bg-emerald-900 rounded-xl p-6 text-white shadow-lg">
+                            <div className="text-sm font-medium text-emerald-200 uppercase tracking-wider mb-1">Live Market Data</div>
                             <div className="text-3xl font-bold">3.75%</div>
-                            <div className="text-sm text-indigo-100 mt-1">Current BoE Base Rate (Feb 2026)</div>
-                            <div className="mt-4 pt-4 border-t border-indigo-800 text-xs text-indigo-300">
+                            <div className="text-sm text-emerald-100 mt-1">Current BoE Base Rate (Feb 2026)</div>
+                            <div className="mt-4 pt-4 border-t border-emerald-800 text-xs text-emerald-300">
                                 Refinancing window is open for profitable UK SMEs with at least 2 years trading history.
                             </div>
                         </div>
@@ -144,8 +144,8 @@ export default function RefinanceLanding() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -20 }}
                                 >
-                                    <Card className="shadow-2xl border-indigo-100 overflow-hidden">
-                                        <div className="h-2 bg-gradient-to-r from-indigo-500 to-purple-600 w-full" />
+                                    <Card className="shadow-2xl border-emerald-100 overflow-hidden">
+                                        <div className="h-2 bg-gradient-to-r from-emerald-500 to-emerald-600 w-full" />
                                         <CardHeader>
                                             <CardTitle>Interactive Debt Audit</CardTitle>
                                             <CardDescription>Estimate your monthly savings instantly.</CardDescription>
@@ -156,7 +156,7 @@ export default function RefinanceLanding() {
                                             <div className="space-y-4">
                                                 <div className="flex justify-between">
                                                     <Label>Total Outstanding Short-Term Debt</Label>
-                                                    <span className="font-bold text-indigo-700">£{calcData.currentDebt.toLocaleString()}</span>
+                                                    <span className="font-bold text-emerald-700">£{calcData.currentDebt.toLocaleString()}</span>
                                                 </div>
                                                 <Slider
                                                     value={[calcData.currentDebt]}
@@ -198,7 +198,7 @@ export default function RefinanceLanding() {
                                         </CardContent>
                                         <CardFooter>
                                             <Button
-                                                className="w-full h-12 text-lg bg-indigo-600 hover:bg-indigo-700"
+                                                className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-700"
                                                 onClick={() => setStep("capture")}
                                             >
                                                 Get My Official Report <ArrowRight className="ml-2 h-4 w-4" />
@@ -215,7 +215,7 @@ export default function RefinanceLanding() {
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: -20 }}
                                 >
-                                    <Card className="shadow-2xl border-indigo-100">
+                                    <Card className="shadow-2xl border-emerald-100">
                                         <CardHeader>
                                             <CardTitle>Unlock Your Cash Flow Report</CardTitle>
                                             <CardDescription>We'll generate a full breakdown of your refinancing options.</CardDescription>
@@ -245,7 +245,7 @@ export default function RefinanceLanding() {
                                                     <Input id="phone" type="tel" {...register("phone")} placeholder="07700 900000" />
                                                 </div>
 
-                                                <Button type="submit" className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 h-10" disabled={isSubmitting}>
+                                                <Button type="submit" className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 h-10" disabled={isSubmitting}>
                                                     {isSubmitting ? (
                                                         <>
                                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...
@@ -289,21 +289,21 @@ export default function RefinanceLanding() {
                                                 </div>
                                                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                                                     <div className="text-xs font-semibold text-slate-500 uppercase">5-Year Capital Gain</div>
-                                                    <div className="text-2xl font-bold text-indigo-600">
+                                                    <div className="text-2xl font-bold text-emerald-600">
                                                         £{Math.round(leadResult.analysis.fiveYearSavings).toLocaleString()}
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                                            <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <div className="font-semibold text-indigo-900">Valuation Impact</div>
-                                                    <Badge variant="secondary" className="bg-white text-indigo-600">Hidden Benefit</Badge>
+                                                    <div className="font-semibold text-emerald-900">Valuation Impact</div>
+                                                    <Badge variant="secondary" className="bg-white text-emerald-600">Hidden Benefit</Badge>
                                                 </div>
-                                                <p className="text-sm text-indigo-700 mb-2">
+                                                <p className="text-sm text-emerald-700 mb-2">
                                                     Improving your DSCR by this amount could increase your business valuation by approximately:
                                                 </p>
-                                                <div className="text-3xl font-extrabold text-indigo-700 text-center py-2">
+                                                <div className="text-3xl font-extrabold text-emerald-700 text-center py-2">
                                                     +£{Math.round(leadResult.analysis.valuationBoost).toLocaleString()}
                                                 </div>
                                             </div>

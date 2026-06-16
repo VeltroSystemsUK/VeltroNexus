@@ -97,11 +97,11 @@ export const THEME_CONFIG = {
     bgSoft: "bg-blue-50",
   },
   violet: {
-    primary: "bg-violet-600",
-    hover: "hover:bg-violet-700",
-    text: "text-violet-600",
-    border: "border-violet-500",
-    bgSoft: "bg-violet-50",
+    primary: "bg-emerald-600",
+    hover: "hover:bg-emerald-700",
+    text: "text-emerald-600",
+    border: "border-emerald-500",
+    bgSoft: "bg-emerald-50",
   },
   slate: {
     primary: "bg-slate-700",
