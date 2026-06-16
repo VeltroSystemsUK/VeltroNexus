@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { ReactNode } from "react";
 
 interface PipelineColumnProps {
@@ -21,25 +20,24 @@ export default function PipelineColumn({
       className="flex flex-col"
       data-testid={`column-${title.toLowerCase().replace(/\s+/g, "-")}`}
     >
-      <div className="bg-muted rounded-t-lg p-4 border-b">
-        <div className="flex items-center justify-between mb-1.5 gap-2">
+      <div className="glass-subtle rounded-t-xl px-4 py-3 border-b border-white/5">
+        <div className="flex items-center justify-between gap-2">
           <h3
-            className="font-semibold text-base"
+            className="font-semibold text-sm tracking-tight"
             data-testid={`text-column-title-${title.toLowerCase().replace(/\s+/g, "-")}`}
           >
             {title}
           </h3>
-          <Badge
-            variant="secondary"
-            className="text-sm font-medium px-2.5 py-0.5"
+          <span
+            className="text-xs font-medium tabular-nums px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
             data-testid={`badge-count-${title.toLowerCase().replace(/\s+/g, "-")}`}
           >
             {count}
-          </Badge>
+          </span>
         </div>
         {totalValue && (
           <p
-            className="text-sm text-muted-foreground font-medium"
+            className="text-xs text-muted-foreground font-medium mt-1 tabular-nums"
             data-testid={`text-total-value-${title.toLowerCase().replace(/\s+/g, "-")}`}
           >
             {totalValue}
@@ -47,8 +45,10 @@ export default function PipelineColumn({
         )}
       </div>
       <div
-        className={`flex-1 rounded-b-lg p-3 space-y-3 min-h-[240px] transition-colors ${
-          isDraggingOver ? "bg-muted/50 border-2 border-dashed border-primary" : "bg-muted/30"
+        className={`flex-1 rounded-b-xl p-3 space-y-3 min-h-[240px] transition-colors ${
+          isDraggingOver
+            ? "bg-primary/[0.04] border border-dashed border-primary/50"
+            : "bg-white/[0.015] border border-white/[0.04]"
         }`}
       >
         {children}
