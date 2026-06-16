@@ -10,13 +10,14 @@ import ProspectCard, {
 } from "@/components/ProspectCard";
 import SafeProspectCard from "@/components/SafeProspectCard";
 import EmptyPipeline from "@/components/EmptyPipeline";
+import { OrbitLens } from "@/components/pipeline/OrbitLens";
 import ActivityCalendar from "@/components/ActivityCalendar";
 import ToDoList from "@/components/ToDoList";
 import TaskReminders from "@/components/TaskReminders";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2, Plus, Menu } from "lucide-react"; // Added Menu
+import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2, Plus, Menu, Columns, Orbit } from "lucide-react"; // Added Menu
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
@@ -39,6 +40,33 @@ import { usePageTitle, usePageActions } from "@/context/LayoutContext";
 import { FlightDeck } from "@/components/dashboard/FlightDeck";
 
 // ... existing imports
+
+function ViewToggle({
+  view,
+  onChange,
+}: {
+  view: "board" | "orbit";
+  onChange: (v: "board" | "orbit") => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-card/40 p-1 shrink-0">
+      {(["board", "orbit"] as const).map((v) => (
+        <button
+          key={v}
+          onClick={() => onChange(v)}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            view === v
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {v === "board" ? <Columns className="h-3.5 w-3.5" /> : <Orbit className="h-3.5 w-3.5" />}
+          {v === "board" ? "Board" : "Orbit"}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function Pipeline() {
   const [, navigate] = useLocation();
@@ -65,6 +93,7 @@ export default function Pipeline() {
   } = useOnboarding();
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [pipelineView, setPipelineView] = useState<"board" | "orbit">("board");
 
   const tabOptions = [
     { id: "dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard, color: "bg-primary" },
@@ -379,14 +408,24 @@ export default function Pipeline() {
             {/* Prospect Pipeline Tab */}
             <TabsContent value="prospect-pipeline" data-testid="content-prospect-pipeline">
               <div className="space-y-4 md:space-y-8">
-                <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">
-                    Early Stage Pipeline
-                  </h3>
-                  <p className="text-muted-foreground text-sm md:text-base">
-                    Track prospects from lead to qualification
-                  </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">
+                      Early Stage Pipeline
+                    </h3>
+                    <p className="text-muted-foreground text-sm md:text-base">
+                      Track prospects from lead to qualification
+                    </p>
+                  </div>
+                  <ViewToggle view={pipelineView} onChange={setPipelineView} />
                 </div>
+                {pipelineView === "orbit" ? (
+                  <OrbitLens
+                    prospects={safeProspects as any}
+                    stages={prospectStages}
+                    formatCurrency={formatCurrency}
+                  />
+                ) : (
                 <DragDropContext onDragEnd={onDragEnd}>
                   <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-4 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
                     {prospectStages.map((stage) => {
@@ -442,20 +481,31 @@ export default function Pipeline() {
                     })}
                   </div>
                 </DragDropContext>
+                )}
               </div>
             </TabsContent>
 
             {/* Process Pipeline Tab */}
             <TabsContent value="process-pipeline" data-testid="content-process-pipeline">
               <div className="space-y-4 md:space-y-8">
-                <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">
-                    Application Processing
-                  </h3>
-                  <p className="text-muted-foreground text-sm md:text-base">
-                    Manage applications from proposal to submission
-                  </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">
+                      Application Processing
+                    </h3>
+                    <p className="text-muted-foreground text-sm md:text-base">
+                      Manage applications from proposal to submission
+                    </p>
+                  </div>
+                  <ViewToggle view={pipelineView} onChange={setPipelineView} />
                 </div>
+                {pipelineView === "orbit" ? (
+                  <OrbitLens
+                    prospects={safeProspects as any}
+                    stages={[...processStages, ...finalStages]}
+                    formatCurrency={formatCurrency}
+                  />
+                ) : (
                 <DragDropContext onDragEnd={onDragEnd}>
                   <div className="space-y-4 md:space-y-8">
                     {/* Active Process Stages */}
@@ -579,6 +629,7 @@ export default function Pipeline() {
                     </div>
                   </div>
                 </DragDropContext>
+                )}
               </div>
             </TabsContent>
           </Tabs>
