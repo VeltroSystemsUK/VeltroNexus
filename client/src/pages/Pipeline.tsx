@@ -36,7 +36,7 @@ import { DEFAULT_STAGES, type PipelineStage } from "./Settings";
 type Stage = string;
 
 import { usePageTitle, usePageActions } from "@/context/LayoutContext";
-import { AutoQualifiedLeadsWidget } from "@/components/dashboard/AutoQualifiedLeadsWidget";
+import { FlightDeck } from "@/components/dashboard/FlightDeck";
 
 // ... existing imports
 
@@ -68,8 +68,8 @@ export default function Pipeline() {
 
   const tabOptions = [
     { id: "dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard, color: "bg-primary" },
-    { id: "prospect-pipeline", label: "Prospect Pipeline", shortLabel: "Prospects", icon: Users, color: "bg-amber-600" },
-    { id: "process-pipeline", label: "Process Pipeline", shortLabel: "Process", icon: Send, color: "bg-emerald-600" },
+    { id: "prospect-pipeline", label: "Prospect Pipeline", shortLabel: "Prospects", icon: Users, color: "bg-primary" },
+    { id: "process-pipeline", label: "Process Pipeline", shortLabel: "Process", icon: Send, color: "bg-primary" },
   ];
 
   // Compute dynamic stages from user settings
@@ -299,7 +299,7 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-28">
+    <div className="min-h-screen bg-transparent pb-24 md:pb-28">
       <main className="w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
 
         {prospects.length === 0 ? (
@@ -358,97 +358,22 @@ export default function Pipeline() {
 
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" data-testid="content-dashboard">
-              <div className="space-y-6 md:space-y-10">
-                {/* Onboarding Checklist - Only appears if onboarding incomplete */}
-                <OnboardingChecklist className="mb-2" />
-
-                {/* Headline Metrics */}
-                <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
-                    Overview
-                  </h3>
-                  <PipelineStats
-                    totalProspects={prospects.length}
-                    activeProspects={activeProspects}
-                    totalValue={formatCurrency(totalValue)}
-                    approvedCount={approvedCount}
-                  />
-                </div>
-
-                {/* Auto-Qualified Leads Feed */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="h-[400px]">
-                    <AutoQualifiedLeadsWidget />
-                  </div>
-                </div>
-
-                {/* CRM Features */}
-                <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
-                    Activity Management
-                  </h3>
-                  <div className="space-y-4 md:space-y-6">
-                    <div className="w-full">
-                      <ActivityCalendar />
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                      <TaskReminders />
-                      <ToDoList />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Stage Summary */}
-                <div>
-                  <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
-                    Stage Summary
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-5">
-                    {allStages.filter(
-                      (s) => !["approved", "declined", "withdrawn"].includes(s.value)
-                    ).map((stage) => {
-                      const count = getProspectsByStage(stage.value).length;
-                      const totalValue = getTotalValueByStage(stage.value);
-                        const isProspectStage = ["lead", "contacted", "qualified"].includes(stage.value);
-                        return (
-                          <Card 
-                            key={stage.value} 
-                            className="hover-elevate cursor-pointer border-l-4 transition-all"
-                            style={{ borderLeftColor: (stage as any).color }}
-                            onClick={() => {
-                              setActiveTab(isProspectStage ? "prospect-pipeline" : "process-pipeline");
-                              // Give React a moment to render the tab before scrolling
-                              setTimeout(() => {
-                                const el = document.getElementById(`column-${stage.value}`);
-                                if (el) {
-                                  el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-                                  el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
-                                  setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 2000);
-                                }
-                              }, 150);
-                            }}
-                          >
-                          <CardHeader className="pb-1 md:pb-2 pt-3 md:pt-5 px-3 md:px-5">
-                            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                              {stage.label}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="px-3 md:px-5 pb-3 md:pb-5">
-                            <div className="text-2xl md:text-4xl font-bold tracking-tight">
-                              {count}
-                            </div>
-                            {totalValue && (
-                              <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2">
-                                {totalValue}
-                              </p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+              <FlightDeck
+                userName={user?.firstName || undefined}
+                stats={{
+                  totalProspects: prospects.length,
+                  activeProspects,
+                  totalValue: formatCurrency(totalValue),
+                  approvedCount,
+                }}
+                stages={allStages
+                  .filter((s) => !["approved", "declined", "withdrawn"].includes(s.value))
+                  .map((s) => ({
+                    label: s.label,
+                    count: getProspectsByStage(s.value).length,
+                    value: getTotalValueByStage(s.value),
+                  }))}
+              />
             </TabsContent>
 
             {/* Prospect Pipeline Tab */}

@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as SonnerToaster } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import MobileNav from "@/components/MobileNav";
-import Sidebar from "@/components/Sidebar";
 import { lazy, Suspense } from "react";
 
 // Lazy load all page components for better performance
@@ -213,43 +212,37 @@ import { OnboardingProvider, WelcomeModal, CelebrationModal } from "@/components
 
 function AppContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const [location] = useLocation();
 
-  return (
-    <>
-      <div className="flex bg-background h-screen overflow-hidden">
-        {isAuthenticated && !isLoading && (
-          <div className="hidden md:block">
-            <Sidebar />
-          </div>
-        )}
-
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
-          {isAuthenticated && !isLoading && <UnifiedHeader />}
-
-
+  // Signed-in: the Command Deck shell (lens rail + ⌘K bar + atmosphere)
+  if (isAuthenticated && !isLoading) {
+    return (
+      <>
+        <CommandDeck>
           <main className="flex-1 overflow-y-auto w-full">
             <Suspense fallback={<PageLoader />}>
-              {isAuthenticated && !isLoading ? (
-                <OnboardingProvider userName={user?.firstName || "there"}>
-                  <Router />
-                  <WelcomeModal userName={user?.firstName || "there"} />
-                  <CelebrationModal />
-                </OnboardingProvider>
-              ) : (
+              <OnboardingProvider userName={user?.firstName || "there"}>
                 <Router />
-              )}
+                <WelcomeModal userName={user?.firstName || "there"} />
+                <CelebrationModal />
+              </OnboardingProvider>
             </Suspense>
           </main>
-        </div>
-      </div>
-      {isAuthenticated && !isLoading && <MobileNav />}
-    </>
+        </CommandDeck>
+        <MobileNav />
+      </>
+    );
+  }
+
+  // Public / unauthenticated: full-screen routes (Landing, Auth)
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Router />
+    </Suspense>
   );
 }
 
 import { LayoutProvider } from "@/context/LayoutContext";
-import { UnifiedHeader } from "@/components/UnifiedHeader";
+import { CommandDeck } from "@/components/shell/CommandDeck";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function App() {
