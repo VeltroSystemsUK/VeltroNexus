@@ -22,7 +22,7 @@ export default function SubscriptionPage() {
                 </p>
 
                 <a href="mailto:sales@veltro.co.uk">
-                    <Button size="lg" className="w-full bg-[#D97706] hover:bg-[#D97706]/90 text-white font-semibold text-lg h-12">
+                    <Button size="lg" className="w-full bg-[#10b981] hover:bg-[#10b981]/90 text-white font-semibold text-lg h-12">
                         <Mail className="mr-2 h-5 w-5" /> Contact Sales
                     </Button>
                 </a>

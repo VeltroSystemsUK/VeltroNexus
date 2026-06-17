@@ -40,7 +40,7 @@ export default function Pricing() {
                             </Button>
                         </Link>
                         <Link href="/auth">
-                            <Button className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25">
+                            <Button className="font-semibold bg-[#10b981] hover:bg-[#047857] text-white shadow-lg shadow-orange-500/25">
                                 Get Started
                             </Button>
                         </Link>
@@ -55,7 +55,7 @@ export default function Pricing() {
                         <Link href="/auth">
                             <Button
                                 size="sm"
-                                className="font-semibold bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-orange-500/25 text-xs px-3 h-8"
+                                className="font-semibold bg-[#10b981] hover:bg-[#047857] text-white shadow-lg shadow-orange-500/25 text-xs px-3 h-8"
                             >
                                 Get Started
                             </Button>

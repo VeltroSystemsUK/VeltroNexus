@@ -87,7 +87,7 @@ export default function Waitlist() {
           <div>
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight">
               Get Early Access to{" "}
-              <span className="text-[#D97706]">Smarter Tools</span>
+              <span className="text-[#10b981]">Smarter Tools</span>
             </h1>
             <p className="text-gray-400 text-lg mb-8">
               Join the waiting list and be the first to access automation tools
@@ -100,8 +100,8 @@ export default function Waitlist() {
                 { icon: TrendingUp, text: "Close more deals, faster" },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#D97706]/10 flex items-center justify-center shrink-0">
-                    <item.icon className="h-4 w-4 text-[#D97706]" />
+                  <div className="w-8 h-8 rounded-lg bg-[#10b981]/10 flex items-center justify-center shrink-0">
+                    <item.icon className="h-4 w-4 text-[#10b981]" />
                   </div>
                   <span className="text-gray-300">{item.text}</span>
                 </div>
@@ -161,18 +161,18 @@ export default function Waitlist() {
                       <Checkbox
                         checked={trialInterest}
                         onCheckedChange={(checked) => setTrialInterest(checked === true)}
-                        className="border-white/20 data-[state=checked]:bg-[#D97706] data-[state=checked]:border-[#D97706]"
+                        className="border-white/20 data-[state=checked]:bg-[#10b981] data-[state=checked]:border-[#10b981]"
                       />
                       <span className="text-sm text-gray-300">
                         I'm interested in the{" "}
-                        <span className="text-[#D97706] font-medium">£49/month trial</span> for
+                        <span className="text-[#10b981] font-medium">£49/month trial</span> for
                         lead generation tools
                       </span>
                     </label>
                     <Button
                       type="submit"
                       disabled={submitting || !email.trim()}
-                      className="w-full bg-[#D97706] hover:bg-[#B45309] text-white h-12 text-lg"
+                      className="w-full bg-[#10b981] hover:bg-[#047857] text-white h-12 text-lg"
                     >
                       {submitting ? (
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />

@@ -196,26 +196,26 @@ export default function Landing() {
         {/* Hero Section */}
         <section className="relative overflow-hidden pt-20">
           <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#0f172a] to-[#1e293b]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#D97706]/10 via-transparent to-transparent opacity-60" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#10b981]/10 via-transparent to-transparent opacity-60" />
 
           {/* Animated Background Elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#D97706]/20 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]" />
+            <div className="absolute top-20 left-[10%] w-72 h-72 bg-[#10b981]/20 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]" />
             <div className="absolute top-40 right-[15%] w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-[pulse_6s_ease-in-out_infinite_1s]" />
-            <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#D97706]/15 rounded-full blur-3xl animate-[pulse_5s_ease-in-out_infinite_2s]" />
+            <div className="absolute bottom-20 left-[20%] w-64 h-64 bg-[#10b981]/15 rounded-full blur-3xl animate-[pulse_5s_ease-in-out_infinite_2s]" />
 
             <div className="absolute inset-0 opacity-[0.03] landing-grid-bg" />
 
-            <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#D97706] rounded-full opacity-60 animate-[floatParticle_8s_ease-in-out_infinite]" />
+            <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-[#10b981] rounded-full opacity-60 animate-[floatParticle_8s_ease-in-out_infinite]" />
             <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white rounded-full opacity-40 animate-[floatParticle_6s_ease-in-out_infinite_1s]" />
-            <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#D97706] rounded-full opacity-50 animate-[floatParticle_10s_ease-in-out_infinite_2s]" />
+            <div className="absolute top-2/3 left-1/3 w-1 h-1 bg-[#10b981] rounded-full opacity-50 animate-[floatParticle_10s_ease-in-out_infinite_2s]" />
             <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-emerald-400 rounded-full opacity-30 animate-[floatParticle_7s_ease-in-out_infinite_3s]" />
-            <div className="absolute bottom-1/3 right-1/2 w-1.5 h-1.5 bg-[#D97706] rounded-full opacity-40 animate-[floatParticle_9s_ease-in-out_infinite_4s]" />
+            <div className="absolute bottom-1/3 right-1/2 w-1.5 h-1.5 bg-[#10b981] rounded-full opacity-40 animate-[floatParticle_9s_ease-in-out_infinite_4s]" />
 
             <div className="absolute top-0 left-0 w-full h-full">
-              <div className="absolute top-[20%] -left-20 w-[400px] h-[1px] bg-gradient-to-r from-transparent via-[#D97706]/30 to-transparent rotate-[35deg] animate-[streak_3s_ease-in-out_infinite]" />
+              <div className="absolute top-[20%] -left-20 w-[400px] h-[1px] bg-gradient-to-r from-transparent via-[#10b981]/30 to-transparent rotate-[35deg] animate-[streak_3s_ease-in-out_infinite]" />
               <div className="absolute top-[40%] -right-20 w-[300px] h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent -rotate-[35deg] animate-[streak_4s_ease-in-out_infinite_1s]" />
-              <div className="absolute top-[60%] -left-10 w-[250px] h-[1px] bg-gradient-to-r from-transparent via-[#D97706]/20 to-transparent rotate-[35deg] animate-[streak_5s_ease-in-out_infinite_2s]" />
+              <div className="absolute top-[60%] -left-10 w-[250px] h-[1px] bg-gradient-to-r from-transparent via-[#10b981]/20 to-transparent rotate-[35deg] animate-[streak_5s_ease-in-out_infinite_2s]" />
             </div>
           </div>
 
@@ -229,7 +229,7 @@ export default function Landing() {
               />
 
               <p
-                className="typewriter-text inline-block mb-6 text-lg md:text-xl font-bold text-white overflow-hidden whitespace-nowrap border-r-2 border-[#D97706] mx-auto"
+                className="typewriter-text inline-block mb-6 text-lg md:text-xl font-bold text-white overflow-hidden whitespace-nowrap border-r-2 border-[#10b981] mx-auto"
               >
                 Forward Development Engineering
               </p>
@@ -238,7 +238,7 @@ export default function Landing() {
                 Bred for Speed
               </h1>
               <h2 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold mb-8 leading-tight tracking-tight">
-                <span className="text-[#D97706]">Built for Business</span>
+                <span className="text-[#10b981]">Built for Business</span>
               </h2>
 
               <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10">
@@ -248,7 +248,7 @@ export default function Landing() {
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button
-                  className="bg-[#D97706] hover:bg-[#B45309] text-white px-8 py-3 text-lg"
+                  className="bg-[#10b981] hover:bg-[#047857] text-white px-8 py-3 text-lg"
                   onClick={() => scrollTo("contact")}
                 >
                   Let's Talk{" "}
@@ -272,7 +272,7 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              How We Help Your <span className="text-[#D97706]">Business</span>
+              How We Help Your <span className="text-[#10b981]">Business</span>
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto text-lg">
               No buzzwords. No BS. No false promises...
@@ -285,11 +285,11 @@ export default function Landing() {
             {services.map((service, i) => (
               <Card
                 key={i}
-                className="bg-white/[0.03] border-white/[0.06] backdrop-blur-sm hover:border-[#D97706]/40 hover:bg-white/[0.05] transition-all duration-500 group"
+                className="bg-white/[0.03] border-white/[0.06] backdrop-blur-sm hover:border-[#10b981]/40 hover:bg-white/[0.05] transition-all duration-500 group"
               >
                 <CardContent className="p-6 pt-6">
-                  <div className="w-12 h-12 rounded-lg bg-[#D97706]/10 flex items-center justify-center mb-4 group-hover:bg-[#D97706]/20 transition-colors">
-                    <service.icon className="h-6 w-6 text-[#D97706]" />
+                  <div className="w-12 h-12 rounded-lg bg-[#10b981]/10 flex items-center justify-center mb-4 group-hover:bg-[#10b981]/20 transition-colors">
+                    <service.icon className="h-6 w-6 text-[#10b981]" />
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-2">
                     {service.title}
@@ -309,7 +309,7 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              How Much Could You <span className="text-[#D97706]">Save</span>?
+              How Much Could You <span className="text-[#10b981]">Save</span>?
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto text-lg">
               Drag the sliders below. The numbers speak for themselves.
@@ -326,7 +326,7 @@ export default function Landing() {
                         <label className="text-gray-300 font-medium">
                           Hours your team spends on repetitive tasks per week
                         </label>
-                        <span className="text-[#D97706] font-bold text-lg">
+                        <span className="text-[#10b981] font-bold text-lg">
                           {hoursPerWeek[0]}h
                         </span>
                       </div>
@@ -336,7 +336,7 @@ export default function Landing() {
                         min={5}
                         max={80}
                         step={5}
-                        className="[&_[role=slider]]:bg-[#D97706] [&_[role=slider]]:border-[#D97706] [&_span>span]:bg-[#D97706]"
+                        className="[&_[role=slider]]:bg-[#10b981] [&_[role=slider]]:border-[#10b981] [&_span>span]:bg-[#10b981]"
                       />
                     </div>
                     <div>
@@ -344,7 +344,7 @@ export default function Landing() {
                         <label className="text-gray-300 font-medium">
                           What you pay per hour for that work
                         </label>
-                        <span className="text-[#D97706] font-bold text-lg">
+                        <span className="text-[#10b981] font-bold text-lg">
                           £{hourlyRate[0]}
                         </span>
                       </div>
@@ -354,7 +354,7 @@ export default function Landing() {
                         min={15}
                         max={150}
                         step={5}
-                        className="[&_[role=slider]]:bg-[#D97706] [&_[role=slider]]:border-[#D97706] [&_span>span]:bg-[#D97706]"
+                        className="[&_[role=slider]]:bg-[#10b981] [&_[role=slider]]:border-[#10b981] [&_span>span]:bg-[#10b981]"
                       />
                     </div>
                     <p className="text-gray-500 text-xs">
@@ -376,14 +376,14 @@ export default function Landing() {
                         £{roiCalculations.annualManualCost.toLocaleString()}
                       </p>
                     </div>
-                    <div className="bg-[#D97706]/10 rounded-xl p-6 border border-[#D97706]/20">
+                    <div className="bg-[#10b981]/10 rounded-xl p-6 border border-[#10b981]/20">
                       <div className="flex items-center gap-3 mb-2">
-                        <TrendingUp className="h-5 w-5 text-[#D97706]" />
+                        <TrendingUp className="h-5 w-5 text-[#10b981]" />
                         <span className="text-gray-400 text-sm">
                           What You Could Save Annually
                         </span>
                       </div>
-                      <p className="text-3xl font-bold text-[#D97706]">
+                      <p className="text-3xl font-bold text-[#10b981]">
                         £{roiCalculations.annualSavings.toLocaleString()}
                       </p>
                     </div>
@@ -414,7 +414,7 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Real <span className="text-[#D97706]">Results</span>
+              Real <span className="text-[#10b981]">Results</span>
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto text-lg">
               Here's what happens when you stop doing things the hard way
@@ -426,13 +426,13 @@ export default function Landing() {
             <Card className="bg-white/[0.03] border-white/[0.06] backdrop-blur-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="grid grid-cols-1 lg:grid-cols-5">
-                  <div className="lg:col-span-2 bg-gradient-to-br from-[#D97706]/20 to-[#1e293b] p-8 flex flex-col items-center justify-center min-h-[200px]">
+                  <div className="lg:col-span-2 bg-gradient-to-br from-[#10b981]/20 to-[#1e293b] p-8 flex flex-col items-center justify-center min-h-[200px]">
                     <img
                       src={logoChrome}
                       alt="Veltro"
                       className="h-20 mb-4 animate-[float_3s_ease-in-out_infinite]"
                     />
-                    <Badge className="bg-[#D97706]/20 text-[#D97706] border-[#D97706]/30">
+                    <Badge className="bg-[#10b981]/20 text-[#10b981] border-[#10b981]/30">
                       Live Platform
                     </Badge>
                   </div>
@@ -458,7 +458,7 @@ export default function Landing() {
                         "Cut admin time by over 60%, freeing the team to close more deals",
                       ].map((item, i) => (
                         <div key={i} className="flex items-start gap-3">
-                          <CheckCircle className="h-5 w-5 text-[#D97706] mt-0.5 shrink-0" />
+                          <CheckCircle className="h-5 w-5 text-[#10b981] mt-0.5 shrink-0" />
                           <span className="text-gray-300 text-sm">{item}</span>
                         </div>
                       ))}
@@ -609,7 +609,7 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              How It <span className="text-[#D97706]">Works</span>
+              How It <span className="text-[#10b981]">Works</span>
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto text-lg">
               No lengthy contracts. No confusing jargon. Just a straightforward
@@ -619,11 +619,11 @@ export default function Landing() {
           <div className="max-w-4xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
               {/* Connector line (desktop only) */}
-              <div className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-[2px] bg-gradient-to-r from-[#D97706]/50 via-[#D97706] to-[#D97706]/50" />
+              <div className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-[2px] bg-gradient-to-r from-[#10b981]/50 via-[#10b981] to-[#10b981]/50" />
               {processSteps.map((step, i) => (
                 <div key={i} className="text-center relative">
-                  <div className="w-20 h-20 rounded-full bg-[#0f172a] border-2 border-[#D97706]/30 flex items-center justify-center mx-auto mb-4 relative z-10">
-                    <step.icon className="h-8 w-8 text-[#D97706]" />
+                  <div className="w-20 h-20 rounded-full bg-[#0f172a] border-2 border-[#10b981]/30 flex items-center justify-center mx-auto mb-4 relative z-10">
+                    <step.icon className="h-8 w-8 text-[#10b981]" />
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-2">
                     {step.title}
@@ -642,15 +642,15 @@ export default function Landing() {
           <div className="max-w-4xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
               <div>
-                <p className="text-4xl md:text-5xl font-bold text-[#D97706] mb-2">£ Millions</p>
+                <p className="text-4xl md:text-5xl font-bold text-[#10b981] mb-2">£ Millions</p>
                 <p className="text-gray-400 text-sm">Saved for businesses by cutting waste and automating the boring stuff</p>
               </div>
               <div>
-                <p className="text-4xl md:text-5xl font-bold text-[#D97706] mb-2">60%+</p>
+                <p className="text-4xl md:text-5xl font-bold text-[#10b981] mb-2">60%+</p>
                 <p className="text-gray-400 text-sm">Less time on admin — more time growing your business</p>
               </div>
               <div>
-                <p className="text-4xl md:text-5xl font-bold text-[#D97706] mb-2">Weeks</p>
+                <p className="text-4xl md:text-5xl font-bold text-[#10b981] mb-2">Weeks</p>
                 <p className="text-gray-400 text-sm">From first chat to working software that makes your life easier</p>
               </div>
             </div>
@@ -663,7 +663,7 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Simple, Honest <span className="text-[#D97706]">Pricing</span>
+              Simple, Honest <span className="text-[#10b981]">Pricing</span>
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto text-lg">
               No hidden fees. No surprises. Every project starts with a free conversation to understand what you actually need.
@@ -676,7 +676,7 @@ export default function Landing() {
                 <h3 className="text-xl font-bold text-white mb-2">Starter</h3>
                 <p className="text-gray-400 text-sm mb-6">Perfect for one quick win that saves you time straight away</p>
                 <p className="text-3xl font-bold text-white mb-1">
-                  From <span className="text-[#D97706]">£1,500</span>
+                  From <span className="text-[#10b981]">£1,500</span>
                 </p>
                 <p className="text-gray-500 text-xs mb-8">one-off project fee</p>
                 <ul className="space-y-3 mb-8">
@@ -687,7 +687,7 @@ export default function Landing() {
                     "30 days free support",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-2 text-gray-300 text-sm">
-                      <CheckCircle className="h-4 w-4 text-[#D97706] mt-0.5 shrink-0" />
+                      <CheckCircle className="h-4 w-4 text-[#10b981] mt-0.5 shrink-0" />
                       {item}
                     </li>
                   ))}
@@ -702,15 +702,15 @@ export default function Landing() {
             </Card>
 
             {/* Growth — highlighted */}
-            <Card className="bg-white/[0.05] border-[#D97706]/30 backdrop-blur-sm ring-1 ring-[#D97706]/20 relative">
+            <Card className="bg-white/[0.05] border-[#10b981]/30 backdrop-blur-sm ring-1 ring-[#10b981]/20 relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-[#D97706] text-white border-0 hover:bg-[#D97706]">Most Popular</Badge>
+                <Badge className="bg-[#10b981] text-white border-0 hover:bg-[#10b981]">Most Popular</Badge>
               </div>
               <CardContent className="p-8">
                 <h3 className="text-xl font-bold text-white mb-2">Growth</h3>
                 <p className="text-gray-400 text-sm mb-6">For businesses ready to properly streamline how they work</p>
                 <p className="text-3xl font-bold text-white mb-1">
-                  From <span className="text-[#D97706]">£5,000</span>
+                  From <span className="text-[#10b981]">£5,000</span>
                 </p>
                 <p className="text-gray-500 text-xs mb-8">scoped to your needs</p>
                 <ul className="space-y-3 mb-8">
@@ -722,13 +722,13 @@ export default function Landing() {
                     "Staff training & documentation",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-2 text-gray-300 text-sm">
-                      <CheckCircle className="h-4 w-4 text-[#D97706] mt-0.5 shrink-0" />
+                      <CheckCircle className="h-4 w-4 text-[#10b981] mt-0.5 shrink-0" />
                       {item}
                     </li>
                   ))}
                 </ul>
                 <Button
-                  className="w-full bg-[#D97706] hover:bg-[#B45309] text-white border-0"
+                  className="w-full bg-[#10b981] hover:bg-[#047857] text-white border-0"
                   onClick={() => document.querySelector("#contact")?.scrollIntoView({ behavior: "smooth" })}
                 >
                   Let's Talk
@@ -742,7 +742,7 @@ export default function Landing() {
                 <h3 className="text-xl font-bold text-white mb-2">Enterprise</h3>
                 <p className="text-gray-400 text-sm mb-6">Full platform builds for businesses that want to change the game</p>
                 <p className="text-3xl font-bold text-white mb-1">
-                  <span className="text-[#D97706]">Custom</span>
+                  <span className="text-[#10b981]">Custom</span>
                 </p>
                 <p className="text-gray-500 text-xs mb-8">tailored to your business</p>
                 <ul className="space-y-3 mb-8">
@@ -754,7 +754,7 @@ export default function Landing() {
                     "Scale as your business grows",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-2 text-gray-300 text-sm">
-                      <CheckCircle className="h-4 w-4 text-[#D97706] mt-0.5 shrink-0" />
+                      <CheckCircle className="h-4 w-4 text-[#10b981] mt-0.5 shrink-0" />
                       {item}
                     </li>
                   ))}
@@ -779,7 +779,7 @@ export default function Landing() {
         <div className="container mx-auto px-6 md:px-8">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-              Tired of Doing Things the <span className="text-[#D97706]">Hard Way</span>?
+              Tired of Doing Things the <span className="text-[#10b981]">Hard Way</span>?
             </h2>
             <p className="text-gray-400 text-lg mb-10 max-w-xl mx-auto">
               Join the waiting list and be the first to know when we launch new tools
@@ -822,16 +822,16 @@ export default function Landing() {
                   <Checkbox
                     checked={waitlistTrialInterest}
                     onCheckedChange={(checked) => setWaitlistTrialInterest(checked === true)}
-                    className="border-white/20 data-[state=checked]:bg-[#D97706] data-[state=checked]:border-[#D97706]"
+                    className="border-white/20 data-[state=checked]:bg-[#10b981] data-[state=checked]:border-[#10b981]"
                   />
                   <span className="text-sm text-gray-300">
-                    I'm interested in the <span className="text-[#D97706] font-medium">£49/month trial</span> for lead generation tools
+                    I'm interested in the <span className="text-[#10b981] font-medium">£49/month trial</span> for lead generation tools
                   </span>
                 </label>
                 <Button
                   type="submit"
                   disabled={waitlistSubmitting || !waitlistEmail.trim()}
-                  className="w-full bg-[#D97706] hover:bg-[#B45309] text-white h-12 text-lg"
+                  className="w-full bg-[#10b981] hover:bg-[#047857] text-white h-12 text-lg"
                 >
                   {waitlistSubmitting ? (
                     <Loader2 className="h-5 w-5 animate-spin mr-2" />
