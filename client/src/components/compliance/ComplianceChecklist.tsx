@@ -96,9 +96,9 @@ export function ComplianceChecklist() {
         <div className="grid gap-6 md:grid-cols-[300px_1fr]">
             {/* Sidebar / Checklist Selection */}
             <Card className="h-fit">
-                <CardHeader>
-                    <CardTitle className="text-lg">Checklists</CardTitle>
-                    <CardDescription>Select a workflow</CardDescription>
+                <CardHeader className="pb-3 border-b border-border/60">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Checklists</CardTitle>
+                    <CardDescription className="text-[11px]">Select a workflow</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <ScrollArea className="h-[400px]">
@@ -132,13 +132,13 @@ export function ComplianceChecklist() {
             <Card className="min-h-[500px]">
                 {currentChecklist && (
                     <>
-                        <CardHeader>
+                        <CardHeader className="pb-3 border-b border-border/60">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <CardTitle>{currentChecklist.title}</CardTitle>
-                                    <CardDescription className="mt-1">{currentChecklist.description}</CardDescription>
+                                    <CardTitle className="text-sm font-semibold">{currentChecklist.title}</CardTitle>
+                                    <CardDescription className="mt-1 text-xs">{currentChecklist.description}</CardDescription>
                                 </div>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-[10px] tabular-nums">
                                     {getProgress(currentChecklist.id)}% Done
                                 </Badge>
                             </div>
