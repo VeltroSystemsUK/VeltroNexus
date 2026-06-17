@@ -84,7 +84,7 @@ const slaSchema = z.object({
 type SLAFormValues = z.infer<typeof slaSchema>;
 
 export default function Admin() {
-  usePageTitle("ADMIN DASHBOARD", "Manage users, platform settings, and SLAs");
+  usePageTitle("Admin Dashboard", "Manage users, platform settings, and SLAs");
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");

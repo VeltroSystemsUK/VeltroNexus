@@ -82,7 +82,7 @@ export default function Pipeline() {
     </Button>
   ), [navigate]);
 
-  usePageTitle("PIPELINE DASHBOARD", "Manage your commercial lending pipeline");
+  usePageTitle("Pipeline Dashboard", "Manage your commercial lending pipeline");
   usePageActions(actions);
   const { user, isAuthenticated, isLoading: isAuthLoading, logoutMutation } = useAuth();
   const {

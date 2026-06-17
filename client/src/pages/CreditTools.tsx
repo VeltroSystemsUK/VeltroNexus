@@ -33,7 +33,7 @@ import type { DueDiligenceData } from "@shared/schema";
 import { usePageTitle } from "@/context/LayoutContext";
 
 export default function CreditTools() {
-    usePageTitle("CREDIT TOOLS", "Utility calculators for credit analysis and risk assessment.");
+    usePageTitle("Credit Tools", "Utility calculators for credit analysis and risk assessment.");
     const [data, setData] = useState<Partial<DueDiligenceData>>({});
     const [activeTab, setActiveTab] = useState("loan-calc");
 

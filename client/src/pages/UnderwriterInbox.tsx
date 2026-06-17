@@ -86,7 +86,7 @@ type SubmissionWithDetails = UnderwritingSubmission & {
 };
 
 export default function UnderwriterInbox() {
-  usePageTitle("UNDERWRITING", "Review and process loan applications");
+  usePageTitle("Underwriting", "Review and process loan applications");
 
   const headerActions = useMemo(() => (
     <>

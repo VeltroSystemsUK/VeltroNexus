@@ -14,15 +14,18 @@ export function CommandBar({ onCommand }: CommandBarProps) {
     <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-background/55 backdrop-blur-xl">
       <div className="flex items-center gap-3 px-4 md:px-6 h-16">
         {/* Page context */}
-        <div className="min-w-0 max-w-[40%]">
-          <h1 className="text-base md:text-lg font-semibold tracking-tight truncate leading-tight">
-            {pageTitle || "Deck"}
-          </h1>
-          {pageDescription && (
-            <p className="text-xs text-muted-foreground truncate -mt-0.5">
-              {pageDescription}
-            </p>
-          )}
+        <div className="flex items-center gap-3 min-w-0 max-w-[42%]">
+          <span className="h-9 w-1 rounded-full bg-gradient-to-b from-primary to-primary/20 shadow-[0_0_12px_hsl(var(--primary)/0.55)] shrink-0" />
+          <div key={pageTitle} className="min-w-0 animate-in fade-in slide-in-from-left-2 duration-300">
+            <h1 className="text-base md:text-lg font-semibold tracking-tight truncate leading-tight">
+              {pageTitle || "Deck"}
+            </h1>
+            {pageDescription && (
+              <p className="text-xs text-muted-foreground truncate -mt-0.5">
+                {pageDescription}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Command trigger (primary surface) */}

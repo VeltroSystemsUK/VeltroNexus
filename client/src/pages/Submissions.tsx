@@ -42,7 +42,7 @@ type SubmissionWithDetails = ApplicationSubmission & {
 };
 
 export default function Submissions() {
-  usePageTitle("SUBMISSIONS", "Create and manage your deal submissions");
+  usePageTitle("Submissions", "Create and manage your deal submissions");
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { data: user } = useQuery<any>({

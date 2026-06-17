@@ -77,7 +77,7 @@ interface User {
 }
 
 export default function Teams() {
-  usePageTitle("TEAM MANAGEMENT", "Create and manage teams to organise your users");
+  usePageTitle("Team Management", "Create and manage teams to organise your users");
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
