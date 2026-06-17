@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LeadFinderTab } from "@/components/LeadFinderTab";
 
 import {
   Select,
@@ -212,31 +211,14 @@ export default function Leads() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-[#1e293b] bg-[#0f172a] sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setLocation("/")}
-              className="text-gray-300 hover:text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <img
-                src={logoChrome}
-                alt="Veltro"
-                className="h-8 object-contain"
-              />
-            </div>
-          </div>
-          <ThemeToggle />
+    <div className="min-h-screen bg-transparent">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
+        <div>
+          <span className="kicker">Sales</span>
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight mt-1">
+            Prospect directory
+          </h1>
         </div>
-      </header>
-
-      <div className="container max-w-7xl mx-auto p-6 space-y-6">
         <Tabs defaultValue="directory" className="space-y-6">
           <TabsList className="bg-muted/50 border border-border">
             <TabsTrigger value="directory" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
@@ -525,6 +507,17 @@ export default function Leads() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+          </TabsContent>
+
+          {/* NOTE: the "find" tab content was lost when this file was truncated
+              during the local-SQL migration; re-add a <TabsContent value="find">
+              block here to restore the Find Prospects tab. */}
+          <TabsContent value="find" className="space-y-6 mt-0">
+            <div className="tile p-8 text-center text-muted-foreground">
+              Find Prospects — coming back shortly.
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
