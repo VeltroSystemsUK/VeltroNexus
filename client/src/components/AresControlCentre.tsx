@@ -80,13 +80,13 @@ export function AresControlCentre() {
         <div className="space-y-6">
             {/* Header with Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-slate-800 bg-slate-900/50">
+                <Card className="border-border bg-card/60">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-xs text-slate-400">System Health</CardDescription>
+                        <CardDescription className="text-xs text-muted-foreground">System Health</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center justify-between">
-                            <div className="text-2xl font-bold text-slate-200">
+                            <div className="text-2xl font-bold text-foreground">
                                 {overallHealth.toFixed(1)}%
                             </div>
                             <Activity className={cn("w-5 h-5", getHealthStatus(overallHealth).color)} />
@@ -95,54 +95,54 @@ export function AresControlCentre() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-slate-800 bg-slate-900/50">
+                <Card className="border-border bg-card/60">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-xs text-slate-400">Active Jobs</CardDescription>
+                        <CardDescription className="text-xs text-muted-foreground">Active Jobs</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center justify-between">
-                            <div className="text-2xl font-bold text-slate-200">{activeJobs}</div>
+                            <div className="text-2xl font-bold text-foreground">{activeJobs}</div>
                             <Play className="w-5 h-5 text-blue-500" />
                         </div>
-                        <p className="text-xs text-slate-500 mt-2">Currently running</p>
+                        <p className="text-xs text-muted-foreground mt-2">Currently running</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-slate-800 bg-slate-900/50">
+                <Card className="border-border bg-card/60">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-xs text-slate-400">Total Jobs</CardDescription>
+                        <CardDescription className="text-xs text-muted-foreground">Total Jobs</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center justify-between">
-                            <div className="text-2xl font-bold text-slate-200">{totalJobs}</div>
+                            <div className="text-2xl font-bold text-foreground">{totalJobs}</div>
                             <TrendingUp className="w-5 h-5 text-emerald-500" />
                         </div>
-                        <p className="text-xs text-slate-500 mt-2">All time</p>
+                        <p className="text-xs text-muted-foreground mt-2">All time</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-slate-800 bg-slate-900/50">
+                <Card className="border-border bg-card/60">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-xs text-slate-400">Last Run</CardDescription>
+                        <CardDescription className="text-xs text-muted-foreground">Last Run</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center justify-between">
-                            <div className="text-sm font-medium text-slate-200">
+                            <div className="text-sm font-medium text-foreground">
                                 {lastRun || "Never"}
                             </div>
-                            <Clock className="w-5 h-5 text-slate-500" />
+                            <Clock className="w-5 h-5 text-muted-foreground" />
                         </div>
-                        <p className="text-xs text-slate-500 mt-2">Autonomous loop</p>
+                        <p className="text-xs text-muted-foreground mt-2">Autonomous loop</p>
                     </CardContent>
                 </Card>
             </div>
 
             {/* Control Panel */}
-            <Card className="border-slate-800 bg-slate-900/50">
+            <Card className="border-border bg-card/60">
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-slate-200">Autonomous Control</CardTitle>
+                            <CardTitle className="text-foreground">Autonomous Control</CardTitle>
                             <CardDescription>Trigger autonomous orchestration and monitoring</CardDescription>
                         </div>
                         <Button
@@ -172,17 +172,17 @@ export function AresControlCentre() {
             </Card>
 
             {/* Scheduler Settings */}
-            <Card className="border-slate-800 bg-slate-900/50">
+            <Card className="border-border bg-card/60">
                 <CardHeader>
-                    <CardTitle className="text-slate-200">Automated Schedule</CardTitle>
+                    <CardTitle className="text-foreground">Automated Schedule</CardTitle>
                     <CardDescription>Configure daily autonomous enrichment</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg">
+                        <div className="flex items-center justify-between p-4 bg-white/[0.05] rounded-lg">
                             <div className="flex-1">
-                                <Label className="text-slate-200 font-medium">Daily Auto-Enrichment</Label>
-                                <p className="text-xs text-slate-400 mt-1">
+                                <Label className="text-foreground font-medium">Daily Auto-Enrichment</Label>
+                                <p className="text-xs text-muted-foreground mt-1">
                                     Automatically run enrichment daily at {scheduleStatus?.scheduledTime || "09:00"}
                                 </p>
                             </div>
@@ -209,14 +209,14 @@ export function AresControlCentre() {
             </Card>
 
             {/* Agent Performance Metrics */}
-            <Card className="border-slate-800 bg-slate-900/50">
+            <Card className="border-border bg-card/60">
                 <CardHeader>
-                    <CardTitle className="text-slate-200">Agent Performance</CardTitle>
+                    <CardTitle className="text-foreground">Agent Performance</CardTitle>
                     <CardDescription>Real-time metrics for the AI workforce</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="text-sm text-slate-400">Loading metrics...</div>
+                        <div className="text-sm text-muted-foreground">Loading metrics...</div>
                     ) : metrics && metrics.length > 0 ? (
                         <div className="space-y-4">
                             {metrics.map((agent) => {
@@ -224,11 +224,11 @@ export function AresControlCentre() {
                                 return (
                                     <div
                                         key={agent.agentId}
-                                        className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700"
+                                        className="flex items-center justify-between p-4 bg-white/[0.05] rounded-lg border border-border"
                                     >
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3">
-                                                <h4 className="font-medium text-slate-200">{agent.agentName}</h4>
+                                                <h4 className="font-medium text-foreground">{agent.agentName}</h4>
                                                 <Badge className={cn(health.bg, health.color, "border-0")}>
                                                     {health.label}
                                                 </Badge>
@@ -240,26 +240,26 @@ export function AresControlCentre() {
                                             </div>
                                             <div className="mt-2 grid grid-cols-4 gap-4 text-xs">
                                                 <div>
-                                                    <span className="text-slate-500">Success Rate</span>
-                                                    <div className="font-semibold text-slate-200 mt-1">
+                                                    <span className="text-muted-foreground">Success Rate</span>
+                                                    <div className="font-semibold text-foreground mt-1">
                                                         {agent.successRate.toFixed(1)}%
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <span className="text-slate-500">Avg Time</span>
-                                                    <div className="font-semibold text-slate-200 mt-1">
+                                                    <span className="text-muted-foreground">Avg Time</span>
+                                                    <div className="font-semibold text-foreground mt-1">
                                                         {agent.averageJobTime}s
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <span className="text-slate-500">Total Jobs</span>
-                                                    <div className="font-semibold text-slate-200 mt-1">
+                                                    <span className="text-muted-foreground">Total Jobs</span>
+                                                    <div className="font-semibold text-foreground mt-1">
                                                         {agent.totalJobs}
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <span className="text-slate-500">Failed</span>
-                                                    <div className="font-semibold text-slate-200 mt-1">
+                                                    <span className="text-muted-foreground">Failed</span>
+                                                    <div className="font-semibold text-foreground mt-1">
                                                         {agent.failedJobs}
                                                     </div>
                                                 </div>
@@ -273,7 +273,7 @@ export function AresControlCentre() {
                             })}
                         </div>
                     ) : (
-                        <div className="text-sm text-slate-400 text-center py-8">
+                        <div className="text-sm text-muted-foreground text-center py-8">
                             No agent metrics available. Run the ARES loop to collect data.
                         </div>
                     )}

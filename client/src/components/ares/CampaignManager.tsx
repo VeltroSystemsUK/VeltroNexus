@@ -104,7 +104,7 @@ export function CampaignManager() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight">Strategy Engine</h2>
-                    <p className="text-slate-400">Define search vectors for the autonomous agent.</p>
+                    <p className="text-muted-foreground">Define search vectors for the autonomous agent.</p>
                 </div>
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
@@ -113,7 +113,7 @@ export function CampaignManager() {
                             New Campaign
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-slate-900 border-slate-800 text-white">
+                    <DialogContent className="bg-card border-border text-foreground">
                         <DialogHeader>
                             <DialogTitle>Launch New Campaign</DialogTitle>
                             <DialogDescription>
@@ -127,7 +127,7 @@ export function CampaignManager() {
                                     placeholder="e.g. Manchester City Centre"
                                     value={newCampaign.name}
                                     onChange={e => setNewCampaign({ ...newCampaign, name: e.target.value })}
-                                    className="bg-slate-950 border-slate-800"
+                                    className="bg-background border-border"
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -137,10 +137,10 @@ export function CampaignManager() {
                                         value={newCampaign.type}
                                         onValueChange={(v: "region" | "sector") => setNewCampaign({ ...newCampaign, type: v })}
                                     >
-                                        <SelectTrigger className="bg-slate-950 border-slate-800">
+                                        <SelectTrigger className="bg-background border-border">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                                        <SelectContent className="bg-card border-border text-foreground">
                                             <SelectItem value="region">Region (Postcode/City)</SelectItem>
                                             <SelectItem value="sector">Sector (SIC Code)</SelectItem>
                                         </SelectContent>
@@ -152,7 +152,7 @@ export function CampaignManager() {
                                         placeholder={newCampaign.type === 'region' ? "e.g. M3, Manchester" : "e.g. 41202"}
                                         value={newCampaign.value}
                                         onChange={e => setNewCampaign({ ...newCampaign, value: e.target.value })}
-                                        className="bg-slate-950 border-slate-800"
+                                        className="bg-background border-border"
                                     />
                                 </div>
                             </div>
@@ -162,10 +162,10 @@ export function CampaignManager() {
                                     value={newCampaign.priority}
                                     onValueChange={(v: "low" | "medium" | "high") => setNewCampaign({ ...newCampaign, priority: v })}
                                 >
-                                    <SelectTrigger className="bg-slate-950 border-slate-800">
+                                    <SelectTrigger className="bg-background border-border">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                                    <SelectContent className="bg-card border-border text-foreground">
                                         <SelectItem value="high">High (Daily Scan)</SelectItem>
                                         <SelectItem value="medium">Medium (Weekly Scan)</SelectItem>
                                         <SelectItem value="low">Low (Backlog)</SelectItem>
@@ -174,7 +174,7 @@ export function CampaignManager() {
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="border-slate-700 text-white">Cancel</Button>
+                            <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="border-border text-foreground">Cancel</Button>
                             <Button onClick={handleSubmit} disabled={createMutation.isPending} className="bg-primary hover:bg-primary/90">
                                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Launch Campaign
@@ -186,14 +186,14 @@ export function CampaignManager() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {campaigns?.map(campaign => (
-                    <Card key={campaign.id} className="bg-slate-900 border-slate-800 hover:border-primary/50 transition-all">
+                    <Card key={campaign.id} className="bg-card border-border hover:border-primary/50 transition-all">
                         <CardHeader className="flex flex-row items-start justify-between pb-2">
                             <div className="space-y-1">
                                 <CardTitle className="text-lg font-bold flex items-center gap-2">
                                     {campaign.type === 'region' ? <MapPin className="h-4 w-4 text-emerald-500" /> : <Factory className="h-4 w-4 text-blue-500" />}
                                     {campaign.name}
                                 </CardTitle>
-                                <CardDescription className="text-xs font-mono bg-slate-950 px-2 py-1 rounded inline-block border border-slate-800">
+                                <CardDescription className="text-xs font-mono bg-background px-2 py-1 rounded inline-block border border-border">
                                     {campaign.value}
                                 </CardDescription>
                             </div>
@@ -203,16 +203,16 @@ export function CampaignManager() {
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-2 gap-4 mb-4">
-                                <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/50">
-                                    <span className="text-xs text-slate-500 block mb-1">Leads Found</span>
-                                    <span className="text-xl font-bold text-white flex items-center gap-2">
+                                <div className="bg-black/20 p-3 rounded-lg border border-border">
+                                    <span className="text-xs text-muted-foreground block mb-1">Leads Found</span>
+                                    <span className="text-xl font-bold text-foreground flex items-center gap-2">
                                         <Target className="h-4 w-4 text-primary" />
                                         {campaign.leadsFound}
                                     </span>
                                 </div>
-                                <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/50">
-                                    <span className="text-xs text-slate-500 block mb-1">Last Run</span>
-                                    <span className="text-sm font-medium text-slate-300">
+                                <div className="bg-black/20 p-3 rounded-lg border border-border">
+                                    <span className="text-xs text-muted-foreground block mb-1">Last Run</span>
+                                    <span className="text-sm font-medium text-foreground/90">
                                         {campaign.lastRun ? new Date(campaign.lastRun).toLocaleDateString() : 'Pending'}
                                     </span>
                                 </div>
@@ -222,7 +222,7 @@ export function CampaignManager() {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                                    className="flex-1 border-border text-foreground/90 hover:bg-white/[0.06] hover:text-foreground"
                                     onClick={() => updateMutation.mutate({
                                         id: campaign.id!,
                                         updates: { status: campaign.status === 'active' ? 'paused' : 'active' }
@@ -234,7 +234,7 @@ export function CampaignManager() {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="px-2 border-slate-700 text-slate-400 hover:text-red-400 hover:bg-red-950/20"
+                                    className="px-2 border-border text-muted-foreground hover:text-red-400 hover:bg-red-950/20"
                                     onClick={() => {
                                         if (confirm("Delete this campaign?")) deleteMutation.mutate(campaign.id!)
                                     }}
@@ -248,10 +248,10 @@ export function CampaignManager() {
 
                 {/* Empty State / Prompt */}
                 {campaigns?.length === 0 && !isLoading && (
-                    <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/50">
-                        <Globe className="h-12 w-12 text-slate-700 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-slate-300">No Active Campaigns</h3>
-                        <p className="text-sm text-slate-500 mb-4">Define a region to start autonomous prospecting.</p>
+                    <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl bg-card/60">
+                        <Globe className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-foreground/90">No Active Campaigns</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Define a region to start autonomous prospecting.</p>
                         <Button variant="outline" onClick={() => setIsCreateOpen(true)} className="border-primary/50 text-primary hover:bg-primary/10">
                             Create First Campaign
                         </Button>

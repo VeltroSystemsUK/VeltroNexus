@@ -458,7 +458,7 @@ export default function Workforce() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#020617] text-white">
+    <div className="flex flex-col h-full bg-transparent text-foreground">
       <PageHeader
         title="AI Workforce"
         description="Manage your roster of specialized digital employees"
@@ -475,7 +475,7 @@ export default function Workforce() {
       <main className="flex-1 p-6 overflow-y-auto">
         <Tabs defaultValue="roster" className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="bg-slate-900 border border-slate-800">
+            <TabsList className="bg-card border border-border">
               <TabsTrigger value="roster" className="data-[state=active]:bg-primary">
                 Active Roster
               </TabsTrigger>
@@ -499,10 +499,10 @@ export default function Workforce() {
             </TabsList>
 
             <div className="flex gap-4">
-              <Card className="bg-slate-900/50 border-slate-800 py-1.5 px-4 h-10 flex items-center">
+              <Card className="bg-card/60 border-border py-1.5 px-4 h-10 flex items-center">
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-green-500 animate-pulse" />
-                  <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
+                  <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
                     Core Systems: Normal
                   </span>
                 </div>
@@ -515,23 +515,23 @@ export default function Workforce() {
               {roster?.map((agent) => (
                 <Card
                   key={agent.id}
-                  className="bg-slate-900 border-slate-800 overflow-hidden hover:border-primary/50 transition-all duration-300 group"
+                  className="bg-card border-border overflow-hidden hover:border-primary/50 transition-all duration-300 group"
                 >
                   <div className="flex flex-col md:flex-row items-stretch">
                     {/* Profile Picture Section */}
-                    <div className="relative flex-shrink-0 w-full md:w-48 h-48 md:h-auto bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center overflow-hidden">
+                    <div className="relative flex-shrink-0 w-full md:w-48 h-48 md:h-auto bg-gradient-to-br from-white/[0.04] to-transparent flex items-center justify-center overflow-hidden">
                       <div className="relative">
                         <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-primary/60 to-primary/20 blur-md opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
                         <Avatar className="relative h-28 w-28 border-2 border-primary/30 shadow-2xl shadow-primary/10 group-hover:border-primary/60 transition-all duration-300">
                           <AvatarImage src={agent.avatar} className="object-cover" />
-                          <AvatarFallback className="text-3xl font-bold bg-slate-800 text-primary">
+                          <AvatarFallback className="text-3xl font-bold bg-white/[0.05] text-primary">
                             {agent.name[0]}
                           </AvatarFallback>
                         </Avatar>
                       </div>
                       {/* Status indicator */}
                       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 md:bottom-4">
-                        <div className="flex items-center gap-1.5 bg-slate-950/80 backdrop-blur-sm px-2.5 py-1 rounded-full border border-slate-700/50">
+                        <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-full border border-border">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
                           <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-400">
                             Online
@@ -546,20 +546,20 @@ export default function Workforce() {
                       <div className="flex-1 min-w-0 space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                               {agent.name}
                               {agent.aresCertification?.status === "certified" && (
                                 <ShieldCheck className="h-4 w-4 text-primary flex-shrink-0" />
                               )}
                             </h3>
-                            <p className="text-sm text-slate-400">{agent.role as string}</p>
+                            <p className="text-sm text-muted-foreground">{agent.role as string}</p>
                           </div>
-                          <Badge className="flex-shrink-0 bg-slate-800/80 border-slate-700 text-[10px] uppercase font-bold tracking-widest text-slate-300">
+                          <Badge className="flex-shrink-0 bg-white/[0.06] border-border text-[10px] uppercase font-bold tracking-widest text-foreground/90">
                             {agent.department}
                           </Badge>
                         </div>
 
-                        <p className="text-sm text-slate-300/80 leading-relaxed">
+                        <p className="text-sm text-foreground/80 leading-relaxed">
                           {agent.description as string}
                         </p>
 
@@ -571,7 +571,7 @@ export default function Workforce() {
                             <Badge
                               key={skill}
                               variant="secondary"
-                              className="bg-slate-800/60 text-slate-400 border border-slate-700/50 text-xs hover:bg-slate-700/60 hover:text-slate-300 transition-colors"
+                              className="bg-white/[0.05] text-muted-foreground border border-border text-xs hover:bg-white/[0.08] hover:text-foreground transition-colors"
                             >
                               {skill}
                             </Badge>
@@ -581,21 +581,21 @@ export default function Workforce() {
 
                       {/* Scores & Action Column */}
                       <div className="flex flex-col gap-3 md:w-56 flex-shrink-0">
-                        <div className="space-y-2.5 bg-slate-950/40 rounded-xl p-3.5 border border-slate-800/50">
+                        <div className="space-y-2.5 bg-black/20 rounded-xl p-3.5 border border-border">
                           {agent.scores.map((score) => (
                             <div key={score.subject} className="space-y-1">
                               <div className="flex justify-between text-[10px] uppercase font-semibold">
-                                <span className="text-slate-500">{score.subject}</span>
+                                <span className="text-muted-foreground">{score.subject}</span>
                                 <span className="text-primary/80">{score.A}%</span>
                               </div>
-                              <Progress value={score.A} className="h-1 bg-slate-800" />
+                              <Progress value={score.A} className="h-1 bg-white/[0.05]" />
                             </div>
                           ))}
                         </div>
 
                         <Button
                           variant="outline"
-                          className="w-full border-slate-700 hover:bg-primary/10 hover:border-primary/50 hover:text-white text-slate-300 transition-all duration-200"
+                          className="w-full border-border hover:bg-primary/10 hover:border-primary/50 hover:text-foreground text-foreground/90 transition-all duration-200"
                           onClick={() => {
                             setSelectedAgentId(agent.id);
                             setChatHistory([]);
@@ -609,7 +609,7 @@ export default function Workforce() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full border-slate-700 hover:bg-emerald-950/30 hover:border-emerald-800/50 text-slate-400 hover:text-emerald-400 transition-all"
+                          className="w-full border-border hover:bg-emerald-950/30 hover:border-emerald-800/50 text-muted-foreground hover:text-emerald-400 transition-all"
                           onClick={() => openWorkflowEditor(agent)}
                         >
                           <ClipboardList className="mr-1.5 h-3.5 w-3.5" />
@@ -625,7 +625,7 @@ export default function Workforce() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex-1 border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-white transition-all"
+                            className="flex-1 border-border hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-all"
                             onClick={() => handleEditOpen(agent)}
                           >
                             <Pencil className="mr-1.5 h-3.5 w-3.5" />
@@ -634,7 +634,7 @@ export default function Workforce() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex-1 border-slate-700 hover:bg-red-950/50 hover:border-red-800 text-slate-400 hover:text-red-400 transition-all"
+                            className="flex-1 border-border hover:bg-red-950/50 hover:border-red-800 text-muted-foreground hover:text-red-400 transition-all"
                             onClick={() => setDeletingAgent(agent)}
                           >
                             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -652,16 +652,16 @@ export default function Workforce() {
           {/* Interaction Overlay */}
           {selectedAgent && (
             <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm p-4">
-              <div className="w-full max-w-2xl h-full bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col rounded-xl overflow-hidden animate-in slide-in-from-right duration-300">
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+              <div className="w-full max-w-2xl h-full bg-card border-l border-border shadow-2xl flex flex-col rounded-xl overflow-hidden animate-in slide-in-from-right duration-300">
+                <div className="p-4 border-b border-border flex items-center justify-between bg-black/20">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 border border-slate-800">
+                    <Avatar className="h-10 w-10 border border-border">
                       <AvatarImage src={selectedAgent.avatar} />
                       <AvatarFallback>{selectedAgent.name[0]}</AvatarFallback>
                     </Avatar>
                     <div>
                       <h3 className="font-bold text-sm">{selectedAgent.name}</h3>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                         Active Session • {selectedAgent.role as string}
                         {chatHistory.length > 0 && (
                           <span className="ml-2 text-emerald-400">
@@ -676,7 +676,7 @@ export default function Workforce() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="text-slate-400 hover:text-red-400"
+                        className="text-muted-foreground hover:text-red-400"
                         onClick={() => {
                           if (confirm("Clear this conversation history?")) {
                             clearChatMutation.mutate(selectedAgent.id);
@@ -691,7 +691,7 @@ export default function Workforce() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="text-slate-400 hover:text-white"
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={() => setSelectedAgentId(null)}
                     >
                       <X className="h-5 w-5" />
@@ -702,7 +702,7 @@ export default function Workforce() {
                 <ScrollArea className="flex-1 p-6">
                   <div ref={scrollRef} className="space-y-6">
                     {isLoadingChats && (
-                      <div className="flex items-center justify-center py-8 text-slate-500">
+                      <div className="flex items-center justify-center py-8 text-muted-foreground">
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
                         <span className="text-sm">Loading conversation history...</span>
                       </div>
@@ -713,11 +713,11 @@ export default function Workforce() {
                           <Brain className="h-8 w-8 text-primary" />
                         </div>
                         <h4 className="font-bold mb-2">Direct Interaction Mode</h4>
-                        <p className="text-sm text-slate-400 max-w-xs mx-auto">
+                        <p className="text-sm text-muted-foreground max-w-xs mx-auto">
                           You are now securely connected to {selectedAgent.name}. Issue instructions
                           or requests for analysis.
                         </p>
-                        <p className="text-xs text-slate-500 mt-4">
+                        <p className="text-xs text-muted-foreground mt-4">
                           Previous conversations will appear here
                         </p>
                       </div>
@@ -735,15 +735,15 @@ export default function Workforce() {
                             "px-4 py-3 rounded-2xl text-sm leading-relaxed",
                             msg.role === "user"
                               ? "bg-primary text-primary-foreground rounded-tr-none shadow-lg shadow-primary/10"
-                              : "bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700 shadow-xl shadow-black/20"
+                              : "bg-white/[0.05] text-foreground rounded-tl-none border border-border shadow-xl shadow-black/20"
                           )}
                         >
                           {msg.content}
                         </div>
-                        <span className="text-[10px] text-slate-500 mt-1 uppercase font-bold px-1 flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold px-1 flex items-center gap-2">
                           {msg.role === "user" ? "Direct Command" : selectedAgent.name}
                           {msg.timestamp && (
-                            <span className="text-slate-600 font-normal">
+                            <span className="text-muted-foreground/70 font-normal">
                               {new Date(msg.timestamp).toLocaleTimeString("en-GB", {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -754,7 +754,7 @@ export default function Workforce() {
                       </div>
                     ))}
                     {runMutation.isPending && (
-                      <div className="flex items-start gap-2 text-slate-500 animate-pulse">
+                      <div className="flex items-start gap-2 text-muted-foreground animate-pulse">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span className="text-xs font-medium">
                           Processing Agent Intelligence...
@@ -764,7 +764,7 @@ export default function Workforce() {
                   </div>
                 </ScrollArea>
 
-                <div className="p-4 bg-slate-950/50 border-t border-slate-800">
+                <div className="p-4 bg-black/20 border-t border-border">
                   <div className="relative flex items-center">
                     <textarea
                       id="agent-instruction"
@@ -779,7 +779,7 @@ export default function Workforce() {
                       }}
                       placeholder={`Instruct ${selectedAgent.name}...`}
                       autoComplete="off"
-                      className="w-full bg-slate-900 border-slate-800 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none min-h-[50px] max-h-[150px]"
+                      className="w-full bg-card border-border rounded-xl px-4 py-3 pr-12 text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none min-h-[50px] max-h-[150px]"
                     />
                     <Button
                       size="icon"
@@ -790,7 +790,7 @@ export default function Workforce() {
                       <SendHorizontal className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="text-[9px] text-slate-500 mt-2 text-center">
+                  <p className="text-[9px] text-muted-foreground mt-2 text-center">
                     Direct commands are audited for logic drift and mission integrity.
                   </p>
                 </div>
@@ -814,7 +814,7 @@ export default function Workforce() {
             <div className="space-y-4">
               {deviations && deviations.length > 0 ? (
                 deviations.map((deviation: any) => (
-                  <Card key={deviation.id} className="bg-slate-900 border-slate-800">
+                  <Card key={deviation.id} className="bg-card border-border">
                     <CardContent className="p-4 flex items-start gap-4">
                       <div
                         className={cn(
@@ -831,15 +831,15 @@ export default function Workforce() {
                           <h4 className="font-semibold text-sm">
                             {deviation.category.replace("_", " ")} Detected
                           </h4>
-                          <span className="text-[10px] text-slate-500">
+                          <span className="text-[10px] text-muted-foreground">
                             {new Date(deviation.timestamp).toLocaleString()}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mb-2">
+                        <p className="text-xs text-muted-foreground mb-2">
                           Agent ID:{" "}
-                          <span className="text-slate-300 uppercase">{deviation.agentId}</span>
+                          <span className="text-foreground/90 uppercase">{deviation.agentId}</span>
                         </p>
-                        <div className="p-3 bg-slate-950/50 rounded border border-slate-800 text-[11px] text-slate-300 leading-relaxed italic">
+                        <div className="p-3 bg-black/20 rounded border border-border text-[11px] text-foreground/90 leading-relaxed italic">
                           "{deviation.assessment}"
                         </div>
                       </div>
@@ -850,8 +850,8 @@ export default function Workforce() {
                   </Card>
                 ))
               ) : (
-                <Card className="bg-slate-900 border-slate-800">
-                  <CardContent className="p-12 text-center text-slate-500">
+                <Card className="bg-card border-border">
+                  <CardContent className="p-12 text-center text-muted-foreground">
                     <ShieldCheck className="h-12 w-12 mx-auto mb-4 opacity-20" />
                     <p>No mission deviations detected. Commercial Integrity is 100%.</p>
                   </CardContent>
@@ -868,13 +868,13 @@ export default function Workforce() {
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setEditingAgent(null)}
             />
-            <div className="relative bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-lg p-6">
+            <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">Edit Agent</h2>
+                <h2 className="text-lg font-bold text-foreground">Edit Agent</h2>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="text-slate-400 hover:text-white"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={() => setEditingAgent(null)}
                 >
                   <X className="h-5 w-5" />
@@ -885,7 +885,7 @@ export default function Workforce() {
                 <div>
                   <label
                     htmlFor="edit-name"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Name
                   </label>
@@ -896,13 +896,13 @@ export default function Workforce() {
                     value={editForm.name}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="edit-role"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Role
                   </label>
@@ -913,13 +913,13 @@ export default function Workforce() {
                     value={editForm.role}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))}
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="edit-department"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Department
                   </label>
@@ -932,13 +932,13 @@ export default function Workforce() {
                       setEditForm((prev) => ({ ...prev, department: e.target.value }))
                     }
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="edit-description"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Description
                   </label>
@@ -951,7 +951,7 @@ export default function Workforce() {
                     }
                     rows={3}
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none"
                   />
                 </div>
               </div>
@@ -959,7 +959,7 @@ export default function Workforce() {
               <div className="flex gap-3 mt-6">
                 <Button
                   variant="outline"
-                  className="flex-1 border-slate-800 text-slate-300"
+                  className="flex-1 border-border text-foreground/90"
                   onClick={() => setEditingAgent(null)}
                 >
                   Cancel
@@ -986,27 +986,27 @@ export default function Workforce() {
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setDeletingAgent(null)}
             />
-            <div className="relative bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6 text-center">
+            <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6 text-center">
               <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle className="h-7 w-7 text-red-500" />
               </div>
-              <h2 className="text-lg font-bold text-white mb-2">Delete Agent</h2>
-              <p className="text-sm text-slate-400 mb-6">
+              <h2 className="text-lg font-bold text-foreground mb-2">Delete Agent</h2>
+              <p className="text-sm text-muted-foreground mb-6">
                 Are you sure you want to delete{" "}
-                <span className="font-bold text-white">{deletingAgent.name}</span>? This action
+                <span className="font-bold text-foreground">{deletingAgent.name}</span>? This action
                 cannot be undone.
               </p>
 
               <div className="flex gap-3">
                 <Button
                   variant="outline"
-                  className="flex-1 border-slate-800 text-slate-300"
+                  className="flex-1 border-border text-foreground/90"
                   onClick={() => setDeletingAgent(null)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-foreground"
                   onClick={() => deleteMutation.mutate(deletingAgent.id)}
                   disabled={deleteMutation.isPending}
                 >
@@ -1027,16 +1027,16 @@ export default function Workforce() {
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setWorkflowAgentId(null)}
             />
-            <div className="relative bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
               {/* Header */}
-              <div className="p-5 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
+              <div className="p-5 border-b border-border flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                     <ClipboardList className="h-5 w-5 text-emerald-400" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white">Workflow Editor</h2>
-                    <p className="text-xs text-slate-500">
+                    <h2 className="text-lg font-bold text-foreground">Workflow Editor</h2>
+                    <p className="text-xs text-muted-foreground">
                       {workflowAgent.name} &mdash; {workflowAgent.role as string}
                     </p>
                   </div>
@@ -1044,7 +1044,7 @@ export default function Workforce() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="text-slate-400 hover:text-white"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={() => setWorkflowAgentId(null)}
                 >
                   <X className="h-5 w-5" />
@@ -1057,7 +1057,7 @@ export default function Workforce() {
                 <div>
                   <label
                     htmlFor="workflow-job-desc"
-                    className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2"
+                    className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2"
                   >
                     <FileText className="h-3.5 w-3.5" /> Job Description
                   </label>
@@ -1071,28 +1071,28 @@ export default function Workforce() {
                     rows={4}
                     placeholder="Describe the agent's overall purpose and scope of work..."
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
                   />
                 </div>
 
                 {/* Responsibilities */}
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                  <label className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                     <ListChecks className="h-3.5 w-3.5" /> Responsibilities (
                     {workflowDraft.responsibilities.length})
                   </label>
                   <div className="space-y-2 mb-3">
                     {workflowDraft.responsibilities.map((r, i) => (
                       <div key={i} className="flex items-center gap-2 group">
-                        <span className="text-[10px] font-mono text-slate-600 w-5 text-right">
+                        <span className="text-[10px] font-mono text-muted-foreground/70 w-5 text-right">
                           {i + 1}.
                         </span>
-                        <div className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300">
+                        <div className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground/90">
                           {r}
                         </div>
                         <button
                           onClick={() => removeResponsibility(i)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1"
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground/70 hover:text-red-400 transition-all p-1"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -1114,12 +1114,12 @@ export default function Workforce() {
                       }}
                       placeholder="Add a responsibility..."
                       autoComplete="off"
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-emerald-500/50 outline-none"
+                      className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-emerald-500/50 outline-none"
                     />
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-800"
+                      className="border-border text-muted-foreground hover:text-emerald-400 hover:border-emerald-800"
                       onClick={addResponsibility}
                     >
                       <Plus className="h-3.5 w-3.5 mr-1" /> Add
@@ -1130,13 +1130,13 @@ export default function Workforce() {
                 {/* Tasks */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <label className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                       <ClipboardList className="h-3.5 w-3.5" /> Tasks ({workflowDraft.tasks.length})
                     </label>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-800"
+                      className="border-border text-muted-foreground hover:text-emerald-400 hover:border-emerald-800"
                       onClick={addTask}
                     >
                       <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
@@ -1149,14 +1149,14 @@ export default function Workforce() {
                       return (
                         <div
                           key={task.id}
-                          className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden"
+                          className="bg-background border border-border rounded-xl overflow-hidden"
                         >
                           {/* Task Header */}
                           <div
-                            className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-800/30 transition-colors"
+                            className="flex items-center gap-3 p-3 cursor-pointer hover:bg-white/[0.04] transition-colors"
                             onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
                           >
-                            <div className="text-slate-600">
+                            <div className="text-muted-foreground/70">
                               {isExpanded ? (
                                 <ChevronUp className="h-4 w-4" />
                               ) : (
@@ -1165,13 +1165,13 @@ export default function Workforce() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-white truncate">
+                                <span className="text-sm font-semibold text-foreground truncate">
                                   {task.name || "Untitled Task"}
                                 </span>
-                                <Badge className="bg-slate-800 text-slate-400 border-slate-700 text-[9px]">
+                                <Badge className="bg-white/[0.05] text-muted-foreground border-border text-[9px]">
                                   {task.trigger}
                                 </Badge>
-                                <Badge className="bg-slate-800 text-slate-500 border-slate-700 text-[9px]">
+                                <Badge className="bg-white/[0.05] text-muted-foreground border-border text-[9px]">
                                   {task.steps.filter((s) => s.trim()).length} steps
                                 </Badge>
                               </div>
@@ -1181,7 +1181,7 @@ export default function Workforce() {
                                 e.stopPropagation();
                                 removeTask(task.id);
                               }}
-                              className="text-slate-600 hover:text-red-400 transition-colors p-1"
+                              className="text-muted-foreground/70 hover:text-red-400 transition-colors p-1"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1189,12 +1189,12 @@ export default function Workforce() {
 
                           {/* Task Detail (Expanded) */}
                           {isExpanded && (
-                            <div className="border-t border-slate-800 p-4 space-y-4">
+                            <div className="border-t border-border p-4 space-y-4">
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label
                                     htmlFor={`task-name-${task.id}`}
-                                    className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
+                                    className="block text-[9px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-1"
                                   >
                                     Task Name
                                   </label>
@@ -1206,13 +1206,13 @@ export default function Workforce() {
                                     onChange={(e) => updateTask(task.id, { name: e.target.value })}
                                     placeholder="e.g. Qualify Lead"
                                     autoComplete="off"
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-emerald-500/50"
                                   />
                                 </div>
                                 <div>
                                   <label
                                     htmlFor={`task-trigger-${task.id}`}
-                                    className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
+                                    className="block text-[9px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-1"
                                   >
                                     Trigger
                                   </label>
@@ -1225,7 +1225,7 @@ export default function Workforce() {
                                         trigger: e.target.value as WorkflowTaskTrigger,
                                       })
                                     }
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-emerald-500/50"
                                   >
                                     <option value="on_instruction">On Instruction</option>
                                     <option value="scheduled">Scheduled</option>
@@ -1237,7 +1237,7 @@ export default function Workforce() {
                               <div>
                                 <label
                                   htmlFor={`task-desc-${task.id}`}
-                                  className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
+                                  className="block text-[9px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-1"
                                 >
                                   Description
                                 </label>
@@ -1251,18 +1251,18 @@ export default function Workforce() {
                                   rows={2}
                                   placeholder="What does this task accomplish?"
                                   autoComplete="off"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50 resize-none"
+                                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-emerald-500/50 resize-none"
                                 />
                               </div>
 
                               <div>
-                                <label className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1">
+                                <label className="block text-[9px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-1">
                                   Steps
                                 </label>
                                 <div className="space-y-2">
                                   {task.steps.map((step, si) => (
                                     <div key={si} className="flex items-center gap-2 group">
-                                      <span className="text-[10px] font-mono text-slate-600 w-5 text-right">
+                                      <span className="text-[10px] font-mono text-muted-foreground/70 w-5 text-right">
                                         {si + 1}.
                                       </span>
                                       <input
@@ -1273,11 +1273,11 @@ export default function Workforce() {
                                         onChange={(e) => updateStep(task.id, si, e.target.value)}
                                         placeholder="Describe this step..."
                                         autoComplete="off"
-                                        className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                        className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-emerald-500/50"
                                       />
                                       <button
                                         onClick={() => removeStep(task.id, si)}
-                                        className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1"
+                                        className="opacity-0 group-hover:opacity-100 text-muted-foreground/70 hover:text-red-400 transition-all p-1"
                                       >
                                         <X className="h-3 w-3" />
                                       </button>
@@ -1286,7 +1286,7 @@ export default function Workforce() {
                                 </div>
                                 <button
                                   onClick={() => addStep(task.id)}
-                                  className="mt-2 text-[10px] font-bold text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors"
+                                  className="mt-2 text-[10px] font-bold text-muted-foreground hover:text-emerald-400 flex items-center gap-1 transition-colors"
                                 >
                                   <Plus className="h-3 w-3" /> Add Step
                                 </button>
@@ -1295,7 +1295,7 @@ export default function Workforce() {
                               <div>
                                 <label
                                   htmlFor={`task-output-${task.id}`}
-                                  className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
+                                  className="block text-[9px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-1"
                                 >
                                   Expected Output
                                 </label>
@@ -1309,14 +1309,14 @@ export default function Workforce() {
                                   }
                                   placeholder="What should this task produce?"
                                   autoComplete="off"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-emerald-500/50"
                                 />
                               </div>
 
                               <div>
                                 <label
                                   htmlFor={`task-escalation-${task.id}`}
-                                  className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
+                                  className="block text-[9px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-1"
                                 >
                                   Escalation Rule (Optional)
                                 </label>
@@ -1332,7 +1332,7 @@ export default function Workforce() {
                                   }
                                   placeholder="When should this task escalate to a human?"
                                   autoComplete="off"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
+                                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-emerald-500/50"
                                 />
                               </div>
                             </div>
@@ -1342,10 +1342,10 @@ export default function Workforce() {
                     })}
 
                     {workflowDraft.tasks.length === 0 && (
-                      <div className="py-8 text-center border border-dashed border-slate-800 rounded-xl">
-                        <ClipboardList className="h-8 w-8 text-slate-700 mx-auto mb-2" />
-                        <p className="text-sm text-slate-600">No tasks defined yet</p>
-                        <p className="text-xs text-slate-700 mt-1">
+                      <div className="py-8 text-center border border-dashed border-border rounded-xl">
+                        <ClipboardList className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground/70">No tasks defined yet</p>
+                        <p className="text-xs text-muted-foreground/50 mt-1">
                           Add tasks to define what this agent can do
                         </p>
                       </div>
@@ -1355,16 +1355,16 @@ export default function Workforce() {
               </div>
 
               {/* Footer */}
-              <div className="p-5 border-t border-slate-800 flex gap-3 flex-shrink-0">
+              <div className="p-5 border-t border-border flex gap-3 flex-shrink-0">
                 <Button
                   variant="outline"
-                  className="flex-1 border-slate-800 text-slate-300"
+                  className="flex-1 border-border text-foreground/90"
                   onClick={() => setWorkflowAgentId(null)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-foreground"
                   onClick={() =>
                     workflowMutation.mutate({ id: workflowAgentId, workflow: workflowDraft })
                   }
@@ -1387,21 +1387,21 @@ export default function Workforce() {
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setIsCreateModalOpen(false)}
             />
-            <div className="relative bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Sparkles className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white">Train New Agent</h2>
-                    <p className="text-xs text-slate-500">Create a new digital employee</p>
+                    <h2 className="text-lg font-bold text-foreground">Train New Agent</h2>
+                    <p className="text-xs text-muted-foreground">Create a new digital employee</p>
                   </div>
                 </div>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="text-slate-400 hover:text-white"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={() => setIsCreateModalOpen(false)}
                 >
                   <X className="h-5 w-5" />
@@ -1412,7 +1412,7 @@ export default function Workforce() {
                 <div>
                   <label
                     htmlFor="agent-name"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Agent Name
                   </label>
@@ -1424,14 +1424,14 @@ export default function Workforce() {
                     onChange={(e) => setNewAgentForm((prev) => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g. Maya, Oscar, Leo"
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="agent-role"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Role
                   </label>
@@ -1443,14 +1443,14 @@ export default function Workforce() {
                     onChange={(e) => setNewAgentForm((prev) => ({ ...prev, role: e.target.value }))}
                     placeholder="e.g. Sales Agent, Credit Analyst"
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="agent-department"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Department
                   </label>
@@ -1461,7 +1461,7 @@ export default function Workforce() {
                     onChange={(e) =>
                       setNewAgentForm((prev) => ({ ...prev, department: e.target.value }))
                     }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   >
                     <option value="Sales & Growth">Sales & Growth</option>
                     <option value="Operations">Operations</option>
@@ -1475,7 +1475,7 @@ export default function Workforce() {
                 <div>
                   <label
                     htmlFor="agent-description"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Description
                   </label>
@@ -1489,14 +1489,14 @@ export default function Workforce() {
                     placeholder="What does this agent do?"
                     rows={3}
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="agent-expertise"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Expertise (comma-separated)
                   </label>
@@ -1510,14 +1510,14 @@ export default function Workforce() {
                     }
                     placeholder="e.g. Lead Generation, Credit Analysis, Financial Modeling"
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="agent-tools"
-                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5"
                   >
                     Tools (comma-separated)
                   </label>
@@ -1531,16 +1531,16 @@ export default function Workforce() {
                     }
                     placeholder="e.g. Email Client, CRM, Excel, Slack"
                     autoComplete="off"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
                   />
                 </div>
 
-                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                  <p className="text-xs text-slate-400 mb-2">
-                    <strong className="text-white">Quick Start:</strong> The agent will be created
+                <div className="bg-white/[0.05] rounded-lg p-4 border border-border">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    <strong className="text-foreground">Quick Start:</strong> The agent will be created
                     with default settings. You can customize its workflow and tasks after creation.
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-muted-foreground">
                     Default hourly rate: £0 (internal use) • Status: Available
                   </p>
                 </div>
@@ -1549,7 +1549,7 @@ export default function Workforce() {
               <div className="flex gap-3 mt-6">
                 <Button
                   variant="outline"
-                  className="flex-1 border-slate-800 text-slate-300"
+                  className="flex-1 border-border text-foreground/90"
                   onClick={() => setIsCreateModalOpen(false)}
                   disabled={createAgentMutation.isPending}
                 >
