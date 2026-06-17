@@ -1,6 +1,4 @@
 import React, { useState, useCallback } from "react";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
 import { EmailLink } from "@/components/EmailLink";
 
 // ─── Types (mirror the function types) ───────────────────────────────────────
@@ -125,21 +123,25 @@ export const DomainContactPanel: React.FC<DomainContactPanelProps> = ({
         setErrorMessage("");
 
         try {
-            const scrape = httpsCallable<{ domain: string; contactName?: string }, ScrapeResult>(
-                functions,
-                "scrapeDomainContactsEU"
-            );
-            const response = await scrape({ domain, contactName });
-            setResult(response.data);
+            const response = await fetch("/api/crm/scrape-domain", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ domain, contactName }),
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: response.statusText }));
+                throw new Error(err.error || "Scrape failed");
+            }
+            const data: ScrapeResult = await response.json();
+            setResult(data);
             setStatus("success");
         } catch (err: unknown) {
-            console.error("Scrape function error:", err);
-            const msg =
-                err instanceof Error ? err.message : "An unexpected error occurred";
+            console.error("Scrape error:", err);
+            const msg = err instanceof Error ? err.message : "An unexpected error occurred";
             setErrorMessage(msg);
             setStatus("error");
         }
-    }, [domain]);
+    }, [domain, contactName]);
 
     // ── Idle State ──
     if (status === "idle") {
