@@ -15,8 +15,7 @@ import {
   Plus,
   ChevronDown,
 } from "lucide-react";
-import logoChrome from "@assets/logo-chrome.png";
-import { railLenses, groupedDestinations } from "./navModel";
+import { railLenses, groupedDestinations, type Destination } from "./navModel";
 
 interface LensRailProps {
   role: string;
@@ -213,7 +212,7 @@ export function LensRail({ role, onCommand }: LensRailProps) {
               expanded ? "h-10 w-10" : "h-8 w-8 ml-[18px]"
             )}
           >
-            <img src={logoChrome} alt="Veltro" className="h-full w-full object-contain" />
+            <img src="/favicon.png" alt="Veltro" className="h-full w-full object-contain" />
           </Link>
 
           {expanded && (

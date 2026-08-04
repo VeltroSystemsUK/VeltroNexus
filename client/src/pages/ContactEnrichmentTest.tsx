@@ -87,7 +87,7 @@ export default function ContactEnrichmentTest() {
     return (
         <div className="container mx-auto py-8 space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-slate-100">Contact Enrichment Test</h1>
+                <h1 className="text-base md:text-lg font-bold text-slate-100 uppercase">Contact Enrichment Test</h1>
                 <p className="text-slate-400 mt-2">
                     Test AI web scraping to find decision-maker contacts for UK companies
                 </p>

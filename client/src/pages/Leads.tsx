@@ -43,9 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import type { Lead } from "@shared/schema";
-import logoChrome from "@assets/logo-chrome.png";
-import ThemeToggle from "@/components/ThemeToggle";
-import { ArrowLeft } from "lucide-react";
+import { usePageTitle } from "@/context/LayoutContext";
 
 const statusColors: Record<string, string> = {
   pending: "bg-gray-500/10 text-gray-700 dark:text-gray-300",
@@ -62,6 +60,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function Leads() {
+  usePageTitle("Leads", "Imported company leads ready for prospecting");
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
@@ -213,29 +212,6 @@ export default function Leads() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-[#1e293b] bg-[#0f172a] sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setLocation("/")}
-              className="text-gray-300 hover:text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <img
-                src={logoChrome}
-                alt="Veltro"
-                className="h-8 object-contain"
-              />
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
-      </header>
-
       <div className="container max-w-7xl mx-auto p-6 space-y-6">
         <Tabs defaultValue="directory" className="space-y-6">
           <TabsList className="bg-muted/50 border border-border">
@@ -252,7 +228,7 @@ export default function Leads() {
           <TabsContent value="directory" className="space-y-6 mt-0">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold" data-testid="text-leads-title">
+            <h1 className="text-base md:text-lg font-bold uppercase" data-testid="text-leads-title">
               Leads
             </h1>
             <p className="text-muted-foreground">Imported company leads ready for prospecting</p>

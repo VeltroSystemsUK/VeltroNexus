@@ -15,7 +15,6 @@ import {
   Brain,
   Settings,
   User,
-  CreditCard,
   Sparkles,
   ImageIcon,
   Mail,
@@ -54,6 +53,7 @@ export const DESTINATIONS: Destination[] = [
   { path: "/lenders", label: "Lenders", icon: Building2, group: "Sales", roles: WITH_TRIAL, keywords: "lender data", description: "Lender network and market data" },
   { path: "/gmail", label: "Gmail", icon: Mail, group: "Sales", roles: ["super_admin"], keywords: "email inbox", description: "Email management" },
   { path: "/whatsapp", label: "WhatsApp", icon: MessageSquare, group: "Sales", roles: ["super_admin"], keywords: "messages notifications", description: "Send messages via WhatsApp" },
+  { path: "/leads", label: "Leads", icon: Target, group: "Sales", roles: WITH_TRIAL, keywords: "lead generation find prospects", description: "Track and manage generated leads" },
 
   // Marketing
   { path: "/email-templates", label: "Templates", icon: FileText, group: "Marketing", roles: FULL, keywords: "email html", description: "Reusable email templates" },
@@ -77,7 +77,6 @@ export const DESTINATIONS: Destination[] = [
   // Settings
   { path: "/settings", label: "Settings", icon: Settings, group: "Settings", roles: WITH_TRIAL, keywords: "preferences", description: "Customise your Veltro experience" },
   { path: "/profile", label: "Profile", icon: User, group: "Settings", roles: WITH_TRIAL, keywords: "account", description: "Your account and profile details" },
-  { path: "/pricing", label: "Subscription", icon: CreditCard, group: "Settings", keywords: "plans billing", description: "Manage your plan and billing" },
 ];
 
 // Curated primary "lenses" for the slim rail (order matters)

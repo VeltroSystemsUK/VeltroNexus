@@ -15,11 +15,11 @@ export function CommandBar({ onCommand }: CommandBarProps) {
       <div className="flex items-center gap-3 px-4 md:px-6 h-16">
         {/* Page context */}
         <div className="min-w-0 max-w-[40%]">
-          <h1 className="text-base md:text-lg font-semibold tracking-tight truncate leading-tight">
+          <h1 className="text-lg md:text-xl font-semibold tracking-tight truncate leading-tight">
             {pageTitle || "Deck"}
           </h1>
           {pageDescription && (
-            <p className="text-xs text-muted-foreground truncate -mt-0.5">
+            <p className="text-xs md:text-sm text-muted-foreground truncate -mt-0.5">
               {pageDescription}
             </p>
           )}

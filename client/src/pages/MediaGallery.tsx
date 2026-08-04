@@ -254,7 +254,7 @@ export default function MediaGallery() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Media Gallery</h1>
+        <h1 className="text-base md:text-lg font-bold uppercase">Media Gallery</h1>
         <p className="text-muted-foreground text-sm">
           Upload and manage images for email campaigns
         </p>

@@ -12,7 +12,7 @@ export default function AIStudio() {
           <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-violet-500/10">
             <Brain className="h-7 w-7 text-violet-500" />
           </div>
-          <h2 className="text-xl font-semibold text-white">AI Studio</h2>
+          <h2 className="text-sm md:text-base font-semibold text-white uppercase">AI Studio</h2>
           <p className="text-sm text-white/50 text-center max-w-xs">
             The AI-powered underwriting workspace is coming soon.
           </p>

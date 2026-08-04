@@ -6,6 +6,7 @@ import { usePageTitle } from "@/context/LayoutContext";
 interface PageHeaderProps {
     title: string;
     description?: string;
+    subtitle?: string;
     children?: React.ReactNode;
     showBackButton?: boolean;
 }
@@ -13,13 +14,14 @@ interface PageHeaderProps {
 export function PageHeader({
     title,
     description,
+    subtitle,
     children,
     showBackButton = true
 }: PageHeaderProps) {
     const [, navigate] = useLocation();
 
     // Set the global title and description
-    usePageTitle(title, description);
+    usePageTitle(title, description || subtitle);
 
     // If there are no children (actions) and no back button needed, don't render this bar
     if (!children && !showBackButton) return null;
@@ -38,6 +40,10 @@ export function PageHeader({
                     >
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
+                )}
+
+                {subtitle && (
+                    <p className="text-sm text-muted-foreground">{subtitle}</p>
                 )}
             </div>
 

@@ -1,11 +1,13 @@
-import { useState, useMemo, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, Fragment } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, Plus, Search, Download } from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ChevronDown, ChevronRight, Plus, Search, Download } from "lucide-react";
+import { usePageTitle } from "@/context/LayoutContext";
 import { toast } from "sonner";
 
 interface CDFI {
@@ -59,11 +61,13 @@ const HARDCODED_CDFIS: CDFI[] = [
 ];
 
 export default function Lenders() {
+  usePageTitle("Lenders", "Manage your lender network and track partnership agreements");
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<"all" | "unsigned" | "signed" | "negotiating">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "unsigned" | "in_progress" | "signed">("all");
   const [filterContactOutcome, setFilterContactOutcome] = useState<"all" | "not_contacted" | "interested" | "no_answer" | "not_interested">("all");
   const [lenders, setLenders] = useState<CDFI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Fetch CDFIs on mount and auto-seed if empty
   useEffect(() => {
@@ -159,6 +163,7 @@ export default function Lenders() {
   const stats = {
     total: lenders.length,
     signed: lenders.filter((l) => l.agreementStatus === "signed").length,
+    inProgress: lenders.filter((l) => l.agreementStatus === "in_progress").length,
     notContacted: lenders.filter((l) => l.contactOutcome === "not_contacted").length,
     interested: lenders.filter((l) => l.contactOutcome === "interested").length,
   };
@@ -166,272 +171,311 @@ export default function Lenders() {
   const getAgreementBadgeColor = (status?: string) => {
     switch (status) {
       case "signed":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400";
       case "in_progress":
-        return "bg-blue-100 text-blue-800";
+        return "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400";
       case "unsigned":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 dark:bg-muted dark:text-muted-foreground";
     }
   };
 
   const getContactBadgeColor = (outcome?: string) => {
     switch (outcome) {
       case "interested":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400";
       case "negotiating":
-        return "bg-blue-100 text-blue-800";
+        return "bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400";
       case "no_answer":
-        return "bg-orange-100 text-orange-800";
+        return "bg-orange-100 text-orange-800 dark:bg-orange-500/10 dark:text-orange-400";
       case "not_interested":
-        return "bg-red-100 text-red-800";
+        return "bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400";
       case "not_contacted":
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 dark:bg-muted dark:text-muted-foreground";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 dark:bg-muted dark:text-muted-foreground";
     }
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
-      <PageHeader
-        title="CDFI Lender Panel"
-        subtitle="Month 1 KPI: 10 signed agreements target"
-      />
+    <div className="flex flex-col h-full gap-4">
 
-      {/* Statistics */}
+      {/* Compact stats strip */}
       {lenders.length > 0 && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total CDFIs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
+            <CardContent className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">Total CDFIs</div>
+                <div className="text-xl font-semibold">{stats.total}</div>
+              </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Agreements Signed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.signed}/10</div>
-              <p className="text-xs text-gray-500 mt-1">{Math.round((stats.signed / 10) * 100)}% of target</p>
+            <CardContent className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">Agreements Signed</div>
+                <div className="text-xl font-semibold text-green-600 dark:text-green-400">{stats.signed}</div>
+              </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Not Contacted</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.notContacted}</div>
+            <CardContent className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">Not Contacted</div>
+                <div className="text-xl font-semibold">{stats.notContacted}</div>
+              </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Interested</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.interested}</div>
+            <CardContent className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">Interested</div>
+                <div className="text-xl font-semibold text-blue-600 dark:text-blue-400">{stats.interested}</div>
+              </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Search & Filter</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search by name, contact, phone, or location..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, contact, phone, or location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+        <Select
+          value={filterStatus}
+          onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}
+        >
+          <SelectTrigger className="w-[160px] h-9">
+            <SelectValue placeholder="Agreement status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="unsigned">Unsigned</SelectItem>
+            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="signed">Signed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={filterContactOutcome}
+          onValueChange={(v) => setFilterContactOutcome(v as typeof filterContactOutcome)}
+        >
+          <SelectTrigger className="w-[160px] h-9">
+            <SelectValue placeholder="Contact outcome" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All outcomes</SelectItem>
+            <SelectItem value="not_contacted">Not Contacted</SelectItem>
+            <SelectItem value="interested">Interested</SelectItem>
+            <SelectItem value="no_answer">No Answer</SelectItem>
+            <SelectItem value="not_interested">Not Interested</SelectItem>
+            <SelectItem value="negotiating">Negotiating</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button size="sm" variant="outline">
+          <Download className="h-4 w-4 mr-1.5" />
+          Export
+        </Button>
+        <Button size="sm">
+          <Plus className="h-4 w-4 mr-1.5" />
+          Add CDFI
+        </Button>
+      </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <div>
-              <span className="text-sm font-medium text-gray-700 mr-2">Agreement Status:</span>
-              <div className="inline-flex gap-1">
-                {(["all", "unsigned", "in_progress", "signed"] as const).map((status) => (
-                  <Button
-                    key={status}
-                    variant={filterStatus === status ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilterStatus(status)}
-                    className="capitalize"
-                  >
-                    {status === "in_progress" ? "In Progress" : status}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2 flex-wrap">
-            <div>
-              <span className="text-sm font-medium text-gray-700 mr-2">Contact Outcome:</span>
-              <div className="inline-flex gap-1">
-                {(["all", "not_contacted", "interested", "no_answer", "not_interested"] as const).map((outcome) => (
-                  <Button
-                    key={outcome}
-                    variant={filterContactOutcome === outcome ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilterContactOutcome(outcome)}
-                    className="capitalize text-xs"
-                  >
-                    {outcome.replace(/_/g, " ")}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Lenders List */}
-      <Card className="flex-1 flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-between">
+      {/* Lenders table */}
+      <Card className="flex-1 flex flex-col min-h-0">
+        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
           <div>
-            <CardTitle>CDFI Database</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-sm">CDFI Database</CardTitle>
+            <CardDescription className="text-xs">
               {filteredLenders.length} of {lenders.length} CDFIs
             </CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add CDFI
-            </Button>
-          </div>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto">
+        <CardContent className="flex-1 overflow-y-auto p-0">
           {filteredLenders.length === 0 ? (
-            <div className="flex items-center justify-center h-64 text-gray-500">
+            <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
               No CDFIs found matching your filters.
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredLenders.map((lender) => (
-                <div
-                  key={lender.id}
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <h3 className="font-semibold text-lg">{lender.name}</h3>
-                        <Badge className={getAgreementBadgeColor(lender.agreementStatus)}>
-                          {lender.agreementStatus === "in_progress" ? "In Progress" : lender.agreementStatus}
-                        </Badge>
-                        <Badge className={getContactBadgeColor(lender.contactOutcome)}>
-                          {lender.contactOutcome?.replace(/_/g, " ")}
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                        {lender.contactName && (
-                          <div>
-                            <span className="font-medium">Contact:</span> {lender.contactName}
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-8 px-2" />
+                  <TableHead className="h-9 text-xs">Lender</TableHead>
+                  <TableHead className="h-9 text-xs">Contact</TableHead>
+                  <TableHead className="h-9 text-xs">Location</TableHead>
+                  <TableHead className="h-9 text-xs text-right">Lending Range</TableHead>
+                  <TableHead className="h-9 text-xs">Status</TableHead>
+                  <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLenders.map((lender) => (
+                  <Fragment key={lender.id}>
+                    <TableRow>
+                      <TableCell className="px-2 py-2.5">
+                        <button
+                          onClick={() => setExpandedId(expandedId === lender.id ? null : lender.id)}
+                          className="text-muted-foreground hover:text-foreground transition"
+                          aria-label="Toggle details"
+                        >
+                          {expandedId === lender.id ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </button>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="font-medium text-sm">{lender.name}</div>
+                        {lender.website && (
+                          <div className="text-xs text-muted-foreground truncate max-w-[220px]">
+                            {lender.website.replace(/^https?:\/\/(www\.)?/, "")}
                           </div>
                         )}
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="text-sm">{lender.contactName || "—"}</div>
                         {lender.contactPhone && (
-                          <div>
-                            <span className="font-medium">Phone:</span> {lender.contactPhone}
-                          </div>
+                          <div className="text-xs text-muted-foreground">{lender.contactPhone}</div>
                         )}
-                        {lender.postalAddress && (
-                          <div>
-                            <span className="font-medium">Location:</span> {lender.postalAddress}
-                          </div>
-                        )}
-                        {lender.lendingMaxQuantum && (
-                          <div>
-                            <span className="font-medium">Lending Range:</span> £
-                            {lender.lendingMinQuantum?.toLocaleString() || "0"} - £
-                            {lender.lendingMaxQuantum.toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-
-                      {lender.geographicalScope && lender.geographicalScope.length > 0 && (
-                        <div className="flex gap-1 flex-wrap mb-2">
-                          {lender.geographicalScope.map((scope) => (
-                            <Badge key={scope} variant="secondary" className="text-xs">
-                              {scope}
-                            </Badge>
-                          ))}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-sm text-muted-foreground">
+                        {lender.postalAddress || "—"}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-sm text-right whitespace-nowrap text-muted-foreground">
+                        {lender.lendingMaxQuantum
+                          ? `£${lender.lendingMinQuantum?.toLocaleString() || "0"} – £${lender.lendingMaxQuantum.toLocaleString()}`
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="flex flex-col gap-1 items-start">
+                          <Badge className={getAgreementBadgeColor(lender.agreementStatus)}>
+                            {lender.agreementStatus === "in_progress" ? "In Progress" : lender.agreementStatus}
+                          </Badge>
+                          <Badge className={getContactBadgeColor(lender.contactOutcome)}>
+                            {lender.contactOutcome?.replace(/_/g, " ") || "—"}
+                          </Badge>
                         </div>
-                      )}
-
-                      {lender.applicationRequirements && lender.applicationRequirements.length > 0 && (
-                        <details className="mb-2 text-sm">
-                          <summary className="cursor-pointer text-gray-600 font-medium">
-                            Application Requirements ({lender.applicationRequirements.length})
-                          </summary>
-                          <ul className="list-disc list-inside mt-1 text-gray-600 text-xs space-y-0.5">
-                            {lender.applicationRequirements.map((req, i) => (
-                              <li key={i}>{req}</li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-
-                      {lender.lastContacted && (
-                        <p className="text-xs text-gray-500">
-                          Last contacted: {new Date(lender.lastContacted).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-2 min-w-fit">
-                      {lender.contactOutcome === "not_contacted" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            contactMutation.mutate({
-                              id: lender.id,
-                              outcome: "interested",
-                              notes: "Initial contact",
-                            })
-                          }
-                          disabled={contactMutation.isPending}
-                        >
-                          Mark Contacted
-                        </Button>
-                      )}
-                      {lender.agreementStatus === "unsigned" && lender.contactOutcome === "interested" && (
-                        <Button
-                          size="sm"
-                          onClick={() => signAgreementMutation.mutate(lender.id)}
-                          disabled={signAgreementMutation.isPending}
-                        >
-                          Sign Agreement
-                        </Button>
-                      )}
-                      {lender.agreementStatus === "signed" && (
-                        <Badge className="bg-green-100 text-green-800 justify-center">
-                          ✓ Signed {new Date(lender.agreementSignedDate!).toLocaleDateString()}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          {lender.contactOutcome === "not_contacted" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs px-2.5"
+                              onClick={() =>
+                                contactMutation.mutate({
+                                  id: lender.id,
+                                  outcome: "interested",
+                                  notes: "Initial contact",
+                                })
+                              }
+                              disabled={contactMutation.isPending}
+                            >
+                              Mark Contacted
+                            </Button>
+                          )}
+                          {lender.agreementStatus === "unsigned" && lender.contactOutcome === "interested" && (
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs px-2.5"
+                              onClick={() => signAgreementMutation.mutate(lender.id)}
+                              disabled={signAgreementMutation.isPending}
+                            >
+                              Sign Agreement
+                            </Button>
+                          )}
+                          {lender.agreementStatus === "signed" && (
+                            <span className="text-xs text-green-600 dark:text-green-400 font-medium whitespace-nowrap">
+                              ✓ Signed {new Date(lender.agreementSignedDate!).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {expandedId === lender.id && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={7} className="py-3 px-4 bg-muted/30">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                            {lender.geographicalScope && lender.geographicalScope.length > 0 && (
+                              <div>
+                                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Geographical Scope</div>
+                                <div className="flex gap-1 flex-wrap">
+                                  {lender.geographicalScope.map((scope) => (
+                                    <Badge key={scope} variant="secondary" className="text-xs">
+                                      {scope}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {lender.preferredClientTypes && lender.preferredClientTypes.length > 0 && (
+                              <div>
+                                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Preferred Clients</div>
+                                <div className="flex gap-1 flex-wrap">
+                                  {lender.preferredClientTypes.map((t) => (
+                                    <Badge key={t} variant="secondary" className="text-xs">
+                                      {t}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {lender.backgroundInfo && (
+                              <div>
+                                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">About</div>
+                                <div className="text-muted-foreground">{lender.backgroundInfo}</div>
+                              </div>
+                            )}
+                            {lender.applicationRequirements && lender.applicationRequirements.length > 0 && (
+                              <div>
+                                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">
+                                  Application Requirements ({lender.applicationRequirements.length})
+                                </div>
+                                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                                  {lender.applicationRequirements.map((req, i) => (
+                                    <li key={i}>{req}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {lender.contactEmail && (
+                              <div>
+                                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Email</div>
+                                <div className="text-muted-foreground">{lender.contactEmail}</div>
+                              </div>
+                            )}
+                            {lender.lastContacted && (
+                              <div>
+                                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Last Contacted</div>
+                                <div className="text-muted-foreground">{new Date(lender.lastContacted).toLocaleDateString()}</div>
+                              </div>
+                            )}
+                            {lender.notes && (
+                              <div className="md:col-span-2">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Notes</div>
+                                <div className="text-muted-foreground">{lender.notes}</div>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

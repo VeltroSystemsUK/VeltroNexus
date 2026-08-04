@@ -16,7 +16,8 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
     const [headerActions, setPageActions] = useState<React.ReactNode>(null);
 
     const setPageDetails = useCallback((title: string, description?: string) => {
-        setPageTitle(title);
+        // Normalise every page title to UPPERCASE for a consistent header across all pages.
+        setPageTitle(title.toUpperCase());
         setPageDescription(description || "");
     }, []);
 
