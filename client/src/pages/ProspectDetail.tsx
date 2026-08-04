@@ -133,6 +133,7 @@ import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog"
 import ReplyToQueryDialog from "@/components/ReplyToQueryDialog";
 import ConversationThread from "@/components/ConversationThread";
 import TimeTracking from "@/components/TimeTracking";
+import ExceptionsPanel from "@/components/ExceptionsPanel";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
 import { CommunicationsTab } from "@/components/communications/CommunicationsTab";
@@ -781,6 +782,8 @@ export default function ProspectDetail() {
           <PriorityCard prospect={prospect} />
           <ReferralSourceCard prospect={prospect} />
         </div>
+
+        <ExceptionsPanel prospectId={prospectId} />
 
         {/* Company Overview */}
         <CompanyOverview prospect={prospect} />

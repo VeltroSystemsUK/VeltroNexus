@@ -6,6 +6,12 @@ import { v4 as uuidv4 } from "uuid";
 import { CDFI, InsertCDFI, UpdateCDFI, cdfiSchema, insertCdfiSchema, updateCdfiSchema } from "../../shared/schema.js";
 import { isAuthenticated } from "../auth.js";
 import { ukCdfis } from "../data/cdfis.js";
+import { CHECKLIST_SECTIONS } from "../../shared/checklistData.js";
+
+// Default document requirements until real per-CDFI requirements are supplied.
+const DEFAULT_APPLICATION_REQUIREMENTS = CHECKLIST_SECTIONS.flatMap((section) =>
+  section.items.map((item) => item.description)
+);
 
 const router = Router();
 
@@ -28,6 +34,7 @@ router.post("/init", async (req, res) => {
         geographical_scope TEXT,
         preferred_client_types TEXT,
         background_info TEXT,
+        application_requirements TEXT,
         last_contacted INTEGER,
         contact_outcome TEXT DEFAULT 'not_contacted',
         agreement_status TEXT DEFAULT 'unsigned',
@@ -37,6 +44,14 @@ router.post("/init", async (req, res) => {
         updated_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
     `);
+
+    // Migration: add columns introduced after the table already existed on-disk.
+    // CREATE TABLE IF NOT EXISTS above is a no-op for pre-existing databases.
+    try {
+      db.run(`ALTER TABLE cdfis ADD COLUMN application_requirements TEXT`);
+    } catch {
+      // already present — fine
+    }
 
     res.json({ success: true, message: "Database initialized" });
   } catch (error) {
@@ -74,6 +89,7 @@ router.post("/seed", async (req, res) => {
           geographicalScope: JSON.stringify(cdfi.geographicalScope || []),
           preferredClientTypes: JSON.stringify(cdfi.preferredClientTypes || []),
           backgroundInfo: cdfi.backgroundInfo || null,
+          applicationRequirements: JSON.stringify(DEFAULT_APPLICATION_REQUIREMENTS),
           lastContacted: null,
           contactOutcome: "not_contacted",
           agreementStatus: "unsigned",
@@ -110,6 +126,7 @@ router.get("/", async (req, res) => {
       ...cdfi,
       geographicalScope: cdfi.geographicalScope ? JSON.parse(cdfi.geographicalScope) : [],
       preferredClientTypes: cdfi.preferredClientTypes ? JSON.parse(cdfi.preferredClientTypes) : [],
+      applicationRequirements: cdfi.applicationRequirements ? JSON.parse(cdfi.applicationRequirements) : DEFAULT_APPLICATION_REQUIREMENTS,
     }));
 
     res.json(cdfiList);
@@ -140,6 +157,7 @@ router.get("/:id", async (req, res) => {
       ...cdfi,
       geographicalScope: cdfi.geographicalScope ? JSON.parse(cdfi.geographicalScope) : [],
       preferredClientTypes: cdfi.preferredClientTypes ? JSON.parse(cdfi.preferredClientTypes) : [],
+      applicationRequirements: cdfi.applicationRequirements ? JSON.parse(cdfi.applicationRequirements) : DEFAULT_APPLICATION_REQUIREMENTS,
     };
 
     res.json(formatted);
@@ -176,6 +194,9 @@ router.post("/", isAuthenticated, async (req, res) => {
       geographicalScope: validated.geographicalScope ? JSON.stringify(validated.geographicalScope) : "[]",
       preferredClientTypes: validated.preferredClientTypes ? JSON.stringify(validated.preferredClientTypes) : "[]",
       backgroundInfo: validated.backgroundInfo || null,
+      applicationRequirements: validated.applicationRequirements?.length
+        ? JSON.stringify(validated.applicationRequirements)
+        : JSON.stringify(DEFAULT_APPLICATION_REQUIREMENTS),
       lastContacted: validated.lastContacted ? new Date(validated.lastContacted) : null,
       contactOutcome: validated.contactOutcome || "not_contacted",
       agreementStatus: validated.agreementStatus || "unsigned",
@@ -200,6 +221,7 @@ router.post("/", isAuthenticated, async (req, res) => {
       ...cdfi,
       geographicalScope: cdfi.geographicalScope ? JSON.parse(cdfi.geographicalScope) : [],
       preferredClientTypes: cdfi.preferredClientTypes ? JSON.parse(cdfi.preferredClientTypes) : [],
+      applicationRequirements: cdfi.applicationRequirements ? JSON.parse(cdfi.applicationRequirements) : DEFAULT_APPLICATION_REQUIREMENTS,
     };
 
     res.status(201).json(formatted);
@@ -244,6 +266,7 @@ router.put("/:id", isAuthenticated, async (req, res) => {
       geographicalScope: validated.geographicalScope ? JSON.stringify(validated.geographicalScope) : undefined,
       preferredClientTypes: validated.preferredClientTypes ? JSON.stringify(validated.preferredClientTypes) : undefined,
       backgroundInfo: validated.backgroundInfo || null,
+      applicationRequirements: validated.applicationRequirements ? JSON.stringify(validated.applicationRequirements) : undefined,
       lastContacted: validated.lastContacted ? new Date(validated.lastContacted) : undefined,
       contactOutcome: validated.contactOutcome,
       agreementStatus: validated.agreementStatus,
@@ -271,6 +294,7 @@ router.put("/:id", isAuthenticated, async (req, res) => {
       ...cdfi,
       geographicalScope: cdfi.geographicalScope ? JSON.parse(cdfi.geographicalScope) : [],
       preferredClientTypes: cdfi.preferredClientTypes ? JSON.parse(cdfi.preferredClientTypes) : [],
+      applicationRequirements: cdfi.applicationRequirements ? JSON.parse(cdfi.applicationRequirements) : DEFAULT_APPLICATION_REQUIREMENTS,
     };
 
     res.json(formatted);
@@ -349,6 +373,7 @@ router.post("/:id/contact", isAuthenticated, async (req, res) => {
       ...cdfi,
       geographicalScope: cdfi.geographicalScope ? JSON.parse(cdfi.geographicalScope) : [],
       preferredClientTypes: cdfi.preferredClientTypes ? JSON.parse(cdfi.preferredClientTypes) : [],
+      applicationRequirements: cdfi.applicationRequirements ? JSON.parse(cdfi.applicationRequirements) : DEFAULT_APPLICATION_REQUIREMENTS,
     };
 
     res.json(formatted);
@@ -515,6 +540,7 @@ router.post("/:id/sign-agreement", isAuthenticated, async (req, res) => {
       ...cdfi,
       geographicalScope: cdfi.geographicalScope ? JSON.parse(cdfi.geographicalScope) : [],
       preferredClientTypes: cdfi.preferredClientTypes ? JSON.parse(cdfi.preferredClientTypes) : [],
+      applicationRequirements: cdfi.applicationRequirements ? JSON.parse(cdfi.applicationRequirements) : DEFAULT_APPLICATION_REQUIREMENTS,
     };
 
     res.json(formatted);

@@ -21,6 +21,7 @@ interface CDFI {
   geographicalScope?: string[];
   preferredClientTypes?: string[];
   backgroundInfo?: string;
+  applicationRequirements?: string[];
   lastContacted?: string;
   contactOutcome?: "not_contacted" | "no_answer" | "interested" | "not_interested" | "negotiating";
   agreementStatus?: "unsigned" | "in_progress" | "signed";
@@ -373,6 +374,19 @@ export default function Lenders() {
                             </Badge>
                           ))}
                         </div>
+                      )}
+
+                      {lender.applicationRequirements && lender.applicationRequirements.length > 0 && (
+                        <details className="mb-2 text-sm">
+                          <summary className="cursor-pointer text-gray-600 font-medium">
+                            Application Requirements ({lender.applicationRequirements.length})
+                          </summary>
+                          <ul className="list-disc list-inside mt-1 text-gray-600 text-xs space-y-0.5">
+                            {lender.applicationRequirements.map((req, i) => (
+                              <li key={i}>{req}</li>
+                            ))}
+                          </ul>
+                        </details>
                       )}
 
                       {lender.lastContacted && (

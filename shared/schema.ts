@@ -221,6 +221,9 @@ export const cdfiSchema = z.object({
   geographicalScope: z.array(z.string()).default([]),
   preferredClientTypes: z.array(z.string()).default([]),
   backgroundInfo: z.string().nullable().optional(),
+  // Document/application requirements for this specific CDFI. Defaults to the
+  // generic borrower checklist until real per-lender requirements are supplied.
+  applicationRequirements: z.array(z.string()).default([]),
   lastContacted: dateSchema,
   contactOutcome: z.enum(["not_contacted", "no_answer", "interested", "not_interested", "negotiating"]).default("not_contacted"),
   agreementStatus: z.enum(["unsigned", "in_progress", "signed"]).default("unsigned"),
@@ -301,11 +304,32 @@ export const companySchema = z.object({
   website: z.string().nullable().optional(),
   sicCode: z.string().nullable().optional(),
   sicDescription: z.string().nullable().optional(),
-  createdAt: dateSchema
+  createdAt: dateSchema,
+  lastCheckedAt: z.string().nullable().optional(),
+  companiesHouseSnapshot: z.record(z.any()).nullable().optional(),
 });
 export type Company = z.infer<typeof companySchema>;
 export const insertCompanySchema = companySchema.omit({ id: true, createdAt: true });
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
+
+// --- Verification exceptions (Companies House monitoring, Google Places address
+// checks, due-diligence flags — e.g. HMRC Time To Pay — all file into this) ---
+export const verificationExceptionSchema = z.object({
+  id: z.number().optional(),
+  prospectId: z.number(),
+  source: z.enum(["companies_house", "google_places", "due_diligence"]),
+  severity: z.enum(["low", "medium", "high"]).default("medium"),
+  message: z.string(),
+  status: z.enum(["open", "acknowledged", "resolved"]).default("open"),
+  createdAt: dateSchema,
+});
+export type VerificationException = z.infer<typeof verificationExceptionSchema>;
+export const insertVerificationExceptionSchema = verificationExceptionSchema.omit({
+  id: true,
+  createdAt: true,
+  status: true,
+});
+export type InsertVerificationException = z.infer<typeof insertVerificationExceptionSchema>;
 
 
 // --- Prospects ---
@@ -560,6 +584,9 @@ export const dueDiligenceDataSchema = z.object({
   financialRatios: z.any().optional(),
   character: z.any().optional(),
   underwriting: underwritingDataSchema.optional(),
+  // Self-reported by the adviser during intake — there is no public HMRC API
+  // for this, it is not a live lookup.
+  hmrcTimeToPay: z.enum(["none", "active", "historic"]).optional(),
 });
 
 export const dueDiligenceSchema = z.object({

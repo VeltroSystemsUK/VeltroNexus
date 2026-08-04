@@ -161,6 +161,40 @@ export const complianceResources = {
                     "update_trigger": "Ongoing"
                 }
             ]
+        },
+        {
+            "category_name": "Regulatory Perimeter & Authorisation Scope",
+            "description": "Which activities this firm carries out are FCA-regulated vs exempt — structural reference only. The firm's actual FCA register entry and permission scope must be confirmed against this by a compliance adviser; this is not a substitute for that check.",
+            "documents": [
+                {
+                    "id": "DOC_011",
+                    "title": "Regulated vs Exempt Introducer/Broking Activity",
+                    "regulatory_source": "FSMA 2000 (Regulated Activities Order) Art 36A / PERG 2.7",
+                    "mandatory_for": ["broker"],
+                    "key_content_requirements": [
+                        "Credit broking to limited companies/LLPs is commercial lending and generally falls outside FCA regulation (business-to-business, not a 'regulated credit agreement')",
+                        "Credit broking to sole traders or partnerships of ≤3 partners not all corporate can fall within scope of a regulated credit agreement under CONC — treat these as regulated by default unless confirmed otherwise",
+                        "Introducing a client to a lender for a fee is 'credit broking' under Art 36A RAO and needs FCA permission whenever the underlying agreement is/would be regulated",
+                        "Mixed portfolios (some regulated, some exempt clients) need the borrower's legal entity type checked at intake, before any fee-earning introduction is made"
+                    ],
+                    "retention_period": "Always current (review on any change to client base or product mix)",
+                    "update_trigger": "New client entity type, new product line, or FCA guidance update"
+                },
+                {
+                    "id": "DOC_012",
+                    "title": "FCA Authorisation & Permissions Held",
+                    "regulatory_source": "FCA Register / FSMA 2000 Part 4A",
+                    "mandatory_for": ["all"],
+                    "key_content_requirements": [
+                        "Record this firm's actual FCA reference number and the exact permission(s) held (e.g., credit broking) as shown on the FCA Register",
+                        "Confirm whether the firm operates under its own authorisation or as an Appointed Representative of a principal firm",
+                        "State explicitly which activities are covered by that authorisation and which are carried out on an exempt/unregulated basis",
+                        "This entry is a placeholder — populate it from the firm's actual FCA Register entry, not from this template"
+                    ],
+                    "retention_period": "Always current",
+                    "update_trigger": "Any change in permissions, principal firm, or FCA Register status"
+                }
+            ]
         }
     ],
     "reporting_schedule": [

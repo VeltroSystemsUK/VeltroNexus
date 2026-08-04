@@ -142,7 +142,7 @@ script-src 'self';
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob: https:;
 font-src 'self' data:;
-connect-src 'self' https://api.resend.com https://*.replit.dev wss://*.replit.dev;
+connect-src 'self' https://api.resend.com;
 frame-ancestors 'none';
 base-uri 'self';
 form-action 'self';

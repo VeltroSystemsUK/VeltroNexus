@@ -36,10 +36,7 @@ Note: `DATABASE_URL` takes precedence if set.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `SESSION_SECRET` | Session encryption secret | 32+ character random string |
-| `REPLIT_DOMAINS` | Allowed domains for auth | `myapp.replit.app` |
-| `REPLIT_DEV_DOMAIN` | Development domain | `myapp.repl.co` |
-| `REPL_ID` | Replit environment ID | `abc123` |
+| `SESSION_SECRET` | Session encryption secret — required in production, no fallback | 32+ character random string |
 
 ## External Services
 

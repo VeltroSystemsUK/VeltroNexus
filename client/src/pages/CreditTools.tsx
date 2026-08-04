@@ -23,31 +23,46 @@ import {
     Target,
     FileText,
     User,
-    Sparkles,
-    Mail,
     Building2,
-    Menu // Added
+    Menu,
 } from "lucide-react";
 import type { DueDiligenceData } from "@shared/schema";
 
 import { usePageTitle } from "@/context/LayoutContext";
+import { toast } from "sonner";
+
+const STORAGE_KEY = "credit-tools-data";
+
+function loadStoredData(): Partial<DueDiligenceData> {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+}
 
 export default function CreditTools() {
     usePageTitle("CREDIT TOOLS", "Utility calculators for credit analysis and risk assessment.");
-    const [data, setData] = useState<Partial<DueDiligenceData>>({});
+    const [data, setData] = useState<Partial<DueDiligenceData>>(loadStoredData);
     const [activeTab, setActiveTab] = useState("loan-calc");
 
     const tabOptions = [
-        { id: "loan-calc", label: "Loans", icon: Calculator, color: "bg-primary" },
-        { id: "hire-purchase", label: "Hire Purchase", icon: Building2, color: "bg-cyan-600" },
-        { id: "dscr", label: "DSCR", icon: TrendingUp, color: "bg-emerald-600" },
-        { id: "affordability", label: "Affordability", icon: Target, color: "bg-amber-600" },
-        { id: "ratios", label: "Ratios", icon: FileText, color: "bg-purple-600" },
-        { id: "character", label: "Character", icon: User, color: "bg-rose-600" },
+        { id: "loan-calc", label: "Loans", icon: Calculator },
+        { id: "hire-purchase", label: "Hire Purchase", icon: Building2 },
+        { id: "dscr", label: "DSCR", icon: TrendingUp },
+        { id: "affordability", label: "Affordability", icon: Target },
+        { id: "ratios", label: "Ratios", icon: FileText },
+        { id: "character", label: "Character", icon: User },
     ];
 
     const handleSave = (updates: Partial<DueDiligenceData>) => {
-        setData(prev => ({ ...prev, ...updates }));
+        setData(prev => {
+            const next = { ...prev, ...updates };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
+        toast.success("Saved — figures will be here next time you open Credit Tools");
     };
 
     return (
@@ -95,7 +110,7 @@ export default function CreditTools() {
                             <TabsTrigger
                                 key={tab.id}
                                 value={tab.id}
-                                className={`data-[state=active]:${tab.color} data-[state=active]:text-white`}
+                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                             >
                                 <tab.icon className="h-4 w-4 mr-2" />
                                 {tab.label}
@@ -125,14 +140,6 @@ export default function CreditTools() {
 
                     </div>
                 </Tabs>
-
-                <div className="mt-12 p-6 border-2 border-dashed rounded-xl bg-muted/30 flex flex-col items-center text-center">
-                    <Sparkles className="h-10 w-10 text-primary mb-4 opacity-50" />
-                    <h3 className="text-lg font-semibold">More tools coming soon</h3>
-                    <p className="text-sm text-muted-foreground max-w-md mt-2">
-                        We're working on additional AI-powered calculators and risk modelling tools to help you analyze deals faster.
-                    </p>
-                </div>
             </div>
         </div>
     );

@@ -525,6 +525,8 @@ export default function Leads() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

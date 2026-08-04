@@ -88,8 +88,18 @@ type SubmissionWithDetails = UnderwritingSubmission & {
 export default function UnderwriterInbox() {
   usePageTitle("UNDERWRITING", "Review and process loan applications");
 
+  const { data: openExceptions } = useQuery<any[]>({
+    queryKey: ["/api/exceptions/open"],
+  });
+  const openExceptionsCount = openExceptions?.length || 0;
+
   const headerActions = useMemo(() => (
     <>
+      {openExceptionsCount > 0 && (
+        <Badge variant="destructive" data-testid="badge-open-exceptions">
+          {openExceptionsCount} Open Exception{openExceptionsCount === 1 ? "" : "s"}
+        </Badge>
+      )}
       <Button
         variant="outline"
         size="sm"
@@ -112,7 +122,7 @@ export default function UnderwriterInbox() {
         </Button>
       </Link>
     </>
-  ), []);
+  ), [openExceptionsCount]);
 
   usePageActions(headerActions);
 
@@ -153,6 +163,19 @@ export default function UnderwriterInbox() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to claim submission");
+    },
+  });
+
+  const sendToBrokerMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest(`/api/underwriting/submissions/${id}/send-to-broker`, "POST");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] });
+      toast.success("Sent to broker partner");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to send to broker");
     },
   });
 
@@ -229,6 +252,10 @@ export default function UnderwriterInbox() {
 
   const handleClaim = (submission: UnderwritingSubmission) => {
     claimMutation.mutate(submission.id);
+  };
+
+  const handleSendToBroker = (submission: UnderwritingSubmission) => {
+    sendToBrokerMutation.mutate(submission.id);
   };
 
   const handleViewDetails = (submission: UnderwritingSubmission) => {
@@ -485,6 +512,27 @@ export default function UnderwriterInbox() {
               data-testid={`button-claim-${submission.id}`}
             >
               {claimMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Claim"}
+            </Button>
+          )}
+          {submission.status === "submitted" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSendToBroker(submission);
+              }}
+              disabled={sendToBrokerMutation.isPending}
+              data-testid={`button-send-to-broker-${submission.id}`}
+            >
+              {sendToBrokerMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send to Broker
+                </>
+              )}
             </Button>
           )}
           {submission.status === "in_review" && (

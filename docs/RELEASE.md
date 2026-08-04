@@ -64,7 +64,7 @@ git push origin release/v1.2.3
 
 ### 5. Production Deployment
 - Merge release branch to main
-- Replit auto-deploys from main branch
+- Deploy locally: `npm run build && npm start` on the machine this runs on
 - Monitor deployment logs
 
 ### 6. Post-Deployment Verification
@@ -81,12 +81,10 @@ curl https://production.example.com/healthz
 
 ## Rollback Procedures
 
-### Quick Rollback (Replit Checkpoints)
-Replit automatically creates checkpoints. To rollback:
-1. Open Replit project
-2. Go to Version History
-3. Select previous checkpoint
-4. Restore
+### Quick Rollback (git)
+1. `git log` to find the last known-good commit
+2. `git revert` (or reset, if the bad commit isn't shared/pushed) to that commit
+3. Rebuild and restart: `npm run build && npm start`
 
 ### Database Rollback
 For schema changes that need reverting:
@@ -108,14 +106,14 @@ If feature flags are implemented:
 | Environment | Purpose | URL |
 |-------------|---------|-----|
 | Development | Local development | `localhost:5000` |
-| Staging | Pre-production testing | Configure in Replit |
-| Production | Live user traffic | Your deployment URL |
+| Staging | Pre-production testing | N/A — local-only app |
+| Production | Live user traffic | `localhost:5000` on the machine this runs on |
 
 ## Monitoring Post-Deploy
 
 ### Health Check
 ```bash
-curl -s https://your-app.replit.app/healthz | jq
+curl -s http://localhost:5000/healthz | jq
 ```
 
 Expected output:

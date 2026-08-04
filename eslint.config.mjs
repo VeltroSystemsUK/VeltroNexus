@@ -103,7 +103,6 @@ export default [
     ignores: [
       "node_modules/**",
       "dist/**",
-      ".replit/**",
       "attached_assets/**",
       "*.min.js",
     ],

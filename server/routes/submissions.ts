@@ -21,7 +21,7 @@ import { getObjectStorage } from "../utils/routerHelpers";
 
 const router = Router();
 
-  router.get("/submissions", isAuthenticated, async (req: Request, res: Response) => {
+  router.get("/api/submissions", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
       const submissions = await storage.listApplicationSubmissions(userId as any);
@@ -594,6 +594,153 @@ const router = Router();
         });
 
         res.json(updated);
+      } catch (error) {
+        handleApiError(res, error, "api-error");
+      }
+    }
+  );
+
+  // Send a submission to the external broker partner (Sterling Capital Reserve)
+  // instead of claiming it internally. Packages the credit assessment as a PDF
+  // and emails it; source documents stay behind the broker-portal login.
+  router.post(
+    "/api/underwriting/submissions/:id/send-to-broker",
+    isAuthenticated,
+    isUnderwriter,
+    async (req: Request, res: Response) => {
+      try {
+        const id = parseInt(req.params.id);
+        const userId = req.user!.id;
+
+        const partnerEmail = process.env.BROKER_HANDOFF_EMAIL;
+        const partnerName = process.env.BROKER_HANDOFF_NAME || "our broker partner";
+        const partnerFirm = process.env.BROKER_HANDOFF_FIRM || "";
+        if (!partnerEmail) {
+          return res.status(500).json({
+            error: "BROKER_HANDOFF_EMAIL is not configured. Run createBrokerPartner.ts to provision the partner account first.",
+          });
+        }
+
+        const submission = await storage.getUnderwritingSubmission(id);
+        if (!submission) {
+          return res.status(404).json({ error: "Submission not found" });
+        }
+        if (submission.status !== "submitted") {
+          return res.status(409).json({ error: "Submission already claimed or not available" });
+        }
+
+        const partnerUser = await storage.getUserByEmail(partnerEmail);
+        if (!partnerUser || partnerUser.role !== "external_broker") {
+          return res.status(500).json({
+            error: `No external_broker account found for ${partnerEmail}. Run createBrokerPartner.ts first.`,
+          });
+        }
+
+        const prospect = await storage.getProspect(submission.prospectId, submission.brokerId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        const [contacts, activities, dueDiligence, sendingUser] = await Promise.all([
+          storage.listContacts(submission.prospectId, submission.brokerId),
+          storage.listActivities(submission.prospectId, submission.brokerId),
+          storage.getDueDiligence(submission.prospectId, submission.brokerId).catch(() => null),
+          storage.getUser(userId),
+        ]);
+
+        let companiesHouseData: any = null;
+        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
+        if (apiKey && prospect.company.companyNumber) {
+          try {
+            const trimmedApiKey = apiKey.trim();
+            const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
+            const companyNumber = prospect.company.companyNumber;
+            const [officersRes, pscRes, chargesRes] = await Promise.all([
+              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, { headers: { Authorization: `Basic ${base64Auth}` } }).catch(() => null),
+              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, { headers: { Authorization: `Basic ${base64Auth}` } }).catch(() => null),
+              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`, { headers: { Authorization: `Basic ${base64Auth}` } }).catch(() => null),
+            ]);
+            companiesHouseData = {
+              officers: officersRes && officersRes.ok ? await officersRes.json() : null,
+              psc: pscRes && pscRes.ok ? await pscRes.json() : null,
+              charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null,
+            };
+          } catch {
+            console.error("Error fetching Companies House data for broker hand-off");
+          }
+        }
+
+        const { createProspectReportDocument, renderProspectReport } = await import("../utils/pdfGenerator");
+        const reportDoc = createProspectReportDocument({
+          prospect,
+          contacts,
+          activities,
+          dueDiligence: dueDiligence || undefined,
+          companiesHouseData: companiesHouseData || undefined,
+          pdfLayoutPreferences: sendingUser?.pdfLayoutPreferences as any,
+          user: sendingUser as any,
+        });
+        const chunks: Buffer[] = [];
+        reportDoc.on("data", (chunk: Buffer) => chunks.push(chunk));
+        renderProspectReport(reportDoc, {
+          prospect,
+          contacts,
+          activities,
+          dueDiligence: dueDiligence || undefined,
+          companiesHouseData: companiesHouseData || undefined,
+          pdfLayoutPreferences: sendingUser?.pdfLayoutPreferences as any,
+          user: sendingUser as any,
+        });
+        await new Promise<void>((resolve, reject) => {
+          reportDoc.on("end", () => resolve());
+          reportDoc.on("error", reject);
+        });
+        const pdfBuffer = Buffer.concat(chunks);
+
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const handoff = await storage.createBrokerHandoff({
+          submissionId: id,
+          prospectId: submission.prospectId,
+          externalUserId: partnerUser.id,
+          sentByUserId: userId,
+          expiresAt,
+        });
+
+        const updated = await storage.updateUnderwritingSubmission(id, { status: "sent_to_broker" });
+
+        await storage.createUnderwritingActivity(
+          {
+            submissionId: id,
+            activityType: "sent_to_broker",
+            content: `Sent to ${partnerFirm || partnerName} for external review`,
+          },
+          userId
+        );
+
+        const appUrl = process.env.BROKER_PORTAL_URL || "http://localhost:5000";
+        const companyName = prospect.company.companyName;
+        await sendEmail(
+          {},
+          partnerEmail,
+          `New deal for review: ${companyName}`,
+          `Hi ${partnerName},\n\nA new deal has been packaged for your review: ${companyName}.\n\n` +
+            `The attached PDF has the full credit assessment. Source documents (bank statements, management accounts, etc.) are available in the broker portal, which needs a login:\n${appUrl}/broker-portal\n\n` +
+            `This access expires on ${new Date(expiresAt).toLocaleDateString("en-GB")}.\n\nThanks,\n${sendingUser?.firstName || "The team"}`,
+          {},
+          [{ filename: `Credit_Assessment_${companyName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`, content: pdfBuffer, contentType: "application/pdf" }]
+        );
+
+        logUnderwritingAudit({
+          action: "send_to_broker",
+          submissionId: id,
+          userId,
+          role: sendingUser?.role,
+          fromStatus: "submitted",
+          toStatus: "sent_to_broker",
+          sourceIp: req.ip,
+        });
+
+        res.json({ submission: updated, handoff });
       } catch (error) {
         handleApiError(res, error, "api-error");
       }

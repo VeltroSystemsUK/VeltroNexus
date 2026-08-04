@@ -4,9 +4,6 @@ import { Search, Building2, MapPin, Calendar, ExternalLink, ShieldCheck, CheckCi
 import { Company, SocialProfile } from './types';
 import { gemini } from './services/geminiService';
 
-const CH_API_KEY = '8ed22a93-0deb-41e1-9122-851eeb3f0365';
-const PROXY_URL = 'https://corsproxy.io/?';
-
 const CompanyVerification: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<Company[]>([]);
@@ -27,10 +24,8 @@ const CompanyVerification: React.FC = () => {
     setResults([]);
 
     try {
-      const auth = btoa(`${CH_API_KEY}:`);
-      const targetUrl = `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(searchTerm)}`;
-      const response = await fetch(`${PROXY_URL}${encodeURIComponent(targetUrl)}`, {
-        headers: { 'Authorization': `Basic ${auth}` }
+      const response = await fetch(`/api/companies-house/search?q=${encodeURIComponent(searchTerm)}`, {
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Registry Connection Failed');

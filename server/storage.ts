@@ -374,6 +374,29 @@ export interface IStorage {
     userId?: string
   ): Promise<UnderwritingActivity[]>;
 
+  // Broker hand-offs (external partner access to a sent underwriting submission)
+  createBrokerHandoff(data: {
+    submissionId: number;
+    prospectId: number;
+    externalUserId: string;
+    sentByUserId: string;
+    expiresAt: string;
+  }): Promise<any>;
+  getBrokerHandoff(id: number): Promise<any | undefined>;
+  listBrokerHandoffsForUser(externalUserId: string): Promise<any[]>;
+  getBrokerHandoffBySubmission(submissionId: number): Promise<any | undefined>;
+
+  // Verification exceptions (Companies House monitoring, Google Places checks, due-diligence flags)
+  createException(data: {
+    prospectId: number;
+    source: "companies_house" | "google_places" | "due_diligence";
+    severity?: "low" | "medium" | "high";
+    message: string;
+  }): Promise<any>;
+  listExceptionsForProspect(prospectId: number): Promise<any[]>;
+  listOpenExceptions(): Promise<any[]>;
+  resolveException(id: number): Promise<any | undefined>;
+
   // Teams
   getTeams(userId?: string): Promise<Team[]>;
   createTeam(team: InsertTeam, userId?: string): Promise<Team>;

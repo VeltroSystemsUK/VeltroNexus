@@ -5,7 +5,8 @@ export async function sendEmail(
     to: string,
     subject: string,
     content: string,
-    variables: Record<string, any> = {}
+    variables: Record<string, any> = {},
+    attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>
 ) {
     // 1. Template variable replacement
     let finalContent = content;
@@ -39,6 +40,7 @@ export async function sendEmail(
             subject: subject,
             text: finalContent,
             html: finalContent.replace(/\n/g, "<br>"), // Simple conversion
+            attachments,
         };
 
         const info = await transporter.sendMail(mailOptions);

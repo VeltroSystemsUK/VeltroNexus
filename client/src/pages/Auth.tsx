@@ -31,12 +31,17 @@ export default function AuthPage() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    // Redirect if already logged in
+    // Redirect if already logged in.
+    // ponytail: deliberately omit setLocation from deps — wouter returns a new
+    // function reference each render, and depending on it here retriggers the
+    // effect every render once `user` is truthy, which is an infinite loop
+    // (React throws "Maximum update depth exceeded").
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (user) {
             setLocation("/pipeline");
         }
-    }, [user, setLocation]);
+    }, [user]);
 
     const loginForm = useForm<z.infer<typeof loginSchema>>({
         resolver: zodResolver(loginSchema),

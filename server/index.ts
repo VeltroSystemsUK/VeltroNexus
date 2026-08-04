@@ -15,6 +15,7 @@ import crypto from "crypto";
 import { WebhookHandlers } from "./webhookHandlers";
 import { setupAuth } from "./auth";
 import { agentService } from "./services/agentService";
+import { validateEnv } from "./config";
 
 const app = express();
 
@@ -81,7 +82,7 @@ app.use((req, res, next) => {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://editor.unlayer.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com https://editor.unlayer.com",
-      "connect-src 'self' wss: ws: https://*.replit.dev wss://*.replit.dev https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk https://europe-west2-veltro-prod.cloudfunctions.net ws://localhost:* http://localhost:* https://editor.unlayer.com https://*.unlayer.com",
+      "connect-src 'self' wss: ws: https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk https://europe-west2-veltro-prod.cloudfunctions.net ws://localhost:* http://localhost:* https://editor.unlayer.com https://*.unlayer.com",
       "frame-src 'self' https://editor.unlayer.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -155,6 +156,8 @@ app.use((req: any, res, next) => {
 
 (async () => {
   try {
+    validateEnv();
+
     // Initialize Redis for rate limiting (falls back to memory if unavailable)
     await initializeRateLimitRedis();
 
@@ -246,6 +249,10 @@ app.use((req: any, res, next) => {
           const { aresScheduler } = await import("./services/aresScheduler");
           aresScheduler.start();
           console.log("[ARES] Autonomous scheduler started");
+
+          // Start Companies House monitoring
+          const { companiesHouseMonitor } = await import("./services/companiesHouseMonitor");
+          companiesHouseMonitor.start();
 
           // Start Lead Finder autonomous agent
           const { getScheduler } = await import("./Lead Agent/src/scheduler.js");

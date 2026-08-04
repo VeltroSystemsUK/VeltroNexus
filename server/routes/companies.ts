@@ -8,12 +8,13 @@ import { insertCompanySchema } from "@shared/schema";
 import { searchCompanyInfo } from "../utils/geminiClient";
 import { formatOfficerName, formatAddress } from "../utils/formatters";
 import { getSicDescription } from "../utils/sicCodeLookup";
+import { chFetch } from "../utils/companiesHouseClient";
 
 const router = Router();
 
   // UK Company Enrichment Agent
   router.post(
-    "/api/companies/enrich",
+    "/companies/enrich",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -45,26 +46,13 @@ const router = Router();
         return res.status(400).json({ error: "Search query is required" });
       }
 
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
+      if (!process.env.COMPANIES_HOUSE_API_KEY) {
         console.error("COMPANIES_HOUSE_API_KEY environment variable not set");
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
 
-      // Trim any whitespace from API key
-      const trimmedApiKey = apiKey.trim();
-
-      // API key is used as username with empty password in Basic Auth
-      const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString("base64");
-
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(query)}&items_per_page=${limit}`,
-        {
-          headers: {
-            Authorization: `Basic ${base64Auth}`,
-          },
-        }
+      const response = await chFetch(
+        `/search/companies?q=${encodeURIComponent(query)}&items_per_page=${limit}`
       );
 
       if (!response.ok) {
@@ -100,13 +88,9 @@ const router = Router();
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const activeOnly = req.query.active_only === "true";
 
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
+      if (!process.env.COMPANIES_HOUSE_API_KEY) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
-
-      const trimmedApiKey = apiKey.trim();
-      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
 
       // Use Advanced Search API which supports proper filtering
       // Documentation: https://developer-specs.company-information.service.gov.uk/companies-house-public-data-api/reference/search/advanced-company-search
@@ -145,11 +129,7 @@ const router = Router();
         params.append("company_status", "active");
       }
 
-      const url = `https://api.company-information.service.gov.uk/advanced-search/companies?${params.toString()}`;
-
-      const response = await fetch(url, {
-        headers: { Authorization: `Basic ${base64Auth}` },
-      });
+      const response = await chFetch(`/advanced-search/companies?${params.toString()}`);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -158,11 +138,8 @@ const router = Router();
         // If advanced search fails (e.g., not available on free tier), fall back to basic search
         if (response.status === 403 || response.status === 401) {
           const fallbackQuery = postcode || location || sic_codes;
-          const fallbackResponse = await fetch(
-            `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(fallbackQuery as string)}&items_per_page=20`,
-            {
-              headers: { Authorization: `Basic ${base64Auth}` },
-            }
+          const fallbackResponse = await chFetch(
+            `/search/companies?q=${encodeURIComponent(fallbackQuery as string)}&items_per_page=20`
           );
 
           if (fallbackResponse.ok) {
@@ -223,21 +200,14 @@ const router = Router();
         return res.status(400).json({ error: "Search query is required" });
       }
 
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
+      if (!process.env.COMPANIES_HOUSE_API_KEY) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
 
-      const trimmedApiKey = apiKey.trim();
-      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
-
       console.log(`Searching officers for: "${query}"`);
 
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/search/officers?q=${encodeURIComponent(query)}&items_per_page=20`,
-        {
-          headers: { Authorization: `Basic ${base64Auth}` },
-        }
+      const response = await chFetch(
+        `/search/officers?q=${encodeURIComponent(query)}&items_per_page=20`
       );
 
       if (!response.ok) {
@@ -265,21 +235,14 @@ const router = Router();
         return res.status(400).json({ error: "Officer ID is required" });
       }
 
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
+      if (!process.env.COMPANIES_HOUSE_API_KEY) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
 
-      const trimmedApiKey = apiKey.trim();
-      const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
-
       console.log(`Fetching appointments for officer: "${officerId}"`);
 
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/officers/${encodeURIComponent(officerId)}/appointments`,
-        {
-          headers: { Authorization: `Basic ${base64Auth}` },
-        }
+      const response = await chFetch(
+        `/officers/${encodeURIComponent(officerId)}/appointments`
       );
 
       if (!response.ok) {
@@ -306,29 +269,14 @@ const router = Router();
         return res.status(400).json({ error: "Company number is required" });
       }
 
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
+      if (!process.env.COMPANIES_HOUSE_API_KEY) {
         console.error("COMPANIES_HOUSE_API_KEY environment variable not set");
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
 
-      // Trim any whitespace from API key
-      const trimmedApiKey = apiKey.trim();
-
-      // API key is used as username with empty password in Basic Auth
-      const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString("base64");
-
       console.log(`Fetching company profile for: "${companyNumber}"`);
 
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}`,
-        {
-          headers: {
-            Authorization: `Basic ${base64Auth}`,
-          },
-        }
-      );
+      const response = await chFetch(`/company/${encodeURIComponent(companyNumber)}`);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -351,29 +299,19 @@ const router = Router();
 
   // Companies House Officers API - Protected route
   router.get(
-    "/api/companies-house/company/:companyNumber/officers",
+    "/companies-house/company/:companyNumber/officers",
     isAuthenticated,
     async (req, res) => {
       try {
         const companyNumber = req.params.companyNumber;
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        if (!apiKey) {
+        if (!process.env.COMPANIES_HOUSE_API_KEY) {
           return res.status(500).json({ error: "Companies House API key not configured" });
         }
 
-        const trimmedApiKey = apiKey.trim();
-        const authString = `${trimmedApiKey}:`;
-        const base64Auth = Buffer.from(authString).toString("base64");
-
         console.log(`Fetching officers for: "${companyNumber}"`);
 
-        const response = await fetch(
-          `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
-          {
-            headers: {
-              Authorization: `Basic ${base64Auth}`,
-            },
-          }
+        const response = await chFetch(
+          `/company/${encodeURIComponent(companyNumber)}/officers`
         );
 
         if (!response.ok) {
@@ -398,29 +336,19 @@ const router = Router();
 
   // Companies House PSC API - Protected route
   router.get(
-    "/api/companies-house/company/:companyNumber/persons-with-significant-control",
+    "/companies-house/company/:companyNumber/persons-with-significant-control",
     isAuthenticated,
     async (req, res) => {
       try {
         const companyNumber = req.params.companyNumber;
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        if (!apiKey) {
+        if (!process.env.COMPANIES_HOUSE_API_KEY) {
           return res.status(500).json({ error: "Companies House API key not configured" });
         }
 
-        const trimmedApiKey = apiKey.trim();
-        const authString = `${trimmedApiKey}:`;
-        const base64Auth = Buffer.from(authString).toString("base64");
-
         console.log(`Fetching PSC for: "${companyNumber}"`);
 
-        const response = await fetch(
-          `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
-          {
-            headers: {
-              Authorization: `Basic ${base64Auth}`,
-            },
-          }
+        const response = await chFetch(
+          `/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`
         );
 
         if (!response.ok) {
@@ -445,29 +373,19 @@ const router = Router();
 
   // Companies House Charges API - Protected route
   router.get(
-    "/api/companies-house/company/:companyNumber/charges",
+    "/companies-house/company/:companyNumber/charges",
     isAuthenticated,
     async (req, res) => {
       try {
         const companyNumber = req.params.companyNumber;
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        if (!apiKey) {
+        if (!process.env.COMPANIES_HOUSE_API_KEY) {
           return res.status(500).json({ error: "Companies House API key not configured" });
         }
 
-        const trimmedApiKey = apiKey.trim();
-        const authString = `${trimmedApiKey}:`;
-        const base64Auth = Buffer.from(authString).toString("base64");
-
         console.log(`Fetching charges for: "${companyNumber}"`);
 
-        const response = await fetch(
-          `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
-          {
-            headers: {
-              Authorization: `Basic ${base64Auth}`,
-            },
-          }
+        const response = await chFetch(
+          `/company/${encodeURIComponent(companyNumber)}/charges`
         );
 
         if (!response.ok) {
@@ -493,7 +411,7 @@ const router = Router();
 
   // Associated companies search - Premium feature
   router.get(
-    "/api/prospects/:prospectId/associated-companies",
+    "/prospects/:prospectId/associated-companies",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -519,28 +437,15 @@ const router = Router();
           return res.json({ officers: [], psc: [], sameAddress: [] });
         }
 
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        if (!apiKey) {
+        if (!process.env.COMPANIES_HOUSE_API_KEY) {
           return res.status(500).json({ error: "Companies House API key not configured" });
         }
 
-        const trimmedApiKey = apiKey.trim();
-        const authString = `${trimmedApiKey}:`;
-        const base64Auth = Buffer.from(authString).toString("base64");
-
         // Fetch officers and PSC for the company
         const [officersRes, pscRes] = await Promise.all([
-          fetch(
-            `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
-            {
-              headers: { Authorization: `Basic ${base64Auth}` },
-            }
-          ).catch(() => null),
-          fetch(
-            `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
-            {
-              headers: { Authorization: `Basic ${base64Auth}` },
-            }
+          chFetch(`/company/${encodeURIComponent(companyNumber)}/officers`).catch(() => null),
+          chFetch(
+            `/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`
           ).catch(() => null),
         ]);
 
@@ -555,19 +460,15 @@ const router = Router();
         for (const officerName of officerNames.slice(0, 5)) {
           // Limit to prevent too many API calls
           try {
-            const searchRes = await fetch(
-              `https://api.company-information.service.gov.uk/search/officers?q=${encodeURIComponent(officerName)}&items_per_page=5`,
-              { headers: { Authorization: `Basic ${base64Auth}` } }
+            const searchRes = await chFetch(
+              `/search/officers?q=${encodeURIComponent(officerName)}&items_per_page=5`
             );
 
             if (searchRes.ok) {
               const searchData = await searchRes.json();
               for (const item of searchData.items || []) {
                 if (item.links?.officer?.appointments) {
-                  const appointmentsRes = await fetch(
-                    `https://api.company-information.service.gov.uk${item.links.officer.appointments}`,
-                    { headers: { Authorization: `Basic ${base64Auth}` } }
-                  );
+                  const appointmentsRes = await chFetch(item.links.officer.appointments);
 
                   if (appointmentsRes.ok) {
                     const appointments = await appointmentsRes.json();
@@ -601,9 +502,8 @@ const router = Router();
 
         for (const pscName of pscNames.slice(0, 3)) {
           try {
-            const searchRes = await fetch(
-              `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(pscName)}&items_per_page=10`,
-              { headers: { Authorization: `Basic ${base64Auth}` } }
+            const searchRes = await chFetch(
+              `/search/companies?q=${encodeURIComponent(pscName)}&items_per_page=10`
             );
 
             if (searchRes.ok) {
@@ -631,9 +531,8 @@ const router = Router();
         if (address) {
           try {
             const addressQuery = `${address}`.substring(0, 100);
-            const searchRes = await fetch(
-              `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(addressQuery)}&items_per_page=10`,
-              { headers: { Authorization: `Basic ${base64Auth}` } }
+            const searchRes = await chFetch(
+              `/search/companies?q=${encodeURIComponent(addressQuery)}&items_per_page=10`
             );
 
             if (searchRes.ok) {
@@ -681,7 +580,7 @@ const router = Router();
 
   // AI web search for company - Premium feature
   router.post(
-    "/api/prospects/:prospectId/web-search",
+    "/prospects/:prospectId/web-search",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -751,9 +650,63 @@ const router = Router();
     }
   );
 
+  // Character Assessment "investigate" — background/social search on a named
+  // individual, used to build a fuller picture of directors/guarantors.
+  router.post("/character-search", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { name, company } = req.body;
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ error: "A person's name is required" });
+      }
+
+      const tavilyApiKey = process.env.TAVILY_API_KEY;
+      if (!tavilyApiKey) {
+        return res.status(500).json({ error: "Tavily API key not configured" });
+      }
+
+      const context = company ? ` ${company}` : "";
+      const webQuery = `"${name}"${context} director UK business background news`;
+      const socialQuery = `"${name}"${context} LinkedIn profile`;
+
+      const runSearch = async (query: string, includeDomains: string[] = []) => {
+        const response = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: tavilyApiKey,
+            query,
+            search_depth: "basic",
+            include_answer: true,
+            include_raw_content: false,
+            max_results: 8,
+            include_domains: includeDomains,
+            exclude_domains: [],
+          }),
+        });
+        if (!response.ok) {
+          console.error("Tavily API error:", response.status, await response.text());
+          return { answer: "", results: [] };
+        }
+        const data = await response.json();
+        return { answer: data.answer || "", results: data.results || [] };
+      };
+
+      const [web, social] = await Promise.all([
+        runSearch(webQuery),
+        runSearch(socialQuery, ["linkedin.com", "twitter.com", "x.com", "facebook.com", "instagram.com"]),
+      ]);
+
+      console.log(`Character search for "${name}": ${web.results.length} web, ${social.results.length} social results`);
+
+      res.json({ web, social });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
   // Save selected associations
   router.post(
-    "/api/prospects/:prospectId/save-associations",
+    "/prospects/:prospectId/save-associations",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -912,19 +865,13 @@ const router = Router();
         return res.status(400).json({ error: "Cannot sync unregistered companies" });
       }
 
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
+      if (!process.env.COMPANIES_HOUSE_API_KEY) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
 
       // Fetch company profile from Companies House
-      const trimmedApiKey = apiKey.trim();
-      const authString = `${trimmedApiKey}:`;
-      const base64Auth = Buffer.from(authString).toString("base64");
-
-      const response = await fetch(
-        `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyRecord.companyNumber)}`,
-        { headers: { Authorization: `Basic ${base64Auth}` } }
+      const response = await chFetch(
+        `/company/${encodeURIComponent(companyRecord.companyNumber)}`
       );
 
       if (!response.ok) {
@@ -1009,19 +956,11 @@ const router = Router();
       }
 
       // Fetch officers from Companies House
-      const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-      if (!apiKey) {
+      if (!process.env.COMPANIES_HOUSE_API_KEY) {
         return res.status(500).json({ error: "Companies House API key not configured" });
       }
 
-      const officersResponse = await fetch(
-        `https://api.company-information.service.gov.uk/company/${companyNumber}/officers`,
-        {
-          headers: {
-            Authorization: `Basic ${Buffer.from(apiKey + ":").toString("base64")}`,
-          },
-        }
-      );
+      const officersResponse = await chFetch(`/company/${companyNumber}/officers`);
 
       if (!officersResponse.ok) {
         return res.status(officersResponse.status).json({ error: "Failed to fetch officers" });

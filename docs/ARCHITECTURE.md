@@ -74,7 +74,7 @@ Used for rate limiting across multiple instances.
 - Keys formatted: `ratelimit:{type}:{id}:{path}`
 
 ### Object Storage
-Replit Object Storage for file uploads.
+Local filesystem storage (`server/localStorage.ts`, `LocalStorageClient`) for file uploads — no cloud/object storage provider.
 
 **Structure:**
 ```
@@ -89,18 +89,17 @@ bucket/
 
 ## Authentication
 
-### Replit Auth (OIDC)
-- Uses OpenID Connect protocol
-- Session stored in PostgreSQL
-- Session cookie: `connect.sid`
+### Session-based Auth (`server/auth.ts`)
+- `passport-local` + `express-session`, password hashing via `scrypt`
+- Session stored in SQLite (same local database as the rest of the app)
+- Session cookie: `__session`
+- `SESSION_SECRET` is required in production — the server refuses to start without it
 
 ### Session Flow
-1. User clicks "Login with Replit"
-2. Redirected to Replit OIDC provider
-3. User authenticates
-4. Callback receives tokens
-5. Session created and stored in PostgreSQL
-6. Cookie set with session ID
+1. User submits email/password to `/api/login`
+2. `passport-local` verifies against the stored `scrypt` hash
+3. Session created and persisted to the SQLite session store
+4. Cookie set with session ID
 
 ## Key Subsystems
 
@@ -145,11 +144,11 @@ bucket/
 
 ## Deployment
 
-### Replit Deployment
-- Single container deployment
-- Auto-scaling handled by platform
-- Environment variables via Secrets
-- Object storage via Replit integration
+### Local-only
+- Runs on the local machine only, by design — no cloud hosting, no external database
+- `npm run dev` (Vite HMR) or `npm run build && npm start` (local production build)
+- Environment variables via `.env.local`
+- SQLite database and file storage are both local files
 
 ### Health Monitoring
 - `/healthz` endpoint for liveness/readiness

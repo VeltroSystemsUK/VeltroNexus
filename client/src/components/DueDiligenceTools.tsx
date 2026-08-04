@@ -14,8 +14,10 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Slider } from "@/components/ui/slider";
-import { CheckCircle2, AlertCircle, XCircle, Save, Calculator, TrendingUp, Target, FileText, User, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertCircle, XCircle, Save, Calculator, TrendingUp, Target, FileText, User, AlertTriangle, Search, ExternalLink, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { apiRequest } from "@/lib/queryClient";
+import { toast } from "sonner";
 
 import { CHECKLIST_SECTIONS } from "@shared/checklistData";
 import type { ChecklistItem, DueDiligenceData } from "@shared/schema";
@@ -674,10 +676,12 @@ export function DSCRCalculatorTool({
                 </div>
               </div>
             </div>
-            <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-              <TrendingUp className="mx-auto h-8 w-8 mb-2 opacity-50" />
-              <p>Enter income and debt details</p>
-            </div>
+            {!calculation && (
+              <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+                <TrendingUp className="mx-auto h-8 w-8 mb-2 opacity-50" />
+                <p>Enter income and debt details</p>
+              </div>
+            )}
           </div>
 
           {calculation && (
@@ -1060,6 +1064,13 @@ export function CharacterAssessmentTool({
   const [bankConduct, setBankConduct] = useState(3);
   const [contracts, setContracts] = useState(3);
   const [notes, setNotes] = useState("");
+  const [hmrcTimeToPay, setHmrcTimeToPay] = useState<"none" | "active" | "historic">("none");
+  const [personName, setPersonName] = useState("");
+  const [isInvestigating, setIsInvestigating] = useState(false);
+  const [investigation, setInvestigation] = useState<{
+    web: { answer: string; results: { title: string; url: string; content: string }[] };
+    social: { answer: string; results: { title: string; url: string; content: string }[] };
+  } | null>(null);
 
   useEffect(() => {
     setManagementExp(data.character?.managementExperience || 3);
@@ -1068,6 +1079,10 @@ export function CharacterAssessmentTool({
     setContracts(data.character?.contracts || 3);
     setNotes(data.character?.notes || "");
   }, [data.character]);
+
+  useEffect(() => {
+    setHmrcTimeToPay(data.hmrcTimeToPay || "none");
+  }, [data.hmrcTimeToPay]);
 
   const score = calculateCharacterScore({
     managementExperience: managementExp,
@@ -1085,7 +1100,22 @@ export function CharacterAssessmentTool({
         contracts,
         notes,
       },
+      hmrcTimeToPay,
     });
+  };
+
+  const handleInvestigate = async () => {
+    if (!personName.trim()) return;
+    setIsInvestigating(true);
+    setInvestigation(null);
+    try {
+      const res = await apiRequest("/api/character-search", "POST", { name: personName.trim() });
+      setInvestigation(await res.json());
+    } catch (error: any) {
+      toast.error(error.message || "Investigation failed");
+    } finally {
+      setIsInvestigating(false);
+    }
   };
 
   const getRatingLabel = (value: number) => {
@@ -1121,6 +1151,86 @@ export function CharacterAssessmentTool({
             </div>
             <Progress value={score.percentage} className="mt-3" />
             <div className="text-sm mt-2">{score.recommendation}</div>
+          </div>
+
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <h4 className="text-sm font-semibold">Background Investigation</h4>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Searches the web and LinkedIn/social media for the named individual — director background, news, and public profile.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={personName}
+                onChange={(e) => setPersonName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleInvestigate()}
+                placeholder="Full name of director / guarantor"
+                data-testid="input-investigate-name"
+              />
+              <Button
+                onClick={handleInvestigate}
+                disabled={isInvestigating || !personName.trim()}
+                data-testid="button-investigate"
+              >
+                {isInvestigating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4 mr-2" />
+                )}
+                {isInvestigating ? "" : "Investigate"}
+              </Button>
+            </div>
+
+            {investigation && (
+              <div className="grid gap-4 md:grid-cols-2 pt-2">
+                <div className="space-y-2">
+                  <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Web & News</h5>
+                  {investigation.web.results.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Nothing found.</p>
+                  ) : (
+                    investigation.web.results.map((r, i) => (
+                      <a
+                        key={i}
+                        href={r.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-md border p-2.5 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium truncate">{r.title}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0 text-muted-foreground" />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{r.content}</p>
+                      </a>
+                    ))
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">LinkedIn & Social</h5>
+                  {investigation.social.results.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Nothing found.</p>
+                  ) : (
+                    investigation.social.results.map((r, i) => (
+                      <a
+                        key={i}
+                        href={r.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-md border p-2.5 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium truncate">{r.title}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0 text-muted-foreground" />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{r.content}</p>
+                      </a>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-6">
@@ -1163,6 +1273,31 @@ export function CharacterAssessmentTool({
                 </div>
               </div>
             ))}
+
+            <div className="pt-4 border-t">
+              <Label className="mb-2 block">HMRC Time To Pay Arrangement</Label>
+              <p className="text-xs text-muted-foreground mb-3">
+                Self-reported by the adviser or borrower — there is no public HMRC lookup for this.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {(["none", "active", "historic"] as const).map((option) => (
+                  <Button
+                    key={option}
+                    variant={hmrcTimeToPay === option ? "default" : "outline"}
+                    onClick={() => setHmrcTimeToPay(option)}
+                    className="capitalize"
+                    data-testid={`btn-hmrc-ttp-${option}`}
+                  >
+                    {option}
+                  </Button>
+                ))}
+              </div>
+              {hmrcTimeToPay === "active" && (
+                <p className="text-xs text-red-600 mt-2">
+                  Active TTP will be flagged as an open exception on this prospect.
+                </p>
+              )}
+            </div>
 
             <div className="pt-4 border-t">
               <Label htmlFor="character-notes" className="mb-2 block">Assessment Notes</Label>

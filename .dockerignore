@@ -68,6 +68,3 @@ codebase_audit.txt
 # Windows artifacts
 nul
 
-# Replit specific
-.replit
-replit.nix

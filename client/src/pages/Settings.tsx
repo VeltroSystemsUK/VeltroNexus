@@ -132,6 +132,7 @@ export const DEFAULT_STAGES: PipelineStage[] = [
   { id: "qualified", label: "Qualified", color: "#8B5CF6" },
   { id: "proposal", label: "Proposal", color: "#EC4899" },
   { id: "due-diligence", label: "Due Diligence", color: "#F43F5E" },
+  { id: "submission", label: "Submitted", color: "#0EA5E9" },
   { id: "approval", label: "Approval", color: "#F59E0B" },
   { id: "approved", label: "Approved", color: "#10B981" },
   { id: "declined", label: "Declined", color: "#6B7280" },

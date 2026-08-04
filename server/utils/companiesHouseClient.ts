@@ -2,6 +2,23 @@
 const COMPANIES_HOUSE_API_KEY = process.env.COMPANIES_HOUSE_API_KEY;
 const BASE_URL = 'https://api.company-information.service.gov.uk';
 
+// Shared auth/fetch helper — every CH call site was reimplementing this Basic Auth
+// construction inline. Callers keep their own status-code/error-shaping logic;
+// this just removes the duplicated boilerplate around it.
+export function chAuthHeader(): string | null {
+    const key = COMPANIES_HOUSE_API_KEY?.trim();
+    if (!key) return null;
+    return `Basic ${Buffer.from(`${key}:`).toString('base64')}`;
+}
+
+export async function chFetch(path: string): Promise<Response> {
+    const auth = chAuthHeader();
+    if (!auth) {
+        throw new Error('COMPANIES_HOUSE_API_KEY not configured');
+    }
+    return fetch(`${BASE_URL}${path}`, { headers: { Authorization: auth } });
+}
+
 export interface CompaniesHouseSearchResult {
     company_name: string;
     company_number: string;

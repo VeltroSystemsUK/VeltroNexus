@@ -62,15 +62,9 @@ uploads/
 storage/
 *.sqlite
 *.sqlite3
-
-# --- Replit / Workspace state ---
-.replit
-replit.nix
-.upm/
-.local/
-.local/state/
-.local/state/replit/
-.local/state/replit/agent/
+*.db
+*.db-shm
+*.db-wal
 
 # --- Misc ---
 *.orig

@@ -30,15 +30,21 @@ async function comparePasswords(supplied: string, stored: string) {
 export async function setupAuth(app: Express) {
     const isProduction = app.get("env") === "production";
 
+    if (isProduction && !process.env.SESSION_SECRET) {
+        throw new Error("SESSION_SECRET must be set when running in production — refusing to start with a guessable default.");
+    }
+    // ponytail: dev-only random secret so a restart still doesn't run on a hardcoded guessable default
+    const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString("hex");
+
     const sessionSettings: session.SessionOptions = {
-        name: '__session', // Required for Firebase Hosting to pass the cookie to Cloud Run
-        secret: process.env.SESSION_SECRET || "default_session_secret",
+        name: '__session',
+        secret: sessionSecret,
         resave: false,
         saveUninitialized: false,
         store: storage.sessionStore,
         cookie: {
             secure: isProduction, // Only require HTTPS in production
-            sameSite: "lax", // Use 'lax' for Firebase Hosting (same-origin via rewrites)
+            sameSite: "lax",
             httpOnly: true,
             maxAge: 24 * 60 * 60 * 1000, // 24 hours
         },

@@ -156,15 +156,12 @@ SELECT count(*) FROM pg_stat_activity WHERE datname = 'your_db';
 - OIDC/OAuth errors
 
 ### Diagnosis
-1. Check OIDC issuer URL is accessible
-2. Verify session store (PostgreSQL) is healthy
-3. Review session cookie settings
+1. Verify the SQLite session store is healthy (same local database file as the rest of the app)
+2. Review session cookie settings
 
 ### Resolution
-1. Verify `SESSION_SECRET` is set
-2. Check `REPLIT_DOMAINS` for correct domain
-3. Ensure session table exists in database
-4. Clear corrupted sessions if needed
+1. Verify `SESSION_SECRET` is set (server refuses to start in production without it)
+2. Clear corrupted sessions if needed
 
 ## Log Analysis
 

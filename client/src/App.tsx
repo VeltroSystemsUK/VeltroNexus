@@ -53,6 +53,8 @@ const EmailCampaigns = lazy(() => import("@/pages/EmailCampaigns"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
+const BrokerPortal = lazy(() => import("@/pages/BrokerPortal"));
+const IntroductionPortal = lazy(() => import("@/pages/IntroductionPortal"));
 
 
 import { CookieConsent } from "@/components/CookieConsent";
@@ -76,6 +78,7 @@ function Router() {
   }
 
   const isUnderwriter = role === "underwriter";
+  const isExternalBroker = role === "external_broker";
 
   return (
     <Suspense fallback={<PageLoader />}>
@@ -85,10 +88,16 @@ function Router() {
         <Route path="/privacy" component={PrivacyPolicy} />
         <Route path="/terms" component={Terms} />
         <Route path="/unsubscribe" component={Unsubscribe} />
+        <Route path="/introduction-portal" component={IntroductionPortal} />
+
+        <Route path="/broker-portal">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <BrokerPortal />}
+        </Route>
 
         {/* Redirect for root — send unauthenticated users to login */}
         <Route path="/">
           {!isAuthenticated ? <Redirect to="/auth" /> : (
+            isExternalBroker ? <Redirect to="/broker-portal" /> :
             isUnderwriter ? <Redirect to="/underwriting" /> : <Redirect to="/pipeline" />
           )}
         </Route>
@@ -154,7 +163,6 @@ function Router() {
         <Route path="/whatsapp">
           {!isAuthenticated ? <Redirect to="/auth" /> : <WhatsApp />}
         </Route>
-
         <Route path="/email-templates">
           {!isAuthenticated ? <Redirect to="/auth" /> : <EmailTemplates />}
         </Route>

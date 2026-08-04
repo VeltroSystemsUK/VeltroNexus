@@ -87,6 +87,7 @@ interface AuthenticatedRequest extends Request {
 import godRouter from "./routes/god";
 import crmRouter from "./routes/crm";
 import adminRouter from "./routes/admin";
+import { ipAllowlist } from "./utils/ipAllowlist";
 import leadFinderRouter from "./routes/lead_finder";
 import brokersRouter from "./routes/brokers";
 import brokerFinderRouter from "./routes/broker_finder";
@@ -105,6 +106,8 @@ import cdfiRouter from "./routes/cdfis";
 import workforceRouter from "./routes/workforce";
 import companiesRouter from "./routes/companies";
 import submissionsRouter from "./routes/submissions";
+import brokerPortalRouter from "./routes/brokerPortal";
+import exceptionsRouter from "./routes/exceptions";
 import prospectsRouter from "./routes/prospects";
 import forecastsRouter from "./routes/forecasts";
 import invoicesRouter from "./routes/invoices";
@@ -130,7 +133,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api/campaigns", campaignsRouter);
 
   // Register Admin Router
-  app.use("/api/admin", adminRouter);
+  app.use("/api/admin", ipAllowlist(), adminRouter);
 
   // Register Inbound Router (Public Lead Gen)
   app.use("/api/inbound", inboundRouter);
@@ -539,7 +542,9 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api", lendersRouter);
   app.use("/api/cdfis", cdfiRouter);
   app.use("/api", companiesRouter);
-  app.use("/api", submissionsRouter);
+  app.use(submissionsRouter);
+  app.use(brokerPortalRouter);
+  app.use(exceptionsRouter);
   app.use("/api", prospectsRouter);
   app.use("/api", forecastsRouter);
   app.use("/api", invoicesRouter);

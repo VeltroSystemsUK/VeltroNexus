@@ -50,12 +50,12 @@ Veltro is a secure, multi-user commercial lending pipeline management system des
 
 - **Frontend**: React, TypeScript, Vite, Tailwind CSS, Shadcn/UI
 - **Backend**: Express.js, Node.js
-- **Database**: Firebase Firestore (Highly scalable NoSQL)
-- **Authentication**: Firebase Authentication (Google, Email/Password)
+- **Database**: SQLite (`better-sqlite3`), local file only — no external database or hosting
+- **Authentication**: `passport-local` + `express-session`, session store backed by SQLite
 - **AI Engine**: Google Gemini (Flash & Pro models)
-- **Search & Data**: Apollo (Enrichment), Exa.ai (Web research), Companies House API
+- **Search & Data**: Apollo (Enrichment), Exa.ai (Web research), Companies House API, Google Places
 - **Communications**: Gmail API, Resend
-- **Infrastructure**: Vercel / Google Cloud Platform
+- **Infrastructure**: Local machine only — this app is not deployed to any cloud provider
 
 ## Getting Started
 
@@ -66,36 +66,29 @@ Veltro is a secure, multi-user commercial lending pipeline management system des
    npm install
    ```
 
-3. Set up environment variables (see Environment Variables section)
-4. Initialize Firebase:
+3. Set up environment variables in `.env.local` (see Environment Variables section)
+4. Start the server:
 
    ```bash
-   # Ensure you have the service account JSON configured
-   ```
-
-5. Start the development server:
-
-   ```bash
-   npm run dev
+   npm run dev       # development, with Vite HMR
+   npm run build && npm start   # production build, run locally
    ```
 
 The application will be available at `http://localhost:5000`.
 
 ## Environment Variables
 
-Required secrets:
+Set these in `.env.local`:
 
-- `FIREBASE_PROJECT_ID` - Firebase project identifier
-- `FIREBASE_SERVICE_ACCOUNT_JSON` - Credentials for Firestore access
+- `SESSION_SECRET` - Session encryption key (required — the server refuses to start in production without it)
 - `COMPANIES_HOUSE_API_KEY` - UK Companies House API key
+- `GOOGLE_PLACES_API_KEY` - Google Places API key (lead sourcing, address verification)
 - `GEMINI_API_KEY` - Google Gemini AI API key
 - `EXA_API_KEY` - Exa.ai search API key
 - `APOLLO_API_KEY` - Apollo.io data enrichment key
 - `ZERO_BOUNCE_API_KEY` - Email verification service key
 - `RESEND_API_KEY` - Resend email API key
-- `SESSION_SECRET` - Session encryption key
-- `GOOGLE_CLIENT_ID` - Google OAuth Client ID
-- `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth (Gmail/Drive integration)
 
 ## Project Structure
 
@@ -109,12 +102,13 @@ Required secrets:
 ├── server/                 # Backend Express application
 │   ├── routes/             # Modular API routes (God mode, CRM, Agents)
 │   ├── services/           # Business logic (Ares, Enrichment, Outreach)
-│   ├── utils/              # API Clients (Gemini, Exa, Apollo)
-│   └── storage.ts          # Firestore data access layer
+│   ├── utils/              # API Clients (Gemini, Exa, Apollo, Companies House)
+│   ├── sqliteStorage.ts    # SQLite data access layer (local file, no hosting)
+│   └── storage.ts          # Storage interface
 ├── shared/                 # Shared code between frontend/backend
 │   ├── schema.ts           # Zod schemas and TypeScript types
 │   └── agents.ts           # AI Agent definitions
-└── scripts/                # Database migrations and seed utilities
+└── scripts/                # One-off data scripts and seed utilities
 ```
 
 ## License
