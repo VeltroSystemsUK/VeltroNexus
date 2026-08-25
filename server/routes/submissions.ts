@@ -196,6 +196,7 @@ const router = Router();
 
         // Generate PDF report before creating submission
         let pdfBuffer: Buffer;
+        let sendingUser: Awaited<ReturnType<typeof storage.getUser>>;
         try {
           const [contacts, activities, dueDiligence, user] = await Promise.all([
             storage.listContacts(submissionInput.prospectId, userId),
@@ -203,6 +204,7 @@ const router = Router();
             storage.getDueDiligence(submissionInput.prospectId, userId).catch(() => null),
             storage.getUser(userId),
           ]);
+          sendingUser = user;
 
           // Fetch Companies House data (officers, PSC, charges) if available
           let companiesHouseData: any = null;
@@ -283,21 +285,38 @@ const router = Router();
           return res.status(500).json({ message: `Failed to generate PDF report: ${errMessage}` });
         }
 
-        // Send email with PDF attachment - MOCKED (Resend removed)
-        let emailSent = true;
+        // Send email with PDF attachment to the lender
+        let emailSent = false;
         let emailError: string | null = null;
-        console.log("Email sending is disabled (Resend removed). Simulating success.");
+        try {
+          await sendEmail(
+            {},
+            lender.email,
+            `New loan application: ${prospect.company.companyName}`,
+            `Hi ${lender.contactName || "there"},\n\nPlease find attached the credit assessment for a loan application from ${prospect.company.companyName}.\n\nThanks,\n${sendingUser?.firstName || "The team"}`,
+            {},
+            [
+              {
+                filename: `Credit_Assessment_${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
+                content: pdfBuffer,
+                contentType: "application/pdf",
+              },
+            ]
+          );
+          emailSent = true;
+        } catch (err: any) {
+          emailError = err?.message || "Unknown error";
+          console.error("Error emailing submission to lender:", err);
+        }
 
         // Create the submission only after successful PDF generation
         const submission = await storage.createApplicationSubmission(submissionInput, userId);
 
         // Update submission status based on email result
-        if (emailSent) {
-          await storage.updateApplicationSubmission(submission.id!, userId, {
-            emailSent: 1,
-            status: "sent",
-          });
-        }
+        await storage.updateApplicationSubmission(submission.id!, userId, {
+          emailSent: emailSent ? 1 : 0,
+          status: emailSent ? "sent" : "pending",
+        });
 
         // Create an activity task to log this submission
         const activity = await storage.createActivity(

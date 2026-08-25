@@ -151,6 +151,9 @@ const DEFAULT_PDF_SECTIONS: PdfSection[] = [
   { id: "contacts", label: "Key Contacts", enabled: true, type: "module" },
   { id: "activities", label: "Activities & Tasks", enabled: true, type: "module" },
   { id: "dueDiligence", label: "Due Diligence", enabled: true, type: "module" },
+  { id: "creditRatios", label: "Credit Ratios", enabled: true, type: "module" },
+  { id: "accountsAnalysis", label: "Accounts Analysis", enabled: true, type: "module" },
+  { id: "adverseMedia", label: "Adverse Media Screening", enabled: true, type: "module" },
   { id: "campari", label: "CAMPARI Analysis", enabled: true, type: "module" },
   { id: "swotAnalysis", label: "SWOT Analysis", enabled: true, type: "module" },
 ];
