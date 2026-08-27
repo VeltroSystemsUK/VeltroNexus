@@ -93,3 +93,11 @@ export function warmAutodialGate(input: OutboundGateInput) {
   if (input.source !== "strata_inbound") return { ok: false as const, reason: "not warm inbound" };
   return outboundGate(input);
 }
+
+export function isWarmAutodialDeal(deal: { source?: string }): boolean {
+  return deal.source === "strata_inbound";
+}
+
+export function warmAutodialCandidates<T extends { source?: string }>(deals: T[]): T[] {
+  return deals.filter(isWarmAutodialDeal);
+}

@@ -95,6 +95,7 @@ import brokerFinderRouter from "./routes/broker_finder";
 import leadsRouter from "./routes/leads";
 import campaignsRouter from "./routes/campaigns";
 import inboundRouter from "./routes/inbound"; // Added inbound router
+import telnyxVoiceRouter from "./routes/telnyxVoice";
 import activitiesRouter from "./routes/activities";
 import addonsRouter from "./routes/addons";
 import communicationsRouter from "./routes/communications";
@@ -546,6 +547,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use(brokerPortalRouter);
   app.use(exceptionsRouter);
   app.use("/api", prospectsRouter);
+  app.use(telnyxVoiceRouter);
   app.use("/api", forecastsRouter);
   app.use("/api", invoicesRouter);
   app.use("/api", incomeRouter);
