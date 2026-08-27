@@ -19,6 +19,17 @@ export type CallLogEvent = {
   transcript?: string;
 };
 
+/** AgenticEvent plus Telnyx hangup/tool payload. Narrow deal.events with isTelnyxCallEvent. */
+export type TelnyxCallEvent = AgenticEvent & CallLogEvent;
+
+export function isTelnyxCallEvent(event: AgenticEvent): event is TelnyxCallEvent {
+  const row = event as Partial<CallLogEvent>;
+  return (
+    (row.assistant === "sophie" || row.assistant === "james") &&
+    typeof row.outcome === "string"
+  );
+}
+
 export function normaliseUkCli(input: string): string {
   const digits = String(input || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -101,20 +112,18 @@ async function requireDeal(
   return deal;
 }
 
-function callEvent(deal: AgenticDealFile, event: CallLogEvent): AgenticEvent {
-  const row: AgenticEvent = {
+function callEvent(deal: AgenticDealFile, event: CallLogEvent): TelnyxCallEvent {
+  return {
     at: event.at,
     stage: deal.stage,
     agent: event.assistant,
     message: event.outcome,
-  };
-  return Object.assign(row, {
     callControlId: event.callControlId,
     assistant: event.assistant,
     outcome: event.outcome,
     recordingUrl: event.recordingUrl,
     transcript: event.transcript,
-  });
+  };
 }
 
 function missingNamesFromEvents(events: AgenticEvent[] | undefined): string[] | null {

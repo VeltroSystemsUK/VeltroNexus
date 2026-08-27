@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
 import {
   createTelnyxVoiceService,
+  isTelnyxCallEvent,
   normaliseUkCli,
   packStatusForDeal,
 } from "../../services/telnyxVoice";
@@ -83,10 +84,19 @@ describe("createTelnyxVoiceService", () => {
       assistant: "sophie",
       outcome: "connected",
       callControlId: "cc-1",
+      recordingUrl: "https://example/rec",
+      transcript: "hello",
     });
     const last = store.snapshot(1)?.events.at(-1);
     expect(last?.message).toBe("connected");
     expect(last?.at).toBe("2026-08-27T10:05:00.000Z");
+    expect(last && isTelnyxCallEvent(last)).toBe(true);
+    if (!last || !isTelnyxCallEvent(last)) return;
+    expect(last.outcome).toBe("connected");
+    expect(last.assistant).toBe("sophie");
+    expect(last.callControlId).toBe("cc-1");
+    expect(last.recordingUrl).toBe("https://example/rec");
+    expect(last.transcript).toBe("hello");
   });
 
   it("transferInstruction destination is +447898789313", () => {
