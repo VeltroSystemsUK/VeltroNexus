@@ -3,8 +3,9 @@ import { ComplianceLibrary } from "@/components/compliance/ComplianceLibrary";
 import { RegulatoryAssistant } from "@/components/compliance/RegulatoryAssistant";
 import { ComplianceChecklist } from "@/components/compliance/ComplianceChecklist";
 import { ReportingSchedule } from "@/components/compliance/ReportingSchedule";
+import { ComplianceOfficer } from "@/components/compliance/ComplianceOfficer";
 import { Badge } from "@/components/ui/badge";
-import { FileText, MessageSquare, CheckSquare, CalendarClock, Shield, AlertTriangle } from "lucide-react";
+import { FileText, MessageSquare, CheckSquare, CalendarClock, Shield, Eye } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { complianceResources } from "@/data/complianceResources";
 
@@ -56,11 +57,11 @@ export default function Compliance() {
         <div className="flex flex-col h-full bg-background">
             <PageHeader
                 title="Compliance Hub"
-                description="Monitor regulatory obligations, access policies, and get expert guidance."
+                description="Active monitoring, exception management, evidence capture, and FCA/UK GDPR oversight for Strata."
                 showBackButton={false}
             >
                 <Badge variant="outline" className="border-green-500/50 bg-green-500/10 text-green-500 text-xs">
-                    FCA Handbook v2026.01
+                    Compliance Officer · Monitoring
                 </Badge>
             </PageHeader>
 
@@ -87,8 +88,9 @@ export default function Compliance() {
                     ))}
                 </div>
 
-                <Tabs defaultValue="library" className="flex-1 flex flex-col gap-4 min-h-0">
-                    <TabsList className="grid w-full grid-cols-4 h-auto p-1 gap-1 bg-muted/50 shrink-0">
+                <Tabs defaultValue="officer" className="flex-1 flex flex-col gap-4 min-h-0">
+                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto p-1 gap-1 bg-muted/50 shrink-0">
+                        <TabsTrigger value="officer" className="flex items-center gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs"><Eye className="h-3.5 w-3.5" />Compliance Officer</TabsTrigger>
                         <TabsTrigger
                             value="library"
                             className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs"
@@ -118,6 +120,10 @@ export default function Compliance() {
                             Reporting Schedule
                         </TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="officer" className="flex-1 overflow-y-auto pb-6 mt-0">
+                        <ComplianceOfficer />
+                    </TabsContent>
 
                     <TabsContent value="library" className="flex-1 overflow-y-auto pb-6 mt-0">
                         <ComplianceLibrary />
