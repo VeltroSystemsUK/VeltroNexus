@@ -1,9 +1,11 @@
+import { timingSafeEqual } from "crypto";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
 import {
   outboundGate,
   pickAssistant,
+  TELNYX_DID,
   telnyxFlags,
   type CallOutcome,
 } from "@shared/telnyxVoice";
@@ -13,6 +15,7 @@ import { verifyTelnyxSignature } from "../services/telnyxSignature";
 import {
   createTelnyxVoiceService,
   isTelnyxCallEvent,
+  normaliseUkCli,
   packStatusForDeal,
   transferInstruction,
   type LookupResult,
@@ -25,6 +28,8 @@ type ToolName = (typeof TOOL_NAMES)[number];
 export type TelnyxVoiceHandlerDeps = {
   voice: ReturnType<typeof createTelnyxVoiceService>;
   listDeals: () => Promise<AgenticDealFile[]>;
+  toolSecret?: string | null;
+  expectedToolSecret?: string | null;
 };
 
 const telnyxVoice = createTelnyxVoiceService({
@@ -36,7 +41,11 @@ const telnyxVoice = createTelnyxVoiceService({
 });
 
 function defaultDeps(): TelnyxVoiceHandlerDeps {
-  return { voice: telnyxVoice, listDeals: () => storage.listAgenticDeals() };
+  return {
+    voice: telnyxVoice,
+    listDeals: () => storage.listAgenticDeals(),
+    expectedToolSecret: process.env.TELNYX_TOOL_SECRET,
+  };
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -83,13 +92,60 @@ function toLookupResult(deal: AgenticDealFile): LookupResult {
   };
 }
 
+function normaliseCompanyName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function lookupByCompanyName(deals: AgenticDealFile[], companyName: string): AgenticDealFile | undefined {
-  const needle = companyName.trim().toLowerCase();
+  const needle = normaliseCompanyName(companyName);
   if (!needle) return undefined;
-  return (
-    deals.find((row) => row.companyName.toLowerCase() === needle) ||
-    deals.find((row) => row.companyName.toLowerCase().includes(needle))
-  );
+  const matches = deals.filter((row) => normaliseCompanyName(row.companyName) === needle);
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function secretsEqual(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+export function authorizeTelnyxTool(
+  provided?: string | null,
+  expected?: string | null
+): { status: number; body?: unknown } | null {
+  const want = String(expected ?? process.env.TELNYX_TOOL_SECRET ?? "");
+  if (!want) return { status: 503, body: { error: "telnyx tool secret missing" } };
+  if (!secretsEqual(String(provided || ""), want)) {
+    return { status: 401, body: { error: "unauthorized" } };
+  }
+  return null;
+}
+
+function requestToolSecret(req: Request): string {
+  const header = req.get("x-telnyx-tool-secret") || "";
+  if (header) return header;
+  const auth = req.get("authorization") || "";
+  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  return "";
+}
+
+function isTelnyxDid(cli: string): boolean {
+  const normalised = normaliseUkCli(cli);
+  return Boolean(normalised) && normalised === normaliseUkCli(TELNYX_DID);
+}
+
+function customerCli(from: string, to: string, direction: string): string {
+  const outbound = direction.startsWith("out");
+  const preferred = outbound ? to : from;
+  const fallback = outbound ? from : to;
+  if (preferred && !isTelnyxDid(preferred)) return preferred;
+  if (fallback && !isTelnyxDid(fallback)) return fallback;
+  return "";
 }
 
 export function clickToCallStatus(flags: { clickToCall: boolean }): 403 | 200 {
@@ -149,6 +205,8 @@ export async function handleTelnyxTool(
   body: Record<string, unknown> = {},
   deps: TelnyxVoiceHandlerDeps = defaultDeps()
 ): Promise<{ status: number; body?: unknown }> {
+  const denied = authorizeTelnyxTool(deps.toolSecret, deps.expectedToolSecret);
+  if (denied) return denied;
   if (!isToolName(name)) return { status: 404, body: { error: "unknown tool" } };
   try {
     if (name === "lookupDeal") return { status: 200, body: await lookupDealTool(body, deps) };
@@ -247,14 +305,13 @@ async function persistHangupOrRecording(bodyOrRaw: unknown, deps: TelnyxVoiceHan
 
   const from = String(payload.from || "");
   const to = String(payload.to || "");
-  const found =
-    (from && (await deps.voice.lookupDealByCli(from))) ||
-    (to && (await deps.voice.lookupDealByCli(to))) ||
-    null;
+  const directionRaw = String(payload.direction || "").toLowerCase();
+  const cli = customerCli(from, to, directionRaw);
+  if (!cli || isTelnyxDid(cli)) return;
+  const found = await deps.voice.lookupDealByCli(cli);
   if (!found) return;
 
   const deal = (await deps.listDeals()).find((row) => row.id === found.id);
-  const directionRaw = String(payload.direction || "").toLowerCase();
   const direction: "inbound" | "outbound" = directionRaw.startsWith("out") ? "outbound" : "inbound";
   const lastTelnyx = deal?.events?.slice().reverse().find(isTelnyxCallEvent);
   const assistant =
@@ -340,7 +397,10 @@ router.post("/api/telnyx/voice", async (req: Request, res: Response) => {
 
 router.post("/api/telnyx/tools/:name", async (req: Request, res: Response) => {
   try {
-    const result = await handleTelnyxTool(String(req.params.name || ""), asRecord(req.body));
+    const result = await handleTelnyxTool(String(req.params.name || ""), asRecord(req.body), {
+      ...defaultDeps(),
+      toolSecret: requestToolSecret(req),
+    });
     await sendHandlerResult(res, result);
   } catch (error) {
     handleApiError(res, error, "telnyx-voice-tool");

@@ -1,8 +1,10 @@
 import { generateKeyPairSync, sign } from "crypto";
 import { describe, expect, it } from "vitest";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
-import { warmAutodialCandidates } from "@shared/telnyxVoice";
+import { TELNYX_DID, warmAutodialCandidates } from "@shared/telnyxVoice";
 import { createTelnyxVoiceService } from "../../services/telnyxVoice";
+
+const TOOL_SECRET = "test-telnyx-tool-secret";
 
 function deal(overrides: Partial<AgenticDealFile> = {}): AgenticDealFile {
   return {
@@ -33,18 +35,35 @@ function memoryStore(initial: AgenticDealFile[]) {
   };
 }
 
-function signedHangup(from = "+441156611616") {
+function signedHangup(
+  payload: { from?: string; to?: string; direction?: string } = {}
+) {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
   const timestamp = "1690000000";
   const rawBody = JSON.stringify({
     data: {
       event_type: "call.hangup",
-      payload: { from, call_control_id: "cc-1", direction: "incoming" },
+      payload: {
+        from: payload.from ?? "+447898789313",
+        to: payload.to ?? TELNYX_DID,
+        direction: payload.direction ?? "incoming",
+        call_control_id: "cc-1",
+      },
     },
   });
   const signatureB64 = sign(null, Buffer.from(`${timestamp}|${rawBody}`), privateKey).toString("base64");
   return { publicKeyPem, timestamp, signatureB64, rawBody };
+}
+
+function toolDeps(store = memoryStore([]), secret: string | undefined = TOOL_SECRET) {
+  const voice = createTelnyxVoiceService(store);
+  return {
+    voice,
+    listDeals: store.listDeals,
+    toolSecret: secret,
+    expectedToolSecret: TOOL_SECRET,
+  };
 }
 
 describe("click-to-call", () => {
@@ -94,29 +113,48 @@ describe("telnyx webhook", () => {
 
   it("returns 204 on hangup after appendCallEvent", async () => {
     const { handleTelnyxWebhook } = await import("../../routes/telnyxVoice");
-    const store = memoryStore([deal()]);
+    const store = memoryStore([deal({ phone: "07898789313" })]);
     const voice = createTelnyxVoiceService(store);
     const res = await handleTelnyxWebhook(signedHangup(), { voice, listDeals: store.listDeals });
     expect(res.status).toBe(204);
     expect(store.snapshot(1)?.events.at(-1)?.message).toBe("connected");
   });
+
+  it("hangup does not match TELNYX_DID", async () => {
+    const { handleTelnyxWebhook } = await import("../../routes/telnyxVoice");
+    const store = memoryStore([deal({ phone: TELNYX_DID })]);
+    const voice = createTelnyxVoiceService(store);
+    const res = await handleTelnyxWebhook(
+      signedHangup({ from: TELNYX_DID, to: "+447900000099", direction: "incoming" }),
+      { voice, listDeals: store.listDeals }
+    );
+    expect(res.status).toBe(204);
+    expect(store.snapshot(1)?.events).toEqual([]);
+  });
 });
 
 describe("telnyx tools", () => {
+  it("rejects tool request without secret", async () => {
+    const { handleTelnyxTool } = await import("../../routes/telnyxVoice");
+    const store = memoryStore([deal()]);
+    const res = await handleTelnyxTool("optOut", { dealId: 1 }, toolDeps(store, ""));
+    expect(res.status).toBe(401);
+    expect(store.snapshot(1)?.events).toEqual([]);
+  });
+
   it("returns 404 for unknown tool name", async () => {
     const { handleTelnyxTool } = await import("../../routes/telnyxVoice");
-    const res = await handleTelnyxTool("notATool", {});
+    const res = await handleTelnyxTool("notATool", {}, toolDeps());
     expect(res.status).toBe(404);
   });
 
   it("lookupDeal returns found false when no match", async () => {
     const { handleTelnyxTool } = await import("../../routes/telnyxVoice");
     const store = memoryStore([deal({ phone: "07898789313" })]);
-    const voice = createTelnyxVoiceService(store);
     const res = await handleTelnyxTool(
       "lookupDeal",
       { from: "0115 661 1616" },
-      { voice, listDeals: store.listDeals }
+      toolDeps(store)
     );
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ found: false });
@@ -125,8 +163,7 @@ describe("telnyx tools", () => {
   it("lookupDeal finds by CLI and company name", async () => {
     const { handleTelnyxTool } = await import("../../routes/telnyxVoice");
     const store = memoryStore([deal()]);
-    const voice = createTelnyxVoiceService(store);
-    const deps = { voice, listDeals: store.listDeals };
+    const deps = toolDeps(store);
     const byCli = await handleTelnyxTool("lookupDeal", { from: "0115 661 1616" }, deps);
     expect(byCli.body).toMatchObject({
       found: true,
@@ -136,9 +173,17 @@ describe("telnyx tools", () => {
     expect(byName.body).toMatchObject({ found: true, deal: { id: 1 } });
   });
 
+  it("company substring does not steal a deal", async () => {
+    const { handleTelnyxTool } = await import("../../routes/telnyxVoice");
+    const store = memoryStore([deal()]);
+    const res = await handleTelnyxTool("lookupDeal", { companyName: "Acme" }, toolDeps(store));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ found: false });
+  });
+
   it("transferToShaun returns Shaun's number", async () => {
     const { handleTelnyxTool } = await import("../../routes/telnyxVoice");
-    const res = await handleTelnyxTool("transferToShaun", {});
+    const res = await handleTelnyxTool("transferToShaun", {}, toolDeps());
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ destination: "+447898789313" });
   });
@@ -155,8 +200,7 @@ describe("telnyx tools", () => {
         },
       }),
     ]);
-    const voice = createTelnyxVoiceService(store);
-    const deps = { voice, listDeals: store.listDeals };
+    const deps = toolDeps(store);
 
     const pack = await handleTelnyxTool("packStatus", { dealId: 1 }, deps);
     expect(pack.body).toEqual({ missing: ["Bank statements"] });
