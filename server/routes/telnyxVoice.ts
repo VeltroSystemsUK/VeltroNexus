@@ -316,11 +316,18 @@ async function persistHangupOrRecording(bodyOrRaw: unknown, deps: TelnyxVoiceHan
   const lastTelnyx = deal?.events?.slice().reverse().find(isTelnyxCallEvent);
   const assistant =
     lastTelnyx?.assistant ?? pickAssistant({ direction, source: found.source });
+  const eventId =
+    typeof data.id === "string"
+      ? data.id
+      : typeof root.id === "string"
+        ? root.id
+        : undefined;
   await deps.voice.appendCallEvent(found.id, {
     at: String(payload.end_time || data.occurred_at || new Date().toISOString()),
     assistant,
     outcome: outcomeFromPayload(payload),
     callControlId: typeof payload.call_control_id === "string" ? payload.call_control_id : undefined,
+    eventId,
     recordingUrl: recordingUrlFromPayload(payload),
     transcript: typeof payload.transcript === "string" ? payload.transcript : undefined,
   });

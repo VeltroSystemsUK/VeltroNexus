@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign } from "crypto";
 import { describe, expect, it } from "vitest";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
 import { TELNYX_DID, warmAutodialCandidates } from "@shared/telnyxVoice";
-import { createTelnyxVoiceService } from "../../services/telnyxVoice";
+import { createTelnyxVoiceService, isTelnyxCallEvent } from "../../services/telnyxVoice";
 
 const TOOL_SECRET = "test-telnyx-tool-secret";
 
@@ -35,25 +35,42 @@ function memoryStore(initial: AgenticDealFile[]) {
   };
 }
 
-function signedHangup(
-  payload: { from?: string; to?: string; direction?: string } = {}
-) {
+function signedVoiceEvent(input: {
+  eventType?: string;
+  eventId?: string;
+  from?: string;
+  to?: string;
+  direction?: string;
+  callControlId?: string;
+  recordingUrl?: string;
+  transcript?: string;
+} = {}) {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
   const timestamp = "1690000000";
+  const payload: Record<string, unknown> = {
+    from: input.from ?? "+447898789313",
+    to: input.to ?? TELNYX_DID,
+    direction: input.direction ?? "incoming",
+    call_control_id: input.callControlId ?? "cc-1",
+  };
+  if (input.recordingUrl) payload.recording_url = input.recordingUrl;
+  if (input.transcript) payload.transcript = input.transcript;
   const rawBody = JSON.stringify({
     data: {
-      event_type: "call.hangup",
-      payload: {
-        from: payload.from ?? "+447898789313",
-        to: payload.to ?? TELNYX_DID,
-        direction: payload.direction ?? "incoming",
-        call_control_id: "cc-1",
-      },
+      event_type: input.eventType ?? "call.hangup",
+      id: input.eventId ?? "evt-hangup",
+      payload,
     },
   });
   const signatureB64 = sign(null, Buffer.from(`${timestamp}|${rawBody}`), privateKey).toString("base64");
   return { publicKeyPem, timestamp, signatureB64, rawBody };
+}
+
+function signedHangup(
+  payload: { from?: string; to?: string; direction?: string } = {}
+) {
+  return signedVoiceEvent(payload);
 }
 
 function toolDeps(store = memoryStore([]), secret: string | undefined = TOOL_SECRET) {
@@ -130,6 +147,55 @@ describe("telnyx webhook", () => {
     );
     expect(res.status).toBe(204);
     expect(store.snapshot(1)?.events).toEqual([]);
+  });
+
+  it("hangup, recording, and conversation.ended share one call log", async () => {
+    const { handleTelnyxWebhook } = await import("../../routes/telnyxVoice");
+    const store = memoryStore([deal({ phone: "07898789313" })]);
+    const voice = createTelnyxVoiceService(store);
+    const deps = { voice, listDeals: store.listDeals };
+    await handleTelnyxWebhook(signedVoiceEvent({ eventType: "call.hangup", eventId: "evt-hangup" }), deps);
+    await handleTelnyxWebhook(
+      signedVoiceEvent({
+        eventType: "call.recording.saved",
+        eventId: "evt-recording",
+        recordingUrl: "https://example/rec.mp3",
+      }),
+      deps
+    );
+    await handleTelnyxWebhook(
+      signedVoiceEvent({
+        eventType: "conversation.ended",
+        eventId: "evt-ended",
+        transcript: "hello from sophie",
+      }),
+      deps
+    );
+    const telnyx = store.snapshot(1)?.events.filter(isTelnyxCallEvent) ?? [];
+    expect(telnyx).toHaveLength(1);
+    expect(telnyx[0].outcome).toBe("connected");
+    expect(telnyx[0].recordingUrl).toBe("https://example/rec.mp3");
+    expect(telnyx[0].transcript).toBe("hello from sophie");
+  });
+
+  it("ignores a duplicate hangup event id", async () => {
+    const { handleTelnyxWebhook } = await import("../../routes/telnyxVoice");
+    const store = memoryStore([deal({ phone: "07898789313" })]);
+    const voice = createTelnyxVoiceService(store);
+    const deps = { voice, listDeals: store.listDeals };
+    const first = signedVoiceEvent({ eventType: "call.hangup", eventId: "evt-hangup" });
+    await handleTelnyxWebhook(first, deps);
+    await handleTelnyxWebhook(
+      signedVoiceEvent({
+        eventType: "call.hangup",
+        eventId: "evt-hangup",
+        recordingUrl: "https://example/should-not-apply",
+      }),
+      deps
+    );
+    const telnyx = store.snapshot(1)?.events.filter(isTelnyxCallEvent) ?? [];
+    expect(telnyx).toHaveLength(1);
+    expect(telnyx[0].recordingUrl).toBeUndefined();
   });
 });
 

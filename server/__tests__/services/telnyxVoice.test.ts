@@ -99,6 +99,54 @@ describe("createTelnyxVoiceService", () => {
     expect(last.transcript).toBe("hello");
   });
 
+  it("appendCallEvent upserts recording onto the hangup row for the same callControlId", async () => {
+    const store = memoryStore([deal()]);
+    const voice = createTelnyxVoiceService(store);
+    await voice.appendCallEvent(1, {
+      at: "2026-08-27T10:05:00.000Z",
+      assistant: "sophie",
+      outcome: "connected",
+      callControlId: "cc-1",
+      eventId: "evt-hangup",
+    });
+    await voice.appendCallEvent(1, {
+      at: "2026-08-27T10:06:00.000Z",
+      assistant: "sophie",
+      outcome: "connected",
+      callControlId: "cc-1",
+      eventId: "evt-recording",
+      recordingUrl: "https://example/rec",
+      transcript: "hello",
+    });
+    const telnyx = store.snapshot(1)?.events.filter(isTelnyxCallEvent) ?? [];
+    expect(telnyx).toHaveLength(1);
+    expect(telnyx[0].outcome).toBe("connected");
+    expect(telnyx[0].recordingUrl).toBe("https://example/rec");
+    expect(telnyx[0].transcript).toBe("hello");
+    expect(telnyx[0].at).toBe("2026-08-27T10:05:00.000Z");
+  });
+
+  it("appendCallEvent ignores a duplicate event id", async () => {
+    const store = memoryStore([deal()]);
+    const voice = createTelnyxVoiceService(store);
+    const hangup = {
+      at: "2026-08-27T10:05:00.000Z",
+      assistant: "sophie" as const,
+      outcome: "connected" as const,
+      callControlId: "cc-1",
+      eventId: "evt-hangup",
+    };
+    await voice.appendCallEvent(1, hangup);
+    await voice.appendCallEvent(1, {
+      ...hangup,
+      at: "2026-08-27T10:07:00.000Z",
+      recordingUrl: "https://example/should-not-apply",
+    });
+    const telnyx = store.snapshot(1)?.events.filter(isTelnyxCallEvent) ?? [];
+    expect(telnyx).toHaveLength(1);
+    expect(telnyx[0].recordingUrl).toBeUndefined();
+  });
+
   it("transferInstruction destination is +447898789313", () => {
     const voice = createTelnyxVoiceService(memoryStore([]));
     expect(voice.transferInstruction().destination).toBe("+447898789313");

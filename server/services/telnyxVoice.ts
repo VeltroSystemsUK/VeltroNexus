@@ -13,6 +13,7 @@ export type LookupResult = {
 export type CallLogEvent = {
   at: string;
   callControlId?: string;
+  eventId?: string;
   assistant: "sophie" | "james";
   outcome: CallOutcome;
   recordingUrl?: string;
@@ -20,7 +21,7 @@ export type CallLogEvent = {
 };
 
 /** AgenticEvent plus Telnyx hangup/tool payload. Narrow deal.events with isTelnyxCallEvent. */
-export type TelnyxCallEvent = AgenticEvent & CallLogEvent;
+export type TelnyxCallEvent = AgenticEvent & CallLogEvent & { eventIds?: string[] };
 
 export function isTelnyxCallEvent(event: AgenticEvent): event is TelnyxCallEvent {
   const row = event as Partial<CallLogEvent>;
@@ -78,9 +79,24 @@ export function createTelnyxVoiceService(deps: {
     packStatusForDeal,
     async appendCallEvent(dealId: number, event: CallLogEvent): Promise<void> {
       const existing = await requireDeal(deps.getDeal, dealId);
+      const events = [...(existing.events || [])];
+      if (event.eventId && events.some((row) => hasTelnyxEventId(row, event.eventId))) {
+        return;
+      }
+      const matchIndex =
+        event.callControlId && event.callControlId.length
+          ? events.findIndex(
+              (row) => isTelnyxCallEvent(row) && row.callControlId === event.callControlId
+            )
+          : -1;
+      if (matchIndex >= 0) {
+        events[matchIndex] = mergeCallEvent(events[matchIndex] as TelnyxCallEvent, event);
+      } else {
+        events.push(callEvent(existing, event));
+      }
       await deps.saveDeal({
         ...existing,
-        events: [...(existing.events || []), callEvent(existing, event)],
+        events,
         updatedAt: event.at,
       });
     },
@@ -119,10 +135,35 @@ function callEvent(deal: AgenticDealFile, event: CallLogEvent): TelnyxCallEvent 
     agent: event.assistant,
     message: event.outcome,
     callControlId: event.callControlId,
+    eventId: event.eventId,
+    eventIds: event.eventId ? [event.eventId] : undefined,
     assistant: event.assistant,
     outcome: event.outcome,
     recordingUrl: event.recordingUrl,
     transcript: event.transcript,
+  };
+}
+
+function hasTelnyxEventId(event: AgenticEvent, eventId: string | undefined): boolean {
+  if (!eventId || !isTelnyxCallEvent(event)) return false;
+  if (event.eventId === eventId) return true;
+  return Array.isArray(event.eventIds) && event.eventIds.includes(eventId);
+}
+
+function mergeCallEvent(current: TelnyxCallEvent, incoming: CallLogEvent): TelnyxCallEvent {
+  const eventIds = [
+    ...(current.eventIds || (current.eventId ? [current.eventId] : [])),
+    ...(incoming.eventId ? [incoming.eventId] : []),
+  ].filter((id, index, all) => all.indexOf(id) === index);
+  const outcome = current.outcome !== "connected" ? current.outcome : incoming.outcome;
+  return {
+    ...current,
+    outcome,
+    message: outcome,
+    recordingUrl: incoming.recordingUrl || current.recordingUrl,
+    transcript: incoming.transcript || current.transcript,
+    eventId: incoming.eventId || current.eventId,
+    eventIds: eventIds.length ? eventIds : current.eventIds,
   };
 }
 
