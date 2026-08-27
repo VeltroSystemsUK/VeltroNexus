@@ -40,6 +40,14 @@ Note: `DATABASE_URL` takes precedence if set.
 
 ## External Services
 
+### Standalone Strata (lender pack)
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `STRATA_ENABLED` | Start Strata packaging when a file is sent to underwriting | `true` |
+| `STRATA_API_URL` | Standalone Strata API | `http://127.0.0.1:8000` |
+| `STRATA_WEB_URL` | Standalone Strata workspace | `http://127.0.0.1:3000` |
+| `STRATA_INTEGRATION_TOKEN` | Must match Strata `env.local` | long random string |
+
 ### Companies House
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -67,6 +75,25 @@ Note: `DATABASE_URL` takes precedence if set.
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `TAVILY_API_KEY` | Tavily search API key | `tvly-...` |
+
+### Telnyx Voice
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `TELNYX_API_KEY` | API key that can see this account (rotate if the old key returns empty numbers) | `KEY...` |
+| `TELNYX_PUBLIC_KEY` | Ed25519 public key PEM for webhooks | `-----BEGIN PUBLIC KEY-----...` |
+| `TELNYX_TOOL_SECRET` | Shared secret for assistant tool POSTs (`x-telnyx-tool-secret` or `Authorization: Bearer`) | long random string |
+| `TELNYX_CONNECTION_ID` | Voice connection id | |
+| `TELNYX_VOICE_APP_ID` | Call control / Voice AI app id | |
+| `TELNYX_DID` | `+441156611616` | |
+| `TELNYX_SOPHIE_ASSISTANT_ID` | Sophie assistant id | |
+| `TELNYX_JAMES_ASSISTANT_ID` | James assistant id | |
+| `TELNYX_TRANSFER_NUMBER` | `+447898789313` | |
+| `TELNYX_INBOUND_ENABLED` | `true` only when DID is Active | `false` |
+| `TELNYX_CLICK_TO_CALL_ENABLED` | keep `false` this slice | `false` |
+| `TELNYX_WHATSAPP_ENABLED` | keep `false` | `false` |
+| `TELNYX_WARM_AUTODIAL_ENABLED` | keep `false` | `false` |
+
+Do not set `TELNYX_INBOUND_ENABLED=true` until Telnyx marks DID `+441156611616` **Active**. Click-to-call, WhatsApp, and warm auto-dial stay `false` for this slice. Never commit real keys.
 
 ## Rate Limiting
 
