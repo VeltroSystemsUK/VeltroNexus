@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrokerFinderTab } from "@/components/BrokerFinderTab";
+import { IntroducerPipeline } from "@/components/IntroducerPipeline";
 
 import {
     Dialog,
@@ -97,6 +98,25 @@ export default function BrokersCRM() {
             toast.success("Broker database cleared");
             queryClient.invalidateQueries({ queryKey: ["/api/brokers/leads"] });
         },
+    });
+
+    const sweepMutation = useMutation({
+        mutationFn: async () => {
+            const res = await apiRequest("/api/brokers/sweep-introducers", "POST");
+            return await res.json();
+        },
+        onSuccess: (data) => {
+            const total = (data.movedFromLeads || 0) + (data.movedFromPipeline || 0);
+            if (total === 0) {
+                toast.success("No introducers found in the main pipeline");
+            } else {
+                toast.success(`Moved ${total} introducer${total === 1 ? "" : "s"} into this pipeline (${data.movedFromLeads} from Leads, ${data.movedFromPipeline} from Pipeline)`);
+            }
+            queryClient.invalidateQueries({ queryKey: ["/api/brokers/leads"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+        },
+        onError: () => toast.error("Sweep failed"),
     });
 
     const discoverLeadsMutation = useMutation({
@@ -233,6 +253,32 @@ export default function BrokersCRM() {
                 />
             )}
 
+            <Tabs defaultValue="pipeline" className="w-full">
+                <TabsList>
+                    <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+                    <TabsTrigger value="leads">All Introducers</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="pipeline" className="pt-4 space-y-4">
+                    <div className="flex justify-end">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={sweepMutation.isPending}
+                            onClick={() => {
+                                if (confirm("Scan the main Leads and Pipeline lists for accountants/CFOs/introducers and move them here?")) {
+                                    sweepMutation.mutate();
+                                }
+                            }}
+                        >
+                            {sweepMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                            Sweep main pipeline for introducers
+                        </Button>
+                    </div>
+                    <IntroducerPipeline leads={leads} isLoading={isLoading} onSelectLead={setSelectedLead} />
+                </TabsContent>
+
+                <TabsContent value="leads" className="space-y-6 pt-4">
             <div className="flex items-center justify-between">
                 <div></div>
                 <div className="flex gap-2">
@@ -243,12 +289,14 @@ export default function BrokersCRM() {
                     <Dialog open={discoveryDialogOpen} onOpenChange={setDiscoveryDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="secondary">
-                                <Search className="mr-2 h-4 w-4" /> Recruit Brokers
+                                <Search className="mr-2 h-4 w-4" /> Find Introducers
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>🔍 Broker Discovery Agent</DialogTitle>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <Search className="h-4 w-4" /> Broker Discovery Agent
+                                </DialogTitle>
                                 <DialogDescription>
                                     Recruit brokers by searching specific regions or industries.
                                 </DialogDescription>
@@ -326,9 +374,11 @@ export default function BrokersCRM() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="new">Identified</SelectItem>
                         <SelectItem value="contacted">Contacted</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="non_responsive">Non-responsive</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -342,7 +392,7 @@ export default function BrokersCRM() {
                                 onClick={() => requestSort("companyName")}
                             >
                                 <div className="flex items-center">
-                                    Broker Company
+                                    Introducer
                                     <SortIcon column="companyName" />
                                 </div>
                             </TableHead>
@@ -523,6 +573,8 @@ export default function BrokersCRM() {
                     </div>
                 )}
             </div>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

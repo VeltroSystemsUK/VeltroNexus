@@ -9,6 +9,7 @@ import {
     Search,
     Shield,
     FileCheck,
+    Package,
     ChevronLeft,
     Settings,
     Calculator,
@@ -26,6 +27,7 @@ import FinancialsPage from "@/pages/underwriting/FinancialsPage";
 import AnalysisPage from "@/pages/underwriting/AnalysisPage";
 import DecisionPage from "@/pages/underwriting/DecisionPage";
 import SummaryPage from "@/pages/underwriting/SummaryPage";
+import PackagingPage from "@/pages/underwriting/PackagingPage";
 
 interface UnderwritingLayoutProps {
     children?: React.ReactNode;
@@ -91,6 +93,12 @@ export default function UnderwritingLayout() {
             icon: ClipboardList,
             href: `/prospect/${prospectId}/underwriting/eligibility`,
             match: "eligibility"
+        },
+        {
+            label: "Strata",
+            icon: Package,
+            href: `/prospect/${prospectId}/underwriting/packaging`,
+            match: "packaging"
         },
         {
             label: "Financials",
@@ -208,19 +216,13 @@ export default function UnderwritingLayout() {
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto p-6">
-                    {/* We will route the content here */}
-                    {/* Using a Slot logic would be ideal, but for now we rely on the parent App router to render the specific page content 
-               Wait, layouts usually wrap content. 
-               If we define the routes in App.tsx to use this layout, we need to wrap the page component. 
-               Or, we make this component render the Switch itself.
-           */}
-                    <div className="max-w-5xl mx-auto">
+                <main className={cn("flex-1 overflow-y-auto", isActive("packaging") ? "p-0" : "p-6")}>
+                    <div className={isActive("packaging") ? "h-full" : "max-w-5xl mx-auto"}>
                         <Switch>
-                            {/* Dashboard is the default index */}
                             <Route path="/prospect/:id/underwriting" component={UnderwritingDashboard} />
                             <Route path="/prospect/:id/underwriting/dashboard" component={UnderwritingDashboard} />
                             <Route path="/prospect/:id/underwriting/eligibility" component={EligibilityPage} />
+                            <Route path="/prospect/:id/underwriting/packaging" component={PackagingPage} />
                             <Route path="/prospect/:id/underwriting/financials" component={FinancialsPage} />
                             <Route path="/prospect/:id/underwriting/analysis" component={AnalysisPage} />
                             <Route path="/prospect/:id/underwriting/decision" component={DecisionPage} />

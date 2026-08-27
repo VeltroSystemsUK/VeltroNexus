@@ -30,7 +30,7 @@ export function AutoQualifiedLeadsWidget() {
         );
     }
 
-    const highPriorityLeads = leads?.filter(l => l.score >= 70) || [];
+    const highPriorityLeads = Array.isArray(leads) ? leads.filter(l => l.score >= 70) : [];
 
     return (
         <Card className="h-full flex flex-col">

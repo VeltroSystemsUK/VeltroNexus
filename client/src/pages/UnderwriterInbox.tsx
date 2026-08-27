@@ -46,7 +46,19 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Link } from "wouter";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+
+function safeFormat(value: unknown, fmt: string, fallback = "—"): string {
+  if (value == null || value === "") return fallback;
+  const date = new Date(value as string);
+  return isValid(date) ? format(date, fmt) : fallback;
+}
+
+function safeDateMs(value: unknown): number {
+  if (value == null || value === "") return Number.POSITIVE_INFINITY;
+  const date = new Date(value as string);
+  return isValid(date) ? date.getTime() : Number.POSITIVE_INFINITY;
+}
 import ConversationThread from "@/components/ConversationThread";
 import { useUnderwritingAccess } from "@/hooks/useUnderwritingAccess";
 import { UnderwritingPaywall } from "@/components/UnderwritingPaywall";
@@ -83,6 +95,7 @@ const priorityColors: Record<string, string> = {
 type SubmissionWithDetails = UnderwritingSubmission & {
   prospect?: Prospect & { company?: Company };
   broker?: { firstName?: string; lastName?: string; email?: string };
+  destination?: string;
 };
 
 export default function UnderwriterInbox() {
@@ -151,6 +164,23 @@ export default function UnderwriterInbox() {
   // Fetch SLA Settings for timers
   const { data: slaSettings } = useQuery<{ green: number; amber: number; red: number }>({
     queryKey: ["/api/admin/settings/sla"],
+  });
+
+  const openStrataMutation = useMutation({
+    mutationFn: async (prospectId: number) => {
+      const res = await apiRequest(`/api/prospects/${prospectId}/strata-packaging`, "POST", {});
+      return res.json();
+    },
+    onSuccess: (body: any, prospectId: number) => {
+      const packaging = body.packaging;
+      if (packaging?.status === "ready") {
+        toast.success("Nexus file copied into Strata");
+        setLocation(`/prospect/${prospectId}/underwriting/packaging`);
+        return;
+      }
+      toast.error(packaging?.lastError || "Could not start Strata");
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not start Strata"),
   });
 
   const claimMutation = useMutation({
@@ -254,6 +284,11 @@ export default function UnderwriterInbox() {
     claimMutation.mutate(submission.id);
   };
 
+  const handleOpenStrata = (submission: SubmissionWithDetails) => {
+    if (!submission.prospectId) return;
+    openStrataMutation.mutate(submission.prospectId);
+  };
+
   const handleSendToBroker = (submission: UnderwritingSubmission) => {
     sendToBrokerMutation.mutate(submission.id);
   };
@@ -281,7 +316,7 @@ export default function UnderwriterInbox() {
     if (!submissions) return [];
     return submissions
       .filter((s) => ["submitted", "in_review", "queried"].includes(s.status))
-      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+      .sort((a, b) => safeDateMs(a.submittedAt) - safeDateMs(b.submittedAt))
       .slice(0, 1);
   }, [submissions]);
 
@@ -299,7 +334,7 @@ export default function UnderwriterInbox() {
       const dateStr = format(date, "yyyy-MM-dd");
       return {
         date: format(date, "dd MMM"),
-        count: submissions.filter(s => format(new Date(s.submittedAt), "yyyy-MM-dd") === dateStr).length
+        count: submissions.filter(s => safeFormat(s.submittedAt, "yyyy-MM-dd", "") === dateStr).length
       };
     });
 
@@ -469,7 +504,7 @@ export default function UnderwriterInbox() {
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
-              <span>{format(new Date(submission.submittedAt), "dd MMM yyyy HH:mm")}</span>
+              <span>{safeFormat(submission.submittedAt, "dd MMM yyyy HH:mm")}</span>
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5">
@@ -482,6 +517,9 @@ export default function UnderwriterInbox() {
             <Badge variant="outline" className={priorityColors[submission.priority]}>
               {submission.priority}
             </Badge>
+            {submission.destination === "strata" ? (
+              <Badge variant="secondary">Strata</Badge>
+            ) : null}
           </div>
         </div>
 
@@ -500,7 +538,19 @@ export default function UnderwriterInbox() {
           </p>
         )}
 
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant={submission.destination === "strata" ? "default" : "outline"}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenStrata(submission);
+            }}
+            disabled={openStrataMutation.isPending}
+            data-testid={`button-open-strata-${submission.id}`}
+          >
+            {openStrataMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Open Strata"}
+          </Button>
           {submission.status === "submitted" && (
             <Button
               size="sm"
@@ -856,7 +906,7 @@ export default function UnderwriterInbox() {
                 <Label className="text-xs text-muted-foreground">Submitted</Label>
                 <p className="text-sm mt-1">
                   {selectedSubmission?.submittedAt &&
-                    format(new Date(selectedSubmission.submittedAt), "dd MMM yyyy HH:mm")}
+                    safeFormat(selectedSubmission.submittedAt, "dd MMM yyyy HH:mm")}
                 </p>
               </div>
               <div>
@@ -907,6 +957,15 @@ export default function UnderwriterInbox() {
               Close
             </Button>
             <div className="flex gap-2">
+              {selectedSubmission?.prospectId ? (
+                <Button
+                  variant="outline"
+                  onClick={() => handleOpenStrata(selectedSubmission)}
+                  disabled={openStrataMutation.isPending}
+                >
+                  Open Strata
+                </Button>
+              ) : null}
               {selectedSubmission?.status === "in_review" && (
                 <>
                   <Button

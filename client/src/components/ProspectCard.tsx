@@ -25,6 +25,7 @@ export interface ProspectCardData {
   loanAmount?: number;
   priority?: Priority;
   stage?: string;
+  referralSource?: string | null;
 }
 
 export type DueDiligenceStatus = 'complete' | 'partial' | 'pending';
@@ -56,8 +57,10 @@ const stageColors: Record<string, string> = {
   contacted: "border-l-4 border-l-blue-400 dark:border-l-blue-500",
   qualified: "border-l-4 border-l-cyan-400 dark:border-l-cyan-500",
   proposal: "border-l-4 border-l-purple-400 dark:border-l-purple-500",
+  packaging: "border-l-4 border-l-pink-400 dark:border-l-pink-500",
   "due-diligence": "border-l-4 border-l-amber-400 dark:border-l-amber-500",
   submission: "border-l-4 border-l-orange-400 dark:border-l-orange-500",
+  "further-information": "border-l-4 border-l-orange-300 dark:border-l-orange-400",
   approved: "border-l-4 border-l-green-500 dark:border-l-green-600",
   declined: "border-l-4 border-l-red-500 dark:border-l-red-600",
   withdrawn: "border-l-4 border-l-gray-400 dark:border-l-gray-500",
@@ -132,7 +135,7 @@ export default function ProspectCard({
 
   const stage = currentStage || prospect.stage || "lead";
   const stageColorClass = stageColors[stage] || stageColors["lead"];
-  const isSubmissionStage = stage === "submission";
+  const canSendToLender = ["packaging", "due-diligence", "submission"].includes(stage);
 
   return (
     <Card
@@ -179,6 +182,11 @@ export default function ProspectCard({
               >
                 {prospect.companyName}
               </h4>
+              {(prospect.referralSource === "Strata" || prospect.referralSource === "Agent") && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 shrink-0">
+                  {prospect.referralSource}
+                </Badge>
+              )}
               {stage === "due-diligence" && dueDiligenceStatus && (
                 <div
                   className="flex-shrink-0"
@@ -283,7 +291,7 @@ export default function ProspectCard({
             </Badge>
           )}
 
-          {isSubmissionStage && (
+          {canSendToLender && (
             <Button
               size="sm"
               variant="default"

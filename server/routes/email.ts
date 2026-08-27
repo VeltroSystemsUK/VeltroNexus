@@ -208,11 +208,13 @@ router.post("/send", isAuthenticated, async (req: Request, res: Response) => {
         const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
         const messageId = `local-msg-${crypto.randomUUID()}`;
 
-        // Send via SMTP if credentials are configured
-        const smtpHost = process.env.SMTP_HOST;
-        const smtpPort = parseInt(process.env.SMTP_PORT || "587");
-        const smtpUser = process.env.SMTP_USER;
-        const smtpPass = process.env.SMTP_PASS;
+        // Send via SMTP if credentials are configured — this is the user's personal
+        // work mailbox (shaun@stratafinance.co.uk), separate from the shared
+        // enquiries@ account agents use for outreach.
+        const smtpHost = process.env.WORK_SMTP_HOST;
+        const smtpPort = parseInt(process.env.WORK_SMTP_PORT || "587");
+        const smtpUser = process.env.WORK_SMTP_USER;
+        const smtpPass = process.env.WORK_SMTP_PASS;
 
         if (smtpHost && smtpUser && smtpPass) {
             try {
@@ -227,7 +229,7 @@ router.post("/send", isAuthenticated, async (req: Request, res: Response) => {
                 });
 
                 await transporter.sendMail({
-                    from: process.env.SMTP_FROM || inbox.emailAddress,
+                    from: process.env.WORK_SMTP_FROM || smtpUser,
                     to: toAddresses.join(", "),
                     cc: ccAddresses.length > 0 ? ccAddresses.join(", ") : undefined,
                     subject,
@@ -247,7 +249,7 @@ router.post("/send", isAuthenticated, async (req: Request, res: Response) => {
             threadId: replyToMessageId || `thread-${crypto.randomUUID()}`,
             contactId: contactId ? parseInt(contactId) : null,
             prospectId: prospectId ? parseInt(prospectId) : null,
-            fromAddress: inbox.emailAddress,
+            fromAddress: process.env.WORK_SMTP_FROM || inbox.emailAddress,
             toAddresses,
             ccAddresses,
             subject,

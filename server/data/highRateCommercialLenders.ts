@@ -195,20 +195,31 @@ export const HIGH_RATE_LENDERS: HighRateLender[] = [
     }
 ];
 
+function tokens(value: string): string {
+    return value.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+}
+
+function nameMatches(chargeName: string, needle: string): boolean {
+    const hay = tokens(chargeName);
+    const pin = tokens(needle);
+    if (!hay || !pin) return false;
+    if (pin.length <= 3) {
+        return new RegExp(`(?:^| )${pin}(?: |$)`).test(hay);
+    }
+    return hay.includes(pin);
+}
+
 // Utility function to check if a lender name matches the blacklist
 export function isHighRateLender(lenderName: string): HighRateLender | null {
-    const upperName = lenderName.toUpperCase();
+    if (!lenderName) return null;
 
     for (const lender of HIGH_RATE_LENDERS) {
-        // Check main name
-        if (upperName.includes(lender.name.toUpperCase())) {
+        if (nameMatches(lenderName, lender.name)) {
             return lender;
         }
-
-        // Check aliases
         if (lender.aliases) {
             for (const alias of lender.aliases) {
-                if (upperName.includes(alias.toUpperCase())) {
+                if (nameMatches(lenderName, alias)) {
                     return lender;
                 }
             }

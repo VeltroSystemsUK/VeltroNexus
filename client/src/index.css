@@ -210,6 +210,13 @@ html[data-theme="light"] {
     max-width: 100%;
   }
 
+  /* React Flow edges live in an absolutely positioned SVG; max-width: 100%
+     collapses that layer so connectors never appear between nodes. */
+  .react-flow svg {
+    max-width: none;
+    overflow: visible;
+  }
+
   button,
   input,
   select,

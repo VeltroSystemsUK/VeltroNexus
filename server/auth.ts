@@ -43,16 +43,15 @@ export async function setupAuth(app: Express) {
         saveUninitialized: false,
         store: storage.sessionStore,
         cookie: {
-            secure: isProduction, // Only require HTTPS in production
+            secure: "auto", // Secure whenever the request is actually HTTPS (via trust proxy), regardless of NODE_ENV
             sameSite: "lax",
             httpOnly: true,
             maxAge: 24 * 60 * 60 * 1000, // 24 hours
         },
     };
 
-    if (isProduction) {
-        app.set("trust proxy", true);
-    }
+    // Cloudflare Tunnel is one hop. Trust only that hop so clients cannot spoof X-Forwarded-*.
+    app.set("trust proxy", 1);
 
     app.use(session(sessionSettings));
 
@@ -262,7 +261,7 @@ export async function setupAuth(app: Express) {
             res.clearCookie("__session", {
                 path: "/",
                 httpOnly: true,
-                secure: isProduction,
+                secure: req.secure,
                 sameSite: "lax",
             });
 

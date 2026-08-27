@@ -76,6 +76,7 @@ const navGroups: NavGroup[] = [
       { path: "/clients", label: "Clients", icon: Users, roles: ["super_admin"] },
       { path: "/brokers", label: "Brokers", icon: Users, roles: ["super_admin"] },
       { path: "/lenders", label: "Lenders", icon: Building2, roles: WITH_TRIAL },
+      { path: "/agent-mail", label: "Agent mail", icon: Mail, roles: ["super_admin"] },
       { path: "/gmail", label: "Gmail", icon: Mail, roles: ["super_admin"] },
       { path: "/whatsapp", label: "WhatsApp", icon: MessageSquare, roles: ["super_admin"] },
     ],
@@ -105,6 +106,7 @@ const navGroups: NavGroup[] = [
     color: "text-violet-400",
     items: [
       { path: "/underwriting", label: "Inbox", icon: Inbox, roles: FULL_UW },
+      { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, roles: ["super_admin", "sales_admin"] },
       { path: "/credit-tools", label: "Credit Tools", icon: Calculator, roles: FULL_UW },
       { path: "/ai-studio", label: "AI Studio", icon: Brain, roles: FULL_UW },
     ],

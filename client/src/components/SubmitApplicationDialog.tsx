@@ -30,8 +30,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 import type { Lender } from "@shared/schema";
 import { Loader2 } from "lucide-react";
+import { AttachmentsChecklistForm } from "@/components/AttachmentsChecklistForm";
+
+export const STRATA_LENDER_VALUE = "strata";
 
 const submitApplicationSchema = z.object({
   lenderId: z.string().min(1, "Please select a lender"),
@@ -53,6 +57,7 @@ export default function SubmitApplicationDialog({
   prospectId,
   companyName,
 }: SubmitApplicationDialogProps) {
+  const [, setLocation] = useLocation();
   const { data: lenders = [], isLoading: isLoadingLenders } = useQuery<Lender[]>({
     queryKey: ["/api/lenders"],
     enabled: open,
@@ -66,45 +71,80 @@ export default function SubmitApplicationDialog({
     },
   });
 
+  const selectedLender = form.watch("lenderId");
+  const sendingToStrata = selectedLender === STRATA_LENDER_VALUE;
+
   const submitMutation = useMutation({
     mutationFn: async (data: SubmitApplicationForm) => {
-      const submission = await apiRequest(
-        `/api/lenders/${data.lenderId}/applications/submit`,
-        "POST",
-        {
+      if (data.lenderId === STRATA_LENDER_VALUE) {
+        const response = await apiRequest("/api/underwriting/submissions", "POST", {
           prospectId,
-          commentary: data.commentary || undefined,
-        }
-      );
-      return submission.json();
+          priority: "normal",
+          destination: "strata",
+          brokerComments: data.commentary || undefined,
+        });
+        return { destination: "strata" as const, ...(await response.json()) };
+      }
+      const submission = await apiRequest("/api/submissions", "POST", {
+        prospectId,
+        lenderId: Number(data.lenderId),
+        commentary: data.commentary || undefined,
+      });
+      return { destination: "lender" as const, ...(await submission.json()) };
     },
     onSuccess: (result: any) => {
-      let description = "The application has been submitted.";
-      let variant: "default" | "destructive" = "default";
-
-      if (result.emailSent) {
-        description = "The application has been emailed to the lender with a PDF attachment.";
-      } else if (result.emailError) {
-        description = `Email delivery failed: ${result.emailError}. The submission was created but please contact the lender directly.`;
-        variant = "destructive";
+      if (result.destination === "strata") {
+        toast({
+          title: "Sent to Underwriting Inbox",
+          description: "Open it there to start Strata and copy the Nexus file across.",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/underwriting/my-submissions"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/underwriting/status"] });
+        form.reset();
+        onOpenChange(false);
+        setLocation("/underwriting");
+        return;
       } else {
-        description =
-          "The application was submitted but email delivery failed. Please contact the lender directly.";
-        variant = "destructive";
-      }
+        let description = "The application has been submitted.";
+        let variant: "default" | "destructive" = "default";
 
-      toast({
-        title: result.emailSent ? "Application sent" : "Application submitted",
-        description,
-        variant,
-      });
+        if (result.emailSent) {
+          description = "The application has been emailed to the lender with a PDF attachment.";
+        } else if (result.emailError) {
+          description = `Email delivery failed: ${result.emailError}. The submission was created but please contact the lender directly.`;
+          variant = "destructive";
+        } else {
+          description =
+            "The application was submitted but email delivery failed. Please contact the lender directly.";
+          variant = "destructive";
+        }
+
+        toast({
+          title: result.emailSent ? "Application sent" : "Application submitted",
+          description,
+          variant,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/strata-packaging`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/due-diligence`] });
       form.reset();
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (/409/.test(error.message) && sendingToStrata) {
+        toast({
+          title: "Already in the Underwriting Inbox",
+          description: "Open it there to start Strata.",
+        });
+        onOpenChange(false);
+        setLocation("/underwriting");
+        return;
+      }
       toast({
         title: "Submission failed",
         description: error.message,
@@ -128,7 +168,7 @@ export default function SubmitApplicationDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-[525px]"
+        className="sm:max-w-lg max-h-[90vh] overflow-y-auto"
         data-testid="dialog-submit-application"
         onPointerDownOutside={(e) => {
           // Prevent closing when clicking outside during submission
@@ -144,10 +184,11 @@ export default function SubmitApplicationDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Submit Application</DialogTitle>
+          <DialogTitle>Submit to Lender</DialogTitle>
           <DialogDescription>
-            Submit the loan application for {companyName} to a lender. This action will be logged as
-            a task.
+            {sendingToStrata
+              ? `Send ${companyName} to the Underwriting Inbox. From there, open Strata to copy the Nexus file into the pack.`
+              : `Submit the loan application for ${companyName} to a lender. This action will be logged as a task.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -161,7 +202,7 @@ export default function SubmitApplicationDialog({
                   <FormLabel>Select Lender</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                     disabled={isLoadingLenders}
                   >
                     <FormControl>
@@ -172,28 +213,27 @@ export default function SubmitApplicationDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {lenders.length === 0 && !isLoadingLenders ? (
-                        <div className="p-2 text-sm text-muted-foreground">
-                          No lenders available. Add lenders in the Lender Database.
-                        </div>
-                      ) : (
-                        lenders.map((lender) => (
-                          <SelectItem
-                            key={lender.id}
-                            value={lender.id!.toString()}
-                            data-testid={`select-lender-option-${lender.id!}`}
-                          >
-                            {lender.institutionName}
-                            {lender.contactName && ` - ${lender.contactName}`}
-                          </SelectItem>
-                        ))
-                      )}
+                      <SelectItem value={STRATA_LENDER_VALUE} data-testid="select-lender-option-strata">
+                        Strata — CDFI packaging
+                      </SelectItem>
+                      {lenders.map((lender) => (
+                        <SelectItem
+                          key={lender.id}
+                          value={lender.id!.toString()}
+                          data-testid={`select-lender-option-${lender.id!}`}
+                        >
+                          {lender.institutionName}
+                          {lender.contactName && ` - ${lender.contactName}`}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <AttachmentsChecklistForm prospectId={prospectId} compact />
 
             <FormField
               control={form.control}
@@ -231,7 +271,7 @@ export default function SubmitApplicationDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={submitMutation.isPending || lenders.length === 0}
+                disabled={submitMutation.isPending}
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
@@ -243,7 +283,7 @@ export default function SubmitApplicationDialog({
                     Submitting...
                   </>
                 ) : (
-                  "Submit Application"
+                  sendingToStrata ? "Send to Inbox" : "Submit Application"
                 )}
               </Button>
             </DialogFooter>

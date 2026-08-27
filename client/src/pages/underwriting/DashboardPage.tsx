@@ -1,6 +1,7 @@
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { ProspectWithCompany, DueDiligenceData } from "@shared/schema";
+import type { ProspectWithCompany } from "@shared/schema";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
 import {
     Card,
     CardContent,
@@ -28,17 +29,22 @@ export default function UnderwritingDashboard() {
         queryKey: [`/api/prospects/${prospectId}`],
     });
 
-    const { data: dueDiligenceData } = useQuery<DueDiligenceData>({
+    const { data: dueDiligenceRaw } = useQuery<unknown>({
         queryKey: [`/api/prospects/${prospectId}/due-diligence`],
     });
 
-    if (!prospect || !dueDiligenceData) {
+    if (!prospect || !dueDiligenceRaw) {
         return <div>Loading dashboard...</div>;
     }
 
+    const dueDiligenceData = unwrapDueDiligence(dueDiligenceRaw);
     const underwriting = dueDiligenceData.underwriting || {};
     const financialAnalysis = underwriting.financialAnalysis;
+    const accountsAnalysis = underwriting.accountsAnalysis;
+    const decisionDscr = financialAnalysis?.dscr ?? accountsAnalysis?.dscr?.average;
     const adverseMedia = underwriting.adverseMedia;
+    const swotAnalysis = underwriting.swotAnalysis;
+    const creditsafe = underwriting.creditsafe;
     const isEligible = underwriting.eligibility?.isEligible;
 
     const DSCR_THRESHOLD = 1.25;
@@ -104,8 +110,8 @@ export default function UnderwritingDashboard() {
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-2">
-                            <span className={`text-2xl font-bold ${(financialAnalysis?.dscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-amber-600"}`}>
-                                {(financialAnalysis?.dscr || 0).toFixed(2)}x
+                            <span className={`text-2xl font-bold ${(decisionDscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-amber-600"}`}>
+                                {decisionDscr != null ? `${decisionDscr.toFixed(2)}x` : "N/A"}
                             </span>
                         </div>
                         <p className="text-xs text-muted-foreground">Target: {DSCR_THRESHOLD}x</p>
@@ -134,8 +140,12 @@ export default function UnderwritingDashboard() {
                         <CardDescription>Automated insights based on financial data and eligibility</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {financialAnalysis?.summary ? (
-                            <p className="text-sm leading-relaxed">{financialAnalysis.summary}</p>
+                        {financialAnalysis?.summary || swotAnalysis?.summary ? (
+                            <div className="space-y-3 text-sm leading-relaxed">
+                                {financialAnalysis?.summary && <p>{financialAnalysis.summary}</p>}
+                                {swotAnalysis?.summary && <p><span className="font-medium">SWOT:</span> {swotAnalysis.summary}</p>}
+                                {creditsafe && <p><span className="font-medium">Creditsafe:</span> {creditsafe.score || "No score"} · {creditsafe.rating || "No rating"}</p>}
+                            </div>
                         ) : (
                             <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
                                 <p>No analysis generated yet. Complete the Financials section to generate insights.</p>

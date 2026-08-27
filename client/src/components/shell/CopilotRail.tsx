@@ -1,36 +1,37 @@
 import { useState, type FormEvent } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, ChevronRight, ArrowRight, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface Suggestion {
-  id: string;
-  title: string;
-  detail?: string;
-  cta?: string;
-  to?: string;
-  tone?: "accent" | "plain";
-}
-
-// Seeded contextual prompts — the cards are real (they navigate); the live
-// feed will be driven by the copilot backend once wired.
-const SEEDED: Suggestion[] = [
-  { id: "stalling", title: "2 deals stalling over 7 days", detail: "Orbit Ltd and Vantage Co haven't moved stage. Draft chase emails?", cta: "Review pipeline", to: "/pipeline", tone: "accent" },
-  { id: "apex", title: "Apex Ltd — credit ready", detail: "Underwriting analysis is complete and awaiting your decision.", cta: "Open underwriting", to: "/underwriting" },
-  { id: "qualified", title: "3 prospects auto-qualified", detail: "New overnight matches surfaced by Lead Finder.", cta: "View clients", to: "/crm" },
-  { id: "due", title: "2 submissions due today", detail: "Lender deadlines approaching this afternoon.", cta: "Open submissions", to: "/submissions" },
-];
+import { attentionFromDeals } from "@shared/attention";
+import type { AgenticDealFile } from "@shared/agenticWorkflow";
 
 interface CopilotRailProps {
   collapsed: boolean;
   onToggle: () => void;
 }
 
+function stamp(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [draft, setDraft] = useState("");
+  const { data: deals = [] } = useQuery<AgenticDealFile[]>({
+    queryKey: ["/api/agentic/deals"],
+  });
+  const items = attentionFromDeals(deals);
 
   if (collapsed) {
     return (
@@ -40,7 +41,13 @@ export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
         className="relative z-10 hidden lg:flex w-12 shrink-0 flex-col items-center pt-5 gap-2 bg-sidebar/70 backdrop-blur-xl border-l border-white/5 text-white/60 hover:text-white transition-colors"
       >
         <Sparkles className="h-5 w-5 text-primary" />
-        <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_2px_hsl(var(--primary)/0.5)]" />
+        {items.length > 0 ? (
+          <span className="min-w-[1.15rem] h-5 px-1 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center">
+            {items.length}
+          </span>
+        ) : (
+          <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+        )}
       </button>
     );
   }
@@ -48,7 +55,6 @@ export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!draft.trim()) return;
-    // TODO: stream to the Anthropic copilot endpoint once it exists.
     toast({
       title: "Copilot",
       description: "Connecting your assistant — live answers land once the backend is wired.",
@@ -61,7 +67,9 @@ export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
       <div className="flex items-center gap-2 px-4 h-16 border-b border-white/5">
         <Sparkles className="h-4 w-4 text-primary" />
         <span className="text-sm font-semibold text-white">Copilot</span>
-        <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_2px_hsl(var(--primary)/0.5)]" />
+        {items.length > 0 && (
+          <span className="text-[11px] tabular-nums text-white/45">{items.length}</span>
+        )}
         <button
           onClick={onToggle}
           aria-label="Collapse Copilot"
@@ -75,13 +83,16 @@ export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
         <div className="px-1 pb-1 text-[10px] font-mono uppercase tracking-[0.18em] text-white/35">
           For your attention
         </div>
-        {SEEDED.map((s) => (
+        {items.length === 0 && (
+          <p className="px-1 text-[13px] text-white/45 leading-snug">Nothing waiting on you.</p>
+        )}
+        {items.map((item) => (
           <button
-            key={s.id}
-            onClick={() => s.to && navigate(s.to)}
+            key={item.id}
+            onClick={() => navigate(item.to)}
             className={cn(
               "w-full text-left rounded-xl p-3 border transition-all hover:-translate-y-0.5",
-              s.tone === "accent"
+              item.tone === "accent"
                 ? "bg-primary/[0.06] border-primary/20 hover:border-primary/40"
                 : "bg-white/[0.03] border-white/[0.07] hover:border-white/15"
             )}
@@ -90,21 +101,18 @@ export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
               <span
                 className={cn(
                   "mt-1.5 h-1.5 w-1.5 rounded-full shrink-0",
-                  s.tone === "accent"
+                  item.tone === "accent"
                     ? "bg-primary shadow-[0_0_8px_2px_hsl(var(--primary)/0.45)]"
                     : "bg-white/30"
                 )}
               />
               <div className="min-w-0">
-                <div className="text-[13px] font-medium text-white leading-snug">{s.title}</div>
-                {s.detail && (
-                  <div className="text-[12px] text-white/55 mt-1 leading-snug">{s.detail}</div>
-                )}
-                {s.cta && (
-                  <div className="inline-flex items-center gap-1 text-[12px] text-primary mt-2 font-medium">
-                    {s.cta} <ArrowRight className="h-3 w-3" />
-                  </div>
-                )}
+                <div className="text-[11px] tabular-nums text-white/40">{stamp(item.at)}</div>
+                <div className="text-[13px] font-medium text-white leading-snug mt-0.5">{item.title}</div>
+                <div className="text-[12px] text-white/55 mt-1 leading-snug">{item.task}</div>
+                <div className="inline-flex items-center gap-1 text-[12px] text-primary mt-2 font-medium">
+                  Open deal file <ArrowRight className="h-3 w-3" />
+                </div>
               </div>
             </div>
           </button>

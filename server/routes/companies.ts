@@ -9,6 +9,9 @@ import { searchCompanyInfo } from "../utils/geminiClient";
 import { formatOfficerName, formatAddress } from "../utils/formatters";
 import { getSicDescription } from "../utils/sicCodeLookup";
 import { chFetch } from "../utils/companiesHouseClient";
+import { creditsafeClient } from "../utils/creditsafeClient";
+import { getReadableProspect } from "../utils/prospectAccess";
+import { searchCompanyWeb } from "../utils/companyWebSearch";
 
 const router = Router();
 
@@ -595,8 +598,7 @@ const router = Router();
             .json({ error: "This feature is only available for Premium users" });
         }
 
-        // Get prospect and company info
-        const prospect = await storage.getProspect(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }
@@ -607,43 +609,18 @@ const router = Router();
         }
 
         const companyName = prospect.company.companyName;
-        const searchQuery = `${companyName} UK company news information`;
+        console.log(`Searching web for company news/adverse media: ${companyName}`);
 
-        console.log(`Searching web for company: ${companyName}`);
-
-        const tavilyResponse = await fetch("https://api.tavily.com/search", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            api_key: tavilyApiKey,
-            query: searchQuery,
-            search_depth: "basic",
-            include_answer: true,
-            include_raw_content: false,
-            max_results: 10,
-            include_domains: [],
-            exclude_domains: [],
-          }),
+        const data = await searchCompanyWeb({
+          apiKey: tavilyApiKey,
+          companyName,
+          companyNumber: prospect.company.companyNumber,
+          registeredAddress: prospect.company.registeredAddress,
         });
 
-        if (!tavilyResponse.ok) {
-          const errorText = await tavilyResponse.text();
-          console.error("Tavily API error:", tavilyResponse.status, errorText);
-          return res.status(tavilyResponse.status).json({
-            error: `Tavily API returned ${tavilyResponse.status}: ${errorText || tavilyResponse.statusText}`,
-          });
-        }
+        console.log(`Found ${data.results.length} ranked web results for ${companyName}`);
 
-        const data = await tavilyResponse.json();
-        console.log(`Found ${data.results?.length || 0} web results for ${companyName}`);
-
-        res.json({
-          answer: data.answer || "",
-          results: data.results || [],
-          query: searchQuery,
-        });
+        res.json(data);
       } catch (error) {
         handleApiError(res, error, "api-error");
       }
@@ -1009,5 +986,84 @@ const router = Router();
     }
   });
 
+
+  // Creditsafe — UK-only trial account, 50 report pulls total. Status and
+  // search are free to check; only viewing a report spends the trial quota.
+  router.get("/creditsafe/status", isAuthenticated, async (_req, res) => {
+    try {
+      const configured = !!(process.env.CREDITSAFE_USERNAME && process.env.CREDITSAFE_PASSWORD);
+      res.json({ configured, ...creditsafeClient.usage() });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  router.get("/creditsafe/search", isAuthenticated, async (req, res) => {
+    try {
+      const name = req.query.name as string;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: "Company name is required" });
+      }
+      const companies = await creditsafeClient.searchCompanies(name.trim());
+      res.json({ companies, usage: creditsafeClient.usage() });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
+
+  // Pulls the report AND writes the extracted fields onto the company record —
+  // the raw report is huge and mostly not worth modeling as columns, so only
+  // the fields worth querying/displaying get promoted; the full report is kept
+  // as JSON for reference.
+  router.post("/companies/:companyId/creditsafe-report/:creditsafeId", isAuthenticated, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      if (isNaN(companyId)) {
+        return res.status(400).json({ error: "Invalid company ID" });
+      }
+
+      const data = await creditsafeClient.getCompanyReport(req.params.creditsafeId);
+      const summary = data?.report?.companySummary;
+      const rating = summary?.creditRating;
+      const limitValue = parseFloat(rating?.creditLimit?.value);
+
+      const company = await storage.updateCompany(companyId, {
+        creditsafeId: req.params.creditsafeId,
+        creditsafeScore: rating?.commonValue ?? null,
+        creditsafeRatingDescription: rating?.commonDescription ?? null,
+        creditsafeCreditLimit: Number.isFinite(limitValue) ? Math.round(limitValue * 100) : null,
+        creditsafeCheckedAt: new Date(),
+        creditsafeReport: JSON.stringify(data),
+      } as any);
+
+      // Creditsafe is stored on the company, but the Underwriting Studio reads
+      // its decision inputs from due diligence. Project the latest report into
+      // that document as well so downstream decision/dashboard views see it.
+      const linkedProspects = (await storage.listProspects(req.user!.id)).filter(
+        (prospect) => prospect.companyId === companyId
+      );
+      for (const prospect of linkedProspects) {
+        const diligence = await storage.getDueDiligence(prospect.id, prospect.userId);
+        const data = (diligence?.data || {}) as Record<string, any>;
+        await storage.upsertDueDiligence(prospect.id, prospect.userId, {
+          ...data,
+          underwriting: {
+            ...(data.underwriting || {}),
+            creditsafe: {
+              id: req.params.creditsafeId,
+              score: rating?.commonValue ?? null,
+              rating: rating?.commonDescription ?? null,
+              creditLimit: Number.isFinite(limitValue) ? Math.round(limitValue * 100) : null,
+              checkedAt: new Date().toISOString(),
+            },
+          },
+        } as any);
+      }
+
+      res.json({ company, usage: creditsafeClient.usage() });
+    } catch (error) {
+      handleApiError(res, error, "api-error");
+    }
+  });
 
 export default router;

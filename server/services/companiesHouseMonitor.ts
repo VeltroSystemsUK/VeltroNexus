@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { storage } from "../storage";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
 
-const FINAL_STAGES = ["approved", "declined", "withdrawn"];
+const FINAL_STAGES = ["approved", "declined"];
 
 interface ChSnapshot {
   companyStatus: string | null;

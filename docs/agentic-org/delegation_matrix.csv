@@ -1,0 +1,29 @@
+task,route_to,requires_shaun,notes
+hunt_companies_house_gazette,RES-2,no,Drop fit<70 and SIG-06
+inbound_enquiry_open_file,RES-2,no,Always open
+companies_house_single_match,RES-2,no,
+companies_house_ambiguous_match,ORC-1,yes,waiting_human
+contact_enrichment,RES-2,no,One retry then proceed or park
+cold_template_email,SAL-2,no,PECR stop line required; SMTP must be live
+inbound_ack_pack_request,SAL-2,no,Request full Sterling 14
+cadence_followup_email,SAL-2,no,OS timer
+linkedin_copy,SAL-2,yes,Draft only; Shaun posts
+phone_call,SAL-2,yes,Queue script; Shaun dials
+customer_reply_non_pack,SAL-2,yes,Stop auto-thread
+opt_out_complaint_vulnerability,ORC-1,yes,Hard stop
+pack_upload_received,FIN-2,no,Ingest immediately
+pack_chase_named_gaps,SAL-2,no,After 2 failures queue Shaun
+build_sfp,FIN-2,no,Missing listed never guessed
+credit_memo_recommendation,FIN-2,yes,Checkpoint 1
+bbb_inferrable,FIN-2,no,
+bbb_not_inferrable,FIN-2,yes,
+completeness_gate,FIN-2,no,Block send if fail
+compile_sterling_zip,FIN-2,no,Only if gate pass
+send_to_david,ORC-1,yes,Checkpoint 2
+regulated_agreement_sole_trader,ORC-1,yes,Hard stop unregulated track
+p0_hmrc_petition,RES-2,yes,Notify same hour; first template may send
+spend_over_500,ORC-1,yes,
+legal_agreement,ORC-1,yes,
+change_agent_scope,ORC-1,yes,Update corporate_structure.md
+accounts_xero_invoicing,NONE,yes,Hibernated Oliver
+cfo_capital_strategist,NONE,yes,Hibernated Nathan

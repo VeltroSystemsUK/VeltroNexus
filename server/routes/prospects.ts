@@ -21,6 +21,12 @@ import { createErrorResponse } from "../utils/errorResponse";
 import { getSicDescription } from "../utils/sicCodeLookup";
 import { generatePipelineExcel } from "../utils/excelExporter";
 import { formatOfficerName } from "../utils/formatters";
+import { getReadableProspect } from "../utils/prospectAccess";
+import {
+  buildCreditFileContext,
+  isStubAiSection,
+  loanAmountPounds,
+} from "../utils/creditFileContext";
 import multer from "multer";
 import * as fs from "fs";
 import * as path from "path";
@@ -56,10 +62,9 @@ const router = Router();
       const prospectId = parseInt(req.params.id);
       if (isNaN(prospectId)) return res.status(400).json({ error: "Invalid prospect ID" });
 
-      const userId = req.user!.id;
-
-      const prospect = await storage.getProspect(prospectId, userId);
+      const prospect = await getReadableProspect(req, prospectId);
       if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+      const userId = prospect.userId;
 
       // Determine requirements based on deal type
       let productType = "general";
@@ -171,8 +176,9 @@ const router = Router();
   router.get("/prospects/:id/documents", isAuthenticated, async (req, res) => {
     try {
       const prospectId = parseInt(req.params.id);
-      const userId = req.user!.id;
-      const docs = await storage.listProspectDocuments(prospectId, userId);
+      const prospect = await getReadableProspect(req, prospectId);
+      if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+      const docs = await storage.listProspectDocuments(prospectId, prospect.userId);
       res.json(docs);
     } catch (err) {
       res.status(500).json({ error: "Failed to list documents" });
@@ -251,9 +257,8 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const id = parseInt(req.params.id);
-        const prospect = await storage.getProspect(id, userId);
+        const prospect = await getReadableProspect(req, id);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }
@@ -393,108 +398,16 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const id = parseInt(req.params.id);
-
-        const prospect = await storage.getProspect(id, userId);
+        const prospect = await getReadableProspect(req, id);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }
 
-        const contacts = await storage.listContacts(id, userId);
-        const activities = await storage.listActivities(id, userId);
-        const dueDiligence = await storage.getDueDiligence(id, userId);
-
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        let companiesHouseData = null;
-
-        if (apiKey && prospect.company.companyNumber) {
-          try {
-            const trimmedApiKey = apiKey.trim();
-            const authString = `${trimmedApiKey}:`;
-            const base64Auth = Buffer.from(authString).toString("base64");
-            const companyNumber = prospect.company.companyNumber;
-
-            const [officersRes, pscRes, chargesRes] = await Promise.all([
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ).catch(() => null),
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ).catch(() => null),
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ).catch(() => null),
-            ]);
-
-            companiesHouseData = {
-              officers: officersRes && officersRes.ok ? await officersRes.json() : null,
-              psc: pscRes && pscRes.ok ? await pscRes.json() : null,
-              charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null,
-            };
-          } catch (error) {
-            console.error("Error fetching Companies House data for report:", error);
-          }
-        }
-
-        const user = await storage.getUser(userId);
-
-        console.log(
-          `[PDF Report] Generating report for prospect ${id}, company: ${prospect.company.companyName}`
-        );
-
-        const { createProspectReportDocument, renderProspectReport } =
-          await import("../utils/pdfGenerator");
-
-        console.log(
-          `[PDF Report] Generating report for prospect ${id}, company: ${prospect.company.companyName}`
-        );
-
-        const reportData = {
-          prospect,
-          contacts,
-          activities,
-          dueDiligence,
-          companiesHouseData,
-          pdfLayoutPreferences: (user?.pdfLayoutPreferences as any) || null,
-        };
-
-        // Create doc
-        const doc = createProspectReportDocument(reportData as any);
-
-        // SECURITY: Use sanitized filename to prevent header injection
-        // const { encodeContentDisposition } = await import("../utils/security");
-        const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`;
-
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", encodeContentDisposition(filename));
-
-        console.log(`[PDF Report] Streaming PDF response for: ${filename}`);
-
-        // Pipe BEFORE rendering to capture all data
-        doc.pipe(res);
-
-        try {
-          renderProspectReport(doc, reportData as any);
-          doc.end();
-        } catch (pdfError) {
-          console.error("[PDF Report] Error generating PDF content:", pdfError);
-          // If we already started the stream, we can't easily send a JSON error.
-          // We could try to abort the stream or append an error text to the PDF if possible,
-          // but mostly we just log it. The client will get a truncated/invalid PDF.
-          if (!doc.closed) {
-            doc.end();
-          }
-        }
+        const { buildProspectReportData, reportFilename, streamProspectReport } =
+          await import("../utils/prospectReport");
+        const reportData = await buildProspectReportData(prospect, { layoutUserId: req.user!.id });
+        await streamProspectReport(res, reportData, reportFilename(prospect.company.companyName));
       } catch (error) {
         console.error("[PDF Report] Route error:", error);
         handleApiError(res, error, "api-error");
@@ -508,10 +421,8 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const id = parseInt(req.params.id);
-
-        const prospect = await storage.getProspect(id, userId);
+        const prospect = await getReadableProspect(req, id);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }
@@ -616,140 +527,6 @@ const router = Router();
     }
   );
 
-  // Enhanced PDF report with business overview
-  router.get(
-    "/prospects/:id/report-enhanced",
-    isAuthenticated,
-    async (req: Request, res: Response) => {
-      try {
-        const userId = req.user!.id;
-        const id = parseInt(req.params.id);
-        const includeBusinessOverview = req.query.includeBusinessOverview === "true";
-
-        const prospect = await storage.getProspect(id, userId);
-        if (!prospect) {
-          return res.status(404).json({ error: "Prospect not found" });
-        }
-
-        const [contacts, activities, dueDiligence, user] = await Promise.all([
-          storage.listContacts(id, userId),
-          storage.listActivities(id, userId),
-          storage.getDueDiligence(id, userId),
-          storage.getUser(userId),
-        ]);
-
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        let companiesHouseData = null;
-
-        if (apiKey && prospect.company.companyNumber) {
-          try {
-            const trimmedApiKey = apiKey.trim();
-            const authString = `${trimmedApiKey}:`;
-            const base64Auth = Buffer.from(authString).toString("base64");
-
-            const [profileRes, officersRes, chargesRes, pscsRes] = await Promise.all([
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ),
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}/officers`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ),
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}/charges`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ),
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${prospect.company.companyNumber}/persons-with-significant-control`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ),
-            ]);
-
-            companiesHouseData = {
-              profile: profileRes.ok ? await profileRes.json() : null,
-              officers: officersRes.ok ? await officersRes.json() : null,
-              charges: chargesRes.ok ? await chargesRes.json() : null,
-              pscs: pscsRes.ok ? await pscsRes.json() : null,
-            };
-          } catch (chError) {
-            console.error("[PDF Report] Companies House fetch error:", chError);
-          }
-        }
-
-        // Optionally fetch business overview
-        let businessOverview: string[] | null = null;
-        if (includeBusinessOverview) {
-          try {
-            const industry =
-              prospect.company.sicDescription || prospect.company.sicCode || undefined;
-            const result = await groundedSearch(
-              `${prospect.company.companyName} UK business overview${industry ? ` ${industry} industry` : ''}`
-            );
-            businessOverview = result.bulletPoints;
-          } catch (overviewError) {
-            console.error("[PDF Report] Business overview fetch error:", overviewError);
-          }
-        }
-
-        const { createProspectReportDocument, renderProspectReport } =
-          await import("../utils/pdfGenerator");
-
-        const doc = createProspectReportDocument({
-          prospect,
-          contacts,
-          activities,
-          dueDiligence,
-          companiesHouseData: companiesHouseData as any,
-          pdfLayoutPreferences: (user?.pdfLayoutPreferences || null) as any,
-        } as any);
-
-        // We still pass businessOverview in data incase we add support for it later,
-        // though currently renderProspectReport signature might not use it explicitly.
-        const reportData = {
-          prospect,
-          contacts,
-          activities,
-          dueDiligence,
-          companiesHouseData: companiesHouseData as any,
-          pdfLayoutPreferences: (user?.pdfLayoutPreferences || null) as any,
-          businessOverview,
-        };
-
-        const { encodeContentDisposition } = await import("../utils/security");
-        const filename = `${prospect.company.companyName.replace(/[^a-z0-9]/gi, "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`;
-
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", encodeContentDisposition(filename));
-
-        // CRITICAL FIX: Pipe before rendering to capture all data
-        doc.pipe(res);
-
-        try {
-          renderProspectReport(doc, reportData as any);
-          doc.end();
-        } catch (pdfError) {
-          console.error("[PDF Report Enhanced] Error generating PDF content:", pdfError);
-          if (!doc.closed) {
-            doc.end();
-          }
-        }
-      } catch (error) {
-        console.error("[PDF Report Enhanced] Route error:", error);
-        handleApiError(res, error, "api-error");
-      }
-    }
-  );
-
-
   // Contact enrichment - search web and email inbox for contact info
   router.get(
     "/prospects/:prospectId/contacts",
@@ -758,8 +535,11 @@ const router = Router();
       try {
         if (!req.user) return res.status(401).send("Not authenticated");
         const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user!.id;
-        const contacts = await storage.listContacts(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+        const contacts = await storage.listContacts(prospectId, prospect.userId);
         res.json(contacts);
       } catch (error) {
         handleApiError(res, error, "api-error");
@@ -967,8 +747,11 @@ const router = Router();
     async (req: Request, res: Response) => {
       try {
         const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user!.id;
-        const dueDiligenceData = await storage.getDueDiligence(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+        const dueDiligenceData = await storage.getDueDiligence(prospectId, prospect.userId);
         res.json(dueDiligenceData || { prospectId, data: {} });
       } catch (error) {
         handleApiError(res, error, "api-error");
@@ -982,11 +765,18 @@ const router = Router();
     async (req: Request, res: Response) => {
       try {
         const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user!.id;
-        const existing = await storage.getDueDiligence(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+        const existing = await storage.getDueDiligence(prospectId, prospect.userId);
         const mergedData =
           existing && existing.data ? { ...(existing.data as object), ...req.body } : req.body;
-        const dueDiligenceData = await storage.upsertDueDiligence(prospectId, userId, mergedData);
+        const dueDiligenceData = await storage.upsertDueDiligence(
+          prospectId,
+          prospect.userId,
+          mergedData
+        );
         if (!dueDiligenceData) {
           return res
             .status(403)
@@ -1079,10 +869,13 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
 
-        const dueDiligence = await storage.getDueDiligence(prospectId, userId);
+        const dueDiligence = await storage.getDueDiligence(prospectId, prospect.userId);
         res.json(dueDiligence?.data || {});
       } catch (error) {
         handleApiError(res, error, "api-error");
@@ -1096,10 +889,20 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
 
-        const dueDiligence = await storage.upsertDueDiligence(prospectId, userId, req.body);
+        const existing = await storage.getDueDiligence(prospectId, prospect.userId);
+        const mergedData =
+          existing && existing.data ? { ...(existing.data as object), ...req.body } : req.body;
+        const dueDiligence = await storage.upsertDueDiligence(
+          prospectId,
+          prospect.userId,
+          mergedData
+        );
         res.json(dueDiligence);
       } catch (error) {
         handleApiError(res, error, "api-error");
@@ -1476,42 +1279,36 @@ const router = Router();
         const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
 
-        const {
-          companyName,
-          sector,
-          loanAmount,
-          loanPurpose,
-          financialSummary,
-          companiesHouseData,
-          bankAnalysisSummary,
-          eligibilityNotes,
-          consentToAiProcessing,
-        } = req.body;
+        const { consentToAiProcessing } = req.body;
 
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+        const ownerId = prospect.userId;
+        const existingDd = await storage.getDueDiligence(prospectId, ownerId);
+        const ddData = (existingDd?.data || {}) as Record<string, any>;
+        const contacts = await storage.listContacts(prospectId, ownerId);
+        const fileFacts = buildCreditFileContext({
+          prospect,
+          dueDiligence: ddData,
+          contacts,
+          omitSwot: true,
+        });
+        const companyName = prospect.company.companyName;
+        const loanAmount = loanAmountPounds(prospect, ddData.underwriting);
         if (!companyName || !loanAmount) {
           return res
             .status(400)
             .json({ error: "Missing required fields: companyName, loanAmount" });
         }
 
-        // Verify prospect belongs to user
-        const prospect = await storage.getProspect(prospectId, userId);
-        if (!prospect) {
-          return res.status(404).json({ error: "Prospect not found" });
-        }
-
-        // Build context string for governance wrapper (no sensitive raw data)
         const contextData = JSON.stringify({
           companyName,
-          sector: sector || "",
           loanAmount,
-          loanPurpose: loanPurpose || "",
-          hasFinancialSummary: !!financialSummary,
-          hasCompaniesHouseData: !!companiesHouseData,
-          hasBankAnalysis: !!bankAnalysisSummary,
+          fileFactsChars: fileFacts.length,
         });
 
-        // Use governance wrapper for consent, audit logging
         const { generateSwotAnalysis } = await import("../utils/geminiClient");
 
         const result = await wrapAiRequest(
@@ -1526,15 +1323,16 @@ const router = Router();
           async () =>
             generateSwotAnalysis(
               companyName,
-              sector || "",
+              prospect.company.sicDescription || "",
               loanAmount,
-              loanPurpose || "",
-              financialSummary || "",
-              companiesHouseData,
-              bankAnalysisSummary,
-              eligibilityNotes
+              prospect.loanRequirementNotes || "",
+              "",
+              undefined,
+              undefined,
+              undefined,
+              fileFacts
             ),
-          { skipRedaction: true } // Context data is already structured
+          { skipRedaction: true }
         );
 
         if ("error" in result) {
@@ -1545,7 +1343,7 @@ const router = Router();
         }
 
         // Save to due diligence
-        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existing = await storage.getDueDiligence(prospectId, ownerId);
         const existingData = (existing?.data || {}) as Record<string, any>;
         const mergedData = {
           ...existingData,
@@ -1555,7 +1353,7 @@ const router = Router();
             swotAnalyzedAt: new Date().toISOString(),
           },
         };
-        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
+        await storage.upsertDueDiligence(prospectId, ownerId, mergedData as any);
 
         res.json(result.result);
       } catch (error: any) {
@@ -1574,29 +1372,28 @@ const router = Router();
         const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
 
-        const {
-          sectionKey,
-          companyName,
-          sector,
-          loanAmount,
-          loanPurpose,
-          financialSummary,
-          companiesHouseData,
-          bankAnalysisSummary,
-          accountsAnalysisSummary,
-          consentToAiProcessing,
-        } = req.body;
+        const { sectionKey, consentToAiProcessing } = req.body;
+
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+        const ownerId = prospect.userId;
+        const existingDd = await storage.getDueDiligence(prospectId, ownerId);
+        const ddData = (existingDd?.data || {}) as Record<string, any>;
+        const contacts = await storage.listContacts(prospectId, ownerId);
+        const fileFacts = buildCreditFileContext({
+          prospect,
+          dueDiligence: ddData,
+          contacts,
+        });
+        const companyName = prospect.company.companyName;
+        const loanAmount = loanAmountPounds(prospect, ddData.underwriting);
 
         if (!sectionKey || !companyName || !loanAmount) {
           return res
             .status(400)
             .json({ error: "Missing required fields: sectionKey, companyName, loanAmount" });
-        }
-
-        // Verify prospect belongs to user
-        const prospect = await storage.getProspect(prospectId, userId);
-        if (!prospect) {
-          return res.status(404).json({ error: "Prospect not found" });
         }
 
         // Fetch uploaded documents for the prospect
@@ -1666,17 +1463,14 @@ const router = Router();
           }
         }
 
-        // Build context string for governance wrapper
         const contextData = JSON.stringify({
           sectionKey,
           companyName,
-          sector: sector || "",
           loanAmount,
-          loanPurpose: loanPurpose || "",
           documentCount: documentSummaries.length,
+          fileFactsChars: fileFacts.length,
         });
 
-        // Use governance wrapper for consent, audit logging
         const { generateCampariSection } = await import("../utils/geminiClient");
 
         const result = await wrapAiRequest(
@@ -1688,20 +1482,26 @@ const router = Router();
             consentToAiProcessing: !!consentToAiProcessing,
           },
           contextData,
-          async () =>
-            generateCampariSection(
+          async () => {
+            const content = await generateCampariSection(
               sectionKey,
               companyName,
-              sector || "",
+              prospect.company.sicDescription || "",
               loanAmount,
-              loanPurpose || "",
-              financialSummary || "",
-              companiesHouseData,
-              bankAnalysisSummary,
-              accountsAnalysisSummary,
-              documentSummaries.length > 0 ? documentSummaries : undefined
-            ),
-          { skipRedaction: true } // Already redacted document content above
+              prospect.loanRequirementNotes || "",
+              "",
+              undefined,
+              undefined,
+              undefined,
+              documentSummaries.length > 0 ? documentSummaries : undefined,
+              fileFacts
+            );
+            if (isStubAiSection(content)) {
+              throw new Error("Auto Write returned no usable content for this section");
+            }
+            return content;
+          },
+          { skipRedaction: true }
         );
 
         if ("error" in result) {
@@ -1712,7 +1512,7 @@ const router = Router();
         }
 
         // Save to due diligence
-        const existing = await storage.getDueDiligence(prospectId, userId);
+        const existing = await storage.getDueDiligence(prospectId, ownerId);
         const existingData = (existing?.data || {}) as Record<string, any>;
         const mergedData = {
           ...existingData,
@@ -1727,7 +1527,7 @@ const router = Router();
             },
           },
         };
-        await storage.upsertDueDiligence(prospectId, userId, mergedData as any);
+        await storage.upsertDueDiligence(prospectId, ownerId, mergedData as any);
 
         res.json({ sectionKey, content: result.result });
       } catch (error: any) {
@@ -1830,11 +1630,8 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
-
-        // Verify prospect belongs to user
-        const prospect = await storage.getProspect(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }
@@ -1858,8 +1655,7 @@ const router = Router();
       const prospectId = parseInt(req.params.prospectId);
 
       try {
-        // Verify prospect belongs to user
-        const prospect = await storage.getProspect(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }
@@ -1995,12 +1791,9 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
         const documentId = parseInt(req.params.id);
-
-        // Verify prospect belongs to user
-        const prospect = await storage.getProspect(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }

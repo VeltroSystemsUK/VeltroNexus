@@ -1,7 +1,15 @@
 import PDFDocument from "pdfkit";
-import type { ProspectWithCompany, Contact, Activity, DueDiligence, DueDiligenceData } from "@shared/schema";
+import type {
+  ProspectWithCompany,
+  Contact,
+  Activity,
+  DueDiligence,
+  DueDiligenceData,
+  ProspectDocument,
+} from "@shared/schema";
 
-interface CompaniesHouseData {
+export interface CompaniesHouseData {
+  profile?: any;
   officers?: any;
   psc?: any;
   charges?: any;
@@ -27,7 +35,7 @@ interface PDFLayoutPreferences {
   header?: PDFHeaderConfig;
 }
 
-interface ProspectReportData {
+export interface ProspectReportData {
   prospect: ProspectWithCompany;
   contacts: Contact[];
   activities: Activity[];
@@ -35,6 +43,8 @@ interface ProspectReportData {
   companiesHouseData?: CompaniesHouseData | null;
   pdfLayoutPreferences?: PDFLayoutPreferences | null;
   user?: { firstName: string; lastName: string } | null;
+  documents?: ProspectDocument[];
+  exceptions?: Array<{ message?: string; source?: string; status?: string }>;
 }
 
 // Professional Color Palette
@@ -74,6 +84,7 @@ const SPACING = {
 
 const DEFAULT_SECTIONS: PDFSection[] = [
   { id: "companyInfo", label: "Company Information", enabled: true, type: "module" },
+  { id: "creditsafe", label: "Creditsafe Credit Check", enabled: true, type: "module" },
   { id: "officers", label: "Officers", enabled: true, type: "module" },
   { id: "psc", label: "Persons with Significant Control", enabled: true, type: "module" },
   { id: "charges", label: "Charges", enabled: true, type: "module" },
@@ -234,7 +245,6 @@ function ensureSpace(doc: typeof PDFDocument.prototype, requiredHeight: number):
   const remaining = getRemainingSpace(doc);
   const isNearTop = doc.y < MARGIN + 30;
 
-  // Only skip if we're near top AND have sufficient space
   if (isNearTop && remaining >= requiredHeight) {
     return;
   }
@@ -244,6 +254,31 @@ function ensureSpace(doc: typeof PDFDocument.prototype, requiredHeight: number):
     pageNumber++;
     doc.y = MARGIN;
   }
+}
+
+function place(
+  doc: typeof PDFDocument.prototype,
+  text: string,
+  x: number,
+  y: number,
+  options: {
+    width?: number;
+    fontSize?: number;
+    font?: string;
+    color?: string;
+    align?: "left" | "center" | "right";
+    wrap?: boolean;
+  } = {}
+): void {
+  if (options.fontSize) doc.fontSize(options.fontSize);
+  if (options.font) doc.font(options.font);
+  if (options.color) doc.fillColor(options.color);
+  doc.text(String(text ?? ""), x, y, {
+    width: options.width,
+    align: options.align,
+    lineBreak: options.wrap === true,
+    ellipsis: false,
+  });
 }
 
 /**
@@ -361,9 +396,16 @@ export function renderProspectReport(doc: typeof PDFDocument.prototype, data: Pr
   pageNumber++;
   renderExecutiveSummary(doc, augmentedProspect, companiesHouseData, dueDiligence);
 
-  // Render sections recursively
-  const sections = pdfLayoutPreferences?.sections || DEFAULT_SECTIONS;
-  const enabledSections = sections; // processed inside recursive function
+  // Render sections recursively. Saved layouts predate later modules (Creditsafe,
+  // accounts, adverse media) — append any new defaults the user has not seen yet.
+  const savedSections = pdfLayoutPreferences?.sections;
+  const sections = savedSections?.length
+    ? [
+        ...savedSections,
+        ...DEFAULT_SECTIONS.filter((section) => !savedSections.some((saved) => saved.id === section.id)),
+      ]
+    : DEFAULT_SECTIONS;
+  const enabledSections = sections;
 
   // Add spacing after executive summary
   doc.y += SPACING.sectionMargin * 2;
@@ -389,8 +431,12 @@ function renderModule(doc: typeof PDFDocument.prototype, id: string, data: Prosp
 
   switch (id) {
     case "companyInfo":
-      if (companiesHouseData) {
-        doc.y = renderCompanyInfoCompact(doc, prospect, companiesHouseData, doc.y, x, width);
+      doc.y = renderCompanyInfoCompact(doc, prospect, companiesHouseData, doc.y, x, width);
+      break;
+
+    case "creditsafe":
+      if (hasCreditsafeData(prospect)) {
+        doc.y = renderCreditsafeCompact(doc, prospect, doc.y, x, width);
       }
       break;
 
@@ -400,11 +446,13 @@ function renderModule(doc: typeof PDFDocument.prototype, id: string, data: Prosp
       }
       break;
 
-    case "psc":
-      if (companiesHouseData?.psc?.items?.length > 0) {
-        doc.y = renderPSCCompact(doc, companiesHouseData!.psc.items, doc.y, x, width);
+    case "psc": {
+      const pscItems = companiesHouseData?.psc?.items || (companiesHouseData as any)?.pscs?.items;
+      if (pscItems?.length > 0) {
+        doc.y = renderPSCCompact(doc, pscItems, doc.y, x, width);
       }
       break;
+    }
 
     case "charges":
       if (companiesHouseData?.charges) {
@@ -429,7 +477,7 @@ function renderModule(doc: typeof PDFDocument.prototype, id: string, data: Prosp
       break;
 
     case "notes":
-      if (prospect.loanRequirementNotes || prospect.notes) {
+      if (prospect.loanRequirementNotes || prospect.notes || prospect.background || (prospect.researchData as any)?.businessProfile) {
         doc.y = renderNotesCompact(doc, prospect, doc.y, x, width);
       }
       break;
@@ -446,18 +494,23 @@ function renderModule(doc: typeof PDFDocument.prototype, id: string, data: Prosp
       }
       break;
 
-    case "dueDiligence":
-      if (dueDiligence) {
+    case "dueDiligence": {
+      const rec = (dueDiligence?.data as unknown as DueDiligenceData)?.underwriting?.adviserSummary?.recommendation;
+      if (dueDiligence && rec) {
         doc.y = renderDueDiligenceCompact(doc, dueDiligence, doc.y, x, width);
       }
       break;
+    }
 
-    case "creditRatios":
+    case "creditRatios": {
       const ddData = (dueDiligence?.data as unknown as DueDiligenceData) || {};
-      if (ddData.underwriting?.financialAnalysis) {
-        doc.y = renderCreditRatios(doc, ddData.underwriting.financialAnalysis, doc.y, x, width);
+      const financial = ddData.underwriting?.financialAnalysis;
+      const accounts = ddData.underwriting?.accountsAnalysis as any;
+      if (financial || latestAccountsRatios(accounts)) {
+        doc.y = renderCreditRatios(doc, financial, doc.y, x, width, accounts);
       }
       break;
+    }
 
     case "campari": {
       const campariSections = (dueDiligence?.data as unknown as DueDiligenceData)?.underwriting?.adviserSummary
@@ -470,15 +523,22 @@ function renderModule(doc: typeof PDFDocument.prototype, id: string, data: Prosp
 
     case "accountsAnalysis": {
       const accountsAnalysis = (dueDiligence?.data as unknown as DueDiligenceData)?.underwriting?.accountsAnalysis;
-      if (accountsAnalysis && (accountsAnalysis.summary || accountsAnalysis.concerns?.length || accountsAnalysis.auditorOpinion)) {
-        doc.y = renderAccountsAnalysisCompact(doc, accountsAnalysis, doc.y, x, width);
+      const management = (dueDiligence?.data as unknown as DueDiligenceData)?.underwriting?.managementAccounts as any;
+      if (hasAccountsAnalysis(accountsAnalysis) || management?.analysis) {
+        doc.y = renderAccountsAnalysisCompact(doc, accountsAnalysis, doc.y, x, width, management?.analysis);
       }
       break;
     }
 
     case "adverseMedia": {
       const adverseMedia = (dueDiligence?.data as unknown as DueDiligenceData)?.underwriting?.adverseMedia;
-      if (adverseMedia && (adverseMedia.summary || adverseMedia.riskLevel || adverseMedia.flags?.length)) {
+      const summary = String(adverseMedia?.summary || "");
+      const dummy = /no live adverse-media|local model check only|local model only/i.test(summary);
+      if (
+        adverseMedia &&
+        !dummy &&
+        (summary || adverseMedia.riskLevel || adverseMedia.flags?.length)
+      ) {
         doc.y = renderAdverseMediaCompact(doc, adverseMedia, doc.y, x, width);
       }
       break;
@@ -501,77 +561,102 @@ function renderModule(doc: typeof PDFDocument.prototype, id: string, data: Prosp
 // ============================================================================
 
 function renderCoverPage(doc: typeof PDFDocument.prototype, prospect: ProspectWithCompany & { pdfLayoutPreferences?: any; user?: any }): void {
-  const centerX = PAGE_WIDTH / 2;
-
-  // Header bar
-  doc.rect(0, 0, PAGE_WIDTH, 95).fill(COLORS.primary);
-
-  doc.fontSize(26).fillColor(COLORS.white).font("Helvetica-Bold");
-  doc.text("VELTRO", centerX - 55, 28);
-
-  doc.fontSize(11).fillColor(COLORS.white).font("Helvetica");
-  doc.text("Commercial Lending Intelligence", centerX - 95, 58);
-
-  // Main title (Dynamic)
-  const reportTitle = prospect.pdfLayoutPreferences?.header?.title || "Credit Assessment Report";
-
-  doc.y = 150;
-  doc.fontSize(26).fillColor(COLORS.primary).font("Helvetica-Bold");
-  doc.text(reportTitle, 0, doc.y, { align: "center", width: PAGE_WIDTH });
-
-  // Company name box
-  doc.y += 55;
-  const boxWidth = 380;
-  const boxX = (PAGE_WIDTH - boxWidth) / 2;
-
-  doc.roundedRect(boxX, doc.y, boxWidth, 75, 4).fillAndStroke(COLORS.backgroundLight, COLORS.border);
-
-  doc.fontSize(18).fillColor(COLORS.text).font("Helvetica-Bold");
-  doc.text(prospect.company.companyName, boxX + 15, doc.y + 24, {
-    width: boxWidth - 30,
+  doc.rect(0, 0, PAGE_WIDTH, 88).fill(COLORS.primary);
+  place(doc, "VELTRO", 0, 26, {
+    width: PAGE_WIDTH,
     align: "center",
+    fontSize: 24,
+    font: "Helvetica-Bold",
+    color: COLORS.white,
+  });
+  place(doc, "Commercial Lending Intelligence", 0, 54, {
+    width: PAGE_WIDTH,
+    align: "center",
+    fontSize: 11,
+    font: "Helvetica",
+    color: COLORS.white,
   });
 
-  // ... (rest of Company details)
+  const reportTitle = prospect.pdfLayoutPreferences?.header?.title || "Credit Assessment Report";
+  place(doc, reportTitle, MARGIN, 160, {
+    width: CONTENT_WIDTH,
+    align: "center",
+    fontSize: 22,
+    font: "Helvetica-Bold",
+    color: COLORS.primary,
+  });
 
-  // Report date (Dynamic)
-  const showDate = prospect.pdfLayoutPreferences?.header?.showDate !== false; // Default true
+  const boxWidth = 420;
+  const boxX = (PAGE_WIDTH - boxWidth) / 2;
+  const boxY = 210;
+  doc.roundedRect(boxX, boxY, boxWidth, 88, 4).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  place(doc, prospect.company.companyName, boxX + 16, boxY + 18, {
+    width: boxWidth - 32,
+    align: "center",
+    fontSize: 16,
+    font: "Helvetica-Bold",
+    color: COLORS.text,
+    wrap: true,
+  });
+  const meta = [
+    prospect.company.companyNumber ? `Company No. ${prospect.company.companyNumber}` : null,
+    prospect.company.incorporationDate
+      ? `Incorporated ${new Date(prospect.company.incorporationDate).toLocaleDateString("en-GB")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("   ·   ");
+  if (meta) {
+    place(doc, meta, boxX + 16, boxY + 60, {
+      width: boxWidth - 32,
+      align: "center",
+      fontSize: 9,
+      font: "Helvetica",
+      color: COLORS.textSecondary,
+    });
+  }
+
+  const showDate = prospect.pdfLayoutPreferences?.header?.showDate !== false;
+  const showUser = prospect.pdfLayoutPreferences?.header?.showUser !== false;
+  let footerBlockY = 360;
   if (showDate) {
-    doc.y = PAGE_HEIGHT - 135;
-    doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
-    doc.text("Report Date:", 0, doc.y, { align: "center", width: PAGE_WIDTH });
-    doc.fontSize(10).fillColor(COLORS.text).font("Helvetica-Bold");
-    doc.text(
-      new Date().toLocaleDateString("en-GB", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
+    place(doc, "Report Date", 0, footerBlockY, {
+      width: PAGE_WIDTH,
+      align: "center",
+      fontSize: 8,
+      font: "Helvetica",
+      color: COLORS.textSecondary,
+    });
+    place(
+      doc,
+      new Date().toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
       0,
-      doc.y + 14,
-      { align: "center", width: PAGE_WIDTH }
+      footerBlockY + 12,
+      { width: PAGE_WIDTH, align: "center", fontSize: 11, font: "Helvetica-Bold", color: COLORS.text }
     );
+    footerBlockY += 32;
   }
-
-  // Prepared By (Dynamic)
-  const showUser = prospect.pdfLayoutPreferences?.header?.showUser !== false; // Default true
   if (showUser && prospect.user) {
-    const userName = `${prospect.user.firstName} ${prospect.user.lastName}`;
-    doc.y = PAGE_HEIGHT - 100;
-    doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
-    doc.text(`Prepared by: ${userName}`, 0, doc.y, { align: "center", width: PAGE_WIDTH });
+    const userName = [prospect.user.firstName, prospect.user.lastName].filter(Boolean).join(" ").trim();
+    if (userName) {
+      place(doc, `Prepared by ${userName}`, 0, footerBlockY, {
+        width: PAGE_WIDTH,
+        align: "center",
+        fontSize: 9,
+        font: "Helvetica",
+        color: COLORS.textSecondary,
+      });
+      footerBlockY += 16;
+    }
   }
 
-  // Confidentiality notice
-  doc.y = PAGE_HEIGHT - 65;
-  doc.fontSize(7).fillColor(COLORS.textLight).font("Helvetica");
-  doc.text(
-    "CONFIDENTIAL - This document contains proprietary information intended solely for the recipient. Unauthorized distribution, copying, or disclosure is strictly prohibited.",
-    MARGIN,
-    doc.y,
-    { width: CONTENT_WIDTH, align: "center", lineGap: 1.5 }
-  );
+  place(doc, "CONFIDENTIAL — For the intended recipient only.", 0, footerBlockY, {
+    width: PAGE_WIDTH,
+    align: "center",
+    fontSize: 8,
+    font: "Helvetica",
+    color: COLORS.textLight,
+  });
 }
 
 // ============================================================================
@@ -585,151 +670,128 @@ function renderExecutiveSummary(
   dueDiligence?: DueDiligence
 ): void {
   doc.y = MARGIN;
+  place(doc, "01  EXECUTIVE SUMMARY", MARGIN, doc.y, {
+    fontSize: 16,
+    font: "Helvetica-Bold",
+    color: COLORS.primary,
+  });
+  doc.moveTo(MARGIN, doc.y + 22).lineTo(MARGIN + CONTENT_WIDTH, doc.y + 22)
+    .strokeColor(COLORS.accent).lineWidth(2).stroke();
+  doc.y += 34;
 
-  // Section header
-  doc.fontSize(20).fillColor(COLORS.primary).font("Helvetica-Bold");
-  doc.text("01 EXECUTIVE SUMMARY", MARGIN, doc.y);
-
-  doc.moveTo(MARGIN, doc.y + 28)
-    .lineTo(MARGIN + CONTENT_WIDTH, doc.y + 28)
-    .strokeColor(COLORS.accent)
-    .lineWidth(2)
-    .stroke();
-
-  doc.y += 42;
-
-  // Business Overview Box
-  doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 165, 4)
-    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
-
-  let contentY = doc.y + 12;
-
-  doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
-  doc.text("BUSINESS OVERVIEW", MARGIN + 12, contentY);
-
-  contentY += 22;
-
-  // Two-column layout
   const col1X = MARGIN + 12;
   const col2X = MARGIN + CONTENT_WIDTH / 2 + 8;
-  const colWidth = (CONTENT_WIDTH / 2) - 20;
-
-  // Left column
-  const leftItems = [
-    { label: "Company", value: prospect.company.companyName },
-    { label: "Sector/Industry", value: prospect.company.sicDescription || "N/A" },
-    { label: "Pipeline Stage", value: capitalizeStage(prospect.stage) },
-    { label: "Referral Source", value: prospect.referralSource || "Direct" },
-  ];
-
-  leftItems.forEach((item) => {
-    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
-    doc.text(item.label, col1X, contentY);
-    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
-    doc.text(item.value, col1X, contentY + 9, { width: colWidth });
-    contentY += 27;
-  });
-
-  // Right column
-  contentY = doc.y + 34;
-
-  const rightItems = [
-    { label: "LOAN AMOUNT", value: prospect.loanAmount ? formatCurrency(prospect.loanAmount * 100) : "TBD" },
-    { label: "TERM", value: prospect.term ? `${prospect.term} months` : "TBD" },
-    { label: "INTEREST RATE", value: prospect.interestRate ? `${prospect.interestRate}%` : "TBD" },
-    { label: "PRIORITY", value: prospect.priority ? prospect.priority.toUpperCase() : "Normal" },
-  ];
-
-  rightItems.forEach((item) => {
-    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
-    doc.text(item.label, col2X, contentY);
-    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
-    doc.text(item.value, col2X, contentY + 9, { width: colWidth });
-    contentY += 27;
-  });
-
-  doc.y += 175;
-
-  // Security Position Box
-  doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 80, 4)
-    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
-
-  contentY = doc.y + 12;
-
-  doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
-  doc.text("SECURITY POSITION", MARGIN + 12, contentY);
-
-  contentY += 22;
-
-  const totalSecurity = calculateTotalSecurity(prospect);
-  const securityTypes = getSecurityTypes(prospect);
-
-  doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
-  doc.text("Total Security", col1X, contentY);
-  doc.fontSize(13).fillColor(COLORS.success).font("Helvetica-Bold");
-  doc.text(formatCurrency(totalSecurity * 100), col1X, contentY + 10);
-
-  doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
-  doc.text("Security Types", col2X, contentY);
-  doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-  doc.text(securityTypes.length > 0 ? securityTypes.join(", ") : "None", col2X, contentY + 10, {
-    width: colWidth,
-  });
-
-  doc.y += 90;
-
-  // Assessment Status Box
+  const colWidth = CONTENT_WIDTH / 2 - 24;
   const ddDataForStatus = (dueDiligence?.data as unknown as DueDiligenceData) || {};
   const riskGrade = ddDataForStatus.underwriting?.riskGrade;
 
-  doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 65, 4)
+  const overviewTop = doc.y;
+  const overviewHeight = 118;
+  doc.roundedRect(MARGIN, overviewTop, CONTENT_WIDTH, overviewHeight, 4)
     .fillAndStroke(COLORS.backgroundLight, COLORS.border);
-
-  contentY = doc.y + 12;
-
-  doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
-  doc.text("ASSESSMENT STATUS", MARGIN + 12, contentY);
-
-  if (riskGrade) {
-    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
-    doc.text("Risk Grade", col2X, contentY);
-    doc.fontSize(15).fillColor(getRiskGradeColor(riskGrade)).font("Helvetica-Bold");
-    doc.text(riskGrade, col2X, contentY + 11);
-  }
-
-  contentY += 22;
-
-  doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-  doc.text(prospect.stage || "Due diligence not yet started", MARGIN + 12, contentY, {
-    width: colWidth,
+  place(doc, "BUSINESS OVERVIEW", col1X, overviewTop + 10, {
+    fontSize: 9,
+    font: "Helvetica-Bold",
+    color: COLORS.secondary,
   });
 
-  doc.y += 75;
+  const leftItems = [
+    { label: "Company", value: prospect.company.companyName },
+    { label: "Sector", value: prospect.company.sicDescription || prospect.company.sicCode || "Not recorded" },
+    { label: "Pipeline stage", value: capitalizeStage(prospect.stage) },
+    { label: "Referral", value: prospect.referralSource || "Direct" },
+  ];
+  const rightItems = [
+    { label: "Loan amount", value: prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "TBD" },
+    { label: "Term", value: prospect.term ? `${prospect.term} months` : "TBD" },
+    { label: "Interest rate", value: prospect.interestRate ? `${prospect.interestRate}%` : "TBD" },
+    { label: "Priority", value: prospect.priority ? prospect.priority.toUpperCase() : "Normal" },
+  ];
+  leftItems.forEach((item, i) => {
+    const y = overviewTop + 28 + i * 22;
+    place(doc, item.label, col1X, y, { fontSize: 7, font: "Helvetica", color: COLORS.textSecondary });
+    place(doc, item.value, col1X, y + 9, {
+      width: colWidth,
+      fontSize: 9,
+      font: "Helvetica-Bold",
+      color: COLORS.text,
+    });
+  });
+  rightItems.forEach((item, i) => {
+    const y = overviewTop + 28 + i * 22;
+    place(doc, item.label, col2X, y, { fontSize: 7, font: "Helvetica", color: COLORS.textSecondary });
+    place(doc, item.value, col2X, y + 9, {
+      width: colWidth,
+      fontSize: 9,
+      font: "Helvetica-Bold",
+      color: COLORS.text,
+    });
+  });
+  doc.y = overviewTop + overviewHeight + 10;
 
-  // Key Findings Box
-  doc.roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 85, 4)
-    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  const pairTop = doc.y;
+  const pairHeight = 58;
+  const gap = 10;
+  const half = (CONTENT_WIDTH - gap) / 2;
+  doc.roundedRect(MARGIN, pairTop, half, pairHeight, 4).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  doc.roundedRect(MARGIN + half + gap, pairTop, half, pairHeight, 4).fillAndStroke(COLORS.backgroundLight, COLORS.border);
 
-  contentY = doc.y + 12;
+  const totalSecurity = calculateTotalSecurity(prospect);
+  const securityTypes = getSecurityTypes(prospect);
+  place(doc, "SECURITY", MARGIN + 12, pairTop + 8, { fontSize: 8, font: "Helvetica-Bold", color: COLORS.secondary });
+  place(doc, formatCurrency(totalSecurity), MARGIN + 12, pairTop + 22, {
+    fontSize: 13,
+    font: "Helvetica-Bold",
+    color: COLORS.success,
+  });
+  place(doc, securityTypes.length ? securityTypes.join(", ") : "Unsecured", MARGIN + 12, pairTop + 40, {
+    width: half - 24,
+    fontSize: 8,
+    font: "Helvetica",
+    color: COLORS.textSecondary,
+  });
 
-  doc.fontSize(10).fillColor(COLORS.secondary).font("Helvetica-Bold");
-  doc.text("KEY FINDINGS", MARGIN + 12, contentY);
-
-  contentY += 22;
+  place(doc, "ASSESSMENT", MARGIN + half + gap + 12, pairTop + 8, {
+    fontSize: 8,
+    font: "Helvetica-Bold",
+    color: COLORS.secondary,
+  });
+  place(doc, capitalizeStage(prospect.stage || "lead"), MARGIN + half + gap + 12, pairTop + 22, {
+    fontSize: 13,
+    font: "Helvetica-Bold",
+    color: COLORS.text,
+  });
+  place(doc, riskGrade ? `Risk grade ${riskGrade}` : "Risk grade not set", MARGIN + half + gap + 12, pairTop + 40, {
+    fontSize: 8,
+    font: "Helvetica",
+    color: COLORS.textSecondary,
+  });
+  doc.y = pairTop + pairHeight + 10;
 
   const keyFindings = [
-    `Company Status: ${prospect.company.companyStatus || "Active"}`,
-    `Active Officers: ${companiesHouseData?.officers ? (companiesHouseData.officers.items?.length ?? 0) : "Not available"}`,
-    `Outstanding Charges: ${companiesHouseData?.charges ? (companiesHouseData.charges.outstanding_count ?? 0) : "Not available"}`,
+    `Status: ${prospect.company.companyStatus || "active"}`,
+    `Officers: ${companiesHouseData?.officers ? (companiesHouseData.officers.items?.length ?? 0) : "n/a"}`,
+    `Outstanding charges: ${outstandingChargeCount(companiesHouseData?.charges)}`,
     `Incorporated: ${prospect.company.incorporationDate ? new Date(prospect.company.incorporationDate).toLocaleDateString("en-GB") : "N/A"}`,
     `Location: ${prospect.company.postcode || "N/A"}`,
   ];
-
-  keyFindings.forEach((finding) => {
-    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(`• ${finding}`, MARGIN + 12, contentY);
-    contentY += 13;
+  const findingsHeight = 28 + keyFindings.length * 12;
+  const findingsTop = doc.y;
+  doc.roundedRect(MARGIN, findingsTop, CONTENT_WIDTH, findingsHeight, 4)
+    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
+  place(doc, "KEY FINDINGS", MARGIN + 12, findingsTop + 8, {
+    fontSize: 8,
+    font: "Helvetica-Bold",
+    color: COLORS.secondary,
   });
+  keyFindings.forEach((finding, i) => {
+    place(doc, `•  ${finding}`, MARGIN + 12, findingsTop + 22 + i * 12, {
+      fontSize: 9,
+      font: "Helvetica",
+      color: COLORS.text,
+    });
+  });
+  doc.y = findingsTop + findingsHeight;
 }
 
 // ============================================================================
@@ -737,13 +799,14 @@ function renderExecutiveSummary(
 // ============================================================================
 
 function renderCompactSectionHeader(doc: typeof PDFDocument.prototype, title: string, startY: number, x: number = MARGIN): number {
-  // Calculate header height
   const headerHeight = 20;
-
-  // Check if we need a new page for this section
-  ensureSpace(doc, headerHeight + 40);
-
-  doc.y = startY;
+  ensureSpace(doc, headerHeight + 70);
+  // If we just page-broke, drop the stale startY from the previous page.
+  if (doc.y === MARGIN || getRemainingSpace(doc) < 70) {
+    startY = doc.y;
+  } else {
+    doc.y = startY;
+  }
 
   // Accent line
   doc.moveTo(x, doc.y)
@@ -760,6 +823,88 @@ function renderCompactSectionHeader(doc: typeof PDFDocument.prototype, title: st
   return doc.y;
 }
 
+function formatPounds(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(Number(value))) return "N/A";
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+function concernText(concern: any): string {
+  if (!concern) return "";
+  if (typeof concern === "string") return concern;
+  return concern.description || concern.label || "";
+}
+
+function latestAccountsRatios(accounts: any): Record<string, number> | null {
+  const latest = Array.isArray(accounts?.ratios) ? accounts.ratios[0] : null;
+  const ratios = latest?.ratios || latest;
+  if (!ratios || typeof ratios !== "object") return null;
+  return ratios;
+}
+
+function numericDscr(value: any): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value !== 0) return value;
+  if (value && typeof value === "object" && Number.isFinite(Number(value.average))) return Number(value.average);
+  return null;
+}
+
+function hasAccountsAnalysis(accounts: any): boolean {
+  if (!accounts) return false;
+  if (accounts.summary || accounts.auditorOpinion || accounts.riskAssessment || accounts.riskScore) return true;
+  if (Array.isArray(accounts.concerns) && accounts.concerns.length) return true;
+  if (Array.isArray(accounts.years) && accounts.years.length) return true;
+  if (Array.isArray(accounts.ratios) && accounts.ratios.length) return true;
+  if (accounts.profitAndLoss && (accounts.profitAndLoss.turnover || accounts.profitAndLoss.netProfit)) return true;
+  if (numericDscr(accounts.dscr) != null) return true;
+  return false;
+}
+
+function parseCreditsafePayload(raw?: string | null): any | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function creditsafeStatements(company: ProspectWithCompany["company"]): any[] {
+  const payload = parseCreditsafePayload(company.creditsafeReport);
+  const statements = payload?.report?.financialStatements;
+  return Array.isArray(statements) ? statements : [];
+}
+
+function hasCreditsafeData(prospect: ProspectWithCompany): boolean {
+  const company = prospect.company;
+  return Boolean(
+    company.creditsafeCheckedAt ||
+      company.creditsafeScore ||
+      company.creditsafeRatingDescription ||
+      company.creditsafeCreditLimit != null ||
+      creditsafeStatements(company).length
+  );
+}
+
+function companyBackground(prospect: ProspectWithCompany): string {
+  const research = prospect.researchData as { businessProfile?: string } | null | undefined;
+  const text = prospect.background || research?.businessProfile || "";
+  if (!text || /^research unavailable for /i.test(text.trim())) return "";
+  return text;
+}
+
+function outstandingChargeCount(charges: any): number | "Not available" {
+  if (!charges) return "Not available";
+  if (typeof charges.outstanding_count === "number") return charges.outstanding_count;
+  if (Array.isArray(charges.items)) {
+    return charges.items.filter((item: any) => String(item.status || "").toLowerCase() === "outstanding").length;
+  }
+  return 0;
+}
+
 // ============================================================================
 // COMPANY INFO
 // ============================================================================
@@ -767,28 +912,16 @@ function renderCompactSectionHeader(doc: typeof PDFDocument.prototype, title: st
 function renderCompanyInfoCompact(
   doc: typeof PDFDocument.prototype,
   prospect: ProspectWithCompany,
-  companiesHouseData: CompaniesHouseData,
+  _companiesHouseData: CompaniesHouseData | null | undefined,
   startY: number,
   x: number = MARGIN,
   width: number = CONTENT_WIDTH
 ): number {
-  const sectionHeight = 95;
-  ensureSpace(doc, sectionHeight + 20);
-
-  let y = renderCompactSectionHeader(doc, "Company Information", startY, x);
-
   const company = prospect.company;
-
-  doc.roundedRect(x, y, width, sectionHeight, 3)
-    .fillAndStroke(COLORS.backgroundLight, COLORS.border);
-
-  let detailY = y + 10;
-  const labelX = x + 10;
-  const valueX = x + 120;
-  const maxWidth = width - 135;
-
+  const background = companyBackground(prospect);
+  const sic = [company.sicCode, company.sicDescription].filter(Boolean).join(" — ");
   const details = [
-    { label: "Company Number:", value: company.companyNumber },
+    { label: "Company Number:", value: company.companyNumber || "N/A" },
     { label: "Status:", value: company.companyStatus || "active" },
     { label: "Type:", value: company.companyType || "ltd" },
     {
@@ -797,19 +930,117 @@ function renderCompanyInfoCompact(
         ? new Date(company.incorporationDate).toLocaleDateString("en-GB")
         : "N/A",
     },
+    { label: "Registered Office:", value: company.registeredAddress || "N/A" },
+    { label: "Postcode:", value: company.postcode || "N/A" },
+    { label: "SIC:", value: sic || "N/A" },
+    { label: "Website:", value: company.website || "N/A" },
   ];
+
+  const bgText = background ? truncateText(background, 420) : "";
+  const bgHeight = bgText ? doc.heightOfString(bgText, { width: width - 24 }) + 22 : 0;
+  const sectionHeight = 16 + details.length * 16 + bgHeight;
+
+  ensureSpace(doc, sectionHeight + 20);
+  let y = renderCompactSectionHeader(doc, "Company Information", startY, x);
+
+  doc.roundedRect(x, y, width, sectionHeight, 3).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+
+  let detailY = y + 10;
+  const labelX = x + 10;
+  const valueX = x + 130;
+  const maxWidth = width - 145;
 
   details.forEach((detail) => {
     doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
     doc.text(detail.label, labelX, detailY);
-
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica-Bold");
-    doc.text(detail.value, valueX, detailY, { width: maxWidth });
-
-    detailY += 17;
+    doc.text(String(detail.value), valueX, detailY, { width: maxWidth });
+    detailY += 16;
   });
 
+  if (bgText) {
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("Background", labelX, detailY);
+    detailY += 12;
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+    doc.text(bgText, labelX, detailY, { width: width - 24 });
+  }
+
   return y + sectionHeight + SPACING.sectionMargin;
+}
+
+// ============================================================================
+// CREDITSAFE
+// ============================================================================
+
+function renderCreditsafeCompact(
+  doc: typeof PDFDocument.prototype,
+  prospect: ProspectWithCompany,
+  startY: number,
+  x: number = MARGIN,
+  width: number = CONTENT_WIDTH
+): number {
+  const company = prospect.company;
+  const statements = creditsafeStatements(company).slice(0, 4);
+  const tableHeight = statements.length ? 22 + statements.length * 16 : 0;
+  const boxHeight = 58 + tableHeight;
+
+  ensureSpace(doc, boxHeight + 25);
+  let y = renderCompactSectionHeader(doc, "Creditsafe Credit Check", startY, x);
+
+  doc.roundedRect(x, y, width, boxHeight, 3).fillAndStroke(COLORS.backgroundLight, COLORS.border);
+
+  const colW = width / 4;
+  const headers = [
+    { label: "Credit Score", value: company.creditsafeScore || "—" },
+    { label: "Rating", value: company.creditsafeRatingDescription || "—" },
+    {
+      label: "Credit Limit",
+      value: company.creditsafeCreditLimit != null ? formatCurrency(company.creditsafeCreditLimit) : "—",
+    },
+    {
+      label: "Checked",
+      value: company.creditsafeCheckedAt
+        ? new Date(company.creditsafeCheckedAt).toLocaleDateString("en-GB")
+        : "—",
+    },
+  ];
+
+  headers.forEach((item, index) => {
+    const colX = x + 12 + index * colW;
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(item.label, colX, y + 10, { width: colW - 16 });
+    doc.fontSize(11).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(String(item.value), colX, y + 24, { width: colW - 16 });
+  });
+
+  if (statements.length) {
+    let rowY = y + 52;
+    doc.fontSize(7).fillColor(COLORS.textSecondary).font("Helvetica-Bold");
+    const cols = ["Year End", "Turnover", "Op. Profit", "PBT", "Assets", "Liabilities", "Equity"];
+    const colXs = [12, 78, 148, 218, 278, 348, 418];
+    cols.forEach((label, i) => doc.text(label, x + colXs[i], rowY));
+    rowY += 12;
+
+    statements.forEach((fs: any) => {
+      const cells = [
+        fs.yearEndDate ? new Date(fs.yearEndDate).toLocaleDateString("en-GB") : "—",
+        fs.profitAndLoss?.revenue != null ? formatPounds(fs.profitAndLoss.revenue) : "—",
+        fs.profitAndLoss?.operatingProfit != null ? formatPounds(fs.profitAndLoss.operatingProfit) : "—",
+        fs.profitAndLoss?.profitBeforeTax != null ? formatPounds(fs.profitAndLoss.profitBeforeTax) : "—",
+        fs.balanceSheet?.totalAssets != null ? formatPounds(fs.balanceSheet.totalAssets) : "—",
+        fs.balanceSheet?.totalLiabilities != null ? formatPounds(fs.balanceSheet.totalLiabilities) : "—",
+        fs.balanceSheet?.totalShareholdersEquity != null
+          ? formatPounds(fs.balanceSheet.totalShareholdersEquity)
+          : "—",
+      ];
+      doc.fontSize(7).fillColor(COLORS.text).font("Helvetica");
+      cells.forEach((cell, i) => doc.text(String(cell), x + colXs[i], rowY, { width: 68 }));
+      rowY += 16;
+    });
+  }
+
+  return y + boxHeight + SPACING.sectionMargin;
 }
 
 // ============================================================================
@@ -1054,7 +1285,7 @@ function renderLoanDetailsCompact(
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Loan Amount", col1X, detailY);
   doc.fontSize(13).fillColor(COLORS.primary).font("Helvetica-Bold");
-  doc.text(prospect.loanAmount ? formatCurrency(prospect.loanAmount * 100) : "N/A", col1X, detailY + 11);
+  doc.text(prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "N/A", col1X, detailY + 11);
 
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Term", col2X, detailY);
@@ -1116,7 +1347,7 @@ function renderSecurityCompact(
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Total Security", x + 12, y + 10);
   doc.fontSize(15).fillColor(COLORS.success).font("Helvetica-Bold");
-  doc.text(formatCurrency(totalSecurity * 100), x + 12, y + 22);
+  doc.text(formatCurrency(totalSecurity), x + 12, y + 22);
 
   doc.fontSize(9).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Types: " + securityTypes.join(", "), x + 12, y + 44, { width: width - 24 });
@@ -1169,6 +1400,21 @@ function renderNotesCompact(
 
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
     const noteText = truncateText(prospect.notes, 300);
+    doc.text(noteText, x + 8, y, { width: width - 16 });
+
+    const textHeight = doc.heightOfString(noteText, { width: width - 16 });
+    y += textHeight + 4;
+  }
+
+  const background = companyBackground(prospect);
+  if (background) {
+    y += 8;
+    doc.fontSize(9).fillColor(COLORS.secondary).font("Helvetica-Bold");
+    doc.text("Company Background:", x, y);
+    y += 13;
+
+    doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
+    const noteText = truncateText(background, 400);
     doc.text(noteText, x + 8, y, { width: width - 16 });
 
     const textHeight = doc.heightOfString(noteText, { width: width - 16 });
@@ -1318,20 +1564,41 @@ function renderDueDiligenceCompact(
 // CREDIT RATIOS
 // ============================================================================
 
-function renderCreditRatios(doc: typeof PDFDocument.prototype, financialData: any, startY: number, x: number = MARGIN, width: number = CONTENT_WIDTH): number {
+function renderCreditRatios(
+  doc: typeof PDFDocument.prototype,
+  financialData: any,
+  startY: number,
+  x: number = MARGIN,
+  width: number = CONTENT_WIDTH,
+  accounts?: any
+): number {
   ensureSpace(doc, 115);
 
   let y = renderCompactSectionHeader(doc, "Credit Ratios", startY, x);
+  const fromAccounts = latestAccountsRatios(accounts) || {};
+  const dscr = numericDscr(financialData?.dscr) ?? financialData?.debtServiceCoverageRatio ?? numericDscr(accounts?.dscr);
 
   const ratios = [
     {
       label: "Debt Service Coverage",
-      value: financialData.debtServiceCoverageRatio,
+      value: dscr,
       format: (v: number) => v.toFixed(2) + "x",
     },
-    { label: "Current Ratio", value: financialData.currentRatio, format: (v: number) => v.toFixed(2) },
-    { label: "Debt to Equity", value: financialData.debtToEquity, format: (v: number) => v.toFixed(2) },
-    { label: "Interest Coverage", value: financialData.interestCoverage, format: (v: number) => v.toFixed(2) + "x" },
+    {
+      label: "Current Ratio",
+      value: financialData?.currentRatio ?? fromAccounts.currentRatio,
+      format: (v: number) => v.toFixed(2),
+    },
+    {
+      label: "Debt to Equity",
+      value: financialData?.debtToEquity ?? fromAccounts.debtToEquity,
+      format: (v: number) => v.toFixed(2),
+    },
+    {
+      label: "Interest Coverage",
+      value: financialData?.interestCoverage ?? fromAccounts.interestCover,
+      format: (v: number) => v.toFixed(2) + "x",
+    },
   ];
 
   ratios.forEach((ratio, index) => {
@@ -1351,7 +1618,7 @@ function renderCreditRatios(doc: typeof PDFDocument.prototype, financialData: an
 
   let bottomY = y + 95;
 
-  const redFlags = Array.isArray(financialData.redFlags)
+  const redFlags = Array.isArray(financialData?.redFlags)
     ? financialData.redFlags.filter((flag: any) => typeof flag === "string" || flag?.isActive)
     : [];
 
@@ -1380,12 +1647,42 @@ function renderAccountsAnalysisCompact(
   accounts: any,
   startY: number,
   x: number = MARGIN,
-  width: number = CONTENT_WIDTH
+  width: number = CONTENT_WIDTH,
+  managementAnalysis?: any
 ): number {
-  const concerns = Array.isArray(accounts.concerns) ? accounts.concerns : [];
-  const summary = accounts.summary || "";
-  const summaryHeight = summary ? doc.heightOfString(truncateText(summary, 300), { width: width - 24 }) : 0;
-  const boxHeight = 55 + (concerns.length ? concerns.length * 13 + 10 : 0) + (summary ? summaryHeight + 16 : 0);
+  accounts = accounts || {};
+  const concerns = (Array.isArray(accounts.concerns) ? accounts.concerns : [])
+    .map(concernText)
+    .filter(Boolean);
+  const redFlags = Array.isArray(accounts.redFlags)
+    ? accounts.redFlags.filter((flag: any) => typeof flag === "string" || flag?.isActive).map((flag: any) =>
+        typeof flag === "string" ? flag : flag.label
+      )
+    : [];
+  const issues = [...concerns, ...redFlags];
+  const summary = accounts.summary || managementAnalysis?.summary || "";
+  const years = Array.isArray(accounts.years) ? accounts.years.slice(0, 3) : [];
+  const pnl = accounts.profitAndLoss;
+  const dscr = numericDscr(accounts.dscr);
+  const riskRaw = String(accounts.riskAssessment || accounts.riskScore || "").toLowerCase();
+  const riskLabel = riskRaw ? riskRaw.toUpperCase() : "N/A";
+  const riskColor =
+    riskRaw === "high" || riskRaw === "d" || riskRaw === "e"
+      ? COLORS.danger
+      : riskRaw === "medium" || riskRaw === "c"
+        ? COLORS.warning
+        : COLORS.success;
+
+  const summaryHeight = summary ? doc.heightOfString(truncateText(summary, 360), { width: width - 24 }) : 0;
+  const yearsHeight = years.length ? 18 + years.length * 14 : 0;
+  const pnlHeight = pnl && (pnl.turnover || pnl.netProfit) ? 36 : 0;
+  const boxHeight =
+    55 +
+    (dscr != null ? 16 : 0) +
+    pnlHeight +
+    yearsHeight +
+    (summary ? summaryHeight + 16 : 0) +
+    (issues.length ? issues.length * 13 + 16 : 0);
 
   ensureSpace(doc, boxHeight + 25);
 
@@ -1399,40 +1696,62 @@ function renderAccountsAnalysisCompact(
 
   doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
   doc.text("Risk Assessment", col1X, contentY);
-  doc
-    .fontSize(11)
-    .fillColor(
-      accounts.riskAssessment === "high"
-        ? COLORS.danger
-        : accounts.riskAssessment === "medium"
-          ? COLORS.warning
-          : COLORS.success
-    )
-    .font("Helvetica-Bold");
-  doc.text(accounts.riskAssessment ? accounts.riskAssessment.toUpperCase() : "N/A", col1X, contentY + 11);
+  doc.fontSize(11).fillColor(riskColor).font("Helvetica-Bold");
+  doc.text(riskLabel, col1X, contentY + 11);
 
   if (accounts.auditorOpinion) {
     doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
     doc.text("Auditor Opinion", col2X, contentY);
     doc.fontSize(10).fillColor(COLORS.text).font("Helvetica");
     doc.text(accounts.auditorOpinion, col2X, contentY + 11, { width: width / 2 - 20 });
+  } else if (dscr != null) {
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text("DSCR", col2X, contentY);
+    doc.fontSize(11).fillColor(COLORS.text).font("Helvetica-Bold");
+    doc.text(`${dscr.toFixed(2)}x`, col2X, contentY + 11);
   }
 
   contentY += 34;
 
+  if (pnl && (pnl.turnover || pnl.netProfit || pnl.grossProfit)) {
+    doc.fontSize(8).fillColor(COLORS.textSecondary).font("Helvetica");
+    doc.text(
+      `Turnover ${formatPounds(pnl.turnover)}   Gross ${formatPounds(pnl.grossProfit)}   Net ${formatPounds(pnl.netProfit)}`,
+      col1X,
+      contentY,
+      { width: width - 24 }
+    );
+    contentY += 16;
+  }
+
+  if (years.length) {
+    years.forEach((year: any) => {
+      const label = year.yearEnding || year.year || year.period || "";
+      doc.fontSize(8).fillColor(COLORS.text).font("Helvetica");
+      doc.text(
+        `${label}  T/O ${formatPounds(year.turnover)}  GP ${formatPounds(year.grossProfit)}  NP ${formatPounds(year.netProfit)}  NA ${formatPounds(year.netAssets ?? year.shareholderFunds)}`,
+        col1X,
+        contentY,
+        { width: width - 24 }
+      );
+      contentY += 14;
+    });
+    contentY += 4;
+  }
+
   if (summary) {
     doc.fontSize(9).fillColor(COLORS.text).font("Helvetica");
-    doc.text(truncateText(summary, 300), col1X, contentY, { width: width - 24 });
+    doc.text(truncateText(summary, 360), col1X, contentY, { width: width - 24 });
     contentY += summaryHeight + 8;
   }
 
-  if (concerns.length > 0) {
+  if (issues.length > 0) {
     doc.fontSize(8).fillColor(COLORS.warning).font("Helvetica-Bold");
     doc.text("Concerns", col1X, contentY);
     contentY += 13;
-    concerns.forEach((concern: string) => {
+    issues.forEach((issue: string) => {
       doc.fontSize(8).fillColor(COLORS.text).font("Helvetica");
-      doc.text(`• ${concern}`, col1X, contentY, { width: width - 24 });
+      doc.text(`• ${issue}`, col1X, contentY, { width: width - 24 });
       contentY += 13;
     });
   }
@@ -1685,30 +2004,31 @@ function addFootersToAllPages(doc: typeof PDFDocument.prototype, prospect: Prosp
     doc.switchToPage(i);
 
     const footerY = PAGE_HEIGHT - 32;
-
-    // Left - Company name
-    doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
-    doc.text(prospect.company.companyName, MARGIN, footerY, {
+    place(doc, prospect.company.companyName, MARGIN, footerY, {
       width: CONTENT_WIDTH / 2 - 10,
       align: "left",
+      fontSize: 8,
+      font: "Helvetica",
+      color: COLORS.textLight,
     });
-
-    // Center - Confidential
-    doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica-Bold");
-    doc.text("CONFIDENTIAL", PAGE_WIDTH / 2 - 38, footerY);
-
-    // Right - Page number
-    doc.fontSize(8).fillColor(COLORS.textLight).font("Helvetica");
-    doc.text(`Page ${i + 1} of ${pages.count}`, MARGIN + CONTENT_WIDTH / 2 + 10, footerY, {
+    place(doc, "CONFIDENTIAL", PAGE_WIDTH / 2 - 38, footerY, {
+      fontSize: 8,
+      font: "Helvetica-Bold",
+      color: COLORS.textLight,
+    });
+    place(doc, `Page ${i + 1} of ${pages.count}`, MARGIN + CONTENT_WIDTH / 2 + 10, footerY, {
       width: CONTENT_WIDTH / 2 - 10,
       align: "right",
+      fontSize: 8,
+      font: "Helvetica",
+      color: COLORS.textLight,
     });
-
-    // Bottom - Veltro
-    doc.fontSize(7).fillColor(COLORS.textLight).font("Helvetica");
-    doc.text("Veltro • Commercial Lending Solutions", MARGIN, footerY + 11, {
+    place(doc, "Veltro • Commercial Lending Solutions", MARGIN, footerY + 11, {
       width: CONTENT_WIDTH,
       align: "center",
+      fontSize: 7,
+      font: "Helvetica",
+      color: COLORS.textLight,
     });
   }
 }

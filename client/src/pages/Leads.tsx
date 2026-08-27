@@ -502,6 +502,10 @@ export default function Leads() {
           </DialogContent>
         </Dialog>
           </TabsContent>
+
+          <TabsContent value="find" className="space-y-6 mt-0">
+            <LeadFinderTab />
+          </TabsContent>
         </Tabs>
       </div>
     </div>

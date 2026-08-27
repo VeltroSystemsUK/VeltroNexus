@@ -1,17 +1,16 @@
 import { Router } from "express";
 import { LeadFinderAgent } from "../Lead Agent/src/agent";
-import { getRunStats, deleteBusiness, clearAllBusinesses, getBusinessesForExport, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/broker_db";
-import { resetDbConnection } from "../Lead Agent/src/database/db";
+import { getRunStats, deleteBusiness, clearAllBusinesses, getBusinessesForExport, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/db";
 import { resolve } from "path";
 
-const BROKER_DB_PATH = resolve("./broker_finder.db");
+const BROKER_DB_PATH = process.env['BROKER_DATABASE_PATH'] ?? resolve("./broker_finder.db");
 import { storage } from "../storage";
 import { insertBrokerLeadSchema } from "@shared/schema";
 
 const router = Router();
 
-// Ensure DB is initialized
-initDb();
+// Ensure DB is initialized (its own file, isolated from lead_finder.db by path alone)
+initDb(BROKER_DB_PATH);
 
 // GET /results - Fetch all broker prospects
 router.get("/results", (req, res) => {
@@ -22,15 +21,7 @@ router.get("/results", (req, res) => {
             operationalOnly: false,
             requireWebsite: false,
             requireEmail: false
-        });
-        // For now, Lead Finder uses a local SQLite. 
-        // If we want to isolate Broker results in the Lead Finder table, 
-        // we might need a separate SQLite or a 'category' column.
-        // The user said "completely separate database", but Lead Finder Agent 
-        // currently uses Lead Agent/lead_finder.db.
-        // We'll filter for businesses that have "broker" in their search query or just return all and let the user know.
-        // Better: We will use the same SQLite but perhaps tag them if we can.
-        // However, for cloning purposes, we'll keep it simple first.
+        }, BROKER_DB_PATH);
         res.json(businesses);
     } catch (error) {
         console.error("[BrokerFinder] Failed to fetch results:", error);
@@ -40,7 +31,7 @@ router.get("/results", (req, res) => {
 
 router.get("/status", (req, res) => {
     try {
-        const stats = getRunStats();
+        const stats = getRunStats(undefined, BROKER_DB_PATH);
         res.json({
             total: stats.total,
             enriched: stats.enriched,
@@ -59,27 +50,15 @@ router.post("/run", async (req, res) => {
 
         console.log(`[BrokerFinder] Received instruction: ${instruction}`);
 
-        const agent = new LeadFinderAgent();
+        const agent = new LeadFinderAgent(undefined, BROKER_DB_PATH);
 
         (async () => {
-            // Redirect the Lead Agent's db singleton to broker_finder.db for this run
-            const previousPath = process.env['DATABASE_PATH'];
-            process.env['DATABASE_PATH'] = BROKER_DB_PATH;
-            resetDbConnection();
             try {
                 console.log("[BrokerFinder] Starting background agent run (broker_finder.db)...");
                 await agent.run(instruction);
                 console.log("[BrokerFinder] Background agent run complete.");
             } catch (e) {
                 console.error("[BrokerFinder] Background agent run failed:", e);
-            } finally {
-                // Restore lead_finder.db for the Lead Finder
-                if (previousPath !== undefined) {
-                    process.env['DATABASE_PATH'] = previousPath;
-                } else {
-                    delete process.env['DATABASE_PATH'];
-                }
-                resetDbConnection();
             }
         })();
 
@@ -100,7 +79,7 @@ router.post("/enrich/all", async (req, res) => {
             return res.status(409).json({ error: "Bulk enrichment already running", queued: 0 });
         }
 
-        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: true, requireEmail: false });
+        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: true, requireEmail: false }, BROKER_DB_PATH);
         const unenriched = businesses.filter(b => !b.enrichedAt && b.website);
 
         bulkEnrichRunning = true;
@@ -110,7 +89,7 @@ router.post("/enrich/all", async (req, res) => {
         (async () => {
             const { findEmail } = await import("../Lead Agent/src/scrapers/emailFinder");
             const { validateEmail, assessPecrEligibility } = await import("../Lead Agent/src/enrichers/emailValidator");
-            const { upsertBusiness } = await import("../Lead Agent/src/database/broker_db");
+            const { upsertBusiness } = await import("../Lead Agent/src/database/db");
             const { computeLeadScore } = await import("../Lead Agent/src/models/business");
 
             for (const business of unenriched) {
@@ -129,7 +108,7 @@ router.post("/enrich/all", async (req, res) => {
                     updated.pecrStatus = assessPecrEligibility(updated);
                     updated.leadScore = computeLeadScore(updated);
                     updated.enrichedAt = new Date();
-                    upsertBusiness(updated);
+                    upsertBusiness(updated, BROKER_DB_PATH);
                 } catch (e) {
                     console.error(`[BrokerFinder] Bulk enrich failed for ${business.name}:`, e);
                 }
@@ -150,7 +129,7 @@ router.post("/enrich/:placeId", async (req, res) => {
         const { placeId } = req.params;
         if (!placeId) return res.status(400).json({ error: "Place ID required" });
 
-        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: false, requireEmail: false });
+        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: false, requireEmail: false }, BROKER_DB_PATH);
         const business = businesses.find(b => b.googlePlaceId === placeId);
 
         if (!business) return res.status(404).json({ error: "Business not found" });
@@ -158,7 +137,7 @@ router.post("/enrich/:placeId", async (req, res) => {
 
         const { findEmail } = await import("../Lead Agent/src/scrapers/emailFinder");
         const { validateEmail, assessPecrEligibility } = await import("../Lead Agent/src/enrichers/emailValidator");
-        const { upsertBusiness } = await import("../Lead Agent/src/database/broker_db");
+        const { upsertBusiness } = await import("../Lead Agent/src/database/db");
         const { computeLeadScore } = await import("../Lead Agent/src/models/business");
 
         const result = await findEmail(business.website, business.contactName, true);
@@ -178,7 +157,7 @@ router.post("/enrich/:placeId", async (req, res) => {
         updated.leadScore = computeLeadScore(updated);
         updated.enrichedAt = new Date();
 
-        upsertBusiness(updated);
+        upsertBusiness(updated, BROKER_DB_PATH);
         res.json({ success: true, business: updated });
 
     } catch (error) {
@@ -189,7 +168,7 @@ router.post("/enrich/:placeId", async (req, res) => {
 
 router.delete("/all", (req, res) => {
     try {
-        clearAllBusinesses();
+        clearAllBusinesses(BROKER_DB_PATH);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error" });
@@ -200,7 +179,7 @@ router.delete("/:placeId", (req, res) => {
     try {
         const { placeId } = req.params;
         if (!placeId) return res.status(400).json({ error: "Place ID required" });
-        deleteBusiness(placeId);
+        deleteBusiness(placeId, BROKER_DB_PATH);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error" });
@@ -212,7 +191,7 @@ router.post("/migrate/:placeId", async (req, res) => {
         const { placeId } = req.params;
         if (!placeId) return res.status(400).json({ error: "Place ID required" });
 
-        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: false, requireEmail: false });
+        const businesses = getBusinessesForExport({ minRating: 0, minReviews: 0, operationalOnly: false, requireWebsite: false, requireEmail: false }, BROKER_DB_PATH);
         const business = businesses.find(b => b.googlePlaceId === placeId);
 
         if (!business) {
@@ -257,7 +236,7 @@ router.post("/migrate/:placeId", async (req, res) => {
         };
 
         const saved = await storage.createBrokerLead(brokerLeadData);
-        markBusinessAsMigrated(placeId);
+        markBusinessAsMigrated(placeId, BROKER_DB_PATH);
 
         res.json({ success: true, leadId: saved.id, migrated: true, duplicate: !!existingLead, existingLeadId: existingLead?.id });
 

@@ -14,6 +14,8 @@ import Image from "@tiptap/extension-image";
 import { TextStyle } from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
 import EmojiPicker from "emoji-picker-react";
+import DOMPurify from "dompurify";
+import { appendGmailSignature } from "@shared/gmail";
 
 interface ComposeDrawerProps {
     isOpen: boolean;
@@ -23,6 +25,7 @@ interface ComposeDrawerProps {
     initialSubject?: string;
     initialBody?: string;
     threadId?: string;
+    signature?: string;
 }
 
 const MenuBar = ({ editor, onImageInput, onAttachmentInput }: { editor: any, onImageInput: () => void, onAttachmentInput: () => void }) => {
@@ -108,7 +111,8 @@ export function ComposeDrawer({
     initialTo = "",
     initialSubject = "",
     initialBody = "",
-    threadId = ""
+    threadId = "",
+    signature = "",
 }: ComposeDrawerProps) {
     const [to, setTo] = useState(initialTo);
     const [cc, setCc] = useState("");
@@ -145,11 +149,11 @@ export function ComposeDrawer({
             setTo(initialTo);
             setSubject(initialSubject);
             if (editor) {
-                editor.commands.setContent(initialBody);
+                editor.commands.setContent(initialBody || "<p></p>");
             }
             setAttachments([]);
         }
-    }, [isOpen, initialTo, initialSubject, initialBody, editor]);
+    }, [isOpen, initialTo, initialSubject, initialBody, signature, editor]);
 
     const handleAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -174,8 +178,8 @@ export function ComposeDrawer({
     };
 
     const handleSend = async () => {
-        const body = editor?.getHTML();
-        if (!to || !subject || !body || body === '<p></p>') {
+        const body = appendGmailSignature(editor?.getHTML() || "", signature);
+        if (!to || !subject || !editor?.getHTML() || editor.getHTML() === '<p></p>') {
             toast({
                 title: "Missing fields",
                 description: "Please fill in recipient, subject, and message",
@@ -240,7 +244,7 @@ export function ComposeDrawer({
     };
 
     const handleSaveDraft = async () => {
-        const body = editor?.getHTML();
+        const body = appendGmailSignature(editor?.getHTML() || "", signature);
         try {
             const response = await fetch("/api/gmail/draft", {
                 method: "POST",
@@ -333,6 +337,14 @@ export function ComposeDrawer({
                     />
                     <div className="flex-1 overflow-y-auto cursor-text bg-background" onClick={() => editor?.commands.focus()}>
                         <EditorContent editor={editor} className="min-h-full outline-none" />
+                        {signature ? (
+                            <div className="px-4 pb-4 border-t bg-white text-foreground">
+                                <div
+                                    className="gmail_signature pt-3 text-sm overflow-x-auto"
+                                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(signature) }}
+                                />
+                            </div>
+                        ) : null}
                     </div>
                     {attachments.length > 0 && (
                         <div className="p-2 border-t bg-muted/5 flex flex-wrap gap-2">

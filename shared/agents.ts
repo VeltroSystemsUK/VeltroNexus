@@ -45,6 +45,7 @@ export interface AgentWorkflow {
 export interface DigitalAssociate {
   id: string;
   name: string;
+  email?: string;
   role: string | LocalizedStr;
   department: string;
   status: AssociateStatus;

@@ -182,10 +182,11 @@ export default function BrokerLeadDetail({ lead, open, onOpenChange }: BrokerLea
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="new">New</SelectItem>
+                                                <SelectItem value="new">Identified</SelectItem>
                                                 <SelectItem value="contacted">Contacted</SelectItem>
-                                                <SelectItem value="active">Active</SelectItem>
-                                                <SelectItem value="inactive">Inactive</SelectItem>
+                                                <SelectItem value="approved">Approved</SelectItem>
+                                                <SelectItem value="rejected">Rejected</SelectItem>
+                                                <SelectItem value="non_responsive">Non-responsive</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>

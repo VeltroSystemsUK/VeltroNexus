@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Loader2, Send, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AttachmentsChecklistForm } from "@/components/AttachmentsChecklistForm";
 
 const submitToUnderwritingSchema = z.object({
   priority: z.enum(["low", "normal", "high", "urgent"]),
@@ -71,8 +72,9 @@ export default function SubmitToUnderwritingDialog({
       return response;
     },
     onSuccess: () => {
-      toast.success("Application submitted for underwriting review");
+      toast.success("Application submitted to the Underwriting Inbox");
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/underwriting/submissions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/underwriting/my-submissions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/underwriting/status"] });
       form.reset();
@@ -99,7 +101,7 @@ export default function SubmitToUnderwritingDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Submit for Underwriting</DialogTitle>
           <DialogDescription>
@@ -113,8 +115,9 @@ export default function SubmitToUnderwritingDialog({
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Once submitted, a Credit Underwriter will review this application and make a
-                decision.
+                Once submitted, a Credit Underwriter will review this application and the
+                Strata Packaging Process starts in Underwriting Studio (the standalone Strata
+                app still runs separately).
               </AlertDescription>
             </Alert>
 
@@ -141,6 +144,8 @@ export default function SubmitToUnderwritingDialog({
                 </FormItem>
               )}
             />
+
+            <AttachmentsChecklistForm prospectId={prospectId} compact />
 
             <FormField
               control={form.control}

@@ -18,16 +18,18 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, CheckCircle2, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { ELIGIBILITY_QUESTIONS } from "@/lib/creditUnderwriting/constants";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
 
 export default function EligibilityPage() {
     const [match, params] = useRoute("/prospect/:id/underwriting/eligibility");
     const prospectId = params?.id ? parseInt(params.id) : 0;
 
-    const { data: dueDiligenceData } = useQuery<DueDiligenceData>({
+    const { data: dueDiligenceRaw } = useQuery<unknown>({
         queryKey: [`/api/prospects/${prospectId}/due-diligence`],
     });
 
-    const underwriting = dueDiligenceData?.underwriting || {};
+    const dueDiligenceData = unwrapDueDiligence(dueDiligenceRaw);
+    const underwriting = dueDiligenceData.underwriting || {};
     const [answers, setAnswers] = useState<Record<string, boolean>>({});
     const [isDirty, setIsDirty] = useState(false);
 
@@ -110,8 +112,10 @@ export default function EligibilityPage() {
         <div className="space-y-6 max-w-4xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Eligibility Check</h2>
-                    <p className="text-muted-foreground">Verify the prospect against core lending criteria</p>
+                    <h2 className="text-2xl font-bold tracking-tight">British Business Bank eligibility</h2>
+                    <p className="text-muted-foreground">
+                      Applications cannot be considered until Growth Guarantee Scheme criteria pass.
+                    </p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -125,8 +129,10 @@ export default function EligibilityPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Mandatory Criteria</CardTitle>
-                    <CardDescription>All questions must be answered to proceed.</CardDescription>
+                    <CardTitle>Growth Guarantee Scheme criteria</CardTitle>
+                    <CardDescription>
+                      All questions must be answered Yes. A fail or a blank answer blocks processing, underwriting, and Sterling.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     {ELIGIBILITY_QUESTIONS.map((q) => (

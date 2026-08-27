@@ -287,6 +287,13 @@ export const RATE_LIMIT_RULES: RateLimitRule[] = [
     windowMs: RATE_LIMIT_CONFIG.UPLOAD_WINDOW_MS,
     keyType: "user",
   },
+  // Customer pack upload: by IP
+  {
+    pattern: /^\/api\/pack\//,
+    limit: RATE_LIMIT_CONFIG.UPLOAD_LIMIT,
+    windowMs: RATE_LIMIT_CONFIG.UPLOAD_WINDOW_MS,
+    keyType: "ip",
+  },
 ];
 
 // Rate limiting middleware

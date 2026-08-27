@@ -15,9 +15,9 @@ interface ScheduleConfig {
 
 class AresScheduler {
     private config: ScheduleConfig = {
-        enabled: true,
-        dailyEnrichmentTime: "09:00", // Default: 9 AM daily
-        checkIntervalMs: 60000, // Check every minute
+        enabled: false,
+        dailyEnrichmentTime: "09:00",
+        checkIntervalMs: 60000,
     };
 
     private intervalId: NodeJS.Timeout | null = null;
@@ -27,6 +27,10 @@ class AresScheduler {
      * Start the scheduler
      */
     start() {
+        if (!this.config.enabled) {
+            console.log("[ARES Scheduler] Hibernated — not starting");
+            return;
+        }
         if (this.intervalId) {
             console.log("[ARES Scheduler] Already running");
             return;
@@ -116,14 +120,9 @@ class AresScheduler {
      * Update schedule configuration
      */
     updateConfig(config: Partial<ScheduleConfig>) {
-        this.config = { ...this.config, ...config };
-        console.log("[ARES Scheduler] Config updated:", this.config);
-
-        // Restart if already running
-        if (this.intervalId) {
-            this.stop();
-            this.start();
-        }
+        this.config = { ...this.config, ...config, enabled: false };
+        this.stop();
+        console.log("[ARES Scheduler] Hibernated — enable requests are ignored");
     }
 
     /**
@@ -138,11 +137,12 @@ class AresScheduler {
      */
     getStatus() {
         return {
-            running: this.intervalId !== null,
-            enabled: this.config.enabled,
+            hibernated: true,
+            running: false,
+            enabled: false,
             scheduledTime: this.config.dailyEnrichmentTime,
             lastRunDate: this.lastRunDate,
-            nextRunDate: this.getNextRunDate(),
+            nextRunDate: null as string | null,
         };
     }
 

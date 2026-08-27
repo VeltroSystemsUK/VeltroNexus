@@ -1,16 +1,14 @@
 import { Router } from "express";
 import { LeadFinderAgent } from "../Lead Agent/src/agent";
-import { getRunStats, deleteBusiness, clearAllBusinesses, getBusinessesForExport, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/db";
+import { getRunStats, deleteBusiness, clearAllBusinesses, getBusinessesForExport, getBusinessByPlaceId, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/db";
 import { storage } from "../storage";
-import { insertInternalLeadSchema } from "@shared/schema";
+import { isAuthenticated } from "../auth";
 import automationRouter from "./leadFinderAutomation.js";
 
 const router = Router();
 
-// Ensure DB is initialized (and migrations run)
 initDb();
-
-// Mount automation routes
+router.use(isAuthenticated);
 router.use(automationRouter);
 
 // GET /results - Fetch all businesses
@@ -186,16 +184,7 @@ router.post("/:placeId/deep-search", async (req, res) => {
         const { placeId } = req.params;
         if (!placeId) return res.status(400).json({ error: "Place ID required" });
 
-        // 1. Get business from SQLite
-        const businesses = getBusinessesForExport({
-            minRating: 0,
-            minReviews: 0,
-            operationalOnly: false,
-            requireWebsite: false,
-            requireEmail: false
-        });
-        const business = businesses.find(b => b.googlePlaceId === placeId);
-
+        const business = getBusinessByPlaceId(placeId);
         if (!business) {
             return res.status(404).json({ error: "Business not found" });
         }
@@ -245,79 +234,79 @@ router.post("/:placeId/deep-search", async (req, res) => {
     }
 });
 
-// POST /migrate/:placeId - Migrate to God Mode CRM
 router.post("/migrate/:placeId", async (req, res) => {
     try {
         const { placeId } = req.params;
         if (!placeId) return res.status(400).json({ error: "Place ID required" });
+        const userId = req.user!.id;
 
-        // 1. Get business from SQLite
-        const businesses = getBusinessesForExport({
-            minRating: 0,
-            minReviews: 0,
-            operationalOnly: false,
-            requireWebsite: false,
-            requireEmail: false
-        });
-        const business = businesses.find(b => b.googlePlaceId === placeId);
-
+        const business = getBusinessByPlaceId(placeId);
         if (!business) {
             return res.status(404).json({ error: "Business not found" });
         }
 
-        console.log(`[LeadFinder] Migrating business: ${business.name} -> CRM`);
+        console.log(`[LeadFinder] Migrating business: ${business.name} -> Pipeline`);
 
-        // 2. Check for duplicates by company number
-        let existingLead = null;
-        if (business.companyNumber && business.companyNumber !== "unknown") {
-            existingLead = await storage.getInternalLeadByCompanyNumber(business.companyNumber);
-            if (existingLead) {
-                console.log(`[LeadFinder] Duplicate detected: ${business.name} matches existing lead #${existingLead.id} (${existingLead.companyName})`);
+        const companyNumber = business.companyNumber && business.companyNumber !== "unknown" ? business.companyNumber : null;
+        let company = companyNumber ? await storage.getCompanyByNumber(companyNumber) : undefined;
+
+        let existingProspect = null;
+        if (company) {
+            const userProspects = await storage.listProspects(userId);
+            existingProspect = userProspects.find(p => p.companyId === company!.id) || null;
+            if (existingProspect) {
+                console.log(`[LeadFinder] Duplicate detected: ${business.name} matches existing prospect #${existingProspect.id}`);
             }
         }
 
-        // 3. Map to InternalLead schema
-        const internalLeadData = {
-            companyName: toTitleCase(business.name),
-            companyNumber: business.companyNumber || "unknown",
-            contactName: business.contactName ? toTitleCase(business.contactName) : "Unknown",
-            position: business.contactRole ? toTitleCase(business.contactRole) : "Director",
-            email: business.email || undefined,
-            phone: business.phone || undefined,
-            status: "new",
-            commissionRate: 0.1,
-            notes: `Imported from Lead Finder Agent.\nSource Query: ${business.searchQuery}\nConfidence: ${business.emailConfidence}\nActive Charges: ${business.activeChargeCount}\nLenders: ${business.lenderNames?.join(', ') || 'N/A'}`,
+        if (!company) {
+            company = await storage.createCompany({
+                companyName: toTitleCase(business.name),
+                companyNumber: companyNumber || `unknown-${placeId}`,
+                registeredAddress: business.address || null,
+                incorporationDate: business.incorporationDate || null,
+                companyStatus: null,
+                companyType: null,
+                sicCode: business.sicCode || null,
+            });
+        }
 
-            // Rich Data
-            address: business.address || undefined,
-            city: business.address ? toTitleCase(business.address.split(",").slice(-2)[0].trim()) : undefined,
-            hasCharges: business.hasCharges || false,
-            identifiedLender: business.lenderNames && business.lenderNames.length > 0 ? business.lenderNames[0] : undefined,
-            activeChargeCount: business.activeChargeCount || 0,
-            chargeDate: business.lastChargeDate || undefined,
-            incorporationDate: business.incorporationDate ? new Date(business.incorporationDate) : undefined,
-            sicCode: business.sicCode || undefined,
-            linkedinUrl: business.website || undefined,
-            createdFrom: "lead_finder_agent",
+        let prospect: any = existingProspect;
+        if (!prospect) {
+            prospect = await storage.createProspect(
+                {
+                    companyId: company.id!,
+                    stage: "lead",
+                    queueOrder: 0,
+                    directorsGuarantee: 0,
+                    commercialProperty: 0,
+                    homeEquity: 0,
+                    propertyOther: 0,
+                    debenture: 0,
+                    parentCompanyGuarantee: 0,
+                    collateral: 0,
+                    crossCompanyGuarantee: 0,
+                    referralSource: "Lead Finder Agent",
+                    notes: `Imported from Lead Finder Agent.\nSource Query: ${business.searchQuery}\nContact: ${business.contactName ? toTitleCase(business.contactName) : "Unknown"}${business.contactRole ? ` (${toTitleCase(business.contactRole)})` : ""}\nEmail: ${business.email || "N/A"} (Confidence: ${business.emailConfidence || "N/A"})\nPhone: ${business.phone || "N/A"}\nActive Charges: ${business.activeChargeCount || 0}\nLenders: ${business.lenderNames?.join(', ') || 'N/A'}`,
+                },
+                userId
+            );
 
-            contacts: [],
+            if (business.contactName || business.email || business.phone) {
+                await storage.createContact({
+                    prospectId: prospect.id,
+                    name: toTitleCase(business.contactName || business.name),
+                    email: business.email || null,
+                    phone: business.phone || null,
+                    role: business.contactRole ? toTitleCase(business.contactRole) : null,
+                    isPrimary: 1,
+                }, userId);
+            }
+        }
 
-            // Duplicate flagging
-            possibleDuplicate: !!existingLead,
-            duplicateOf: existingLead ? existingLead.id : null,
-
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
-
-        // 4. Create in Firestore
-        // @ts-ignore
-        const saved = await storage.createInternalLead(internalLeadData);
-
-        // 5. Mark as migrated
         markBusinessAsMigrated(placeId);
 
-        res.json({ success: true, leadId: saved.id, migrated: true, duplicate: !!existingLead, existingLeadId: existingLead?.id });
+        res.json({ success: true, prospectId: prospect.id, migrated: true, duplicate: !!existingProspect, existingProspectId: existingProspect?.id });
 
     } catch (error) {
         console.error("[LeadFinder] Failed to migrate business:", error);

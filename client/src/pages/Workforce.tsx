@@ -53,14 +53,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AgentJobProgress } from "@/components/AgentJobProgress";
-import { AresControlCentre } from "@/components/AresControlCentre";
-import { CampaignManager } from "@/components/ares/CampaignManager";
+import { DealFilesPanel } from "@/components/agentic/DealFilesPanel";
+import { DeskOpsPanel } from "@/components/agentic/DeskOpsPanel";
+import { DelegateDialog } from "@/components/agentic/DelegateDialog";
+import { FactoryCanvas } from "@/components/agentic/FactoryCanvas";
 
 export default function Workforce() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
+  const [delegateOpen, setDelegateOpen] = useState(false);
+  const [delegateAgentId, setDelegateAgentId] = useState<string | undefined>();
   const [chatHistory, setChatHistory] = useState<
     { role: "user" | "agent"; content: string; timestamp?: Date }[]
   >([]);
@@ -307,10 +311,6 @@ export default function Workforce() {
     queryKey: ["/api/workforce"],
   });
 
-  const { data: deviations } = useQuery<any[]>({
-    queryKey: ["/api/workforce/deviations"],
-  });
-
   const selectedAgent = roster?.find((a) => a.id === selectedAgentId);
   const workflowAgent = roster?.find((a) => a.id === workflowAgentId);
 
@@ -324,8 +324,6 @@ export default function Workforce() {
         ...prev,
         { role: "agent", content: data.response, timestamp: new Date() },
       ]);
-      queryClient.invalidateQueries({ queryKey: ["/api/workforce/deviations"] });
-      // Also invalidate chat history to ensure sync
       queryClient.invalidateQueries({ queryKey: ["/api/workforce", selectedAgentId, "chats"] });
     },
     onError: (error: any) => {
@@ -461,56 +459,54 @@ export default function Workforce() {
     <div className="flex flex-col h-full bg-[#020617] text-white">
       <PageHeader
         title="AI Workforce"
-        description="Manage your roster of specialized digital employees"
+        description="Deal files is the factory. Desks show open files, mail that actually left the box, and work waiting on you."
       >
         <Button
-          className="bg-primary hover:bg-primary/90"
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={() => {
+            setDelegateAgentId(undefined);
+            setDelegateOpen(true);
+          }}
         >
-          <Sparkles className="mr-2 h-4 w-4" />
-          Train New Agent
+          Delegate
         </Button>
       </PageHeader>
+      <DelegateDialog
+        open={delegateOpen}
+        onOpenChange={setDelegateOpen}
+        initialAgentId={delegateAgentId}
+      />
 
       <main className="flex-1 p-6 overflow-y-auto">
-        <Tabs defaultValue="roster" className="space-y-6">
+        <Tabs defaultValue="deals" className="space-y-6">
           <div className="flex items-center justify-between">
             <TabsList className="bg-slate-900 border border-slate-800">
-              <TabsTrigger value="roster" className="data-[state=active]:bg-primary">
-                Active Roster
+              <TabsTrigger value="deals" className="data-[state=active]:bg-primary">
+                Deal files
               </TabsTrigger>
-              <TabsTrigger value="ares" className="data-[state=active]:bg-primary">
-                ARES Control
+              <TabsTrigger value="roster" className="data-[state=active]:bg-primary">
+                Desks
               </TabsTrigger>
               <TabsTrigger value="strategy" className="data-[state=active]:bg-primary">
                 Strategy
               </TabsTrigger>
               <TabsTrigger value="activity" className="data-[state=active]:bg-primary">
-                Live Activity
-              </TabsTrigger>
-              <TabsTrigger value="audit" className="data-[state=active]:bg-primary">
-                Mission Deviations
-                {deviations && deviations.length > 0 && (
-                  <Badge variant="destructive" className="ml-2 px-1.5 h-4 text-[10px]">
-                    {deviations.length}
-                  </Badge>
-                )}
+                Jobs
               </TabsTrigger>
             </TabsList>
-
-            <div className="flex gap-4">
-              <Card className="bg-slate-900/50 border-slate-800 py-1.5 px-4 h-10 flex items-center">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-green-500 animate-pulse" />
-                  <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
-                    Core Systems: Normal
-                  </span>
-                </div>
-              </Card>
-            </div>
           </div>
 
+          <TabsContent value="deals">
+            <DealFilesPanel />
+          </TabsContent>
+
           <TabsContent value="roster" className="space-y-4">
+            <DeskOpsPanel
+              onDelegate={(agentId) => {
+                setDelegateAgentId(agentId);
+                setDelegateOpen(true);
+              }}
+            />
+            <div className="hidden">
             <div className="flex flex-col gap-4">
               {roster?.map((agent) => (
                 <Card
@@ -533,8 +529,12 @@ export default function Workforce() {
                       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 md:bottom-4">
                         <div className="flex items-center gap-1.5 bg-slate-950/80 backdrop-blur-sm px-2.5 py-1 rounded-full border border-slate-700/50">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
-                          <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-400">
-                            Online
+                          <span className={`text-[9px] font-semibold uppercase tracking-wider ${
+                            String(agent.status).toLowerCase().includes("hibernat")
+                              ? "text-slate-400"
+                              : "text-emerald-400"
+                          }`}>
+                            {String(agent.status).toLowerCase().includes("hibernat") ? "Hibernated" : "Desk"}
                           </span>
                         </div>
                       </div>
@@ -553,6 +553,9 @@ export default function Workforce() {
                               )}
                             </h3>
                             <p className="text-sm text-slate-400">{agent.role as string}</p>
+                            {typeof agent.email === "string" && agent.email && (
+                              <p className="text-xs text-primary mt-1">{agent.email}</p>
+                            )}
                           </div>
                           <Badge className="flex-shrink-0 bg-slate-800/80 border-slate-700 text-[10px] uppercase font-bold tracking-widest text-slate-300">
                             {agent.department}
@@ -596,13 +599,14 @@ export default function Workforce() {
                         <Button
                           variant="outline"
                           className="w-full border-slate-700 hover:bg-primary/10 hover:border-primary/50 hover:text-white text-slate-300 transition-all duration-200"
+                          disabled={String(agent.status).toLowerCase().includes("hibernat")}
                           onClick={() => {
                             setSelectedAgentId(agent.id);
                             setChatHistory([]);
                           }}
                         >
                           <MessageSquare className="mr-2 h-4 w-4" />
-                          Interact
+                          {String(agent.status).toLowerCase().includes("hibernat") ? "Hibernated" : "Chat (not the factory)"}
                           <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-50" />
                         </Button>
 
@@ -646,6 +650,7 @@ export default function Workforce() {
                   </div>
                 </Card>
               ))}
+            </div>
             </div>
           </TabsContent>
 
@@ -798,66 +803,12 @@ export default function Workforce() {
             </div>
           )}
 
-          <TabsContent value="ares">
-            <AresControlCentre />
-          </TabsContent>
-
-          <TabsContent value="strategy">
-            <CampaignManager />
+          <TabsContent value="strategy" className="mt-0">
+            <FactoryCanvas />
           </TabsContent>
 
           <TabsContent value="activity">
             <AgentJobProgress refreshInterval={2000} />
-          </TabsContent>
-
-          <TabsContent value="audit">
-            <div className="space-y-4">
-              {deviations && deviations.length > 0 ? (
-                deviations.map((deviation: any) => (
-                  <Card key={deviation.id} className="bg-slate-900 border-slate-800">
-                    <CardContent className="p-4 flex items-start gap-4">
-                      <div
-                        className={cn(
-                          "p-2 rounded-lg",
-                          deviation.severity === "critical"
-                            ? "bg-red-500/10 text-red-500"
-                            : "bg-amber-500/10 text-amber-500"
-                        )}
-                      >
-                        <Activity className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className="font-semibold text-sm">
-                            {deviation.category.replace("_", " ")} Detected
-                          </h4>
-                          <span className="text-[10px] text-slate-500">
-                            {new Date(deviation.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mb-2">
-                          Agent ID:{" "}
-                          <span className="text-slate-300 uppercase">{deviation.agentId}</span>
-                        </p>
-                        <div className="p-3 bg-slate-950/50 rounded border border-slate-800 text-[11px] text-slate-300 leading-relaxed italic">
-                          "{deviation.assessment}"
-                        </div>
-                      </div>
-                      <Button size="sm" variant="ghost" className="text-xs text-primary">
-                        Resolve
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <Card className="bg-slate-900 border-slate-800">
-                  <CardContent className="p-12 text-center text-slate-500">
-                    <ShieldCheck className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p>No mission deviations detected. Commercial Integrity is 100%.</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
           </TabsContent>
         </Tabs>
 

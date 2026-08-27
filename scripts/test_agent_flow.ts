@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { LeadFinderAgent } from '../server/Lead Agent/src/agent';
 
 async function main() {
-    const instruction = "Find commercial finance brokers in Leeds, UK. Minimum 4 stars.";
+    const instruction = "Find manufacturing SMEs in Leicester, UK. Minimum 4 stars.";
     console.log(`\nTesting LeadFinderAgent Flow with instruction: "${instruction}"`);
     console.log("----------------------------------------------------------------");
 

@@ -118,7 +118,10 @@ const verificationGradeConfig: Record<string, { color: string; icon: any }> = {
 };
 
 export default function EmailCampaigns() {
-  usePageTitle("Email Campaigns", "Create, send, and track email marketing campaigns");
+  usePageTitle(
+    "Email Campaigns",
+    "James Hale · Business Consultant · enquiries@stratafinance.co.uk"
+  );
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -1640,7 +1643,8 @@ export default function EmailCampaigns() {
           <AlertDialogHeader>
             <AlertDialogTitle>Send Campaign</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to send this campaign? Emails will be dispatched to all recipients immediately.
+              Emails go out immediately from James Hale · Business Consultant
+              &lt;enquiries@stratafinance.co.uk&gt;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

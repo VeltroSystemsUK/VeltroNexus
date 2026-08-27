@@ -20,12 +20,13 @@ export async function setupVite(app: Express, server: Server) {
   const pluginReact = (await import("@vitejs/plugin-react")).default;
   const viteLogger = createLogger();
 
+  const port = parseInt(process.env.PORT || "5000", 10);
   const serverOptions = {
     middlewareMode: true,
     hmr: {
       server,
-      port: 5000,
-      clientPort: 5000,
+      port,
+      clientPort: port,
     },
     allowedHosts: true as const,
   };
@@ -79,10 +80,19 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      setHeaders(res, filePath) {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        }
+      },
+    })
+  );
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

@@ -95,6 +95,10 @@ import brokerFinderRouter from "./routes/broker_finder";
 import leadsRouter from "./routes/leads";
 import campaignsRouter from "./routes/campaigns";
 import inboundRouter from "./routes/inbound"; // Added inbound router
+import agenticWorkflowRouter from "./routes/agenticWorkflow";
+import agentMailRouter from "./routes/agentMail";
+import gmailRouter from "./routes/gmail";
+import packUploadRouter from "./routes/packUpload";
 import telnyxVoiceRouter from "./routes/telnyxVoice";
 import activitiesRouter from "./routes/activities";
 import addonsRouter from "./routes/addons";
@@ -107,6 +111,7 @@ import cdfiRouter from "./routes/cdfis";
 import workforceRouter from "./routes/workforce";
 import companiesRouter from "./routes/companies";
 import submissionsRouter from "./routes/submissions";
+import strataPackagingRouter from "./routes/strataPackaging";
 import brokerPortalRouter from "./routes/brokerPortal";
 import exceptionsRouter from "./routes/exceptions";
 import prospectsRouter from "./routes/prospects";
@@ -544,9 +549,14 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api/cdfis", cdfiRouter);
   app.use("/api", companiesRouter);
   app.use(submissionsRouter);
+  app.use(strataPackagingRouter);
   app.use(brokerPortalRouter);
   app.use(exceptionsRouter);
   app.use("/api", prospectsRouter);
+  app.use(agenticWorkflowRouter);
+  app.use(agentMailRouter);
+  app.use(gmailRouter);
+  app.use(packUploadRouter);
   app.use(telnyxVoiceRouter);
   app.use("/api", forecastsRouter);
   app.use("/api", invoicesRouter);
@@ -1137,14 +1147,10 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.post(
     "/api/ares/run",
     isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { aresControlCenter } = await import("./services/aresControlCenter");
-        await aresControlCenter.runAutonomousLoop(req.user.id);
-        res.json({ success: true, message: "Autonomous loop complete" });
-      } catch (error) {
-        handleApiError(res, error, "ares-error");
-      }
+    async (_req: AuthenticatedRequest, res: Response) => {
+      res.status(410).json({
+        error: "ARES is hibernated. Use Deal files — the stage machine is ORC-1.",
+      });
     }
   );
 
@@ -1180,15 +1186,10 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.post(
     "/api/ares/schedule",
     isAuthenticated,
-    async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { aresScheduler } = await import("./services/aresScheduler");
-        aresScheduler.updateConfig(req.body);
-        const status = aresScheduler.getStatus();
-        res.json(status);
-      } catch (error) {
-        handleApiError(res, error, "ares-error");
-      }
+    async (_req: AuthenticatedRequest, res: Response) => {
+      res.status(410).json({
+        error: "ARES is hibernated. Use Deal files — the stage machine is ORC-1.",
+      });
     }
   );
 

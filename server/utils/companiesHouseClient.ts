@@ -127,6 +127,22 @@ export const companiesHouseClient = {
         }
     },
 
+    async getCompanyInsolvency(companyNumber: string): Promise<any> {
+        if (!COMPANIES_HOUSE_API_KEY) return null;
+        const auth = Buffer.from(`${COMPANIES_HOUSE_API_KEY}:`).toString("base64");
+        try {
+            const response = await fetch(`${BASE_URL}/company/${companyNumber}/insolvency`, {
+                headers: { Authorization: `Basic ${auth}` },
+            });
+            if (response.status === 404) return null;
+            if (!response.ok) return null;
+            return await response.json();
+        } catch (e) {
+            console.error(`Error fetching insolvency for ${companyNumber}:`, e);
+            return null;
+        }
+    },
+
     async getCompanyOfficers(companyNumber: string): Promise<any> {
         if (!COMPANIES_HOUSE_API_KEY) return [];
         const auth = Buffer.from(`${COMPANIES_HOUSE_API_KEY}:`).toString('base64');

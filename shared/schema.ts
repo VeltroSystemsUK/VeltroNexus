@@ -304,6 +304,12 @@ export const companySchema = z.object({
   website: z.string().nullable().optional(),
   sicCode: z.string().nullable().optional(),
   sicDescription: z.string().nullable().optional(),
+  creditsafeId: z.string().nullable().optional(),
+  creditsafeScore: z.string().nullable().optional(),
+  creditsafeRatingDescription: z.string().nullable().optional(),
+  creditsafeCreditLimit: z.number().nullable().optional(),
+  creditsafeCheckedAt: dateSchema.nullable().optional(),
+  creditsafeReport: z.string().nullable().optional(),
   createdAt: dateSchema,
   lastCheckedAt: z.string().nullable().optional(),
   companiesHouseSnapshot: z.record(z.any()).nullable().optional(),
@@ -446,6 +452,7 @@ export const checklistItemSchema = z.object({
   itemId: z.string(),
   description: z.string(),
   completed: z.boolean().default(false),
+  answer: z.enum(["yes", "no", "na", ""]).optional(),
   notes: z.string().default(""),
 });
 
@@ -577,6 +584,14 @@ export const underwritingDataSchema = z.object({
 
 export const dueDiligenceDataSchema = z.object({
   checklist: z.array(checklistItemSchema).default([]),
+  attachmentsChecklist: z
+    .array(
+      z.object({
+        id: z.string(),
+        attached: z.boolean(),
+      })
+    )
+    .optional(),
   loanCalculator: z.any().optional(),
   hirePurchase: z.any().optional(), // Added
   dscr: z.any().optional(),
@@ -587,6 +602,8 @@ export const dueDiligenceDataSchema = z.object({
   // Self-reported by the adviser during intake — there is no public HMRC API
   // for this, it is not a live lookup.
   hmrcTimeToPay: z.enum(["none", "active", "historic"]).optional(),
+  // Link to the standalone Strata lender-pack app (not a copy of that product).
+  strataPackaging: z.any().optional(),
 });
 
 export const dueDiligenceSchema = z.object({
@@ -1292,8 +1309,8 @@ export const EMAIL_MERGE_TAGS = [
   { tag: "{{lastName}}", description: "Recipient last name" },
   { tag: "{{companyName}}", description: "Recipient company name" },
   { tag: "{{email}}", description: "Recipient email address" },
-  { tag: "{{senderName}}", description: "Your name" },
-  { tag: "{{senderCompany}}", description: "Your company (Veltro)" },
+  { tag: "{{senderName}}", description: "James Hale" },
+  { tag: "{{senderCompany}}", description: "Strata Finance" },
   { tag: "{{unsubscribeLink}}", description: "Unsubscribe link" },
   { tag: "{{currentDate}}", description: "Current date" },
 ] as const;

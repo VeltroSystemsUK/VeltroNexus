@@ -383,20 +383,17 @@ export function buildStrataPayload(input: StrataPayloadInput): Record<string, un
     },
     narrative: {
       cover_note: cover,
-      loan_purpose: text(adviser.purpose, sections.purpose, sections.amount, prospect.loanRequirementNotes, req.notes),
+      loan_purpose: text(adviser.purpose, prospect.loanRequirementNotes, req.notes),
       the_business: text(
         prospect.background,
         sections.background,
         sections.overview,
-        company.sicDescription,
-        sections.character,
-        asRecord(campari.character).credit_history_summary,
-        asRecord(campari.purpose).validation_comment
+        company.sicDescription
       ),
-      historic_commentary: text(accounts.summary, sections.means, character.notes),
-      deal_summary: text(sections.overview, sections.insurance, adviser.recommendation, prospect.adviserRecommendation),
-      forecast_commentary: text(financial.summary, sections.repayment, accounts.summary),
-      future_strategy: text(sections.ability, asRecord(campari.repayment).primary_source),
+      historic_commentary: text(accounts.summary, character.notes),
+      deal_summary: text(adviser.recommendation, prospect.adviserRecommendation),
+      forecast_commentary: text(financial.summary, accounts.summary),
+      future_strategy: text(asRecord(campari.repayment).primary_source),
       source: "nexus",
     },
     financials: {

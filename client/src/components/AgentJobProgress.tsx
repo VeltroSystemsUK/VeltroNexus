@@ -66,7 +66,7 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
 
   const getAgentName = (agentId: string) => {
     if (agentId === "enrichment-agent") return "Agent B (Enrichment)";
-    if (agentId === "database-builder") return "Agent A (Discovery)";
+    if (agentId === "database-builder") return "Opportunity Hunter";
     const agent = agents?.find((a) => a.id === agentId);
     return agent?.name || agentId;
   };
@@ -80,60 +80,76 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "running":
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+        return <Loader2 className="h-4 w-4 animate-spin text-sky-300" />;
       case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-emerald-400" />;
       case "failed":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-red-300" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-slate-500" />;
     }
   };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
       case "data_enrichment":
-        return <Database className="h-3 w-3 text-purple-500" />;
+        return <Database className="h-3 w-3 text-violet-300" />;
       case "scheduled_task":
-        return <Search className="h-3 w-3 text-blue-500" />;
+        return <Search className="h-3 w-3 text-sky-300" />;
       default:
-        return <Activity className="h-3 w-3 text-gray-400" />;
+        return <Activity className="h-3 w-3 text-slate-500" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "running":
-        return <Badge className="bg-blue-500">In Progress</Badge>;
+        return (
+          <Badge className="bg-sky-500/15 text-sky-200 border border-sky-500/30 hover:bg-sky-500/15">
+            In Progress
+          </Badge>
+        );
       case "completed":
-        return <Badge className="bg-green-500 border-none">Completed</Badge>;
+        return (
+          <Badge className="bg-emerald-500/15 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/15">
+            Completed
+          </Badge>
+        );
       case "failed":
-        return <Badge className="bg-red-500">Failed</Badge>;
+        return (
+          <Badge className="bg-red-500/15 text-red-200 border border-red-500/30 hover:bg-red-500/15">
+            Failed
+          </Badge>
+        );
       default:
-        return <Badge className="bg-gray-500">Pending</Badge>;
+        return (
+          <Badge className="bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-800">
+            Pending
+          </Badge>
+        );
     }
   };
 
   const getLogIcon = (type: string) => {
     switch (type) {
       case "success":
-        return <CheckCircle className="h-3 w-3 text-green-500" />;
+        return <CheckCircle className="h-3 w-3 text-emerald-400" />;
       case "error":
-        return <AlertCircle className="h-3 w-3 text-red-500" />;
+        return <AlertCircle className="h-3 w-3 text-red-300" />;
       case "warning":
-        return <AlertCircle className="h-3 w-3 text-yellow-500" />;
+        return <AlertCircle className="h-3 w-3 text-amber-300" />;
       default:
-        return <Activity className="h-3 w-3 text-blue-500" />;
+        return <Activity className="h-3 w-3 text-sky-300" />;
     }
   };
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="bg-slate-900 border-slate-800">
         <CardContent className="pt-6">
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading agent jobs...</span>
+          <div className="flex items-center justify-center text-slate-400">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+            <span className="ml-2 text-sm">Loading jobs…</span>
           </div>
         </CardContent>
       </Card>
@@ -142,12 +158,12 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
 
   if (!jobs || jobs.length === 0) {
     return (
-      <Card className="mb-6 border-dashed bg-muted/20">
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center justify-center text-muted-foreground py-4">
-            <Activity className="h-8 w-8 mb-2 opacity-20" />
-            <p className="text-sm font-medium">No active agent tasks</p>
-            <p className="text-xs">Harvesting and enrichment activity will appear here</p>
+      <Card className="bg-slate-900 border-slate-800">
+        <CardContent className="pt-10 pb-10">
+          <div className="flex flex-col items-center justify-center text-slate-500 py-4">
+            <Activity className="h-8 w-8 mb-2 opacity-30" />
+            <p className="text-sm font-medium text-slate-300">No jobs yet</p>
+            <p className="text-xs text-slate-500">Hunt, enrich, and ingest runs will list here</p>
           </div>
         </CardContent>
       </Card>
@@ -159,17 +175,18 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
   const hasRunningJobs = runningJobs && runningJobs.length > 0;
 
   return (
-    <Card className="mb-6 bg-white/50 backdrop-blur-sm border-primary/10">
+    <Card className="bg-slate-900 border-slate-800">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
-            Agent Activity History
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-base text-white flex items-center gap-2">
+            Jobs
             {hasRunningJobs && (
-              <Badge className="bg-blue-500 animate-pulse ml-2">{runningJobs.length} Active</Badge>
+              <Badge className="bg-sky-500/15 text-sky-200 border border-sky-500/30 hover:bg-sky-500/15">
+                {runningJobs.length} running
+              </Badge>
             )}
           </CardTitle>
-          <CardDescription className="text-xs">Recent Discovery & Enrichment Logs</CardDescription>
+          <CardDescription className="text-xs text-slate-500">Hunt, enrich, ingest</CardDescription>
         </div>
       </CardHeader>
       <CardContent>
@@ -177,10 +194,11 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
           {recentJobs.map((job) => (
             <div
               key={job.id}
-              className={`border rounded-lg p-3 transition-all relative group ${expandedJobId === job.id
-                ? "border-primary/30 bg-primary/[0.03]"
-                : "border-border hover:border-primary/20 hover:bg-muted/30"
-                }`}
+              className={`rounded-lg p-3 transition-all relative group border ${
+                expandedJobId === job.id
+                  ? "border-white/20 bg-slate-950"
+                  : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
+              }`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div
@@ -189,24 +207,30 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
                 >
                   <div className="flex items-center gap-2">
                     {getStatusIcon(job.status)}
-                    <span className="font-semibold text-sm">{job.title}</span>
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                    <span className="font-semibold text-sm text-white">{job.title}</span>
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-400">
                       {getTypeIcon(job.type)}
-                      {job.type === 'data_enrichment' ? 'Enrichment' : 'Discovery'}
+                      {job.type === "data_enrichment" ? "Enrichment" : "Discovery"}
                     </div>
                   </div>
-                  <span className="text-[10px] text-muted-foreground ml-6">
-                    {getAgentName(job.agentId)} • {safeDate(job.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  <span className="text-[10px] text-slate-500 ml-6">
+                    {getAgentName(job.agentId)} •{" "}
+                    {safeDate(job.startedAt).toLocaleString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   {getStatusBadge(job.status)}
-                  {job.status !== 'running' && (
+                  {job.status !== "running" && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-300 hover:bg-red-500/10"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (window.confirm("Delete this activity record?")) {
@@ -224,31 +248,33 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
               {!expandedJobId || expandedJobId !== job.id ? (
                 <div className="ml-6 flex items-center gap-3">
                   <div className="flex-1">
-                    <Progress value={(job.completedSteps / job.totalSteps) * 100} className="h-1" />
+                    <Progress value={(job.completedSteps / job.totalSteps) * 100} className="h-1 bg-slate-800" />
                   </div>
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap min-w-[40px]">
+                  <span className="text-[10px] text-slate-500 whitespace-nowrap min-w-[40px]">
                     {Math.round((job.completedSteps / job.totalSteps) * 100)}%
                   </span>
                 </div>
               ) : (
                 <div className="mt-3 ml-6 space-y-3">
-                  <p className="text-xs text-muted-foreground italic mb-2 border-l-2 border-primary/20 pl-2">
+                  <p className="text-xs text-slate-400 italic mb-2 border-l-2 border-slate-700 pl-2">
                     {job.description}
                   </p>
 
                   <div className="space-y-1.5">
-                    <div className="flex justify-between text-[10px] text-muted-foreground">
-                      <span className="font-medium text-foreground">{job.currentStep}</span>
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span className="font-medium text-slate-200">{job.currentStep}</span>
                       <span>
                         {job.completedSteps} / {job.totalSteps} targets
                       </span>
                     </div>
-                    <Progress value={(job.completedSteps / job.totalSteps) * 100} className="h-1.5" />
+                    <Progress value={(job.completedSteps / job.totalSteps) * 100} className="h-1.5 bg-slate-800" />
                   </div>
 
                   {job.logs.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-primary/10">
-                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Activity Log</h4>
+                    <div className="mt-4 pt-3 border-t border-slate-800">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                        Activity log
+                      </h4>
                       <ScrollArea className="h-32">
                         <div className="space-y-1.5">
                           {[...job.logs].reverse().map((log, index) => (
@@ -256,16 +282,20 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
                               {getLogIcon(log.type)}
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-muted-foreground text-[9px]">
-                                    {safeDate(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  <span className="text-slate-500 text-[9px]">
+                                    {safeDate(log.timestamp).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      second: "2-digit",
+                                    })}
                                   </span>
                                   <p
                                     className={
                                       log.type === "error"
-                                        ? "text-red-600 font-medium"
+                                        ? "text-red-300 font-medium"
                                         : log.type === "success"
-                                          ? "text-green-600 font-medium"
-                                          : "text-foreground"
+                                          ? "text-emerald-300 font-medium"
+                                          : "text-slate-300"
                                     }
                                   >
                                     {log.message}
@@ -280,11 +310,15 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
                   )}
 
                   {job.results && (
-                    <div className="mt-3 pt-3 border-t border-primary/10">
-                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Execution Summary</h4>
-                      <div className="bg-muted/50 p-2 rounded text-[10px] font-mono whitespace-pre-wrap">
-                        {typeof job.results === 'object'
-                          ? Object.entries(job.results).map(([k, v]) => `${k}: ${v}`).join('\n')
+                    <div className="mt-3 pt-3 border-t border-slate-800">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        Summary
+                      </h4>
+                      <div className="bg-slate-950 border border-slate-800 p-2 rounded text-[10px] font-mono whitespace-pre-wrap text-slate-300">
+                        {typeof job.results === "object"
+                          ? Object.entries(job.results)
+                              .map(([k, v]) => `${k}: ${v}`)
+                              .join("\n")
                           : String(job.results)}
                       </div>
                     </div>
@@ -293,9 +327,9 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
               )}
 
               {job.status === "running" && expandedJobId !== job.id && (
-                <div className="mt-2 ml-6 flex items-center gap-1.5 text-[10px] text-blue-500 font-medium">
+                <div className="mt-2 ml-6 flex items-center gap-1.5 text-[10px] text-sky-300 font-medium">
                   <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                  <span>Researching...</span>
+                  <span>Running…</span>
                 </div>
               )}
             </div>

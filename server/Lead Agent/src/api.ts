@@ -31,8 +31,11 @@ import { validateEmail, assessPecrEligibility } from './enrichers/emailValidator
 import { enrichWithCompaniesHouse } from './enrichers/companiesHouse.js';
 
 export class LeadFinderAPI {
-  constructor() {
-    initDb();
+  private dbPath?: string;
+
+  constructor(dbPath?: string) {
+    this.dbPath = dbPath;
+    initDb(this.dbPath);
   }
 
   // ─────────────────────────────────────────────
@@ -67,14 +70,28 @@ export class LeadFinderAPI {
     const filters: SearchFilters = { ...defaultFilters(), ...filterOverrides };
     const startTime = Date.now();
 
+    if (/\b(nacfb|fiba|loan packagers?|finance brokers?|commercial finance brokers?|broker lists?)\b/i.test(query)) {
+      throw new Error(
+        "Blocked: commercial finance brokers, NACFB/FIBA members, and loan packagers are excluded from Strata origination."
+      );
+    }
+
     // Phase 1: Discover Businesses (Google Places API)
     console.log(`[api] Searching for leads via Google Places: "${query}" (max: ${maxResults})`);
-    const rawBusinesses = await scrapeGoogleMaps(query, maxResults, filters);
+    const scraped = await scrapeGoogleMaps(query, maxResults, filters);
+    const brokerNameRe =
+      /\b(nacfb|fiba|commercial finance brokers?|finance brokers?|loan brokers?|loan packagers?|money brokers?|finance brokerages?)\b/i;
+    const rawBusinesses = scraped.filter((business) => !brokerNameRe.test(business.name || ""));
+    if (scraped.length !== rawBusinesses.length) {
+      console.log(
+        `[api] Dropped ${scraped.length - rawBusinesses.length} commercial finance broker result(s) before ingest`
+      );
+    }
 
     // Phase 2: Persist (idempotent via searchHash)
     let persisted: Business[] = rawBusinesses.map((b) => {
       const hash = computeSearchHash(b);
-      return upsertBusiness({ ...b, searchHash: hash });
+      return upsertBusiness({ ...b, searchHash: hash }, this.dbPath);
     });
 
     // Phase 3: Enrich
@@ -85,12 +102,12 @@ export class LeadFinderAPI {
     // Phase 4: Recompute scores with email data and persist
     persisted = persisted.map((b) => {
       const scored = { ...b, leadScore: computeLeadScore(b) };
-      return upsertBusiness(scored);
+      return upsertBusiness(scored, this.dbPath);
     });
 
     // Phase 5: Build summary
     const runtimeSeconds = (Date.now() - startTime) / 1000;
-    const stats = getRunStats(query);
+    const stats = getRunStats(query, this.dbPath);
     const highQuality = persisted.filter((b) => (b.leadScore ?? 0) >= 0.7);
 
     const summaryBase = {
@@ -137,7 +154,7 @@ export class LeadFinderAPI {
     pecrEligible: number;
   }> {
     const { batchSize = 10, delay = 2000, limit = 100 } = params;
-    const unenriched = getUnenrichedBusinesses(limit);
+    const unenriched = getUnenrichedBusinesses(limit, this.dbPath);
 
     if (unenriched.length === 0) {
       return { enrichedCount: 0, emailsFound: 0, pecrEligible: 0 };
@@ -190,7 +207,7 @@ export class LeadFinderAPI {
       ...filterOverrides,
     };
 
-    let records = getBusinessesForExport(filters);
+    let records = getBusinessesForExport(filters, this.dbPath);
     if (minLeadScore > 0) {
       records = records.filter((r) => (r.leadScore ?? 0) >= minLeadScore);
     }
@@ -256,7 +273,7 @@ export class LeadFinderAPI {
     highQuality: number;
     pecrEligible: number;
   }> {
-    return getRunStats(searchQuery);
+    return getRunStats(searchQuery, this.dbPath);
   }
 
   // ─────────────────────────────────────────────
@@ -322,7 +339,7 @@ export class LeadFinderAPI {
     enriched.leadScore = computeLeadScore(enriched); // Recompute score with new data
     enriched.enrichedAt = new Date();
 
-    return upsertBusiness(enriched);
+    return upsertBusiness(enriched, this.dbPath);
   }
 
 }
@@ -345,7 +362,7 @@ export const LEAD_FINDER_TOOLS = [
       properties: {
         query: {
           type: 'string',
-          description: "Natural language search query, e.g. 'commercial finance brokers in Leeds, UK'",
+          description: "Natural language search query, e.g. 'manufacturing SMEs in Leicester, UK' or 'chartered accountants in Nottingham'. Never brokers.",
         },
         maxResults: {
           type: 'number',

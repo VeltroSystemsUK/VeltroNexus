@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { storeProspectFile } from "@/lib/storeProspectFile";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -66,7 +67,8 @@ import {
   DEFAULT_TERM_MONTHS,
   ARRANGEMENT_FEE_PERCENT,
   DSCR_THRESHOLD,
-  SUMMARY_SECTIONS,
+  CAMPARI_SECTIONS,
+  MEMO_SECTIONS,
   CAMPARI_QUESTIONS,
 } from "@/lib/creditUnderwriting/constants";
 import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
@@ -756,6 +758,9 @@ export function CreditUnderwritingTool({
           });
 
           toast.success(`Parsed ${file.name} (${data.pages} pages)`);
+          storeProspectFile(prospect.id, file, "accounts").catch((err) =>
+            console.warn("Could not keep accounts PDF on the file:", err),
+          );
         } catch (error: any) {
           toast.error(error.message || "Failed to parse PDF");
         } finally {
@@ -792,6 +797,9 @@ export function CreditUnderwritingTool({
     }
 
     setCsvFileName(file.name);
+    storeProspectFile(prospect.id, file, "bank-statements").catch((err) =>
+      console.warn("Could not keep bank CSV on the file:", err),
+    );
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
@@ -868,6 +876,13 @@ export function CreditUnderwritingTool({
         toast.success(
           `Parsed ${parsedPdfs.length} bank statement${parsedPdfs.length > 1 ? "s" : ""}`
         );
+        for (const file of Array.from(files)) {
+          if (file.name.toLowerCase().endsWith(".pdf")) {
+            storeProspectFile(prospect.id, file, "bank-statements").catch((err) =>
+              console.warn("Could not keep bank statement on the file:", err),
+            );
+          }
+        }
       }
     } catch (error: any) {
       toast.error("Failed to process PDF files");
@@ -1589,6 +1604,11 @@ export function CreditUnderwritingTool({
                           }
                           setManagementAccountFiles(parsedFiles);
                           setParsingManagementAccounts(false);
+                          for (const file of Array.from(files)) {
+                            storeProspectFile(prospect.id, file, "management-accounts").catch((err) =>
+                              console.warn("Could not keep management accounts on the file:", err),
+                            );
+                          }
 
                           // Now analyze with AI
                           setAnalyzingManagementAccounts(true);
@@ -3034,17 +3054,84 @@ export function CreditUnderwritingTool({
             <Separator />
 
             <div className="space-y-4">
+              <h4 className="font-medium">Credit memo</h4>
+              <Tabs defaultValue="overview">
+                <TabsList className="flex-wrap gap-1 h-auto">
+                  {MEMO_SECTIONS.map((section) => (
+                    <TabsTrigger key={section.key} value={section.key} className="text-xs">
+                      {section.title.split("–")[0]}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {MEMO_SECTIONS.map((section) => (
+                  <TabsContent key={section.key} value={section.key}>
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-base">{section.title}</CardTitle>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => campariSectionMutation.mutate(section.key)}
+                            disabled={generatingSection !== null || !loanAmount}
+                            data-testid={`button-ai-${section.key}`}
+                          >
+                            {generatingSection === section.key ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Writing...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-4 w-4 mr-2" />
+                                AI Auto Write
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                        {CAMPARI_QUESTIONS[section.key] && (
+                          <CardDescription>
+                            Consider: {CAMPARI_QUESTIONS[section.key].slice(0, 2).join(" ")}
+                          </CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <Textarea
+                          value={adviserSummary.sections?.[section.key] || ""}
+                          onChange={(e) =>
+                            setAdviserSummary({
+                              ...adviserSummary,
+                              sections: {
+                                ...adviserSummary.sections,
+                                [section.key]: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder={`Enter ${section.title.split("–")[1]?.trim() || section.key}...`}
+                          rows={5}
+                          data-testid={`textarea-${section.key}`}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
               <h4 className="font-medium">CAMPARI Sections</h4>
               <Tabs defaultValue="character">
                 <TabsList className="flex-wrap gap-1 h-auto">
-                  {SUMMARY_SECTIONS.slice(2, 9).map((section) => (
+                  {CAMPARI_SECTIONS.map((section) => (
                     <TabsTrigger key={section.key} value={section.key} className="text-xs">
                       {section.title.split("–")[0]}
                     </TabsTrigger>
                   ))}
                 </TabsList>
 
-                {SUMMARY_SECTIONS.slice(2, 9).map((section) => (
+                {CAMPARI_SECTIONS.map((section) => (
                   <TabsContent key={section.key} value={section.key}>
                     <Card>
                       <CardHeader className="pb-3">
@@ -3211,24 +3298,8 @@ export function CreditUnderwritingTool({
 
             <Separator />
 
-            <div>
-              <Label htmlFor="recommendation">Final Recommendation</Label>
-              <Select
-                value={adviserSummary.recommendation || ""}
-                onValueChange={(value) =>
-                  setAdviserSummary({ ...adviserSummary, recommendation: value })
-                }
-              >
-                <SelectTrigger id="recommendation">
-                  <SelectValue placeholder="Select recommendation" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="approve">Recommend Approval</SelectItem>
-                  <SelectItem value="approve_conditions">Approve with Conditions</SelectItem>
-                  <SelectItem value="refer">Refer to Credit Committee</SelectItem>
-                  <SelectItem value="decline">Recommend Decline</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+              The adviser recommendation is written in the Sterling portal. It is not stored here.
             </div>
 
             <div className="flex justify-between">

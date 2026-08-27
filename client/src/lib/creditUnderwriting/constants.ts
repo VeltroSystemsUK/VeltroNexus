@@ -1,78 +1,17 @@
 import type { PolicyQuestion, AppSettings } from "./types";
+import { BBB_QUESTIONS } from "@shared/bbbEligibility";
 
 export const DEFAULT_INTEREST_RATE = 17.0;
 export const DEFAULT_TERM_MONTHS = 60;
 export const ARRANGEMENT_FEE_PERCENT = 3.5;
 export const DSCR_THRESHOLD = 1.25;
 
-export const ELIGIBILITY_QUESTIONS: PolicyQuestion[] = [
-  {
-    id: "finance_refusal",
-    text: "Has the applicant been unable to raise finance from traditional sources (e.g., banks)?",
-    requiredAnswer: true,
-    category: "eligibility",
-  },
-  {
-    id: "age",
-    text: "Is the applicant at least 18 years of age?",
-    requiredAnswer: true,
-    category: "eligibility",
-  },
-  {
-    id: "location",
-    text: "Is the business located within the United Kingdom?",
-    requiredAnswer: true,
-    category: "eligibility",
-  },
-  {
-    id: "legal",
-    text: "Is the business activity legal and compliant with UK laws?",
-    requiredAnswer: true,
-    category: "eligibility",
-  },
-  {
-    id: "fca_credit",
-    text: "Is the business an FCA-regulated entity that directly offers/provides credit?",
-    requiredAnswer: false,
-    category: "exclusion",
-  },
-  {
-    id: "crypto",
-    text: "Does the business deal with Crypto Currency or unregulated investments?",
-    requiredAnswer: false,
-    category: "exclusion",
-  },
-  {
-    id: "property_dev",
-    text: "Is the business involved in property investment or development (excluding construction for others)?",
-    requiredAnswer: false,
-    category: "exclusion",
-  },
-  {
-    id: "foreign_ownership",
-    text: "Does the business have significant foreign ownership (>20%)?",
-    requiredAnswer: false,
-    category: "exclusion",
-  },
-  {
-    id: "complex_structure",
-    text: "Does the business have a complex ownership structure (Trusts, Offshore)?",
-    requiredAnswer: false,
-    category: "exclusion",
-  },
-  {
-    id: "excluded_sectors",
-    text: "Is the business in an excluded sector (Gambling, Pornography, Weapons, Tobacco)?",
-    requiredAnswer: false,
-    category: "exclusion",
-  },
-  {
-    id: "ethics",
-    text: "Does the business align with ethical standards?",
-    requiredAnswer: true,
-    category: "eligibility",
-  },
-];
+export const ELIGIBILITY_QUESTIONS: PolicyQuestion[] = BBB_QUESTIONS.map((question) => ({
+  id: question.id,
+  text: question.text,
+  requiredAnswer: question.requiredAnswer,
+  category: question.category,
+}));
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "teal",
@@ -150,7 +89,31 @@ export const SUMMARY_SECTIONS = [
   { key: "recommendation", title: "12 – Adviser Recommendation" },
 ];
 
+export const AI_NARRATIVE_SECTIONS = SUMMARY_SECTIONS.filter(
+  (section) => section.key !== "swot" && section.key !== "recommendation"
+);
+export const CAMPARI_SECTIONS = SUMMARY_SECTIONS.slice(2, 9);
+export const MEMO_SECTIONS = SUMMARY_SECTIONS.filter((section) =>
+  ["overview", "background", "bank"].includes(section.key)
+);
+
 export const CAMPARI_QUESTIONS: Record<string, string[]> = {
+  overview: [
+    "What does the business do, and what is the lending proposition in one paragraph?",
+    "What are the key facts a credit officer needs before reading CAMPARI?",
+  ],
+  background: [
+    "What is the history of the business, ownership, and trading sites?",
+    "What recent events (refinance, distress, expansion) explain this application?",
+  ],
+  bank: [
+    "What does bank conduct show about inflows, outgoings, and missed payments?",
+    "Are there returned items, MCA sweeps, or HMRC time-to-pay deductions?",
+  ],
+  recommendation: [
+    "Should the file proceed, and on what conditions?",
+    "What is the residual risk the credit officer must accept?",
+  ],
   character: [
     "Who are the owners/directors?",
     "What is their track record in business?",

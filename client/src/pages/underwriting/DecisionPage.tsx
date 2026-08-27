@@ -1,6 +1,6 @@
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { ProspectWithCompany, DueDiligenceData } from "@shared/schema";
+import type { ProspectWithCompany } from "@shared/schema";
 import {
     Card,
     CardContent,
@@ -12,18 +12,23 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, TrendingUp, ChevronRight, FileCheck } from "lucide-react";
 import { ARRANGEMENT_FEE_PERCENT, DSCR_THRESHOLD } from "@/lib/creditUnderwriting/constants";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
 
 export default function DecisionPage() {
     const [match, params] = useRoute("/prospect/:id/underwriting/decision");
     const [, setLocation] = useLocation();
     const prospectId = params?.id ? parseInt(params.id) : 0;
 
-    const { data: dueDiligenceData } = useQuery<DueDiligenceData>({
+    const { data: dueDiligenceRaw } = useQuery<unknown>({
         queryKey: [`/api/prospects/${prospectId}/due-diligence`],
     });
 
-    const underwriting = dueDiligenceData?.underwriting || {};
+    const dueDiligenceData = unwrapDueDiligence(dueDiligenceRaw);
+    const underwriting = dueDiligenceData.underwriting || {};
     const financialAnalysis = underwriting.financialAnalysis;
+    const accountsDscr = underwriting.accountsAnalysis?.dscr?.average;
+    const decisionDscr = financialAnalysis?.dscr ?? accountsDscr;
+    const creditsafe = underwriting.creditsafe;
     const isEligible = underwriting.eligibility?.isEligible;
     const loanAmount = underwriting.loanDetails?.amount || 0;
     const termMonths = underwriting.loanDetails?.termMonths || 0;
@@ -90,10 +95,10 @@ export default function DecisionPage() {
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">DSCR</span>
                             <div className="flex items-center gap-2">
-                                <span className={`font-bold ${(financialAnalysis?.dscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}>
-                                    {(financialAnalysis?.dscr || 0).toFixed(2)}x
+                                    <span className={`font-bold ${(decisionDscr || 0) >= DSCR_THRESHOLD ? "text-green-600" : "text-red-600"}`}>
+                                    {decisionDscr != null ? `${decisionDscr.toFixed(2)}x` : "N/A"}
                                 </span>
-                                {(financialAnalysis?.dscr || 0) >= DSCR_THRESHOLD ? (
+                                {(decisionDscr || 0) >= DSCR_THRESHOLD ? (
                                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                                 ) : (
                                     <XCircle className="h-4 w-4 text-red-500" />
@@ -113,6 +118,10 @@ export default function DecisionPage() {
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">Risk Score</span>
                             <span className="font-medium">{financialAnalysis?.riskScore || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Creditsafe</span>
+                            <span className="font-medium">{creditsafe?.score || "N/A"}</span>
                         </div>
                     </CardContent>
                 </Card>

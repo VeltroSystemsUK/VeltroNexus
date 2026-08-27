@@ -68,3 +68,14 @@ storage/
 
 # --- Misc ---
 *.orig
+
+# --- Brainstorm mockups ---
+.superpowers/
+
+# --- Local junk ---
+desktop.ini
+backups/
+.tools/
+node_modules.*/
+scratch_*
+docs/_pptx_unpacked/

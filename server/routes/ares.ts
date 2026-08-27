@@ -27,25 +27,12 @@ router.get("/metrics", isAuthenticated, async (req: AuthenticatedRequest, res: R
 });
 
 // Trigger autonomous enrichment
-router.post("/enrich", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { aresControlCenter } = await import("../services/aresControlCenter");
-    await aresControlCenter.scheduleDailyEnrichment(req.user.id);
-    res.json({ success: true, message: "Enrichment scheduled" });
-  } catch (error) {
-    handleApiError(res, error, "ares-error");
-  }
+router.post("/enrich", isAuthenticated, async (_req: AuthenticatedRequest, res: Response) => {
+  res.status(410).json({ error: "ARES is hibernated. Use Deal files — the stage machine is ORC-1." });
 });
 
-// Run autonomous loop manually
-router.post("/run", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { aresControlCenter } = await import("../services/aresControlCenter");
-    await aresControlCenter.runAutonomousLoop(req.user.id);
-    res.json({ success: true, message: "Autonomous loop complete" });
-  } catch (error) {
-    handleApiError(res, error, "ares-error");
-  }
+router.post("/run", isAuthenticated, async (_req: AuthenticatedRequest, res: Response) => {
+  res.status(410).json({ error: "ARES is hibernated. Use Deal files — the stage machine is ORC-1." });
 });
 
 // ARES Scheduler - Get Status
@@ -60,15 +47,8 @@ router.get("/schedule", isAuthenticated, async (req: AuthenticatedRequest, res: 
 });
 
 // ARES Scheduler - Update Config
-router.post("/schedule", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { aresScheduler } = await import("../services/aresScheduler");
-    aresScheduler.updateConfig(req.body);
-    const status = aresScheduler.getStatus();
-    res.json(status);
-  } catch (error) {
-    handleApiError(res, error, "ares-error");
-  }
+router.post("/schedule", isAuthenticated, async (_req: AuthenticatedRequest, res: Response) => {
+  res.status(410).json({ error: "ARES is hibernated. Use Deal files — the stage machine is ORC-1." });
 });
 
 export default router;

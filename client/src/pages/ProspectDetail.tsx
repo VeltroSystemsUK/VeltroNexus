@@ -16,12 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -126,10 +120,14 @@ import {
 import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
 
 import { AutomaticCreditAnalysis } from "@/components/AutomaticCreditAnalysis";
+import { CreditsafeCheck } from "@/components/CreditsafeCheck";
 import { CompanyInformation } from "@/components/CompanyInformation";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import { ContactEnrichmentDialog } from "@/components/ContactEnrichmentDialog";
 import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog";
+import SubmitApplicationDialog from "@/components/SubmitApplicationDialog";
+import { AttachmentsChecklistForm } from "@/components/AttachmentsChecklistForm";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
 import ReplyToQueryDialog from "@/components/ReplyToQueryDialog";
 import ConversationThread from "@/components/ConversationThread";
 import TimeTracking from "@/components/TimeTracking";
@@ -143,13 +141,12 @@ const STAGES = [
   { value: "lead", label: "Lead" },
   { value: "contacted", label: "Contacted" },
   { value: "qualified", label: "Qualified" },
-  { value: "proposal", label: "Proposal" },
+  { value: "packaging", label: "Packaging" },
   { value: "submission", label: "Submission" },
   { value: "due-diligence", label: "Due Diligence" },
-  { value: "approval", label: "Approval" },
-  { value: "approved", label: "Approved" },
+  { value: "further-information", label: "Further Information" },
   { value: "declined", label: "Declined" },
-  { value: "withdrawn", label: "Withdrawn" },
+  { value: "approved", label: "Approved" },
 ];
 
 const priorityConfig = {
@@ -284,6 +281,14 @@ function UnderwritingStatusBanner({
       iconColor: "text-gray-600 dark:text-gray-400",
       title: "Withdrawn",
       description: "This submission has been withdrawn.",
+    },
+    returned: {
+      bg: "bg-amber-50 dark:bg-amber-950",
+      border: "border-amber-200 dark:border-amber-800",
+      icon: MessageSquare,
+      iconColor: "text-amber-600 dark:text-amber-400",
+      title: "Returned from Sterling",
+      description: "Sterling sent this file back. Work the notes, then submit for underwriting again.",
     },
   };
 
@@ -612,15 +617,38 @@ export default function ProspectDetail() {
     },
   });
 
-  const handleDownloadReport = () => {
-    window.open(`/api/prospects/${prospectId}/report`, "_blank");
+  const handleGenerateReport = async () => {
     toast({
-      title: "Generating report...",
-      description: "Your report download will start shortly.",
+      title: "Generating funding proposal...",
+      description: "Your Sterling Formatted Proposal download will start shortly.",
     });
+    try {
+      const res = await fetch(`/api/prospects/${prospectId}/report`, { credentials: "include" });
+      if (!res.ok) {
+        throw new Error("Failed to generate report");
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = match?.[1] || "Funding_Proposal.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "Could not generate proposal",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const [showUnderwritingDialog, setShowUnderwritingDialog] = useState(false);
+  const [showLenderDialog, setShowLenderDialog] = useState(false);
   const [showReplyDialog, setShowReplyDialog] = useState(false);
 
   const formatCurrency = (amount: number) => {
@@ -689,9 +717,13 @@ export default function ProspectDetail() {
                 <Button variant="outline" onClick={() => navigate("/")} data-testid="link-view-directory">
                   View in Directory
                 </Button>
-                <Button variant="outline" onClick={handleDownloadReport} data-testid="button-download-report">
+                <Button variant="outline" onClick={handleGenerateReport} data-testid="button-generate-report">
                   <FileDown className="h-4 w-4 mr-2" />
-                  Download Report
+                  Generate Report
+                </Button>
+                <Button variant="outline" onClick={() => setShowLenderDialog(true)} data-testid="button-submit-lender">
+                  <Send className="h-4 w-4 mr-2" />
+                  Submit to Lender
                 </Button>
                 <Button onClick={() => setShowUnderwritingDialog(true)} data-testid="button-submit-underwriting">
                   <Send className="h-4 w-4 mr-2" />
@@ -740,9 +772,13 @@ export default function ProspectDetail() {
                     <DropdownMenuItem onClick={() => navigate("/")}>
                       View in Directory
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadReport}>
+                    <DropdownMenuItem onClick={handleGenerateReport}>
                       <FileDown className="h-4 w-4 mr-2" />
-                      Download Report
+                      Generate Report
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowLenderDialog(true)}>
+                      <Send className="h-4 w-4 mr-2" />
+                      Submit to Lender
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setShowUnderwritingDialog(true)}>
                       <Send className="h-4 w-4 mr-2" />
@@ -790,7 +826,7 @@ export default function ProspectDetail() {
 
         <Tabs defaultValue="contacts" className="mt-8">
           <TabsList
-            className={`flex flex-nowrap overflow-x-auto w-full md:grid ${user?.subscriptionTier === "free" ? "md:grid-cols-7" : user?.subscriptionTier === "premium" ? "md:grid-cols-9" : "md:grid-cols-8"} mb-8 pb-2 md:pb-0 gap-2 md:gap-0 scrollbar-hide h-auto`}
+            className={`flex flex-nowrap overflow-x-auto w-full md:grid ${user?.subscriptionTier === "free" ? "md:grid-cols-6" : user?.subscriptionTier === "premium" ? "md:grid-cols-8" : "md:grid-cols-7"} mb-8 pb-2 md:pb-0 gap-2 md:gap-0 scrollbar-hide h-auto`}
           >
             <TabsTrigger value="contacts" data-testid="tab-contacts">
               Contacts
@@ -817,9 +853,6 @@ export default function ProspectDetail() {
                 Associations
               </TabsTrigger>
             )}
-            <TabsTrigger value="summary" data-testid="tab-summary">
-              Summary
-            </TabsTrigger>
             <TabsTrigger value="lenders" data-testid="tab-lenders">
               Lenders
             </TabsTrigger>
@@ -844,12 +877,12 @@ export default function ProspectDetail() {
           <TabsContent value="requirements" className="space-y-6">
             <LoanRequirementCard prospect={prospect} />
             <ResearchTab prospect={prospect} />
+            <AdviserRecommendationSection prospect={prospect} />
           </TabsContent>
 
           <TabsContent value="assessment" className="space-y-6">
-            {user?.subscriptionTier !== "free" && (
-              <DueDiligenceTab prospect={prospect} userTier={user?.subscriptionTier || "free"} />
-            )}
+            <DueDiligenceTab prospect={prospect} userTier={user?.subscriptionTier || "free"} />
+            <AttachmentsChecklistForm prospectId={prospectId} />
             <DocumentsTab prospectId={prospectId} />
           </TabsContent>
 
@@ -891,7 +924,7 @@ export default function ProspectDetail() {
                   </CardContent>
                 </Card>
 
-                <AutomaticCreditAnalysis data={(dueDiligenceData || {}) as DueDiligenceData} />
+                <AutomaticCreditAnalysis data={unwrapDueDiligence(dueDiligenceData)} />
               </div>
             </TabsContent>
           )}
@@ -902,13 +935,10 @@ export default function ProspectDetail() {
             </TabsContent>
           )}
 
-          <TabsContent value="summary">
-            <SummaryTab prospect={prospect} contacts={contacts} activities={activities} />
-          </TabsContent>
-
           <TabsContent value="lenders">
             <LenderRecommendations
               prospectId={prospectId}
+              companyName={prospect.company.companyName}
               onSelectLender={(lenderId) => navigate(`/lenders/${lenderId}`)}
               showDisqualified={false}
               limit={5}
@@ -917,6 +947,13 @@ export default function ProspectDetail() {
         </Tabs>
       </main >
 
+
+      <SubmitApplicationDialog
+        open={showLenderDialog}
+        onOpenChange={setShowLenderDialog}
+        prospectId={prospectId}
+        companyName={prospect.company.companyName}
+      />
 
       <SubmitToUnderwritingDialog
         open={showUnderwritingDialog}
@@ -3011,7 +3048,7 @@ function DueDiligenceTab({
     },
   });
 
-  const dueDiligenceData: DueDiligenceData = (dueDiligence?.data as DueDiligenceData) || {};
+  const dueDiligenceData: DueDiligenceData = unwrapDueDiligence(dueDiligence);
 
   const handleSave = (updates: Partial<DueDiligenceData>) => {
     saveDueDiligenceMutation.mutate(updates);
@@ -3065,15 +3102,15 @@ function DueDiligenceTab({
   };
 
   return (
-    <Tabs defaultValue="tools" className="w-full">
+    <Tabs defaultValue="checklist" className="w-full">
       <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsTrigger value="checklist" data-testid="tab-credit-checklist">
+          <ClipboardList className="h-4 w-4 mr-2" />
+          Handover pack
+        </TabsTrigger>
         <TabsTrigger value="tools" data-testid="tab-credit-tools">
           <Calculator className="h-4 w-4 mr-2" />
           Financial Analysis Tools
-        </TabsTrigger>
-        <TabsTrigger value="checklist" data-testid="tab-credit-checklist">
-          <ClipboardList className="h-4 w-4 mr-2" />
-          Due Diligence Checklist
         </TabsTrigger>
       </TabsList>
 
@@ -3130,793 +3167,6 @@ function DueDiligenceTab({
         />
       </TabsContent>
     </Tabs>
-  );
-}
-
-function SummaryTab({
-  prospect,
-  contacts,
-  activities,
-}: {
-  prospect: ProspectWithCompany;
-  contacts: Contact[];
-  activities: Activity[];
-}) {
-  const { user } = useAuth();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-GB", {
-      style: "currency",
-      currency: "GBP",
-      minimumFractionDigits: 0,
-    }).format(amount / 100);
-  };
-
-  const formatDate = (date: string | Date | null | undefined) => {
-    if (!date) return "N/A";
-    return new Date(date).toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  };
-
-  const { data: companyProfile, isLoading: isLoadingProfile } = useQuery<any>({
-    queryKey: [`/api/companies-house/company/${prospect.company.companyNumber}`],
-    enabled: !!prospect.company.companyNumber,
-  });
-
-  const { data: officers, isLoading: isLoadingOfficers } = useQuery<any>({
-    queryKey: [`/api/companies-house/company/${prospect.company.companyNumber}/officers`],
-    enabled: !!prospect.company.companyNumber,
-  });
-
-  const { data: pscData, isLoading: isLoadingPSC } = useQuery<any>({
-    queryKey: [
-      `/api/companies-house/company/${prospect.company.companyNumber}/persons-with-significant-control`,
-    ],
-    enabled: !!prospect.company.companyNumber,
-  });
-
-  const { data: chargesData, isLoading: isLoadingCharges } = useQuery<any>({
-    queryKey: [`/api/companies-house/company/${prospect.company.companyNumber}/charges`],
-    enabled: !!prospect.company.companyNumber,
-  });
-
-  const { data: dueDiligence } = useQuery<DueDiligence>({
-    queryKey: [`/api/prospects/${prospect.id!}/due-diligence`],
-    enabled: !!prospect.id && prospect.id > 0,
-  });
-
-  const dueDiligenceData = (dueDiligence?.data || {}) as DueDiligenceData & {
-    characterAssessment?: { notes?: string };
-  };
-  const completedActivities = activities.filter((a) => a.completed).length;
-  const savedAssociations = (prospect.savedAssociations || []) as any[];
-
-  const handleDownloadReport = () => {
-    window.open(`/api/prospects/${prospect.id!}/report`, "_blank");
-    toast.success("Generating comprehensive report...");
-  };
-
-  const activeOfficers = officers?.items?.filter((o: any) => !o.resigned_on) || [];
-  const activePSC = pscData?.items?.filter((p: any) => !p.ceased_on) || [];
-  const outstandingCharges =
-    chargesData?.items?.filter((c: any) => c.status === "outstanding") || [];
-
-  const checklistProgress = () => {
-    if (!dueDiligenceData.checklist || dueDiligenceData.checklist.length === 0) return null;
-    const total = dueDiligenceData.checklist.length;
-    const completed = dueDiligenceData.checklist.filter((item: any) => item.checked).length;
-    return { total, completed, percentage: Math.round((completed / total) * 100) };
-  };
-
-  return (
-    <div className="space-y-6">
-      <Card data-testid="card-summary-header">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <CardTitle className="text-2xl flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                Complete Application Summary
-              </CardTitle>
-              <CardDescription className="mt-2">
-                Full overview of all prospect information, Companies House data, and due diligence
-              </CardDescription>
-            </div>
-            <Button
-              size="lg"
-              onClick={handleDownloadReport}
-              data-testid="button-download-summary-report"
-            >
-              <FileDown className="h-5 w-5 mr-2" />
-              Download Full Report
-            </Button>
-          </div>
-        </CardHeader>
-      </Card>
-      <Accordion
-        type="multiple"
-        defaultValue={["company", "loan", "diligence", "associations"]}
-        className="space-y-4"
-      >
-        <AccordionItem
-          value="company"
-          className="border rounded-lg"
-          data-testid="accordion-summary-company"
-        >
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <span className="text-lg font-semibold">Companies House Information</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="bg-muted/30">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Company Details</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Company Name:</span>
-                      <span className="text-sm font-medium">{prospect.company.companyName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Company Number:</span>
-                      <span className="text-sm font-mono font-medium">
-                        {prospect.company.companyNumber}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Status:</span>
-                      <Badge
-                        variant={
-                          prospect.company.companyStatus === "active" ? "default" : "secondary"
-                        }
-                      >
-                        {prospect.company.companyStatus || "Active"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Company Type:</span>
-                      <span className="text-sm font-medium uppercase">
-                        {prospect.company.companyType || "Ltd"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Incorporated:</span>
-                      <span className="text-sm font-medium">
-                        {formatDate(prospect.company.incorporationDate)}
-                      </span>
-                    </div>
-                    {prospect.company.registeredAddress && (
-                      <div>
-                        <span className="text-sm text-muted-foreground block mb-1">
-                          Registered Address:
-                        </span>
-                        <span className="text-sm">{prospect.company.registeredAddress}</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-4">
-                  <Card className="bg-muted/30">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center justify-between">
-                        <span>Officers</span>
-                        {isLoadingOfficers ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Badge variant="outline">{activeOfficers.length} Active</Badge>
-                        )}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {activeOfficers.length > 0 ? (
-                        <div className="space-y-2">
-                          {activeOfficers.slice(0, 5).map((officer: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between text-sm">
-                              <span className="font-medium">{officer.name}</span>
-                              <Badge variant="secondary" className="text-xs">
-                                {officer.officer_role?.replace(/-/g, " ")}
-                              </Badge>
-                            </div>
-                          ))}
-                          {activeOfficers.length > 5 && (
-                            <p className="text-xs text-muted-foreground">
-                              +{activeOfficers.length - 5} more officers
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No officers data available</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-muted/30">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center justify-between">
-                        <span>Persons with Significant Control</span>
-                        {isLoadingPSC ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Badge variant="outline">{activePSC.length} Active</Badge>
-                        )}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {activePSC.length > 0 ? (
-                        <div className="space-y-2">
-                          {activePSC.slice(0, 5).map((psc: any, idx: number) => (
-                            <div key={idx} className="text-sm">
-                              <span className="font-medium">{psc.name}</span>
-                              {psc.natures_of_control && psc.natures_of_control.length > 0 && (
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {psc.natures_of_control[0]?.replace(/-/g, " ")}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No PSC data available</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center justify-between">
-                    <span>Charges / Security Interests</span>
-                    {isLoadingCharges ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Badge variant={outstandingCharges.length > 0 ? "destructive" : "outline"}>
-                        {outstandingCharges.length} Outstanding
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {outstandingCharges.length > 0 ? (
-                    <div className="space-y-2">
-                      {outstandingCharges.map((charge: any, idx: number) => (
-                        <div key={idx} className="text-sm border-l-2 border-amber-500 pl-3">
-                          <span className="font-medium">
-                            {charge.persons_entitled?.[0]?.name || "Unknown Lender"}
-                          </span>
-                          <p className="text-xs text-muted-foreground">
-                            Created: {formatDate(charge.created_on)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No outstanding charges</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem
-          value="loan"
-          className="border rounded-lg"
-          data-testid="accordion-summary-loan"
-        >
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <PoundSterling className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <span className="text-lg font-semibold">Loan Requirements</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Loan Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Current Stage:</span>
-                    <Badge>{STAGES.find((s) => s.value === prospect.stage)?.label}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Priority:</span>
-                    <Badge
-                      variant={
-                        prospect.priority === "high"
-                          ? "destructive"
-                          : prospect.priority === "medium"
-                            ? "secondary"
-                            : "outline"
-                      }
-                    >
-                      {prospect.priority || "Medium"} Priority
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Loan Amount:</span>
-                    <span className="text-sm font-bold text-green-600 dark:text-green-400">
-                      {prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "Not set"}
-                    </span>
-                  </div>
-                  {prospect.term && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Term:</span>
-                      <span className="text-sm font-medium">{prospect.term} months</span>
-                    </div>
-                  )}
-                  {prospect.interestRate && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Interest Rate:</span>
-                      <span className="text-sm font-medium">{prospect.interestRate}% APR</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Security & Collateral</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {prospect.directorsGuarantee && prospect.directorsGuarantee > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Directors Guarantee:</span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(prospect.directorsGuarantee)}
-                      </span>
-                    </div>
-                  )}
-                  {prospect.commercialProperty && prospect.commercialProperty > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Commercial Property:</span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(prospect.commercialProperty)}
-                      </span>
-                    </div>
-                  )}
-                  {prospect.homeEquity && prospect.homeEquity > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Home Equity:</span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(prospect.homeEquity)}
-                      </span>
-                    </div>
-                  )}
-                  {prospect.debenture && prospect.debenture > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Debenture:</span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(prospect.debenture)}
-                      </span>
-                    </div>
-                  )}
-                  {prospect.collateral && prospect.collateral > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Other Collateral:</span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(prospect.collateral)}
-                      </span>
-                    </div>
-                  )}
-                  {!prospect.directorsGuarantee &&
-                    !prospect.commercialProperty &&
-                    !prospect.homeEquity &&
-                    !prospect.debenture &&
-                    !prospect.collateral && (
-                      <p className="text-sm text-muted-foreground">No collateral specified</p>
-                    )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {(prospect.loanRequirementNotes || prospect.notes) && (
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {prospect.loanRequirementNotes && (
-                  <Card className="bg-muted/30">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Loan Requirement Notes</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm whitespace-pre-wrap">{prospect.loanRequirementNotes}</p>
-                    </CardContent>
-                  </Card>
-                )}
-                {prospect.notes && (
-                  <Card className="bg-muted/30">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">General Notes</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm whitespace-pre-wrap">{prospect.notes}</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem
-          value="diligence"
-          className="border rounded-lg"
-          data-testid="accordion-summary-diligence"
-        >
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <CheckSquare className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <span className="text-lg font-semibold">Due Diligence</span>
-              {user?.subscriptionTier === "free" && (
-                <Badge variant="secondary" className="text-xs">
-                  View Only
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <CheckSquare className="h-4 w-4" />
-                    Checklist Progress
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {checklistProgress() ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-2xl font-bold">
-                          {checklistProgress()!.percentage}%
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {checklistProgress()!.completed}/{checklistProgress()!.total} items
-                        </span>
-                      </div>
-                      <progress
-                        value={checklistProgress()!.percentage}
-                        max={100}
-                        className="progress-bar w-full [&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No checklist data</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Calculator className="h-4 w-4" />
-                    Loan Calculator
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {dueDiligenceData.loanCalculator?.loanAmount ? (
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Principal:</span>
-                        <span className="font-medium">
-                          {formatCurrency((dueDiligenceData.loanCalculator.loanAmount || 0) * 100)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Rate:</span>
-                        <span className="font-medium">
-                          {dueDiligenceData.loanCalculator.interestRate}%
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Term:</span>
-                        <span className="font-medium">
-                          {dueDiligenceData.loanCalculator.term} months
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not calculated</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    DSCR Analysis
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {dueDiligenceData.dscr?.annualNetOperatingIncome ? (
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Net Operating Income:</span>
-                        <span className="font-medium">
-                          {formatCurrency(
-                            (dueDiligenceData.dscr.annualNetOperatingIncome || 0) * 100
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Debt Service:</span>
-                        <span className="font-medium">
-                          {formatCurrency((dueDiligenceData.dscr.annualDebtService || 0) * 100)}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not calculated</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Calculator className="h-4 w-4" />
-                    Affordability
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {dueDiligenceData.affordability?.personalIncome ? (
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Personal Income:</span>
-                        <span className="font-medium">
-                          {formatCurrency(
-                            (dueDiligenceData.affordability.personalIncome || 0) * 100
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Commitments:</span>
-                        <span className="font-medium">
-                          {formatCurrency(
-                            (dueDiligenceData.affordability.monthlyCommitments || 0) * 100
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not calculated</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Financial Ratios
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {dueDiligenceData.financialRatios?.revenue ? (
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Revenue:</span>
-                        <span className="font-medium">
-                          {formatCurrency((dueDiligenceData.financialRatios.revenue || 0) * 100)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Current Assets:</span>
-                        <span className="font-medium">
-                          {formatCurrency(
-                            (dueDiligenceData.financialRatios.currentAssets || 0) * 100
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not calculated</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Character Assessment
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {dueDiligenceData.characterAssessment?.notes ? (
-                    <p className="text-sm line-clamp-3">
-                      {dueDiligenceData.characterAssessment.notes}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not assessed</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem
-          value="associations"
-          className="border rounded-lg"
-          data-testid="accordion-summary-associations"
-        >
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Network className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <span className="text-lg font-semibold">Associations & Media</span>
-              {savedAssociations.length > 0 && (
-                <Badge variant="secondary">{savedAssociations.length} saved</Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            {savedAssociations.length > 0 ? (
-              <div className="space-y-4">
-                {["officer", "psc", "address"].map((type) => {
-                  const typeAssociations = savedAssociations.filter(
-                    (a: any) => a.associationType === type
-                  );
-                  if (typeAssociations.length === 0) return null;
-
-                  const typeLabels: { [key: string]: string } = {
-                    officer: "Common Directors",
-                    psc: "Common Ownership",
-                    address: "Same Registered Address",
-                  };
-
-                  return (
-                    <Card key={type} className="bg-muted/30">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base">
-                          {typeLabels[type]} ({typeAssociations.length})
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {typeAssociations.map((company: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between text-sm border-l-2 border-purple-500 pl-3"
-                            >
-                              <div>
-                                <span className="font-medium">{company.company_name}</span>
-                                <span className="text-muted-foreground ml-2 font-mono text-xs">
-                                  ({company.company_number})
-                                </span>
-                              </div>
-                              <Badge variant="outline" className="text-xs">
-                                {company.company_status}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Network className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-semibold mb-2">No Saved Associations</h3>
-                <p className="text-sm text-muted-foreground">
-                  Use the Associations & Media tab to find and save related companies
-                </p>
-              </div>
-            )}
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem
-          value="contacts"
-          className="border rounded-lg"
-          data-testid="accordion-summary-contacts"
-        >
-          <AccordionTrigger className="px-6 hover:no-underline">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                <Users className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-              </div>
-              <span className="text-lg font-semibold">Contacts & Activity</span>
-              <Badge variant="secondary">{contacts.length} contacts</Badge>
-              <Badge variant="secondary">{activities.length} tasks</Badge>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Key Contacts</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {contacts.length > 0 ? (
-                    <div className="space-y-3">
-                      {contacts.map((contact, idx) => (
-                        <div key={idx} className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <User className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{contact.name}</span>
-                              {contact.isPrimary === 1 && (
-                                <Badge variant="default" className="text-xs">
-                                  Primary
-                                </Badge>
-                              )}
-                            </div>
-                            {contact.role && (
-                              <p className="text-xs text-muted-foreground">{contact.role}</p>
-                            )}
-                            {contact.email && (
-                              <p className="text-xs text-muted-foreground">{contact.email}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No contacts added</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Activity Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Total Tasks:</span>
-                      <span className="text-sm font-medium">{activities.length}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Completed:</span>
-                      <span className="text-sm font-medium text-green-600">
-                        {completedActivities}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Pending:</span>
-                      <span className="text-sm font-medium text-amber-600">
-                        {activities.length - completedActivities}
-                      </span>
-                    </div>
-                    <progress
-                      value={activities.length > 0 ? (completedActivities / activities.length) * 100 : 0}
-                      max={100}
-                      className="progress-bar w-full mt-2 [&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-    </div>
   );
 }
 
@@ -4051,9 +3301,10 @@ function CompanyInformationTab({
   return (
     <div className="space-y-6">
       <Tabs defaultValue="official" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4">
+        <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="official">Companies House Data</TabsTrigger>
           <TabsTrigger value="research">Research Data</TabsTrigger>
+          <TabsTrigger value="creditsafe">Credit Check</TabsTrigger>
         </TabsList>
 
         <TabsContent value="official" className="space-y-6">
@@ -4129,6 +3380,10 @@ function CompanyInformationTab({
           ) : (
             <PremiumResearchLock />
           )}
+        </TabsContent>
+
+        <TabsContent value="creditsafe" className="space-y-6">
+          <CreditsafeCheck prospect={prospect} />
         </TabsContent>
       </Tabs>
     </div>
@@ -4569,8 +3824,8 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                 AI Web Search
               </CardTitle>
               <CardDescription>
-                Search the web for news, information, and media coverage about{" "}
-                {prospect.company.companyName}
+                Search news, local press and adverse media about{" "}
+                {prospect.company.companyName} — Companies House listings are excluded
               </CardDescription>
             </div>
             <Button
@@ -4629,20 +3884,27 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
-                              <a
-                                href={result.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-medium hover:underline text-primary"
-                              >
-                                {result.title}
-                              </a>
+                              <div className="flex items-start gap-2 flex-wrap">
+                                <a
+                                  href={result.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium hover:underline text-primary"
+                                >
+                                  {result.title}
+                                </a>
+                                {result.kind === "adverse" && (
+                                  <Badge variant="destructive">Adverse</Badge>
+                                )}
+                                {result.kind === "news" && (
+                                  <Badge variant="secondary">News</Badge>
+                                )}
+                              </div>
                               <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                                 {result.content}
                               </p>
                               <p className="text-xs text-muted-foreground mt-2">
-                                {new URL(result.url).hostname} • Score:{" "}
-                                {result.score?.toFixed(2) || "N/A"}
+                                {new URL(result.url).hostname}
                               </p>
                             </div>
                             <a href={result.url} target="_blank" rel="noopener noreferrer" aria-label="Open source link">
@@ -4679,7 +3941,8 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
               <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-semibold mb-2">Search the Web</h3>
               <p className="text-sm text-muted-foreground">
-                Click "Search Web" to find news and information about {prospect.company.companyName}
+                Click "Search Web" to find news, local coverage and adverse media about{" "}
+                {prospect.company.companyName}
               </p>
             </div>
           )}
@@ -4726,9 +3989,9 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
-      formData.append("file", file);
       formData.append("category", selectedCategory);
       formData.append("notes", notes);
+      formData.append("file", file);
 
       const response = await fetch(`/api/prospects/${prospectId}/documents`, {
         method: "POST",

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { ProspectWithCompany, DueDiligenceData } from "@shared/schema";
+import type { ProspectWithCompany } from "@shared/schema";
 import {
     Card,
     CardContent,
@@ -25,7 +25,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Sparkles, Save } from "lucide-react";
 import { toast } from "sonner";
-import { SUMMARY_SECTIONS, CAMPARI_QUESTIONS } from "@/lib/creditUnderwriting/constants";
+import { CAMPARI_SECTIONS, MEMO_SECTIONS, CAMPARI_QUESTIONS } from "@/lib/creditUnderwriting/constants";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
 
 export default function SummaryPage() {
     const [match, params] = useRoute("/prospect/:id/underwriting/summary");
@@ -35,13 +36,17 @@ export default function SummaryPage() {
         queryKey: [`/api/prospects/${prospectId}`],
     });
 
-    const { data: dueDiligenceData } = useQuery<DueDiligenceData>({
+    const { data: dueDiligenceRaw } = useQuery<unknown>({
         queryKey: [`/api/prospects/${prospectId}/due-diligence`],
     });
 
-    const underwriting = dueDiligenceData?.underwriting || {};
+    const dueDiligenceData = unwrapDueDiligence(dueDiligenceRaw);
+    const underwriting = dueDiligenceData.underwriting || {};
     const [adviserSummary, setAdviserSummary] = useState<any>({});
     const [generatingSection, setGeneratingSection] = useState<string | null>(null);
+    const loanAmount =
+      underwriting.loanDetails?.amount ||
+      (prospect?.loanAmount ? prospect.loanAmount / 100 : 0);
 
     useEffect(() => {
         if (underwriting.adviserSummary) {
@@ -51,8 +56,8 @@ export default function SummaryPage() {
             setAdviserSummary({
                 product: "RGF",
                 region: "England",
-                sector: "Professional Services",
-                purpose: "",
+                sector: prospect.company.sicDescription || "",
+                purpose: prospect.loanRequirementNotes || "",
                 sections: {},
             });
         }
@@ -87,7 +92,14 @@ export default function SummaryPage() {
             const financialAnalysis = underwriting.financialAnalysis;
             const accountsAnalysis = underwriting.accountsAnalysis;
 
-            const financialSummary = financialAnalysis ? JSON.stringify(financialAnalysis) : "";
+            const financialSummary = financialAnalysis
+                ? `Risk Score: ${financialAnalysis.riskScore}, DSCR: ${financialAnalysis.dscr?.toFixed(2) || "N/A"}, Monthly Revenue: £${financialAnalysis.averageMonthlyRevenue?.toLocaleString() || "0"}, Net Disposable Income: £${financialAnalysis.netDisposableIncome?.toLocaleString() || "0"}`
+                : "";
+            const bankAnalysisSummary = financialAnalysis?.summary || "";
+            const accountsAnalysisSummary = accountsAnalysis?.summary || "";
+            const companiesHouseData = prospect?.company
+                ? `Incorporated: ${prospect.company.incorporationDate || "Unknown"}, Status: ${prospect.company.companyStatus || "Unknown"}, Type: ${prospect.company.companyType || "Unknown"}`
+                : "";
 
             const response = await apiRequest(
                 `/api/prospects/${prospectId}/underwriting/campari-section`,
@@ -96,13 +108,20 @@ export default function SummaryPage() {
                     sectionKey,
                     companyName: prospect?.company.companyName,
                     sector: adviserSummary.sector,
-                    loanAmount: underwriting.loanDetails?.amount || 0,
+                    loanAmount,
                     loanPurpose: adviserSummary.purpose,
                     financialSummary,
+                    companiesHouseData,
+                    bankAnalysisSummary,
+                    accountsAnalysisSummary,
                     consentToAiProcessing: true,
                 }
             );
-            return response.json();
+            const payload = await response.json();
+            if (!payload?.sectionKey || !payload?.content || String(payload.content).trim().length < 80) {
+              throw new Error("Auto Write returned no usable content");
+            }
+            return payload;
         },
         onSuccess: (result) => {
             const updatedSections = {
@@ -113,6 +132,7 @@ export default function SummaryPage() {
             setAdviserSummary(updatedSummary);
             saveMutation.mutate(updatedSummary);
             setGeneratingSection(null);
+            toast.success(`${result.sectionKey} written from the file`);
         },
         onError: (error: Error) => {
             toast.error(error.message || "Failed to generate section");
@@ -194,19 +214,17 @@ export default function SummaryPage() {
 
             <Separator />
 
-            {/* CAMPARI Tabs */}
             <div className="space-y-4">
-                <h3 className="text-lg font-semibold">CAMPARI Assessment</h3>
-                <Tabs defaultValue="character" className="w-full">
+                <h3 className="text-lg font-semibold">Credit memo</h3>
+                <Tabs defaultValue="overview" className="w-full">
                     <TabsList className="flex flex-wrap h-auto gap-1">
-                        {SUMMARY_SECTIONS.slice(2, 9).map((section) => (
+                        {MEMO_SECTIONS.map((section) => (
                             <TabsTrigger key={section.key} value={section.key}>
                                 {section.title.split("–")[0]}
                             </TabsTrigger>
                         ))}
                     </TabsList>
-
-                    {SUMMARY_SECTIONS.slice(2, 9).map((section) => (
+                    {MEMO_SECTIONS.map((section) => (
                         <TabsContent key={section.key} value={section.key}>
                             <Card>
                                 <CardHeader className="pb-2">
@@ -215,7 +233,7 @@ export default function SummaryPage() {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            disabled={generatingSection !== null}
+                                            disabled={generatingSection !== null || !loanAmount}
                                             onClick={() => aiSectionMutation.mutate(section.key)}
                                         >
                                             {generatingSection === section.key ? (
@@ -254,27 +272,71 @@ export default function SummaryPage() {
 
             <Separator />
 
-            {/* Final Recommendation */}
-            <Card className="border-primary/20 bg-primary/5">
+            {/* CAMPARI Tabs */}
+            <div className="space-y-4">
+                <h3 className="text-lg font-semibold">CAMPARI Assessment</h3>
+                <Tabs defaultValue="character" className="w-full">
+                    <TabsList className="flex flex-wrap h-auto gap-1">
+                        {CAMPARI_SECTIONS.map((section) => (
+                            <TabsTrigger key={section.key} value={section.key}>
+                                {section.title.split("–")[0]}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+
+                    {CAMPARI_SECTIONS.map((section) => (
+                        <TabsContent key={section.key} value={section.key}>
+                            <Card>
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-base">{section.title}</CardTitle>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={generatingSection !== null || !loanAmount}
+                                            onClick={() => aiSectionMutation.mutate(section.key)}
+                                        >
+                                            {generatingSection === section.key ? (
+                                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                            ) : (
+                                                <Sparkles className="h-4 w-4 text-primary mr-2" />
+                                            )}
+                                            Auto Write
+                                        </Button>
+                                    </div>
+                                    {CAMPARI_QUESTIONS[section.key] && (
+                                        <CardDescription>
+                                            Consider: {CAMPARI_QUESTIONS[section.key].slice(0, 2).join(", ")}...
+                                        </CardDescription>
+                                    )}
+                                </CardHeader>
+                                <CardContent>
+                                    <Textarea
+                                        rows={8}
+                                        value={adviserSummary.sections?.[section.key] || ""}
+                                        onChange={(e) => setAdviserSummary({
+                                            ...adviserSummary,
+                                            sections: {
+                                                ...adviserSummary.sections,
+                                                [section.key]: e.target.value
+                                            }
+                                        })}
+                                        placeholder={`Enter ${section.title} details...`}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    ))}
+                </Tabs>
+            </div>
+
+            <Separator />
+
+            <Card>
                 <CardHeader>
-                    <CardTitle>Final Recommendation</CardTitle>
+                    <CardTitle>Adviser recommendation</CardTitle>
+                    <CardDescription>Written in the Sterling portal. Not stored on this file.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <Select
-                        value={adviserSummary.recommendation || ""}
-                        onValueChange={(val) => setAdviserSummary({ ...adviserSummary, recommendation: val })}
-                    >
-                        <SelectTrigger className="w-full md:w-1/2 bg-background">
-                            <SelectValue placeholder="Select Recommendation" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="approve">Recommend Approval</SelectItem>
-                            <SelectItem value="approve_conditions">Approve with Conditions</SelectItem>
-                            <SelectItem value="refer">Refer to Credit Committee</SelectItem>
-                            <SelectItem value="decline">Recommend Decline</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </CardContent>
             </Card>
         </div>
     );

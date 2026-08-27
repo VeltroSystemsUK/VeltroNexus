@@ -1,8 +1,7 @@
-import { useState } from "react";
-import { useRoute } from "wouter";
+import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { ProspectWithCompany, DueDiligenceData } from "@shared/schema";
+import type { ProspectWithCompany } from "@shared/schema";
 import {
     Card,
     CardContent,
@@ -18,9 +17,12 @@ import {
     Search,
     Loader2,
     Sparkles,
-    AlertCircle
+    AlertCircle,
+    ShieldCheck
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
 
 export default function AnalysisPage() {
     const [match, params] = useRoute("/prospect/:id/underwriting/analysis");
@@ -30,11 +32,14 @@ export default function AnalysisPage() {
         queryKey: [`/api/prospects/${prospectId}`],
     });
 
-    const { data: dueDiligenceData } = useQuery<DueDiligenceData>({
+    const { data: dueDiligenceRaw } = useQuery<unknown>({
         queryKey: [`/api/prospects/${prospectId}/due-diligence`],
     });
 
-    const underwriting = dueDiligenceData?.underwriting || {};
+    const dueDiligenceData = unwrapDueDiligence(dueDiligenceRaw);
+    const underwriting = dueDiligenceData.underwriting || {};
+    const { user } = useAuth();
+    const hasAiConsent = user?.aiDataConsent === 1;
     const adverseMedia = underwriting.adverseMedia;
     const swotAnalysis = underwriting.swotAnalysis;
 
@@ -74,8 +79,13 @@ export default function AnalysisPage() {
                 "POST",
                 {
                     companyName: prospect?.company.companyName,
-                    loanAmount: underwriting.loanDetails?.amount || 0,
-                    loanPurpose: "Business Expansion", // TODO: Get from loan details
+                    loanAmount:
+                      underwriting.loanDetails?.amount ||
+                      (prospect?.loanAmount ? prospect.loanAmount / 100 : 0),
+                    loanPurpose:
+                      underwriting.adviserSummary?.purpose ||
+                      prospect?.loanRequirementNotes ||
+                      "",
                     financialSummary,
                     consentToAiProcessing: true,
                 }
@@ -87,7 +97,9 @@ export default function AnalysisPage() {
             toast.success("SWOT analysis generated");
         },
         onError: (error: any) => {
-            toast.error(error.message || "Failed to generate SWOT");
+            toast.error(error.message || "Failed to generate SWOT", {
+                description: error.message?.includes("consent") ? "Enable AI-Powered Analysis in Settings, then try again." : undefined,
+            });
         },
     });
 
@@ -156,6 +168,56 @@ export default function AnalysisPage() {
                             )}
                         </CardContent>
                     </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <ShieldCheck className="h-5 w-5 text-blue-500" />
+                                Credit Risk (Creditsafe)
+                            </CardTitle>
+                            <CardDescription>Score, rating and credit limit from Creditsafe</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {prospect?.company.creditsafeCheckedAt ? (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">Credit Score</span>
+                                        <p className="text-lg font-semibold">{prospect.company.creditsafeScore || "—"}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">Rating</span>
+                                        <p className="text-lg font-semibold">{prospect.company.creditsafeRatingDescription || "—"}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">Credit Limit</span>
+                                        <p className="text-lg font-semibold">
+                                            {prospect.company.creditsafeCreditLimit != null
+                                                ? new Intl.NumberFormat("en-GB", {
+                                                    style: "currency",
+                                                    currency: "GBP",
+                                                    minimumFractionDigits: 0,
+                                                }).format(prospect.company.creditsafeCreditLimit / 100)
+                                                : "—"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">Checked</span>
+                                        <p className="text-lg font-semibold">
+                                            {new Date(prospect.company.creditsafeCheckedAt).toLocaleDateString("en-GB")}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-sm text-muted-foreground">
+                                    Not yet checked.{" "}
+                                    <Link href={`/prospect/${prospectId}/underwriting/financials`} className="text-primary underline">
+                                        Run a credit check from Financials → Integrations
+                                    </Link>{" "}
+                                    (spends 1 of the trial's 50 report pulls).
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* SWOT Analysis Section */}
@@ -170,7 +232,7 @@ export default function AnalysisPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => swotMutation.mutate()}
-                                disabled={swotMutation.isPending}
+                                disabled={swotMutation.isPending || !hasAiConsent}
                             >
                                 {swotMutation.isPending ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -179,6 +241,9 @@ export default function AnalysisPage() {
                                 )}
                                 <span className="ml-2">Generate</span>
                             </Button>
+                            {!hasAiConsent && (
+                                <Link href="/settings" className="text-xs text-primary underline">Enable AI in Settings</Link>
+                            )}
                         </CardHeader>
                         <CardContent className="flex-1">
                             {swotAnalysis ? (

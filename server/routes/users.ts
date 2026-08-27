@@ -74,7 +74,7 @@ router.get("/auth/user", isAuthenticated, async (req: Request, res: Response) =>
   });
 
 router.patch(
-    "/api/user/settings",
+    "/user/settings",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {

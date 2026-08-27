@@ -381,10 +381,14 @@ export interface IStorage {
     externalUserId: string;
     sentByUserId: string;
     expiresAt: string;
+    status?: string;
   }): Promise<any>;
   getBrokerHandoff(id: number): Promise<any | undefined>;
   listBrokerHandoffsForUser(externalUserId: string): Promise<any[]>;
+  listAllBrokerHandoffs(): Promise<any[]>;
   getBrokerHandoffBySubmission(submissionId: number): Promise<any | undefined>;
+  getBrokerHandoffByProspect(prospectId: number): Promise<any | undefined>;
+  updateBrokerHandoff(id: number, updates: Record<string, unknown>): Promise<any | undefined>;
 
   // Verification exceptions (Companies House monitoring, Google Places checks, due-diligence flags)
   createException(data: {
@@ -396,6 +400,13 @@ export interface IStorage {
   listExceptionsForProspect(prospectId: number): Promise<any[]>;
   listOpenExceptions(): Promise<any[]>;
   resolveException(id: number): Promise<any | undefined>;
+
+  listAgenticDeals(): Promise<import("@shared/agenticWorkflow").AgenticDealFile[]>;
+  getAgenticDeal(id: number): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
+  getAgenticDealByUploadToken(token: string): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
+  createAgenticDeal(deal: Partial<import("@shared/agenticWorkflow").AgenticDealFile>): Promise<import("@shared/agenticWorkflow").AgenticDealFile>;
+  updateAgenticDeal(id: number, updates: Partial<import("@shared/agenticWorkflow").AgenticDealFile>): Promise<import("@shared/agenticWorkflow").AgenticDealFile>;
+  deleteAgenticDeal(id: number): Promise<void>;
 
   // Teams
   getTeams(userId?: string): Promise<Team[]>;

@@ -18,13 +18,13 @@ const SECTIONS: ExportSection[] = [
   {
     title: "POST ENQUIRY STAGE - Receipt of Application form or Business Plan",
     headerLabel: "Post Enquiry",
-    stages: ["qualified", "proposal", "due-diligence"],
+    stages: ["qualified", "packaging", "due-diligence"],
     startRow: 17,
   },
   {
     title: "IN FLIGHT STAGE - Applications with MF",
     headerLabel: "In Flight",
-    stages: ["submission"],
+    stages: ["submission", "further-information"],
     startRow: 32,
   },
   {
@@ -34,9 +34,9 @@ const SECTIONS: ExportSection[] = [
     startRow: 47,
   },
   {
-    title: "CLOSED DEALS - Declined or Withdrawn",
+    title: "CLOSED DEALS - Declined",
     headerLabel: "Closed Status",
-    stages: ["declined", "withdrawn"],
+    stages: ["declined"],
     startRow: 62,
   },
 ];

@@ -26,34 +26,29 @@ function addColumn(db: InstanceType<typeof Database>, table: string, column: str
   }
 }
 
-let _db: InstanceType<typeof Database> | null = null;
-let _dbPath: string | null = null;
+// One connection per resolved path, keyed so concurrent callers targeting
+// different databases (e.g. lead_finder.db vs broker_finder.db) never race
+// on a shared mutable "current path" — each dbPath argument is independent.
+const _connections = new Map<string, InstanceType<typeof Database>>();
 
-/** Call before/after switching DATABASE_PATH env var to pick up the new path. */
-export function resetDbConnection(): void {
-  _db?.close();
-  _db = null;
-  _dbPath = null;
-}
-
-function getDb(): InstanceType<typeof Database> {
-  const currentPath = process.env['DATABASE_PATH'] ?? resolve('./lead_finder.db');
-  if (!_db || _dbPath !== currentPath) {
-    _db?.close();
-    _db = new Database(currentPath);
-    _dbPath = currentPath;
-    _db.pragma('journal_mode = WAL');
-    _db.pragma('foreign_keys = ON');
+function getDb(dbPath?: string): InstanceType<typeof Database> {
+  const currentPath = dbPath ?? process.env['DATABASE_PATH'] ?? resolve('./lead_finder.db');
+  let db = _connections.get(currentPath);
+  if (!db) {
+    db = new Database(currentPath);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    _connections.set(currentPath, db);
   }
-  return _db;
+  return db;
 }
 
 // ─────────────────────────────────────────────
 // Schema
 // ─────────────────────────────────────────────
 
-export function initDb(): void {
-  const db = getDb();
+export function initDb(dbPath?: string): void {
+  const db = getDb(dbPath);
   db.exec(`
     CREATE TABLE IF NOT EXISTS businesses (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,8 +179,8 @@ function rowToBusiness(row: DbRow): Business {
 // Write operations
 // ─────────────────────────────────────────────
 
-export function upsertBusiness(business: Business): Business {
-  const db = getDb();
+export function upsertBusiness(business: Business, dbPath?: string): Business {
+  const db = getDb(dbPath);
   const hash = business.searchHash ?? computeSearchHash(business);
 
   const existing = db
@@ -293,8 +288,8 @@ export function upsertBusiness(business: Business): Business {
 // Read operations
 // ─────────────────────────────────────────────
 
-export function getUnenrichedBusinesses(limit = 50): Business[] {
-  const rows = getDb()
+export function getUnenrichedBusinesses(limit = 50, dbPath?: string): Business[] {
+  const rows = getDb(dbPath)
     .prepare(`
       SELECT * FROM businesses
       WHERE website IS NOT NULL AND email IS NULL
@@ -304,11 +299,11 @@ export function getUnenrichedBusinesses(limit = 50): Business[] {
   return rows.map(rowToBusiness);
 }
 
-export function getHighQualityLeadsForStrategy(limit = 100): Business[] {
-  const rows = getDb()
+export function getHighQualityLeadsForStrategy(limit = 100, dbPath?: string): Business[] {
+  const rows = getDb(dbPath)
     .prepare(`
       SELECT * FROM businesses
-      WHERE lead_score >= 0.7 
+      WHERE lead_score >= 0.7
       AND strategy_analysis IS NULL
       AND email IS NOT NULL
       LIMIT ?
@@ -317,9 +312,16 @@ export function getHighQualityLeadsForStrategy(limit = 100): Business[] {
   return rows.map(rowToBusiness);
 }
 
-export function getBusinessesForExport(filters: SearchFilters): Business[] {
-  const db = getDb();
-  const conditions: string[] = [];
+export function getBusinessByPlaceId(placeId: string, dbPath?: string): Business | undefined {
+  const row = getDb(dbPath)
+    .prepare(`SELECT * FROM businesses WHERE google_place_id = ?`)
+    .get(placeId) as DbRow | undefined;
+  return row ? rowToBusiness(row) : undefined;
+}
+
+export function getBusinessesForExport(filters: SearchFilters, dbPath?: string): Business[] {
+  const db = getDb(dbPath);
+  const conditions: string[] = ['migrated = 0'];
   const params: (string | number)[] = [];
 
   if (filters.minRating) {
@@ -346,14 +348,14 @@ export function getBusinessesForExport(filters: SearchFilters): Business[] {
   return (db.prepare(sql).all(...params) as DbRow[]).map(rowToBusiness);
 }
 
-export function getRunStats(searchQuery?: string): {
+export function getRunStats(searchQuery?: string, dbPath?: string): {
   total: number;
   enriched: number;
   emailsFound: number;
   highQuality: number;
   pecrEligible: number;
 } {
-  const db = getDb();
+  const db = getDb(dbPath);
   const where = searchQuery ? 'WHERE search_query = ?' : '';
   const params = searchQuery ? [searchQuery] : [];
 
@@ -369,16 +371,16 @@ export function getRunStats(searchQuery?: string): {
 }
 
 
-export function deleteBusiness(placeId: string): void {
-  getDb().prepare('DELETE FROM businesses WHERE google_place_id = ?').run(placeId);
+export function deleteBusiness(placeId: string, dbPath?: string): void {
+  getDb(dbPath).prepare('DELETE FROM businesses WHERE google_place_id = ?').run(placeId);
 }
 
-export function clearAllBusinesses(): void {
-  getDb().prepare('DELETE FROM businesses').run();
+export function clearAllBusinesses(dbPath?: string): void {
+  getDb(dbPath).prepare('DELETE FROM businesses').run();
 }
 
-export function updateBusinessContact(placeId: string, contact: { email: string, context?: string }): void {
-  const db = getDb();
+export function updateBusinessContact(placeId: string, contact: { email: string, context?: string }, dbPath?: string): void {
+  const db = getDb(dbPath);
   // We'll update the email. We could also append to notes if we had a notes field in this table, 
   // but for now we'll just update the email and mark it as manually enriched.
 
@@ -392,8 +394,8 @@ export function updateBusinessContact(placeId: string, contact: { email: string,
   `).run(contact.email, placeId);
 }
 
-export function markBusinessAsMigrated(placeId: string): void {
-  const db = getDb();
+export function markBusinessAsMigrated(placeId: string, dbPath?: string): void {
+  const db = getDb(dbPath);
   db.prepare(`
     UPDATE businesses SET
       migrated = 1

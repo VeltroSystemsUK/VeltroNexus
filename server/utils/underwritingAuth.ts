@@ -15,7 +15,7 @@ export type UnderwritingSubmission = {
   id: number;
   brokerId: string;
   status?: string | null;
-  assignedUnderwriterId?: string | null;
+  underwriterId?: string | null;
 };
 
 export type Ctx = {
@@ -66,7 +66,7 @@ function canReadSubmission(
   if (isSuperAdmin(user.role)) return true;
 
   const isSubmittingBroker = submission.brokerId === user.id;
-  const isAssignedUnderwriter = submission.assignedUnderwriterId === user.id;
+  const isAssignedUnderwriter = submission.underwriterId === user.id;
 
   if (isSubmittingBroker || isAssignedUnderwriter) return true;
 
@@ -74,7 +74,7 @@ function canReadSubmission(
     !!opts.allowTriage &&
     isUnderwriter(user) &&
     submission.status === "submitted" &&
-    submission.assignedUnderwriterId == null;
+    submission.underwriterId == null;
 
   return triageAllowed;
 }
@@ -87,7 +87,7 @@ function canWriteSubmission(submission: UnderwritingSubmission, user: AuthUser) 
   if (submission.brokerId === user.id) return false;
 
   // Underwriters can only write to submissions assigned to them
-  return isUnderwriter(user) && submission.assignedUnderwriterId === user.id;
+  return isUnderwriter(user) && submission.underwriterId === user.id;
 }
 
 export function requireSubmissionReadAccess(params: { storage: any; allowTriage?: boolean }) {

@@ -54,7 +54,12 @@ const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
 const BrokerPortal = lazy(() => import("@/pages/BrokerPortal"));
+const SterlingFile = lazy(() => import("@/pages/sterling/SterlingFile"));
+const SterlingSettings = lazy(() => import("@/pages/sterling/SterlingSettings"));
 const IntroductionPortal = lazy(() => import("@/pages/IntroductionPortal"));
+const PackUpload = lazy(() => import("@/pages/PackUpload"));
+const CallCentre = lazy(() => import("@/pages/CallCentre"));
+const AgentMail = lazy(() => import("@/pages/AgentMail"));
 
 
 import { CookieConsent } from "@/components/CookieConsent";
@@ -80,6 +85,23 @@ function Router() {
   const isUnderwriter = role === "underwriter";
   const isExternalBroker = role === "external_broker";
 
+  if (isAuthenticated && isExternalBroker) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/pack/:token" component={PackUpload} />
+          <Route path="/broker-portal/settings" component={SterlingSettings} />
+          <Route path="/broker-portal/:id" component={SterlingFile} />
+          <Route path="/broker-portal" component={BrokerPortal} />
+          <Route path="/auth" component={AuthPage} />
+          <Route>
+            <Redirect to="/broker-portal" />
+          </Route>
+        </Switch>
+      </Suspense>
+    );
+  }
+
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
@@ -89,7 +111,14 @@ function Router() {
         <Route path="/terms" component={Terms} />
         <Route path="/unsubscribe" component={Unsubscribe} />
         <Route path="/introduction-portal" component={IntroductionPortal} />
+        <Route path="/pack/:token" component={PackUpload} />
 
+        <Route path="/broker-portal/settings">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingSettings />}
+        </Route>
+        <Route path="/broker-portal/:id">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingFile />}
+        </Route>
         <Route path="/broker-portal">
           {!isAuthenticated ? <Redirect to="/auth" /> : <BrokerPortal />}
         </Route>
@@ -163,6 +192,16 @@ function Router() {
         <Route path="/whatsapp">
           {!isAuthenticated ? <Redirect to="/auth" /> : <WhatsApp />}
         </Route>
+        <Route path="/agent-mail">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <AgentMail />}
+        </Route>
+        <Route path="/outreach">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <CallCentre mode="outreach" />}
+        </Route>
+        <Route path="/customer-service">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <CallCentre mode="service" />}
+        </Route>
+
         <Route path="/email-templates">
           {!isAuthenticated ? <Redirect to="/auth" /> : <EmailTemplates />}
         </Route>
@@ -219,7 +258,20 @@ function Router() {
 import { OnboardingProvider, WelcomeModal, CelebrationModal } from "@/components/onboarding";
 
 function AppContent() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const [location] = useLocation();
+  const { isAuthenticated, isLoading, user, role } = useAuth();
+  const isCustomerPack = location.startsWith("/pack/");
+  const isSterlingPortal =
+    role === "external_broker" || location.startsWith("/broker-portal");
+
+  // Customer pack and the Sterling portal stay full-screen — no Nexus Command Deck.
+  if (isCustomerPack || (isAuthenticated && !isLoading && isSterlingPortal)) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Router />
+      </Suspense>
+    );
+  }
 
   // Signed-in: the Command Deck shell (lens rail + ⌘K bar + atmosphere)
   if (isAuthenticated && !isLoading) {

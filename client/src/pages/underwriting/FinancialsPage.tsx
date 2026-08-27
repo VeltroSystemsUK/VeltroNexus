@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { ProspectWithCompany, DueDiligenceData } from "@shared/schema";
+import type { ProspectWithCompany } from "@shared/schema";
 import {
     Card,
     CardContent,
@@ -27,6 +27,9 @@ import {
     RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
+import { CreditsafeCheck } from "@/components/CreditsafeCheck";
+import { AccountsAnalysis } from "@/components/AccountsAnalysis";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
 
 export default function FinancialsPage() {
     const [match, params] = useRoute("/prospect/:id/underwriting/financials");
@@ -36,11 +39,12 @@ export default function FinancialsPage() {
         queryKey: [`/api/prospects/${prospectId}`],
     });
 
-    const { data: dueDiligenceData } = useQuery<DueDiligenceData>({
+    const { data: dueDiligenceRaw } = useQuery<unknown>({
         queryKey: [`/api/prospects/${prospectId}/due-diligence`],
     });
 
-    const underwriting = dueDiligenceData?.underwriting || {};
+    const dueDiligenceData = unwrapDueDiligence(dueDiligenceRaw);
+    const underwriting = dueDiligenceData.underwriting || {};
 
     // State for CSV Upload
     const [csvFileName, setCsvFileName] = useState(underwriting.csvFileName || "");
@@ -148,17 +152,7 @@ export default function FinancialsPage() {
                 </TabsContent>
 
                 <TabsContent value="accounts" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Audited Accounts (PDF)</CardTitle>
-                            <CardDescription>Upload last 3 years of accounts.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-sm text-muted-foreground text-center py-8">
-                                PDF Parsing and Analysis module coming soon.
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {prospect && <AccountsAnalysis prospect={prospect} />}
                 </TabsContent>
 
                 <TabsContent value="integrations" className="space-y-4">
@@ -184,6 +178,7 @@ export default function FinancialsPage() {
                             </div>
                         </CardContent>
                     </Card>
+                    {prospect && <CreditsafeCheck prospect={prospect} />}
                 </TabsContent>
             </Tabs>
         </div>

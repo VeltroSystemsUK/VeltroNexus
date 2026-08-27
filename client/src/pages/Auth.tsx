@@ -39,7 +39,7 @@ export default function AuthPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (user) {
-            setLocation("/pipeline");
+            setLocation(user.role === "external_broker" ? "/broker-portal" : "/pipeline");
         }
     }, [user]);
 
@@ -63,7 +63,7 @@ export default function AuthPage() {
                 isAuthenticated: true,
             });
             toast({ title: "Welcome back." });
-            setLocation("/pipeline");
+            setLocation(user.role === "external_broker" ? "/broker-portal" : "/pipeline");
         },
         onError: (error: Error) => {
             toast({
@@ -87,7 +87,7 @@ export default function AuthPage() {
             <div className="relative z-10 flex items-center justify-center p-6 sm:p-8">
                 <div className="w-full max-w-md">
                     <div className="flex justify-center mb-7">
-                        <img src={logoChrome} alt="Veltro" className="h-11 w-auto" />
+                        <img src={logoChrome} alt="NEXUS" className="h-11 w-auto" />
                     </div>
 
                     <div className="glass p-6 sm:p-8">
@@ -154,7 +154,7 @@ export default function AuthPage() {
                     </div>
 
                     <p className="text-center text-xs text-muted-foreground mt-7">
-                        Veltro &mdash; internal delivery system
+                        NEXUS &mdash; internal delivery system
                     </p>
                 </div>
             </div>
@@ -170,7 +170,7 @@ export default function AuthPage() {
                     </div>
 
                     <h1 className="text-6xl font-semibold tracking-tight leading-[0.95] chrome-text">
-                        Veltro
+                        NEXUS
                     </h1>
                     <p className="mt-5 text-2xl font-light text-foreground/90 leading-snug">
                         Built for speed.<br />Bred for business.

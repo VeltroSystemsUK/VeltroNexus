@@ -70,6 +70,12 @@ export const companies = sqliteTable('companies', {
   website: text('website'),
   sicCode: text('sic_code'),
   sicDescription: text('sic_description'),
+  creditsafeId: text('creditsafe_id'),
+  creditsafeScore: text('creditsafe_score'),
+  creditsafeRatingDescription: text('creditsafe_rating_description'),
+  creditsafeCreditLimit: integer('creditsafe_credit_limit'), // pence, like loanAmount
+  creditsafeCheckedAt: integer('creditsafe_checked_at', { mode: 'timestamp' }),
+  creditsafeReport: text('creditsafe_report'), // full raw report JSON, for anything not modeled above
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -332,3 +338,4 @@ export const scrapedLeads = sqliteTable('scraped_leads', {
 const sqlite = new Database('veltro.db');
 sqlite.pragma('journal_mode = WAL'); // Enable high-performance WAL mode
 export const db = drizzle(sqlite);
+export const sqliteConnection = sqlite;

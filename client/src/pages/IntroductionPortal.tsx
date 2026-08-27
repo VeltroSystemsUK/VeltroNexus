@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { assessBbbEligibility, BBB_QUESTIONS, BBB_SCHEME_NAME } from "@shared/bbbEligibility";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -138,30 +139,12 @@ export default function IntroductionPortal() {
     setIsLocationVerified(false);
   };
 
-  // --- Step 3 State: Eligibility BBB Checklist ---
-  const [checklist, setChecklist] = useState({
-    ukTrading: true,
-    minTradingMonths: true,
-    minTurnover: true,
-    noBankruptcy: true,
-    noCCJs: true,
-    legitimatePurpose: true
-  });
-  const [isEligible, setIsEligible] = useState(true);
+  // --- Step 3 State: British Business Bank eligibility ---
+  const [bbbAnswers, setBbbAnswers] = useState<Record<string, boolean | undefined>>({});
   const [showIneligibleStop, setShowIneligibleStop] = useState(false);
 
-  const handleChecklistChange = (key: keyof typeof checklist, val: boolean) => {
-    const updated = { ...checklist, [key]: val };
-    setChecklist(updated);
-    
-    // Evaluate eligibility criteria
-    const eligible = updated.ukTrading && 
-                     updated.minTradingMonths && 
-                     updated.minTurnover && 
-                     updated.noBankruptcy && 
-                     updated.noCCJs && 
-                     updated.legitimatePurpose;
-    setIsEligible(eligible);
+  const handleChecklistChange = (key: string, val: boolean) => {
+    setBbbAnswers((prev) => ({ ...prev, [key]: val }));
   };
 
   // --- Step 4 State: Factfind ---
@@ -176,6 +159,46 @@ export default function IntroductionPortal() {
   
   const [requestedAmount, setRequestedAmount] = useState<string>("50000");
   const [requestedTerm, setRequestedTerm] = useState<number>(60);
+
+  // Prefill from stratafinance.co.uk (and introducer share links)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if ([...params.keys()].length === 0) return;
+
+    const name = (params.get("name") || params.get("contactName") || "").trim();
+    const emailParam = (params.get("email") || "").trim();
+    const phoneParam = (params.get("phone") || "").trim();
+    const company = (params.get("company") || params.get("compName") || "").trim();
+    const amount = Number(params.get("amount") || "");
+    const monthly = Number(params.get("monthly") || "");
+    const type = params.get("type");
+    const ref = params.get("ref");
+
+    if (ref === "introducer") setUserType("introducer");
+    if (type === "new_loan" || type === "refinance") setRequestType(type);
+    if (name) setContactName(name);
+    if (emailParam) setEmail(emailParam);
+    if (phoneParam) setPhone(phoneParam);
+    if (company) setCompanySearchQuery(company);
+
+    if (Number.isFinite(amount) && amount > 0) {
+      if (type === "new_loan") {
+        setRequestedAmount(String(Math.round(amount)));
+      } else {
+        setExistingDebts([{
+          id: "1",
+          lender: "Existing facility",
+          balance: amount,
+          rate: 15,
+          monthlyPayment: Number.isFinite(monthly) && monthly > 0 ? monthly : 0,
+        }]);
+      }
+    }
+
+    if (name || emailParam || company || (Number.isFinite(amount) && amount > 0)) {
+      setStep(2);
+    }
+  }, []);
 
   const handleAddDebt = () => {
     if (!newLender || !newBalance) {
@@ -211,6 +234,12 @@ export default function IntroductionPortal() {
 
   const totalRefinanceRequired = existingDebts.reduce((sum, d) => sum + d.balance, 0);
   const currentTotalMonthly = existingDebts.reduce((sum, d) => sum + d.monthlyPayment, 0);
+  const bbbAssessment = assessBbbEligibility({
+    answers: bbbAnswers,
+    address: customAddress || selectedCompany?.address_snippet,
+    loanAmountGbp: requestType === "refinance" ? totalRefinanceRequired : (parseFloat(requestedAmount) || undefined),
+  });
+  const isEligible = bbbAssessment.status === "pass";
 
   // --- Step 5 State: Pricing Indication ---
   const standardApr = 19.0;
@@ -304,6 +333,16 @@ export default function IntroductionPortal() {
   const [submissionId, setSubmissionId] = useState("");
 
   const handleSubmitPortal = async () => {
+    if (bbbAssessment.status !== "pass") {
+      toast({
+        title: "Not eligible",
+        description: "British Business Bank eligibility must pass before we can consider this application.",
+        variant: "destructive"
+      });
+      setShowIneligibleStop(true);
+      return;
+    }
+
     if (!signatureName || !termsAccepted) {
       toast({
         title: "Action Required",
@@ -339,7 +378,8 @@ export default function IntroductionPortal() {
         region: getRegionText(),
 
         // Eligibility & Docs
-        checklistAnswers: checklist,
+        checklistAnswers: bbbAnswers,
+        bbbEligibility: bbbAssessment,
         factfindData: requestType === "refinance" ? { existingDebts, isEstimate } : { requestedAmount },
         disclosuresAgreed: disclosureChecked,
 
@@ -404,7 +444,7 @@ export default function IntroductionPortal() {
     }
 
     if (step === 3) {
-      if (!isEligible) {
+      if (bbbAssessment.status !== "pass") {
         setShowIneligibleStop(true);
         return;
       }
@@ -483,31 +523,18 @@ export default function IntroductionPortal() {
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-amber-100">Not right now</h2>
-                <p className="text-sm text-amber-200/70 mt-1">Your business needs to meet a few more criteria before we can help.</p>
+                <p className="text-sm text-amber-200/70 mt-1">
+                  We can only consider applications that are eligible for {BBB_SCHEME_NAME}.
+                </p>
               </div>
             </div>
             <CardContent className="p-8 space-y-6">
               <div>
                 <h3 className="font-semibold text-white text-base mb-3">What needs to change:</h3>
                 <ul className="space-y-2 text-sm text-slate-300">
-                  {!checklist.ukTrading && (
-                    <li className="flex gap-2"><span className="text-amber-400">•</span> Based and trading in the UK</li>
-                  )}
-                  {!checklist.minTradingMonths && (
-                    <li className="flex gap-2"><span className="text-amber-400">•</span> Been operating for at least 12 months</li>
-                  )}
-                  {!checklist.minTurnover && (
-                    <li className="flex gap-2"><span className="text-amber-400">•</span> Annual turnover over £100,000</li>
-                  )}
-                  {!checklist.noBankruptcy && (
-                    <li className="flex gap-2"><span className="text-amber-400">•</span> No directors with bankruptcy or disqualification</li>
-                  )}
-                  {!checklist.noCCJs && (
-                    <li className="flex gap-2"><span className="text-amber-400">•</span> No major court judgments (over £5k)</li>
-                  )}
-                  {!checklist.legitimatePurpose && (
-                    <li className="flex gap-2"><span className="text-amber-400">•</span> Funding for business use (growth, working capital, refinance)</li>
-                  )}
+                  {bbbAssessment.reasons.map((reason) => (
+                    <li key={reason} className="flex gap-2"><span className="text-amber-400">•</span> {reason}</li>
+                  ))}
                 </ul>
               </div>
 
@@ -788,141 +815,46 @@ export default function IntroductionPortal() {
               <Card className="w-full bg-slate-800/40 border border-emerald-800/40 shadow-2xl backdrop-blur-xl animate-in fade-in duration-500 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/5 via-transparent to-transparent pointer-events-none"></div>
                 <CardHeader className="relative z-10">
-                  <CardTitle className="text-2xl font-bold text-white">Quick questions</CardTitle>
-                  <CardDescription className="text-slate-300">Just to make sure we can help you</CardDescription>
+                  <CardTitle className="text-2xl font-bold text-white">British Business Bank eligibility</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    We can only consider applications that meet {BBB_SCHEME_NAME} criteria. Every answer is required.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4 relative z-10">
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors">
-                    <div className="flex-1 pr-4">
-                      <h4 className="font-semibold text-white text-sm">Based in the UK?</h4>
-                      <p className="text-xs text-slate-400 mt-1">Registered and actively trading here</p>
-                    </div>
-                    <RadioGroup
-                      defaultValue={checklist.ukTrading ? "yes" : "no"}
-                      onValueChange={(val) => handleChecklistChange("ukTrading", val === "yes")}
-                      className="flex gap-4"
+                  {BBB_QUESTIONS.map((question) => (
+                    <div
+                      key={question.id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors"
                     >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes" id="uk-yes" className="border-emerald-600 text-emerald-600" />
-                        <Label htmlFor="uk-yes" className="text-xs cursor-pointer text-slate-300">Yes</Label>
+                      <div className="flex-1 pr-4">
+                        <h4 className="font-semibold text-white text-sm">{question.text}</h4>
+                        <p className="text-xs text-slate-400 mt-1">{question.help}</p>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="no" id="uk-no" className="border-slate-600 text-slate-600" />
-                        <Label htmlFor="uk-no" className="text-xs cursor-pointer text-slate-300">No</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors">
-                    <div className="flex-1 pr-4">
-                      <h4 className="font-semibold text-white text-sm">Trading for 12+ months?</h4>
-                      <p className="text-xs text-slate-400 mt-1">Established business, active trading</p>
+                      <RadioGroup
+                        value={bbbAnswers[question.id] === true ? "yes" : bbbAnswers[question.id] === false ? "no" : ""}
+                        onValueChange={(val) => handleChecklistChange(question.id, val === "yes")}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="yes" id={`${question.id}-yes`} className="border-emerald-600 text-emerald-600" />
+                          <Label htmlFor={`${question.id}-yes`} className="text-xs cursor-pointer text-slate-300">Yes</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="no" id={`${question.id}-no`} className="border-slate-600 text-slate-600" />
+                          <Label htmlFor={`${question.id}-no`} className="text-xs cursor-pointer text-slate-300">No</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
-                    <RadioGroup
-                      defaultValue={checklist.minTradingMonths ? "yes" : "no"}
-                      onValueChange={(val) => handleChecklistChange("minTradingMonths", val === "yes")}
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes" id="tenure-yes" className="border-emerald-600 text-emerald-600" />
-                        <Label htmlFor="tenure-yes" className="text-xs cursor-pointer text-slate-300">Yes</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="no" id="tenure-no" className="border-slate-600 text-slate-600" />
-                        <Label htmlFor="tenure-no" className="text-xs cursor-pointer text-slate-300">No</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
+                  ))}
 
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors">
-                    <div className="flex-1 pr-4">
-                      <h4 className="font-semibold text-white text-sm">Turnover over £100k?</h4>
-                      <p className="text-xs text-slate-400 mt-1">Annual revenue exceeds £100,000</p>
-                    </div>
-                    <RadioGroup
-                      defaultValue={checklist.minTurnover ? "yes" : "no"}
-                      onValueChange={(val) => handleChecklistChange("minTurnover", val === "yes")}
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes" id="turnover-yes" className="border-emerald-600 text-emerald-600" />
-                        <Label htmlFor="turnover-yes" className="text-xs cursor-pointer text-slate-300">Yes</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="no" id="turnover-no" className="border-slate-600 text-slate-600" />
-                        <Label htmlFor="turnover-no" className="text-xs cursor-pointer text-slate-300">No</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors">
-                    <div className="flex-1 pr-4">
-                      <h4 className="font-semibold text-white text-sm">No bankruptcies or disqualifications?</h4>
-                      <p className="text-xs text-slate-400 mt-1">All directors have clean status</p>
-                    </div>
-                    <RadioGroup
-                      defaultValue={checklist.noBankruptcy ? "yes" : "no"}
-                      onValueChange={(val) => handleChecklistChange("noBankruptcy", val === "yes")}
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes" id="bank-yes" className="border-emerald-600 text-emerald-600" />
-                        <Label htmlFor="bank-yes" className="text-xs cursor-pointer text-slate-300">Yes</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="no" id="bank-no" className="border-slate-600 text-slate-600" />
-                        <Label htmlFor="bank-no" className="text-xs cursor-pointer text-slate-300">No</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors">
-                    <div className="flex-1 pr-4">
-                      <h4 className="font-semibold text-white text-sm">No major CCJs?</h4>
-                      <p className="text-xs text-slate-400 mt-1">No court judgments over £5,000 outstanding</p>
-                    </div>
-                    <RadioGroup
-                      defaultValue={checklist.noCCJs ? "yes" : "no"}
-                      onValueChange={(val) => handleChecklistChange("noCCJs", val === "yes")}
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes" id="ccj-yes" className="border-emerald-600 text-emerald-600" />
-                        <Label htmlFor="ccj-yes" className="text-xs cursor-pointer text-slate-300">Yes</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="no" id="ccj-no" className="border-slate-600 text-slate-600" />
-                        <Label htmlFor="ccj-no" className="text-xs cursor-pointer text-slate-300">No</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors">
-                    <div className="flex-1 pr-4">
-                      <h4 className="font-semibold text-white text-sm">For business purposes?</h4>
-                      <p className="text-xs text-slate-400 mt-1">Growth, working capital, or debt refinance</p>
-                    </div>
-                    <RadioGroup
-                      defaultValue={checklist.legitimatePurpose ? "yes" : "no"}
-                      onValueChange={(val) => handleChecklistChange("legitimatePurpose", val === "yes")}
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes" id="purpose-yes" className="border-emerald-600 text-emerald-600" />
-                        <Label htmlFor="purpose-yes" className="text-xs cursor-pointer text-slate-300">Yes</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="no" id="purpose-no" className="border-slate-600 text-slate-600" />
-                        <Label htmlFor="purpose-no" className="text-xs cursor-pointer text-slate-300">No</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  {!isEligible && (
+                  {bbbAssessment.status !== "pass" && Object.keys(bbbAnswers).length > 0 && (
                     <div className="p-4 bg-amber-950/50 border border-amber-800/50 rounded-xl flex gap-3 text-amber-200 text-xs items-start">
                       <AlertCircle className="h-4.5 w-4.5 text-amber-400 mt-0.5 shrink-0" />
                       <div>
-                        <span className="font-semibold">Can't proceed right now:</span> You don't meet the criteria yet. We'll show you what to do next.
+                        <span className="font-semibold">Can't consider this application yet:</span>{" "}
+                        {bbbAssessment.status === "incomplete"
+                          ? "Answer every question."
+                          : "It does not meet British Business Bank eligibility."}
                       </div>
                     </div>
                   )}

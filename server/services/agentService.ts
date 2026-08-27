@@ -3,16 +3,114 @@ import { DigitalAssociate, AssociateStatus } from "@shared/agents";
 
 const CORE_WORKFORCE: DigitalAssociate[] = [
   {
+    id: "inbound-intake",
+    name: "Maya Hart",
+    email: "maya.hart@stratanexus.co.uk",
+    role: "New Business Administrator",
+    department: "Sales & Growth",
+    status: AssociateStatus.AVAILABLE,
+    avatar: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=400",
+    expertise: ["Companies House Search", "Google Places Enrichment", "Deal File Opening"],
+    tools: ["Companies House API", "Google Places", "Prospect Pipeline"],
+    description: "Opens a deal file for every stratafinance.co.uk enquiry, matches Companies House, enriches via Places, and lands a Lead marked Strata on the Prospect Pipeline.",
+    hourlyRate: 0,
+    scores: [
+      { subject: "Match accuracy", A: 97, fullMark: 100 },
+      { subject: "Speed to pipeline", A: 99, fullMark: 100 },
+    ],
+    voiceEnabled: false,
+    aresCertification: { status: "certified", score: 97 },
+    workflow: {
+      jobDescription:
+        "Stage 1 of the agentic deal file. Reviews inbound company details from stratafinance.co.uk, searches Companies House, asks a human when the match is ambiguous, enriches with Google Places, and creates the pipeline Lead with referral source Strata.",
+      responsibilities: [
+        "Open a deal file for each Strata inbound enquiry",
+        "Search Companies House and select the correct business",
+        "Escalate ambiguous matches to the Deal files queue",
+        "Enrich with Google Places and hunt missing email/phone before the file moves on",
+        "Create the pipeline Lead marked Strata",
+      ],
+      tasks: [
+        {
+          id: "open-strata-file",
+          name: "Open Strata deal file",
+          description: "Review inbound company/contact details and start the deal file.",
+          trigger: "on_event",
+          steps: [
+            "Read inbound company name, contact, email, phone, and loan amount",
+            "Create deal file sourced as strata_inbound",
+            "Search Companies House",
+            "Auto-select a single active match or wait for human pick",
+            "Google Places enrich (address, website, phone)",
+            "If email or phone is missing, run Contact Finder (Places details, site scrape, officers)",
+            "Create Prospect Pipeline Lead with referralSource Strata",
+          ],
+          expectedOutput: "Pipeline Lead marked Strata, ready for outreach",
+        },
+      ],
+    },
+  },
+  {
+    id: "contact-finder",
+    name: "Elena Ward",
+    email: "elena.ward@stratanexus.co.uk",
+    role: "Contact Enrichment Agent",
+    department: "Sales & Growth",
+    status: AssociateStatus.AVAILABLE,
+    avatar: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=400",
+    expertise: ["Email discovery", "Phone lookup", "Website scrape"],
+    tools: ["Google Places Details", "Website scraper", "Companies House officers"],
+    description: "Fills missing email and phone on a deal file before outreach so the pack request has somewhere to go.",
+    hourlyRate: 0,
+    scores: [
+      { subject: "Email recovery", A: 94, fullMark: 100 },
+      { subject: "Phone recovery", A: 91, fullMark: 100 },
+    ],
+    voiceEnabled: false,
+    aresCertification: { status: "certified", score: 94 },
+    workflow: {
+      jobDescription:
+        "Runs whenever a deal file is missing email or phone. Uses Places details, the company website, and Companies House officers. Writes whatever it finds back onto the deal file and the pipeline contact.",
+      responsibilities: [
+        "Detect missing email or phone on the deal file",
+        "Pull phone and website from Google Places details",
+        "Scrape the company site and match officers",
+        "Update the deal file and CRM contact",
+      ],
+      tasks: [
+        {
+          id: "complete-contact",
+          name: "Complete contact details",
+          description: "Find missing email and phone for outreach.",
+          trigger: "on_event",
+          steps: [
+            "Check deal file for email and phone",
+            "Places details for phone/website",
+            "Scrape website + officer match",
+            "Write results onto the deal file and prospect contact",
+          ],
+          expectedOutput: "Deal file with the best available email and phone",
+        },
+      ],
+    },
+  },
+  {
     id: "database-builder-se",
-    name: "Database Builder SE",
-    role: "Internal Lead Researcher",
+    name: "Tom Brennan",
+    email: "tom.brennan@stratanexus.co.uk",
+    role: "Finds regional businesses that need Strata Finance",
     department: "Sales & Growth",
     status: AssociateStatus.AVAILABLE,
     avatar:
       "https://images.unsplash.com/photo-1531746790731-6c087fecd05a?auto=format&fit=crop&q=80&w=400",
-    expertise: ["Companies House Search", "Town Hub Targeting", "Data Harvesting"],
-    tools: ["Advanced Search", "Sector Filter"],
-    description: "Specialized discovery agent targeting Northampton, Coventry, Peterborough, and Milton Keynes for sales pipeline growth.",
+    expertise: [
+      "Stacked short-term loan refinance",
+      "HMRC arrears / Time to Pay path",
+      "CDFI and distress-refinance fit",
+    ],
+    tools: ["Companies House API", "Charge Scanner", "Deal files"],
+    description:
+      "Regional hunter for Stream A (SME directors with stacked MCA / HMRC pressure) and Stream B (accountants, fractional CFOs, turnaround advisers) in Northampton, Coventry, Peterborough, and Milton Keynes. Never ingests commercial finance brokers.",
     hourlyRate: 0,
     scores: [
       { subject: "Accuracy", A: 99, fullMark: 100 },
@@ -22,84 +120,95 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 99 },
     workflow: {
       jobDescription:
-        "Harvests active business data from South & East Midlands hubs (Northampton, Coventry, Peterborough, Milton Keynes) and feeds the God Mode CRM system.",
+        "Regional hunter under the Nexus Sales OS. Stream A: UK SMEs 18+ months, turnover £250k–£5m, high-cost / MCA / HMRC pressure. Stream B: ICAEW/ACCA practices, fractional CFOs, turnaround advisers. Brokers (NACFB, FIBA, packagers) are excluded.",
       responsibilities: [
-        "Monitor Northampton, Coventry, Peterborough, and Milton Keynes for new businesses",
-        "Normalize and deduplicate harvested company data",
-        "Automate lead population for regional sales desks",
+        "Score SIG-01 to SIG-06. P0 stacks and HMRC TTP first. SIG-06 is an instant disqualify",
+        "Never ingest commercial finance brokers or excluded sectors (property development, gambling, tobacco)",
+        "Open deal files — do not ask Shaun to prospect",
       ],
       tasks: [
         {
-          id: "discover-regional-leads",
-          name: "Regional Discovery",
-          description: "Scan Northampton, Coventry, Peterborough, and Milton Keynes for active business entities.",
+          id: "identify-regional-opportunities",
+          name: "Identify Strata-fit opportunities",
+          description:
+            "Find SE Midlands businesses that need distress-refinance or CDFI funding as described at stratafinance.co.uk.",
           trigger: "scheduled",
           steps: [
-            "Initialize multi-location search session",
-            "Iterate through target town hubs",
-            "Filter for active Ltd/Plc status and SIC relevancy",
-            "Populate CRM database",
+            "Scan active companies in the four hubs, 18+ months old",
+            "Drop brokers, finance, property development, gambling, tobacco, SPVs, and names already on the book",
+            "Open Stream A (high-cost SME) or Stream B (introducer) files only when the gate passes",
           ],
-          expectedOutput: "New regional business leads added to CRM",
+          expectedOutput: "Regional deal files that need Strata's help, ready for agent outreach",
         },
       ],
     },
   },
   {
     id: "database-builder",
-    name: "Database Builder",
-    role: "Internal Lead Researcher",
+    name: "Daniel Crowe",
+    email: "daniel.crowe@stratanexus.co.uk",
+    role: "Finds businesses that need Strata Finance",
     department: "Sales & Growth",
     status: AssociateStatus.AVAILABLE,
     avatar:
       "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&q=80&w=400",
-    expertise: ["Companies House Search", "Town Hub Targeting", "Data Collection"],
-    tools: ["Advanced Search", "Regional Filter"],
-    description: "Targeting Leicester, Nottingham, Derby, and Lincoln to populate the sales CRM with high-quality regional leads.",
+    expertise: [
+      "Stacked short-term loan refinance",
+      "HMRC arrears and Time to Pay path",
+      "Bank / mainstream-broker declines",
+      "CDFI and distress-refinance fit",
+    ],
+    tools: ["Companies House API", "Charge Scanner", "Contact Finder", "Deal files"],
+    description:
+      "Opportunity hunter for the Nexus Sales OS. Stream A: UK SME directors with stacked MCA / high-cost debt or HMRC TTP. Stream B: accountancy partners, fractional CFOs, turnaround advisers. Never ingests commercial finance brokers. Opens a deal file for CDFI consolidation packaging.",
     hourlyRate: 0,
     scores: [
-      { subject: "Accuracy", A: 100, fullMark: 100 },
-      { subject: "Coverage", A: 96, fullMark: 100 },
+      { subject: "Opportunity recognition", A: 98, fullMark: 100 },
+      { subject: "Strata fit", A: 96, fullMark: 100 },
     ],
     voiceEnabled: false,
     aresCertification: { status: "certified", score: 99 },
     workflow: {
       jobDescription:
-        "Responsible for automated discovery of active UK companies within specific town hubs. Populates the Internal Leads CRM with fresh data for sales agents.",
+        "Specialist hunter under the Nexus Sales OS. Stream A needs 18+ months trading, turnover £250k–£5m, facility £25k–£250k, and at least one high-cost item (MCA, short-term, daily debit, or HMRC arrears). Stream B is introducers. Consolidation facilities route to the CDFI panel (FFE, BCRS, CWRT, SWIG, LDBF, ART, BEF, DBW). Brokers are excluded.",
       responsibilities: [
-        "Monitor Leicester, Nottingham, Derby, and Lincoln for new/active businesses",
-        "Retrieve company data via Companies House API",
-        "Deduplicate and clean discovered lead data",
-        "Populate internal CRM with new leads",
+        "Apply SIG-01 to SIG-06. Multiple MCA/alt charges and HMRC TTP are P0",
+        "Reject brokers, property development, gambling, tobacco, consumer/sub-£100k files (SIG-06)",
+        "Reject anything below the Strata fit gate — do not open or email a weak file",
+        "Open a deal file and hand it to Contact Finder + Sales Outreach only when the public file is a clear Stream A or Stream B case",
       ],
       tasks: [
         {
-          id: "discover-companies",
-          name: "Discover Region Companies",
-          description: "Scan target towns (Leicester, Nottingham, Derby, Lincoln) for active businesses.",
+          id: "identify-opportunities",
+          name: "Identify Strata-fit businesses",
+          description:
+            "Find UK SMEs that need distress-refinance or CDFI funding as described at stratafinance.co.uk.",
           trigger: "scheduled",
           steps: [
-            "Initialize Companies House advanced search session",
-            "Iterate through target town list",
-            "Filter for active Ltd/Plc company status",
-            "Save results to internal leads database",
+            "Scan Companies House for active trading companies at least 18 months old",
+            "Drop finance, property, SPV, strike-off, and names already on the book",
+            "Read charges — only MCA, high-cost alternative, or a real stack passes",
+            "Score fit. Below 70/100 is not contacted",
+            "Open a deal file and pass to outreach only when the gate passes",
           ],
-          expectedOutput: "Populated CRM with new, active business leads from target regions",
+          expectedOutput: "High-confidence deal files that need Strata's help, ready for agent outreach",
         },
       ],
     },
   },
   {
     id: "outreach-sales",
-    name: "Outreach",
-    role: "Sales Agent",
+    name: "James Hale",
+    email: "james.hale@stratanexus.co.uk",
+    role: "Business Consultant",
     department: "Sales & Growth",
     status: AssociateStatus.AVAILABLE,
     avatar:
       "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=400",
     expertise: ["Lead Generation", "Personalized Outreach", "Meeting Booking"],
     tools: ["Email Synthesizer", "LinkedIn Profiler", "BANT Scorer"],
-    description: "Generates qualified conversations with SMEs actively seeking commercial finance.",
+    description:
+      "Runs the Nexus Sales OS cadences. Stream A: 14-day Email → LinkedIn → Email → Phone. Stream B: 10-day Email → LinkedIn → Phone. Inbound: thank them and request the pack, then a warm call.",
     hourlyRate: 0,
     scores: [
       { subject: "Engagement Rate", A: 92, fullMark: 100 },
@@ -109,81 +218,35 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 95 },
     workflow: {
       jobDescription:
-        "Responsible for generating qualified leads and booking meetings with SME decision-makers seeking commercial finance solutions. Operates across email, LinkedIn, and phone channels to build a pipeline of prospects for the brokerage.",
+        "Stage 3 of the agentic deal file. Stream A uses the 14-day SME playbook (debt-service reduction → LinkedIn → case study → close + call). Stream B uses the 10-day introducer playbook. Inbound files get a thank-you and a three-item pack request. PECR stop line on every cold email.",
       responsibilities: [
-        "Identify and research target SMEs via Companies House and LinkedIn",
-        "Craft personalised outreach sequences per prospect",
-        "Qualify inbound and outbound leads using BANT framework",
-        "Book discovery calls with qualified prospects",
-        "Maintain CRM records with accurate lead status and notes",
+        "Run the OS cadence for the deal's stream — do not invent copy",
+        "Inbound: request six months of bank statements, two years of audited accounts, and why funding is needed",
+        "Stream A/B: auto-send emails, stage LinkedIn copy, queue the OS voice script on the close touch",
+        "Include a stop line on cold email",
+        "Log the outreach on the pipeline lead",
       ],
       tasks: [
         {
-          id: "qualify-lead",
-          name: "Qualify Lead",
-          description:
-            "Assess an inbound or outbound lead against BANT criteria to determine fit for commercial finance products.",
-          trigger: "on_instruction",
-          steps: [
-            "Retrieve lead data from CRM (company name, sector, turnover)",
-            "Check Companies House for filing history and director info",
-            "Score against BANT: Budget (likely loan size), Authority (decision-maker?), Need (finance requirement), Timeline (urgency)",
-            "Assign qualification status: Hot / Warm / Cold",
-            "Update CRM record with qualification notes",
-          ],
-          expectedOutput: "Lead qualification summary with BANT scores and recommended next action",
-        },
-        {
           id: "send-outreach",
-          name: "Send Outreach Email",
-          description: "Draft and send a personalised cold outreach email to a target prospect.",
-          trigger: "on_instruction",
+          name: "Send first engagement email",
+          description: "Use the Strata script for inbound ack or cold touch 1.",
+          trigger: "on_event",
           steps: [
-            "Research prospect company and identify relevant finance needs",
-            "Select appropriate email template based on sector and deal size",
-            "Personalise subject line, opening hook, and value proposition",
-            "Include clear CTA (book a call / reply with requirements)",
-            "Log outreach activity in CRM",
+            "Pick inbound ack, Stream A day-1 email, or Stream B day-1 partner email",
+            "Use the OS template — named sender, PECR stop line on cold",
+            "Set the cadence timer to the next OS step (Day 4 LinkedIn / Day 3 inbound chase)",
           ],
-          expectedOutput: "Drafted email ready for review or sent confirmation with tracking link",
-        },
-        {
-          id: "book-meeting",
-          name: "Book Discovery Call",
-          description: "Schedule a discovery call between a qualified lead and a broker.",
-          trigger: "on_instruction",
-          steps: [
-            "Confirm lead qualification status is Hot or Warm",
-            "Check broker calendar availability",
-            "Propose 2-3 time slots to the prospect",
-            "Send calendar invite with meeting agenda",
-            "Set reminder for broker with prospect brief",
-          ],
-          expectedOutput: "Calendar invite sent with meeting confirmation details",
-          escalationRule:
-            "Escalate to Director if prospect requests specific product expertise beyond standard brokerage scope",
-        },
-        {
-          id: "nurture-prospect",
-          name: "Nurture Prospect",
-          description:
-            "Follow up with a prospect who has received information but not yet booked a call.",
-          trigger: "no_response_alert",
-          steps: [
-            "Check if 'Recovery Report' or 'Proposal' email was opened",
-            "If OPENED: Call to answer questions ('I saw you reviewed the report...')",
-            "If NOT OPENED: Send 'Bump' email with value-add resource",
-            "Update CRM with interaction status",
-          ],
-          expectedOutput: "Prospect re-engaged or marked for long-term nurture",
+          expectedOutput: "First email sent from the Strata script, timer running",
         },
       ],
     },
   },
   {
     id: "deal-processing-underwriter",
-    name: "Underwriter",
-    role: "Deal Processing Agent",
+    name: "Priya Shah",
+    email: "priya.shah@stratanexus.co.uk",
+    role: "Process Manager",
     department: "Operations",
     status: AssociateStatus.AVAILABLE,
     avatar:
@@ -191,7 +254,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     expertise: ["Credit Assessment", "Lender Matching", "Financial Analysis"],
     tools: ["Bank Statement OCR", "Companies House Crawler", "Risk Scorer"],
     description:
-      "Assesses applications, matches to lenders, prepares credit packs, and manages the deal pipeline.",
+      "Processing then underwriting on a collected pack. After judgement the file waits on you before anything goes to David at Sterling.",
     hourlyRate: 0,
     scores: [
       { subject: "Matching Accuracy", A: 95, fullMark: 100 },
@@ -201,13 +264,12 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 98 },
     workflow: {
       jobDescription:
-        "Processes deal applications from initial submission through to lender packaging. Performs credit assessment, matches applications to suitable lenders, prepares credit packs, and manages deal progression through the pipeline.",
+        "Stages 6–7 of the agentic deal file. Processing reviews everything collected. Underwriting writes a considered judgement. The file then stops for your full review before Sterling.",
       responsibilities: [
-        "Assess incoming applications for plausibility and completeness",
-        "Extract and analyse financial data from bank statements and accounts",
-        "Match deals to appropriate lenders based on criteria and appetite",
-        "Prepare professional credit packs for lender submission",
-        "Track deal pipeline stages and flag stalled applications",
+        "Analyse the collected pack (statements, accounts, purpose)",
+        "Write a processing summary on the deal file",
+        "Write an underwriting judgement",
+        "Hold the file for human review before David at Sterling",
       ],
       tasks: [
         {
@@ -237,13 +299,13 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
           trigger: "on_instruction",
           steps: [
             "Review application assessment and key deal parameters",
-            "Query lender panel for matching criteria (sector, loan size, security type)",
-            "Rank matched lenders by likelihood of approval and commercial terms",
+            "Route debt consolidation to the CDFI panel (FFE, BCRS, CWRT, SWIG, LDBF, ART, BEF, DBW)",
+            "Rank matched CDFIs by geography, loan size, and fit",
             "Produce lender shortlist with rationale for each recommendation",
             "Note any lenders to avoid (recent declines, relationship issues)",
           ],
           expectedOutput:
-            "Ranked lender shortlist (top 3-5) with match rationale and suggested approach order",
+            "Ranked CDFI shortlist with match rationale and suggested approach order",
         },
         {
           id: "prepare-credit-pack",
@@ -265,10 +327,11 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
   },
   {
     id: "accounts-monitor",
-    name: "Finance Monitor",
+    name: "Oliver Grant",
+    email: "oliver.grant@stratanexus.co.uk",
     role: "Accounts Agent",
     department: "Finance",
-    status: AssociateStatus.AVAILABLE,
+    status: AssociateStatus.HIBERNATION,
     avatar:
       "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400",
     expertise: ["Cashflow Tracking", "Commission Reconciliation", "Invoicing"],
@@ -345,10 +408,11 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
   },
   {
     id: "capital-strategist",
-    name: "Capital Strategist",
+    name: "Nathan Cole",
+    email: "nathan.cole@stratanexus.co.uk",
     role: "Strategic Capital Advisor",
     department: "Advisory",
-    status: AssociateStatus.AVAILABLE,
+    status: AssociateStatus.HIBERNATION,
     avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400",
     expertise: ["Long-Term Capital Strategy", "Debt Structure Optimization", "Cash Flow Forecasting", "Strategic Financial Alignment"],
     tools: ["Companies House API", "Debt Audit Calculator", "Cash Flow Recovery Report", "Lender Displacement Scripts", "Proposal Sender"],
@@ -458,14 +522,16 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
   },
   {
     id: "fulfilment-manager",
-    name: "Fulfilment Manager",
-    role: "Onboarding Specialist",
+    name: "Sophie Reed",
+    email: "sophie.reed@stratanexus.co.uk",
+    role: "New Business Manager",
     department: "Operations",
     status: AssociateStatus.AVAILABLE,
     avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400",
     expertise: ["Client Onboarding", "Document Collection", "Pipeline Management", "Customer Support"],
     tools: ["Document Chaser Bot", "Welcome Pack Generator", "Upload Validator", "Prospect Requirement Analyzer"],
-    description: "Ensures closed deals reach submission by actively managing client onboarding and document collection.",
+    description:
+      "Runs the remaining OS cadence. Stream A: LinkedIn day 4, case study day 8, close email + SME call day 14. Stream B: LinkedIn day 5, partner email + call day 10. Inbound: one pack chase, then the warm-call script.",
     hourlyRate: 0,
     scores: [
       { subject: "Response Time", A: 96, fullMark: 100 },
@@ -474,56 +540,28 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     voiceEnabled: true,
     aresCertification: { status: "certified", score: 96 },
     workflow: {
-      jobDescription: "Bridging the gap between 'Closed Won' and 'Lender Submission'. Responsible for sending welcome packs, chasing missing documents via multi-channel outreach, and validating uploads before passing to Underwriting.",
+      jobDescription:
+        "Stage 4 of the agentic deal file. Fires when the timer ends. If the pack arrived, hand to Processing. Otherwise fire the next OS cadence step: LinkedIn copy, email, or queue the matching voice script (SME, introducer, or inbound).",
       responsibilities: [
-        "Send welcome packs to new clients immediately after deal close",
-        "Monitor document upload portals daily",
-        "Chase missing items via scheduled email and SMS nudges",
-        "Perform first-line validation on uploaded files (dates, names, clarity)",
-        "Escalate non-responsive clients to a 'Blocker Call'",
+        "Watch the collection timer",
+        "If documents arrived, pass the file to Processing",
+        "Inbound: chase the pack once, then queue the warm-call script",
+        "Hunt: execute the next Stream A or Stream B step from the Sales OS",
       ],
       tasks: [
         {
-          id: "onboard-client",
-          name: "Onboard New Client",
-          description: "Initiate the onboarding process for a newly signed deal.",
-          trigger: "deal_closed",
-          steps: [
-            "Generate Welcome Pack with customised document checklist",
-            "Send Welcome Email with secure upload link",
-            "Schedule 'Introduction Call' if deal size > £100k",
-            "Set automated chaser sequence (Day 2, Day 5)",
-            "Log onboarding start in CRM",
-          ],
-          expectedOutput: "Welcome pack sent and chaser sequence activated",
-        },
-        {
           id: "chase-documents",
-          name: "Chase Missing Documents",
-          description: "Actively pursue outstanding documents to unblock the deal.",
-          trigger: "missing_docs_alert",
+          name: "Next engagement touch",
+          description: "Fire when the timer ends.",
+          trigger: "no_response_alert",
           steps: [
-            "Identify specific missing items using 'getProspectRequirementStatus' tool",
-            "Select appropriate nudge channel (Email -> SMS -> Call)",
-            "Send reminder with clear list of MISSING items and upload link",
-            "If unresponsive for 5 days, schedule 'Blocker Call' task",
-            "Update CRM with chase activity",
+            "Check whether documents landed on the pipeline lead",
+            "If yes, hand to Processing",
+            "If inbound, send the pack chase and open the warm-call script",
+            "If hunt, send or stage the next OS touch and queue the close call when due",
           ],
-          expectedOutput: "Client contact made and document status updated",
-        },
-        {
-          id: "validate-upload",
-          name: "Validate Uploads",
-          description: "Check uploaded documents for basic validity before Underwriting.",
-          trigger: "file_uploaded",
-          steps: [
-            "Open uploaded file",
-            "Verify document type matches request (e.g. is it actually a Bank Statement?)",
-            "Check dates are within required range (last 3 months)",
-            "Confirm entity name matches application",
-            "Approve for Underwriter or Reject with feedback to client",
-          ],
-          expectedOutput: "Document marked as 'Verified' or 'Rejected' with reason",
+          expectedOutput: "Next script sent, or warm call queued, or file parked",
+          escalationRule: "Inbound pack-chase calls and OS close-call scripts land in the call queue",
         },
       ],
     },
@@ -546,7 +584,11 @@ export const agentService = {
         // Force update definition to sync code changes (workflow, tools etc)
         // BUT preserve dynamic state like status
         console.log(`[AgentService] Syncing definition for ${agent.name}...`);
-        const updatedAgent = { ...agent, status: existing.status };
+        const hibernated = agent.id === "accounts-monitor" || agent.id === "capital-strategist";
+        const updatedAgent = {
+          ...agent,
+          status: hibernated ? AssociateStatus.HIBERNATION : existing.status,
+        };
         await storage.updateAgent(agent.id, updatedAgent);
       }
     }

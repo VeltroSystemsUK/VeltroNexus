@@ -6,7 +6,7 @@ Repo: Nexus (`/broker-portal`), not the standalone Strata Next.js app
 
 ## Goal
 
-David Griffiths (Sterling Commercial Finance Limited) logs into Nexus and only sees files that are ready for him. He recommends, checks, and downloads a lender pack. He does not underwrite, package, or work in Credit Studio. Recommendation text is not stored on the main Nexus prospect record.
+David Griffiths (Sterling Commercial Finance Limited) logs into Nexus and only sees files that are ready for him. He recommends, checks, and sends the application to a lender. He does not underwrite, package, or work in Credit Studio. Recommendation text is not stored on the main Nexus prospect record.
 
 ## Locked decisions
 
@@ -15,8 +15,9 @@ David Griffiths (Sterling Commercial Finance Limited) logs into Nexus and only s
 - File page: workbench on the **left**, live Nexus funding proposal on the **right**.
 - Files appear automatically when the compiled report can be built (the event that today pushes a case into standalone Strata). No second human click.
 - Missing checklist items are flagged. Approve is not blocked. Optional **Return to Nexus**.
-- Approve offers only lenders that already have a real application template: **Finance for Enterprise** (auto-filled Word) and **CWRT** (official Excel in the pack; cell mapping is a follow-on, not this build).
-- Nexus builds a zip. David downloads it and sends it himself. Download marks the file **Sent**.
+- **Approve** opens a two-by-two send grid: **FFE**, **CWRT**, **BCRS**, **First Enterprise**. Each card shows the lender logo, auto-filled pack contents with animated ticks/crosses, and a compact Send button.
+- All four application packs are auto-filled from the Nexus file. Empty fields stay blank. Nothing is invented.
+- Nexus does not email the lender. The zip downloads; the file is marked **Sent**. David emails it.
 - Approach: all in Nexus. Do not keep the Next.js app as David’s workspace. Do not call the Python Strata API as a sidecar.
 
 ## Screens
@@ -57,15 +58,24 @@ Two columns.
 - Logo at natural size (not stretched). Height 42px, `width: auto`, `align-self: flex-start`.
 - Section 8 on this copy shows “Awaiting recommendation”. David does not write in the report body.
 
-### Approve overlay
+### Send overlay (Approve)
 
-Opens only if recommendation text is non-empty.
+Opens only if recommendation text is non-empty. Title: **Send the application**. Two-by-two cards. Logo band, pack list, compact Send on one baseline.
 
-1. Pick **Finance for Enterprise** or **CWRT** (two cards, one selected).
-2. Warning if flags remain: “N items still missing. They will be listed in the pack. Approve is not blocked.”
-3. Pack contents list (filled form(s), funding proposal PDF with section 8 stamped, supporting files, `STILL-MISSING.txt` when needed).
-4. **Download pack** builds the zip, starts the download, sets status to `sent`.
-5. Cancel closes the overlay. Status stays `awaiting_recommendation` until download succeeds.
+If flags remain: “N items still missing. They appear on every pack. Send is not blocked.”
+
+Complete items use a drawn-on green tick. Missing items use a drawn-on red cross.
+
+Every card shows the same list:
+
+1. Completed Loan Application  
+2. Funding proposal stamped  
+3. 11 supporting files (or the live count)  
+4. Any missing checklist items with crosses  
+
+The zip still contains that lender’s filled forms (FFE Word, CWRT Excel, BCRS PDF, First Enterprise v10 + plan + cash-flow). The card does not itemise those filenames.
+
+`STILL-MISSING.txt` is included when flags remain. Clicking Send builds that zip, downloads it, sets `approvedLenderId` and status `sent`.
 
 ### Return overlay
 
@@ -83,7 +93,7 @@ Extend `broker_handoffs` (do not store this on `prospects` or `dueDiligence.unde
 | `recommendedByUserId` | David’s user id |
 | `returnNote` | Set when returned |
 | `returnedAt` | ISO timestamp |
-| `approvedLenderId` | `ffe` \| `cwrt` (set when the zip is built) |
+| `approvedLenderId` | `ffe` \| `cwrt` \| `bcrs` \| `firstent` |
 | `packGeneratedAt` | ISO timestamp of last successful zip |
 
 Existing fields remain: `submissionId`, `prospectId`, `externalUserId`, `sentByUserId`. Do not hide Sterling files by `expiresAt`. The current 30-day guest expiry does not apply to this partner.
@@ -117,21 +127,21 @@ Use `ATTACHMENT_ITEMS` / `resolveAttachmentsChecklist` plus actual uploaded pros
 
 ## Approve pack
 
-Templates live in Nexus (copied from `F:\Shaun\Desktop\Strata\strata-general`):
+Copy official templates into Nexus (`server/templates/sterling/`):
 
-- FFE: `FFE Enterprise Loan Application Fin1 (02.20).docx` and `FFE Client Declaration Fin2 (07.20).docx`
-- CWRT: `CWRT Application Form (Feb 26) .xlsm`
+| Lender | Source files |
+|---|---|
+| FFE | `FFE Enterprise Loan Application Fin1 (02.20).docx`, `FFE Client Declaration Fin2 (07.20).docx` |
+| CWRT | `templates/cwrt/CWRT_Application_Form_Feb26.xlsm` (strata-main); send-card logo `F:\Shaun\Desktop\CWRT-logo-1024x1024.png` |
+| BCRS | `templates/bcrs/BCRS_A0009-08.24-01.pdf` (strata-main) plus `F:\Shaun\Desktop\BCRS.png` as the send-card logo |
+| First Enterprise | `F:\Shaun\Desktop\Loan Application Form - v10 July 2025.docx`; business plan `F:\Shaun\Desktop\Strata\9b6f4b_ea66fca60a1f46cca8b4bd43879afc11.docx`; cash-flow `F:\Shaun\Desktop\Strata\e72146_8a5aa826468345feaa2f69b01225eaf3.xlsx` |
 
-Fill logic: port the existing FFE Word fill (`apps/api/app/render/ffe.py` + `word_fill.py`) into a Nexus server module. Payload from `buildStrataPayload` (already maps the Nexus file). One application plus one declaration per director.
+**Auto-fill** (port existing strata-main fillers where they exist: `ffe.py`, `cwrt.py`, `bcrs.py`. First Enterprise is new Word/Excel fill against the three files above.)
 
-CWRT in this build: include the official `.xlsm` unfilled, plus the same report and supporting docs. Do not invent spreadsheet cell mapping here.
+- Payload from `buildStrataPayload`. Empty Nexus fields stay blank. Nothing is invented.
+- First Enterprise: fill the v10 loan application; write known business/people/loan fields into the business-plan Word and cash-flow Excel. Do not invent a business plan narrative or forecast figures that are not on the file.
 
-Zip contents:
-
-1. Filled FFE docs **or** the CWRT workbook
-2. `Funding_Proposal_<company>.pdf` with section 8 stamped from the handoff
-3. All uploaded supporting files that exist
-4. `STILL-MISSING.txt` listing remaining checklist items (omit the file if none)
+Zip always also includes: stamped funding proposal PDF, uploaded supporting files, `STILL-MISSING.txt` if flags remain.
 
 Download is the send. No lender email from Nexus.
 
@@ -150,7 +160,7 @@ Download is the send. No lender email from Nexus.
 
 - Auto-email to the lender
 - Full Nexus lender catalogue on Approve
-- CWRT cell-level auto-fill
+- Other CDFI panel lenders (SWIG, LDBF, ART, BEF, DBW)
 - David creating/renaming/deleting cases
 - David uploading missing documents
 - Keeping the standalone Strata web app as a production UI
@@ -175,9 +185,11 @@ Download is the send. No lender email from Nexus.
 - Flags match unresolved checklist items; Approve still succeeds.
 - Return sets status + note; Nexus activity recorded.
 - Pack zip for `ffe` contains filled application + declarations + PDF + uploads.
-- Pack zip for `cwrt` contains the `.xlsm` template + PDF + uploads, not a filled FFE form.
+- Pack zip for `cwrt` contains a filled Feb-26 `.xlsm` + PDF + uploads.
+- Pack zip for `bcrs` contains a filled A0009 PDF + PDF proposal + uploads.
+- Pack zip for `firstent` contains filled v10 application + business-plan Word + cash-flow Excel + PDF + uploads.
 - `external_broker` cannot load `/pipeline` or `/prospect/:id/underwriting/*`.
 
 ## Success
 
-David logs in, sees only Sterling, opens a file, reads the real Nexus report, writes a recommendation, Approves, picks FFE, downloads a zip, and can send it without touching the rest of Nexus. Recommendation is not in Credit Studio.
+David logs in, sees only Sterling, opens a file, reads the real Nexus report, writes a recommendation, Approves, clicks **Send to First Enterprise** (or FFE / CWRT / BCRS), gets a zip with that lender’s filled forms, and emails the lender himself. Recommendation is not in Credit Studio.

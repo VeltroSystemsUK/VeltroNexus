@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import SubmitApplicationDialog from "@/components/SubmitApplicationDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,6 +67,7 @@ interface RecommendationResult {
 
 interface LenderRecommendationsProps {
   prospectId: number;
+  companyName?: string;
   onSelectLender?: (lenderId: number) => void;
   showDisqualified?: boolean;
   limit?: number;
@@ -87,11 +90,13 @@ function getMatchLabel(percentage: number): string {
 }
 
 export function LenderRecommendations({ 
-  prospectId, 
+  prospectId,
+  companyName = "this file",
   onSelectLender,
   showDisqualified = false,
   limit = 5 
 }: LenderRecommendationsProps) {
+  const [sendOpen, setSendOpen] = useState(false);
   const { data, isLoading, error, refetch, isFetching } = useQuery<RecommendationResult>({
     queryKey: ['/api/prospects', prospectId, 'recommendations', { limit, includeDisqualified: showDisqualified }],
     enabled: prospectId > 0,
@@ -153,12 +158,29 @@ export function LenderRecommendations({
             <span>Lender Recommendations</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <Building2 className="h-8 w-8 mx-auto mb-2" />
-            <p>No lender recommendations available</p>
-            <p className="text-sm mt-1">Add lenders to your directory to see recommendations</p>
+        <CardContent className="space-y-4">
+          <div className="relative p-4 border rounded-lg border-primary bg-primary/5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h4 className="font-semibold">Strata</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Copy this file into standalone Strata for the CDFI lender pack.
+                </p>
+              </div>
+              <Button size="sm" onClick={() => setSendOpen(true)} data-testid="button-send-to-strata-empty">
+                Send to Strata
+              </Button>
+            </div>
           </div>
+          <div className="text-center py-4 text-muted-foreground">
+            <p className="text-sm">No other lender recommendations yet. Add lenders to your directory to see matches.</p>
+          </div>
+          <SubmitApplicationDialog
+            open={sendOpen}
+            onOpenChange={setSendOpen}
+            prospectId={prospectId}
+            companyName={companyName}
+          />
         </CardContent>
       </Card>
     );
@@ -214,6 +236,34 @@ export function LenderRecommendations({
             </div>
           </div>
         )}
+
+        <div className="relative p-4 border rounded-lg border-primary bg-primary/5">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center bg-primary text-primary-foreground">
+              <Building2 className="h-6 w-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="font-semibold truncate">Strata</h4>
+                <Badge>CDFI packaging</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Copy the completed Nexus file into standalone Strata and generate the lender pack.
+              </p>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSendOpen(true);
+                }}
+                data-testid="button-send-to-strata"
+              >
+                Send to Strata
+              </Button>
+            </div>
+          </div>
+        </div>
 
         {qualified.map((match, index) => (
           <div 
@@ -324,6 +374,12 @@ export function LenderRecommendations({
           </p>
         )}
       </CardContent>
+      <SubmitApplicationDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        prospectId={prospectId}
+        companyName={companyName}
+      />
     </Card>
   );
 }

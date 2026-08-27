@@ -3,6 +3,7 @@ import { storage, MOCK_DEV_ADMIN_ID } from "../storage";
 import { handleApiError } from "../utils/errorHandler";
 import { requireGodMode } from "../utils/godModeAuth";
 import { insertInternalLeadSchema, insertCommissionSchema } from "@shared/schema";
+import { promoteInternalLeadToPipeline } from "../services/inboundPipeline";
 
 const router = Router();
 
@@ -243,42 +244,9 @@ router.post("/leads/:id/promote", async (req, res) => {
         if (!lead) return res.status(404).json({ error: "Lead not found" });
         if (!lead.companyNumber) return res.status(400).json({ error: "Lead missing company number" });
 
-        // 1. Create/Ensure Company exists
-        let company = await storage.getCompanyByNumber(lead.companyNumber);
-        if (!company) {
-            company = await storage.createCompany({
-                companyName: lead.companyName,
-                companyNumber: lead.companyNumber,
-                registeredAddress: lead.address || "",
-                companyType: lead.companyType || "ltd",
-                sicCode: lead.sicCode || undefined,
-                incorporationDate: lead.incorporationDate || undefined,
-                companyStatus: "active"
-            });
-        }
-
-        const prospect = await storage.createProspect({
-            companyId: company.id!,
-            stage: "lead",
-            referralSource: "discovery",
-            priority: "medium",
-            notes: `Promoted from Internal Lead DB. Discovered in: ${lead.city}${lead.hasCharges ? " (Has Registered Charges)" : ""}\n\nOriginal Notes: ${lead.notes || "None"}`,
-            loanAmount: Number(lead.estimatedValue || 0),
-            directorsGuarantee: 0,
-            commercialProperty: 0,
-            homeEquity: 0,
-            propertyOther: 0,
-            debenture: 0,
-            parentCompanyGuarantee: 0,
-            collateral: 0,
-            crossCompanyGuarantee: 0,
-            queueOrder: 0,
-        }, (req.user as any).id); // Pass the current user ID for ownership
-
-        // 3. Update Lead Status
-        await storage.updateInternalLead(leadId, { status: "converted" });
-
-        res.json({ success: true, prospectId: prospect.id });
+        const ownerUserId = (req.user as any)?.id;
+        const { prospectId } = await promoteInternalLeadToPipeline(lead, ownerUserId);
+        res.json({ success: true, prospectId });
     } catch (error) {
         handleApiError(res, error, "Lead promotion failed");
     }

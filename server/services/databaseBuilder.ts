@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { InternalLead, InsertInternalLead, BrokerLead, InsertBrokerLead } from "../../shared/schema";
+import { excludedSectorReason, isBrokerProspect, classifyProspectStream } from "@shared/salesOs";
 
 export interface DiscoveryTarget {
     location?: string;    // e.g. "Leicester" or "Leicestershire"
@@ -116,6 +117,15 @@ export class DatabaseBuilderService {
                             }
                         }
 
+                        if (isBrokerProspect(item.company_name, itemSicCodes)) {
+                            skippedCount++;
+                            continue;
+                        }
+                        if (excludedSectorReason(itemSicCodes, item.company_name)) {
+                            skippedCount++;
+                            continue;
+                        }
+
                         // 2. Secondary "Strong Match" check
                         const fullAddrString = [
                             addr?.premises,
@@ -132,7 +142,15 @@ export class DatabaseBuilderService {
                         }
 
                         // 3. Deduplicate
-                        const leadType = options.leadType || 'internal';
+                        // Introducer-shaped companies (accountants, CFOs, turnaround advisers) always
+                        // route to the broker/introducer pipeline, regardless of which caller kicked
+                        // off this discovery run — the autonomous scheduler never sets leadType, and
+                        // was silently dumping them into the direct-borrower pipeline.
+                        const isIntroducer = classifyProspectStream({
+                            companyName: item.company_name,
+                            sicCodes: itemSicCodes,
+                        }).stream === "introducer";
+                        const leadType = isIntroducer ? 'broker' : (options.leadType || 'internal');
                         const existing = leadType === 'broker'
                             ? await storage.getBrokerLeadByCompanyNumber(item.company_number)
                             : await storage.getInternalLeadByCompanyNumber(item.company_number);

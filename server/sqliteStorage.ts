@@ -29,6 +29,7 @@ import {
   emailTemplates, scrapedLeads
 } from "./db/schema";
 import { eq, inArray, and, desc } from "drizzle-orm";
+import { remapSavedPipelineStages, STAGE_ID_ALIASES } from "@shared/pipelineStages";
 import session from "express-session";
 import createBetterSqlite3Store from "better-sqlite3-session-store";
 import Database from "better-sqlite3";
@@ -117,7 +118,7 @@ function parseUser(user: any): User {
   if (!user) return user;
   return {
     ...user,
-    pipelineStageNames: parseJsonField(user.pipelineStageNames),
+    pipelineStageNames: remapSavedPipelineStages(parseJsonField(user.pipelineStageNames)),
     pdfLayoutPreferences: parseJsonField(user.pdfLayoutPreferences),
     onboardingProgress: parseJsonField(user.onboardingProgress),
   };
@@ -208,6 +209,15 @@ export class SQLiteStorage implements IStorage {
         intervalMs: 900000 // 15 minutes
       }
     });
+    this.migrateLegacyPipelineStages().catch((error) => {
+      console.error("[storage] Failed to remap legacy pipeline stages:", error);
+    });
+  }
+
+  private async migrateLegacyPipelineStages(): Promise<void> {
+    for (const [from, to] of Object.entries(STAGE_ID_ALIASES)) {
+      await db.update(prospects).set({ stage: to }).where(eq(prospects.stage, from));
+    }
   }
 
   // --- Users ---
@@ -913,7 +923,10 @@ export class SQLiteStorage implements IStorage {
   }
 
   async listUnderwriterScopedSubmissions(userId: string): Promise<any[]> {
-    return getCollection("underwriting_submissions").filter(s => s.underwriterId === userId);
+    // Queue (submitted + unclaimed) plus whatever this underwriter already holds.
+    return getCollection("underwriting_submissions").filter(
+      s => s.underwriterId === userId || (s.status === "submitted" && !s.underwriterId)
+    );
   }
 
   async listBrokerUnderwritingSubmissions(userId: string): Promise<any[]> {
@@ -954,8 +967,8 @@ export class SQLiteStorage implements IStorage {
     return getCollection("underwriting_activities").filter(a => a.submissionId === submissionId) as UnderwritingActivity[];
   }
 
-  async createBrokerHandoff(data: { submissionId: number; prospectId: number; externalUserId: string; sentByUserId: string; expiresAt: string }): Promise<any> {
-    return insertItem("broker_handoffs", data);
+  async createBrokerHandoff(data: { submissionId: number; prospectId: number; externalUserId: string; sentByUserId: string; expiresAt: string; status?: string }): Promise<any> {
+    return insertItem("broker_handoffs", { status: "awaiting_recommendation", ...data });
   }
 
   async getBrokerHandoff(id: number): Promise<any | undefined> {
@@ -966,8 +979,21 @@ export class SQLiteStorage implements IStorage {
     return getCollection("broker_handoffs").filter(h => h.externalUserId === externalUserId);
   }
 
+  async listAllBrokerHandoffs(): Promise<any[]> {
+    return getCollection("broker_handoffs");
+  }
+
   async getBrokerHandoffBySubmission(submissionId: number): Promise<any | undefined> {
     return getCollection("broker_handoffs").find(h => h.submissionId === submissionId);
+  }
+
+  async getBrokerHandoffByProspect(prospectId: number): Promise<any | undefined> {
+    const matches = getCollection("broker_handoffs").filter((h) => h.prospectId === prospectId);
+    return matches.sort((a, b) => Number(b.id) - Number(a.id))[0];
+  }
+
+  async updateBrokerHandoff(id: number, updates: Record<string, unknown>): Promise<any | undefined> {
+    return updateItem("broker_handoffs", id, updates);
   }
 
   async createException(data: { prospectId: number; source: "companies_house" | "google_places" | "due_diligence"; severity?: "low" | "medium" | "high"; message: string }): Promise<any> {
@@ -984,6 +1010,41 @@ export class SQLiteStorage implements IStorage {
 
   async resolveException(id: number): Promise<any | undefined> {
     return updateItem("verification_exceptions", id, { status: "resolved" });
+  }
+
+  async listAgenticDeals() {
+    return getCollection("agentic_deals").sort((a, b) => Number(b.id) - Number(a.id));
+  }
+
+  async getAgenticDeal(id: number) {
+    return getCollection("agentic_deals").find((deal) => deal.id === id || String(deal.id) === String(id));
+  }
+
+  async getAgenticDealByUploadToken(token: string) {
+    const value = String(token || "").trim();
+    if (!value) return undefined;
+    return getCollection("agentic_deals").find((deal) => deal.uploadToken === value);
+  }
+
+  async createAgenticDeal(deal: any) {
+    return insertItem("agentic_deals", {
+      events: [],
+      packDocuments: [],
+      ...deal,
+      uploadToken: deal.uploadToken || crypto.randomBytes(24).toString("base64url"),
+    });
+  }
+
+  async updateAgenticDeal(id: number, updates: any) {
+    const updated = updateItem("agentic_deals", id, updates);
+    if (!updated) throw new Error("Deal file not found");
+    return updated;
+  }
+
+  async deleteAgenticDeal(id: number): Promise<void> {
+    const existing = getCollection("agentic_deals").find((deal) => deal.id === id || String(deal.id) === String(id));
+    if (!existing) throw new Error("Deal file not found");
+    deleteItem("agentic_deals", existing.id);
   }
 
   async getTeams(userId?: string): Promise<Team[]> {

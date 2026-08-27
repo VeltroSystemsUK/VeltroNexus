@@ -7,7 +7,7 @@
  *
  * Usage:
  *   const agent = new LeadFinderAgent();
- *   const result = await agent.run("Find commercial finance brokers in Leeds");
+ *   const result = await agent.run("Find manufacturing SMEs in Leicester");
  */
 
 import 'dotenv/config';
@@ -16,9 +16,20 @@ import { LeadFinderAPI, LEAD_FINDER_TOOLS } from './api.js';
 import { SearchFilters } from './models/business.js';
 import { Ollama } from './ollama.js';
 
-const SYSTEM_PROMPT = `You are the Lead Finder Agent for Veltro's commercial finance brokerage operation.
+const BROKER_QUERY_RE =
+  /\b(nacfb|fiba|loan packagers?|finance brokers?|commercial finance brokers?|broker lists?|introducer networks?|independent brokers?)\b/i;
 
-Your sole responsibility is discovering and enriching local business leads from Google Maps, on instruction from Shaun.
+const SYSTEM_PROMPT = `You are the Lead Finder Agent for Strata Finance origination inside Nexus.
+
+Your sole responsibility is discovering and enriching UK leads from Google Maps for TWO streams only:
+
+STREAM A — Direct UK SME directors: trading companies (18+ months) likely carrying high-cost debt, merchant cash advances, or HMRC arrears. Typical niches: manufacturing, construction trades, hospitality, wholesale, haulage, engineering. Turnover roughly £250k–£5m.
+STREAM B — Professional introducers: chartered accountancy practices (ICAEW/ACCA), fractional CFOs, turnaround / insolvency advisers. Never pitch a loan to the practice itself.
+
+CHANNEL EXCLUSION (HARD):
+- Commercial finance brokers, NACFB/FIBA members, independent loan packagers, and broker lists are STRICTLY forbidden.
+- If Shaun asks for brokers, refuse and offer Stream A or Stream B instead.
+- Do not ingest or persist broker-looking results.
 
 BEHAVIOUR RULES:
 1. Parse niche and location from the instruction clearly. If either is ambiguous, ask once for clarification before proceeding.
@@ -33,7 +44,7 @@ BEHAVIOUR RULES:
 
 STRICT BOUNDARIES — you NEVER:
 - Contact leads or draft outreach messages
-- Assess whether a lead is suitable for a specific finance product (that is Prospecting Agent's job)
+- Search for or store commercial finance brokers
 - Run multiple large searches autonomously without instruction
 - Store or transmit data outside the local database
 
@@ -58,8 +69,11 @@ export class LeadFinderAgent {
   private api: LeadFinderAPI;
   private modelName: string;
 
-  constructor(model = process.env['DEFAULT_MODEL'] || 'gemini-3-flash-preview') {
-    this.api = new LeadFinderAPI();
+  constructor(
+    model = process.env['DEFAULT_MODEL'] || `ollama/${process.env['OLLAMA_MODEL'] || 'ornith:latest'}`,
+    dbPath?: string
+  ) {
+    this.api = new LeadFinderAPI(dbPath);
     this.modelName = model;
 
     if (model.startsWith('ollama/')) {
@@ -74,10 +88,25 @@ export class LeadFinderAgent {
   /**
    * Process a natural language instruction from Shaun.
    *
-   * @param instruction - e.g. "Find commercial finance brokers in Leeds, minimum 4 stars"
+   * @param instruction - e.g. "Find manufacturing SMEs in Leicester, minimum 4 stars"
    * @returns Final structured summary for Strategy Agent
    */
   async run(instruction: string): Promise<{ agentResponse: string }> {
+    if (BROKER_QUERY_RE.test(instruction)) {
+      return {
+        agentResponse: JSON.stringify({
+          status: "blocked",
+          searchQuery: instruction,
+          totalScraped: 0,
+          highQualityLeads: 0,
+          emailsFound: 0,
+          pecrEligible: 0,
+          recommendation:
+            "Refused: commercial finance brokers, NACFB/FIBA members, and loan packagers are excluded from Strata origination. Search Stream A (UK SME directors with high-cost debt / HMRC pressure) or Stream B (accountants, fractional CFOs, turnaround advisers) instead.",
+          readyFor: "none",
+        }),
+      };
+    }
     if (this.ollama) {
       return this.runOllama(instruction);
     }
@@ -259,7 +288,7 @@ export class LeadFinderAgent {
 // ─────────────────────────────────────────────
 
 if (process.argv[1]?.endsWith('agent.ts') || process.argv[1]?.endsWith('agent.js') || process.argv[1]?.endsWith('tsx')) {
-  const instruction = process.argv[2] ?? 'Find commercial finance brokers in Leeds, UK. Minimum 4 stars.';
+  const instruction = process.argv[2] ?? 'Find manufacturing SMEs in Leicester, UK. Minimum 4 stars.';
 
   const agent = new LeadFinderAgent();
   agent

@@ -1,0 +1,32 @@
+graph TD
+    D["Shaun — Director T0<br/>Calls, live replies, credit sign-off, Sterling send"]
+    D --> ORC["ORC-1 Orchestrator<br/>Stage machine · gates · tick()"]
+
+    ORC --> RES["RES-2 Origination<br/>Daniel / Maya / Elena"]
+    ORC --> SAL["SAL-2 Communications<br/>James / Sophie"]
+    ORC --> FIN["FIN-2 File factory<br/>Priya"]
+
+    RES --> T_CH[("Companies House")]
+    RES --> T_GZ[("Gazette")]
+    RES --> T_PL[("Google Places")]
+    RES --> T_CRM[("Prospect pipeline")]
+
+    SAL --> T_SMTP[("SMTP shared inbox")]
+    SAL --> T_PACK[("Pack portal")]
+    SAL --> T_LI["LinkedIn draft — Shaun posts"]
+    SAL --> T_CALL["Call queue — Shaun dials"]
+
+    FIN --> T_SFP[("Standard Financial Profile")]
+    FIN --> T_IX[("iXBRL / accounts")]
+    FIN --> T_CS[("Creditsafe")]
+    FIN --> T_ZIP[("Sterling zip")]
+
+    RES -->|ambiguous match| D
+    SAL -->|live reply / complaint / P0| D
+    FIN -->|credit memo checkpoint| D
+    FIN -->|complete zip| D
+    D -->|send| DAVID["David — Sterling portal"]
+
+    style D fill:#1B3A6B,color:#fff
+    style ORC fill:#2E75B6,color:#fff
+    style DAVID fill:#123a66,color:#fff

@@ -5,6 +5,7 @@ import { requireGodMode } from "../utils/godModeAuth";
 import { insertBrokerLeadSchema, insertBrokerCommissionSchema } from "@shared/schema";
 import { emailVerificationService } from "../services/emailVerificationService";
 import { enrichLead } from "../services/leadEnrichmentService";
+import { classifyProspectStream } from "@shared/salesOs";
 
 const router = Router();
 
@@ -45,6 +46,92 @@ router.post("/discover", async (req, res) => {
         });
     } catch (error) {
         handleApiError(res, error, "Broker Discovery error");
+    }
+});
+
+// --- Sweep: pull introducer-shaped companies out of the main pipeline ---
+// Catches whatever was already misrouted before the classifier was wired into
+// discovery — a one-off cleanup, not something run on a schedule.
+router.post("/sweep-introducers", async (req, res) => {
+    try {
+        const userId = (req.user as any)?.id;
+        let movedFromLeads = 0;
+        let movedFromPipeline = 0;
+
+        const internalLeads = await storage.listInternalLeads();
+        for (const lead of internalLeads) {
+            const decision = classifyProspectStream({
+                companyName: lead.companyName,
+                sicCodes: lead.sicCode ? [lead.sicCode] : [],
+            });
+            if (decision.stream !== "introducer") continue;
+
+            const existing = lead.companyNumber
+                ? await storage.getBrokerLeadByCompanyNumber(lead.companyNumber)
+                : undefined;
+            if (!existing) {
+                await storage.createBrokerLead({
+                    companyName: lead.companyName,
+                    companyNumber: lead.companyNumber,
+                    contactName: lead.contactName,
+                    email: lead.email,
+                    phone: lead.phone,
+                    status: "new",
+                    address: lead.address,
+                    city: lead.city,
+                    hasCharges: lead.hasCharges,
+                    totalChargesCount: lead.totalChargesCount,
+                    satisfiedChargesCount: lead.satisfiedChargesCount,
+                    sicCode: lead.sicCode,
+                    contacts: lead.contacts,
+                    commissionRate: lead.commissionRate,
+                    possibleDuplicate: false,
+                    notes: `${lead.notes || ""}\n\nSwept from the main leads pipeline — reclassified as an introducer (${decision.reason}).`.trim(),
+                });
+            }
+            await storage.deleteInternalLead(lead.id);
+            movedFromLeads++;
+        }
+
+        // Only sweep prospects still at the bare "lead" stage — anything further
+        // along already has a human working the file, so leave it alone.
+        if (userId) {
+            const prospects = await storage.listProspects(userId, "lead");
+            for (const prospect of prospects) {
+                if (!prospect.id) continue;
+                const decision = classifyProspectStream({
+                    companyName: prospect.company.companyName,
+                    sicCodes: prospect.company.sicCode ? [prospect.company.sicCode] : [],
+                });
+                if (decision.stream !== "introducer") continue;
+
+                const existing = prospect.company.companyNumber
+                    ? await storage.getBrokerLeadByCompanyNumber(prospect.company.companyNumber)
+                    : undefined;
+                if (!existing) {
+                    await storage.createBrokerLead({
+                        companyName: prospect.company.companyName,
+                        companyNumber: prospect.company.companyNumber,
+                        status: "new",
+                        address: prospect.company.registeredAddress || undefined,
+                        sicCode: prospect.company.sicCode || undefined,
+                        contacts: [],
+                        commissionRate: 0.1,
+                        hasCharges: false,
+                        totalChargesCount: 0,
+                        satisfiedChargesCount: 0,
+                        possibleDuplicate: false,
+                        notes: `Swept from the main pipeline (prospect #${prospect.id}) — reclassified as an introducer (${decision.reason}).`,
+                    });
+                }
+                await storage.deleteProspect(prospect.id, userId);
+                movedFromPipeline++;
+            }
+        }
+
+        res.json({ success: true, movedFromLeads, movedFromPipeline });
+    } catch (error) {
+        handleApiError(res, error, "Sweep introducers failed");
     }
 });
 

@@ -1,0 +1,129 @@
+<!-- ============ CONTACT (replacement) ============ -->
+<!-- Replaces the existing <section id="contact"> block and the old submitLeadForm()
+     / NEXUS_ENDPOINT script. After a successful POST the visitor is sent into
+     the Strata Nexus introduction portal with their details prefilled. -->
+
+<section id="contact" style="border-bottom:none;">
+  <div class="wrap contact-grid">
+    <div class="contact-copy reveal">
+      <p class="eyebrow">Start The Conversation</p>
+      <h2>Tell us what's going on. We'll tell you what's possible.</h2>
+      <p>Every enquiry is reviewed directly — no call centre, no generic script. If we can't help, we'll tell you straight.</p>
+      <div class="contact-points">
+        <div class="contact-point"><span class="cp-dash">—</span>No obligation, no credit search to enquire</div>
+        <div class="contact-point"><span class="cp-dash">—</span>Straight answer, usually within one working day</div>
+        <div class="contact-point"><span class="cp-dash">—</span>Everything you share is held in confidence</div>
+      </div>
+    </div>
+
+    <div class="contact-form reveal">
+      <form id="lead-form" onsubmit="submitLeadForm(event); return false;">
+        <div class="field-row">
+          <div class="field">
+            <label for="lf-contactName">Your name</label>
+            <input type="text" id="lf-contactName" required>
+          </div>
+          <div class="field">
+            <label for="lf-companyName">Business name</label>
+            <input type="text" id="lf-companyName" required>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="lf-email">Email</label>
+            <input type="email" id="lf-email" required>
+          </div>
+          <div class="field">
+            <label for="lf-phone">Phone</label>
+            <input type="tel" id="lf-phone" required>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="lf-currentDebt">Current debt (£)</label>
+            <input type="number" id="lf-currentDebt" min="0" value="50000" required>
+          </div>
+          <div class="field">
+            <label for="lf-monthlyPayment">Monthly payments (£)</label>
+            <input type="number" id="lf-monthlyPayment" min="0" value="2000" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="lf-situation">What best describes your situation?</label>
+          <select id="lf-situation">
+            <option value="hmrc">HMRC arrears</option>
+            <option value="refinance" selected>Refinancing existing commitments</option>
+            <option value="decline">Declined by my bank</option>
+            <option value="other">Something else</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Send My Enquiry</button>
+        <p id="lf-status" style="font-size:12px;color:var(--muted);margin-top:12px;"></p>
+      </form>
+
+      <div class="success-box" id="lead-success">
+        <h3>Thanks — that's with us.</h3>
+        <p>Continuing you into Strata Nexus so we can complete the file…</p>
+        <p><a id="lf-portal-link" href="https://leads.stratanexus.co.uk/introduction-portal">Open Strata Nexus</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  var NEXUS_ENDPOINT = 'https://leads.stratanexus.co.uk/api/inbound/refinance';
+  var NEXUS_PORTAL = 'https://leads.stratanexus.co.uk/introduction-portal';
+  var SITUATION_RATE = { hmrc: 12, refinance: 18, decline: 20, other: 15 };
+
+  function fieldValue(id, fallbackId) {
+    var el = document.getElementById(id) || (fallbackId ? document.getElementById(fallbackId) : null);
+    return el ? el.value : '';
+  }
+
+  function portalUrl(payload, situation) {
+    var qs = new URLSearchParams({
+      source: 'stratafinance',
+      name: payload.contactName || '',
+      email: payload.email || '',
+      phone: payload.phone || '',
+      company: payload.companyName || '',
+      amount: String(payload.currentDebt || ''),
+      monthly: String(payload.monthlyPayment || ''),
+      type: situation === 'other' ? 'new_loan' : 'refinance'
+    });
+    return NEXUS_PORTAL + '?' + qs.toString();
+  }
+
+  async function submitLeadForm(e) {
+    e.preventDefault();
+    var statusEl = document.getElementById('lf-status');
+    var situation = fieldValue('lf-situation') || 'refinance';
+    var payload = {
+      companyName: fieldValue('lf-companyName', 'lf-business'),
+      contactName: fieldValue('lf-contactName', 'lf-name'),
+      email: fieldValue('lf-email'),
+      phone: fieldValue('lf-phone'),
+      currentDebt: Number(fieldValue('lf-currentDebt')) || 50000,
+      monthlyPayment: Number(fieldValue('lf-monthlyPayment')) || 2000,
+      estimatedRate: SITUATION_RATE[situation] || 15
+    };
+
+    var nextUrl = portalUrl(payload, situation);
+    var portalLink = document.getElementById('lf-portal-link');
+    if (portalLink) portalLink.setAttribute('href', nextUrl);
+
+    if (statusEl) statusEl.textContent = 'Sending...';
+    try {
+      var res = await fetch(NEXUS_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Submission failed');
+      window.location.href = nextUrl;
+    } catch (err) {
+      if (statusEl) statusEl.textContent = 'Could not send from this page — continuing into Strata Nexus…';
+      window.location.href = nextUrl;
+    }
+  }
+</script>

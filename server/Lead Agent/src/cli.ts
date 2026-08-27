@@ -226,7 +226,7 @@ program
   .command('strategy')
   .description('Run the Strategy Agent to analyze high-quality leads')
   .option('-l, --limit <n>', 'Max records to analyze', '10')
-  .option('-m, --model <name>', 'Ollama model to use', process.env['DEFAULT_MODEL'] || 'ollama/llama3')
+  .option('-m, --model <name>', 'Ollama model to use', process.env['DEFAULT_MODEL'] || `ollama/${process.env['OLLAMA_MODEL'] || 'ornith:latest'}`)
   .action(async (opts) => {
     const spinner = ora('Strategy Agent thinking...').start();
 

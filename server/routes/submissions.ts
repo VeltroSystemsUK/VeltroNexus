@@ -18,6 +18,13 @@ import { zeusService } from "../services/zeusService";
 import { sendEmail } from "../services/email";
 import busboy from "busboy";
 import { getObjectStorage } from "../utils/routerHelpers";
+import { getReadableProspect } from "../utils/prospectAccess";
+import {
+    buildProspectReportData,
+    reportFilename,
+    renderProspectReportToBuffer,
+    streamProspectReport,
+} from "../utils/prospectReport";
 
 const router = Router();
 
@@ -55,102 +62,14 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
-
-        // Verify prospect belongs to user
-        const prospect = await storage.getProspect(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
         if (!prospect) {
           return res.status(404).json({ message: "Prospect not found" });
         }
 
-        const user = await storage.getUser(userId);
-
-        // Fetch related data
-        const [contacts, activities, dueDiligence] = await Promise.all([
-          storage.listContacts(prospectId, userId),
-          storage.listActivities(prospectId, userId),
-          storage.getDueDiligence(prospectId, userId).catch(() => null),
-        ]);
-
-        // Fetch Companies House data if available
-        let companiesHouseData: any = null;
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        if (apiKey && prospect.company.companyNumber) {
-          try {
-            const trimmedApiKey = apiKey.trim();
-            const authString = `${trimmedApiKey}:`;
-            const base64Auth = Buffer.from(authString).toString("base64");
-            const companyNumber = prospect.company.companyNumber;
-
-            const [officersRes, pscRes, chargesRes] = await Promise.all([
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ).catch(() => null),
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ).catch(() => null),
-              fetch(
-                `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
-                {
-                  headers: { Authorization: `Basic ${base64Auth}` },
-                }
-              ).catch(() => null),
-            ]);
-
-            companiesHouseData = {
-              officers: officersRes && officersRes.ok ? await officersRes.json() : null,
-              psc: pscRes && pscRes.ok ? await pscRes.json() : null,
-              charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null,
-            };
-          } catch (error) {
-            console.error("Error fetching Companies House data for report");
-          }
-        }
-
-        const { createProspectReportDocument, renderProspectReport } =
-          await import("../utils/pdfGenerator");
-
-        // Create document
-        const doc = createProspectReportDocument({
-          prospect,
-          contacts,
-          activities,
-          dueDiligence: dueDiligence || undefined,
-          companiesHouseData: companiesHouseData || undefined,
-          pdfLayoutPreferences: user?.pdfLayoutPreferences as any,
-          user: user as any,
-        });
-
-        // Set response headers
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="Credit_Assessment_${prospect.company.companyName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf"`
-        );
-
-        // Pipe to response
-        doc.pipe(res);
-
-        // Render content
-        renderProspectReport(doc, {
-          prospect,
-          contacts,
-          activities,
-          dueDiligence: dueDiligence || undefined,
-          companiesHouseData: companiesHouseData || undefined,
-          pdfLayoutPreferences: user?.pdfLayoutPreferences as any,
-          user: user as any,
-        });
-
-        // Finalize PDF
-        doc.end();
+        const reportData = await buildProspectReportData(prospect, { layoutUserId: req.user!.id });
+        await streamProspectReport(res, reportData, reportFilename(prospect.company.companyName));
       } catch (error) {
         console.error("Error generating report:", error);
         handleApiError(res, error, "api-error");
@@ -198,87 +117,9 @@ const router = Router();
         let pdfBuffer: Buffer;
         let sendingUser: Awaited<ReturnType<typeof storage.getUser>>;
         try {
-          const [contacts, activities, dueDiligence, user] = await Promise.all([
-            storage.listContacts(submissionInput.prospectId, userId),
-            storage.listActivities(submissionInput.prospectId, userId),
-            storage.getDueDiligence(submissionInput.prospectId, userId).catch(() => null),
-            storage.getUser(userId),
-          ]);
-          sendingUser = user;
-
-          // Fetch Companies House data (officers, PSC, charges) if available
-          let companiesHouseData: any = null;
-          const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-          if (apiKey && prospect.company.companyNumber) {
-            try {
-              const trimmedApiKey = apiKey.trim();
-              const authString = `${trimmedApiKey}:`;
-              const base64Auth = Buffer.from(authString).toString("base64");
-              const companyNumber = prospect.company.companyNumber;
-
-              const [officersRes, pscRes, chargesRes] = await Promise.all([
-                fetch(
-                  `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`,
-                  {
-                    headers: { Authorization: `Basic ${base64Auth}` },
-                  }
-                ).catch(() => null),
-                fetch(
-                  `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`,
-                  {
-                    headers: { Authorization: `Basic ${base64Auth}` },
-                  }
-                ).catch(() => null),
-                fetch(
-                  `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`,
-                  {
-                    headers: { Authorization: `Basic ${base64Auth}` },
-                  }
-                ).catch(() => null),
-              ]);
-
-              companiesHouseData = {
-                officers: officersRes && officersRes.ok ? await officersRes.json() : null,
-                psc: pscRes && pscRes.ok ? await pscRes.json() : null,
-                charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null,
-              };
-            } catch (error) {
-              console.error("Error fetching Companies House data for submission report");
-            }
-          }
-
-          const { createProspectReportDocument, renderProspectReport } =
-            await import("../utils/pdfGenerator");
-
-          const reportDoc = createProspectReportDocument({
-            prospect,
-            contacts,
-            activities,
-            dueDiligence: dueDiligence || undefined,
-            companiesHouseData: companiesHouseData || undefined,
-            pdfLayoutPreferences: user?.pdfLayoutPreferences as any,
-            user: user as any,
-          });
-
-          const chunks: Buffer[] = [];
-          reportDoc.on("data", (chunk: Buffer) => chunks.push(chunk));
-
-          // Render the report content
-          renderProspectReport(reportDoc, {
-            prospect,
-            contacts,
-            activities,
-            dueDiligence: dueDiligence || undefined,
-            companiesHouseData: companiesHouseData || undefined,
-            pdfLayoutPreferences: user?.pdfLayoutPreferences as any,
-            user: user as any,
-          });
-
-          await new Promise<void>((resolve, reject) => {
-            reportDoc.on("end", () => resolve());
-            reportDoc.on("error", reject);
-          });
-          pdfBuffer = Buffer.concat(chunks);
+          sendingUser = await storage.getUser(userId);
+          const reportData = await buildProspectReportData(prospect, { layoutUserId: userId });
+          pdfBuffer = await renderProspectReportToBuffer(reportData);
         } catch (pdfError: any) {
           const errMessage = (pdfError as Error)?.message || "Unknown error";
           console.error("PDF generation error");
@@ -441,13 +282,14 @@ const router = Router();
         if (user?.role === "super_admin" || user?.role === "sales_admin") {
           // Admin roles see all submissions
           const { status, assigned } = req.query;
-          const filters: { status?: string; assignedUnderwriterId?: string } = {};
+          const filters: { status?: string; underwriterId?: string } = {};
           if (status) filters.status = status as string;
-          if (assigned === "me") filters.assignedUnderwriterId = userId;
+          if (assigned === "me") filters.underwriterId = userId;
           submissions = await storage.listUnderwritingSubmissions(filters);
-        } else if (user?.role === "underwriter" || user?.hasUnderwritingAccess) {
-          // Underwriter (or user with add-on) sees: queue (submitted + unassigned) + their assigned
+        } else if (user?.role === "underwriter") {
           submissions = await storage.listUnderwriterScopedSubmissions(userId);
+        } else if (user?.hasUnderwritingAccess) {
+          submissions = await storage.listBrokerUnderwritingSubmissions(userId);
         } else {
           // No access
           return res.status(403).json({ error: "Access denied" });
@@ -520,7 +362,7 @@ const router = Router();
     async (req: Request, res: Response) => {
       try {
         const userId = req.user!.id;
-        const { prospectId, priority, brokerComments } = req.body;
+        const { prospectId, priority, brokerComments, destination } = req.body;
 
         if (!prospectId) {
           return res.status(400).json({ error: "prospectId is required" });
@@ -532,40 +374,69 @@ const router = Router();
           return res.status(404).json({ error: "Prospect not found" });
         }
 
-        // Check if there's already an active submission for this prospect
+        const diligence = await storage.getDueDiligence(prospectId, userId);
+        const bbb = (diligence?.data as any)?.underwriting?.eligibility;
+        if (bbb?.isEligible !== true) {
+          return res.status(403).json({
+            error:
+              "British Business Bank eligibility must pass before this application can be considered.",
+            ineligibilityReasons: bbb?.ineligibilityReasons || [],
+          });
+        }
+
         const existingSubmission = await storage.getUnderwritingSubmissionByProspect(prospectId);
-        if (
-          existingSubmission &&
-          !["approved", "declined", "withdrawn"].includes(existingSubmission.status)
-        ) {
+        const existingHandoff = await storage.getBrokerHandoffByProspect(prospectId);
+        const { canCreateOrReopenUnderwriting } = await import("../services/sterlingHandoff");
+        const action = canCreateOrReopenUnderwriting({
+          submissionStatus: existingSubmission?.status,
+          handoffStatus: existingHandoff?.status,
+        });
+        if (action === "blocked") {
           return res
             .status(409)
             .json({ error: "This prospect already has an active underwriting submission" });
         }
 
-        // Create the submission
-        const submission = await storage.createUnderwritingSubmission(
-          {
-            prospectId,
-            priority: (priority as any) || "normal",
-            status: "submitted",
-            brokerComments,
-          },
-          userId
-        );
+        const payload = {
+          prospectId,
+          priority: (priority as any) || "normal",
+          status: "submitted",
+          brokerComments,
+          destination: destination === "strata" ? "strata" : "underwriting",
+          submittedAt: new Date().toISOString(),
+        };
+        const activityContent =
+          destination === "strata"
+            ? brokerComments || "Submitted to Strata via Underwriting Inbox"
+            : brokerComments || "Submitted for underwriting review";
 
-        // Create activity record
+        const submission =
+          action === "reopen" && existingSubmission
+            ? await storage.updateUnderwritingSubmission(existingSubmission.id, payload)
+            : await storage.createUnderwritingSubmission(payload, userId);
+        if (!submission) {
+          return res.status(500).json({ error: "Could not save underwriting submission" });
+        }
+
         await storage.createUnderwritingActivity(
           {
             submissionId: submission.id,
             activityType: "submitted",
-            content: brokerComments || "Submitted for underwriting review",
+            content: activityContent,
           },
           userId
         );
 
-        // Update prospect stage to submission
         await storage.updateProspectStage(prospectId, userId, "submission");
+
+        const { ensureSterlingHandoff } = await import("../services/sterlingHandoff");
+        await ensureSterlingHandoff({
+          prospectId,
+          userId,
+          submissionId: submission.id,
+        }).catch((error) => {
+          console.warn("Sterling handoff skipped:", error instanceof Error ? error.message : error);
+        });
 
         res.status(201).json(submission);
       } catch (error) {
@@ -584,7 +455,7 @@ const router = Router();
         const id = parseInt(req.params.id);
         const userId = req.user!.id;
 
-        // Atomic claim: only succeeds if status='submitted' AND assignedUnderwriterId IS NULL
+        // Atomic claim: only succeeds if status='submitted' AND underwriterId IS NULL
         const updated = await storage.claimUnderwritingSubmission(id, userId);
 
         if (!updated) {
@@ -660,61 +531,9 @@ const router = Router();
           return res.status(404).json({ error: "Prospect not found" });
         }
 
-        const [contacts, activities, dueDiligence, sendingUser] = await Promise.all([
-          storage.listContacts(submission.prospectId, submission.brokerId),
-          storage.listActivities(submission.prospectId, submission.brokerId),
-          storage.getDueDiligence(submission.prospectId, submission.brokerId).catch(() => null),
-          storage.getUser(userId),
-        ]);
-
-        let companiesHouseData: any = null;
-        const apiKey = process.env.COMPANIES_HOUSE_API_KEY;
-        if (apiKey && prospect.company.companyNumber) {
-          try {
-            const trimmedApiKey = apiKey.trim();
-            const base64Auth = Buffer.from(`${trimmedApiKey}:`).toString("base64");
-            const companyNumber = prospect.company.companyNumber;
-            const [officersRes, pscRes, chargesRes] = await Promise.all([
-              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/officers`, { headers: { Authorization: `Basic ${base64Auth}` } }).catch(() => null),
-              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/persons-with-significant-control`, { headers: { Authorization: `Basic ${base64Auth}` } }).catch(() => null),
-              fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}/charges`, { headers: { Authorization: `Basic ${base64Auth}` } }).catch(() => null),
-            ]);
-            companiesHouseData = {
-              officers: officersRes && officersRes.ok ? await officersRes.json() : null,
-              psc: pscRes && pscRes.ok ? await pscRes.json() : null,
-              charges: chargesRes && chargesRes.ok ? await chargesRes.json() : null,
-            };
-          } catch {
-            console.error("Error fetching Companies House data for broker hand-off");
-          }
-        }
-
-        const { createProspectReportDocument, renderProspectReport } = await import("../utils/pdfGenerator");
-        const reportDoc = createProspectReportDocument({
-          prospect,
-          contacts,
-          activities,
-          dueDiligence: dueDiligence || undefined,
-          companiesHouseData: companiesHouseData || undefined,
-          pdfLayoutPreferences: sendingUser?.pdfLayoutPreferences as any,
-          user: sendingUser as any,
-        });
-        const chunks: Buffer[] = [];
-        reportDoc.on("data", (chunk: Buffer) => chunks.push(chunk));
-        renderProspectReport(reportDoc, {
-          prospect,
-          contacts,
-          activities,
-          dueDiligence: dueDiligence || undefined,
-          companiesHouseData: companiesHouseData || undefined,
-          pdfLayoutPreferences: sendingUser?.pdfLayoutPreferences as any,
-          user: sendingUser as any,
-        });
-        await new Promise<void>((resolve, reject) => {
-          reportDoc.on("end", () => resolve());
-          reportDoc.on("error", reject);
-        });
-        const pdfBuffer = Buffer.concat(chunks);
+        const sendingUser = await storage.getUser(userId);
+        const reportData = await buildProspectReportData(prospect, { layoutUserId: userId });
+        const pdfBuffer = await renderProspectReportToBuffer(reportData);
 
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         const handoff = await storage.createBrokerHandoff({
@@ -972,12 +791,12 @@ const router = Router();
 
         // Apply same access control as requireSubmissionReadAccess
         const isBrokerOwner = submission.brokerId === userId;
-        const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
+        const isAssignedUnderwriter = submission.underwriterId === userId;
         const isSuperAdmin = user?.role === "super_admin";
         const isUnderwriterViewingQueue =
           user?.role === "underwriter" &&
           submission.status === "submitted" &&
-          !submission.assignedUnderwriterId;
+          !submission.underwriterId;
 
         if (
           !isBrokerOwner &&
@@ -1027,7 +846,7 @@ const router = Router();
 
         // Only the broker who created it, assigned underwriter, or admins can upload
         const isOwner = submission.brokerId === userId;
-        const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
+        const isAssignedUnderwriter = submission.underwriterId === userId;
         const isAdmin = ["sales_admin", "super_admin"].includes(user.role);
 
         if (!isOwner && !isAssignedUnderwriter && !isAdmin) {
@@ -1164,7 +983,7 @@ const router = Router();
         // Not just any user with role 'underwriter'
         const user = await storage.getUser(userId);
         const isSubmittingBroker = submission.brokerId === userId;
-        const isAssignedUnderwriter = submission.assignedUnderwriterId === userId;
+        const isAssignedUnderwriter = submission.underwriterId === userId;
         const isSuperAdmin = user?.role === "super_admin";
 
         if (!isSubmittingBroker && !isAssignedUnderwriter && !isSuperAdmin) {
@@ -1282,7 +1101,7 @@ const router = Router();
         }
 
         // Only assigned underwriter can message
-        if (submission.assignedUnderwriterId !== userId) {
+        if (submission.underwriterId !== userId) {
           return res.status(403).json({ error: "Only the assigned underwriter can send messages" });
         }
 

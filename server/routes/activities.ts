@@ -5,6 +5,7 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
 import { insertActivitySchema, insertTimeEntrySchema } from "@shared/schema";
+import { getReadableProspect } from "../utils/prospectAccess";
 
 const router = Router();
 
@@ -44,8 +45,11 @@ router.post("/activities", isAuthenticated, async (req: Request, res: Response) 
 router.get("/prospects/:prospectId/activities", isAuthenticated, async (req: Request, res: Response) => {
     try {
         const prospectId = parseInt(req.params.prospectId);
-        const userId = req.user!.id;
-        const activities = await storage.listActivities(prospectId, userId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) {
+            return res.status(404).json({ error: "Prospect not found" });
+        }
+        const activities = await storage.listActivities(prospectId, prospect.userId);
         res.json(activities);
     } catch (error) {
         handleApiError(res, error, "api-error");

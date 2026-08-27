@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import DOMPurify from "dompurify";
 import { useLocation } from "wouter";
 import {
     Search,
@@ -25,7 +24,10 @@ import {
     Columns,
     Rows,
     Reply,
-    X as CloseIcon
+    X as CloseIcon,
+    Paperclip,
+    Printer,
+    MailOpen
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +35,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ComposeDrawer } from "@/components/gmail/ComposeDrawer";
+import { EmailBody } from "@/components/gmail/EmailBody";
+import { listGmailAttachments, parseFromHeader } from "@shared/gmail";
 import { useToast } from "@/hooks/use-toast";
 import {
     DropdownMenu,
@@ -102,12 +106,33 @@ export default function Gmail() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [signature, setSignature] = useState("");
     const [oooSettings, setOooSettings] = useState<any>(null);
+    const [account, setAccount] = useState<{
+        configured: boolean;
+        connected: boolean;
+        email: string | null;
+        redirectUri?: string;
+    } | null>(null);
 
     const { toast } = useToast();
 
+    useEffect(() => {
+        fetch("/api/gmail/status", { credentials: "include" })
+            .then((res) => res.json())
+            .then(setAccount)
+            .catch(() => setAccount({ configured: false, connected: false, email: null }));
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("connected") === "1") {
+            toast({ title: "Gmail connected" });
+            window.history.replaceState({}, "", "/gmail");
+        } else if (params.get("error")) {
+            toast({ title: "Gmail connect failed", description: String(params.get("error")), variant: "destructive" });
+            window.history.replaceState({}, "", "/gmail");
+        }
+    }, []);
+
     const fetchSettings = async () => {
         try {
-            const res = await fetch("/api/gmail/settings");
+            const res = await fetch("/api/gmail/settings", { credentials: "include" });
             if (res.ok) {
                 const data = await res.json();
                 setSignature(data.signature);
@@ -118,9 +143,12 @@ export default function Gmail() {
         }
     };
 
+    useEffect(() => {
+        if (account?.connected) fetchSettings();
+    }, [account?.connected]);
+
     // Check URL params for compose
     useEffect(() => {
-        fetchSettings();
         const params = new URLSearchParams(window.location.search);
         const shouldCompose = params.get("compose") === "true";
         const toEmail = params.get("to") || "";
@@ -149,8 +177,9 @@ export default function Gmail() {
     };
 
     useEffect(() => {
+        if (!account?.connected) return;
         fetchLabels();
-    }, []);
+    }, [account?.connected]);
 
     const loadMessages = async (searchOverride?: string) => {
         setLoading(true);
@@ -178,8 +207,9 @@ export default function Gmail() {
     };
 
     useEffect(() => {
+        if (!account?.connected) return;
         loadMessages();
-    }, [activeFolder]);
+    }, [activeFolder, account?.connected]);
 
     useEffect(() => {
         if (!selectedMessageId) {
@@ -189,10 +219,25 @@ export default function Gmail() {
 
         const fetchMessage = async () => {
             try {
-                const response = await fetch(`/api/gmail/message/${selectedMessageId}`);
+                const response = await fetch(`/api/gmail/message/${selectedMessageId}`, { credentials: "include" });
                 if (response.ok) {
                     const data = await response.json();
                     setSelectedMessage(data.message);
+                    if ((data.message?.labelIds || []).includes("UNREAD")) {
+                        await fetch(`/api/gmail/message/${selectedMessageId}/modify`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+                        });
+                        setMessages((prev) =>
+                            prev.map((item) =>
+                                item.id === selectedMessageId
+                                    ? { ...item, unread: false, labelIds: item.labelIds.filter((id) => id !== "UNREAD") }
+                                    : item
+                            )
+                        );
+                    }
                 }
             } catch (error) {
                 console.error("Failed to load message body", error);
@@ -201,6 +246,28 @@ export default function Gmail() {
         fetchMessage();
     }, [selectedMessageId]);
 
+
+    const handleMarkUnread = async (msgId: string) => {
+        try {
+            await fetch(`/api/gmail/message/${msgId}/modify`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ addLabelIds: ["UNREAD"] }),
+            });
+            setMessages((prev) =>
+                prev.map((item) =>
+                    item.id === msgId
+                        ? { ...item, unread: true, labelIds: item.labelIds.includes("UNREAD") ? item.labelIds : [...item.labelIds, "UNREAD"] }
+                        : item
+                )
+            );
+            setSelectedMessageId(null);
+            toast({ title: "Marked unread" });
+        } catch (error) {
+            console.error("Mark unread error:", error);
+        }
+    };
 
     const handleStar = async (msgId: string, isStarred: boolean) => {
         try {
@@ -434,26 +501,92 @@ export default function Gmail() {
 
     const renderMessageBody = (msg: any) => {
         if (!msg) return null;
-        let body = "No content";
-        if (msg.payload?.body?.data) {
-            body = atob(msg.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-        } else if (msg.payload?.parts) {
-            const part = msg.payload.parts.find((p: any) => p.mimeType === "text/html") || msg.payload.parts[0];
-            if (part?.body?.data) {
-                body = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-            }
-        }
-
-        return (
-            <div className="prose dark:prose-invert max-w-none p-4" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(body) }} />
-        );
+        return <EmailBody payload={msg.payload} />;
     };
+
+    const startReply = (all = false) => {
+        if (!selectedMessage) return;
+        const from = parseFromHeader(selectedMessage.payload?.headers?.find((h: any) => h.name === "From")?.value);
+        const toHeader = selectedMessage.payload?.headers?.find((h: any) => h.name === "To")?.value || "";
+        const subject = selectedMessage.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
+        setComposeTo(all ? [from.email || from.display, toHeader].filter(Boolean).join(", ") : from.email || from.display);
+        setComposeSubject(subject.startsWith("Re:") ? subject : `Re: ${subject}`);
+        setComposeThreadId(selectedMessage.threadId);
+        const date = new Date(parseInt(selectedMessage.internalDate)).toLocaleString();
+        setComposeBody(
+            `<br><div class="gmail_quote">On ${date}, ${from.display} wrote:<br><blockquote>${selectedMessage.snippet || ""}</blockquote></div>`
+        );
+        setComposeOpen(true);
+    };
+
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+            if (!account?.connected) return;
+            if (event.key === "c") {
+                setComposeTo("");
+                setComposeSubject("");
+                setComposeBody("");
+                setComposeThreadId("");
+                setComposeOpen(true);
+            } else if (event.key === "r" && selectedMessage) startReply(false);
+            else if (event.key === "a" && selectedMessage) startReply(true);
+            else if (event.key === "e" && selectedMessageId) handleArchive(selectedMessageId);
+            else if (event.key === "#" && selectedMessageId) handleDelete(selectedMessageId);
+            else if (event.key === "u" && selectedMessageId) handleMarkUnread(selectedMessageId);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [account?.connected, selectedMessage, selectedMessageId]);
+
+    if (account && !account.connected) {
+        return (
+            <div className="h-[calc(100vh-4rem)] flex items-center justify-center p-6">
+                <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4">
+                    <div className="flex items-center gap-2 text-primary text-sm font-medium">
+                        <Mail className="h-4 w-4" />
+                        Gmail
+                    </div>
+                    <h1 className="text-lg font-semibold">Connect shaun@veltro.co.uk</h1>
+                    <p className="text-sm text-muted-foreground">
+                        The in-app Gmail client reads and sends through your Google account. Grant Gmail access, then the inbox will load here.
+                    </p>
+                    {account.configured ? (
+                        <>
+                            <Button asChild>
+                                <a href="/api/gmail/connect">Connect Gmail</a>
+                            </Button>
+                            {account.redirectUri ? (
+                                <p className="text-xs text-muted-foreground break-all">
+                                    Google Cloud must list this exact redirect URI:{" "}
+                                    <code className="text-foreground">{account.redirectUri}</code>
+                                </p>
+                            ) : null}
+                        </>
+                    ) : (
+                        <p className="text-sm text-amber-200">
+                            Set <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> in <code>.env.local</code>,
+                            add redirect URI <code>/api/gmail/callback</code> on that OAuth client, restart NexusApp, then connect.
+                        </p>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-[calc(100vh-4rem)] flex">
             {/* Sidebar */}
             <div className="w-64 border-r p-4 flex flex-col gap-4 bg-background">
-                <Button onClick={() => setComposeOpen(true)} className="w-full shadow-md">
+                <Button onClick={() => {
+                    setComposeTo("");
+                    setComposeName("");
+                    setComposeSubject("");
+                    setComposeBody("");
+                    setComposeThreadId("");
+                    setComposeOpen(true);
+                }} className="w-full shadow-md">
                     <Edit className="h-4 w-4 mr-2" />
                     Compose
                 </Button>
@@ -573,9 +706,20 @@ export default function Gmail() {
                     ))}
                 </div>
 
-                <div className="text-xs text-muted-foreground px-2 pt-2 border-t">
+                <div className="text-xs text-muted-foreground px-2 pt-2 border-t space-y-2">
                     <p className="font-medium mb-1">Account</p>
-                    <p className="truncate">shaun@veltro.co.uk</p>
+                    <p className="truncate">{account?.email || "shaun@veltro.co.uk"}</p>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-0"
+                        onClick={async () => {
+                            await fetch("/api/gmail/disconnect", { method: "POST", credentials: "include" });
+                            setAccount({ configured: true, connected: false, email: null });
+                        }}
+                    >
+                        Disconnect
+                    </Button>
                 </div>
             </div>
 
@@ -737,6 +881,18 @@ export default function Gmail() {
                                 </div>
                             ) : (
                                 <div className="divide-y">
+                                    {messages.length > 0 && (
+                                        <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground">
+                                            <Checkbox
+                                                checked={messages.every((item) => selectedIds.includes(item.id))}
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedIds(checked ? messages.map((item) => item.id) : []);
+                                                }}
+                                            />
+                                            Select all
+                                            {selectedIds.length > 0 ? ` · ${selectedIds.length} selected` : ""}
+                                        </div>
+                                    )}
                                     {messages.map((message) => (
                                         <div
                                             key={message.id}
@@ -774,7 +930,7 @@ export default function Gmail() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-baseline mb-1">
                                                     <span className={`truncate mr-2 ${density === "compact" ? "text-sm" : "text-base"}`}>
-                                                        {message.from}
+                                                        {parseFromHeader(message.from).display}
                                                     </span>
                                                     <span className="text-xs text-muted-foreground whitespace-nowrap">
                                                         {new Date(message.date).toLocaleDateString()}
@@ -815,6 +971,15 @@ export default function Gmail() {
                                             <Button variant="ghost" size="icon" onClick={() => handleArchive(selectedMessage.id)} title="Archive">
                                                 <Archive className="h-4 w-4" />
                                             </Button>
+                                            <Button variant="ghost" size="icon" title="Mark unread" onClick={() => handleMarkUnread(selectedMessage.id)}>
+                                                <MailOpen className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" title="Print" onClick={() => {
+                                                const frame = document.querySelector('iframe[title="Email message"]') as HTMLIFrameElement | null;
+                                                frame?.contentWindow?.print();
+                                            }}>
+                                                <Printer className="h-4 w-4" />
+                                            </Button>
                                             <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedMessage.id)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50">
                                                 <Trash className="h-4 w-4" />
                                             </Button>
@@ -844,20 +1009,7 @@ export default function Gmail() {
                                             <div className="flex-1" />
 
                                             <div className="flex items-center gap-1">
-                                                <Button variant="outline" size="sm" className="gap-2" onClick={() => {
-                                                    const from = selectedMessage.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
-                                                    const subject = selectedMessage.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
-                                                    setComposeTo(from);
-                                                    setComposeSubject(subject.startsWith("Re:") ? subject : `Re: ${subject}`);
-                                                    setComposeThreadId(selectedMessage.threadId);
-
-                                                    // Simple quote for body
-                                                    const date = new Date(parseInt(selectedMessage.internalDate)).toLocaleString();
-                                                    const quote = `<br><br><div class="gmail_quote">On ${date}, ${from} wrote:<br><blockquote>${selectedMessage.snippet}</blockquote></div>`;
-                                                    setComposeBody(quote);
-
-                                                    setComposeOpen(true);
-                                                }}>
+                                                <Button variant="outline" size="sm" className="gap-2" onClick={() => startReply(false)}>
                                                     <Reply className="h-4 w-4" />
                                                     Reply
                                                 </Button>
@@ -869,15 +1021,7 @@ export default function Gmail() {
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem onClick={() => {
-                                                            const from = selectedMessage.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
-                                                            const to = selectedMessage.payload?.headers?.find((h: any) => h.name === "To")?.value || "";
-                                                            const subject = selectedMessage.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
-                                                            setComposeTo(`${from}, ${to}`);
-                                                            setComposeSubject(subject.startsWith("Re:") ? subject : `Re: ${subject}`);
-                                                            setComposeThreadId(selectedMessage.threadId);
-                                                            setComposeOpen(true);
-                                                        }}>
+                                                        <DropdownMenuItem onClick={() => startReply(true)}>
                                                             Reply All
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem onClick={() => {
@@ -896,24 +1040,50 @@ export default function Gmail() {
                                         </div>
 
                                         <div className="p-6 overflow-y-auto">
-                                            <h2 className="text-2xl font-bold mb-4">{selectedMessage.payload?.headers?.find((h: any) => h.name === "Subject")?.value}</h2>
+                                            {(() => {
+                                                const from = parseFromHeader(selectedMessage.payload?.headers?.find((h: any) => h.name === "From")?.value);
+                                                const to = selectedMessage.payload?.headers?.find((h: any) => h.name === "To")?.value || "me";
+                                                return (
+                                                    <>
+                                            <h2 className="text-xl font-semibold mb-4 leading-snug">{selectedMessage.payload?.headers?.find((h: any) => h.name === "Subject")?.value}</h2>
 
                                             <div className="flex items-center justify-between mb-6 pb-4 border-b">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold">
-                                                        {selectedMessage.payload?.headers?.find((h: any) => h.name === "From")?.value?.charAt(0) || "?"}
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center font-bold shrink-0">
+                                                        {(from.name || "?").charAt(0).toUpperCase()}
                                                     </div>
-                                                    <div>
-                                                        <div className="font-semibold">{selectedMessage.payload?.headers?.find((h: any) => h.name === "From")?.value}</div>
-                                                        <div className="text-xs text-muted-foreground">to me</div>
+                                                    <div className="min-w-0">
+                                                        <div className="font-semibold truncate">{from.display}</div>
+                                                        <div className="text-xs text-muted-foreground truncate">
+                                                            {from.email ? `${from.email} · ` : ""}to {to}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="text-sm text-muted-foreground">
+                                                <div className="text-sm text-muted-foreground shrink-0 ml-3">
                                                     {new Date(parseInt(selectedMessage.internalDate)).toLocaleString()}
                                                 </div>
                                             </div>
+                                                    </>
+                                                );
+                                            })()}
 
                                             {renderMessageBody(selectedMessage)}
+                                            {listGmailAttachments(selectedMessage.payload).length > 0 && (
+                                                <div className="mt-4 border rounded-md p-3 space-y-2">
+                                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Attachments</p>
+                                                    {listGmailAttachments(selectedMessage.payload).map((file) => (
+                                                        <a
+                                                            key={file.attachmentId}
+                                                            className="flex items-center gap-2 text-sm text-primary hover:underline"
+                                                            href={`/api/gmail/message/${selectedMessage.id}/attachment/${encodeURIComponent(file.attachmentId)}?filename=${encodeURIComponent(file.filename)}&mimeType=${encodeURIComponent(file.mimeType)}`}
+                                                        >
+                                                            <Paperclip className="h-4 w-4" />
+                                                            {file.filename}
+                                                            {file.size ? <span className="text-muted-foreground">({Math.max(1, Math.round(file.size / 1024))} KB)</span> : null}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (
@@ -938,7 +1108,8 @@ export default function Gmail() {
                 initialTo={composeTo}
                 initialName={composeName}
                 initialSubject={composeSubject}
-                initialBody={signature ? `<br><br>--<br>${signature}` : ""}
+                initialBody={composeBody}
+                signature={signature}
                 threadId={composeThreadId}
             />
 
@@ -948,7 +1119,7 @@ export default function Gmail() {
                     <DialogHeader>
                         <DialogTitle>Gmail Settings</DialogTitle>
                         <DialogDescription>
-                            Manage your email signature and vacation responder.
+                            Signature is loaded from your Gmail account. Edit it here and Save to push it back to Gmail.
                         </DialogDescription>
                     </DialogHeader>
 

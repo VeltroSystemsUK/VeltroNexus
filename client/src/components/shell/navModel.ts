@@ -42,15 +42,16 @@ const WITH_TRIAL = ["broker", "super_admin", "sales_admin", "trial_broker"];
 export const DESTINATIONS: Destination[] = [
   // Workspace
   { path: "/pipeline", label: "Deck", icon: LayoutDashboard, group: "Workspace", roles: WITH_TRIAL, keywords: "home dashboard overview pipeline", description: "Commercial lending pipeline dashboard" },
-  { path: "/workforce", label: "Workforce", icon: Sparkles, group: "Workspace", roles: FULL, keywords: "agents ai", description: "Manage your AI agent team" },
+  { path: "/workforce", label: "Workforce", icon: Sparkles, group: "Workspace", roles: FULL, keywords: "agents ai deals", description: "Deal files and desk results" },
   { path: "/compliance", label: "Compliance", icon: Shield, group: "Workspace", roles: FULL, keywords: "regulation fca risk", description: "Regulatory and compliance hub" },
   { path: "/admin", label: "Admin", icon: ShieldCheck, group: "Workspace", roles: ["super_admin", "sales_admin"], keywords: "users platform settings", description: "Manage users, platform settings and SLAs" },
   { path: "/teams", label: "Teams", icon: Users, group: "Workspace", roles: ["super_admin", "sales_admin"], keywords: "users groups", description: "Create and manage teams" },
 
   // Sales
   { path: "/crm", label: "Clients", icon: Users, group: "Sales", roles: ["super_admin"], keywords: "crm prospects contacts", description: "Prospects and client database" },
-  { path: "/brokers", label: "Brokers", icon: Users, group: "Sales", roles: ["super_admin"], keywords: "introducers", description: "Manage and recruit introducers" },
+  { path: "/brokers", label: "Introducers", icon: Users, group: "Sales", roles: ["super_admin"], keywords: "brokers inbound review", description: "Review inbound introducer leads" },
   { path: "/lenders", label: "Lenders", icon: Building2, group: "Sales", roles: WITH_TRIAL, keywords: "lender data", description: "Lender network and market data" },
+  { path: "/agent-mail", label: "Agent mail", icon: Mail, group: "Sales", roles: ["super_admin"], keywords: "email inbox agents monitor", description: "Monitor agent inbound and outbound email" },
   { path: "/gmail", label: "Gmail", icon: Mail, group: "Sales", roles: ["super_admin"], keywords: "email inbox", description: "Email management" },
   { path: "/whatsapp", label: "WhatsApp", icon: MessageSquare, group: "Sales", roles: ["super_admin"], keywords: "messages notifications", description: "Send messages via WhatsApp" },
   { path: "/leads", label: "Leads", icon: Target, group: "Sales", roles: WITH_TRIAL, keywords: "lead generation find prospects", description: "Track and manage generated leads" },
@@ -69,6 +70,7 @@ export const DESTINATIONS: Destination[] = [
 
   // Underwriting
   { path: "/underwriting", label: "Inbox", icon: Inbox, group: "Underwriting", roles: FULL_UW, keywords: "inbox decisions", description: "Review and process loan applications" },
+  { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, group: "Underwriting", roles: ["super_admin", "sales_admin"], keywords: "sterling david oversight files", description: "Oversight of the Sterling Commercial Finance portal" },
   { path: "/credit-tools", label: "Credit Tools", icon: Calculator, group: "Underwriting", roles: FULL_UW, keywords: "credit tools analysis", description: "Utility calculators for credit analysis" },
   { path: "/ai-studio", label: "AI Studio", icon: Brain, group: "Underwriting", roles: FULL_UW, keywords: "ai underwriting", description: "AI-powered underwriting workspace" },
   { path: "/submissions", label: "Submissions", icon: ClipboardList, group: "Underwriting", roles: FULL_UW, keywords: "deal submissions", description: "Create and manage deal submissions" },

@@ -16,6 +16,8 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { setupAuth } from "./auth";
 import { agentService } from "./services/agentService";
 import { validateEnv } from "./config";
+import { isStrataEmbedPath, mountStrataEmbed } from "./strataEmbed";
+import { sqliteConnection } from "./db/schema";
 
 const app = express();
 
@@ -29,22 +31,30 @@ declare module "http" {
 
 // Reduced default body limits for security
 // Individual routes enforce their own limits for high-cost operations (AI, PDF parsing)
-app.use(
+app.use((req, res, next) => {
+  if (isStrataEmbedPath(req.path)) return next();
   express.json({
     limit: "5mb",
-    verify: (req, _res, buf) => {
-      req.rawBody = buf;
+    verify: (incoming, _res, buf) => {
+      incoming.rawBody = buf;
     },
-  })
-);
-app.use(express.urlencoded({ extended: false, limit: "5mb" }));
+  })(req, res, next);
+});
+app.use((req, res, next) => {
+  if (isStrataEmbedPath(req.path)) return next();
+  express.urlencoded({ extended: false, limit: "5mb" })(req, res, next);
+});
 app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
 // Security headers middleware
 const isProduction = process.env.NODE_ENV === "production";
 app.use((req, res, next) => {
-  // Prevent clickjacking attacks
-  res.setHeader("X-Frame-Options", "DENY");
+  // Same-origin only so the Strata workspace can render inside Nexus.
+  if (isStrataEmbedPath(req.path)) {
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  } else {
+    res.setHeader("X-Frame-Options", "DENY");
+  }
 
   // Relax Cross-Origin policies to allow external images (like Google Favicons)
   // that don't have CORP headers.
@@ -84,7 +94,7 @@ app.use((req, res, next) => {
       "font-src 'self' data: https://fonts.gstatic.com https://editor.unlayer.com",
       "connect-src 'self' wss: ws: https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk https://europe-west2-veltro-prod.cloudfunctions.net ws://localhost:* http://localhost:* https://editor.unlayer.com https://*.unlayer.com",
       "frame-src 'self' https://editor.unlayer.com",
-      "frame-ancestors 'none'",
+      isStrataEmbedPath(req.path) ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
@@ -176,6 +186,7 @@ app.use((req: any, res, next) => {
     await setupAuth(app as any);
 
     const server = await registerRoutes(app);
+    mountStrataEmbed(app);
 
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
@@ -245,10 +256,9 @@ app.use((req: any, res, next) => {
           await agentService.initializeWorkforce();
           console.log("[AgentService] Workforce initialized");
 
-          // Start ARES autonomous scheduler
           const { aresScheduler } = await import("./services/aresScheduler");
-          aresScheduler.start();
-          console.log("[ARES] Autonomous scheduler started");
+          aresScheduler.stop();
+          console.log("[ARES] Hibernated — Deal files (ORC-1) is the factory. ARES loop will not run.");
 
           // Start Companies House monitoring
           const { companiesHouseMonitor } = await import("./services/companiesHouseMonitor");
@@ -259,6 +269,22 @@ app.use((req: any, res, next) => {
           const leadFinderScheduler = getScheduler();
           leadFinderScheduler.start();
           console.log("[Lead Finder] Autonomous scheduler started");
+
+          const { agenticWorkflow } = await import("./services/agenticWorkflow");
+          let lastDistressScanDate: string | null = null;
+          setInterval(() => {
+            agenticWorkflow.tick().catch((error) => {
+              console.error("[Agentic] Timer tick failed:", error);
+            });
+            const today = new Date().toISOString().slice(0, 10);
+            if (lastDistressScanDate !== today && new Date().getHours() >= 8) {
+              lastDistressScanDate = today;
+              agenticWorkflow.startFromDistressScan().catch((error) => {
+                console.error("[Agentic] Distress scan failed:", error);
+              });
+            }
+          }, 60 * 1000);
+          console.log("[Agentic] Deal-file timer and daily hunt started");
 
         } catch (error) {
           console.error("[Startup] Failed to initialize agents/schedulers:", error);
@@ -284,6 +310,15 @@ app.use((req: any, res, next) => {
 
       // Close Redis connection
       await closeRateLimitRedis();
+
+      // Checkpoint and close the SQLite connection so a killed process can't
+      // leave the WAL tail unflushed (observed to drop recent writes on restart).
+      try {
+        sqliteConnection.pragma("wal_checkpoint(TRUNCATE)");
+        sqliteConnection.close();
+      } catch (err) {
+        console.error("Error closing SQLite connection during shutdown:", err);
+      }
 
       // Close HTTP server
       server.close(() => {

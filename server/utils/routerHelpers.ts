@@ -6,11 +6,7 @@ let _objectStorage: ObjectStorageClient | null = null;
 
 export function getObjectStorage(): ObjectStorageClient {
     if (_objectStorage) return _objectStorage;
-    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-    if (!bucketId) {
-        throw new Error("Object storage bucket not configured");
-    }
-    console.info("Object storage initialized with bucket:", bucketId);
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "local";
     _objectStorage = new ObjectStorageClient({ bucketId });
     return _objectStorage;
 }

@@ -353,11 +353,12 @@ export function LeadFinderTab() {
         mutationFn: (placeId: string) => apiRequest(`/api/lead-finder/migrate/${placeId}`, "POST"),
         onSuccess: (data: any) => {
             if (data.duplicate) {
-                toast.warning(`Lead migrated but may be a duplicate of existing record #${data.existingLeadId}`);
+                toast.warning(`Lead migrated but may be a duplicate of existing prospect #${data.existingProspectId}`);
             } else {
-                toast.success("Lead migrated to CRM!");
+                toast.success("Lead added to Prospect Pipeline!");
             }
             queryClient.invalidateQueries({ queryKey: ["/api/lead-finder/results"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
         },
         onError: (error: any) => {
             toast.error("Failed to migrate lead: " + error.message);

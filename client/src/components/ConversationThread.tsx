@@ -59,6 +59,7 @@ const activityLabels: Record<string, string> = {
   approved: "Approved",
   declined: "Declined",
   withdrawn: "Withdrawn",
+  returned_from_sterling: "Returned from Sterling",
   comment: "Comment",
 };
 

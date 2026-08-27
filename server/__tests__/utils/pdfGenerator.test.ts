@@ -155,4 +155,117 @@ describe("renderProspectReport", () => {
     expect(decoded).toContain("Supportable subject to statements.");
     expect(decoded).not.toContain("No recommendation provided.");
   });
+
+  it("renders company register fields without Companies House payload", async () => {
+    const raw = await renderUncompressed({
+      prospect: prospect({
+        background: "Family bakery supplying regional multiples.",
+        company: {
+          companyName: "PDF REPORT TEST LTD",
+          companyNumber: "TP000002",
+          registeredAddress: "1 Test Street, Birmingham",
+          postcode: "B1 1AA",
+          incorporationDate: "2018-03-01",
+          companyStatus: "active",
+          companyType: "ltd",
+          sicCode: "10710",
+          sicDescription: "Manufacture of bread",
+          website: "https://bakery.example",
+        },
+      } as any),
+      contacts: [],
+      activities: [],
+      dueDiligence: undefined,
+      companiesHouseData: undefined,
+    });
+    expect(raw).toContain("TP000002");
+    expect(raw).toContain("1 Test Street, Birmingham");
+    expect(raw).toContain("Manufacture of bread");
+    expect(raw).toContain("Family bakery supplying regional multiples.");
+  });
+
+  it("renders Creditsafe score and accounts P&L / DSCR from company-module data", async () => {
+    const raw = await renderUncompressed({
+      prospect: prospect({
+        company: {
+          companyName: "PDF REPORT TEST LTD",
+          companyNumber: "TP000002",
+          registeredAddress: "1 Test Street, Birmingham",
+          postcode: "B1 1AA",
+          incorporationDate: "2018-03-01",
+          companyStatus: "active",
+          companyType: "ltd",
+          sicCode: "10710",
+          sicDescription: "Manufacture of bread",
+          creditsafeScore: "72",
+          creditsafeRatingDescription: "Low Risk",
+          creditsafeCreditLimit: 5_000_000,
+          creditsafeCheckedAt: "2026-08-01",
+          creditsafeReport: JSON.stringify({
+            report: {
+              financialStatements: [
+                {
+                  yearEndDate: "2025-03-31",
+                  profitAndLoss: { revenue: 1_200_000, operatingProfit: 140_000, profitBeforeTax: 110_000 },
+                  balanceSheet: { totalAssets: 800_000, totalLiabilities: 350_000, totalShareholdersEquity: 450_000 },
+                },
+              ],
+            },
+          }),
+        },
+      } as any),
+      contacts: [],
+      activities: [],
+      dueDiligence: dueDiligence({
+        financialAnalysis: { dscr: 1.35, redFlags: ["Declining turnover in Q3"] },
+        accountsAnalysis: {
+          riskScore: "B",
+          summary: "Accounts show steady but slowing growth.",
+          profitAndLoss: { turnover: 250000, grossProfit: 90000, netProfit: 40000 },
+        },
+      }),
+      companiesHouseData: null,
+    });
+    expect(raw).toContain("Creditsafe Credit Check");
+    expect(raw).toContain("Low Risk");
+    expect(raw).toContain("1.35x");
+    expect(raw).toContain("Accounts show steady but slowing growth.");
+    expect(raw).toContain("250,000");
+  });
+
+  it("prints loan amounts as pounds, not pence x100", async () => {
+    const raw = await renderUncompressed({
+      prospect: prospect({ loanAmount: 15_000_000 }),
+      contacts: [],
+      activities: [],
+      dueDiligence: undefined,
+      companiesHouseData: null,
+    });
+    expect(raw).toContain("150,000");
+    expect(raw).not.toContain("1,500,000,000");
+  });
 });
+
+function decodePdf(raw: string): string {
+  return Array.from(raw.matchAll(/<([0-9a-fA-F]+)>/g))
+    .map((m) => {
+      const hex = m[1];
+      let out = "";
+      for (let i = 0; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+      return out;
+    })
+    .join("");
+}
+
+async function renderUncompressed(data: Parameters<typeof renderProspectReport>[1]): Promise<string> {
+  const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true, compress: false });
+  const chunks: Buffer[] = [];
+  doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+  renderProspectReport(doc as any, data as any);
+  doc.end();
+  await new Promise<void>((resolve, reject) => {
+    doc.on("end", () => resolve());
+    doc.on("error", reject);
+  });
+  return decodePdf(Buffer.concat(chunks).toString("latin1"));
+}

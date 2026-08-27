@@ -5,75 +5,10 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
 import { insertEmailCampaignSchema } from "@shared/schema";
-import nodemailer from "nodemailer";
-import crypto from "crypto";
+import { prepareCampaignSend } from "@shared/campaignSend";
+import { wasEmailDelivered } from "@shared/outreachSend";
 import { EmailVerificationService } from "../services/emailVerification";
-
-// Resolve merge tags in content for a specific recipient
-function resolveMergeTags(
-  content: string,
-  recipient: { email: string; firstName?: string | null; lastName?: string | null; companyName?: string | null },
-  senderName: string
-): string {
-  return content
-    .replace(/\{\{firstName\}\}/g, recipient.firstName || "there")
-    .replace(/\{\{lastName\}\}/g, recipient.lastName || "")
-    .replace(/\{\{companyName\}\}/g, recipient.companyName || "your company")
-    .replace(/\{\{email\}\}/g, recipient.email)
-    .replace(/\{\{senderName\}\}/g, senderName)
-    .replace(/\{\{senderCompany\}\}/g, "Veltro")
-    .replace(/\{\{currentDate\}\}/g, new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }))
-    .replace(/\{\{unsubscribeLink\}\}/g, "#");
-}
-
-// Get Gmail auth for sending (stubbed out for local SMTP)
-async function getSuperAdminGmailAuth() {
-  return null; // No Google OAuth needed
-}
-
-// Send a single email via SMTP or Mock local email
-async function sendGmailMessage(
-  auth: any,
-  to: string,
-  subject: string,
-  htmlBody: string
-): Promise<string> {
-  const messageId = `campaign-msg-${crypto.randomUUID()}`;
-
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = parseInt(process.env.SMTP_PORT || "587");
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (smtpHost && smtpUser && smtpPass) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || smtpUser,
-        to,
-        subject,
-        html: htmlBody,
-      });
-      console.log(`[SMTP Campaign] Sent email to ${to}`);
-    } catch (err: any) {
-      console.error("[SMTP Campaign] Failed to send email via SMTP:", err.message);
-      throw err;
-    }
-  } else {
-    console.log(`[Campaign Email Mock] Sent email to ${to} (SMTP not configured)`);
-  }
-
-  return messageId;
-}
+import { sendEmail } from "../services/email";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -208,65 +143,68 @@ router.post(
         }
       }
 
-      // Get sender info
-      const user = await storage.getUser(req.user.id);
-      const senderName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Veltro" : "Veltro";
-      const userId = req.user.id;
-
-      // Get Gmail auth before responding
-      let auth: any;
-      try {
-        auth = await getSuperAdminGmailAuth();
-      } catch (authErr: any) {
-        console.error("[EmailCampaigns] Gmail auth error:", authErr.message);
-        return res.status(500).json({ error: "Gmail authentication not configured. Please connect Gmail in settings." });
-      }
-
-      // Update campaign status to sending
       await storage.updateEmailCampaign(campaign.id!, {
         status: "sending",
       } as any);
 
-      // Respond immediately — emails are sent in the background
       res.json({
         success: true,
         totalSent: 0,
-        message: `Sending campaign to ${recipients.length} recipients...`,
+        message: `Sending campaign to ${recipients.length} recipients from enquiries@stratafinance.co.uk...`,
       });
 
-      // Background: send emails to each recipient
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+
       (async () => {
         let sentCount = 0;
         let failedCount = 0;
 
         for (const recipient of recipients) {
-          if (recipient.status !== "pending") continue;
-          // Skip known-invalid recipients
-          if (recipient.verificationStatus === "invalid") {
-            await storage.updateCampaignRecipient(recipient.id!, {
+          if (recipient.status !== "pending" || !recipient.id) continue;
+
+          const prepared = prepareCampaignSend({
+            subject: campaign.subject,
+            content: campaign.content,
+            recipient: {
+              id: recipient.id,
+              email: recipient.email,
+              firstName: recipient.firstName,
+              lastName: recipient.lastName,
+              companyName: recipient.companyName,
+              verificationStatus: recipient.verificationStatus,
+              status: recipient.status,
+            },
+            baseUrl,
+          });
+
+          if (prepared.skipReason) {
+            await storage.updateCampaignRecipient(recipient.id, {
               status: "failed",
-              errorMessage: "Skipped: email verification marked as invalid",
+              errorMessage: prepared.skipReason,
             });
             failedCount++;
             continue;
           }
 
           try {
-            const personalizedSubject = resolveMergeTags(campaign.subject, recipient, senderName);
-            let personalizedContent = resolveMergeTags(campaign.content, recipient, senderName);
-
-            // Inject open tracking pixel
-            const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-            const trackingPixel = `<img src="${baseUrl}/api/email-tracking/open/${recipient.id}" width="1" height="1" style="display:none" alt="" />`;
-            if (personalizedContent.includes("</body>")) {
-              personalizedContent = personalizedContent.replace("</body>", `${trackingPixel}</body>`);
-            } else {
-              personalizedContent += trackingPixel;
+            const sendResult = await sendEmail(
+              prepared.credentials,
+              prepared.to,
+              prepared.subject,
+              prepared.html
+            );
+            if (!wasEmailDelivered(sendResult)) {
+              await storage.updateCampaignRecipient(recipient.id, {
+                status: "failed",
+                errorMessage: sendResult?.mock
+                  ? "SMTP not configured — email was not delivered"
+                  : "Send failed",
+              });
+              failedCount++;
+              continue;
             }
 
-            await sendGmailMessage(auth, recipient.email, personalizedSubject, personalizedContent);
-
-            await storage.updateCampaignRecipient(recipient.id!, {
+            await storage.updateCampaignRecipient(recipient.id, {
               status: "sent",
               sentAt: new Date(),
             });
@@ -274,7 +212,7 @@ router.post(
             console.log(`[EmailCampaigns] Sent to ${recipient.email}`);
           } catch (sendErr: any) {
             console.error(`[EmailCampaigns] Failed to send to ${recipient.email}:`, sendErr.message);
-            await storage.updateCampaignRecipient(recipient.id!, {
+            await storage.updateCampaignRecipient(recipient.id, {
               status: "failed",
               errorMessage: sendErr.message || "Send failed",
             });
@@ -578,6 +516,30 @@ router.get(
       Expires: "0",
     });
     res.end(TRACKING_PIXEL);
+  }
+);
+
+router.get(
+  "/email-tracking/unsubscribe/:recipientId",
+  async (req: Request, res: Response) => {
+    try {
+      const recipientId = parseInt(req.params.recipientId);
+      if (!isNaN(recipientId)) {
+        const recipient = await storage.getCampaignRecipientById(recipientId);
+        if (recipient && recipient.status !== "unsubscribed") {
+          await storage.updateCampaignRecipient(recipientId, {
+            status: "unsubscribed",
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[EmailTracking] Unsubscribe error:", err);
+    }
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(
+      "<!doctype html><title>Unsubscribed</title><p>You've been unsubscribed from Strata Finance emails.</p>"
+    );
   }
 );
 

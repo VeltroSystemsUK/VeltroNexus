@@ -98,14 +98,14 @@ export function OnboardingProvider({ children, userName }: OnboardingProviderPro
     });
 
     const enabled = onboardingData?.enabled ?? false;
-    const progress = onboardingData?.progress ?? {
-        completed: [],
-        currentStep: null,
-        startedAt: null,
-        completedAt: null,
+    const rawProgress = onboardingData?.progress;
+    const progress = {
+        currentStep: rawProgress?.currentStep ?? null,
+        startedAt: rawProgress?.startedAt ?? null,
+        completedAt: rawProgress?.completedAt ?? null,
+        completed: Array.isArray(rawProgress?.completed) ? rawProgress.completed : [],
     };
 
-    // Check if first time user (no progress and onboarding enabled)
     const isFirstTimeUser = enabled && progress.completed.length === 0 && !progress.startedAt;
 
     // Show welcome modal for first time users

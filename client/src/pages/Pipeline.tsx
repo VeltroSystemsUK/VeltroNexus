@@ -16,7 +16,7 @@ import TaskReminders from "@/components/TaskReminders";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2, Plus, Menu } from "lucide-react"; // Added Menu
+import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2, Plus, Menu, CheckCircle2 } from "lucide-react"; // Added Menu
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLocation } from "wouter";
@@ -31,7 +31,7 @@ import type { ProspectWithCompany } from "@shared/schema";
 import ProspectLimitModal from "@/components/ProspectLimitModal";
 import { OnboardingChecklist, OnboardingTooltip, useOnboarding } from "@/components/onboarding";
 
-import { DEFAULT_STAGES, type PipelineStage } from "./Settings";
+import { DEFAULT_PIPELINE_STAGES, remapSavedPipelineStages } from "@shared/pipelineStages";
 
 type Stage = string;
 
@@ -70,26 +70,27 @@ export default function Pipeline() {
     { id: "dashboard", label: "Dashboard", shortLabel: "Home", icon: LayoutDashboard, color: "bg-primary" },
     { id: "prospect-pipeline", label: "Prospect Pipeline", shortLabel: "Prospects", icon: Users, color: "bg-primary" },
     { id: "process-pipeline", label: "Process Pipeline", shortLabel: "Process", icon: Send, color: "bg-primary" },
+    { id: "process-outcome", label: "Process Outcome", shortLabel: "Outcome", icon: CheckCircle2, color: "bg-primary" },
   ];
 
   // Compute dynamic stages from user settings
-  const { allStages, prospectStages, processStages, finalStages } = useMemo(() => {
-    let stages: { id: string; label: string; color?: string }[] = DEFAULT_STAGES;
+  const { allStages, prospectStages, processStages, outcomeStages } = useMemo(() => {
+    let stages: { id: string; label: string; color?: string }[] = DEFAULT_PIPELINE_STAGES;
 
     if (user?.pipelineStageNames) {
-      if (Array.isArray(user.pipelineStageNames)) {
-        stages = user.pipelineStageNames;
-      } else {
-        // Legacy object support
-        stages = DEFAULT_STAGES.map(s => ({
+      const remapped = remapSavedPipelineStages(user.pipelineStageNames);
+      if (Array.isArray(remapped)) {
+        stages = remapped;
+      } else if (remapped && typeof remapped === "object") {
+        stages = DEFAULT_PIPELINE_STAGES.map((s) => ({
           ...s,
-          label: user.pipelineStageNames[s.id] || s.label
+          label: (remapped as Record<string, string>)[s.id] || s.label,
         }));
       }
     }
 
     const prospectIds = ["lead", "contacted", "qualified"];
-    const finalIds = ["approved", "declined", "withdrawn"];
+    const outcomeIds = ["further-information", "declined", "approved"];
 
     return {
       allStages: stages.map(s => ({ value: s.id, label: s.label })),
@@ -97,10 +98,10 @@ export default function Pipeline() {
         .filter(s => prospectIds.includes(s.id))
         .map(s => ({ value: s.id, label: s.label })),
       processStages: stages
-        .filter(s => !prospectIds.includes(s.id) && !finalIds.includes(s.id))
+        .filter(s => !prospectIds.includes(s.id) && !outcomeIds.includes(s.id))
         .map(s => ({ value: s.id, label: s.label })),
-      finalStages: stages
-        .filter(s => finalIds.includes(s.id))
+      outcomeStages: stages
+        .filter(s => outcomeIds.includes(s.id))
         .map(s => ({ value: s.id, label: s.label }))
     };
   }, [user]);
@@ -165,8 +166,8 @@ export default function Pipeline() {
       // Contextual message for tab transitions
       if (["lead", "contacted", "qualified"].includes(stage)) {
         message = "Moved to Prospect Pipeline tab";
-      } else if (["approved", "declined", "withdrawn"].includes(stage)) {
-        message = "Moved to Final Outcomes";
+      } else if (["further-information", "declined", "approved"].includes(stage)) {
+        message = "Moved to Process Outcome tab";
       } else {
         message = "Moved to Process Pipeline tab";
       }
@@ -242,7 +243,7 @@ export default function Pipeline() {
 
   const totalValue = prospects.reduce((sum, p) => sum + (p.loanAmount || 0), 0);
   const activeProspects = prospects.filter(
-    (p) => !["approved", "declined", "withdrawn"].includes(p.stage)
+    (p) => !["approved", "declined"].includes(p.stage)
   ).length;
   const approvedCount = prospects.filter((p) => p.stage === "approved").length;
 
@@ -339,7 +340,7 @@ export default function Pipeline() {
             </div>
 
             <TabsList
-              className="hidden md:grid w-full grid-cols-3 mb-6 md:mb-10 h-12 md:h-14 bg-muted/50 p-1 gap-1"
+              className="hidden md:grid w-full grid-cols-4 mb-6 md:mb-10 h-12 md:h-14 bg-muted/50 p-1 gap-1"
               data-testid="tabs-list"
             >
               {tabOptions.map((tab) => (
@@ -367,7 +368,7 @@ export default function Pipeline() {
                   approvedCount,
                 }}
                 stages={allStages
-                  .filter((s) => !["approved", "declined", "withdrawn"].includes(s.value))
+                  .filter((s) => !["approved", "declined"].includes(s.value))
                   .map((s) => ({
                     label: s.label,
                     count: getProspectsByStage(s.value).length,
@@ -453,130 +454,136 @@ export default function Pipeline() {
                     Application Processing
                   </h3>
                   <p className="text-muted-foreground text-sm md:text-base">
-                    Manage applications from proposal to submission
+                    Manage applications from packaging to submission
                   </p>
                 </div>
                 <DragDropContext onDragEnd={onDragEnd}>
-                  <div className="space-y-4 md:space-y-8">
-                    {/* Active Process Stages */}
-                    <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-4 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
-                      {processStages.map((stage) => {
-                        const stageProspects = getProspectsByStage(stage.value);
-                        const totalValue = getTotalValueByStage(stage.value);
+                  <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-4 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
+                    {processStages.map((stage) => {
+                      const stageProspects = getProspectsByStage(stage.value);
+                      const totalValue = getTotalValueByStage(stage.value);
 
-                        return (
-                          <Droppable key={stage.value} droppableId={stage.value}>
-                            {(provided, snapshot) => (
-                              <div ref={provided.innerRef} {...provided.droppableProps} className="min-w-[85vw] md:min-w-0 snap-center">
-                                <PipelineColumn
-                                  title={stage.label}
-                                  count={stageProspects.length}
-                                  totalValue={totalValue}
-                                  isDraggingOver={snapshot.isDraggingOver}
-                                >
-                                  {stageProspects.map((prospect, index) => {
-                                    return (
-                                      <Draggable
-                                        key={prospect.id}
-                                        draggableId={`prospect-${prospect.id}`}
-                                        index={index}
-                                      >
-                                        {(provided, snapshot) => (
-                                          <div ref={provided.innerRef} {...provided.draggableProps}>
-                                            <SafeProspectCard
-                                              prospect={prospect}
-                                              dragHandleProps={provided.dragHandleProps}
-                                              isDragging={snapshot.isDragging}
-                                              currentStage={stage.value}
-                                              availableStages={allStages}
-                                              onClick={() => navigate(`/prospect/${prospect.id!}`)}
-                                              onMove={(newStage: Stage) =>
-                                                handleStageChange(prospect.id!, newStage as Stage)
-                                              }
-                                              underwritingStatus={underwritingStatuses[prospect.id!]}
-                                              dueDiligenceStatus={dueDiligenceStatuses[prospect.id!]}
-                                              isOverLimit={isProspectOverLimit(prospect.id!)}
-                                              onLimitClick={() => setShowLimitModal(true)}
-                                              queuePosition={index + 1}
-                                            />
-                                          </div>
-                                        )}
-                                      </Draggable>
-                                    );
-                                  })}
-                                  {provided.placeholder}
-                                </PipelineColumn>
-                              </div>
-                            )}
-                          </Droppable>
-                        );
-                      })}
-                    </div>
+                      return (
+                        <Droppable key={stage.value} droppableId={stage.value}>
+                          {(provided, snapshot) => (
+                            <div ref={provided.innerRef} {...provided.droppableProps} className="min-w-[85vw] md:min-w-0 snap-center">
+                              <PipelineColumn
+                                title={stage.label}
+                                count={stageProspects.length}
+                                totalValue={totalValue}
+                                isDraggingOver={snapshot.isDraggingOver}
+                              >
+                                {stageProspects.map((prospect, index) => {
+                                  return (
+                                    <Draggable
+                                      key={prospect.id}
+                                      draggableId={`prospect-${prospect.id}`}
+                                      index={index}
+                                    >
+                                      {(provided, snapshot) => (
+                                        <div ref={provided.innerRef} {...provided.draggableProps}>
+                                          <SafeProspectCard
+                                            prospect={prospect}
+                                            dragHandleProps={provided.dragHandleProps}
+                                            isDragging={snapshot.isDragging}
+                                            currentStage={stage.value}
+                                            availableStages={allStages}
+                                            onClick={() => navigate(`/prospect/${prospect.id!}`)}
+                                            onMove={(newStage: Stage) =>
+                                              handleStageChange(prospect.id!, newStage as Stage)
+                                            }
+                                            underwritingStatus={underwritingStatuses[prospect.id!]}
+                                            dueDiligenceStatus={dueDiligenceStatuses[prospect.id!]}
+                                            isOverLimit={isProspectOverLimit(prospect.id!)}
+                                            onLimitClick={() => setShowLimitModal(true)}
+                                            queuePosition={index + 1}
+                                          />
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  );
+                                })}
+                                {provided.placeholder}
+                              </PipelineColumn>
+                            </div>
+                          )}
+                        </Droppable>
+                      );
+                    })}
+                  </div>
+                </DragDropContext>
+              </div>
+            </TabsContent>
 
-                    {/* Final Outcomes */}
-                    <div>
-                      <h3 className="text-lg md:text-2xl font-semibold mb-4 md:mb-6 tracking-tight">
-                        Final Outcomes
-                      </h3>
-                      <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-5 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
-                        {finalStages.map((stage) => {
-                          const stageProspects = getProspectsByStage(stage.value);
-                          const totalValue = getTotalValueByStage(stage.value);
+            {/* Process Outcome Tab */}
+            <TabsContent value="process-outcome" data-testid="content-process-outcome">
+              <div className="space-y-4 md:space-y-8">
+                <div>
+                  <h3 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2 tracking-tight">
+                    Process Outcome
+                  </h3>
+                  <p className="text-muted-foreground text-sm md:text-base">
+                    Track applications through to a final decision
+                  </p>
+                </div>
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-3 md:gap-5 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
+                    {outcomeStages.map((stage) => {
+                      const stageProspects = getProspectsByStage(stage.value);
+                      const totalValue = getTotalValueByStage(stage.value);
 
-                          return (
-                            <Droppable key={stage.value} droppableId={stage.value}>
-                              {(provided, snapshot) => (
-                                <div ref={provided.innerRef} {...provided.droppableProps} className="min-w-[85vw] md:min-w-0 snap-center">
-                                  <PipelineColumn
-                                    title={stage.label}
-                                    count={stageProspects.length}
-                                    totalValue={totalValue}
-                                    isDraggingOver={snapshot.isDraggingOver}
-                                  >
-                                    {stageProspects.map((prospect, index) => {
-                                      return (
-                                        <Draggable
-                                          key={prospect.id}
-                                          draggableId={`prospect-${prospect.id}`}
-                                          index={index}
+                      return (
+                        <Droppable key={stage.value} droppableId={stage.value}>
+                          {(provided, snapshot) => (
+                            <div ref={provided.innerRef} {...provided.droppableProps} className="min-w-[85vw] md:min-w-0 snap-center">
+                              <PipelineColumn
+                                title={stage.label}
+                                count={stageProspects.length}
+                                totalValue={totalValue}
+                                isDraggingOver={snapshot.isDraggingOver}
+                              >
+                                {stageProspects.map((prospect, index) => {
+                                  return (
+                                    <Draggable
+                                      key={prospect.id}
+                                      draggableId={`prospect-${prospect.id}`}
+                                      index={index}
+                                    >
+                                      {(provided, snapshot) => (
+                                        <div
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
                                         >
-                                          {(provided, snapshot) => (
-                                            <div
-                                              ref={provided.innerRef}
-                                              {...provided.draggableProps}
-                                            >
-                                              <SafeProspectCard
-                                                prospect={prospect}
-                                                dragHandleProps={provided.dragHandleProps}
-                                                isDragging={snapshot.isDragging}
-                                                currentStage={stage.value}
-                                                availableStages={allStages}
-                                                onClick={() => navigate(`/prospect/${prospect.id!}`)}
-                                                onMove={(newStage: Stage) =>
-                                                  handleStageChange(prospect.id!, newStage as Stage)
-                                                }
-                                                underwritingStatus={
-                                                  underwritingStatuses[prospect.id!]
-                                                }
-                                                dueDiligenceStatus={dueDiligenceStatuses[prospect.id!]}
-                                                isOverLimit={isProspectOverLimit(prospect.id!)}
-                                                onLimitClick={() => setShowLimitModal(true)}
-                                                queuePosition={index + 1}
-                                              />
-                                            </div>
-                                          )}
-                                        </Draggable>
-                                      );
-                                    })}
-                                    {provided.placeholder}
-                                  </PipelineColumn>
-                                </div>
-                              )}
-                            </Droppable>
-                          );
-                        })}
-                      </div>
-                    </div>
+                                          <SafeProspectCard
+                                            prospect={prospect}
+                                            dragHandleProps={provided.dragHandleProps}
+                                            isDragging={snapshot.isDragging}
+                                            currentStage={stage.value}
+                                            availableStages={allStages}
+                                            onClick={() => navigate(`/prospect/${prospect.id!}`)}
+                                            onMove={(newStage: Stage) =>
+                                              handleStageChange(prospect.id!, newStage as Stage)
+                                            }
+                                            underwritingStatus={
+                                              underwritingStatuses[prospect.id!]
+                                            }
+                                            dueDiligenceStatus={dueDiligenceStatuses[prospect.id!]}
+                                            isOverLimit={isProspectOverLimit(prospect.id!)}
+                                            onLimitClick={() => setShowLimitModal(true)}
+                                            queuePosition={index + 1}
+                                          />
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  );
+                                })}
+                                {provided.placeholder}
+                              </PipelineColumn>
+                            </div>
+                          )}
+                        </Droppable>
+                      );
+                    })}
                   </div>
                 </DragDropContext>
               </div>

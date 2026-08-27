@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useState, useEffect } from "react";
+import { DEFAULT_PIPELINE_STAGES, remapSavedPipelineStages, type PipelineStageDef } from "@shared/pipelineStages";
 import {
   Save,
   Loader2,
@@ -120,27 +121,12 @@ const FONTS = [
 
 import PdfLayoutBuilder, { type PdfSection, type ReportHeaderConfig } from "@/components/PdfLayoutBuilder";
 
-export interface PipelineStage {
-  id: string;
-  label: string;
-  color: string;
-}
-
-export const DEFAULT_STAGES: PipelineStage[] = [
-  { id: "lead", label: "Lead", color: "#3B82F6" },
-  { id: "contacted", label: "Contacted", color: "#6366F1" },
-  { id: "qualified", label: "Qualified", color: "#8B5CF6" },
-  { id: "proposal", label: "Proposal", color: "#EC4899" },
-  { id: "due-diligence", label: "Due Diligence", color: "#F43F5E" },
-  { id: "submission", label: "Submitted", color: "#0EA5E9" },
-  { id: "approval", label: "Approval", color: "#F59E0B" },
-  { id: "approved", label: "Approved", color: "#10B981" },
-  { id: "declined", label: "Declined", color: "#6B7280" },
-  { id: "withdrawn", label: "Withdrawn", color: "#9CA3AF" },
-];
+export type PipelineStage = PipelineStageDef;
+export const DEFAULT_STAGES: PipelineStage[] = DEFAULT_PIPELINE_STAGES;
 
 const DEFAULT_PDF_SECTIONS: PdfSection[] = [
   { id: "companyInfo", label: "Company Information", enabled: true, type: "module" },
+  { id: "creditsafe", label: "Creditsafe Credit Check", enabled: true, type: "module" },
   { id: "officers", label: "Officers", enabled: true, type: "module" },
   { id: "psc", label: "Persons with Significant Control", enabled: true, type: "module" },
   { id: "charges", label: "Charges", enabled: true, type: "module" },
@@ -425,15 +411,14 @@ export default function Settings() {
       setTimezone(user.timezone || "Europe/London");
       setDateFormat(user.dateFormat || "DD/MM/YYYY");
       setTheme(user.theme || "light");
-      if (Array.isArray(user.pipelineStageNames)) {
-        setStages(user.pipelineStageNames);
-      } else if (user.pipelineStageNames) {
-        // Migration from legacy object to array
-        const newStages = DEFAULT_STAGES.map(stage => ({
+      const remapped = remapSavedPipelineStages(user.pipelineStageNames);
+      if (Array.isArray(remapped)) {
+        setStages(remapped);
+      } else if (remapped && typeof remapped === "object") {
+        setStages(DEFAULT_STAGES.map((stage) => ({
           ...stage,
-          label: user.pipelineStageNames[stage.id] || stage.label
-        }));
-        setStages(newStages);
+          label: (remapped as Record<string, string>)[stage.id] || stage.label,
+        })));
       } else {
         setStages(DEFAULT_STAGES);
       }

@@ -50,6 +50,7 @@ function getSafeProspectData(prospect: any): ProspectCardData {
         companyNumber,
         loanAmount: Number(prospect.loanAmount) || 0,
         priority: (prospect.priority || 'medium') as any,
+        referralSource: prospect.referralSource || null,
     };
 }
 

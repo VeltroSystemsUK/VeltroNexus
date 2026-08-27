@@ -1,11 +1,12 @@
 import { companiesHouseClient } from "../utils/companiesHouseClient";
 import {
     identifyLender,
-    leadScoringWeights,
     CRISIS_RATIO_THRESHOLD,
     LenderProfile
 } from "../data/highRateLenders";
 import { ixbrlService } from "./ixbrlService";
+import { scoreSignals, type FiredSignal } from "@shared/salesOs";
+import { harvestCompanySignals } from "./signalHarvest";
 
 /**
  * Prospect Lead Scoring Service
@@ -43,6 +44,7 @@ export interface ScoredLead {
         creditorScore: number;
         assetScore: number;
     };
+    signals: FiredSignal[];
     recommendedApproach: string;
 }
 
@@ -137,58 +139,44 @@ export class LeadScoringService {
         companyNumber: string,
         companyName: string,
         chargeMarkers: ChargeMarker[],
-        financialMetrics: FinancialMetrics
+        financialMetrics: FinancialMetrics,
+        extras?: { hmrcTtp?: boolean }
     ): ScoredLead {
-        let score = 0;
+        const highCostCount = chargeMarkers.filter((m) => m.identifiedLender).length;
+        const signals = scoreSignals({
+            companyName,
+            outstandingHighCostChargeCount: highCostCount,
+            netAssetsNow: financialMetrics.netAssets ?? null,
+            hmrcTtp: extras?.hmrcTtp,
+        });
+
         const scoringBreakdown = {
-            chargeScore: 0,
-            ageScore: 0,
-            creditorScore: 0,
-            assetScore: 0,
+            chargeScore: signals.signals.filter((s) => s.code === "SIG-01").reduce((sum, s) => sum + s.weight, 0),
+            ageScore: chargeMarkers.some((m) => m.ageMonths >= 18) ? 10 : 0,
+            creditorScore: financialMetrics.creditorsTrend === "increasing" ? 10 : 0,
+            assetScore:
+                financialMetrics.crisisRatio && financialMetrics.crisisRatio >= CRISIS_RATIO_THRESHOLD ? 10 : 0,
         };
 
-        // 1. Charge from non-high-street bank (+30 pts)
-        const hasHighRateLender = chargeMarkers.some(m => m.identifiedLender);
-        if (hasHighRateLender) {
-            scoringBreakdown.chargeScore = leadScoringWeights.chargeFromNonHighStreet;
-            score += leadScoringWeights.chargeFromNonHighStreet;
-        }
+        let score = signals.score + scoringBreakdown.ageScore + scoringBreakdown.creditorScore + scoringBreakdown.assetScore;
+        if (signals.disqualified) score = -100;
 
-        // 2. Charge older than 18 months (+20 pts)
-        const hasOldCharge = chargeMarkers.some(m => m.ageMonths >= 18);
-        if (hasOldCharge) {
-            scoringBreakdown.ageScore = leadScoringWeights.chargeOlderThan18Months;
-            score += leadScoringWeights.chargeOlderThan18Months;
-        }
-
-        // 3. Creditors increased (+20 pts)
-        if (financialMetrics.creditorsTrend === "increasing") {
-            scoringBreakdown.creditorScore = leadScoringWeights.creditorsIncreased;
-            score += leadScoringWeights.creditorsIncreased;
-        }
-
-        // 4. Positive assets but low cash (+30 pts)
-        if (financialMetrics.crisisRatio && financialMetrics.crisisRatio >= CRISIS_RATIO_THRESHOLD) {
-            scoringBreakdown.assetScore = leadScoringWeights.positiveAssetsLowCash;
-            score += leadScoringWeights.positiveAssetsLowCash;
-        }
-
-        // Determine priority
         let priority: "high" | "medium" | "low" = "low";
-        if (score >= 70) priority = "high";
-        else if (score >= 50) priority = "medium";
+        if (signals.disqualified) priority = "low";
+        else if (signals.priority === "P0" || score >= 70) priority = "high";
+        else if (signals.priority === "P1" || score >= 40) priority = "medium";
 
-        // Generate recommended approach
-        const recommendedApproach = this.generateApproach(chargeMarkers, score);
+        const recommendedApproach = this.generateApproach(chargeMarkers, score, signals.signals);
 
         return {
             companyNumber,
             companyName,
-            score,
+            score: Math.max(-100, Math.min(100, score)),
             priority,
             chargeMarkers,
             financialMetrics,
             scoringBreakdown,
+            signals: signals.signals,
             recommendedApproach,
         };
     }
@@ -196,25 +184,28 @@ export class LeadScoringService {
     /**
      * Generate recommended outreach approach
      */
-    private generateApproach(chargeMarkers: ChargeMarker[], score: number): string {
-        if (score < 50) {
-            return "Low priority - monitor for future opportunity";
+    private generateApproach(chargeMarkers: ChargeMarker[], score: number, signals: FiredSignal[] = []): string {
+        if (signals.some((s) => s.code === "SIG-06") || score < 0) {
+            return "Disqualified (SIG-06) — consumer / sub-£100k / non-trading profile. Do not prospect.";
         }
 
         const lenders = chargeMarkers
             .filter(m => m.identifiedLender)
             .map(m => m.identifiedLender!.name);
 
+        if (signals.some((s) => s.code === "SIG-05") && lenders.length === 0) {
+            return "Stream B introducer — 10-day advisory sequence. Do not pitch a facility to the practice itself.";
+        }
+
+        if (signals.some((s) => s.code === "SIG-02") && lenders.length === 0) {
+            return "Stream A SME on HMRC pressure (Gazette petition / TTP proxy). Route consolidation to the CDFI panel.";
+        }
+
         if (lenders.length === 0) {
-            return "General refinancing approach - focus on budget certainty";
+            return "No high-cost charge on file — do not open a Stream A file.";
         }
 
-        if (lenders.length === 1) {
-            const lender = chargeMarkers.find(m => m.identifiedLender)!.identifiedLender!;
-            return `Single high-rate lender (${lender.name}): ${lender.refinancingPitch}`;
-        }
-
-        return `Debt stacking detected (${lenders.join(", ")}). Lead with consolidation savings: "You're servicing ${lenders.length} facilities—consolidate into one 5-year at 6.5%."`;
+        return `Stream A SME. Route consolidation to the CDFI panel. High-cost stack: ${lenders.join(", ")}.`;
     }
 
     /**
@@ -230,12 +221,21 @@ export class LeadScoringService {
             // Layer 3: Financial audit
             const financialMetrics = await this.auditFinancialHealth(companyNumber);
 
+            let hmrcTtp = false;
+            try {
+                const harvested = await harvestCompanySignals(companyNumber, companyName);
+                hmrcTtp = harvested.hmrcTtp;
+            } catch (error) {
+                console.warn(`[Lead Scoring] Public-signal harvest failed for ${companyNumber}:`, error);
+            }
+
             // Score the lead
             const scoredLead = this.scoreLead(
                 companyNumber,
                 companyName,
                 chargeMarkers,
-                financialMetrics
+                financialMetrics,
+                { hmrcTtp }
             );
 
             console.log(`[Lead Scoring] ${companyName} scored ${scoredLead.score}/100 (${scoredLead.priority} priority)`);

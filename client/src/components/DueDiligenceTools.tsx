@@ -20,6 +20,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { toast } from "sonner";
 
 import { CHECKLIST_SECTIONS } from "@shared/checklistData";
+import { resolveHandoverPack, type HandoverAnswer } from "@shared/handoverPack";
 import type { ChecklistItem, DueDiligenceData } from "@shared/schema";
 import {
   calculateLoan,
@@ -40,64 +41,68 @@ interface DueDiligenceToolsProps {
   isSaving: boolean;
 }
 
+function packToChecklist(saved: unknown): ChecklistItem[] {
+  return resolveHandoverPack(saved).sections.flatMap((section) =>
+    section.items.map((item) => ({
+      sectionId: section.id,
+      itemId: item.id,
+      description: item.question,
+      completed: item.answer === "yes",
+      answer: item.answer,
+      notes: item.notes,
+    })),
+  );
+}
+
 export function DueDiligenceChecklist({
   data,
   onSave,
   isSaving,
 }: Omit<DueDiligenceToolsProps, "prospectId">) {
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(() => packToChecklist(data.checklist));
 
   useEffect(() => {
-    if (data.checklist && data.checklist.length > 0) {
-      setChecklist(data.checklist);
-    } else {
-      const initialChecklist: ChecklistItem[] = [];
-      CHECKLIST_SECTIONS.forEach((section) => {
-        section.items.forEach((item) => {
-          initialChecklist.push({
-            sectionId: section.id,
-            itemId: item.id,
-            description: item.description,
-            completed: false,
-            notes: "",
-          });
-        });
-      });
-      setChecklist(initialChecklist);
-    }
+    setChecklist(packToChecklist(data.checklist));
   }, [data.checklist]);
 
-  const toggleItem = (itemId: string) => {
-    const updated = checklist.map((item) =>
-      item.itemId === itemId ? { ...item, completed: !item.completed } : item
-    );
+  const persist = (updated: ChecklistItem[]) => {
     setChecklist(updated);
     onSave({ checklist: updated });
   };
 
-  const getSectionProgress = (sectionId: string) => {
-    const sectionItems = checklist.filter((item) => item.sectionId === sectionId);
-    if (sectionItems.length === 0) return 0;
-    const completed = sectionItems.filter((item) => item.completed).length;
-    return Math.round((completed / sectionItems.length) * 100);
+  const setAnswer = (itemId: string, answer: HandoverAnswer) => {
+    persist(
+      checklist.map((item) =>
+        item.itemId === itemId
+          ? { ...item, answer, completed: answer === "yes" }
+          : item,
+      ),
+    );
   };
 
+  const setNotes = (itemId: string, notes: string) => {
+    persist(checklist.map((item) => (item.itemId === itemId ? { ...item, notes } : item)));
+  };
+
+  const answeredItems = checklist.filter((item) => item.answer).length;
   const totalItems = checklist.length;
-  const completedItems = checklist.filter((item) => item.completed).length;
-  const overallProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+  const overallProgress = totalItems > 0 ? Math.round((answeredItems / totalItems) * 100) : 0;
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Due Diligence Checklist</CardTitle>
+            <CardTitle>Handover pack</CardTitle>
             <CardDescription>
-              {completedItems} of {totalItems} items completed
+              Answer every question. This pack goes to Sterling with the file — Yes, No, N/A and your notes.
             </CardDescription>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold">{overallProgress}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {answeredItems} of {totalItems} answered
+            </p>
             <Progress value={overallProgress} className="w-24 mt-1" />
           </div>
         </div>
@@ -106,7 +111,10 @@ export function DueDiligenceChecklist({
         <Accordion type="multiple" defaultValue={[CHECKLIST_SECTIONS[0].id]} className="space-y-2">
           {CHECKLIST_SECTIONS.map((section) => {
             const sectionItems = checklist.filter((item) => item.sectionId === section.id);
-            const progress = getSectionProgress(section.id);
+            const answered = sectionItems.filter((item) => item.answer).length;
+            const progress = sectionItems.length
+              ? Math.round((answered / sectionItems.length) * 100)
+              : 0;
             return (
               <AccordionItem key={section.id} value={section.id} className="border rounded-md px-4">
                 <AccordionTrigger className="hover:no-underline">
@@ -116,22 +124,40 @@ export function DueDiligenceChecklist({
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-4 pt-2">
                     {sectionItems.map((item) => (
-                      <div key={item.itemId} className="flex items-center gap-3">
-                        <Checkbox
-                          id={item.itemId}
-                          checked={item.completed}
-                          onCheckedChange={() => toggleItem(item.itemId)}
-                          data-testid={`checkbox-${item.itemId}`}
+                      <div key={item.itemId} className="space-y-2 border-b pb-3 last:border-0">
+                        <p className="text-sm">{item.description}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {(["yes", "no", "na"] as const).map((value) => (
+                            <Button
+                              key={value}
+                              type="button"
+                              size="sm"
+                              variant={item.answer === value ? "default" : "outline"}
+                              disabled={isSaving}
+                              onClick={() => setAnswer(item.itemId, value)}
+                              data-testid={`handover-answer-${item.itemId}-${value}`}
+                            >
+                              {value === "yes" ? "Yes" : value === "no" ? "No" : "N/A"}
+                            </Button>
+                          ))}
+                        </div>
+                        <Textarea
+                          value={item.notes || ""}
+                          placeholder="Note for Sterling (optional)"
+                          className="min-h-[64px] text-sm"
+                          onChange={(e) => {
+                            const notes = e.target.value;
+                            setChecklist((current) =>
+                              current.map((row) =>
+                                row.itemId === item.itemId ? { ...row, notes } : row,
+                              ),
+                            );
+                          }}
+                          onBlur={(e) => setNotes(item.itemId, e.target.value)}
+                          data-testid={`handover-notes-${item.itemId}`}
                         />
-                        <label
-                          htmlFor={item.itemId}
-                          className={`text-sm cursor-pointer ${item.completed ? "line-through text-muted-foreground" : ""
-                            }`}
-                        >
-                          {item.description}
-                        </label>
                       </div>
                     ))}
                   </div>
