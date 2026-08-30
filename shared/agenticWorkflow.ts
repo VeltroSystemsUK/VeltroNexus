@@ -146,3 +146,59 @@ export const STAGE_AGENT: Partial<Record<AgenticStage, string>> = {
   processing: "deal-processing-underwriter",
   underwriting: "deal-processing-underwriter",
 };
+
+export type TickKind = "fulfilment" | "introducer_retry" | "outreach_retry";
+
+export function tickKindForDeal(
+  deal: Pick<AgenticDealFile, "stage" | "status"> & Partial<Pick<AgenticDealFile, "stream" | "source">>
+): TickKind | null {
+  if (deal.status !== "waiting_timer") return null;
+  if (deal.stage === "fulfilment") return "fulfilment";
+  if (deal.stage === "outreach") {
+    return deal.stream === "introducer" ? "introducer_retry" : "outreach_retry";
+  }
+  return null;
+}
+
+export function cadenceRetryIndex(outreachTouch?: number | null): number {
+  return outreachTouch || 0;
+}
+
+export type PackMissingDisposition = "keep_chasing" | "approve_introducer" | "wait_human";
+
+export function packMissingDisposition(
+  deal: Partial<Pick<AgenticDealFile, "source" | "stream" | "sfp" | "packDocuments">>
+): PackMissingDisposition {
+  if (deal.stream === "introducer") return "approve_introducer";
+  if (deal.source === "strata_inbound") return "keep_chasing";
+  if (deal.sfp?.status === "PARTIAL") return "keep_chasing";
+  if ((deal.packDocuments || []).length > 0) return "keep_chasing";
+  return "wait_human";
+}
+
+export function shouldReprocessPack(deal: {
+  packDocuments?: Array<unknown>;
+  extraDocCount?: number;
+  sfp?: { status?: string; documents?: Array<unknown> } | null;
+}): boolean {
+  const fileCount = (deal.packDocuments?.length || 0) + (deal.extraDocCount || 0);
+  if (fileCount <= 0) return false;
+  if (deal.sfp?.status === "COMPLETE") return true;
+  const seen = deal.sfp?.documents?.length || 0;
+  if (fileCount > seen) return true;
+  return deal.sfp?.status !== "PARTIAL";
+}
+
+export type IntroducerPipelineStatus = "none" | "new" | "contacted" | "approved";
+
+export function introducerPipelineStatus(input: {
+  hasContact: boolean;
+  outreachTouch?: number | null;
+  stage?: string | null;
+  callDone?: boolean;
+}): IntroducerPipelineStatus {
+  if (!input.hasContact) return "none";
+  if (input.stage === "complete" || input.callDone) return "approved";
+  if ((input.outreachTouch || 0) >= 1) return "contacted";
+  return "new";
+}

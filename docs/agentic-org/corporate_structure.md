@@ -30,6 +30,8 @@ Agents do not replace Shaun with customers. They remove the admin so Shaun can t
 | RES-2 | Origination — Daniel Crowe / Maya Hart / Elena Ward (`database-builder`, `inbound-intake`, `contact-finder`) | 2 | Find, match company, complete contact, open deal file |
 | SAL-2 | Communications — James Hale / Sophie Reed (`outreach-sales`, `fulfilment-manager`) | 2 | Template cadence, pack request, chase, LinkedIn *drafts*, queue Shaun’s calls |
 | FIN-2 | File factory — Priya Shah (`deal-processing-underwriter`) | 2 | Ingest → SFP → credit memo recommendation → completeness → Sterling zip |
+| MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: copy + curated visuals in Craft from MKT-3 ammo; never posts |
+| MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | UK commercial-finance intelligence; Creative Ammo Briefs for Isla; never writes final ad copy |
 
 **Hibernated (not in launch scope):** Oliver Grant (`accounts-monitor`), Nathan Cole (`capital-strategist`), **ARES / ARES Control**. Tom Brennan (`database-builder-se`) is a regional parameter on RES-2, not a separate company. Do not start the ARES loop. Do not invent replacements.
 
@@ -57,6 +59,12 @@ Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn c
 **FIN-2 File factory**  
 Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep, credit memo *recommendation*, completeness gate, compilation of the Sterling zip.
 
+**MKT-2 Brand social**  
+Owns: weekly social drafts on the CRAFT desk, translated from MKT-3 Creative Ammo Briefs. LinkedIn home; IG/FB/TikTok extra sizes. Channel handles as public URLs only. Shaun approves and posts. Ads stay draft. Spend still needs the £500 gate.
+
+**MKT-3 Content Scout**  
+Owns: UK lending / SME / regulatory scan and Creative Ammo Briefs on the CRAFT Content aid. Does not write final ad copy. Does not invent rates. Hands off to Isla.
+
 ---
 
 ## 4. Task Delegation Matrix
@@ -79,6 +87,10 @@ Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep
 | Send to David | Shaun | Checkpoint 2 |
 | Complaint / opt-out / solicitor / vulnerability | STOP → Shaun | All agents |
 | Sole trader / small partnership | STOP → Shaun | Regulated-agreement gate |
+| Market scan / Creative Ammo Briefs | MKT-3 | Research only; missing numbers stay missing |
+| Brand social week (LinkedIn + IG/FB/TikTok crops) | MKT-3 → MKT-2 | Isla writes from ammo; draft only; Shaun posts |
+| CRAFT export (copy pack / PNG / size pack) | MKT-2 → marketing approve → compliance sign-off | No release until both gates pass |
+| Social publish / paid ads | MKT-2 → Shaun | Never auto-post; ads are draft until Shaun spends |
 | Change this directive or add an agent | Shaun | Update this file + agents.mmd |
 | Invoicing, Xero, Nathan-style CFO advice | Nobody (hibernated) | Out of launch scope |
 
@@ -98,6 +110,7 @@ These require explicit Director approval before any agent proceeds:
 6. **Distressed P0 (Gazette HMRC petition):** First template email may send; Shaun is notified immediately. Further bespoke comms wait for Shaun.
 7. **Credential changes:** Creating, revoking, or modifying access to any system — Shaun only.
 8. **Scope changes:** Adding agents, modifying this directive, or expanding permissions — Shaun + this file updated.
+9. **CRAFT marketing release:** A post is exportable only after marketing has approved the copy **and** compliance has signed off. House policy: packager, not lender; no rates, guarantees, or consumer-credit claims. Editing copy after sign-off returns it to draft.
 
 Cold B2B template email to a **limited company** (corporate subscriber), with sender identified and a working opt-out, is **in scope for SAL-2 without prior review**. That is how this ICP works. It is not a licence to email consumers, sole traders, or anyone who has opted out.
 

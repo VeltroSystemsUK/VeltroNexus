@@ -1,5 +1,7 @@
 import { storage } from "../storage";
 import { DigitalAssociate, AssociateStatus } from "@shared/agents";
+import { MARKETING_DIRECTOR_PROMPT } from "@shared/craftDirector";
+import { MARKET_RESEARCHER_PROMPT } from "@shared/craftScout";
 
 const CORE_WORKFORCE: DigitalAssociate[] = [
   {
@@ -12,7 +14,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     avatar: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=400",
     expertise: ["Companies House Search", "Google Places Enrichment", "Deal File Opening"],
     tools: ["Companies House API", "Google Places", "Prospect Pipeline"],
-    description: "Opens a deal file for every stratafinance.co.uk enquiry, matches Companies House, enriches via Places, and lands a Lead marked Strata on the Prospect Pipeline.",
+    description: "Opens a deal file for every stratafinance.co.uk enquiry, matches Companies House (you pick if ambiguous), and sends the inbound ack with the pack link. Elena owns Places and contact fill.",
     hourlyRate: 0,
     scores: [
       { subject: "Match accuracy", A: 97, fullMark: 100 },
@@ -22,12 +24,12 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 97 },
     workflow: {
       jobDescription:
-        "Stage 1 of the agentic deal file. Reviews inbound company details from stratafinance.co.uk, searches Companies House, asks a human when the match is ambiguous, enriches with Google Places, and creates the pipeline Lead with referral source Strata.",
+        "Stage 1 of the agentic deal file. Reviews inbound company details from stratafinance.co.uk, searches Companies House, asks a human when the match is ambiguous, and sends the inbound ack with the pack portal link. Contact enrichment is Elena's desk.",
       responsibilities: [
         "Open a deal file for each Strata inbound enquiry",
         "Search Companies House and select the correct business",
         "Escalate ambiguous matches to the Deal files queue",
-        "Enrich with Google Places and hunt missing email/phone before the file moves on",
+        "Send the inbound ack and pack link once the file is matched",
         "Create the pipeline Lead marked Strata",
       ],
       tasks: [
@@ -41,9 +43,9 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
             "Create deal file sourced as strata_inbound",
             "Search Companies House",
             "Auto-select a single active match or wait for human pick",
-            "Google Places enrich (address, website, phone)",
-            "If email or phone is missing, run Contact Finder (Places details, site scrape, officers)",
+            "Hand to Elena for Places / scrape / officers",
             "Create Prospect Pipeline Lead with referralSource Strata",
+            "Send inbound ack with the pack upload link",
           ],
           expectedOutput: "Pipeline Lead marked Strata, ready for outreach",
         },
@@ -60,7 +62,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     avatar: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=400",
     expertise: ["Email discovery", "Phone lookup", "Website scrape"],
     tools: ["Google Places Details", "Website scraper", "Companies House officers"],
-    description: "Fills missing email and phone on a deal file before outreach so the pack request has somewhere to go.",
+    description: "Runs after every Companies House match: Google Places, site scrape, and officers. Fills email and phone before a file is allowed to count as contacted.",
     hourlyRate: 0,
     scores: [
       { subject: "Email recovery", A: 94, fullMark: 100 },
@@ -70,11 +72,12 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 94 },
     workflow: {
       jobDescription:
-        "Runs whenever a deal file is missing email or phone. Uses Places details, the company website, and Companies House officers. Writes whatever it finds back onto the deal file and the pipeline contact.",
+        "Runs after every match. Uses Google Places, the company website, and Companies House officers. Retries next day on introducers with no contact so Tom's finds are never dropped.",
       responsibilities: [
-        "Detect missing email or phone on the deal file",
+        "Always enrich after Maya/Daniel/Tom match a company",
         "Pull phone and website from Google Places details",
         "Scrape the company site and match officers",
+        "Retry tomorrow when an introducer still has no email or phone",
         "Update the deal file and CRM contact",
       ],
       tasks: [
@@ -98,19 +101,19 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     id: "database-builder-se",
     name: "Tom Brennan",
     email: "tom.brennan@stratanexus.co.uk",
-    role: "Finds regional businesses that need Strata Finance",
+    role: "Refer Agent — finds introducers (accountants, CFOs, turnaround advisers)",
     department: "Sales & Growth",
     status: AssociateStatus.AVAILABLE,
     avatar:
       "https://images.unsplash.com/photo-1531746790731-6c087fecd05a?auto=format&fit=crop&q=80&w=400",
     expertise: [
-      "Stacked short-term loan refinance",
-      "HMRC arrears / Time to Pay path",
-      "CDFI and distress-refinance fit",
+      "Chartered accountancy practices (ICAEW/ACCA)",
+      "Fractional CFOs and turnaround / insolvency advisers",
+      "Introducer relationship sourcing",
     ],
-    tools: ["Companies House API", "Charge Scanner", "Deal files"],
+    tools: ["Companies House API", "ICAEW/ACCA directory", "Deal files"],
     description:
-      "Regional hunter for Stream A (SME directors with stacked MCA / HMRC pressure) and Stream B (accountants, fractional CFOs, turnaround advisers) in Northampton, Coventry, Peterborough, and Milton Keynes. Never ingests commercial finance brokers.",
+      "Refer Agent. Finds Stream B introducer candidates only — accountancy practices, fractional CFOs, turnaround advisers. Elena retries contact; once reachable they enter Identified → James contacts → Approved. Never the SME pack or Sterling path.",
     hourlyRate: 0,
     scores: [
       { subject: "Accuracy", A: 99, fullMark: 100 },
@@ -120,25 +123,26 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 99 },
     workflow: {
       jobDescription:
-        "Regional hunter under the Nexus Sales OS. Stream A: UK SMEs 18+ months, turnover £250k–£5m, high-cost / MCA / HMRC pressure. Stream B: ICAEW/ACCA practices, fractional CFOs, turnaround advisers. Brokers (NACFB, FIBA, packagers) are excluded.",
+        "Refer Agent under the Nexus Sales OS. Stream B only: ICAEW/ACCA practices, fractional CFOs, turnaround advisers. Never opens a direct-SME or commercial-finance-broker file. A find with no email/phone stays on the contact gate and is retried — it is never dropped and never emailed as a borrower.",
       responsibilities: [
-        "Score SIG-01 to SIG-06. P0 stacks and HMRC TTP first. SIG-06 is an instant disqualify",
+        "Score introducer fit via SIG-05. Never scores or opens a direct-SME (Stream A) file",
         "Never ingest commercial finance brokers or excluded sectors (property development, gambling, tobacco)",
-        "Open deal files — do not ask Shaun to prospect",
+        "Open Introducer pipeline entries (broker_leads) as Identified only when email or phone exists",
+        "Hand reachable partners to James for Stream B cadence (Contacted → Approved)",
       ],
       tasks: [
         {
           id: "identify-regional-opportunities",
-          name: "Identify Strata-fit opportunities",
+          name: "Identify introducer candidates",
           description:
-            "Find SE Midlands businesses that need distress-refinance or CDFI funding as described at stratafinance.co.uk.",
+            "Find accountancy practices, fractional CFOs, and turnaround advisers who could refer Strata Finance business.",
           trigger: "scheduled",
           steps: [
-            "Scan active companies in the four hubs, 18+ months old",
-            "Drop brokers, finance, property development, gambling, tobacco, SPVs, and names already on the book",
-            "Open Stream A (high-cost SME) or Stream B (introducer) files only when the gate passes",
+            "Scan the ICAEW/ACCA directory and Companies House for Stream B-shaped firms",
+            "Drop brokers, excluded sectors, and names already on the book",
+            "Open Introducer pipeline entries only when the introducer-fit gate passes",
           ],
-          expectedOutput: "Regional deal files that need Strata's help, ready for agent outreach",
+          expectedOutput: "Introducer candidates in the Introducer pipeline, ready for relationship outreach",
         },
       ],
     },
@@ -147,7 +151,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     id: "database-builder",
     name: "Daniel Crowe",
     email: "daniel.crowe@stratanexus.co.uk",
-    role: "Finds businesses that need Strata Finance",
+    role: "Client Agent — finds direct SME borrowers",
     department: "Sales & Growth",
     status: AssociateStatus.AVAILABLE,
     avatar:
@@ -160,7 +164,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     ],
     tools: ["Companies House API", "Charge Scanner", "Contact Finder", "Deal files"],
     description:
-      "Opportunity hunter for the Nexus Sales OS. Stream A: UK SME directors with stacked MCA / high-cost debt or HMRC TTP. Stream B: accountancy partners, fractional CFOs, turnaround advisers. Never ingests commercial finance brokers. Opens a deal file for CDFI consolidation packaging.",
+      "Client Agent. Finds Stream A direct SME borrowers only — directors with stacked MCA / high-cost debt or HMRC TTP. Never ingests commercial finance brokers or introducer candidates (that's the Refer Agent's job). Opens a deal file for CDFI consolidation packaging.",
     hourlyRate: 0,
     scores: [
       { subject: "Opportunity recognition", A: 98, fullMark: 100 },
@@ -170,12 +174,12 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 99 },
     workflow: {
       jobDescription:
-        "Specialist hunter under the Nexus Sales OS. Stream A needs 18+ months trading, turnover £250k–£5m, facility £25k–£250k, and at least one high-cost item (MCA, short-term, daily debit, or HMRC arrears). Stream B is introducers. Consolidation facilities route to the CDFI panel (FFE, BCRS, CWRT, SWIG, LDBF, ART, BEF, DBW). Brokers are excluded.",
+        "Client Agent under the Nexus Sales OS. Stream A only: 18+ months trading, turnover £250k–£5m, facility £25k–£250k, and at least one high-cost item (MCA, short-term, daily debit, or HMRC arrears). Consolidation facilities route to the CDFI panel (FFE, BCRS, CWRT, SWIG, LDBF, ART, BEF, DBW). Brokers and introducer candidates are excluded — those route to the Refer Agent instead.",
       responsibilities: [
         "Apply SIG-01 to SIG-06. Multiple MCA/alt charges and HMRC TTP are P0",
         "Reject brokers, property development, gambling, tobacco, consumer/sub-£100k files (SIG-06)",
         "Reject anything below the Strata fit gate — do not open or email a weak file",
-        "Open a deal file and hand it to Contact Finder + Sales Outreach only when the public file is a clear Stream A or Stream B case",
+        "Open a deal file in the main Pipeline and hand it to Contact Finder + Sales Outreach only when it's a clear Stream A case",
       ],
       tasks: [
         {
@@ -208,7 +212,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     expertise: ["Lead Generation", "Personalized Outreach", "Meeting Booking"],
     tools: ["Email Synthesizer", "LinkedIn Profiler", "BANT Scorer"],
     description:
-      "Runs the Nexus Sales OS cadences. Stream A: 14-day Email → LinkedIn → Email → Phone. Stream B: 10-day Email → LinkedIn → Phone. Inbound: thank them and request the pack, then a warm call.",
+      "Runs hunt cadences only. Stream A SME: 14-day Email → LinkedIn → Email → Phone. Stream B introducer: 10-day Email → LinkedIn → Phone once Tom has a reachable partner. Inbound ack is Maya; inbound chase is Sophie.",
     hourlyRate: 0,
     scores: [
       { subject: "Engagement Rate", A: 92, fullMark: 100 },
@@ -218,13 +222,13 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 95 },
     workflow: {
       jobDescription:
-        "Stage 3 of the agentic deal file. Stream A uses the 14-day SME playbook (debt-service reduction → LinkedIn → case study → close + call). Stream B uses the 10-day introducer playbook. Inbound files get a thank-you and a three-item pack request. PECR stop line on every cold email.",
+        "Hunt email desk. Stream A uses the 14-day SME playbook. Stream B uses the 10-day introducer playbook only after the Refer Agent has a reachable contact — those files stay on the Introducer pipeline, never the SME pack. PECR stop line on every cold email. SMTP must deliver or the file holds.",
       responsibilities: [
-        "Run the OS cadence for the deal's stream — do not invent copy",
-        "Inbound: request six months of bank statements, two years of audited accounts, and why funding is needed",
-        "Stream A/B: auto-send emails, stage LinkedIn copy, queue the OS voice script on the close touch",
+        "Run Stream A and Stream B OS cadences — do not invent copy",
+        "Never email an introducer that still has no corporate contact",
+        "Stage LinkedIn copy and wait for the director to post",
         "Include a stop line on cold email",
-        "Log the outreach on the pipeline lead",
+        "Hold on PECR personal mailboxes and failed SMTP — retry the same touch, not day 1",
       ],
       tasks: [
         {
@@ -531,7 +535,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     expertise: ["Client Onboarding", "Document Collection", "Pipeline Management", "Customer Support"],
     tools: ["Document Chaser Bot", "Welcome Pack Generator", "Upload Validator", "Prospect Requirement Analyzer"],
     description:
-      "Runs the remaining OS cadence. Stream A: LinkedIn day 4, case study day 8, close email + SME call day 14. Stream B: LinkedIn day 5, partner email + call day 10. Inbound: one pack chase, then the warm-call script.",
+      "Owns the chase timer. Names pack gaps on PARTIAL SFPs, keeps inbound files open until the pack lands, runs remaining Stream A/B cadence steps, and queues Shaun's calls. Never parks a live pack opportunity.",
     hourlyRate: 0,
     scores: [
       { subject: "Response Time", A: 96, fullMark: 100 },
@@ -541,11 +545,12 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     aresCertification: { status: "certified", score: 96 },
     workflow: {
       jobDescription:
-        "Stage 4 of the agentic deal file. Fires when the timer ends. If the pack arrived, hand to Processing. Otherwise fire the next OS cadence step: LinkedIn copy, email, or queue the matching voice script (SME, introducer, or inbound).",
+        "Stage 4 of the agentic deal file. Fires when the timer ends. New files go to Priya. PARTIAL SFPs get a named-gap chase, not a stall. Inbound files stay in chase until the pack lands or Shaun stops them. Hunt cadence continues until the close call.",
       responsibilities: [
         "Watch the collection timer",
-        "If documents arrived, pass the file to Processing",
-        "Inbound: chase the pack once, then queue the warm-call script",
+        "If new documents arrived, pass the file to Processing",
+        "If SFP is PARTIAL, chase the named gaps and keep the file open",
+        "Inbound: keep chasing after the warm call if the pack is still missing",
         "Hunt: execute the next Stream A or Stream B step from the Sales OS",
       ],
       tasks: [
@@ -562,6 +567,110 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
           ],
           expectedOutput: "Next script sent, or warm call queued, or file parked",
           escalationRule: "Inbound pack-chase calls and OS close-call scripts land in the call queue",
+        },
+      ],
+    },
+  },
+  {
+    id: "marketing-manager",
+    name: "Isla Quinn",
+    email: "isla.quinn@stratanexus.co.uk",
+    role: "Marketing Director",
+    department: "Marketing",
+    status: AssociateStatus.AVAILABLE,
+    avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=400",
+    expertise: [
+      "Thumb-stopping hooks",
+      "Art direction",
+      "Visual curation",
+      "LinkedIn-first packs",
+      "Introducer and SME tracks",
+    ],
+    tools: ["Craft desk", "Week queue", "Channel handles", "Curated visual library", "Creative Ammo Briefs"],
+    description:
+      "MKT-2 Creative Director. Writes the line and hangs the picture. LinkedIn-first packs for SME directors and introducers. Never posts. Never buys ads. Never invents rates.",
+    hourlyRate: 0,
+    scores: [
+      { subject: "Brand voice", A: 96, fullMark: 100 },
+      { subject: "Art direction", A: 94, fullMark: 100 },
+      { subject: "Compliance of claims", A: 99, fullMark: 100 },
+    ],
+    voiceEnabled: false,
+    aresCertification: { status: "certified", score: 96 },
+    workflow: {
+      jobDescription: MARKETING_DIRECTOR_PROMPT,
+      responsibilities: [
+        "Translate Casey Wren's Creative Ammo Briefs into hook, body, CTA, hashtags and links inside Craft limits",
+        "Curate a visual for every post: stock pick plus photographic art-direction prompt that matches the copy",
+        "Place that visual in the media / accent slot so the board is never a grey box",
+        "Stay inside house claims: we package, we do not lend, we do not decide credit",
+        "Never auto-publish, never store social passwords, never spend on ads",
+      ],
+      tasks: [
+        {
+          id: "queue-week",
+          name: "Queue next week's posts",
+          description: "Turn Content Scout ammo into a Monday–Sunday pack of copy plus matching visuals.",
+          trigger: "on_instruction",
+          steps: [
+            "Read the seven Creative Ammo Briefs from Casey Wren",
+            "Write LinkedIn-first drafts (borrower and introducer) from the social angle and SME impact",
+            "Pair each draft with a curated image that belongs with the line",
+            "Leave every card as draft for marketing approve, then compliance, then Shaun",
+          ],
+          expectedOutput: "Week queue on /craft with copy and visuals, nothing posted",
+        },
+      ],
+    },
+  },
+  {
+    id: "content-scout",
+    name: "Casey Wren",
+    email: "casey.wren@stratanexus.co.uk",
+    role: "Content Scout",
+    department: "Marketing",
+    status: AssociateStatus.AVAILABLE,
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400",
+    expertise: [
+      "UK lending market scan",
+      "Regulatory and macro signals",
+      "SME impact translation",
+      "Contrarian angles",
+      "Creative Ammo Briefs",
+    ],
+    tools: ["Craft desk", "Trade press", "BoE / FCA / Treasury", "NACFB / UK Finance / FLA"],
+    description:
+      "MKT-3 Content Scout. Harvests UK commercial-finance intelligence for Isla. Never writes final ad copy. Never invents rates. Never posts.",
+    hourlyRate: 0,
+    scores: [
+      { subject: "Signal quality", A: 95, fullMark: 100 },
+      { subject: "UK context", A: 97, fullMark: 100 },
+      { subject: "House policy", A: 99, fullMark: 100 },
+    ],
+    voiceEnabled: false,
+    aresCertification: { status: "certified", score: 95 },
+    workflow: {
+      jobDescription: MARKET_RESEARCHER_PROMPT,
+      responsibilities: [
+        "Scan UK lending, SME, and regulatory sources for high-signal material",
+        "Translate each finding into a Creative Ammo Brief for Isla Quinn",
+        "Mark missing numbers as missing — never invent rates or insolvency counts",
+        "Stay inside house claims: packager, not lender",
+        "Never write final ad copy, never auto-publish, never buy ads",
+      ],
+      tasks: [
+        {
+          id: "scan-week",
+          name: "Scan week for Creative Ammo",
+          description: "Fill Craft Content aid with seven Creative Ammo Briefs Isla can turn into posts.",
+          trigger: "on_instruction",
+          steps: [
+            "Horizon-scan UK commercial finance and SME health",
+            "Filter bank PR puffery",
+            "Write seven Creative Ammo Briefs (borrower + introducer)",
+            "Hand off to Isla on /craft — she writes the copy",
+          ],
+          expectedOutput: "Seven Creative Ammo Briefs on the Craft desk, no posts published",
         },
       ],
     },

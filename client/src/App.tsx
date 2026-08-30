@@ -51,6 +51,7 @@ const Income = lazy(() => import("@/pages/Income"));
 const EmailTemplates = lazy(() => import("@/pages/EmailTemplates"));
 const EmailCampaigns = lazy(() => import("@/pages/EmailCampaigns"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
+const Craft = lazy(() => import("@/pages/Craft"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
 const BrokerPortal = lazy(() => import("@/pages/BrokerPortal"));
@@ -210,6 +211,9 @@ function Router() {
         </Route>
         <Route path="/media">
           {!isAuthenticated ? <Redirect to="/auth" /> : <MediaGallery />}
+        </Route>
+        <Route path="/craft">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Craft />}
         </Route>
         <Route path="/crm">
           {!isAuthenticated ? <Redirect to="/auth" /> : <GodModeCRM />}

@@ -49,6 +49,12 @@ describe("delegate jobs", () => {
     expect(isDealEligible("find_contact", deal({ status: "failed", email: undefined }))).toBe(false);
   });
 
+  it("lets Maya and Sophie retry a send that did not leave the box", () => {
+    expect(getDelegateJob("inbound-intake", "retry_send")?.id).toBe("retry_send");
+    expect(getDelegateJob("fulfilment-manager", "retry_send")?.id).toBe("retry_send");
+    expect(getDelegateJob("contact-finder", "retry_send")).toBeUndefined();
+  });
+
   it("retry-send only when SMTP actually failed", () => {
     expect(
       isDealEligible(

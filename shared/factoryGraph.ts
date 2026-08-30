@@ -22,7 +22,10 @@ export type FactoryEdgeDef = {
 /** The live Strata factory — one graph, same stages as Deal files. */
 export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "inbound", label: "Inbound enquiry", desk: "Maya", kind: "trigger", detail: "stratafinance.co.uk", x: 0, y: 80 },
-  { id: "hunt", label: "Hunt / Gazette", desk: "Daniel", kind: "trigger", detail: "CH + HMRC petitions", x: 0, y: 280 },
+  { id: "hunt", label: "Hunt / Gazette", desk: "Daniel", kind: "trigger", detail: "Client Agent — CH + HMRC petitions, SME only", x: 0, y: 280 },
+  { id: "hunt-introducer", label: "Hunt introducers", desk: "Tom", kind: "trigger", detail: "Refer Agent — accountants, CFOs, turnaround advisers", x: 0, y: 480 },
+  { id: "introducer-contact", label: "No contact? Retry", desk: "Tom", kind: "gate", detail: "Needs an email or phone before it counts", x: 280, y: 480 },
+  { id: "introducer-pipeline", label: "Introducer pipeline", desk: "ORC-1", kind: "output", detail: "Identified → Contacted → Approved", x: 560, y: 480 },
   { id: "fit", label: "Strata fit gate", desk: "ORC-1", kind: "gate", detail: "Score ≥ 70 · SIG-06 out", x: 280, y: 180 },
   { id: "reject", label: "Do not contact", desk: "ORC-1", kind: "fail", detail: "Broker / SIC / fit fail", x: 560, y: 420 },
   { id: "match", label: "Companies House match", desk: "Maya", kind: "auto", detail: "You pick if ambiguous", x: 560, y: 180 },
@@ -46,6 +49,9 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
 export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-in-fit", source: "inbound", target: "fit", label: "always open" },
   { id: "e-hunt-fit", source: "hunt", target: "fit" },
+  { id: "e-hunt-intro-contact", source: "hunt-introducer", target: "introducer-contact" },
+  { id: "e-intro-contact-pipeline", source: "introducer-contact", target: "introducer-pipeline", label: "has email/phone" },
+  { id: "e-intro-contact-retry", source: "introducer-contact", target: "hunt-introducer", label: "no contact, retry tomorrow" },
   { id: "e-fit-reject", source: "fit", target: "reject", label: "fail" },
   { id: "e-fit-match", source: "fit", target: "match", label: "pass" },
   { id: "e-match-contact", source: "match", target: "contact" },
@@ -70,38 +76,56 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-sterling-david", source: "sterling", target: "david" },
 ];
 
-export function nodeForDeal(deal: Pick<AgenticDealFile, "stage" | "status" | "source" | "humanReason" | "sfp">): string {
-  if (deal.status === "failed") return "parked";
-  if (deal.humanReason?.includes("SMTP") || deal.humanReason?.includes("not send")) return "smtp-hold";
-  if (deal.humanReason?.includes("LinkedIn")) return "linkedin";
-  if (deal.humanReason?.toLowerCase().includes("pecr") || deal.humanReason?.includes("personal mailbox")) return "smtp-hold";
+export function nodeForDeal(
+  deal: Pick<AgenticDealFile, "stage" | "status" | "source" | "humanReason" | "sfp" | "stream"> &
+    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId">>
+): string {
+  const reason = deal.humanReason || "";
+  if (deal.status === "failed") {
+    if (/fit|sig-06|broker|do not contact/i.test(reason)) return "reject";
+    return "parked";
+  }
+  // Introducer-stream deals never touch the direct-borrower chain below — they exit
+  // through their own three nodes, or "complete" here would wrongly collide with
+  // "reached Sterling".
+  if (deal.stream === "introducer") {
+    if (deal.stage === "ingest" || deal.stage === "company_match") return "hunt-introducer";
+    if (!deal.email && !deal.phone) return "introducer-contact";
+    return "introducer-pipeline";
+  }
+  if (/pecr|personal mailbox/i.test(reason)) return "pecr";
+  if (reason.includes("SMTP") || reason.includes("not send") || /not delivered/i.test(reason)) return "smtp-hold";
+  if (reason.includes("LinkedIn")) return "linkedin";
   switch (deal.stage) {
     case "ingest":
     case "company_match":
       return deal.source === "strata_inbound" ? "inbound" : "hunt";
     case "enrich":
-    case "pipeline":
       return "contact";
+    case "pipeline":
+      return deal.source === "strata_inbound" ? "pack" : "contact";
     case "outreach":
       return "email";
     case "fulfilment":
-      return deal.sfp?.status === "PARTIAL" ? "partial" : "fulfil";
+      if (deal.sfp?.status === "PARTIAL") return "partial";
+      return deal.source === "strata_inbound" ? "pack" : "fulfil";
     case "human_call":
       return "call";
     case "processing":
-    case "underwriting":
       return "ingest";
+    case "underwriting":
+      return "complete";
     case "human_review":
       return "credit";
     case "complete":
-      return "sterling";
+      return deal.sterlingHandoffId ? "david" : "sterling";
     default:
       return "parked";
   }
 }
 
 export function countDealsOnNodes(
-  deals: Array<Pick<AgenticDealFile, "stage" | "status" | "source" | "humanReason" | "sfp">>
+  deals: Array<Parameters<typeof nodeForDeal>[0]>
 ): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const node of FACTORY_NODES) counts[node.id] = 0;

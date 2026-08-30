@@ -520,9 +520,9 @@ const router = Router();
         }
 
         const partnerUser = await storage.getUserByEmail(partnerEmail);
-        if (!partnerUser || partnerUser.role !== "external_broker") {
+        if (!partnerUser) {
           return res.status(500).json({
-            error: `No external_broker account found for ${partnerEmail}. Run createBrokerPartner.ts first.`,
+            error: `No Sterling partner account found for ${partnerEmail}. Run createBrokerPartner.ts first.`,
           });
         }
 

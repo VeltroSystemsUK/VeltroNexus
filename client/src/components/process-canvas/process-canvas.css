@@ -1,0 +1,36 @@
+.process-canvas.react-flow,
+.process-canvas .react-flow {
+  --xy-edge-stroke: #d8d8e6;
+  --xy-edge-stroke-width: 2.25;
+}
+
+.process-canvas svg {
+  max-width: none !important;
+  overflow: visible;
+}
+
+.process-canvas .react-flow__edges {
+  z-index: 3;
+}
+
+.process-canvas .react-flow__edge-path {
+  stroke: #d8d8e6 !important;
+  stroke-width: 2.25px !important;
+  fill: none !important;
+}
+
+.process-canvas .react-flow__edge.stop .react-flow__edge-path {
+  stroke: #f97066 !important;
+}
+
+.process-canvas .react-flow__handle {
+  z-index: 4;
+}
+
+.process-canvas .react-flow__resize-control.handle {
+  z-index: 5;
+}
+
+.process-shape-diamond {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}

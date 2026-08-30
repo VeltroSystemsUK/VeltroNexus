@@ -119,6 +119,21 @@ export default function BrokersCRM() {
         onError: () => toast.error("Sweep failed"),
     });
 
+    const enrichAllMutation = useMutation({
+        mutationFn: async () => {
+            const res = await apiRequest("/api/brokers/leads/enrich-all", "POST");
+            return await res.json();
+        },
+        onSuccess: (data) => {
+            if (data.queued === 0) {
+                toast.success(data.message || "Nothing to enrich");
+            } else {
+                toast.success(`Enriching ${data.queued} introducer${data.queued === 1 ? "" : "s"} — watch progress below`);
+            }
+        },
+        onError: () => toast.error("Enrichment failed to start"),
+    });
+
     const discoverLeadsMutation = useMutation({
         mutationFn: (vars: { town?: string, sicCodes?: string[], autoEnrich?: boolean }) =>
             apiRequest("/api/brokers/discover", "POST", vars),
@@ -284,6 +299,16 @@ export default function BrokersCRM() {
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setLocation("/god-mode")}>
                         Admin Home
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        disabled={enrichAllMutation.isPending}
+                        onClick={() => enrichAllMutation.mutate()}
+                        title="Look up contact details for introducers that only have a company name"
+                    >
+                        {enrichAllMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                        Enrich Missing Data
                     </Button>
 
                     <Dialog open={discoveryDialogOpen} onOpenChange={setDiscoveryDialogOpen}>

@@ -16,6 +16,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { railLenses, groupedDestinations, type Destination } from "./navModel";
+import { isNavLocked } from "@shared/navLocks";
 
 interface LensRailProps {
   role: string;
@@ -128,20 +129,22 @@ function ExpandedNav({ role }: { role: string }) {
                 {items.map((d) => {
                   const Icon = d.icon;
                   const active = isActive(d.path);
-                  return (
-                    <Link key={d.path} href={d.path}>
+                  const locked = isNavLocked(role, d.path);
+                  const row = (
                       <div
                         className={cn(
-                          "flex items-start gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
-                          active
-                            ? "bg-primary/10 text-white"
-                            : "text-muted-foreground hover:text-white hover:bg-white/[0.04]"
+                          "flex items-start gap-2.5 px-2 py-1.5 rounded-md transition-colors",
+                          locked
+                            ? "text-white/25 cursor-not-allowed"
+                            : active
+                              ? "bg-primary/10 text-white cursor-pointer"
+                              : "text-muted-foreground hover:text-white hover:bg-white/[0.04] cursor-pointer"
                         )}
                       >
                         <Icon
                           className={cn(
                             "h-4 w-4 shrink-0 mt-0.5",
-                            active && "text-primary"
+                            active && !locked && "text-primary"
                           )}
                         />
                         <span className="min-w-0">
@@ -150,11 +153,22 @@ function ExpandedNav({ role }: { role: string }) {
                           </span>
                           {d.description && (
                             <span className="block text-[11px] text-white/35 leading-snug mt-0.5 truncate">
-                              {d.description}
+                              {locked ? "Preview only" : d.description}
                             </span>
                           )}
                         </span>
                       </div>
+                  );
+                  if (locked) {
+                    return (
+                      <div key={d.path} title="Not available on this preview">
+                        {row}
+                      </div>
+                    );
+                  }
+                  return (
+                    <Link key={d.path} href={d.path}>
+                      {row}
                     </Link>
                   );
                 })}
@@ -268,12 +282,23 @@ export function LensRail({ role, onCommand }: LensRailProps) {
 
         {expanded && (
           <div className="px-2 mb-3">
-            <Link href="/search">
-              <button className="w-full h-9 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-1.5 text-xs font-medium transition-colors">
+            {isNavLocked(role, "/search") ? (
+              <button
+                type="button"
+                disabled
+                className="w-full h-9 rounded-lg bg-white/5 text-white/30 flex items-center justify-center gap-1.5 text-xs font-medium cursor-not-allowed"
+              >
                 <Plus className="h-4 w-4" />
                 New Prospect
               </button>
-            </Link>
+            ) : (
+              <Link href="/search">
+                <button className="w-full h-9 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-1.5 text-xs font-medium transition-colors">
+                  <Plus className="h-4 w-4" />
+                  New Prospect
+                </button>
+              </Link>
+            )}
           </div>
         )}
 
@@ -285,26 +310,36 @@ export function LensRail({ role, onCommand }: LensRailProps) {
             {lenses.map((lens) => {
               const Icon = lens.icon;
               const active = isActive(lens.path);
-              return (
-                <Tooltip key={lens.path}>
-                  <TooltipTrigger asChild>
-                    <Link href={lens.path}>
+              const locked = isNavLocked(role, lens.path);
+              const icon = (
                       <div
                         className={cn(
-                          "relative h-11 w-11 rounded-xl flex items-center justify-center transition-all cursor-pointer",
-                          active
-                            ? "text-primary bg-primary/10 border border-primary/25"
-                            : "text-white/50 hover:text-white hover:bg-white/[0.05] border border-transparent"
+                          "relative h-11 w-11 rounded-xl flex items-center justify-center transition-all",
+                          locked
+                            ? "text-white/20 cursor-not-allowed border border-transparent"
+                            : active
+                              ? "text-primary bg-primary/10 border border-primary/25 cursor-pointer"
+                              : "text-white/50 hover:text-white hover:bg-white/[0.05] border border-transparent cursor-pointer"
                         )}
                       >
-                        {active && (
+                        {active && !locked && (
                           <span className="absolute -left-[10px] top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary shadow-[0_0_10px_2px_hsl(var(--primary)/0.5)]" />
                         )}
                         <Icon className="h-5 w-5" />
                       </div>
-                    </Link>
+              );
+              return (
+                <Tooltip key={lens.path}>
+                  <TooltipTrigger asChild>
+                    {locked ? (
+                      <div>{icon}</div>
+                    ) : (
+                      <Link href={lens.path}>{icon}</Link>
+                    )}
                   </TooltipTrigger>
-                  <TooltipContent side="right">{lens.label}</TooltipContent>
+                  <TooltipContent side="right">
+                    {locked ? `${lens.label} (preview only)` : lens.label}
+                  </TooltipContent>
                 </Tooltip>
               );
             })}

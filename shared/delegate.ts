@@ -50,7 +50,7 @@ export const DELEGATE_JOBS: DelegateJob[] = [
   },
   {
     id: "retry_send",
-    agentIds: ["outreach-sales"],
+    agentIds: ["outreach-sales", "inbound-intake", "fulfilment-manager"],
     label: "Retry email send",
     description: "Try SMTP again on a file whose last send did not leave the box.",
     needsDeal: true,

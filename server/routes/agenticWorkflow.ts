@@ -33,6 +33,28 @@ router.get("/api/agentic/deals", isAuthenticated, async (_req, res) => {
   }
 });
 
+// User edits to the Strategy tab's live blueprint (renamed/moved/added/deleted
+// nodes and edges) — opaque to the server, just a JSON blob keyed per-install.
+const FACTORY_GRAPH_OVERRIDES_KEY = "factory_graph_overrides";
+
+router.get("/api/agentic/factory-graph-overrides", isAuthenticated, async (_req, res) => {
+  try {
+    const overrides = await storage.getSystemSetting(FACTORY_GRAPH_OVERRIDES_KEY);
+    res.json(overrides || null);
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
+router.put("/api/agentic/factory-graph-overrides", isAuthenticated, async (req, res) => {
+  try {
+    const saved = await storage.updateSystemSetting(FACTORY_GRAPH_OVERRIDES_KEY, req.body, (req.user as any)?.id);
+    res.json(saved);
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
 router.delete("/api/agentic/deals/:id", isAuthenticated, async (req, res) => {
   try {
     const id = parseInt(req.params.id);

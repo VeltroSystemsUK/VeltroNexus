@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isNavLocked } from "@shared/navLocks";
 
 interface NavItem {
   path: string;
@@ -53,13 +54,21 @@ export default function MobileNav() {
           const Icon = item.icon;
           const active = isActive(item.path);
 
+          const locked = isNavLocked(role, item.path);
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                if (!locked) navigate(item.path);
+              }}
+              disabled={locked}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full min-w-0 py-2 px-1 transition-colors",
-                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                locked
+                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  : active
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
               )}
               data-testid={`mobile-nav-${item.label.toLowerCase()}`}
             >

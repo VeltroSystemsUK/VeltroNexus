@@ -182,7 +182,7 @@ export default function ProspectCard({
               >
                 {prospect.companyName}
               </h4>
-              {(prospect.referralSource === "Strata" || prospect.referralSource === "Agent") && (
+              {(prospect.referralSource === "Strata" || prospect.referralSource === "Client Agent") && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 shrink-0">
                   {prospect.referralSource}
                 </Badge>

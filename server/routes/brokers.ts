@@ -4,7 +4,7 @@ import { handleApiError } from "../utils/errorHandler";
 import { requireGodMode } from "../utils/godModeAuth";
 import { insertBrokerLeadSchema, insertBrokerCommissionSchema } from "@shared/schema";
 import { emailVerificationService } from "../services/emailVerificationService";
-import { enrichLead } from "../services/leadEnrichmentService";
+import { enrichLead, enrichLeadsInBackground } from "../services/leadEnrichmentService";
 import { classifyProspectStream } from "@shared/salesOs";
 
 const router = Router();
@@ -99,11 +99,18 @@ router.post("/sweep-introducers", async (req, res) => {
             const prospects = await storage.listProspects(userId, "lead");
             for (const prospect of prospects) {
                 if (!prospect.id) continue;
+
+                // The old "Agent" referral label covered both direct SME leads and
+                // introducer candidates indiscriminately, so it is NOT on its own a
+                // reliable signal — only the company classifier decides here. (Fixed
+                // going forward: promoteToPipeline now labels these "Client Agent" vs
+                // "Refer Agent" and introducer-stream deals never reach `prospects`.)
                 const decision = classifyProspectStream({
                     companyName: prospect.company.companyName,
                     sicCodes: prospect.company.sicCode ? [prospect.company.sicCode] : [],
                 });
                 if (decision.stream !== "introducer") continue;
+                const reason = decision.reason;
 
                 const existing = prospect.company.companyNumber
                     ? await storage.getBrokerLeadByCompanyNumber(prospect.company.companyNumber)
@@ -121,7 +128,7 @@ router.post("/sweep-introducers", async (req, res) => {
                         totalChargesCount: 0,
                         satisfiedChargesCount: 0,
                         possibleDuplicate: false,
-                        notes: `Swept from the main pipeline (prospect #${prospect.id}) — reclassified as an introducer (${decision.reason}).`,
+                        notes: `Swept from the main pipeline (prospect #${prospect.id}) — reclassified as an introducer (${reason}).`,
                     });
                 }
                 await storage.deleteProspect(prospect.id, userId);
@@ -132,6 +139,27 @@ router.post("/sweep-introducers", async (req, res) => {
         res.json({ success: true, movedFromLeads, movedFromPipeline });
     } catch (error) {
         handleApiError(res, error, "Sweep introducers failed");
+    }
+});
+
+// --- Bulk enrichment: fill in contact details for leads with only a company name ---
+router.post("/leads/enrich-all", async (req, res) => {
+    try {
+        const userId = (req.user as any)?.id;
+        const leads = await storage.listBrokerLeads();
+        const unenriched = leads.filter((lead) => !lead.email);
+
+        if (unenriched.length === 0) {
+            return res.json({ success: true, queued: 0, message: "Every introducer already has contact details" });
+        }
+
+        enrichLeadsInBackground(unenriched.map((lead) => lead.id), userId, "broker").catch((error) => {
+            console.error("[Brokers] Bulk enrichment failed:", error);
+        });
+
+        res.json({ success: true, queued: unenriched.length });
+    } catch (error) {
+        handleApiError(res, error, "Enrich introducers failed");
     }
 });
 
@@ -184,6 +212,70 @@ router.delete("/leads/:id", async (req, res) => {
         res.status(204).send();
     } catch (error) {
         res.status(500).json({ error: "Delete failed" });
+    }
+});
+
+// Manual correction for anything wrongly swept in here — a real customer, not an
+// introducer. Recreates the company/prospect in the main pipeline and removes the
+// broker lead.
+router.post("/leads/:id/move-to-pipeline", async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const userId = (req.user as any)?.id;
+        if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+        const lead = await storage.getBrokerLead(id);
+        if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+        let company = lead.companyNumber
+            ? await storage.getCompanyByNumber(lead.companyNumber)
+            : undefined;
+        if (!company) {
+            company = await storage.createCompany({
+                companyName: lead.companyName,
+                companyNumber: lead.companyNumber || `WEB-${Date.now()}`,
+                companyStatus: "active",
+            });
+        }
+
+        const prospect = await storage.createProspect(
+            {
+                companyId: company.id!,
+                stage: "lead",
+                referralSource: "Restored",
+                notes: `Moved back from the Introducer pipeline (was broker lead #${lead.id}, misclassified by the sweep).\n${lead.notes || ""}`.trim(),
+                queueOrder: 0,
+                directorsGuarantee: 0,
+                commercialProperty: 0,
+                homeEquity: 0,
+                propertyOther: 0,
+                debenture: 0,
+                parentCompanyGuarantee: 0,
+                collateral: 0,
+                crossCompanyGuarantee: 0,
+            },
+            userId
+        );
+
+        if (lead.contactName || lead.email || lead.phone) {
+            await storage.createContact(
+                {
+                    prospectId: prospect.id!,
+                    name: lead.contactName || lead.companyName,
+                    email: lead.email || null,
+                    phone: lead.phone || null,
+                    role: "Director",
+                    isPrimary: 1,
+                },
+                userId
+            );
+        }
+
+        await storage.deleteBrokerLead(id);
+
+        res.json({ success: true, prospectId: prospect.id });
+    } catch (error) {
+        handleApiError(res, error, "Move to pipeline failed");
     }
 });
 

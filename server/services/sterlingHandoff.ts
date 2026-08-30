@@ -21,7 +21,7 @@ export async function ensureSterlingHandoff(opts: {
   if (!partnerEmail) return { ok: false, reason: "Sterling portal not configured" };
 
   const partner = await storage.getUserByEmail(partnerEmail);
-  if (!partner || partner.role !== "external_broker") {
+  if (!partner) {
     return { ok: false, reason: "Sterling portal not configured" };
   }
 

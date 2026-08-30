@@ -22,8 +22,8 @@ export const AGENT_DIRECTORY: Array<{
 }> = [
   { agentId: "inbound-intake", displayName: "Maya Hart", role: "New Business Administrator", local: "maya.hart" },
   { agentId: "contact-finder", displayName: "Elena Ward", role: "Contact Finder", local: "elena.ward" },
-  { agentId: "database-builder", displayName: "Daniel Crowe", role: "Opportunity Hunter", local: "daniel.crowe" },
-  { agentId: "database-builder-se", displayName: "Tom Brennan", role: "Opportunity Hunter SE", local: "tom.brennan" },
+  { agentId: "database-builder", displayName: "Daniel Crowe", role: "Client Agent", local: "daniel.crowe" },
+  { agentId: "database-builder-se", displayName: "Tom Brennan", role: "Refer Agent", local: "tom.brennan" },
   { agentId: "outreach-sales", displayName: "James Hale", role: "Business Consultant", local: "james.hale" },
   { agentId: "fulfilment-manager", displayName: "Sophie Reed", role: "New Business Manager", local: "sophie.reed" },
   { agentId: "deal-processing-underwriter", displayName: "Priya Shah", role: "Process Manager", local: "priya.shah" },

@@ -1,4 +1,4 @@
-import { InternalLead } from "../../shared/schema";
+import { InternalLead, BrokerLead } from "../../shared/schema";
 import { searchCompanyInfo } from "../utils/geminiClient";
 
 export interface EnrichmentResult {
@@ -110,7 +110,7 @@ async function fetchChargeDetails(companyNumber: string): Promise<{
 /**
  * Enrich a single lead using Gemini Grounded Search
  */
-export async function enrichLead(lead: InternalLead): Promise<EnrichmentResult> {
+export async function enrichLead(lead: InternalLead | BrokerLead): Promise<EnrichmentResult> {
     const result: EnrichmentResult = {
         emails: [],
         phones: [],
@@ -172,7 +172,11 @@ export async function enrichLead(lead: InternalLead): Promise<EnrichmentResult> 
 /**
  * Enrich multiple leads in the background with BATCH PROCESSING
  */
-export async function enrichLeadsInBackground(leadIds: number[], userId?: string): Promise<void> {
+export async function enrichLeadsInBackground(
+    leadIds: number[],
+    userId?: string,
+    leadType: "internal" | "broker" = "internal"
+): Promise<void> {
     const { agentJobTracker } = await import("./agentJobTracker");
     let jobId: string | undefined;
 
@@ -189,6 +193,12 @@ export async function enrichLeadsInBackground(leadIds: number[], userId?: string
 
     console.log(`[Agent B] Starting fast batch enrichment for ${leadIds.length} leads`);
     const { storage } = await import("../storage");
+    const getLead = leadType === "broker"
+        ? storage.getBrokerLead.bind(storage)
+        : storage.getInternalLead.bind(storage);
+    const updateLead = leadType === "broker"
+        ? storage.updateBrokerLead.bind(storage)
+        : storage.updateInternalLead.bind(storage);
 
     // Process in batches of 5 to respect concurrency limits but speed up speed
     const BATCH_SIZE = 5;
@@ -214,7 +224,7 @@ export async function enrichLeadsInBackground(leadIds: number[], userId?: string
         // Process chunk in parallel
         await Promise.all(chunk.map(async (leadId) => {
             try {
-                const lead = await storage.getInternalLead(leadId);
+                const lead = await getLead(leadId);
                 if (!lead) return;
 
                 if (jobId) {
@@ -228,9 +238,10 @@ export async function enrichLeadsInBackground(leadIds: number[], userId?: string
 
                 const enrichmentResult = await enrichLead(lead);
 
-                await storage.updateInternalLead(leadId, {
+                await updateLead(leadId, {
                     email: enrichmentResult.emails[0] || lead.email,
                     phone: enrichmentResult.phones[0] || lead.phone,
+                    contactName: enrichmentResult.contacts[0]?.name || (lead as any).contactName,
                     linkedinUrl: enrichmentResult.linkedinUrl || lead.linkedinUrl,
                     identifiedLender: enrichmentResult.identifiedLender || lead.identifiedLender,
                     chargeDate: enrichmentResult.chargeDate || lead.chargeDate,

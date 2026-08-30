@@ -279,8 +279,11 @@ app.use((req: any, res, next) => {
             const today = new Date().toISOString().slice(0, 10);
             if (lastDistressScanDate !== today && new Date().getHours() >= 8) {
               lastDistressScanDate = today;
-              agenticWorkflow.startFromDistressScan().catch((error) => {
-                console.error("[Agentic] Distress scan failed:", error);
+              agenticWorkflow.startFromDistressScan(undefined, "sme").catch((error) => {
+                console.error("[Agentic] Client Agent distress scan failed:", error);
+              });
+              agenticWorkflow.startFromDistressScan(undefined, "introducer").catch((error) => {
+                console.error("[Agentic] Refer Agent distress scan failed:", error);
               });
             }
           }, 60 * 1000);

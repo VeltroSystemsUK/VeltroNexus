@@ -66,6 +66,17 @@ describe("ensureSterlingHandoff", () => {
     expect(result.reason).toMatch(/not configured/i);
   });
 
+  it("still hands files to David when his account is temporarily on a full-app role", async () => {
+    mocked.getUserByEmail.mockResolvedValue({ id: "p1", role: "sales_admin" });
+    mocked.getBrokerHandoffByProspect.mockResolvedValue(undefined);
+    mocked.createBrokerHandoff.mockResolvedValue({ id: 3, status: "awaiting_recommendation" });
+    const result = await ensureSterlingHandoff({ prospectId: 73, userId: "u1", submissionId: 3 });
+    expect(result.ok).toBe(true);
+    expect(mocked.createBrokerHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({ externalUserId: "p1", prospectId: 73 })
+    );
+  });
+
   it("does not reopen a sent file", async () => {
     mocked.getUserByEmail.mockResolvedValue({ id: "p1", role: "external_broker" });
     mocked.getBrokerHandoffByProspect.mockResolvedValue({ id: 9, status: "sent" });

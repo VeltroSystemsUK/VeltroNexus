@@ -32,6 +32,7 @@ import {
   PoundSterling,
   Send,
   ImageIcon,
+  Palette,
   MessageSquare,
 } from "lucide-react";
 import logoChrome from "@assets/logo-chrome.png";
@@ -88,6 +89,7 @@ const navGroups: NavGroup[] = [
       { path: "/email-templates", label: "Templates", icon: FileText, roles: FULL },
       { path: "/email-campaigns", label: "Campaigns", icon: Send, roles: FULL },
       { path: "/media", label: "Media", icon: ImageIcon, roles: FULL },
+      { path: "/craft", label: "Craft", icon: Palette, roles: FULL },
     ],
   },
   {

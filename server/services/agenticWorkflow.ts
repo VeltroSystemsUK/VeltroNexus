@@ -33,12 +33,17 @@ import { isDistressHuntRow } from "./huntCandidates";
 import { harvestHmrcPetitions } from "./signalHarvest";
 import { toDealPetition, type HmrcMarker } from "@shared/distressSignals";
 import { searchIntroducerDirectory } from "./introducerDirectory";
-import type {
-  AgenticCompanyCandidate,
-  AgenticDealFile,
-  AgenticEvent,
-  AgenticSource,
-  AgenticStage,
+import {
+  cadenceRetryIndex,
+  introducerPipelineStatus,
+  packMissingDisposition,
+  shouldReprocessPack,
+  tickKindForDeal,
+  type AgenticCompanyCandidate,
+  type AgenticDealFile,
+  type AgenticEvent,
+  type AgenticSource,
+  type AgenticStage,
 } from "@shared/agenticWorkflow";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -145,6 +150,55 @@ async function withUploadToken(deal: AgenticDealFile): Promise<AgenticDealFile> 
   return storage.updateAgenticDeal(deal.id, {
     uploadToken: crypto.randomBytes(24).toString("base64url"),
   }) as Promise<AgenticDealFile>;
+}
+
+async function upsertIntroducerLead(deal: AgenticDealFile, registeredAddress?: string) {
+  const companyNumber = deal.companyNumber || `WEB-${deal.id}`;
+  const existing = deal.companyNumber
+    ? await storage.getBrokerLeadByCompanyNumber(deal.companyNumber)
+    : undefined;
+  const nextStatus = introducerPipelineStatus({
+    hasContact: Boolean(deal.email || deal.phone),
+    outreachTouch: deal.outreachTouch,
+    stage: deal.stage,
+  });
+  const status = nextStatus === "none" ? "new" : nextStatus;
+  if (!existing) {
+    await storage.createBrokerLead({
+      companyName: deal.companyName,
+      companyNumber,
+      contactName: deal.contactName,
+      email: deal.email,
+      phone: deal.phone,
+      status,
+      address: registeredAddress || deal.placeAddress || undefined,
+      notes: `Found by Refer Agent (deal #${deal.id}). Source: ${deal.source}.`,
+      commissionRate: 0.1,
+      hasCharges: false,
+      totalChargesCount: 0,
+      satisfiedChargesCount: 0,
+      contacts: [],
+      possibleDuplicate: false,
+    });
+    return;
+  }
+  const rank: Record<string, number> = { new: 0, contacted: 1, approved: 2 };
+  const bumped = (rank[existing.status] ?? 0) < (rank[status] ?? 0) ? status : existing.status;
+  await storage.updateBrokerLead(existing.id, {
+    contactName: deal.contactName || existing.contactName,
+    email: deal.email || existing.email,
+    phone: deal.phone || existing.phone,
+    status: bumped,
+  });
+}
+
+async function markIntroducerStatus(deal: AgenticDealFile, status: "new" | "contacted" | "approved") {
+  if (!deal.companyNumber) return;
+  const existing = await storage.getBrokerLeadByCompanyNumber(deal.companyNumber);
+  if (!existing) return;
+  const rank: Record<string, number> = { new: 0, contacted: 1, approved: 2 };
+  if ((rank[existing.status] ?? 0) >= rank[status]) return;
+  await storage.updateBrokerLead(existing.id, { status });
 }
 
 export type DistressHuntResult = {
@@ -406,7 +460,15 @@ export const agenticWorkflow = {
     return this.runIngest(deal);
   },
 
-  async startFromDistressScan(limit = DISTRESS_SCAN_LIMIT): Promise<DistressHuntResult> {
+  /**
+   * streamFilter narrows this hunt to one desk's job: "sme" is the Client Agent
+   * (Daniel Crowe) — direct borrowers only. "introducer" is the Refer Agent (Tom
+   * Brennan) — accountants/CFOs/turnaround advisers only, never a direct lead.
+   * Omitted, it runs both (used by the unscoped manual scan endpoint).
+   */
+  async startFromDistressScan(limit = DISTRESS_SCAN_LIMIT, streamFilter?: "sme" | "introducer"): Promise<DistressHuntResult> {
+    const wantsSme = streamFilter !== "introducer";
+    const wantsIntroducer = streamFilter !== "sme";
     const opened: AgenticDealFile[] = [];
     const rejected: Record<string, number> = {};
     let chargeOpened = 0;
@@ -422,6 +484,8 @@ export const agenticWorkflow = {
       for (const marker of petitions) {
         if (!marker.companyNumber) continue;
         gazetteByNumber.set(marker.companyNumber, marker);
+        // HMRC petitions are always a direct-SME distress signal, never an introducer one.
+        if (!wantsSme) continue;
         if (opened.length >= GAZETTE_HMRC_LIMIT) continue;
         if (seen.has(marker.companyNumber) || booked.has(marker.companyNumber)) continue;
         seen.add(marker.companyNumber);
@@ -525,6 +589,10 @@ export const agenticWorkflow = {
         })),
       });
       if (!fit.pass) {
+        if (!wantsIntroducer) {
+          bumpReject(rejected, fit.rejectReason || "did not meet Strata fit");
+          continue;
+        }
         const intro = assessIntroducerFit({
           companyName: candidate.companyName,
           sicCodes: candidate.sicCode ? [candidate.sicCode] : [],
@@ -554,7 +622,7 @@ export const agenticWorkflow = {
             {
               at: nowIso(),
               stage: "ingest",
-              agent: "database-builder",
+              agent: "database-builder-se",
               message: `Stream B introducer from Lead Finder: ${candidate.companyName} — ${intro.reasons.join("; ")}`,
             },
           ],
@@ -569,6 +637,7 @@ export const agenticWorkflow = {
         );
         continue;
       }
+      if (!wantsSme) continue;
       const deal = await storage.createAgenticDeal({
         source: "distress_scan",
         stream: "sme",
@@ -607,7 +676,10 @@ export const agenticWorkflow = {
       chargeOpened += 1;
     }
 
-    const localLeads = await storage.listInternalLeads();
+    // The local Leads book only ever yields direct-SME candidates here — introducer
+    // shaped rows are routed out of it at ingestion time, so there's nothing for the
+    // Refer Agent to find in this loop.
+    const localLeads = wantsSme ? await storage.listInternalLeads() : [];
 
     for (const lead of localLeads) {
       if (chargeOpened >= limit) break;
@@ -728,6 +800,10 @@ export const agenticWorkflow = {
                 );
                 return { deals: opened, scanned, rejected };
               }
+              if (!wantsIntroducer) {
+                bumpReject(rejected, fit.rejectReason || "did not meet Strata fit");
+                continue;
+              }
               const intro = assessIntroducerFit({
                 companyName,
                 sicCodes: item.sic_codes || [],
@@ -754,7 +830,7 @@ export const agenticWorkflow = {
                   {
                     at: nowIso(),
                     stage: "ingest",
-                    agent: "database-builder",
+                    agent: "database-builder-se",
                     message: `Stream B introducer: ${companyName} — ${intro.reasons.join("; ")}`,
                   },
                 ],
@@ -774,6 +850,7 @@ export const agenticWorkflow = {
               );
               continue;
             }
+            if (!wantsSme) continue;
             const deal = await storage.createAgenticDeal({
               source: "distress_scan",
               stream: "sme",
@@ -821,7 +898,7 @@ export const agenticWorkflow = {
       );
     }
 
-    if (!chCooldownUntil()) {
+    if (wantsIntroducer && !chCooldownUntil()) {
       try {
         const introducers = await searchIntroducerDirectory({
           limit: INTRODUCER_SCAN_LIMIT,
@@ -846,7 +923,7 @@ export const agenticWorkflow = {
               {
                 at: nowIso(),
                 stage: "ingest",
-                agent: "database-builder",
+                agent: "database-builder-se",
                 message: `Stream B ICAEW/ACCA directory: ${candidate.companyName} — ${candidate.summary}`,
               },
             ],
@@ -942,59 +1019,56 @@ export const agenticWorkflow = {
       ),
     });
 
-    const place = await searchPlaces(match.companyName, address || undefined);
-    if (place) {
-      updated = await storage.updateAgenticDeal(deal.id, {
-        placeName: place.placeName,
-        placeAddress: place.placeAddress,
-        website: place.website,
-        phone: updated.phone || place.phone,
-        events: addEvent(
-          updated,
-          "enrich",
-          `Places: ${place.placeName} — ${place.placeAddress}${place.phone ? ` · ${place.phone}` : ""}`,
-          "inbound-intake"
-        ),
-      });
-    } else {
-      updated = await storage.updateAgenticDeal(deal.id, {
-        events: addEvent(updated, "enrich", "No Google Places listing found", "inbound-intake"),
-      });
-    }
-
-    if (missingContact(updated)) {
-      updated = await this.completeContact(updated);
-    }
+    updated = await this.completeContact({ ...updated, placeAddress: updated.placeAddress || address });
 
     return this.promoteToPipeline(updated, address);
   },
 
   async completeContact(deal: AgenticDealFile): Promise<AgenticDealFile> {
-    const found = await findMissingContact(deal);
+    let working = deal;
+    if (!working.website || !working.phone || !working.placeName) {
+      const place = await searchPlaces(working.companyName, working.placeAddress || undefined);
+      if (place) {
+        working = await storage.updateAgenticDeal(working.id, {
+          placeName: place.placeName,
+          placeAddress: place.placeAddress,
+          website: working.website || place.website,
+          phone: working.phone || place.phone,
+          events: addEvent(
+            working,
+            "enrich",
+            `Places: ${place.placeName} — ${place.placeAddress}${place.phone ? ` · ${place.phone}` : ""}`,
+            "contact-finder"
+          ),
+        });
+      }
+    }
+
+    const found = await findMissingContact(working);
     const parts: string[] = [];
-    if (found.contactName && found.contactName !== deal.contactName) parts.push(`name ${found.contactName}`);
+    if (found.contactName && found.contactName !== working.contactName) parts.push(`name ${found.contactName}`);
     if (found.email) parts.push(`email ${found.email}`);
     if (found.phone) parts.push(`phone ${found.phone}`);
 
     const merged = {
-      contactName: found.contactName || deal.contactName,
-      email: found.email || deal.email,
-      phone: found.phone || deal.phone,
-      website: found.website || deal.website,
+      contactName: found.contactName || working.contactName,
+      email: found.email || working.email,
+      phone: found.phone || working.phone,
+      website: found.website || working.website,
     };
 
-    if (deal.internalLeadId && (found.email || found.phone || found.contactName)) {
-      await storage.updateInternalLead(deal.internalLeadId, {
+    if (working.internalLeadId && (found.email || found.phone || found.contactName)) {
+      await storage.updateInternalLead(working.internalLeadId, {
         contactName: merged.contactName,
         email: merged.email,
         phone: merged.phone,
       });
     }
 
-    return storage.updateAgenticDeal(deal.id, {
+    return storage.updateAgenticDeal(working.id, {
       ...merged,
       events: addEvent(
-        deal,
+        working,
         "enrich",
         parts.length ? `Contact finder filled: ${parts.join(", ")}` : "Contact finder ran — still missing email or phone",
         "contact-finder"
@@ -1031,6 +1105,13 @@ export const agenticWorkflow = {
   },
 
   async promoteToPipeline(deal: AgenticDealFile, registeredAddress?: string): Promise<AgenticDealFile> {
+    // Introducer-stream deals (accountants, CFOs, turnaround advisers the Refer Agent
+    // finds) never belong in the direct-borrower pipeline — they don't carry loan
+    // amounts, guarantees, or any of the fields a real customer enquiry needs.
+    if (dealStream(deal.source, deal.stream) === "introducer") {
+      return this.promoteToIntroducerPipeline(deal, registeredAddress);
+    }
+
     if (deal.prospectId) {
       const existingProspect = await storage.getProspectById(deal.prospectId);
       if (existingProspect?.company?.companyNumber?.startsWith("WEB-") && deal.companyNumber && !deal.companyNumber.startsWith("WEB-")) {
@@ -1077,7 +1158,9 @@ export const agenticWorkflow = {
         {
           companyId: company.id!,
           stage: "lead",
-          referralSource: deal.source === "strata_inbound" ? "Strata" : "Agent",
+          // Reaching this branch means dealStream() already ruled out "introducer"
+          // above, so this is always a direct SME/customer lead.
+          referralSource: deal.source === "strata_inbound" ? "Strata" : "Client Agent",
           notes: `Agentic workflow ${deal.id}. Source: ${deal.source}.\nContact: ${deal.contactName || "Unknown"}\nEmail: ${deal.email || "N/A"}\nPhone: ${deal.phone || "N/A"}`,
           loanAmount: deal.loanAmount ?? null,
           queueOrder: 0,
@@ -1123,7 +1206,7 @@ export const agenticWorkflow = {
       events: addEvent(
         deal,
         "pipeline",
-        `Created pipeline lead #${prospectId} marked ${deal.source === "strata_inbound" ? "Strata" : "Agent"}`,
+        `Created pipeline lead #${prospectId} marked ${deal.source === "strata_inbound" ? "Strata" : "Client Agent"}`,
         deal.source === "strata_inbound" ? "inbound-intake" : "database-builder"
       ),
     });
@@ -1131,8 +1214,60 @@ export const agenticWorkflow = {
     return this.sendOutreach(promoted);
   },
 
+  async promoteToIntroducerPipeline(deal: AgenticDealFile, registeredAddress?: string): Promise<AgenticDealFile> {
+    // A name with no way to reach it is no use to anyone — retry Elena, never dump
+    // the find, and never put it on the SME email cadence.
+    if (!deal.email && !deal.phone) {
+      deal = await this.completeContact(deal);
+    }
+    if (!deal.email && !deal.phone) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_timer",
+        waitUntil: new Date(Date.now() + ONE_DAY_MS).toISOString(),
+        events: addEvent(deal, "outreach", "No email or phone found — Contact Finder will retry tomorrow before this reaches the Introducer pipeline.", "contact-finder"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    await upsertIntroducerLead(deal, registeredAddress);
+
+    if (deal.internalLeadId) {
+      await storage.updateInternalLead(deal.internalLeadId, { status: "converted" });
+    }
+
+    const pipeline = introducerPipelineStatus({
+      hasContact: true,
+      outreachTouch: deal.outreachTouch,
+      stage: deal.stage,
+    });
+    if (pipeline === "approved" || deal.stage === "complete") {
+      return deal;
+    }
+
+    const stream = dealStream(deal.source, deal.stream);
+    const step = nextCadenceStep(stream, cadenceRetryIndex(deal.outreachTouch));
+    if (!step) {
+      return this.completeIntroducer(deal, "Cadence complete — Introducer pipeline Approved.");
+    }
+    return this.applyCadenceStep(deal, stream, step);
+  },
+
+  async completeIntroducer(deal: AgenticDealFile, message: string): Promise<AgenticDealFile> {
+    await markIntroducerStatus(deal, "approved");
+    return storage.updateAgenticDeal(deal.id, {
+      stage: "complete",
+      status: "complete",
+      waitUntil: undefined,
+      humanReason: undefined,
+      events: addEvent(deal, "complete", message, "database-builder-se"),
+    }) as Promise<AgenticDealFile>;
+  },
+
   async sendOutreach(deal: AgenticDealFile): Promise<AgenticDealFile> {
     const stream = dealStream(deal.source, deal.stream);
+    if (stream === "introducer") {
+      return this.promoteToIntroducerPipeline(deal);
+    }
     if (stream === "sme" && (deal.fitScore ?? 0) < MIN_FIT_SCORE) {
       return storage.updateAgenticDeal(deal.id, {
         stage: "failed",
@@ -1164,7 +1299,7 @@ export const agenticWorkflow = {
       deal = hunted;
     }
 
-    const step = nextCadenceStep(stream, 0);
+    const step = nextCadenceStep(stream, cadenceRetryIndex(deal.outreachTouch));
     if (!step) {
       return storage.updateAgenticDeal(deal.id, {
         stage: "failed",
@@ -1221,6 +1356,10 @@ export const agenticWorkflow = {
       delivered,
       blockReason: step.autoSend && !isLinkedIn ? pecrReason : null,
     });
+
+    if (stream === "introducer" && (outcome === "advance" || outcome === "hold_linkedin") && !isLinkedIn && delivered) {
+      await markIntroducerStatus(deal, "contacted");
+    }
 
     if (outcome === "hold_pecr") {
       return storage.updateAgenticDeal(deal.id, {
@@ -1327,8 +1466,14 @@ export const agenticWorkflow = {
   async runFulfilment(deal: AgenticDealFile): Promise<AgenticDealFile> {
     const docs = deal.prospectId ? await storage.listProspectDocuments(deal.prospectId) : [];
     const packDocs = deal.packDocuments || [];
-    if (docs.length > 0 || packDocs.length > 0) {
-      const count = docs.length || packDocs.length;
+    const fileCount = packDocs.length || docs.length;
+    if (
+      shouldReprocessPack({
+        packDocuments: packDocs,
+        extraDocCount: packDocs.length ? 0 : docs.length,
+        sfp: deal.sfp,
+      })
+    ) {
       const sfp = sfpFromDeal({
         ...deal,
         packDocuments: packDocs.length ? packDocs : docs.map((doc: any) => ({
@@ -1346,22 +1491,75 @@ export const agenticWorkflow = {
         stage: "processing",
         status: "running",
         waitUntil: undefined,
-        events: addEvent(deal, "fulfilment", `${count} document(s) on file — ingesting`, "fulfilment-manager"),
+        events: addEvent(deal, "fulfilment", `${fileCount} document(s) on file — ingesting`, "fulfilment-manager"),
       });
       return this.runProcessing(ready);
+    }
+
+    if (deal.sfp?.status === "PARTIAL") {
+      return this.keepChasingPack(deal);
     }
 
     const stream = dealStream(deal.source, deal.stream);
     const step = nextCadenceStep(stream, deal.outreachTouch || 0);
     if (!step) {
+      const disposition = packMissingDisposition(deal);
+      if (disposition === "approve_introducer") {
+        return this.completeIntroducer(deal, "Stream B complete — Introducer pipeline Approved.");
+      }
+      if (disposition === "keep_chasing") {
+        return this.keepChasingPack(deal);
+      }
       return storage.updateAgenticDeal(deal.id, {
-        stage: "failed",
-        status: "failed",
+        stage: "fulfilment",
+        status: "waiting_human",
         waitUntil: undefined,
-        events: addEvent(deal, "failed", "Cadence complete. File parked.", "fulfilment-manager"),
+        humanReason: "Cadence complete and the pack is still missing. Chase or stop — do not park a live opportunity.",
+        events: addEvent(deal, "fulfilment", "Cadence complete. Pack missing — holding for chase, not parking.", "fulfilment-manager"),
       }) as Promise<AgenticDealFile>;
     }
     return this.applyCadenceStep(deal, stream, step);
+  },
+
+  async keepChasingPack(deal: AgenticDealFile): Promise<AgenticDealFile> {
+    deal = await withUploadToken(deal);
+    const mailbox = inboundMailbox("fulfilment-manager");
+    const script = renderOutreachEmail(deal, "inbound_chase", mailbox);
+    const gaps = deal.sfp?.missing?.length ? deal.sfp.missing.join("; ") : namedPackGaps(deal).join("; ");
+    if (deal.email) {
+      const pecrReason = coldEmailBlockedReason(deal.email, dealStream(deal.source, deal.stream));
+      if (!pecrReason) {
+        try {
+          await sendEmail(
+            {
+              agentId: "fulfilment-manager",
+              fromEmail: mailbox.address,
+              fromName: mailbox.fromName,
+              replyTo: mailbox.replyTo,
+              dealId: deal.id,
+              prospectId: deal.prospectId,
+            },
+            deal.email,
+            script.subject,
+            script.html
+          );
+        } catch (error: any) {
+          console.error("[Agentic] Pack chase email failed:", error);
+        }
+      }
+    }
+    return storage.updateAgenticDeal(deal.id, {
+      stage: "fulfilment",
+      status: "waiting_timer",
+      waitUntil: new Date(Date.now() + daysMs(3)).toISOString(),
+      humanReason: undefined,
+      events: addEvent(
+        deal,
+        "fulfilment",
+        gaps ? `Sophie chasing named gaps: ${gaps}` : "Sophie chasing the pack — file stays open.",
+        "fulfilment-manager"
+      ),
+    }) as Promise<AgenticDealFile>;
   },
 
   async onPackArrived(dealId: number): Promise<AgenticDealFile | null> {
@@ -1415,14 +1613,14 @@ export const agenticWorkflow = {
       return storage.updateAgenticDeal(deal.id, {
         sfp,
         stage: "fulfilment",
-        status: "waiting_human",
-        waitUntil: undefined,
+        status: "waiting_timer",
+        waitUntil: new Date(Date.now() + daysMs(1)).toISOString(),
         processingSummary: `SFP PARTIAL. Missing: ${gaps}. Will not underwrite from the event log.`,
         humanReason: `Pack is incomplete: ${gaps}`,
         events: addEvent(
           deal,
           "processing",
-          `Held — SFP PARTIAL. ${gaps}`,
+          `Held — SFP PARTIAL. Sophie will chase: ${gaps}`,
           "deal-processing-underwriter"
         ),
       }) as Promise<AgenticDealFile>;
@@ -1488,11 +1686,14 @@ export const agenticWorkflow = {
     }
 
     if (action === "retry_send") {
-      return this.sendOutreach({
-        ...deal,
-        status: "running",
-        humanReason: undefined,
-      });
+      const stream = dealStream(deal.source, deal.stream);
+      const cleared = { ...deal, status: "running" as const, humanReason: undefined };
+      if (stream === "introducer") {
+        return this.promoteToIntroducerPipeline(cleared);
+      }
+      const step = nextCadenceStep(stream, cadenceRetryIndex(deal.outreachTouch));
+      if (!step) return this.sendOutreach(cleared);
+      return this.applyCadenceStep(cleared, stream, step);
     }
 
     if (action === "linkedin_posted") {
@@ -1514,9 +1715,13 @@ export const agenticWorkflow = {
 
     if (action === "call_done") {
       const inbound = deal.source === "strata_inbound";
+      const stream = dealStream(deal.source, deal.stream);
       const packDocs = deal.packDocuments || [];
       const pipelineDocs = deal.prospectId ? await storage.listProspectDocuments(deal.prospectId) : [];
       const hasPack = packDocs.length > 0 || pipelineDocs.length > 0;
+      if (stream === "introducer") {
+        return this.completeIntroducer(deal, note || "Partner call done — Introducer pipeline Approved.");
+      }
       if (hasPack) {
         const next = await storage.updateAgenticDeal(deal.id, {
           stage: "processing",
@@ -1527,25 +1732,24 @@ export const agenticWorkflow = {
         return this.runProcessing(next);
       }
       if (inbound) {
-        return storage.updateAgenticDeal(deal.id, {
-          stage: "fulfilment",
-          status: "waiting_human",
-          humanReason: "Warm call done — pack still missing. Do not underwrite an empty file.",
+        return this.keepChasingPack({
+          ...deal,
           events: addEvent(
             deal,
             "fulfilment",
-            note || "Call completed with no pack — waiting for documents, not processing."
+            note || "Call completed with no pack — Sophie keeps chasing. Do not underwrite an empty file."
           ),
-        }) as Promise<AgenticDealFile>;
+        });
       }
       return storage.updateAgenticDeal(deal.id, {
-        stage: "failed",
-        status: "failed",
-        humanReason: undefined,
+        stage: "fulfilment",
+        status: "waiting_human",
+        waitUntil: undefined,
+        humanReason: "Call done and the pack is still missing. Chase or stop — do not park a live opportunity.",
         events: addEvent(
           deal,
-          "failed",
-          note || "Call completed with no pack — cadence closed. File parked."
+          "fulfilment",
+          note || "Call completed with no pack — holding for chase, not parking."
         ),
       }) as Promise<AgenticDealFile>;
     }
@@ -1630,8 +1834,13 @@ export const agenticWorkflow = {
     );
     for (const deal of due) {
       try {
-        if (deal.stage === "fulfilment") await this.runFulfilment(deal);
-        if (deal.stage === "outreach") {
+        const kind = tickKindForDeal(deal);
+        if (kind === "fulfilment") await this.runFulfilment(deal);
+        if (kind === "introducer_retry") {
+          const hunted = await this.completeContact(deal);
+          await this.promoteToIntroducerPipeline(hunted);
+        }
+        if (kind === "outreach_retry") {
           const hunted = await this.completeContact(deal);
           await this.sendOutreach(hunted);
         }

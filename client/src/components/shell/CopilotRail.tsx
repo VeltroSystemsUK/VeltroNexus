@@ -10,6 +10,7 @@ import type { AgenticDealFile } from "@shared/agenticWorkflow";
 interface CopilotRailProps {
   collapsed: boolean;
   onToggle: () => void;
+  locked?: boolean;
 }
 
 function stamp(value?: string) {
@@ -24,7 +25,7 @@ function stamp(value?: string) {
   });
 }
 
-export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
+export function CopilotRail({ collapsed, onToggle, locked }: CopilotRailProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [draft, setDraft] = useState("");
@@ -37,10 +38,14 @@ export function CopilotRail({ collapsed, onToggle }: CopilotRailProps) {
     return (
       <button
         onClick={onToggle}
-        aria-label="Open Copilot"
-        className="relative z-10 hidden lg:flex w-12 shrink-0 flex-col items-center pt-5 gap-2 bg-sidebar/70 backdrop-blur-xl border-l border-white/5 text-white/60 hover:text-white transition-colors"
+        disabled={locked}
+        aria-label={locked ? "Copilot unavailable" : "Open Copilot"}
+        className={cn(
+          "relative z-10 hidden lg:flex w-12 shrink-0 flex-col items-center pt-5 gap-2 bg-sidebar/70 backdrop-blur-xl border-l border-white/5 transition-colors",
+          locked ? "text-white/20 cursor-not-allowed" : "text-white/60 hover:text-white"
+        )}
       >
-        <Sparkles className="h-5 w-5 text-primary" />
+        <Sparkles className={cn("h-5 w-5", locked ? "text-white/20" : "text-primary")} />
         {items.length > 0 ? (
           <span className="min-w-[1.15rem] h-5 px-1 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center">
             {items.length}

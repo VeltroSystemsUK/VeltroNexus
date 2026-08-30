@@ -24,6 +24,10 @@ regulated_agreement_sole_trader,ORC-1,yes,Hard stop unregulated track
 p0_hmrc_petition,RES-2,yes,Notify same hour; first template may send
 spend_over_500,ORC-1,yes,
 legal_agreement,ORC-1,yes,
+market_scan_ammo_briefs,MKT-3,no,Creative Ammo Briefs only; never invent rates; never write final ad copy
+brand_social_week,MKT-2,no,Isla writes from MKT-3 ammo; draft queue on /craft; Shaun posts
+craft_export_release,MKT-2,yes,Marketing approve then compliance sign-off; no export until both
+social_publish_or_ads,MKT-2,yes,Never auto-post; ads draft only; spend uses £500 gate
 change_agent_scope,ORC-1,yes,Update corporate_structure.md
 accounts_xero_invoicing,NONE,yes,Hibernated Oliver
 cfo_capital_strategist,NONE,yes,Hibernated Nathan

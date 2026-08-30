@@ -43,7 +43,11 @@ export async function runDelegate(input: DelegateRequest) {
   }
 
   if (job.id === "hunt") {
-    const result = await agenticWorkflow.startFromDistressScan();
+    const streamFilter =
+      agentId === "database-builder-se" ? "introducer" :
+      agentId === "database-builder" ? "sme" :
+      undefined;
+    const result = await agenticWorkflow.startFromDistressScan(undefined, streamFilter);
     const rejectedTotal = Object.values(result.rejected).reduce((sum, count) => sum + count, 0);
     return {
       ok: true,

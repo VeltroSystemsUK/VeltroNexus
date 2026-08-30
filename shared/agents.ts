@@ -26,6 +26,8 @@ export type WorkflowTaskTrigger =
   | "no_response_alert"
   | "proposal_draft_ready";
 
+export type WorkflowShape = "rectangle" | "rounded" | "diamond" | "circle";
+
 export interface WorkflowTask {
   id: string;
   name: string;
@@ -34,12 +36,26 @@ export interface WorkflowTask {
   steps: string[];
   expectedOutput: string;
   escalationRule?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  shape?: WorkflowShape;
+  color?: string;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
 }
 
 export interface AgentWorkflow {
   jobDescription: string;
   responsibilities: string[];
   tasks: WorkflowTask[];
+  edges?: WorkflowEdge[];
 }
 
 export interface DigitalAssociate {

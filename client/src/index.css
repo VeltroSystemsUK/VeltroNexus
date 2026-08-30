@@ -88,6 +88,11 @@
   --glass-bg: 255 255 255;
   --glass-alpha: 0.66;
   --hairline: rgba(0, 0, 0, 0.08);
+  --craft-accent: hsl(var(--primary));
+  --border-subtle: hsl(var(--border));
+  --bg-raised: hsl(var(--card));
+  --font-ui: var(--font-sans);
+  --suite-accent: var(--craft-accent);
 
   /* Light mode shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);

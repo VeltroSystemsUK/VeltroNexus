@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/command";
 import { Plus, Sparkles } from "lucide-react";
 import { visibleDestinations } from "./navModel";
+import { isNavLocked } from "@shared/navLocks";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function CommandPalette({ open, onOpenChange, role }: CommandPaletteProps
   }, [open, onOpenChange]);
 
   const go = (path: string) => {
+    if (isNavLocked(role, path)) return;
     onOpenChange(false);
     navigate(path);
   };
@@ -48,12 +50,20 @@ export function CommandPalette({ open, onOpenChange, role }: CommandPaletteProps
         <CommandEmpty>No matches.</CommandEmpty>
 
         <CommandGroup heading="Actions">
-          <CommandItem value="new prospect add company" onSelect={() => go("/search")}>
+          <CommandItem
+            value="new prospect add company"
+            disabled={isNavLocked(role, "/search")}
+            onSelect={() => go("/search")}
+          >
             <Plus />
             New prospect
             <CommandShortcut>N</CommandShortcut>
           </CommandItem>
-          <CommandItem value="ask veltro copilot ai assistant" onSelect={() => onOpenChange(false)}>
+          <CommandItem
+            value="ask veltro copilot ai assistant"
+            disabled={role === "sales_admin"}
+            onSelect={() => onOpenChange(false)}
+          >
             <Sparkles className="text-primary" />
             Ask Veltro…
             <CommandShortcut>AI</CommandShortcut>
@@ -70,6 +80,7 @@ export function CommandPalette({ open, onOpenChange, role }: CommandPaletteProps
                   <CommandItem
                     key={d.path}
                     value={`${d.label} ${d.group} ${d.keywords || ""}`}
+                    disabled={isNavLocked(role, d.path)}
                     onSelect={() => go(d.path)}
                   >
                     <Icon />

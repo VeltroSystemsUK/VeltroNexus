@@ -2,8 +2,6 @@ import { PageHeader } from "@/components/PageHeader";
 import {
   DigitalAssociate,
   AgentWorkflow,
-  WorkflowTask,
-  WorkflowTaskTrigger,
   AgentChatMessage,
   AssociateStatus,
 } from "@shared/agents";
@@ -32,9 +30,6 @@ import {
   FileText,
   ListChecks,
   Plus,
-  GripVertical,
-  ChevronDown,
-  ChevronUp,
   ClipboardList,
   History,
 } from "lucide-react";
@@ -57,6 +52,9 @@ import { DealFilesPanel } from "@/components/agentic/DealFilesPanel";
 import { DeskOpsPanel } from "@/components/agentic/DeskOpsPanel";
 import { DelegateDialog } from "@/components/agentic/DelegateDialog";
 import { FactoryCanvas } from "@/components/agentic/FactoryCanvas";
+import { DeskFunctionsPanel } from "@/components/agentic/DeskFunctionsPanel";
+import { ProcessCanvas } from "@/components/process-canvas";
+import { graphToWorkflow, workflowToGraph } from "@shared/processGraph";
 
 export default function Workforce() {
   const queryClient = useQueryClient();
@@ -65,6 +63,7 @@ export default function Workforce() {
   const [instruction, setInstruction] = useState("");
   const [delegateOpen, setDelegateOpen] = useState(false);
   const [delegateAgentId, setDelegateAgentId] = useState<string | undefined>();
+  const [workforceTab, setWorkforceTab] = useState("deals");
   const [chatHistory, setChatHistory] = useState<
     { role: "user" | "agent"; content: string; timestamp?: Date }[]
   >([]);
@@ -205,7 +204,6 @@ export default function Workforce() {
     responsibilities: [],
     tasks: [],
   });
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [newResponsibility, setNewResponsibility] = useState("");
 
   const openWorkflowEditor = (agent: DigitalAssociate) => {
@@ -217,7 +215,6 @@ export default function Workforce() {
         tasks: [],
       }
     );
-    setExpandedTaskId(null);
   };
 
   const workflowMutation = useMutation({
@@ -248,62 +245,6 @@ export default function Workforce() {
     setWorkflowDraft((prev) => ({
       ...prev,
       responsibilities: prev.responsibilities.filter((_, i) => i !== index),
-    }));
-  };
-
-  const addTask = () => {
-    const newTask: WorkflowTask = {
-      id: `task-${Date.now()}`,
-      name: "",
-      description: "",
-      trigger: "on_instruction",
-      steps: [""],
-      expectedOutput: "",
-    };
-    setWorkflowDraft((prev) => ({
-      ...prev,
-      tasks: [...prev.tasks, newTask],
-    }));
-    setExpandedTaskId(newTask.id);
-  };
-
-  const updateTask = (taskId: string, updates: Partial<WorkflowTask>) => {
-    setWorkflowDraft((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)),
-    }));
-  };
-
-  const removeTask = (taskId: string) => {
-    setWorkflowDraft((prev) => ({
-      ...prev,
-      tasks: prev.tasks.filter((t) => t.id !== taskId),
-    }));
-    if (expandedTaskId === taskId) setExpandedTaskId(null);
-  };
-
-  const addStep = (taskId: string) => {
-    setWorkflowDraft((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, steps: [...t.steps, ""] } : t)),
-    }));
-  };
-
-  const updateStep = (taskId: string, stepIndex: number, value: string) => {
-    setWorkflowDraft((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) =>
-        t.id === taskId ? { ...t, steps: t.steps.map((s, i) => (i === stepIndex ? value : s)) } : t
-      ),
-    }));
-  };
-
-  const removeStep = (taskId: string, stepIndex: number) => {
-    setWorkflowDraft((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) =>
-        t.id === taskId ? { ...t, steps: t.steps.filter((_, i) => i !== stepIndex) } : t
-      ),
     }));
   };
 
@@ -456,7 +397,12 @@ export default function Workforce() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#020617] text-white">
+    <div
+      className={cn(
+        "flex flex-col bg-[#020617] text-white",
+        workforceTab === "strategy" ? "h-[calc(100dvh-4rem)] overflow-hidden" : "h-full"
+      )}
+    >
       <PageHeader
         title="AI Workforce"
         description="Deal files is the factory. Desks show open files, mail that actually left the box, and work waiting on you."
@@ -476,15 +422,27 @@ export default function Workforce() {
         initialAgentId={delegateAgentId}
       />
 
-      <main className="flex-1 p-6 overflow-y-auto">
-        <Tabs defaultValue="deals" className="space-y-6">
+      <main
+        className={cn(
+          "flex-1 p-6",
+          workforceTab === "strategy" ? "min-h-0 flex flex-col overflow-hidden" : "overflow-y-auto"
+        )}
+      >
+        <Tabs
+          value={workforceTab}
+          onValueChange={setWorkforceTab}
+          className={cn(workforceTab === "strategy" ? "flex-1 min-h-0 flex flex-col gap-4" : "space-y-6")}
+        >
           <div className="flex items-center justify-between">
-            <TabsList className="bg-slate-900 border border-slate-800">
+            <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
               <TabsTrigger value="deals" className="data-[state=active]:bg-primary">
                 Deal files
               </TabsTrigger>
               <TabsTrigger value="roster" className="data-[state=active]:bg-primary">
                 Desks
+              </TabsTrigger>
+              <TabsTrigger value="functions" className="data-[state=active]:bg-primary">
+                Functions
               </TabsTrigger>
               <TabsTrigger value="strategy" className="data-[state=active]:bg-primary">
                 Strategy
@@ -803,8 +761,12 @@ export default function Workforce() {
             </div>
           )}
 
-          <TabsContent value="strategy" className="mt-0">
-            <FactoryCanvas />
+          <TabsContent value="functions" className="space-y-4">
+            <DeskFunctionsPanel />
+          </TabsContent>
+
+          <TabsContent value="strategy" className="mt-0 flex-1 min-h-0">
+            {workforceTab === "strategy" && <FactoryCanvas />}
           </TabsContent>
 
           <TabsContent value="activity">
@@ -978,7 +940,7 @@ export default function Workforce() {
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setWorkflowAgentId(null)}
             />
-            <div className="relative bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="relative bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-6xl h-[min(900px,90vh)] flex flex-col">
               {/* Header */}
               <div className="p-5 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-3">
@@ -1002,9 +964,7 @@ export default function Workforce() {
                 </Button>
               </div>
 
-              {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                {/* Job Description */}
+              <div className="grid md:grid-cols-2 gap-4 p-4 border-b border-slate-800 shrink-0 max-h-[240px] overflow-y-auto">
                 <div>
                   <label
                     htmlFor="workflow-job-desc"
@@ -1019,7 +979,7 @@ export default function Workforce() {
                     onChange={(e) =>
                       setWorkflowDraft((prev) => ({ ...prev, jobDescription: e.target.value }))
                     }
-                    rows={4}
+                    rows={3}
                     placeholder="Describe the agent's overall purpose and scope of work..."
                     autoComplete="off"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
@@ -1078,231 +1038,17 @@ export default function Workforce() {
                   </div>
                 </div>
 
-                {/* Tasks */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                      <ClipboardList className="h-3.5 w-3.5" /> Tasks ({workflowDraft.tasks.length})
-                    </label>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-800"
-                      onClick={addTask}
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {workflowDraft.tasks.map((task) => {
-                      const isExpanded = expandedTaskId === task.id;
-                      return (
-                        <div
-                          key={task.id}
-                          className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden"
-                        >
-                          {/* Task Header */}
-                          <div
-                            className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-800/30 transition-colors"
-                            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                          >
-                            <div className="text-slate-600">
-                              {isExpanded ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-white truncate">
-                                  {task.name || "Untitled Task"}
-                                </span>
-                                <Badge className="bg-slate-800 text-slate-400 border-slate-700 text-[9px]">
-                                  {task.trigger}
-                                </Badge>
-                                <Badge className="bg-slate-800 text-slate-500 border-slate-700 text-[9px]">
-                                  {task.steps.filter((s) => s.trim()).length} steps
-                                </Badge>
-                              </div>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeTask(task.id);
-                              }}
-                              className="text-slate-600 hover:text-red-400 transition-colors p-1"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-
-                          {/* Task Detail (Expanded) */}
-                          {isExpanded && (
-                            <div className="border-t border-slate-800 p-4 space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label
-                                    htmlFor={`task-name-${task.id}`}
-                                    className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
-                                  >
-                                    Task Name
-                                  </label>
-                                  <input
-                                    id={`task-name-${task.id}`}
-                                    name={`taskName-${task.id}`}
-                                    type="text"
-                                    value={task.name}
-                                    onChange={(e) => updateTask(task.id, { name: e.target.value })}
-                                    placeholder="e.g. Qualify Lead"
-                                    autoComplete="off"
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
-                                  />
-                                </div>
-                                <div>
-                                  <label
-                                    htmlFor={`task-trigger-${task.id}`}
-                                    className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
-                                  >
-                                    Trigger
-                                  </label>
-                                  <select
-                                    id={`task-trigger-${task.id}`}
-                                    name={`taskTrigger-${task.id}`}
-                                    value={task.trigger}
-                                    onChange={(e) =>
-                                      updateTask(task.id, {
-                                        trigger: e.target.value as WorkflowTaskTrigger,
-                                      })
-                                    }
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-emerald-500/50"
-                                  >
-                                    <option value="on_instruction">On Instruction</option>
-                                    <option value="scheduled">Scheduled</option>
-                                    <option value="on_event">On Event</option>
-                                  </select>
-                                </div>
-                              </div>
-
-                              <div>
-                                <label
-                                  htmlFor={`task-desc-${task.id}`}
-                                  className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
-                                >
-                                  Description
-                                </label>
-                                <textarea
-                                  id={`task-desc-${task.id}`}
-                                  name={`taskDesc-${task.id}`}
-                                  value={task.description}
-                                  onChange={(e) =>
-                                    updateTask(task.id, { description: e.target.value })
-                                  }
-                                  rows={2}
-                                  placeholder="What does this task accomplish?"
-                                  autoComplete="off"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50 resize-none"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1">
-                                  Steps
-                                </label>
-                                <div className="space-y-2">
-                                  {task.steps.map((step, si) => (
-                                    <div key={si} className="flex items-center gap-2 group">
-                                      <span className="text-[10px] font-mono text-slate-600 w-5 text-right">
-                                        {si + 1}.
-                                      </span>
-                                      <input
-                                        id={`task-step-${task.id}-${si}`}
-                                        name={`taskStep-${task.id}-${si}`}
-                                        type="text"
-                                        value={step}
-                                        onChange={(e) => updateStep(task.id, si, e.target.value)}
-                                        placeholder="Describe this step..."
-                                        autoComplete="off"
-                                        className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
-                                      />
-                                      <button
-                                        onClick={() => removeStep(task.id, si)}
-                                        className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                                <button
-                                  onClick={() => addStep(task.id)}
-                                  className="mt-2 text-[10px] font-bold text-slate-500 hover:text-emerald-400 flex items-center gap-1 transition-colors"
-                                >
-                                  <Plus className="h-3 w-3" /> Add Step
-                                </button>
-                              </div>
-
-                              <div>
-                                <label
-                                  htmlFor={`task-output-${task.id}`}
-                                  className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
-                                >
-                                  Expected Output
-                                </label>
-                                <input
-                                  id={`task-output-${task.id}`}
-                                  name={`taskOutput-${task.id}`}
-                                  type="text"
-                                  value={task.expectedOutput}
-                                  onChange={(e) =>
-                                    updateTask(task.id, { expectedOutput: e.target.value })
-                                  }
-                                  placeholder="What should this task produce?"
-                                  autoComplete="off"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
-                                />
-                              </div>
-
-                              <div>
-                                <label
-                                  htmlFor={`task-escalation-${task.id}`}
-                                  className="block text-[9px] font-bold text-slate-600 uppercase tracking-widest mb-1"
-                                >
-                                  Escalation Rule (Optional)
-                                </label>
-                                <input
-                                  id={`task-escalation-${task.id}`}
-                                  name={`taskEscalation-${task.id}`}
-                                  type="text"
-                                  value={task.escalationRule || ""}
-                                  onChange={(e) =>
-                                    updateTask(task.id, {
-                                      escalationRule: e.target.value || undefined,
-                                    })
-                                  }
-                                  placeholder="When should this task escalate to a human?"
-                                  autoComplete="off"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {workflowDraft.tasks.length === 0 && (
-                      <div className="py-8 text-center border border-dashed border-slate-800 rounded-xl">
-                        <ClipboardList className="h-8 w-8 text-slate-700 mx-auto mb-2" />
-                        <p className="text-sm text-slate-600">No tasks defined yet</p>
-                        <p className="text-xs text-slate-700 mt-1">
-                          Add tasks to define what this agent can do
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              </div>
+              <div className="flex-1 min-h-0 p-4 pt-3">
+                <ProcessCanvas
+                  key={workflowAgentId}
+                  variant="workflow"
+                  initialNodes={workflowToGraph(workflowDraft).nodes}
+                  initialEdges={workflowToGraph(workflowDraft).edges}
+                  onPersist={({ nodes, edges }) =>
+                    setWorkflowDraft((prev) => graphToWorkflow(prev, nodes, edges))
+                  }
+                />
               </div>
 
               {/* Footer */}

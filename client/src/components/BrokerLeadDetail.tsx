@@ -12,10 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { 
+import {
     Phone, Mail, Activity, Trash2,
     Building2, MapPin, Save, X, Edit2, Loader2, DollarSign,
-    ShieldCheck
+    ShieldCheck, Undo2
 } from "lucide-react";
 import { BrokerLead, User } from "@shared/schema";
 import { toast } from "sonner";
@@ -68,6 +68,20 @@ export default function BrokerLeadDetail({ lead, open, onOpenChange }: BrokerLea
             queryClient.invalidateQueries({ queryKey: ["/api/brokers/leads"] });
             onOpenChange(false);
         },
+    });
+
+    const moveToPipelineMutation = useMutation({
+        mutationFn: async () => {
+            const res = await apiRequest(`/api/brokers/leads/${lead.id}/move-to-pipeline`, "POST");
+            return await res.json();
+        },
+        onSuccess: () => {
+            toast.success("Moved back to the main Pipeline");
+            queryClient.invalidateQueries({ queryKey: ["/api/brokers/leads"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+            onOpenChange(false);
+        },
+        onError: () => toast.error("Failed to move to pipeline"),
     });
 
     const verifyEmailMutation = useMutation({
@@ -387,7 +401,21 @@ export default function BrokerLeadDetail({ lead, open, onOpenChange }: BrokerLea
                     </TabsContent>
                 </Tabs>
 
-                <div className="mt-10 pt-6 border-t flex justify-end">
+                <div className="mt-10 pt-6 border-t flex justify-end gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            if (confirm(`Move ${lead.companyName} back to the main Pipeline as a direct customer lead?`)) {
+                                moveToPipelineMutation.mutate();
+                            }
+                        }}
+                        disabled={moveToPipelineMutation.isPending}
+                        title="Use this if this record is actually a direct customer, not an introducer"
+                    >
+                        {moveToPipelineMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
+                        Move to main Pipeline
+                    </Button>
                     <Button
                         variant="destructive"
                         size="sm"

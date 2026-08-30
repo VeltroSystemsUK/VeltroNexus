@@ -27,4 +27,108 @@ describe("factory graph", () => {
     expect(counts.parked).toBe(1);
     expect(nodeForDeal({ stage: "human_call", status: "waiting_human", source: "strata_inbound" })).toBe("call");
   });
+
+  it("keeps introducers on their own three nodes and never on the SME chain", () => {
+    expect(
+      nodeForDeal({
+        stage: "ingest",
+        status: "running",
+        source: "distress_scan",
+        stream: "introducer",
+      })
+    ).toBe("hunt-introducer");
+    expect(
+      nodeForDeal({
+        stage: "outreach",
+        status: "waiting_timer",
+        source: "distress_scan",
+        stream: "introducer",
+      })
+    ).toBe("introducer-contact");
+    expect(
+      nodeForDeal({
+        stage: "outreach",
+        status: "waiting_timer",
+        source: "distress_scan",
+        stream: "introducer",
+        email: "partner@hartleyaccountants.co.uk",
+      })
+    ).toBe("introducer-pipeline");
+    expect(
+      nodeForDeal({
+        stage: "fulfilment",
+        status: "waiting_timer",
+        source: "distress_scan",
+        stream: "introducer",
+        email: "partner@hartleyaccountants.co.uk",
+      })
+    ).toBe("introducer-pipeline");
+    expect(
+      nodeForDeal({
+        stage: "complete",
+        status: "complete",
+        source: "distress_scan",
+        stream: "introducer",
+        email: "partner@hartleyaccountants.co.uk",
+      })
+    ).toBe("introducer-pipeline");
+  });
+
+  it("sits inbound packs, PECR holds, SFP complete, and David on the nodes that own them", () => {
+    expect(
+      nodeForDeal({
+        stage: "fulfilment",
+        status: "waiting_timer",
+        source: "strata_inbound",
+      })
+    ).toBe("pack");
+    expect(
+      nodeForDeal({
+        stage: "fulfilment",
+        status: "waiting_human",
+        source: "strata_inbound",
+        sfp: { status: "PARTIAL" } as any,
+      })
+    ).toBe("partial");
+    expect(
+      nodeForDeal({
+        stage: "outreach",
+        status: "waiting_human",
+        source: "distress_scan",
+        humanReason: "Will not send cold email: personal mailbox — PECR",
+      })
+    ).toBe("pecr");
+    expect(
+      nodeForDeal({
+        stage: "outreach",
+        status: "waiting_human",
+        source: "distress_scan",
+        humanReason: "Email did not send (SMTP missing or failed). Retry when mail is live.",
+      })
+    ).toBe("smtp-hold");
+    expect(
+      nodeForDeal({
+        stage: "underwriting",
+        status: "running",
+        source: "strata_inbound",
+        sfp: { status: "COMPLETE" } as any,
+      })
+    ).toBe("complete");
+    expect(
+      nodeForDeal({
+        stage: "complete",
+        status: "complete",
+        source: "strata_inbound",
+        sterlingHandoffId: 9,
+      })
+    ).toBe("david");
+    expect(
+      nodeForDeal({
+        stage: "failed",
+        status: "failed",
+        source: "distress_scan",
+        humanReason: "Not emailed — fit 40/70. SIG-06 out",
+      })
+    ).toBe("reject");
+  });
 });

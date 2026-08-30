@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HIBERNATED_DESKS, summariseDeskOps } from "@shared/deskOps";
+import { HIBERNATED_DESKS, deskForDeal, summariseDeskOps } from "@shared/deskOps";
 
 describe("desk ops", () => {
   it("does not report hibernated desks", () => {
@@ -49,5 +49,63 @@ describe("desk ops", () => {
     expect(priya?.waitingYou).toBe(1);
     expect(priya?.open).toBe(1);
     expect(maya?.notDelivered).toBe(1);
+  });
+
+  it("puts hunt files on Daniel and introducer files on Tom, not Maya", () => {
+    expect(
+      deskForDeal({
+        stage: "ingest",
+        source: "distress_scan",
+        events: [
+          { at: "2026-08-27T09:00:00.000Z", stage: "ingest", agent: "database-builder", message: "Hunt opened" },
+        ],
+      })
+    ).toBe("database-builder");
+    expect(
+      deskForDeal({
+        stage: "company_match",
+        source: "distress_scan",
+        stream: "introducer",
+        events: [
+          {
+            at: "2026-08-27T09:00:00.000Z",
+            stage: "ingest",
+            agent: "database-builder-se",
+            message: "Refer Agent find",
+          },
+        ],
+      })
+    ).toBe("database-builder-se");
+  });
+
+  it("gives Elena enrich, James hunt email, Maya inbound ack, Sophie chase", () => {
+    expect(
+      deskForDeal({
+        stage: "enrich",
+        source: "distress_scan",
+        events: [],
+      })
+    ).toBe("contact-finder");
+    expect(
+      deskForDeal({
+        stage: "outreach",
+        source: "distress_scan",
+        events: [],
+      })
+    ).toBe("outreach-sales");
+    expect(
+      deskForDeal({
+        stage: "outreach",
+        source: "strata_inbound",
+        events: [],
+      })
+    ).toBe("inbound-intake");
+    expect(
+      deskForDeal({
+        stage: "fulfilment",
+        source: "strata_inbound",
+        events: [],
+      })
+    ).toBe("fulfilment-manager");
   });
 });
