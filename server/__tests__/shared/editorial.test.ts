@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createEditorialPieceSchema, insertEditorialPieceSchema } from "@shared/schema";
 import {
   EDITORIAL_WRITER_PROMPT,
   applyEditorialPatch,
@@ -185,5 +186,23 @@ describe("markdown and export payload", () => {
     expect(payload.filename).toBe("strata-press_release-9");
     expect(payload.markdown).toMatch(/We do not lend/);
     expect(payload.html).toMatch(/<h1>/);
+  });
+});
+
+describe("editorial schema", () => {
+  it("requires type, title, and topic on create", () => {
+    expect(createEditorialPieceSchema.safeParse({}).success).toBe(false);
+    expect(createEditorialPieceSchema.safeParse({ type: "blog", title: "A", topic: "B" }).success).toBe(true);
+    expect(createEditorialPieceSchema.safeParse({ type: "tweet", title: "A", topic: "B" }).success).toBe(false);
+  });
+
+  it("cannot create with autoPublish true", () => {
+    const parsed = insertEditorialPieceSchema.safeParse({
+      type: "blog",
+      title: "A",
+      topic: "B",
+      autoPublish: true,
+    });
+    expect(parsed.success).toBe(false);
   });
 });

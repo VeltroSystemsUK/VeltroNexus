@@ -99,6 +99,8 @@ import {
   InsertCampaignRecipient,
   WaitlistEntry,
   InsertWaitlistEntry,
+  EditorialPiece,
+  InsertEditorialPiece,
 } from "@shared/schema";
 import { DigitalAssociate, AgentSession, MissionDeviation, AgentChatMessage } from "@shared/agents";
 import type * as ExpressSession from "express-session";
@@ -573,6 +575,16 @@ export interface IStorage {
   getCampaignRecipientById(id: number): Promise<CampaignRecipient | undefined>;
   updateCampaignRecipient(id: number, updates: Partial<CampaignRecipient>): Promise<CampaignRecipient | undefined>;
   clearCampaignRecipients(campaignId: number, userId: string): Promise<void>;
+
+  // Editorial Pieces
+  listEditorialPieces(userId: string): Promise<EditorialPiece[]>;
+  getEditorialPiece(id: number, userId: string): Promise<EditorialPiece | undefined>;
+  createEditorialPiece(
+    piece: { type: "blog" | "press_release"; title: string; topic: string },
+    userId: string,
+  ): Promise<EditorialPiece>;
+  updateEditorialPiece(id: number, userId: string, updates: Partial<EditorialPiece>): Promise<EditorialPiece | undefined>;
+  deleteEditorialPiece(id: number, userId: string): Promise<void>;
 }
 
 export type UnderwritingSummary = any;

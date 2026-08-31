@@ -1325,6 +1325,54 @@ export const EMAIL_TEMPLATE_CATEGORIES = [
   { value: "custom", label: "Custom" },
 ] as const;
 
+export const editorialTypeEnum = z.enum(["blog", "press_release"]);
+export const editorialStatusEnum = z.enum(["draft", "approved", "rejected", "exported"]);
+export const editorialComplianceEnum = z.enum(["pending", "cleared", "blocked"]);
+
+export const caseyNoteSchema = z.object({
+  title: z.string(),
+  url: z.string(),
+  snippet: z.string(),
+});
+
+export const editorialEngineSchema = z
+  .object({
+    provider: z.enum(["anthropic", "xai"]),
+    model: z.string(),
+  })
+  .nullable();
+
+export const editorialPieceSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  type: editorialTypeEnum,
+  title: z.string().min(1, "Title is required"),
+  topic: z.string().min(1, "Topic is required"),
+  body: z.string().default(""),
+  notes: z.array(caseyNoteSchema).default([]),
+  engine: editorialEngineSchema.default(null),
+  status: editorialStatusEnum.default("draft"),
+  compliance: editorialComplianceEnum.default("pending"),
+  autoPublish: z.literal(false).default(false),
+  exportedAt: dateSchema,
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type EditorialPiece = z.infer<typeof editorialPieceSchema>;
+export const insertEditorialPieceSchema = editorialPieceSchema.omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+  exportedAt: true,
+});
+export type InsertEditorialPiece = z.infer<typeof insertEditorialPieceSchema>;
+export const createEditorialPieceSchema = editorialPieceSchema.pick({
+  type: true,
+  title: true,
+  topic: true,
+});
+
 // --- Scraped Leads (Auto-Qualified) ---
 export const scrapedLeadSchema = z.object({
   id: z.number().optional(),

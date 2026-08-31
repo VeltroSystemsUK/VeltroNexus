@@ -10,7 +10,8 @@ import {
   Campaign, InsertCampaign, BrokerCommission, InsertBrokerCommission,
   BrokerScrapedLead, InsertBrokerScrapedLead, BrokerCampaign, InsertBrokerCampaign,
   Invoice, InsertInvoice, Expense, InsertExpense, EmailCampaign, InsertEmailCampaign,
-  CampaignRecipient, InsertCampaignRecipient, TimeEntry, InsertTimeEntry,
+  CampaignRecipient, InsertCampaignRecipient, EditorialPiece, InsertEditorialPiece,
+  TimeEntry, InsertTimeEntry,
   ProspectDocument, InsertProspectDocument, Channel, InsertChannel, ChannelMember,
   InsertChannelMember, Message, InsertMessage, CommunicationIntegration,
   InsertCommunicationIntegration, CommunicationTemplate, InsertCommunicationTemplate,
@@ -29,6 +30,7 @@ import {
   emailTemplates, scrapedLeads
 } from "./db/schema";
 import { eq, inArray, and, desc } from "drizzle-orm";
+import { applyEditorialPatch } from "@shared/editorial";
 import { remapSavedPipelineStages, STAGE_ID_ALIASES } from "@shared/pipelineStages";
 import session from "express-session";
 import createBetterSqlite3Store from "better-sqlite3-session-store";
@@ -1414,5 +1416,69 @@ export class SQLiteStorage implements IStorage {
 
   async deleteEmailCampaign(id: number, userId: string): Promise<void> {
     deleteItem("email_campaigns", id);
+  }
+
+  async listEditorialPieces(userId: string): Promise<EditorialPiece[]> {
+    return (getCollection("editorial_pieces") as EditorialPiece[])
+      .filter((row) => row.userId === userId)
+      .sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")));
+  }
+
+  async getEditorialPiece(id: number, userId: string): Promise<EditorialPiece | undefined> {
+    return (getCollection("editorial_pieces") as EditorialPiece[]).find(
+      (row) => row.id === id && row.userId === userId,
+    );
+  }
+
+  async createEditorialPiece(piece: InsertEditorialPiece, userId: string): Promise<EditorialPiece> {
+    return insertItem("editorial_pieces", {
+      type: piece.type,
+      title: piece.title,
+      topic: piece.topic,
+      body: "",
+      notes: [],
+      engine: null,
+      status: "draft",
+      compliance: "pending",
+      autoPublish: false,
+      exportedAt: null,
+      userId,
+    }) as EditorialPiece;
+  }
+
+  async updateEditorialPiece(
+    id: number,
+    userId: string,
+    updates: Partial<EditorialPiece>,
+  ): Promise<EditorialPiece | undefined> {
+    const existing = await this.getEditorialPiece(id, userId);
+    if (!existing) return undefined;
+    const content = applyEditorialPatch(existing, {
+      title: updates.title,
+      topic: updates.topic,
+      body: updates.body,
+    });
+    const next = {
+      ...content,
+      notes: updates.notes ?? content.notes,
+      engine: updates.engine === undefined ? content.engine : updates.engine,
+      status: updates.status ?? content.status,
+      compliance: updates.compliance ?? content.compliance,
+      exportedAt: updates.exportedAt === undefined ? content.exportedAt : updates.exportedAt,
+      autoPublish: false as const,
+    };
+    // If title/topic/body changed, applyEditorialPatch already reset status/compliance.
+    // Action endpoints pass status/compliance without those fields, so they stick.
+    if (updates.title !== undefined || updates.topic !== undefined || updates.body !== undefined) {
+      next.status = content.status;
+      next.compliance = content.compliance;
+    }
+    return updateItem("editorial_pieces", id, next) as EditorialPiece;
+  }
+
+  async deleteEditorialPiece(id: number, userId: string): Promise<void> {
+    const existing = await this.getEditorialPiece(id, userId);
+    if (!existing) return;
+    deleteItem("editorial_pieces", id);
   }
 }
