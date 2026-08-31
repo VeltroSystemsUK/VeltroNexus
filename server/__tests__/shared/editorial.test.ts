@@ -181,6 +181,11 @@ describe("markdown and export payload", () => {
     expect(html).not.toMatch(/googletagmanager|analytics|tracking/i);
   });
 
+  it("quote-escapes href values", () => {
+    const html = editorialMarkdownToHtml('See [x](https://example.com/?q="alert").', "T");
+    expect(html).toContain('href="https://example.com/?q=&quot;alert&quot;"');
+  });
+
   it("builds filename strata-{type}-{id}", () => {
     const payload = editorialExportPayload(piece({ type: "press_release", id: 9, body: "# PR\n\nWe do not lend." }));
     expect(payload.filename).toBe("strata-press_release-9");

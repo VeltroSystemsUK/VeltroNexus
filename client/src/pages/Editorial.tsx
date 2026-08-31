@@ -96,7 +96,9 @@ export default function Editorial() {
     if (!selected) return;
     setTitle(selected.title);
     setBody(selected.body || "");
-  }, [selected?.id, selected?.title, selected?.body]);
+    // Hydrate only when the open piece changes; a list refetch must not clobber keystrokes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
 
   useEffect(() => {
     if (!selected) return;
@@ -148,11 +150,25 @@ export default function Editorial() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  async function flushEdits() {
+    if (!selected) return;
+    if (title === selected.title && body === (selected.body || "")) return;
+    await apiRequest(`/api/editorial/${selected.id}`, "PATCH", { title, body });
+  }
+
   async function postAction(path: string, data?: unknown) {
+    await flushEdits();
     const res = await apiRequest(path, "POST", data);
     const json = await res.json();
     queryClient.invalidateQueries({ queryKey: ["/api/editorial"] });
     return json;
+  }
+
+  async function generateDraft() {
+    if (!selected) return;
+    const json = await postAction(`/api/editorial/${selected.id}/generate`);
+    if (typeof json?.body === "string") setBody(json.body);
+    toast.success("Draft written");
   }
 
   const review = selected ? reviewEditorialCopy({ ...selected, title, body, autoPublish: false } as EditorialPiece) : null;
@@ -193,9 +209,7 @@ export default function Editorial() {
             onClick={() => {
               if ((body || "").trim()) setConfirmGenerate(true);
               else {
-                postAction(`/api/editorial/${selected.id}/generate`)
-                  .then(() => toast.success("Draft written"))
-                  .catch((err: Error) => toast.error(err.message));
+                generateDraft().catch((err: Error) => toast.error(err.message));
               }
             }}
           >
@@ -256,10 +270,12 @@ export default function Editorial() {
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
-          <div className="lg:col-span-1 rounded-md border border-white/10 p-4 bg-muted/30 overflow-auto min-h-[480px]">
-            <div
-              className="prose prose-invert max-w-none text-sm"
-              dangerouslySetInnerHTML={{ __html: editorialMarkdownToHtml(body, title) }}
+          <div className="lg:col-span-1 rounded-md border border-white/10 overflow-hidden min-h-[480px] bg-white">
+            <iframe
+              title="Editorial preview"
+              sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+              className="w-full min-h-[480px] h-full border-0 bg-white"
+              srcDoc={editorialMarkdownToHtml(body, title)}
             />
           </div>
           <div className="space-y-3">
@@ -301,9 +317,7 @@ export default function Editorial() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() =>
-                  postAction(`/api/editorial/${selected.id}/generate`)
-                    .then(() => toast.success("Draft written"))
-                    .catch((err: Error) => toast.error(err.message))
+                  generateDraft().catch((err: Error) => toast.error(err.message))
                 }
               >
                 Generate

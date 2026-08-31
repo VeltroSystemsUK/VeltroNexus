@@ -190,7 +190,7 @@ function escapeHtml(value: string): string {
 
 function inlineMarkdown(value: string): string {
   return escapeHtml(value)
-    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, (_m, text, href) => `<a href="${href.replace(/"/g, "&quot;")}">${text}</a>`)
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>");
 }
