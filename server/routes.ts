@@ -124,6 +124,7 @@ import emailTemplatesRouter from "./routes/emailTemplates";
 import emailCampaignsRouter from "./routes/emailCampaigns";
 import mediaRouter from "./routes/media";
 import craftRouter from "./routes/craft";
+import editorialRouter from "./routes/editorial";
 import { getObjectStorage } from "./utils/routerHelpers";
 
 export async function registerRoutes(app: Application): Promise<Server> {
@@ -568,6 +569,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api", emailCampaignsRouter);
   app.use("/api", mediaRouter);
   app.use("/api", craftRouter);
+  app.use("/api", editorialRouter);
 
   // NOTE: Agent Workforce routes are registered earlier in this file (before CSRF middleware)
   // to avoid duplication. See "--- AI WORKFORCE PLATFORM ROUTES ---" section above.
