@@ -101,6 +101,11 @@ import {
   InsertWaitlistEntry,
   EditorialPiece,
   InsertEditorialPiece,
+  ReportTask,
+  InsertReportTask,
+  ReportLog,
+  ReportSettings,
+  UpdateReportSettings,
 } from "@shared/schema";
 import { DigitalAssociate, AgentSession, MissionDeviation, AgentChatMessage } from "@shared/agents";
 import type * as ExpressSession from "express-session";
@@ -553,6 +558,16 @@ export interface IStorage {
   createExpense(expense: InsertExpense, userId: string): Promise<Expense>;
   updateExpense(id: number, userId: string, updates: Partial<InsertExpense>): Promise<Expense | undefined>;
   deleteExpense(id: number, userId: string): Promise<void>;
+
+  // Reporting: task board + weekly reports
+  listReportTasks(userId: string): Promise<ReportTask[]>;
+  createReportTask(task: InsertReportTask, userId: string): Promise<ReportTask>;
+  updateReportTask(id: number, userId: string, updates: Partial<InsertReportTask> & { status?: string; completedAt?: any }): Promise<ReportTask | undefined>;
+  deleteReportTask(id: number, userId: string): Promise<void>;
+  listReportLogs(userId: string): Promise<ReportLog[]>;
+  createReportLog(log: Omit<ReportLog, "id" | "createdAt" | "updatedAt">): Promise<ReportLog>;
+  getReportSettings(userId: string): Promise<ReportSettings | undefined>;
+  upsertReportSettings(userId: string, updates: UpdateReportSettings): Promise<ReportSettings>;
 
   // Email Templates
   listEmailTemplates(userId: string): Promise<EmailTemplate[]>;

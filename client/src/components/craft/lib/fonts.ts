@@ -1,12 +1,23 @@
 import type { CraftDocument, CraftFont } from "./types";
 
+export const FONT_WEIGHTS = [
+  { id: "400", label: "Book" },
+  { id: "600", label: "Semibold" },
+  { id: "700", label: "Bold" },
+  { id: "800", label: "Black" },
+] as const;
+
+export const STRATA_SITE_FONTS = ["Unbounded", "Plus Jakarta Sans", "Space Mono"] as const;
+
 export const SYSTEM_FONTS = [
+  ...STRATA_SITE_FONTS,
+  "Lexend",
   "Inter",
+  "IBM Plex Sans",
   "Playfair Display",
   "Montserrat",
   "Poppins",
   "Merriweather",
-  "Lexend",
   "Work Sans",
   "Libre Baskerville",
   "JetBrains Mono",

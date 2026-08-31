@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { CRAFT_SWATCHES, toColorInput } from '../lib/looks';
 
 export function InspectorRail({
   title,
@@ -46,6 +47,62 @@ export function InspectorSection({
       </div>
       {children}
     </section>
+  );
+}
+
+export function ColorPicker({
+  value,
+  onChange,
+  label,
+  compact,
+}: {
+  value: string;
+  onChange: (hex: string) => void;
+  label?: string;
+  compact?: boolean;
+}) {
+  const hex = toColorInput(value);
+  return (
+    <div className="grid gap-1.5">
+      {label ? <p className="text-[11px] text-muted-foreground">{label}</p> : null}
+      <div className="grid grid-cols-8 gap-1">
+        {CRAFT_SWATCHES.map((color) => (
+          <button
+            key={color}
+            type="button"
+            title={color}
+            aria-label={color}
+            className={cn(
+              compact ? "h-4 w-full rounded-sm border border-white/20" : "h-5 w-full rounded-sm border border-black/20",
+              hex.toLowerCase() === color.toLowerCase() ? "ring-2 ring-[var(--suite-accent)] ring-offset-1 ring-offset-background" : "",
+            )}
+            style={{ background: color }}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onChange(color)}
+          />
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="color"
+          aria-label={label ? `${label} picker` : "Colour picker"}
+          className="h-8 w-12 cursor-pointer rounded border border-input bg-transparent"
+          value={hex}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <input
+          value={hex}
+          aria-label={label ? `${label} hex` : "Colour hex"}
+          className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2 font-mono text-[11px] uppercase"
+          maxLength={7}
+          onChange={(event) => {
+            const next = event.target.value.trim();
+            if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next);
+            else if (/^[0-9a-fA-F]{6}$/.test(next)) onChange(`#${next}`);
+          }}
+        />
+      </div>
+    </div>
   );
 }
 

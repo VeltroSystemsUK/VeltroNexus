@@ -15,8 +15,17 @@ export class LocalStorageClient {
         }
     }
 
+    private resolveKey(key: string): string {
+        const base = path.resolve(this.baseDir);
+        const resolved = path.resolve(base, key);
+        if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
+            throw new Error("Invalid storage key");
+        }
+        return resolved;
+    }
+
     async uploadFromStream(key: string, stream: Readable): Promise<void> {
-        const filePath = path.join(this.baseDir, key);
+        const filePath = this.resolveKey(key);
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) {
             await fs.promises.mkdir(dir, { recursive: true });
@@ -26,7 +35,7 @@ export class LocalStorageClient {
     }
 
     async downloadAsBytes(key: string): Promise<{ data: Uint8Array }> {
-        const filePath = path.join(this.baseDir, key);
+        const filePath = this.resolveKey(key);
         if (!fs.existsSync(filePath)) {
             throw new Error(`File not found: ${key}`);
         }
@@ -35,7 +44,7 @@ export class LocalStorageClient {
     }
 
     async delete(key: string): Promise<void> {
-        const filePath = path.join(this.baseDir, key);
+        const filePath = this.resolveKey(key);
         if (fs.existsSync(filePath)) {
             await fs.promises.unlink(filePath);
         }

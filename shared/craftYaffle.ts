@@ -97,7 +97,23 @@ export function stillEngine(_hasGrokKey?: boolean): "grok" | "yaffle" {
   return "grok";
 }
 
-/** Console `xai-` key wins; otherwise the Grok CLI session; otherwise any XAI_API_KEY. */
+export function jwtUsable(token: string, nowSec = Date.now() / 1000): boolean {
+  const value = token.trim();
+  if (!value) return false;
+  if (value.startsWith("xai-")) return true;
+  const parts = value.split(".");
+  if (parts.length < 2) return true;
+  try {
+    const json = Buffer.from(parts[1]!, "base64url").toString("utf8");
+    const payload = JSON.parse(json) as { exp?: unknown };
+    if (typeof payload.exp === "number") return payload.exp > nowSec + 30;
+  } catch {
+    return true;
+  }
+  return true;
+}
+
+/** Console `xai-` key wins; otherwise a live Grok CLI session; skip expired JWTs. */
 export function xaiBearer(
   env: Record<string, string | undefined>,
   grokAuth?: unknown,
@@ -108,10 +124,11 @@ export function xaiBearer(
     for (const account of Object.values(grokAuth as Record<string, unknown>)) {
       if (!account || typeof account !== "object") continue;
       const key = (account as { key?: unknown }).key;
-      if (typeof key === "string" && key.trim()) return key.trim();
+      if (typeof key === "string" && jwtUsable(key)) return key.trim();
     }
   }
-  return fromEnv || undefined;
+  if (fromEnv && jwtUsable(fromEnv)) return fromEnv;
+  return undefined;
 }
 
 export function grokImageRequest(prompt: string, presetId?: string) {

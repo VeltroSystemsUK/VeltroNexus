@@ -53,4 +53,12 @@ describe("Marketing Director visual curation", () => {
     expect(MARKETING_DIRECTOR_PROMPT).toMatch(/visual/i);
     expect(MARKETING_DIRECTOR_PROMPT).not.toMatch(/guaranteed funding/i);
   });
+
+  it("briefs Isla to use frames, shadows, motion and a two-colour hero on the board", () => {
+    expect(MARKETING_DIRECTOR_PROMPT).toMatch(/frame/i);
+    expect(MARKETING_DIRECTOR_PROMPT).toMatch(/shadow/i);
+    expect(MARKETING_DIRECTOR_PROMPT).toMatch(/motion/i);
+    expect(MARKETING_DIRECTOR_PROMPT).toMatch(/hook 1/i);
+    expect(MARKETING_DIRECTOR_PROMPT).toMatch(/grok/i);
+  });
 });

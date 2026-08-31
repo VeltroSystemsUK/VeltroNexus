@@ -1,11 +1,19 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { placeMenu } from "../canvas/viewport";
+import { ColorPicker } from "./Inspector";
+import { FrameGlyph, ShapeGlyph } from "./glyphs";
 import { copyFieldForNodeName } from "../lib/composePost";
-import { IMAGE_LOOKS, IMAGE_MOTIONS, OPACITY_PRESETS, type ImageLookId, type ImageMotionId } from "../lib/looks";
-import type { CraftNode } from "../lib/types";
+import {
+  FRAME_SHAPES,
+  IMAGE_MOTIONS,
+  OPACITY_PRESETS,
+  SHADOW_PRESETS,
+  type ImageMotionId,
+} from "../lib/looks";
+import { ALL_SHAPE_VARIANTS, type CraftNode } from "../lib/types";
+import { SHAPE_LABELS } from "../lib/templates";
 import { useCraftStore } from "../store";
-
-const SWATCHES = ["#0f172a", "#f8fafc", "#059669", "#c4a35a", "#1e3a5f", "#dc2626", "#e2e8f0"];
 
 export function CraftContextMenu({
   x,
@@ -23,6 +31,18 @@ export function CraftContextMenu({
   onEditText: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState(() =>
+    placeMenu(x, y, 256, 480, typeof window === "undefined" ? 1280 : window.innerWidth, typeof window === "undefined" ? 720 : window.innerHeight),
+  );
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const next = placeMenu(x, y, el.offsetWidth, el.scrollHeight, window.innerWidth, window.innerHeight);
+    setBox((prev) =>
+      prev.left === next.left && prev.top === next.top && prev.maxHeight === next.maxHeight ? prev : next,
+    );
+  }, [x, y, node]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -43,11 +63,10 @@ export function CraftContextMenu({
     };
   }, [onClose]);
 
-  const left = Math.min(x, window.innerWidth - 240);
-  const top = Math.min(y, window.innerHeight - 420);
   const copyField = node?.type === "text" ? copyFieldForNodeName(node.name) : null;
   const editLabel =
-    copyField === "hook" ? "Edit hook 1"
+    copyField === "eyebrow" ? "Edit eyebrow"
+    : copyField === "hook" ? "Edit hook 1"
     : copyField === "hook2" ? "Edit hook 2"
     : copyField === "body" ? "Edit body"
     : copyField === "cta" ? "Edit CTA"
@@ -78,8 +97,8 @@ export function CraftContextMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[80] w-56 rounded-lg border border-white/10 bg-[#12141c]/95 p-1 shadow-2xl backdrop-blur-md"
-      style={{ left, top }}
+      className="fixed z-[80] w-64 overflow-y-auto overscroll-contain rounded-lg border border-white/10 bg-[#12141c]/95 p-1 shadow-2xl backdrop-blur-md [scrollbar-width:thin]"
+      style={{ left: box.left, top: box.top, maxHeight: box.maxHeight }}
       role="menu"
       onPointerDown={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
@@ -90,53 +109,111 @@ export function CraftContextMenu({
       {node?.type === "text" && (
         <Item onClick={() => run(onEditText)}>{editLabel}</Item>
       )}
-      {node && (
-        <Group label="Opacity">
-          {OPACITY_PRESETS.map((item) => (
-            <Item key={item.value} onClick={() => run(() => useCraftStore.getState().setOpacity(item.value))}>
-              {item.label}
-            </Item>
-          ))}
-        </Group>
-      )}
-      {node && (
-        <Group label="Colour">
-          <div className="flex flex-wrap gap-1 px-2 py-1.5">
-            {SWATCHES.map((color) => (
+      {node?.type === "shape" && (
+        <Group label="Shape">
+          <div className="grid grid-cols-4 gap-1 px-2 py-1.5">
+            {ALL_SHAPE_VARIANTS.map((variant) => (
               <button
-                key={color}
+                key={variant}
                 type="button"
-                className="size-5 rounded-sm border border-white/20"
-                style={{ background: color }}
-                aria-label={color}
-                onClick={() => paint(color)}
-              />
+                title={SHAPE_LABELS[variant]}
+                aria-label={SHAPE_LABELS[variant]}
+                className="flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] text-white/70 hover:bg-white/10"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => run(() => useCraftStore.getState().updateNode(node.id, { variant }))}
+              >
+                <ShapeGlyph id={variant} />
+                {SHAPE_LABELS[variant]}
+              </button>
             ))}
           </div>
         </Group>
       )}
       {node?.type === "image" && (
         <Group label="Frame">
-          {IMAGE_LOOKS.map((look) => (
-            <Item
-              key={look.id}
-              onClick={() => run(() => useCraftStore.getState().applyLook(look.id as ImageLookId))}
-            >
-              {look.label}
-            </Item>
-          ))}
+          <div className="grid grid-cols-4 gap-1 px-2 py-1.5">
+            {FRAME_SHAPES.map((shape) => (
+              <button
+                key={shape.id}
+                type="button"
+                title={shape.label}
+                aria-label={shape.label}
+                className="flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] text-white/70 hover:bg-white/10"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => run(() => useCraftStore.getState().applyFrameShape(shape.id))}
+              >
+                <FrameGlyph id={shape.id} />
+                {shape.label}
+              </button>
+            ))}
+          </div>
+        </Group>
+      )}
+      {node && (
+        <Group label="Shadow">
+          <div className="flex flex-wrap gap-1 px-2 py-1">
+            {SHADOW_PRESETS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="rounded-md px-1.5 py-1 text-[10px] text-white/80 hover:bg-white/10"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => run(() => useCraftStore.getState().applyShadow(item.id))}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </Group>
+      )}
+      {node && (
+        <Group label="Opacity">
+          <div className="flex flex-wrap gap-1 px-2 py-1">
+            {OPACITY_PRESETS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className="rounded-md px-1.5 py-1 text-[10px] text-white/80 hover:bg-white/10"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => run(() => useCraftStore.getState().setOpacity(item.value))}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </Group>
+      )}
+      {node && (
+        <Group label="Colour">
+          <div className="px-2 py-1.5">
+            <ColorPicker
+              compact
+              value={
+                node.type === "text" ? node.color
+                : node.type === "shape" ? node.fill
+                : node.type === "image" ? node.tint || "#0f172a"
+                : "#059669"
+              }
+              onChange={paint}
+            />
+          </div>
         </Group>
       )}
       {node && (
         <Group label="Motion">
-          {IMAGE_MOTIONS.map((motion) => (
-            <Item
-              key={motion.id}
-              onClick={() => run(() => useCraftStore.getState().applyMotion(motion.id as ImageMotionId))}
-            >
-              {motion.label}
-            </Item>
-          ))}
+          <div className="flex flex-wrap gap-1 px-2 py-1">
+            {IMAGE_MOTIONS.map((motion) => (
+              <button
+                key={motion.id}
+                type="button"
+                className="rounded-md px-1.5 py-1 text-[10px] text-white/80 hover:bg-white/10"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => run(() => useCraftStore.getState().applyMotion(motion.id as ImageMotionId))}
+              >
+                {motion.label}
+              </button>
+            ))}
+          </div>
         </Group>
       )}
       {node && (
@@ -152,7 +229,7 @@ export function CraftContextMenu({
       {node && (
         <Item danger onClick={() => run(() => useCraftStore.getState().removeSelected())}>Delete</Item>
       )}
-      {!node && <p className="px-2 py-2 text-[11px] text-white/40">Right-click a layer to frame, fade, or recolour it.</p>}
+      {!node && <p className="px-2 py-2 text-[11px] text-white/40">Right-click the still for frames and motion.</p>}
     </div>,
     document.body,
   );

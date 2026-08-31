@@ -44,7 +44,20 @@ app.use((req, res, next) => {
   if (isStrataEmbedPath(req.path)) return next();
   express.urlencoded({ extended: false, limit: "5mb" })(req, res, next);
 });
-app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+// Never expose the uploads root: it also contains private customer documents,
+// local stores and job state. Only the two explicitly public media namespaces
+// are served here; prospect documents must use authenticated download routes.
+const uploadsRoot = path.resolve(process.cwd(), "uploads");
+app.use("/uploads/media", express.static(path.join(uploadsRoot, "media"), {
+  dotfiles: "deny",
+  index: false,
+  redirect: false,
+}));
+app.use("/uploads/curator", express.static(path.join(uploadsRoot, "curator"), {
+  dotfiles: "deny",
+  index: false,
+  redirect: false,
+}));
 
 // Security headers middleware
 const isProduction = process.env.NODE_ENV === "production";
@@ -263,6 +276,10 @@ app.use((req: any, res, next) => {
           // Start Companies House monitoring
           const { companiesHouseMonitor } = await import("./services/companiesHouseMonitor");
           companiesHouseMonitor.start();
+
+          // Start weekly reporting (worksheet Mon, progress report Fri)
+          const { reportingService } = await import("./services/reportingService");
+          reportingService.start();
 
           // Start Lead Finder autonomous agent
           const { getScheduler } = await import("./Lead Agent/src/scheduler.js");

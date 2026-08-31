@@ -44,6 +44,7 @@ export const SIZE_PRESETS: SizePreset[] = [
   { id: "banner", name: "Web Banner", description: "1200 × 628", category: "Web", width: 1200, height: 628 },
   { id: "hero", name: "Hero", description: "1920 × 600", category: "Web", width: 1920, height: 600 },
   { id: "email", name: "Email Header", description: "600 × 200", category: "Web", width: 600, height: 200 },
+  { id: "email-letter", name: "Email", description: "600 × 900", category: "Docs", width: 600, height: 900 },
   { id: "reels", name: "Reels / TikTok", description: "1080 × 1920", category: "Social", width: 1080, height: 1920 },
   { id: "youtube", name: "YouTube Thumb", description: "1280 × 720", category: "Social", width: 1280, height: 720 },
   { id: "pinterest", name: "Pinterest Pin", description: "1000 × 1500", category: "Social", width: 1000, height: 1500 },
@@ -233,6 +234,27 @@ function emailHeader(): CraftPage {
   ]);
 }
 
+function emailLetter(): CraftPage {
+  return pageOf("email-letter", "Email", [
+    shape("Mast", "rect", 0, 0, 600, 88, "primary", { constraints: { horizontal: "stretch", vertical: "start" } }),
+    text("Brand", "STRATA FINANCE", 32, 28, 536, 36, 18, "secondary", { letterSpacing: 3, fontRole: "body", fontWeight: "700" }),
+    text("Greeting", "Hi {{firstName}},", 32, 120, 536, 40, 22, "text", { fontRole: "heading" }),
+    text(
+      "Body",
+      "We package UK commercial finance for SME directors. We do not lend. If {{companyName}} needs a complete file, talk to us.",
+      32,
+      176,
+      536,
+      120,
+      16,
+      "muted",
+      { fontRole: "body", fontWeight: "400", lineHeight: 1.4 },
+    ),
+    text("Signoff", "{{senderName}}\n{{senderCompany}}", 32, 320, 536, 56, 16, "text", { fontRole: "body", fontWeight: "600", lineHeight: 1.35 }),
+    text("Unsub", "{{unsubscribeLink}}", 32, 820, 536, 28, 12, "muted", { fontRole: "body", fontWeight: "400" }),
+  ]);
+}
+
 function promoSquare(): CraftPage {
   return pageOf("square", "Promo", [
     shape("Ground", "rect", 0, 0, 1080, 1080, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
@@ -374,6 +396,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   { id: "og-banner", name: "Open Graph", description: "Link preview split", category: "Web", presetId: "og", build: ogBanner },
   { id: "linkedin-banner", name: "LinkedIn", description: "Cover with wordmark", category: "Web", presetId: "linkedin", build: linkedInBanner },
   { id: "email-header", name: "Email Header", description: "Narrow newsletter mast", category: "Web", presetId: "email", build: emailHeader },
+  { id: "email-letter", name: "Email letter", description: "600px letter with merge tags", category: "Docs", presetId: "email-letter", build: emailLetter },
   { id: "gif-caption", name: "Caption GIF", description: "Top and bottom motion bars", category: "Motion", presetId: "gif-square", build: gifCaption },
   { id: "youtube-thumb", name: "YouTube Thumb", description: "Title plus play mark", category: "Social", presetId: "youtube", build: youtubeThumb },
   { id: "pinterest-pin", name: "Pinterest Pin", description: "Tall save-this card", category: "Social", presetId: "pinterest", build: pinterestPin },

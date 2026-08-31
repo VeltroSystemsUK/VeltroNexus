@@ -1,4 +1,4 @@
-import type { AnimationSpec, CraftAsset, CraftNode, CraftPage, Handle, ImageNode, ShapeVariant } from "./types";
+import { ALL_SHAPE_VARIANTS, type AnimationSpec, type CraftAsset, type CraftNode, type CraftPage, type Handle, type ImageNode, type ShapeVariant } from "./types";
 import { containDest, handleWorldPoint, type Guide, type Rect } from "./geometry";
 import { displayText, fitFontSize, wrapText } from "./text";
 
@@ -238,12 +238,14 @@ function drawShapePath(ctx: CanvasRenderingContext2D, variant: ShapeVariant, x: 
 function imageMaskPath(ctx: CanvasRenderingContext2D, node: ImageNode) {
   const { x, y, width: w, height: h } = node;
   const radius = Math.min(w, h) * 0.18;
-  if (node.mask === "diamond") {
-    drawShapePath(ctx, "diamond", x, y, w, h, 0);
-    return;
-  }
-  if (node.mask === "hexagon") {
-    drawShapePath(ctx, "hexagon", x, y, w, h, 0);
+  const shapeMask = node.mask === "ellipse" ? "ellipse" : node.mask;
+  if (
+    shapeMask &&
+    shapeMask !== "arch" &&
+    shapeMask !== "ticket" &&
+    ALL_SHAPE_VARIANTS.includes(shapeMask as ShapeVariant)
+  ) {
+    drawShapePath(ctx, shapeMask as ShapeVariant, x, y, w, h, radius);
     return;
   }
   ctx.beginPath();

@@ -2,8 +2,8 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import type { CraftPost } from "@shared/craftQueue";
 import { adaptPage, spawnSizes } from "./lib/adapt";
-import { applyPostCopy, applyPostVisual, composeSocialPost, STRATA_BRAND } from "./lib/composePost";
-import { applyImageLook, applyNodeMotion, applyNodeOpacity, nudgeNodeOrder, type ImageLookId, type ImageMotionId } from "./lib/looks";
+import { applyCreativeDirection, applyPostCopy, applyPostVisual, composeSocialPost, STRATA_BRAND } from "./lib/composePost";
+import { applyFrameShape, applyImageLook, applyNodeMotion, applyNodeOpacity, applyNodeShadow, nudgeNodeOrder, type FrameShapeId, type ImageLookId, type ImageMotionId, type ShadowPresetId } from "./lib/looks";
 import { fetchImageDataUrl, stockById } from "./lib/stock";
 import { applyBrand, applyBrandLogo, cloneBrand, extractPaletteFromImage, isLogoSlot } from './lib/brand';
 import { exportPack as exportFormatPack, exportRaster, rasterBlob } from "./lib/export";
@@ -17,6 +17,7 @@ import {
 import { cloneDocument } from './lib/types';
 import { pushHistory, redoHistory, undoHistory } from './lib/history';
 import { parseCraftJson } from './lib/persist';
+import { insertMergeTag as placeMergeTag } from "./lib/emailHtml";
 import { fitPageInView } from "./canvas/viewport";
 import {
   DESIGN_TEMPLATES,
@@ -94,7 +95,7 @@ async function attachPostVisual(doc: CraftDocument, post: CraftPost): Promise<Cr
       mime: "image/jpeg",
       dataUrl,
     };
-    return applyPostVisual(doc, asset);
+    return applyCreativeDirection(applyPostVisual(doc, asset, "plain"), post);
   } catch {
     return doc;
   }
@@ -135,6 +136,8 @@ interface CraftState {
   endTextEdit: (text?: string) => void;
   beginGesture: () => void;
   close: () => void;
+  insertMergeTag: (tag: string) => void;
+  openEmailTemplate: (id: string, doc?: CraftDocument | null, title?: string) => void;
 
   newBlank: (opts?: { title?: string; presetId?: string }) => Promise<void>;
   openFromPost: (post: CraftPost) => Promise<void>;
@@ -164,6 +167,8 @@ interface CraftState {
   removeSelected: () => void;
   duplicateSelected: () => void;
   applyLook: (look: ImageLookId) => void;
+  applyFrameShape: (id: FrameShapeId) => void;
+  applyShadow: (id: ShadowPresetId) => void;
   applyMotion: (motion: ImageMotionId) => void;
   applyYaffleVisual: (dataUrl: string) => void;
   setOpacity: (opacity: number) => void;
@@ -291,6 +296,30 @@ export const useCraftStore = create<CraftState>((set, get) => {
       historyIndex: 0,
     }),
 
+    insertMergeTag: (tag) => {
+      const { doc, pageId, selectedIds, editingTextId } = get();
+      if (!doc) return;
+      const page = currentPage(doc, pageId);
+      const targetId = editingTextId ?? selectedIds.find((id) => page.nodes.some((node) => node.id === id && node.type === "text"));
+      if (targetId) {
+        const node = page.nodes.find((item) => item.id === targetId);
+        if (node?.type === "text") {
+          get().updateNode(targetId, { text: placeMergeTag(node.text, tag) });
+          return;
+        }
+      }
+      get().addText(32, 160, "body");
+      const next = get().doc;
+      const nextPage = next ? currentPage(next, next.activePageId) : null;
+      const created = nextPage?.nodes.filter((node) => node.type === "text").at(-1);
+      if (created?.type === "text") get().updateNode(created.id, { text: tag });
+    },
+
+    openEmailTemplate: (id, existing, title) => {
+      const base = existing ?? documentFromTemplate("email-letter", loadBrandKit());
+      loadDocument(title ? { ...base, title } : base, id);
+    },
+
     newBlank: async ({ title, presetId } = {}) => {
       try {
         if (get().dirty) {
@@ -307,23 +336,21 @@ export const useCraftStore = create<CraftState>((set, get) => {
     },
 
     openFromPost: async (post) => {
-      if (get().assetId === post.id && get().doc) return;
+      if (get().assetId === post.id && get().doc) {
+        get().syncFromPost(post);
+        return;
+      }
       try {
         if (get().dirty) {
           try { await get().save({ silent: true }); } catch { /* continue */ }
         }
         const existing = await loadCraftForAsset(post.id);
-        if (existing) {
-          const logo = loadBrandLogo();
-          let doc = logo ? applyBrandLogo(existing, logo) : existing;
-          doc = await attachPostVisual(doc, post);
-          await persistLocal(doc, post.id);
-          loadDocument(doc, post.id);
-          return;
-        }
         const saved = loadBrandKit();
         const brand = saved.name && saved.name !== "Studio" ? saved : STRATA_BRAND;
-        let doc = composeSocialPost(post, brand, loadBrandLogo());
+        const logo = loadBrandLogo();
+        let doc = existing ?? composeSocialPost(post, brand, logo);
+        if (existing && logo) doc = applyBrandLogo(doc, logo);
+        doc = applyPostCopy(doc, post);
         doc = await attachPostVisual(doc, post);
         const id = await persistLocal(doc, post.id);
         loadDocument(doc, id);
@@ -719,6 +746,29 @@ export const useCraftStore = create<CraftState>((set, get) => {
           if (!selectedIds.includes(node.id) || node.type !== "image") return node;
           return applyImageLook(node, look);
         }),
+      })));
+    },
+    applyFrameShape: (id) => {
+      const { doc, pageId, selectedIds } = get();
+      if (!doc || !selectedIds.length) return;
+      const page = currentPage(doc, pageId);
+      commit(withPage(doc, page.id, (current) => ({
+        ...current,
+        nodes: current.nodes.map((node) => {
+          if (!selectedIds.includes(node.id) || node.type !== "image") return node;
+          return applyFrameShape(node, id);
+        }),
+      })));
+    },
+    applyShadow: (id) => {
+      const { doc, pageId, selectedIds } = get();
+      if (!doc || !selectedIds.length) return;
+      const page = currentPage(doc, pageId);
+      commit(withPage(doc, page.id, (current) => ({
+        ...current,
+        nodes: current.nodes.map((node) =>
+          selectedIds.includes(node.id) ? applyNodeShadow(node, id) : node
+        ),
       })));
     },
     applyMotion: (motion) => {

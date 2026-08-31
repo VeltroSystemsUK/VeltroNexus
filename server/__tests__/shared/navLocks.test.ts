@@ -8,6 +8,7 @@ describe("isNavLocked", () => {
     expect(isNavLocked("sales_admin", "/invoicing")).toBe(true);
     expect(isNavLocked("sales_admin", "/ai-studio")).toBe(true);
     expect(isNavLocked("sales_admin", "/craft")).toBe(true);
+    expect(isNavLocked("sales_admin", "/editorial")).toBe(true);
   });
 
   it("leaves the Sterling workspace open", () => {

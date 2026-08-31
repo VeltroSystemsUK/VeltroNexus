@@ -26,6 +26,9 @@ spend_over_500,ORC-1,yes,
 legal_agreement,ORC-1,yes,
 market_scan_ammo_briefs,MKT-3,no,Creative Ammo Briefs only; never invent rates; never write final ad copy
 brand_social_week,MKT-2,no,Isla writes from MKT-3 ammo; draft queue on /craft; Shaun posts
+media_curator_hunt,MKT-4,no,Unsplash Pexels Openverse Firecrawl; click-save to My Uploads; allowlisted hosts only
+email_template_compose,MKT-2,no,Craft engine plus merge tags; stills from My Uploads
+marketing_campaign_send,MKT-2,yes,Draft freely; Shaun sends
 craft_export_release,MKT-2,yes,Marketing approve then compliance sign-off; no export until both
 social_publish_or_ads,MKT-2,yes,Never auto-post; ads draft only; spend uses £500 gate
 change_agent_scope,ORC-1,yes,Update corporate_structure.md

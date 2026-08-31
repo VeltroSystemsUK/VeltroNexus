@@ -79,3 +79,26 @@ export function panFromWheel(deltaX: number, deltaY: number, shiftKey: boolean):
   if (shiftKey && deltaX === 0) return { dx: -deltaY, dy: 0 };
   return { dx: -deltaX, dy: -deltaY };
 }
+
+/** Keep a fixed menu inside the viewport. Flip up if it would clip the bottom. */
+export function placeMenu(
+  x: number,
+  y: number,
+  menuW: number,
+  menuH: number,
+  vw: number,
+  vh: number,
+  pad = 8,
+): { left: number; top: number; maxHeight: number } {
+  const maxHeight = Math.max(120, vh - pad * 2);
+  const h = Math.min(menuH, maxHeight);
+  const w = Math.min(menuW, Math.max(120, vw - pad * 2));
+  let left = x;
+  let top = y;
+  if (y + h > vh - pad) top = y - h;
+  if (top < pad) top = pad;
+  if (top + h > vh - pad) top = Math.max(pad, vh - h - pad);
+  if (left + w > vw - pad) left = vw - w - pad;
+  if (left < pad) left = pad;
+  return { left, top, maxHeight };
+}

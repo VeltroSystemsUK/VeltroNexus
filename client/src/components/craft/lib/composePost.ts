@@ -1,9 +1,62 @@
-import { COPY_LIMITS, type CraftCopyPatch, type CraftPost } from "@shared/craftQueue";
+import { COPY_LIMITS, defaultEyebrow, type CraftCopyPatch, type CraftPost } from "@shared/craftQueue";
 import { spawnSizes } from "./adapt";
 import { applyBrand, applyBrandLogo, cloneBrand } from "./brand";
 import { documentFromTemplate } from "./templates";
-import { applyImageLook, type ImageLookId } from "./looks";
+import {
+  applyFrameShape,
+  applyImageLook,
+  applyNodeMotion,
+  applyNodeShadow,
+  type FrameShapeId,
+  type ImageLookId,
+  type ImageMotionId,
+  type ShadowPresetId,
+} from "./looks";
 import { uid, type CraftAsset, type CraftBrand, type CraftDocument, type CraftNode, type CraftPage, type ImageNode, type TextNode } from "./types";
+
+export type CreativeDirection = {
+  frame: FrameShapeId;
+  shadow: ShadowPresetId;
+  visualMotion: ImageMotionId;
+  hookMotion: ImageMotionId;
+};
+
+const WEEK_LOOKS: Record<string, CreativeDirection> = {
+  Mon: { frame: "arch", shadow: "drop", visualMotion: "fadeIn", hookMotion: "slideIn" },
+  Tue: { frame: "round", shadow: "soft", visualMotion: "pop", hookMotion: "fadeIn" },
+  Wed: { frame: "polaroid", shadow: "drop", visualMotion: "slideIn", hookMotion: "pop" },
+  Thu: { frame: "hex", shadow: "soft", visualMotion: "fadeIn", hookMotion: "slideIn" },
+  Fri: { frame: "ticket", shadow: "hard", visualMotion: "pop", hookMotion: "fadeIn" },
+  Sat: { frame: "diamond", shadow: "drop", visualMotion: "slideIn", hookMotion: "pop" },
+  Sun: { frame: "star", shadow: "soft", visualMotion: "fadeIn", hookMotion: "pop" },
+};
+
+export function creativeDirectionFor(weekday: string): CreativeDirection {
+  return WEEK_LOOKS[weekday] ?? WEEK_LOOKS.Mon!;
+}
+
+export function applyCreativeDirection(doc: CraftDocument, post: CraftPost): CraftDocument {
+  const look = creativeDirectionFor(post.weekday);
+  return {
+    ...doc,
+    pages: doc.pages.map((page) => ({
+      ...page,
+      nodes: page.nodes.map((node) => {
+        if (node.type === "image" && node.name === "Visual") {
+          return applyNodeMotion(
+            applyNodeShadow(applyFrameShape(node, look.frame), look.shadow),
+            look.visualMotion,
+          ) as ImageNode;
+        }
+        if (node.type === "text" && (node.name === "Hook 1" || node.name === "Hook 2")) {
+          return applyNodeMotion(node, look.hookMotion);
+        }
+        return node;
+      }),
+    })),
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 export const STRATA_BRAND: CraftBrand = {
   name: "Strata Finance",
@@ -15,8 +68,8 @@ export const STRATA_BRAND: CraftBrand = {
     text: "#0f172a",
     muted: "#64748b",
   },
-  headingFont: "Lexend",
-  bodyFont: "Lexend",
+  headingFont: "Unbounded",
+  bodyFont: "Plus Jakarta Sans",
 };
 
 function templateFor(post: CraftPost): string {
@@ -52,10 +105,8 @@ type Fills = {
 };
 
 function fillsFor(post: CraftPost): Fills {
-  const eyebrow =
-    post.track === "introducer" ? "INTRODUCERS  ·  STRATA" : "SME DIRECTORS  ·  STRATA";
   return {
-    eyebrow,
+    eyebrow: clip(post.eyebrow || defaultEyebrow(post.track), COPY_LIMITS.eyebrow).replace(/…$/, ""),
     hook: clip(post.hook, COPY_LIMITS.hook).replace(/…$/, ""),
     hook2: clip(post.hook2 ?? "", COPY_LIMITS.hook2).replace(/…$/, ""),
     deck: clip(post.body, COPY_LIMITS.body).replace(/…$/, ""),
@@ -71,6 +122,7 @@ function fillsFor(post: CraftPost): Fills {
 export function copyFieldForNodeName(name: string): keyof CraftCopyPatch | null {
   const n = name.toLowerCase();
   if (n === "mark") return null;
+  if (/eyebrow|kicker/.test(n)) return "eyebrow";
   if (/hook 2|hero 2/.test(n)) return "hook2";
   if (/headline|title|quote|^hook$|hook 1|hero 1/.test(n)) return "hook";
   if (/deck|support|body|^sub$/.test(n)) return "body";
@@ -84,6 +136,7 @@ export function copyPatchFromNode(name: string, text: string): CraftCopyPatch | 
   const field = copyFieldForNodeName(name);
   if (!field) return null;
   const raw = text.trim();
+  if (field === "eyebrow") return { eyebrow: raw.slice(0, COPY_LIMITS.eyebrow) };
   if (field === "hook") return { hook: raw.slice(0, COPY_LIMITS.hook) };
   if (field === "hook2") return { hook2: raw.slice(0, COPY_LIMITS.hook2) };
   if (field === "body") return { body: raw.slice(0, COPY_LIMITS.body) };
@@ -96,8 +149,9 @@ export function copyPatchFromNode(name: string, text: string): CraftCopyPatch | 
 function fillNode(node: CraftNode, fills: Fills, brand: CraftBrand): CraftNode {
   if (node.type !== "text") return node;
   const n = node.name.toLowerCase();
-  if (/eyebrow|kicker|wordmark/.test(n)) return { ...node, text: fills.eyebrow };
+  if (/wordmark/.test(n)) return { ...node, text: fills.brand };
   const field = copyFieldForNodeName(node.name);
+  if (field === "eyebrow") return { ...node, text: fills.eyebrow };
   if (field === "hook") return { ...node, text: fills.hook };
   if (field === "hook2") {
     return { ...node, text: fills.hook2, role: "accent", color: brand.colors.accent };
@@ -136,7 +190,7 @@ function slotText(
     constraints: { horizontal: "start", vertical: "end" },
     role: name === "CTA label" ? "secondary" : name === "Link" ? "accent" : "muted",
     fontRole: "body",
-    fontFamily: "Lexend",
+    fontFamily: STRATA_BRAND.bodyFont,
     fontWeight: "600",
     fontSize: size,
     align: name === "CTA label" ? "center" : "left",
@@ -217,7 +271,7 @@ function isVisualSlot(node: CraftNode): boolean {
 export function applyPostVisual(
   doc: CraftDocument,
   asset: CraftAsset,
-  look: ImageLookId = "editorial",
+  look: ImageLookId = "plain",
 ): CraftDocument {
   const assets = [...doc.assets.filter((item) => item.id !== asset.id), asset];
   const pages = doc.pages.map((page) => {
@@ -271,5 +325,5 @@ export function composeSocialPost(
   }
   doc = applyPostCopy(doc, post);
   if (logo) doc = applyBrandLogo(doc, logo);
-  return doc;
+  return applyCreativeDirection(doc, post);
 }

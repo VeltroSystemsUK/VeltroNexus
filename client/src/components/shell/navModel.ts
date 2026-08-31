@@ -18,10 +18,12 @@ import {
   Sparkles,
   ImageIcon,
   Palette,
+  Newspaper,
   Mail,
   MessageSquare,
   Target,
   ClipboardList,
+  ClipboardCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -47,6 +49,7 @@ export const DESTINATIONS: Destination[] = [
   { path: "/compliance", label: "Compliance", icon: Shield, group: "Workspace", roles: FULL, keywords: "regulation fca risk", description: "Regulatory and compliance hub" },
   { path: "/admin", label: "Admin", icon: ShieldCheck, group: "Workspace", roles: ["super_admin", "sales_admin"], keywords: "users platform settings", description: "Manage users, platform settings and SLAs" },
   { path: "/teams", label: "Teams", icon: Users, group: "Workspace", roles: ["super_admin", "sales_admin"], keywords: "users groups", description: "Create and manage teams" },
+  { path: "/reporting", label: "Reporting", icon: ClipboardCheck, group: "Workspace", roles: FULL, keywords: "tasks worksheet progress report weekly", description: "Task board and automated weekly reports" },
 
   // Sales
   { path: "/crm", label: "Clients", icon: Users, group: "Sales", roles: ["super_admin"], keywords: "crm prospects contacts", description: "Prospects and client database" },
@@ -60,6 +63,7 @@ export const DESTINATIONS: Destination[] = [
   // Marketing
   { path: "/email-templates", label: "Templates", icon: FileText, group: "Marketing", roles: FULL, keywords: "email html", description: "Reusable email templates" },
   { path: "/email-campaigns", label: "Campaigns", icon: Send, group: "Marketing", roles: FULL, keywords: "marketing email", description: "Send and track email campaigns" },
+  { path: "/editorial", label: "Editorial", icon: Newspaper, group: "Marketing", roles: FULL, keywords: "blog press release article news casey isla", description: "Blogs and press releases — draft desk, never auto-publish" },
   { path: "/media", label: "Media", icon: ImageIcon, group: "Marketing", roles: FULL, keywords: "gallery images", description: "Media gallery for campaigns" },
   { path: "/craft", label: "Craft", icon: Palette, group: "Marketing", roles: FULL, keywords: "social posts graphics linkedin instagram facebook tiktok mkt craft", description: "MKT-2 social queue and compositor" },
 

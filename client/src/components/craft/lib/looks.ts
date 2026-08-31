@@ -22,6 +22,56 @@ export const IMAGE_LOOKS = [
 
 export type ImageLookId = (typeof IMAGE_LOOKS)[number]["id"];
 
+export const FRAME_SHAPES = [
+  { id: "plain", label: "Rect", mask: undefined },
+  { id: "round", label: "Round", mask: "ellipse" },
+  { id: "arch", label: "Arch", mask: "arch" },
+  { id: "diamond", label: "Diamond", mask: "diamond" },
+  { id: "hex", label: "Hex", mask: "hexagon" },
+  { id: "polaroid", label: "Polaroid", mask: "rounded-rect" },
+  { id: "ticket", label: "Ticket", mask: "ticket" },
+  { id: "star", label: "Star", mask: "star" },
+  { id: "triangle", label: "Triangle", mask: "triangle" },
+  { id: "heart", label: "Heart", mask: "heart" },
+  { id: "speech", label: "Speech", mask: "speech" },
+  { id: "banner", label: "Banner", mask: "banner" },
+  { id: "cloud", label: "Cloud", mask: "cloud" },
+  { id: "chevron", label: "Chevron", mask: "chevron" },
+] as const;
+
+export type FrameShapeId = (typeof FRAME_SHAPES)[number]["id"];
+
+export const SHADOW_PRESETS = [
+  { id: "none", label: "None" },
+  { id: "soft", label: "Soft" },
+  { id: "drop", label: "Drop" },
+  { id: "hard", label: "Hard" },
+] as const;
+
+export type ShadowPresetId = (typeof SHADOW_PRESETS)[number]["id"];
+
+const SHADOWS: Record<Exclude<ShadowPresetId, "none">, NonNullable<ImageNode["shadow"]>> = {
+  soft: { color: "rgba(0,0,0,0.28)", blur: 18, x: 0, y: 10 },
+  drop: { color: "rgba(0,0,0,0.45)", blur: 36, x: 0, y: 22 },
+  hard: { color: "rgba(0,0,0,0.4)", blur: 8, x: 4, y: 6 },
+};
+
+export function applyFrameShape(node: ImageNode, id: FrameShapeId): ImageNode {
+  const spec = FRAME_SHAPES.find((item) => item.id === id);
+  if (!spec || id === "plain") {
+    return { ...node, mask: undefined, stroke: id === "plain" ? undefined : node.stroke, strokeWidth: id === "plain" ? 0 : node.strokeWidth };
+  }
+  if (id === "polaroid") {
+    return { ...node, mask: "rounded-rect", stroke: "#f8fafc", strokeWidth: 28 };
+  }
+  return { ...node, mask: spec.mask };
+}
+
+export function applyNodeShadow(node: CraftNode, id: ShadowPresetId): CraftNode {
+  if (id === "none") return { ...node, shadow: undefined };
+  return { ...node, shadow: SHADOWS[id] };
+}
+
 export const IMAGE_MOTIONS = [
   { id: "none", label: "Still" },
   { id: "fadeIn", label: "Fade in" },
@@ -31,6 +81,49 @@ export const IMAGE_MOTIONS = [
 ] as const;
 
 export type ImageMotionId = (typeof IMAGE_MOTIONS)[number]["id"];
+
+export const CRAFT_SWATCHES = [
+  "#0f172a",
+  "#1e293b",
+  "#334155",
+  "#64748b",
+  "#94a3b8",
+  "#e2e8f0",
+  "#f8fafc",
+  "#ffffff",
+  "#111827",
+  "#059669",
+  "#10b981",
+  "#34d399",
+  "#0f766e",
+  "#0ea5e9",
+  "#2563eb",
+  "#1e3a5f",
+  "#7c3aed",
+  "#c026d3",
+  "#db2777",
+  "#dc2626",
+  "#ea580c",
+  "#d97706",
+  "#c4a35a",
+  "#ca8a04",
+  "#854d0e",
+  "#7c2d12",
+  "#fef3c7",
+  "#fde68a",
+  "#bbf7d0",
+  "#bae6fd",
+  "#e9d5ff",
+  "#fecdd3",
+] as const;
+
+export function toColorInput(value: string): string {
+  if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
+  if (/^#[0-9a-fA-F]{3}$/.test(value)) {
+    return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`;
+  }
+  return "#059669";
+}
 
 export const OPACITY_PRESETS = [
   { label: "100%", value: 1 },

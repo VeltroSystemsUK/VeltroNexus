@@ -120,9 +120,11 @@ import invoicesRouter from "./routes/invoices";
 import incomeRouter from "./routes/income";
 import cashflowRouter from "./routes/cashflow";
 import expensesRouter from "./routes/expenses";
+import reportingRouter from "./routes/reporting";
 import emailTemplatesRouter from "./routes/emailTemplates";
 import emailCampaignsRouter from "./routes/emailCampaigns";
 import mediaRouter from "./routes/media";
+import curatorRouter from "./routes/curator";
 import craftRouter from "./routes/craft";
 import editorialRouter from "./routes/editorial";
 import { getObjectStorage } from "./utils/routerHelpers";
@@ -497,18 +499,14 @@ export async function registerRoutes(app: Application): Promise<Server> {
       checks.redis = { status: "ok" }; // Memory fallback acceptable in dev
     }
 
-    // Check object storage
+    // Check the configured local storage root. Production uses SQLite and the
+    // local filesystem; requiring a cloud bucket here gives a false failure.
     const storageStart = Date.now();
     try {
-      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-      if (bucketId) {
-        const client = new ObjectStorageClient({ bucketId });
-        await client.list({ prefix: "health-check/" });
-        checks.objectStorage = { status: "ok", latency: Date.now() - storageStart };
-      } else {
-        checks.objectStorage = { status: "error", error: "Bucket not configured" };
-        allHealthy = false;
-      }
+      const uploadsRoot = path.resolve(process.cwd(), "uploads");
+      if (!fs.existsSync(uploadsRoot)) throw new Error("Local uploads directory does not exist");
+      await fs.promises.access(uploadsRoot, fs.constants.R_OK | fs.constants.W_OK);
+      checks.objectStorage = { status: "ok", latency: Date.now() - storageStart };
     } catch (error: any) {
       checks.objectStorage = {
         status: "error",
@@ -565,9 +563,11 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api", incomeRouter);
   app.use("/api", cashflowRouter);
   app.use("/api", expensesRouter);
+  app.use("/api", reportingRouter);
   app.use("/api", emailTemplatesRouter);
   app.use("/api", emailCampaignsRouter);
   app.use("/api", mediaRouter);
+  app.use("/api", curatorRouter);
   app.use("/api", craftRouter);
   app.use("/api", editorialRouter);
 

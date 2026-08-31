@@ -8,7 +8,7 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { isSvgContent, hasValidImageMagicBytes } from "../utils/security";
 import { PassThrough, Transform } from "stream";
-import { ai, DEFAULT_GEMINI_MODEL } from "../utils/geminiClient";
+import { grokFile, grokGenerateStill } from "../services/grokImages";
 
 const router = Router();
 
@@ -371,71 +371,29 @@ router.post("/media/ai-generate", isAuthenticated, async (req: Request, res: Res
 
     const userId = req.user!.id;
 
-    // Fetch the source image
-    const imgResponse = await fetch(sourceUrl);
-    if (!imgResponse.ok) {
-      return res.status(400).json({ error: "Could not fetch source image" });
-    }
-
-    const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
-    const contentType = imgResponse.headers.get("content-type") || "image/jpeg";
-
-    // Use Gemini to generate a new image based on the source and prompt
-    const result = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                mimeType: contentType,
-                data: imgBuffer.toString("base64"),
-              },
-            },
-            {
-              text: `Based on this image, create a new professional marketing image. Instructions: ${prompt}.
-
-              Generate a new image that follows these instructions while maintaining a professional, clean aesthetic suitable for business email marketing campaigns.`,
-            },
-          ],
-        },
-      ],
-      config: {
-        responseModalities: ["TEXT", "IMAGE"],
-      } as any,
-    });
-
-    // Check for generated image in the response
-    const parts = (result as any).candidates?.[0]?.content?.parts || [];
-    let generatedImageData: string | null = null;
-    let generatedMimeType = "image/png";
-
-    for (const part of parts) {
-      if (part.inlineData) {
-        generatedImageData = part.inlineData.data;
-        generatedMimeType = part.inlineData.mimeType || "image/png";
-        break;
-      }
-    }
-
-    if (!generatedImageData) {
+    const job = await grokGenerateStill(
+      `Professional UK commercial-finance marketing still. ${prompt}`.slice(0, 1200),
+      "og",
+    );
+    const file = grokFile(job.id);
+    if (!file?.buffer?.length) {
       return res.status(422).json({
-        error: "AI could not generate an image. Try a different prompt or source image.",
+        error: "Grok could not generate an image. Try a different prompt.",
       });
     }
 
-    const extension = generatedMimeType.split("/")[1] || "png";
+    const generatedMimeType = file.mime || "image/jpeg";
+    const extension = generatedMimeType.includes("png") ? "png" : "jpg";
     const filename = `ai-generated-${Date.now()}.${extension}`;
     const storagePath = `media/${userId}/${filename}`;
     const localFilePath = path.resolve(process.cwd(), "uploads", storagePath);
-    
+
     const dir = path.dirname(localFilePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    const imageBuffer = Buffer.from(generatedImageData, "base64");
+    const imageBuffer = file.buffer;
     fs.writeFileSync(localFilePath, imageBuffer);
 
     const publicUrl = `/uploads/${storagePath}`;

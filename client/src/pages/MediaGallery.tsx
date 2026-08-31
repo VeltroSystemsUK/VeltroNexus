@@ -36,10 +36,23 @@ import {
   FolderOpen,
   Library,
   Camera,
+  Radar,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { MediaAsset } from "@shared/schema";
 import { MEDIA_CATEGORIES } from "@shared/schema";
+
+type CuratedRow = {
+  id: string;
+  title: string;
+  description: string;
+  originalUrl: string;
+  tags: string[];
+  license: string;
+  attribution?: string;
+  aspectRatio: string;
+  usageCount: number;
+};
 
 const categoryColors: Record<string, string> = {
   business_corporate: "bg-blue-500/20 text-blue-400",
@@ -56,7 +69,8 @@ const categoryColors: Record<string, string> = {
 export default function MediaGallery() {
   usePageTitle("Media Gallery");
 
-  const [activeTab, setActiveTab] = useState<"mine" | "stock">("stock");
+  const [activeTab, setActiveTab] = useState<"mine" | "stock" | "curated">("stock");
+  const [ingestUrl, setIngestUrl] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MediaAsset | null>(null);
@@ -65,6 +79,7 @@ export default function MediaGallery() {
 
   const { data: assets = [], isLoading } = useQuery<MediaAsset[]>({
     queryKey: ["/api/media", activeTab, categoryFilter],
+    enabled: activeTab !== "curated",
     queryFn: async () => {
       const params = new URLSearchParams({ type: activeTab });
       if (activeTab === "stock" && categoryFilter !== "all") {
@@ -72,6 +87,15 @@ export default function MediaGallery() {
       }
       const res = await fetch(`/api/media?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch media");
+      return res.json();
+    },
+  });
+
+  const { data: curated = { assets: [] }, isLoading: curatedLoading } = useQuery<{ assets: CuratedRow[] }>({
+    queryKey: ["/api/curator/search", search],
+    enabled: activeTab === "curated",
+    queryFn: async () => {
+      const res = await apiRequest("/api/curator/search", "POST", { q: search });
       return res.json();
     },
   });
@@ -114,6 +138,32 @@ export default function MediaGallery() {
     },
   });
 
+  const curatorRun = useMutation({
+    mutationFn: async (query?: string) => {
+      const res = await apiRequest("/api/curator/run", "POST", { query });
+      return res.json() as Promise<{ ingested: number; skipped: number; sources?: string[] }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/curator/search"] });
+      const from = data.sources?.length ? ` · ${data.sources.join(", ")}` : "";
+      toast.success(`Kit ingested ${data.ingested} stills${data.skipped ? `, skipped ${data.skipped}` : ""}${from}.`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const curatorIngest = useMutation({
+    mutationFn: async (url: string) => {
+      const res = await apiRequest("/api/curator/ingest", "POST", { url, source: "feed", license: "commercial" });
+      return res.json();
+    },
+    onSuccess: (data: { duplicate?: boolean }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/curator/search"] });
+      toast.success(data.duplicate ? "Already in the index." : "Kit indexed that still.");
+      setIngestUrl("");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const seedMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("/api/media/seed-stock", "POST");
@@ -149,6 +199,40 @@ export default function MediaGallery() {
     navigator.clipboard.writeText(url);
     toast.success("URL copied to clipboard");
   };
+
+  const blobFromCurated = async (asset: CuratedRow) => {
+    const res = await fetch(asset.originalUrl, { credentials: "include" });
+    if (!res.ok) throw new Error("Could not read that still.");
+    return await res.blob();
+  };
+
+  const saveToUploads = useMutation({
+    mutationFn: async (asset: CuratedRow) => {
+      const blob = await blobFromCurated(asset);
+      const slug = asset.title.replace(/[^a-z0-9]+/gi, "_").slice(0, 40) || "curated";
+      const name = `${slug}_${asset.id.slice(0, 8)}.jpg`;
+      const file = new File([blob], name, { type: blob.type || "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/media/upload", { method: "POST", body: formData, credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error || "Upload failed");
+      }
+      await apiRequest(`/api/curator/assets/${asset.id}/use`, "POST", {
+        campaignId: "my-uploads",
+        channel: "email",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/media"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/curator/search"] });
+      toast.success("Saved to My Uploads");
+      setSearch("");
+      setActiveTab("mine");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const formatSize = (bytes: number) => {
     if (!bytes) return "";
@@ -256,14 +340,14 @@ export default function MediaGallery() {
       <div>
         <h1 className="text-base md:text-lg font-bold uppercase">Media Gallery</h1>
         <p className="text-muted-foreground text-sm">
-          Upload and manage images for email campaigns
+          Kit Lang (MKT-4) hunts Unsplash, Pexels, Openverse and Firecrawl. Click Curated stills to save them to My Uploads.
         </p>
       </div>
 
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
-          setActiveTab(v as "mine" | "stock");
+          setActiveTab(v as "mine" | "stock" | "curated");
           setCategoryFilter("all");
           setSearch("");
         }}
@@ -278,6 +362,10 @@ export default function MediaGallery() {
             <TabsTrigger value="mine" className="px-4 py-2">
               <FolderOpen className="h-4 w-4 mr-2" />
               My Uploads
+            </TabsTrigger>
+            <TabsTrigger value="curated" className="px-4 py-2">
+              <Radar className="h-4 w-4 mr-2" />
+              Curated
             </TabsTrigger>
           </TabsList>
 
@@ -296,6 +384,28 @@ export default function MediaGallery() {
                   ))}
                 </SelectContent>
               </Select>
+            )}
+            {activeTab === "curated" && (
+              <>
+                <Input
+                  placeholder="Image URL to ingest"
+                  value={ingestUrl}
+                  onChange={(e) => setIngestUrl(e.target.value)}
+                  className="w-[240px]"
+                />
+                <Button
+                  variant="outline"
+                  disabled={!ingestUrl.trim() || curatorIngest.isPending}
+                  onClick={() => curatorIngest.mutate(ingestUrl.trim())}
+                >
+                  {curatorIngest.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Ingest
+                </Button>
+                <Button onClick={() => curatorRun.mutate(search || undefined)} disabled={curatorRun.isPending}>
+                  {curatorRun.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Radar className="h-4 w-4 mr-2" />}
+                  Run curator
+                </Button>
+              </>
             )}
             {activeTab === "mine" && (
               <>
@@ -327,7 +437,7 @@ export default function MediaGallery() {
         <div className="relative max-w-sm mt-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by filename..."
+            placeholder={activeTab === "curated" ? "warm office desk with coffee and laptop" : "Search by filename..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -397,6 +507,61 @@ export default function MediaGallery() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filtered.map(renderImageCard)}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="curated" className="mt-4">
+          {curatedLoading || curatorRun.isPending ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (curated.assets ?? []).length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+                <Radar className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-1">Kit has an empty index</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Run the curator to hunt Unsplash, Pexels, Openverse and Firecrawl, or paste a URL.
+                </p>
+                <Button onClick={() => curatorRun.mutate(undefined)} disabled={curatorRun.isPending}>
+                  Run curator
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Click a still to save it to My Uploads. Type a search then Run curator to steer the hunt.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {curated.assets.map((asset) => {
+                  const saving = saveToUploads.isPending && saveToUploads.variables?.id === asset.id;
+                  return (
+                  <Card
+                    key={asset.id}
+                    className="group overflow-hidden hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer"
+                    onClick={() => !saveToUploads.isPending && saveToUploads.mutate(asset)}
+                  >
+                    <div className="aspect-square bg-muted relative overflow-hidden">
+                      <img src={asset.originalUrl} alt={asset.title} className="w-full h-full object-cover" loading="lazy" />
+                      {saving && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 animate-spin text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <CardContent className="p-3 space-y-1">
+                      <p className="text-xs font-medium truncate" title={asset.title}>{asset.title}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {asset.aspectRatio} · {asset.license}{asset.attribution ? ` · ${asset.attribution}` : ""} · used {asset.usageCount}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground truncate">{asset.tags.slice(0, 4).join(" · ")}</p>
+                    </CardContent>
+                  </Card>
+                  );
+                })}
+              </div>
             </div>
           )}
         </TabsContent>

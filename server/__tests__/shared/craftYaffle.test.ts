@@ -67,6 +67,22 @@ describe("Yaffle Creative sidecar prompts", () => {
     expect(xaiBearer({ XAI_API_KEY: "" }, undefined)).toBeUndefined();
   });
 
+  it("skips an expired Grok JWT instead of sending it to Imagine", () => {
+    const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
+    const payload = Buffer.from(JSON.stringify({ exp: 1 })).toString("base64url");
+    const expired = `${header}.${payload}.sig`;
+    const grokAuth = {
+      "https://auth.x.ai::team": { key: expired, auth_mode: "oidc" },
+    };
+    expect(xaiBearer({ XAI_API_KEY: expired }, grokAuth)).toBeUndefined();
+    expect(xaiBearer({ XAI_API_KEY: expired }, undefined)).toBeUndefined();
+    expect(
+      xaiBearer({ XAI_API_KEY: expired }, {
+        "https://auth.x.ai::team": { key: "live-session", auth_mode: "oidc" },
+      }),
+    ).toBe("live-session");
+  });
+
   it("pairs a queued post to its Content Aid brief", () => {
     const briefs = scanWeek();
     const post = { title: briefs[2]!.headline, track: briefs[2]!.track, visual: { stockId: briefs[2]!.stockId } };

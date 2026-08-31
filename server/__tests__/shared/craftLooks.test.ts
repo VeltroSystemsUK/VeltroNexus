@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { applyImageLook, applyNodeMotion, pageHasMotion } from "@/components/craft/lib/looks";
+import {
+  applyFrameShape,
+  applyImageLook,
+  applyNodeMotion,
+  applyNodeShadow,
+  CRAFT_SWATCHES,
+  FRAME_SHAPES,
+  pageHasMotion,
+} from "@/components/craft/lib/looks";
 import type { CraftNode, ImageNode } from "@/components/craft/lib/types";
 
 const BASE: ImageNode = {
@@ -39,6 +47,36 @@ describe("applyImageLook", () => {
     expect(next.opacity).toBe(1);
   });
 
+  it("exposes a compact frame-shape set for the picker", () => {
+    expect(FRAME_SHAPES.map((item) => item.id)).toEqual([
+      "plain",
+      "round",
+      "arch",
+      "diamond",
+      "hex",
+      "polaroid",
+      "ticket",
+      "star",
+      "triangle",
+      "heart",
+      "speech",
+      "banner",
+      "cloud",
+      "chevron",
+    ]);
+    expect(applyFrameShape(BASE, "round").mask).toBe("ellipse");
+    expect(applyFrameShape(BASE, "star").mask).toBe("star");
+  });
+
+  it("applies a drop shadow without wiping the frame shape", () => {
+    const framed = applyFrameShape(BASE, "diamond");
+    const next = applyNodeShadow(framed, "drop");
+    expect(next.mask).toBe("diamond");
+    expect(next.shadow?.blur).toBeGreaterThan(20);
+    expect(applyNodeShadow(next, "none").shadow).toBeUndefined();
+    expect(applyFrameShape(next, "heart").shadow?.blur).toBeGreaterThan(20);
+  });
+
   it("clips stills to shaped frames instead of a rectangular blob", () => {
     expect(applyImageLook(BASE, "diamond").mask).toBe("diamond");
     expect(applyImageLook(BASE, "hex").mask).toBe("hexagon");
@@ -48,6 +86,11 @@ describe("applyImageLook", () => {
     expect(polaroid.mask).toBe("rounded-rect");
     expect(polaroid.strokeWidth).toBeGreaterThan(16);
     expect(polaroid.stroke).toMatch(/#f|#fff|f8fafc/i);
+  });
+
+  it("offers a full swatch set for the colour picker", () => {
+    expect(CRAFT_SWATCHES.length).toBeGreaterThanOrEqual(24);
+    expect(CRAFT_SWATCHES.every((color) => /^#[0-9a-fA-F]{6}$/.test(color))).toBe(true);
   });
 
   it("puts replayable motion on a layer without touching the still", () => {

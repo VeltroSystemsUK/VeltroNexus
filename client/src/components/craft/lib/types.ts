@@ -125,7 +125,45 @@ export interface ShapeNode extends NodeBase {
   borderRadius: number;
 }
 
-export type MaskShape = "none" | "rect" | "ellipse" | "rounded-rect" | "diamond" | "hexagon" | "arch" | "ticket";
+export type MaskShape =
+  | "none"
+  | "rect"
+  | "ellipse"
+  | "rounded-rect"
+  | "diamond"
+  | "hexagon"
+  | "arch"
+  | "ticket"
+  | "triangle"
+  | "star"
+  | "pentagon"
+  | "octagon"
+  | "heart"
+  | "speech"
+  | "cloud"
+  | "banner"
+  | "parallelogram"
+  | "chevron";
+
+const MASK_VALUES: MaskShape[] = [
+  "rect",
+  "ellipse",
+  "rounded-rect",
+  "diamond",
+  "hexagon",
+  "arch",
+  "ticket",
+  "triangle",
+  "star",
+  "pentagon",
+  "octagon",
+  "heart",
+  "speech",
+  "cloud",
+  "banner",
+  "parallelogram",
+  "chevron",
+];
 
 export interface ImageCrop {
   x: number;
@@ -473,16 +511,7 @@ function normalizeNode(raw: unknown, index: number): CraftNode {
             height: clamp01(asNumber(crop.height, 1)),
           }
         : undefined,
-      mask:
-        node.mask === "ellipse" ||
-        node.mask === "rounded-rect" ||
-        node.mask === "rect" ||
-        node.mask === "diamond" ||
-        node.mask === "hexagon" ||
-        node.mask === "arch" ||
-        node.mask === "ticket"
-          ? node.mask
-          : undefined,
+      mask: MASK_VALUES.includes(node.mask as MaskShape) ? (node.mask as Exclude<MaskShape, "none">) : undefined,
     };
   }
 

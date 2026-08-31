@@ -47,19 +47,31 @@ export async function grokGenerateStill(
   presetId?: string,
 ): Promise<{ id: string; state: "ready"; prompt: string; provider: "grok" }> {
   const key = grokKey();
-  if (!key) throw new Error("No xAI credential. Set XAI_API_KEY or sign in to Grok.");
+  if (!key) throw new Error("Grok login expired. Sign in to Grok, or set a live XAI_API_KEY.");
   const body = grokImageRequest(prompt, presetId);
-  const res = await fetch("https://api.x.ai/v1/images/generations", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${key}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(120000),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.x.ai/v1/images/generations", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      throw new Error("Grok Images timed out. Try Generate still again.");
+    }
+    throw error;
+  }
   if (!res.ok) {
     const detail = await res.text();
+    if (res.status === 401 || /expired|invalid jwt|incorrect api key/i.test(detail)) {
+      throw new Error("Grok login expired. Sign in to Grok, or set a live XAI_API_KEY.");
+    }
     throw new Error(detail.slice(0, 400) || `Grok Images failed (${res.status}).`);
   }
   const json = (await res.json()) as { data?: Array<{ b64_json?: string; url?: string }> };

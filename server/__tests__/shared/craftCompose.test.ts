@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { applyPostCopy, composeSocialPost, copyPatchFromNode } from "@/components/craft/lib/composePost";
+import {
+  applyCreativeDirection,
+  applyPostCopy,
+  applyPostVisual,
+  composeSocialPost,
+  copyPatchFromNode,
+  creativeDirectionFor,
+} from "@/components/craft/lib/composePost";
+import { FRAME_SHAPES } from "@/components/craft/lib/looks";
+import type { CraftAsset } from "@/components/craft/lib/types";
 import { applyCopyPatch, COPY_LIMITS, generateWeek } from "@shared/craftQueue";
+
+const STILL: CraftAsset = {
+  id: "visual_test",
+  name: "desk.jpg",
+  mime: "image/jpeg",
+  dataUrl: "data:image/jpeg;base64,QQ==",
+};
 
 describe("composeSocialPost", () => {
   it("lays the post onto a CRAFT template instead of a blank board", () => {
@@ -47,6 +63,20 @@ describe("composeSocialPost", () => {
     expect(introducerText).toContain("INTRODUCER");
   });
 
+  it("relays ammo copy onto an already-composed board", () => {
+    const post = generateWeek("2026-08-31")[0]!;
+    const doc = composeSocialPost(post);
+    const fed = applyPostCopy(doc, {
+      ...post,
+      hook: "Ammo hook on the board",
+      hook2: "We do not lend.",
+      body: "Casey wrote this. We do not lend.",
+    });
+    const texts = fed.pages[0]!.nodes.filter((n) => n.type === "text").map((n) => n.text).join(" ");
+    expect(texts).toContain("Ammo hook on the board");
+    expect(texts).toContain("Casey wrote this");
+  });
+
   it("relays edited copy onto existing named layers without wiping the board", () => {
     const post = generateWeek("2026-08-31")[0]!;
     const doc = composeSocialPost(post);
@@ -88,7 +118,9 @@ describe("composeSocialPost", () => {
     expect(copyPatchFromNode(byName("Link")!.name, "https://stratafinance.co.uk")).toEqual({
       links: "https://stratafinance.co.uk",
     });
-    expect(copyPatchFromNode("Eyebrow", "INTRODUCERS")).toBeNull();
+    expect(copyPatchFromNode(byName("Eyebrow")?.name ?? "Eyebrow", "  SME DESKS  ·  STRATA  ")).toEqual({
+      eyebrow: "SME DESKS  ·  STRATA",
+    });
     expect(copyPatchFromNode("Headline", "x".repeat(COPY_LIMITS.hook + 8))?.hook?.length).toBe(
       COPY_LIMITS.hook,
     );
@@ -99,6 +131,18 @@ describe("composeSocialPost", () => {
     const relaid = applyPostCopy(doc, next);
     const hero = relaid.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 1");
     expect(hero?.type === "text" ? hero.text : "").toBe("Rewritten hook from the board.");
+  });
+
+  it("relays an edited eyebrow onto the kicker layer", () => {
+    const post = { ...generateWeek("2026-08-31")[0]!, eyebrow: "PACKAGER  ·  STRATA" };
+    const doc = composeSocialPost(post);
+    const line = doc.pages.flatMap((page) => page.nodes).find((node) => node.type === "text" && node.name === "Eyebrow");
+    expect(line?.type === "text" ? line.text : "").toBe("PACKAGER  ·  STRATA");
+    const next = applyCopyPatch(post, { eyebrow: "INTRODUCER DESK" });
+    expect(next.eyebrow).toBe("INTRODUCER DESK");
+    const relaid = applyPostCopy(doc, next);
+    const updated = relaid.pages.flatMap((page) => page.nodes).find((node) => node.type === "text" && node.name === "Eyebrow");
+    expect(updated?.type === "text" ? updated.text : "").toBe("INTRODUCER DESK");
   });
 
   it("splits the hero into two coloured lines", () => {
@@ -114,5 +158,49 @@ describe("composeSocialPost", () => {
     expect(b.type === "text" && b.text).toBe("We do not lend.");
     expect(a.type === "text" && b.type === "text" && a.color !== b.color).toBe(true);
     expect(b.type === "text" && b.role).toBe("accent");
+  });
+
+  it("directs Hook 1 and Hook 2 motion on compose before a still hangs", () => {
+    const post = generateWeek("2026-08-31")[0]!;
+    const doc = composeSocialPost(post);
+    const hook1 = doc.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 1");
+    expect(hook1?.animation?.type && hook1.animation.type !== "none").toBe(true);
+  });
+
+  it("lets Creative Design hang a framed, shadowed, moving still instead of a blob", () => {
+    const post = generateWeek("2026-08-31")[0]!;
+    const doc = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain"), post);
+    const visual = doc.pages[0]!.nodes.find((node) => node.type === "image" && node.name === "Visual");
+    expect(visual?.type === "image" ? visual.mask : undefined).toBeTruthy();
+    expect(visual?.shadow?.blur).toBeGreaterThan(0);
+    expect(visual?.type === "image" ? visual.tintOpacity ?? 0 : -1).toBe(0);
+    expect(visual?.animation?.type && visual.animation.type !== "none").toBe(true);
+    const hook1 = doc.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 1");
+    const hook2 = doc.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 2");
+    expect(hook1?.animation?.type && hook1.animation.type !== "none").toBe(true);
+    expect(hook2?.type === "text" && hook1?.type === "text" && hook2.color !== hook1.color).toBe(true);
+  });
+
+  it("varies frame, shadow and motion across the week", () => {
+    const week = generateWeek("2026-08-31");
+    const looks = week.map((post) => creativeDirectionFor(post.weekday));
+    expect(new Set(looks.map((look) => look.frame)).size).toBeGreaterThan(3);
+    expect(looks.every((look) => FRAME_SHAPES.some((shape) => shape.id === look.frame && shape.id !== "plain"))).toBe(
+      true,
+    );
+    expect(looks.every((look) => look.shadow !== "none")).toBe(true);
+    expect(looks.every((look) => look.visualMotion !== "none" && look.hookMotion !== "none")).toBe(true);
+    expect(creativeDirectionFor("Mon").frame).not.toBe(creativeDirectionFor("Fri").frame);
+  });
+
+  it("keeps the directed frame when ammo copy is relaid", () => {
+    const post = generateWeek("2026-08-31")[0]!;
+    const directed = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain"), post);
+    const before = directed.pages[0]!.nodes.find((node) => node.type === "image" && node.name === "Visual");
+    const relaid = applyPostCopy(directed, { ...post, hook: "Ammo hook on the board", hook2: "We do not lend." });
+    const after = relaid.pages[0]!.nodes.find((node) => node.type === "image" && node.name === "Visual");
+    expect(after?.type === "image" ? after.mask : undefined).toBe(before?.type === "image" ? before.mask : "missing");
+    expect(after?.shadow?.blur).toBe(before?.shadow?.blur);
+    expect(after?.animation?.type).toBe(before?.animation?.type);
   });
 });

@@ -44,6 +44,7 @@ const UnderwritingLayout = lazy(() => import("@/layouts/UnderwritingLayout"));
 const DocumentPortalPage = lazy(() => import("@/pages/DocumentPortalPage"));
 const Forecasts = lazy(() => import("@/pages/Forecasts"));
 const Expenses = lazy(() => import("@/pages/Expenses"));
+const Reporting = lazy(() => import("@/pages/Reporting"));
 const Cashflow = lazy(() => import("@/pages/Cashflow"));
 const AIStudio = lazy(() => import("@/pages/AIStudio"));
 const Invoicing = lazy(() => import("@/pages/Invoicing"));
@@ -234,6 +235,9 @@ function Router() {
         </Route>
         <Route path="/expenses">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Expenses />}
+        </Route>
+        <Route path="/reporting">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Reporting />}
         </Route>
         <Route path="/cashflow">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Cashflow />}

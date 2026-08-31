@@ -71,6 +71,9 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { UnlayerEmailEditor, type UnlayerEditorHandle } from "@/components/email/UnlayerEmailEditor";
+import { CraftEmailEditor, type CraftEmailEditorHandle } from "@/components/email/CraftEmailEditor";
+import { EMAIL_MERGE_TAGS } from "@shared/schema";
+import { isUnlayerEmailDesign } from "@/components/craft/lib/emailHtml";
 import {
   PieChart,
   Pie,
@@ -143,6 +146,8 @@ export default function EmailCampaigns() {
   const [formDesignJson, setFormDesignJson] = useState<any>(null);
   const [editorMode, setEditorMode] = useState<"visual" | "plaintext">("visual");
   const editorRef = useRef<UnlayerEditorHandle>(null);
+  const craftRef = useRef<CraftEmailEditorHandle>(null);
+  const useCraftVisual = editorMode === "visual" && !isUnlayerEmailDesign(formDesignJson);
 
   // Email verification state
   const [isVerifying, setIsVerifying] = useState(false);
@@ -1046,11 +1051,13 @@ export default function EmailCampaigns() {
               <Button
                 size="sm"
                 onClick={async () => {
-                  if (editorMode === "visual" && editorRef.current) {
+                  if (editorMode === "visual") {
                     try {
-                      const { design, html } = await editorRef.current.exportHtml();
-                      setFormContent(html);
-                      setFormDesignJson(design);
+                      const exported = useCraftVisual
+                        ? await craftRef.current!.exportHtml()
+                        : await editorRef.current!.exportHtml();
+                      setFormContent(exported.html);
+                      setFormDesignJson(exported.design);
                     } catch {
                       toast.error("Failed to export email content");
                       return;
@@ -1074,13 +1081,44 @@ export default function EmailCampaigns() {
             </div>
           </div>
 
+          {editorMode === "visual" && (
+            <div className="flex flex-wrap items-center gap-1 px-4 py-2 border-b bg-muted/20 shrink-0">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground mr-1">Merge</span>
+              {EMAIL_MERGE_TAGS.map((item) => (
+                <Button
+                  key={item.tag}
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  title={item.description}
+                  onClick={() => {
+                    void import("@/components/craft/store").then(({ useCraftStore }) => {
+                      useCraftStore.getState().insertMergeTag(item.tag);
+                    });
+                  }}
+                >
+                  {item.tag}
+                </Button>
+              ))}
+            </div>
+          )}
+
           {/* Editor Area */}
           {editorMode === "visual" ? (
             <div className="flex-1 min-h-0 relative">
-              <UnlayerEmailEditor
-                ref={editorRef}
-                designJson={formDesignJson}
-              />
+              {useCraftVisual ? (
+                <CraftEmailEditor
+                  ref={craftRef}
+                  designJson={formDesignJson}
+                  title={formName || "Campaign"}
+                  templateId={formTemplateId || "campaign-new"}
+                />
+              ) : (
+                <UnlayerEmailEditor
+                  ref={editorRef}
+                  designJson={formDesignJson}
+                />
+              )}
             </div>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">

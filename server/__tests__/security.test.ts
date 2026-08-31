@@ -42,16 +42,15 @@ describe("Security Integration Tests", () => {
       expect(response.body.success).toBe(true);
     });
 
-    // Our CSRF impl only blocks mismatched origins — server-to-server calls
-    // without an Origin header are allowed (e.g. webhooks, API consumers).
-    it("should allow POST requests without Origin/Referer headers (server-to-server)", async () => {
+    // Browser state-changing requests must prove their same-origin context.
+    it("should block POST requests without Origin/Referer headers", async () => {
       const response = await request(app).post("/api/test").send({ data: "test" });
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(403);
     });
 
-    it("should allow PUT requests without Origin/Referer headers (server-to-server)", async () => {
+    it("should block PUT requests without Origin/Referer headers", async () => {
       const response = await request(app).put("/api/test").send({ data: "test" });
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(403);
     });
 
     it("should allow POST with valid Origin header matching Host", async () => {

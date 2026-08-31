@@ -52,8 +52,10 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { UnlayerEmailEditor, type UnlayerEditorHandle } from "@/components/email/UnlayerEmailEditor";
+import { CraftEmailEditor, type CraftEmailEditorHandle } from "@/components/email/CraftEmailEditor";
+import { isUnlayerEmailDesign } from "@/components/craft/lib/emailHtml";
 import type { EmailTemplate } from "@shared/schema";
-import { EMAIL_TEMPLATE_CATEGORIES } from "@shared/schema";
+import { EMAIL_MERGE_TAGS, EMAIL_TEMPLATE_CATEGORIES } from "@shared/schema";
 
 const categoryColors: Record<string, string> = {
   cold_outreach: "bg-blue-500/20 text-blue-400",
@@ -87,6 +89,8 @@ export default function EmailTemplates() {
   const [editorMode, setEditorMode] = useState<"visual" | "plaintext">("visual");
 
   const editorRef = useRef<UnlayerEditorHandle>(null);
+  const craftRef = useRef<CraftEmailEditorHandle>(null);
+  const useCraftVisual = editorMode === "visual" && !isUnlayerEmailDesign(formDesignJson);
 
   const { data: templates = [], isLoading } = useQuery<EmailTemplate[]>({
     queryKey: ["/api/email-templates"],
@@ -226,7 +230,9 @@ export default function EmailTemplates() {
       designJson = "plaintext"; // marker so we know to reopen in plaintext mode
     } else {
       try {
-        const exported = await editorRef.current!.exportHtml();
+        const exported = useCraftVisual
+          ? await craftRef.current!.exportHtml()
+          : await editorRef.current!.exportHtml();
         content = exported.html;
         designJson = exported.design;
       } catch {
@@ -274,8 +280,19 @@ export default function EmailTemplates() {
             .replace(/\n{3,}/g, "\n\n")
             .trim();
           setFormContent(plainText);
+        } else if (useCraftVisual) {
+          const { useCraftStore } = await import("@/components/craft/store");
+          const doc = useCraftStore.getState().doc;
+          const body = doc?.pages[0]?.nodes.find((node) => node.type === "text" && node.name === "Body");
+          const plain = result.content
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/p>/gi, "\n")
+            .replace(/<[^>]+>/g, "")
+            .replace(/&nbsp;/g, " ")
+            .trim();
+          if (body) useCraftStore.getState().updateNode(body.id, { text: plain });
+          else useCraftStore.getState().insertMergeTag(plain);
         } else {
-          // Load AI-generated HTML into Unlayer as an HTML block
           const htmlDesign = {
             body: {
               rows: [{
@@ -618,13 +635,44 @@ export default function EmailTemplates() {
             </div>
           </div>
 
+          {editorMode === "visual" && (
+            <div className="flex flex-wrap items-center gap-1 px-4 py-2 border-b bg-muted/20 shrink-0">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground mr-1">Merge</span>
+              {EMAIL_MERGE_TAGS.map((item) => (
+                <Button
+                  key={item.tag}
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  title={item.description}
+                  onClick={() => {
+                    void import("@/components/craft/store").then(({ useCraftStore }) => {
+                      useCraftStore.getState().insertMergeTag(item.tag);
+                    });
+                  }}
+                >
+                  {item.tag}
+                </Button>
+              ))}
+            </div>
+          )}
+
           {/* Editor Area */}
           {editorMode === "visual" ? (
             <div className="flex-1 min-h-0 relative">
-              <UnlayerEmailEditor
-                ref={editorRef}
-                designJson={formDesignJson}
-              />
+              {useCraftVisual ? (
+                <CraftEmailEditor
+                  ref={craftRef}
+                  designJson={formDesignJson}
+                  title={formName || "Email template"}
+                  templateId={editingId}
+                />
+              ) : (
+                <UnlayerEmailEditor
+                  ref={editorRef}
+                  designJson={formDesignJson}
+                />
+              )}
             </div>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 overflow-hidden">

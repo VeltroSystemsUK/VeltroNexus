@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitPageInView, panFromWheel } from "@/components/craft/canvas/viewport";
+import { fitPageInView, panFromWheel, placeMenu } from "@/components/craft/canvas/viewport";
 
 describe("fitPageInView", () => {
   it("keeps a wide OG board and its copy inside the design viewport", () => {
@@ -16,6 +16,16 @@ describe("fitPageInView", () => {
     const view = fitPageInView(1080, 1920, 640, 520);
     expect(view.zoom * 1920).toBeLessThanOrEqual(520);
     expect(view.panY + 1920 * view.zoom).toBeLessThanOrEqual(520 + 0.5);
+  });
+});
+
+describe("placeMenu", () => {
+  it("keeps a right-click menu inside the viewport instead of clipping the bottom", () => {
+    const box = placeMenu(700, 640, 256, 520, 1280, 720);
+    expect(box.left + 256).toBeLessThanOrEqual(1280);
+    expect(box.top).toBeGreaterThanOrEqual(8);
+    expect(box.top + Math.min(520, box.maxHeight)).toBeLessThanOrEqual(720);
+    expect(box.maxHeight).toBeLessThanOrEqual(720 - 16);
   });
 });
 

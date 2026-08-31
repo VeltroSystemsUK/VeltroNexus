@@ -326,17 +326,23 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     // Cross-origin CSRF attempts will either have a mismatched Origin or none at all.
     if (process.env.NODE_ENV === 'production') {
         const origin = req.get('Origin') || req.get('Referer');
-        // Use X-Forwarded-Host when behind a reverse proxy (Firebase Hosting → Cloud Run)
+        // Use X-Forwarded-Host when behind a reverse proxy. A state-changing
+        // browser request without either header is not distinguishable from a
+        // cross-site form post, so fail closed.
         const host = req.get('X-Forwarded-Host') || req.get('Host');
-        if (origin && host) {
-            try {
-                const originHost = new URL(origin).host;
-                if (originHost !== host) {
-                    return res.status(403).json({ error: 'CSRF check failed: origin mismatch' });
-                }
-            } catch {
-                return res.status(403).json({ error: 'CSRF check failed: invalid origin' });
+        if (!origin) {
+            return res.status(403).json({ error: 'CSRF check failed: missing origin' });
+        }
+        if (!host) {
+            return res.status(403).json({ error: 'CSRF check failed: missing host' });
+        }
+        try {
+            const originHost = new URL(origin).host;
+            if (originHost !== host) {
+                return res.status(403).json({ error: 'CSRF check failed: origin mismatch' });
             }
+        } catch {
+            return res.status(403).json({ error: 'CSRF check failed: invalid origin' });
         }
     }
 

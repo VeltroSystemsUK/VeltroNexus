@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   COPY_LIMITS,
+  applyAmmoToWeek,
   applyChannelHandles,
   applyCopyPatch,
   approvePost,
@@ -17,6 +18,7 @@ import {
   signOffCompliance,
   weekCopyIsClean,
 } from "@shared/craftQueue";
+import { scanWeek } from "@shared/craftScout";
 
 describe("generateWeek", () => {
   it("fills Monday–Sunday with LinkedIn-first packs for both tracks", () => {
@@ -106,12 +108,40 @@ describe("mergeGeneratedWeek", () => {
     expect(merged.filter((p) => p.id === existing[1]!.id)).toHaveLength(1);
   });
 
+  it("stamps Casey's ammo onto drafts so the design can relay it", () => {
+    const week = generateWeek("2026-08-31");
+    const briefs = scanWeek();
+    briefs[1] = { ...briefs[1]!, headline: "Ammo headline that must land", socialAngle: "Pack first then the lender" };
+    const approved = { ...week[0]!, status: "approved" as const, compliance: "cleared" as const, hook: week[0]!.hook };
+    week[0] = approved;
+    const next = applyAmmoToWeek(week, briefs);
+    expect(next[0]!.hook).toBe(approved.hook);
+    expect(next[1]!.title).toBe("Ammo headline that must land");
+    expect(`${next[1]!.hook} ${next[1]!.hook2}`).toMatch(/pack first|lender/i);
+  });
+
   it("names the designs that must be wiped for each mode", () => {
     const existing = generateWeek("2026-08-31", undefined, "old");
     existing[0] = { ...existing[0]!, status: "approved", compliance: "cleared" };
     expect(weekDesignWipeIds(existing, "replace")).toEqual(existing.map((p) => p.id));
     expect(weekDesignWipeIds(existing, "keep_approved")).toEqual(existing.slice(1).map((p) => p.id));
     expect(weekDesignWipeIds(existing, "selected", existing[3]!.id)).toEqual([existing[3]!.id]);
+  });
+
+  it("treats a rejected week as empty so generate can replace copy and wipe designs", () => {
+    const rejected = generateWeek("2026-08-31", undefined, "old").map((post) => ({
+      ...post,
+      status: "rejected" as const,
+      hook: "Old hook that must go.",
+    }));
+    const next = generateWeek("2026-08-31", undefined, "new");
+    next[0] = { ...next[0]!, hook: "Fresh hook from Casey." };
+    const merged = mergeGeneratedWeek(rejected, next, "keep_approved");
+    expect(merged.every((post) => post.status === "draft")).toBe(true);
+    expect(merged[0]!.hook).toBe("Fresh hook from Casey.");
+    expect(merged.every((post) => post.hook !== "Old hook that must go.")).toBe(true);
+    expect(weekDesignWipeIds(rejected, "keep_approved")).toEqual(rejected.map((p) => p.id));
+    expect(weekDesignWipeIds(rejected, "replace")).toEqual(rejected.map((p) => p.id));
   });
 });
 

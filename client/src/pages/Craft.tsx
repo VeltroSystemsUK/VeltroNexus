@@ -36,6 +36,7 @@ type Desk = { week: CraftPost[]; channels: CraftChannel[]; weekStart: string | n
 
 type CopyDraft = {
   title: string;
+  eyebrow: string;
   hook: string;
   hook2: string;
   body: string;
@@ -47,6 +48,7 @@ type CopyDraft = {
 function copyFrom(post: CraftPost): CopyDraft {
   return {
     title: post.title,
+    eyebrow: post.eyebrow ?? "",
     hook: post.hook,
     hook2: post.hook2 ?? "",
     body: post.body,
@@ -59,6 +61,7 @@ function copyFrom(post: CraftPost): CopyDraft {
 function draftFromPatch(post: CraftPost, patch: CraftCopyPatch): CopyDraft {
   const next = copyFrom(post);
   if (typeof patch.title === "string") next.title = patch.title;
+  if (typeof patch.eyebrow === "string") next.eyebrow = patch.eyebrow;
   if (typeof patch.hook === "string") next.hook = patch.hook;
   if (typeof patch.hook2 === "string") next.hook2 = patch.hook2;
   if (typeof patch.body === "string") next.body = patch.body;
@@ -76,6 +79,7 @@ function copyUnchanged(copy: CopyDraft, post: CraftPost): boolean {
   const current = copyFrom(post);
   return (
     copy.title === current.title &&
+    copy.eyebrow === current.eyebrow &&
     copy.hook === current.hook &&
     copy.hook2 === current.hook2 &&
     copy.body === current.body &&
@@ -124,7 +128,7 @@ export default function Craft() {
   useEffect(() => {
     if (selected) setCopy(copyFrom(selected));
     else setCopy(null);
-  }, [selected?.id, selected?.title, selected?.hook, selected?.hook2, selected?.body, selected?.cta, selected?.links?.join("\n"), selected?.hashtags?.join(" ")]);
+  }, [selected?.id, selected?.title, selected?.eyebrow, selected?.hook, selected?.hook2, selected?.body, selected?.cta, selected?.links?.join("\n"), selected?.hashtags?.join(" ")]);
 
   const generate = useMutation({
     mutationFn: async (mode: WeekGenerateMode) => {
@@ -162,7 +166,10 @@ export default function Craft() {
     onSuccess: (next) => {
       queryClient.setQueryData(["/api/craft/desk"], next);
       setContentAidOpen(true);
-      toast.success("Casey scanned the week. Isla can write from these briefs.");
+      const openId = selectedId;
+      const post = openId ? next.week.find((item) => item.id === openId) : undefined;
+      if (post) useCraftStore.getState().syncFromPost(post);
+      toast.success("Casey scanned the week. Copy is on the drafts and the board.");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -200,6 +207,7 @@ export default function Craft() {
   const saveCopy = (nextCopy = copy) => {
     if (!selected || !nextCopy || copyUnchanged(nextCopy, selected)) return;
     if (
+      nextCopy.eyebrow.length > COPY_LIMITS.eyebrow ||
       nextCopy.hook.length > COPY_LIMITS.hook ||
       nextCopy.hook2.length > COPY_LIMITS.hook2 ||
       nextCopy.body.length > COPY_LIMITS.body ||
@@ -600,6 +608,22 @@ export default function Craft() {
                   aria-label="Title"
                   className="h-8 text-xs"
                   onChange={(e) => setCopy({ ...copy, title: e.target.value })}
+                  onBlur={() => saveCopy()}
+                />
+              </label>
+              <label className="grid gap-1 text-[10px] uppercase tracking-[0.12em] text-white/35">
+                <span className="flex justify-between gap-2">
+                  Eyebrow
+                  <span className="normal-case tracking-normal text-white/25">
+                    {copy.eyebrow.length}/{COPY_LIMITS.eyebrow}
+                  </span>
+                </span>
+                <Input
+                  value={copy.eyebrow}
+                  aria-label="Eyebrow"
+                  maxLength={COPY_LIMITS.eyebrow}
+                  className="h-8 text-xs"
+                  onChange={(e) => setCopy({ ...copy, eyebrow: e.target.value })}
                   onBlur={() => saveCopy()}
                 />
               </label>

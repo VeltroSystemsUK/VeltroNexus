@@ -1,8 +1,8 @@
 ---
 document: corporate_structure.md
 business: Strata Finance (operated on Nexus)
-version: 1.0
-date: 2026-08-27
+version: 1.1
+date: 2026-08-31
 owner: Shaun
 ---
 
@@ -30,8 +30,9 @@ Agents do not replace Shaun with customers. They remove the admin so Shaun can t
 | RES-2 | Origination — Daniel Crowe / Maya Hart / Elena Ward (`database-builder`, `inbound-intake`, `contact-finder`) | 2 | Find, match company, complete contact, open deal file |
 | SAL-2 | Communications — James Hale / Sophie Reed (`outreach-sales`, `fulfilment-manager`) | 2 | Template cadence, pack request, chase, LinkedIn *drafts*, queue Shaun’s calls |
 | FIN-2 | File factory — Priya Shah (`deal-processing-underwriter`) | 2 | Ingest → SFP → credit memo recommendation → completeness → Sterling zip |
-| MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: copy + curated visuals in Craft from MKT-3 ammo; never posts + Editorial blogs/press releases |
-| MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | UK commercial-finance intelligence; Creative Ammo Briefs for Isla; never writes final ad copy + Editorial topic-scan notes |
+| MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: Craft week + email templates + Editorial blogs/press releases from MKT-3 ammo and MKT-4 stills; never posts |
+| MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | Strata-desk only (stacked debt, HMRC TTP, CDFI) plus relevant public news; Creative Ammo Briefs and Editorial topic-scan notes for Isla; no tangents; never writes final ad copy |
+| MKT-4 | Media Curator — Kit Lang (`media-curator`) | 2 | Hunt, hash, tag, index stills (Unsplash, Pexels, Openverse, Firecrawl); never posts |
 
 **Hibernated (not in launch scope):** Oliver Grant (`accounts-monitor`), Nathan Cole (`capital-strategist`), **ARES / ARES Control**. Tom Brennan (`database-builder-se`) is a regional parameter on RES-2, not a separate company. Do not start the ARES loop. Do not invent replacements.
 
@@ -60,10 +61,13 @@ Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn c
 Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep, credit memo *recommendation*, completeness gate, compilation of the Sterling zip.
 
 **MKT-2 Brand social**  
-Owns: weekly social drafts on the CRAFT desk, translated from MKT-3 Creative Ammo Briefs. LinkedIn home; IG/FB/TikTok extra sizes. Channel handles as public URLs only. Shaun approves and posts. Ads stay draft. Spend still needs the £500 gate. Isla also drafts blogs and press releases on `/editorial`.
+Owns: weekly social drafts on the CRAFT desk and email templates in the same compositor, translated from MKT-3 Creative Ammo Briefs and hung with MKT-4 stills or Grok Imagine. Also drafts blogs and press releases on `/editorial`. LinkedIn home; IG/FB/TikTok extra sizes. Channel handles as public URLs only. Shaun approves and posts. Ads stay draft. Spend still needs the £500 gate.
 
 **MKT-3 Content Scout**  
 Owns: UK lending / SME / regulatory scan and Creative Ammo Briefs on the CRAFT Content aid. Casey topic-scans for Editorial as well as weekly Craft ammo. Does not write final ad copy. Does not invent rates. Hands off to Isla.
+
+**MKT-4 Media Curator**  
+Owns: Media Gallery index. Hunts Unsplash, Pexels, Openverse, and Firecrawl image search on allowlisted hosts. Click-to-save into My Uploads for Isla and campaigns. Does not post. Does not strip credits.
 
 ---
 
@@ -89,6 +93,9 @@ Owns: UK lending / SME / regulatory scan and Creative Ammo Briefs on the CRAFT C
 | Sole trader / small partnership | STOP → Shaun | Regulated-agreement gate |
 | Market scan / Creative Ammo Briefs | MKT-3 | Research only; missing numbers stay missing |
 | Brand social week (LinkedIn + IG/FB/TikTok crops) | MKT-3 → MKT-2 | Isla writes from ammo; draft only; Shaun posts |
+| Media hunt / gallery index | MKT-4 | Unsplash, Pexels, Openverse, Firecrawl; save to My Uploads; never scrape random sites |
+| Email template compose | MKT-2 | Same Craft engine; merge tags; stills from My Uploads |
+| Marketing campaign send | MKT-2 → Shaun | Draft freely; sending is Shaun |
 | CRAFT export (copy pack / PNG / size pack) | MKT-2 → marketing approve → compliance sign-off | No release until both gates pass |
 | Social publish / paid ads | MKT-2 → Shaun | Never auto-post; ads are draft until Shaun spends |
 | Editorial topic scan | MKT-3 | Notes only; missing numbers stay missing |

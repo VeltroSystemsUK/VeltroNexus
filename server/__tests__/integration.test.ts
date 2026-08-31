@@ -108,9 +108,8 @@ describe("API Integration Tests", () => {
       expect(res.body).toHaveProperty("success", true);
     });
 
-    it("should allow POST without origin header (server-to-server pattern)", async () => {
-      const res = await request(app).post("/api/protected").send({ data: "test" }).expect(200);
-      expect(res.body).toHaveProperty("success", true);
+    it("should block POST without origin header", async () => {
+      await request(app).post("/api/protected").send({ data: "test" }).expect(403);
     });
 
     it("should block POST with mismatched origin", async () => {
@@ -169,10 +168,8 @@ describe("API Integration Tests", () => {
       await request(app).get("/api/resource").expect(200);
     });
 
-    // Our CSRF impl only blocks *mismatched* origins, not absent ones.
-    // Requests without Origin (e.g. curl, server-to-server) are allowed.
-    it("should allow POST without CSRF headers (no origin present)", async () => {
-      await request(app).post("/api/resource").expect(200);
+    it("should block POST without CSRF headers (no origin present)", async () => {
+      await request(app).post("/api/resource").expect(403);
     });
 
     it("should block POST with mismatched Origin", async () => {

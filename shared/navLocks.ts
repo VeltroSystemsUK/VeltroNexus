@@ -3,6 +3,7 @@ export const PREVIEW_LOCKED_PATHS = [
   "/workforce",
   "/email-templates",
   "/email-campaigns",
+  "/editorial",
   "/media",
   "/craft",
   "/invoicing",

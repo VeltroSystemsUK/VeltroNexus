@@ -2,6 +2,7 @@ import { storage } from "../storage";
 import { DigitalAssociate, AssociateStatus } from "@shared/agents";
 import { MARKETING_DIRECTOR_PROMPT } from "@shared/craftDirector";
 import { MARKET_RESEARCHER_PROMPT } from "@shared/craftScout";
+import { MEDIA_CURATOR_PROMPT } from "@shared/mediaCurator";
 
 const CORE_WORKFORCE: DigitalAssociate[] = [
   {
@@ -586,9 +587,9 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
       "LinkedIn-first packs",
       "Introducer and SME tracks",
     ],
-    tools: ["Craft desk", "Week queue", "Channel handles", "Curated visual library", "Creative Ammo Briefs"],
+    tools: ["Craft desk", "Week queue", "Channel handles", "Media Gallery", "Kit curator", "Grok Images", "Email templates", "Creative Ammo Briefs"],
     description:
-      "MKT-2 Creative Director. Writes the line and hangs the picture. LinkedIn-first packs for SME directors and introducers. Never posts. Never buys ads. Never invents rates.",
+      "MKT-2 Marketing Director. Writes the line, hangs Kit or Grok stills, composes email in Craft. LinkedIn-first packs for SME directors and introducers. Never posts. Never buys ads. Never invents rates.",
     hourlyRate: 0,
     scores: [
       { subject: "Brand voice", A: 96, fullMark: 100 },
@@ -601,8 +602,9 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
       jobDescription: MARKETING_DIRECTOR_PROMPT,
       responsibilities: [
         "Translate Casey Wren's Creative Ammo Briefs into hook, body, CTA, hashtags and links inside Craft limits",
-        "Curate a visual for every post: stock pick plus photographic art-direction prompt that matches the copy",
-        "Place that visual in the media / accent slot so the board is never a grey box",
+        "Art-direct each board: weekday frame, shadow, motion, Strata type, logo at true proportions",
+        "Hang a Kit still from My Uploads, a stock pick, or a Grok Imagine still from Casey's prompt — never a grey box",
+        "Compose email templates in the same Craft engine with merge tags",
         "Stay inside house claims: we package, we do not lend, we do not decide credit",
         "Never auto-publish, never store social passwords, never spend on ads",
       ],
@@ -613,14 +615,33 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
           description: "Turn Content Scout ammo into a Monday–Sunday pack of copy plus matching visuals.",
           trigger: "on_instruction",
           steps: [
-            "Read the seven Creative Ammo Briefs from Casey Wren",
+            "Scan if Casey's briefs are stale — rejected cards are not held",
+            "Read the Creative Ammo Briefs from Casey Wren",
             "Write LinkedIn-first drafts (borrower and introducer) from the social angle and SME impact",
-            "Pair each draft with a curated image that belongs with the line",
+            "Pair each draft with a Kit, Grok, or stock still and weekday art direction",
             "Leave every card as draft for marketing approve, then compliance, then Shaun",
           ],
           expectedOutput: "Week queue on /craft with copy and visuals, nothing posted",
+          x: 0,
+          y: 80,
+        },
+        {
+          id: "compose-email-template",
+          name: "Compose email template",
+          description: "Build a marketing email in Craft with merge tags and a still from My Uploads.",
+          trigger: "on_instruction",
+          steps: [
+            "Open Email Templates in the Craft engine",
+            "Hang a still Kit saved to My Uploads",
+            "Insert house merge tags",
+            "Leave the template as draft until Shaun sends the campaign",
+          ],
+          expectedOutput: "Email template on /email-templates, not sent",
+          x: 0,
+          y: 240,
         },
       ],
+      edges: [{ id: "e-isla-week-email", source: "queue-week", target: "compose-email-template", label: "same engine" }],
     },
   },
   {
@@ -632,15 +653,15 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     status: AssociateStatus.AVAILABLE,
     avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400",
     expertise: [
-      "UK lending market scan",
-      "Regulatory and macro signals",
+      "Strata-desk scan (stacked debt, HMRC TTP, CDFI)",
+      "Relevant UK press only",
       "SME impact translation",
-      "Contrarian angles",
+      "Straight briefs, no tangents",
       "Creative Ammo Briefs",
     ],
-    tools: ["Craft desk", "Trade press", "BoE / FCA / Treasury", "NACFB / UK Finance / FLA"],
+    tools: ["Craft Content aid", "Scan API", "Firecrawl", "Anthropic", "xAI", "BoE / FCA / ONS / NACFB / BBB / Gazette"],
     description:
-      "MKT-3 Content Scout. Harvests UK commercial-finance intelligence for Isla. Never writes final ad copy. Never invents rates. Never posts.",
+      "MKT-3 Content Scout. Harvests only Strata-desk intelligence (stratafinance.co.uk) plus relevant public news for Isla. Never writes final ad copy. Never invents rates. Never posts. No tangents.",
     hourlyRate: 0,
     scores: [
       { subject: "Signal quality", A: 95, fullMark: 100 },
@@ -652,8 +673,9 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     workflow: {
       jobDescription: MARKET_RESEARCHER_PROMPT,
       responsibilities: [
-        "Scan UK lending, SME, and regulatory sources for high-signal material",
-        "Translate each finding into a Creative Ammo Brief for Isla Quinn",
+        "Scan only the Strata desk: stacked short-term loans, HMRC TTP, CDFI / BBB, cashflow, bank declines",
+        "Let in public news only when it changes cost, speed, or availability of that capital",
+        "Translate each finding into a Creative Ammo Brief for Isla Quinn — one fact, no tangent",
         "Mark missing numbers as missing — never invent rates or insolvency counts",
         "Stay inside house claims: packager, not lender",
         "Never write final ad copy, never auto-publish, never buy ads",
@@ -665,14 +687,89 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
           description: "Fill Craft Content aid with seven Creative Ammo Briefs Isla can turn into posts.",
           trigger: "on_instruction",
           steps: [
-            "Horizon-scan UK commercial finance and SME health",
+            "Firecrawl official UK sources on stacked refinance, HMRC TTP, CDFI",
+            "Drop notes and briefs that are not Strata-desk",
             "Filter bank PR puffery",
-            "Write seven Creative Ammo Briefs (borrower + introducer)",
+            "Write seven Creative Ammo Briefs (borrower + introducer) — one fact each, no tangent",
             "Hand off to Isla on /craft — she writes the copy",
           ],
           expectedOutput: "Seven Creative Ammo Briefs on the Craft desk, no posts published",
+          x: 0,
+          y: 80,
+          shape: "circle",
         },
       ],
+    },
+  },
+  {
+    id: "media-curator",
+    name: "Kit Lang",
+    email: "kit.lang@stratanexus.co.uk",
+    role: "Media Curator",
+    department: "Marketing",
+    status: AssociateStatus.AVAILABLE,
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400",
+    expertise: [
+      "Ingestion and dedupe",
+      "Licence and attribution",
+      "Social presets",
+      "Tagging and alt text",
+      "Hybrid search",
+    ],
+    tools: ["Media Gallery", "Unsplash", "Pexels", "Openverse", "Firecrawl", "Curator index", "Craft", "Email templates"],
+    description:
+      "MKT-4 Media Curator. Ingests, hashes, tags, and indexes stills for Isla and campaigns. Never posts. Never strips credits.",
+    hourlyRate: 0,
+    scores: [
+      { subject: "Index quality", A: 94, fullMark: 100 },
+      { subject: "Licence hygiene", A: 98, fullMark: 100 },
+      { subject: "Retrieval", A: 93, fullMark: 100 },
+    ],
+    voiceEnabled: false,
+    aresCertification: { status: "certified", score: 94 },
+    workflow: {
+      jobDescription: MEDIA_CURATOR_PROMPT,
+      responsibilities: [
+        "Hunt Unsplash, Pexels, Openverse and Firecrawl image search on allowlisted hosts",
+        "Dedupe by content hash and perceptual hash",
+        "Tag, caption, and index for Craft and email",
+        "Save a clicked still into My Uploads so Isla and campaigns can pick it",
+        "Keep photographer credit and licence on the record",
+        "Never auto-publish, never buy ads, never invent rates on a caption",
+      ],
+      tasks: [
+        {
+          id: "curate-gallery",
+          name: "Hunt stills",
+          description: "Fill the Curated index from Unsplash, Pexels, Openverse and Firecrawl.",
+          trigger: "on_instruction",
+          steps: [
+            "Run curator or accept a URL",
+            "Fetch, hash, skip near-duplicates",
+            "Record aspect, licence, attribution, tags",
+            "Keep only allowlisted hosts",
+          ],
+          expectedOutput: "Curated assets on /media, nothing posted",
+          x: 0,
+          y: 80,
+          shape: "circle",
+        },
+        {
+          id: "save-uploads",
+          name: "Save to My Uploads",
+          description: "Click a curated still so Email Templates and Craft can pick it.",
+          trigger: "on_instruction",
+          steps: [
+            "Click the still in Curated",
+            "Copy it into My Uploads",
+            "Log usage against the gallery",
+          ],
+          expectedOutput: "Still on My Uploads tab",
+          x: 280,
+          y: 80,
+        },
+      ],
+      edges: [{ id: "e-kit-hunt-save", source: "curate-gallery", target: "save-uploads", label: "click" }],
     },
   },
 ];

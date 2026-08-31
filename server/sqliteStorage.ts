@@ -20,7 +20,8 @@ import {
   LeadUpload, InsertLeadUpload, Lead, InsertLead, UnderwritingSubmission,
   InsertUnderwritingSubmission, UnderwritingActivity, InsertUnderwritingActivity,
   DueDiligence, InsertDueDiligence, DueDiligenceData, AddOnProduct, InsertAddOnProduct,
-  AddOnPurchase, Team, InsertTeam, TeamMember, InsertTeamMember
+  AddOnPurchase, Team, InsertTeam, TeamMember, InsertTeamMember,
+  ReportTask, InsertReportTask, ReportLog, ReportSettings, UpdateReportSettings
 } from "@shared/schema";
 import { DigitalAssociate, MissionDeviation, AgentChatMessage } from "@shared/agents";
 import { IStorage } from "./storage";
@@ -1372,6 +1373,51 @@ export class SQLiteStorage implements IStorage {
 
   async deleteExpense(id: number, userId: string): Promise<void> {
     deleteItem("expenses", id);
+  }
+
+  async listReportTasks(userId: string): Promise<ReportTask[]> {
+    return getCollection("report_tasks").filter(t => t.userId === userId) as ReportTask[];
+  }
+
+  async createReportTask(task: InsertReportTask, userId: string): Promise<ReportTask> {
+    return insertItem("report_tasks", { ...task, userId, status: task.status || "todo", completedAt: null }) as ReportTask;
+  }
+
+  async updateReportTask(id: number, userId: string, updates: Partial<InsertReportTask> & { status?: string; completedAt?: any }): Promise<ReportTask | undefined> {
+    const existing = getCollection("report_tasks").find(t => t.id === id && t.userId === userId);
+    if (!existing) return undefined;
+    const patch = { ...updates } as any;
+    if (updates.status === "done" && existing.status !== "done") {
+      patch.completedAt = new Date().toISOString();
+    } else if (updates.status && updates.status !== "done") {
+      patch.completedAt = null;
+    }
+    return updateItem("report_tasks", id, patch) as ReportTask;
+  }
+
+  async deleteReportTask(id: number, userId: string): Promise<void> {
+    const existing = getCollection("report_tasks").find(t => t.id === id && t.userId === userId);
+    if (existing) deleteItem("report_tasks", id);
+  }
+
+  async listReportLogs(userId: string): Promise<ReportLog[]> {
+    return getCollection("report_log").filter(l => l.userId === userId) as ReportLog[];
+  }
+
+  async createReportLog(log: Omit<ReportLog, "id" | "createdAt" | "updatedAt">): Promise<ReportLog> {
+    return insertItem("report_log", log) as ReportLog;
+  }
+
+  async getReportSettings(userId: string): Promise<ReportSettings | undefined> {
+    return getCollection("report_settings").find(s => s.userId === userId) as ReportSettings | undefined;
+  }
+
+  async upsertReportSettings(userId: string, updates: UpdateReportSettings): Promise<ReportSettings> {
+    const existing = getCollection("report_settings").find(s => s.userId === userId);
+    if (existing) {
+      return updateItem("report_settings", existing.id, updates) as ReportSettings;
+    }
+    return insertItem("report_settings", { ...updates, userId }) as ReportSettings;
   }
 
   async listCampaignRecipients(campaignId: number, userId: string): Promise<CampaignRecipient[]> {

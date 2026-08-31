@@ -15,29 +15,39 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { panFromWheel, zoomToward } from "./canvas/viewport";
 import { EmptyState } from "./shell/EmptyState";
 import { CraftContextMenu } from "./shell/CraftContextMenu";
-import { InspectorHint, InspectorRail, InspectorSection, InspectorSlider } from "./shell/Inspector";
+import { ShapeGlyph } from "./shell/glyphs";
+import { ColorPicker, InspectorHint, InspectorRail, InspectorSection, InspectorSlider } from "./shell/Inspector";
 import { LiveStatusBar } from "./shell/LiveStatusBar";
 import { isTypingTarget, useAutosave } from "./hooks/useAutosave";
 import { COLOR_ROLES } from './lib/brand';
 import { hitHandle, nodesInMarquee, pointInNode, type Rect } from './lib/geometry';
 import { drawFrame } from './lib/renderer';
 import {
-  ALL_SHAPE_VARIANTS,
   DEFAULT_BRAND,
   type ColorRole,
   type CraftNode,
   type Handle,
-  type ShapeVariant,
   type TextAlign,
   type TextNode,
 } from './lib/types';
-import { IMAGE_LOOKS, IMAGE_MOTIONS, pageHasMotion, type ImageLookId, type ImageMotionId } from "./lib/looks";
-import { DESIGN_TEMPLATES, SHAPE_LABELS, SIZE_PRESETS } from './lib/templates';
+import { FRAME_SHAPES, IMAGE_LOOKS, IMAGE_MOTIONS, SHADOW_PRESETS, pageHasMotion, toColorInput, type ImageLookId, type ImageMotionId } from "./lib/looks";
+import { DESIGN_TEMPLATES, SHAPE_GROUPS, SHAPE_LABELS, SIZE_PRESETS, TEXT_STYLES } from './lib/templates';
+import { FONT_WEIGHTS, STRATA_SITE_FONTS, documentFonts } from "./lib/fonts";
+import { EMAIL_MERGE_CHIP } from "./lib/emailHtml";
 import { copyFieldForNodeName, copyPatchFromNode } from "./lib/composePost";
 import { textOverlayBox } from "./lib/text";
 import { pageOf, useCraftStore, type CraftTool } from "./store";
@@ -70,10 +80,12 @@ export function CraftView({
   onClose,
   onCopyChange,
   yaffle,
+  mode = "social",
 }: {
   onClose?: () => void;
   onCopyChange?: (patch: CraftCopyPatch) => void;
   yaffle?: CraftYaffleProps;
+  mode?: "social" | "email";
 } = {}) {
   const doc = useCraftStore((state) => state.doc);
   const dirty = useCraftStore((state) => state.dirty);
@@ -199,7 +211,7 @@ export function CraftView({
           {page ? `${page.width} × ${page.height}` : ''}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          {onClose && (
+          {onClose && mode !== "email" && (
             <Button size="sm" variant="ghost" onClick={onClose}>
               <ArrowLeft />
               Queue
@@ -211,29 +223,33 @@ export function CraftView({
           <Button size="icon" variant="ghost" aria-label="Redo" onClick={() => useCraftStore.getState().redo()}>
             <Redo2 />
           </Button>
-          <Button size="sm" variant="outline" onClick={() => void useCraftStore.getState().save()}>
-            <Save />
-            Save
-          </Button>
-          <Button size="sm" variant="outline" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPng()}>
-            <Download />
-            PNG
-          </Button>
-          <Button size="sm" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPack()}>
-            Export pack
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              onClose?.();
-              void useCraftStore.getState().newBlank();
-            }}
-          >
-            New
-          </Button>
-          <Button size="sm" variant="ghost" onClick={open}>Open</Button>
-          {onClose && (
+          {mode !== "email" && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => void useCraftStore.getState().save()}>
+                <Save />
+                Save
+              </Button>
+              <Button size="sm" variant="outline" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPng()}>
+                <Download />
+                PNG
+              </Button>
+              <Button size="sm" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPack()}>
+                Export pack
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  onClose?.();
+                  void useCraftStore.getState().newBlank();
+                }}
+              >
+                New
+              </Button>
+              <Button size="sm" variant="ghost" onClick={open}>Open</Button>
+            </>
+          )}
+          {onClose && mode !== "email" && (
             <Button size="icon" variant="ghost" aria-label="Close design" onClick={onClose}>
               <X />
             </Button>
@@ -255,7 +271,7 @@ export function CraftView({
       <div className="flex min-h-0 flex-1">
         <CraftTools onPickImage={() => imageInput.current?.click()} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <CraftCanvas onPickImage={() => imageInput.current?.click()} />
+          <CraftCanvas onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} />
           <LiveStatusBar
             getZoom={() => useCraftStore.getState().zoom}
             subscribe={(fn) => useCraftStore.subscribe(fn)}
@@ -271,7 +287,7 @@ export function CraftView({
             trailing={dirty ? 'Unsaved' : 'Saved'}
           />
         </div>
-        <CraftInspector onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} yaffle={yaffle} />
+        <CraftInspector onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} yaffle={yaffle} mode={mode} />
       </div>
     </div>
   );
@@ -312,7 +328,13 @@ function CraftTools({ onPickImage }: { onPickImage: () => void }) {
   );
 }
 
-function CraftCanvas({ onPickImage }: { onPickImage: () => void }) {
+function CraftCanvas({
+  onPickImage,
+  onCopyChange,
+}: {
+  onPickImage: () => void;
+  onCopyChange?: (patch: CraftCopyPatch) => void;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const spaceHeld = useRef(false);
@@ -674,6 +696,7 @@ function CraftCanvas({ onPickImage }: { onPickImage: () => void }) {
       onContextMenu={onContextMenu}
     >
       <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+      <TypeBar />
       {menu && (
         <CraftContextMenu
           x={menu.x}
@@ -724,7 +747,8 @@ function TextEditOverlay({
   const box = textOverlayBox(node, zoom, panX, panY);
   const field = copyFieldForNodeName(node.name);
   const maxLength =
-    field === "hook" ? COPY_LIMITS.hook
+    field === "eyebrow" ? COPY_LIMITS.eyebrow
+    : field === "hook" ? COPY_LIMITS.hook
     : field === "hook2" ? COPY_LIMITS.hook2
     : field === "body" ? COPY_LIMITS.body
     : field === "cta" ? COPY_LIMITS.cta
@@ -810,10 +834,12 @@ function CraftInspector({
   onPickImage,
   onCopyChange,
   yaffle,
+  mode = "social",
 }: {
   onPickImage: () => void;
   onCopyChange?: (patch: CraftCopyPatch) => void;
   yaffle?: CraftYaffleProps;
+  mode?: "social" | "email";
 }) {
   const logoInput = useRef<HTMLInputElement>(null);
   const doc = useCraftStore((state) => state.doc);
@@ -824,15 +850,23 @@ function CraftInspector({
   const exportLocked = Boolean(assetId?.startsWith("mkt-") && !releaseUnlocked);
   const history = useCraftStore((state) => state.history);
   const historyIndex = useCraftStore((state) => state.historyIndex);
-  const tool = useCraftStore((state) => state.tool);
   const shapeVariant = useCraftStore((state) => state.shapeVariant);
   const page = doc ? (doc.pages.find((item) => item.id === (pageId ?? doc.activePageId)) ?? doc.pages[0]) : null;
   if (!doc || !page) return null;
   const selected = page.nodes.filter((item) => selectedIds.includes(item.id));
   const node = selected[0];
 
+  const textNode = node?.type === "text" ? node : null;
+
   return (
-    <InspectorRail title="SWELL" className="font-[family-name:var(--font-sans)]">
+    <InspectorRail title={mode === "email" ? "TEMPLATE" : "SWELL"} className="font-[family-name:var(--font-sans)]">
+      <InspectorSection title="Type">
+        {textNode ? (
+          <TextTypeFields node={textNode} onCopyChange={onCopyChange} />
+        ) : (
+          <InspectorHint>Click a headline or any line on the board. Typefaces open here — Unbounded is the Strata hero.</InspectorHint>
+        )}
+      </InspectorSection>
       <InspectorSection title="Page">
         <div className="flex flex-wrap gap-1">
           {doc.pages.map((item) => (
@@ -847,18 +881,33 @@ function CraftInspector({
           ))}
         </div>
         <p className="text-[11px] text-muted-foreground">{page.width} × {page.height}</p>
-        <label className="grid gap-1 text-[11px] text-muted-foreground">
-          Background
-          <input
-            type="color"
-            className="h-8 w-full cursor-pointer rounded border border-input bg-transparent"
-            value={toColorInput(page.background.color)}
-            onChange={(event) => useCraftStore.getState().updatePage({
-              background: { ...page.background, color: event.target.value },
-            })}
-          />
-        </label>
+        <ColorPicker
+          label="Background"
+          value={page.background.color}
+          onChange={(color) => useCraftStore.getState().updatePage({
+            background: { ...page.background, color },
+          })}
+        />
       </InspectorSection>
+
+      {mode === "email" && (
+        <InspectorSection title="Merge">
+          <InspectorHint>Click a tag onto the selected text. Campaigns replace these when they send.</InspectorHint>
+          <div className="flex flex-wrap gap-1">
+            {EMAIL_MERGE_CHIP.map((item) => (
+              <Button
+                key={item.tag}
+                size="sm"
+                variant="outline"
+                title={item.description}
+                onClick={() => useCraftStore.getState().insertMergeTag(item.tag)}
+              >
+                {item.tag}
+              </Button>
+            ))}
+          </div>
+        </InspectorSection>
+      )}
 
       {yaffle && (
         <InspectorSection title="Images">
@@ -924,20 +973,16 @@ function CraftInspector({
             </label>
           ))}
         </div>
-        <label className="grid gap-1 text-[11px] text-muted-foreground">
-          Heading font
-          <Input
-            value={doc.brand.headingFont}
-            onChange={(event) => useCraftStore.getState().updateBrand({ headingFont: event.target.value })}
-          />
-        </label>
-        <label className="grid gap-1 text-[11px] text-muted-foreground">
-          Body font
-          <Input
-            value={doc.brand.bodyFont}
-            onChange={(event) => useCraftStore.getState().updateBrand({ bodyFont: event.target.value })}
-          />
-        </label>
+        <FontPicker
+          label="Heading font"
+          value={doc.brand.headingFont}
+          onChange={(headingFont) => useCraftStore.getState().updateBrand({ headingFont })}
+        />
+        <FontPicker
+          label="Body font"
+          value={doc.brand.bodyFont}
+          onChange={(bodyFont) => useCraftStore.getState().updateBrand({ bodyFont })}
+        />
         <div className="flex gap-1">
           <Button size="sm" className="flex-1" onClick={() => useCraftStore.getState().applyBrandKit(doc.brand)}>
             Apply
@@ -989,32 +1034,50 @@ function CraftInspector({
         </div>
       </InspectorSection>
 
-      {tool === 'shape' && (
-        <InspectorSection title="Shapes">
-          <div className="flex flex-wrap gap-1">
-            {ALL_SHAPE_VARIANTS.map((variant) => (
-              <Button
-                key={variant}
-                size="sm"
-                variant={shapeVariant === variant ? 'secondary' : 'ghost'}
-                onClick={() => useCraftStore.getState().setShapeVariant(variant)}
-              >
-                {SHAPE_LABELS[variant]}
-              </Button>
-            ))}
+      <InspectorSection title="Shapes">
+        {SHAPE_GROUPS.map((group) => (
+          <div key={group.id} className="space-y-1">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{group.name}</p>
+            <div className="grid grid-cols-4 gap-1">
+              {group.variants.map((variant) => {
+                const active = node?.type === "shape"
+                  ? node.variant === variant
+                  : shapeVariant === variant;
+                return (
+                  <button
+                    key={variant}
+                    type="button"
+                    title={SHAPE_LABELS[variant]}
+                    aria-label={SHAPE_LABELS[variant]}
+                    className={cn(
+                      "flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] text-muted-foreground hover:bg-muted",
+                      active && "bg-muted text-foreground ring-1 ring-[var(--suite-accent)]",
+                    )}
+                    onClick={() => {
+                      useCraftStore.getState().setShapeVariant(variant);
+                      if (node?.type === "shape") useCraftStore.getState().updateNode(node.id, { variant });
+                    }}
+                  >
+                    <ShapeGlyph id={variant} />
+                    {SHAPE_LABELS[variant]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </InspectorSection>
-      )}
+        ))}
+        <InspectorHint>Pick a glyph, then click the board. Right-click a panel to swap shape.</InspectorHint>
+      </InspectorSection>
 
       <InspectorSection title="Selection">
         {!node && (
-          <InspectorHint>Double-click any text to edit. Enter also edits a selected text layer. V select · T text · S shape · I image.</InspectorHint>
+          <InspectorHint>Click a line to change its font. Double-click to edit the words. V select · T text · S shape · I image.</InspectorHint>
         )}
         {selected.length > 1 && (
           <p className="text-[11px] text-muted-foreground">{selected.length} objects</p>
         )}
         {node && (
-          <NodeFields node={node} onPickImage={onPickImage} onCopyChange={onCopyChange} />
+          <NodeFields node={node} onPickImage={onPickImage} onCopyChange={onCopyChange} hideTextType={Boolean(textNode)} />
         )}
         {selected.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -1023,11 +1086,14 @@ function CraftInspector({
             <Button size="sm" variant="ghost" onClick={() => useCraftStore.getState().alignSelected('left')}>Left</Button>
             <Button size="sm" variant="ghost" onClick={() => useCraftStore.getState().alignSelected('centerH')}>Center</Button>
             <Button size="sm" variant="ghost" onClick={() => useCraftStore.getState().alignSelected('right')}>Right</Button>
+            <Button size="sm" variant="ghost" onClick={() => useCraftStore.getState().alignSelected('top')}>Top</Button>
+            <Button size="sm" variant="ghost" onClick={() => useCraftStore.getState().alignSelected('centerV')}>Middle</Button>
+            <Button size="sm" variant="ghost" onClick={() => useCraftStore.getState().alignSelected('bottom')}>Bottom</Button>
           </div>
         )}
       </InspectorSection>
 
-      <InspectorSection title="Export">
+      {mode !== "email" && <InspectorSection title="Export">
         {exportLocked && (
           <InspectorHint>Marketing approve, then compliance sign-off, then export.</InspectorHint>
         )}
@@ -1040,7 +1106,7 @@ function CraftInspector({
         <Button size="sm" variant="ghost" className="w-full" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportFormats()}>
           PNG · JPEG · WebP · SVG
         </Button>
-      </InspectorSection>
+      </InspectorSection>}
 
       <InspectorSection title="History">
         <div className="max-h-36 space-y-0.5 overflow-auto">
@@ -1068,10 +1134,12 @@ function NodeFields({
   node,
   onPickImage,
   onCopyChange,
+  hideTextType = false,
 }: {
   node: CraftNode;
   onPickImage: () => void;
   onCopyChange?: (patch: CraftCopyPatch) => void;
+  hideTextType?: boolean;
 }) {
   const update = (updates: Partial<CraftNode>) => useCraftStore.getState().updateNode(node.id, updates);
   return (
@@ -1085,75 +1153,44 @@ function NodeFields({
         onChange={(value) => useCraftStore.getState().setOpacity(value / 100)}
         format={(value) => `${value}%`}
       />
-      {node.type === 'text' && (
-        <>
-          <Textarea
-            value={node.text}
-            rows={5}
-            aria-label="Text"
-            className="min-h-[6rem] text-sm"
-            onChange={(event) => update({ text: event.target.value })}
-            onBlur={(event) => {
-              const patch = copyPatchFromNode(node.name, event.target.value);
-              if (patch) onCopyChange?.(patch);
-            }}
-          />
-          <div className="grid grid-cols-2 gap-1">
-            <Input
-              type="number"
-              value={Math.round(node.fontSize)}
-              aria-label="Font size"
-              onChange={(event) => update({ fontSize: Number(event.target.value) || node.fontSize })}
-            />
-            <select
-              className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs"
-              value={node.align}
-              aria-label="Align"
-              onChange={(event) => update({ align: event.target.value as TextAlign })}
-            >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-          </div>
-          <Input
-            value={node.fontFamily}
-            aria-label="Font"
-            onChange={(event) => update({ fontFamily: event.target.value })}
-          />
-          <label className="grid gap-1 text-[11px] text-muted-foreground">
-            Color
-            <input
-              type="color"
-              className="h-8 w-full cursor-pointer rounded border border-input"
-              value={toColorInput(node.color)}
-              onChange={(event) => update({ color: event.target.value })}
-            />
-          </label>
-        </>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Shadow</p>
+      <div className="flex flex-wrap gap-1">
+        {SHADOW_PRESETS.map((item) => (
+          <Button
+            key={item.id}
+            size="sm"
+            variant={
+              (item.id === "none" && !node.shadow) ||
+              (item.id === "soft" && node.shadow?.blur === 18) ||
+              (item.id === "drop" && (node.shadow?.blur ?? 0) > 20) ||
+              (item.id === "hard" && node.shadow?.blur === 8)
+                ? "secondary"
+                : "ghost"
+            }
+            onClick={() => useCraftStore.getState().applyShadow(item.id)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Motion</p>
+      <div className="flex flex-wrap gap-1">
+        {IMAGE_MOTIONS.map((motion) => (
+          <Button
+            key={motion.id}
+            size="sm"
+            variant={node.animation?.type === motion.id || (!node.animation && motion.id === "none") ? "secondary" : "ghost"}
+            onClick={() => useCraftStore.getState().applyMotion(motion.id as ImageMotionId)}
+          >
+            {motion.label}
+          </Button>
+        ))}
+      </div>
+      {node.type === 'text' && !hideTextType && (
+        <TextTypeFields node={node} onCopyChange={onCopyChange} />
       )}
       {node.type === 'shape' && (
-        <>
-          <select
-            className="h-8 w-full rounded-lg border border-input bg-transparent px-2 text-xs"
-            value={node.variant}
-            aria-label="Shape"
-            onChange={(event) => update({ variant: event.target.value as ShapeVariant })}
-          >
-            {ALL_SHAPE_VARIANTS.map((variant) => (
-              <option key={variant} value={variant}>{SHAPE_LABELS[variant]}</option>
-            ))}
-          </select>
-          <label className="grid gap-1 text-[11px] text-muted-foreground">
-            Fill
-            <input
-              type="color"
-              className="h-8 w-full cursor-pointer rounded border border-input"
-              value={toColorInput(node.fill)}
-              onChange={(event) => update({ fill: event.target.value })}
-            />
-          </label>
-        </>
+        <ColorPicker label="Fill" value={node.fill} onChange={(fill) => update({ fill })} />
       )}
       {node.type === 'image' && (
         <>
@@ -1167,8 +1204,21 @@ function NodeFields({
             <option value="contain">Contain</option>
             <option value="fill">Fill</option>
           </select>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Frame</p>
           <div className="flex flex-wrap gap-1">
-            {IMAGE_LOOKS.map((look) => (
+            {FRAME_SHAPES.map((shape) => (
+              <Button
+                key={shape.id}
+                size="sm"
+                variant={node.mask === shape.mask || (!node.mask && shape.id === "plain") ? "secondary" : "ghost"}
+                onClick={() => useCraftStore.getState().applyFrameShape(shape.id)}
+              >
+                {shape.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {IMAGE_LOOKS.filter((look) => !FRAME_SHAPES.some((shape) => shape.id === look.id)).map((look) => (
               <Button
                 key={look.id}
                 size="sm"
@@ -1176,19 +1226,6 @@ function NodeFields({
                 onClick={() => useCraftStore.getState().applyLook(look.id as ImageLookId)}
               >
                 {look.label}
-              </Button>
-            ))}
-          </div>
-          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Motion</p>
-          <div className="flex flex-wrap gap-1">
-            {IMAGE_MOTIONS.map((motion) => (
-              <Button
-                key={motion.id}
-                size="sm"
-                variant={node.animation?.type === motion.id || (!node.animation && motion.id === "none") ? "secondary" : "ghost"}
-                onClick={() => useCraftStore.getState().applyMotion(motion.id as ImageMotionId)}
-              >
-                {motion.label}
               </Button>
             ))}
           </div>
@@ -1206,15 +1243,11 @@ function NodeFields({
             max={180}
             onChange={(value) => update({ contrast: value / 100 })}
           />
-          <label className="grid gap-1 text-[11px] text-muted-foreground">
-            Wash
-            <input
-              type="color"
-              className="h-8 w-full cursor-pointer rounded border border-input"
-              value={toColorInput(node.tint || "#0f172a")}
-              onChange={(event) => update({ tint: event.target.value, tintOpacity: node.tintOpacity && node.tintOpacity > 0 ? node.tintOpacity : 0.28 })}
-            />
-          </label>
+          <ColorPicker
+            label="Wash"
+            value={node.tint || "#0f172a"}
+            onChange={(tint) => update({ tint, tintOpacity: node.tintOpacity && node.tintOpacity > 0 ? node.tintOpacity : 0.28 })}
+          />
           <Button size="sm" variant="outline" onClick={onPickImage}>Replace image</Button>
         </>
       )}
@@ -1225,6 +1258,252 @@ function NodeFields({
         <NumberField label="H" value={node.height} onChange={(height) => update({ height })} />
       </div>
     </div>
+  );
+}
+
+function TypeBar() {
+  const node = useCraftStore((state) => {
+    const page = pageOf(state);
+    if (!page || state.selectedIds.length !== 1) return null;
+    const hit = page.nodes.find((item) => item.id === state.selectedIds[0]);
+    return hit?.type === "text" ? hit : null;
+  });
+  if (!node) return null;
+  return (
+    <div
+      className="absolute left-1/2 top-3 z-20 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-1 rounded-lg border border-white/15 bg-black/80 p-1 shadow-lg backdrop-blur"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      {STRATA_SITE_FONTS.map((name) => (
+        <button
+          key={name}
+          type="button"
+          title={name === "Unbounded" ? "Strata hero" : name}
+          className={cn(
+            "rounded-md px-2.5 py-1.5 text-sm text-white/90 hover:bg-white/10",
+            node.fontFamily === name && "bg-white/15 ring-1 ring-[var(--suite-accent)]",
+          )}
+          style={{ fontFamily: `"${name}", Inter, sans-serif` }}
+          onClick={() => useCraftStore.getState().updateNode(node.id, { fontFamily: name })}
+        >
+          {name === "Unbounded" ? "Unbounded" : name === "Plus Jakarta Sans" ? "Jakarta" : "Mono"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TextTypeFields({
+  node,
+  onCopyChange,
+}: {
+  node: TextNode;
+  onCopyChange?: (patch: CraftCopyPatch) => void;
+}) {
+  const update = (updates: Partial<CraftNode>) => useCraftStore.getState().updateNode(node.id, updates);
+  return (
+    <div className="space-y-2">
+      <FontFaceGrid value={node.fontFamily} onChange={(fontFamily) => update({ fontFamily })} />
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Weight</p>
+      <div className="flex flex-wrap gap-1">
+        {FONT_WEIGHTS.map((item) => (
+          <Button
+            key={item.id}
+            size="sm"
+            variant={node.fontWeight === item.id ? "secondary" : "ghost"}
+            onClick={() => update({ fontWeight: item.id })}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <Input
+          type="number"
+          value={Math.round(node.fontSize)}
+          aria-label="Font size"
+          onChange={(event) => update({ fontSize: Number(event.target.value) || node.fontSize })}
+        />
+        <CraftMenuSelect
+          label="Align"
+          value={node.align}
+          onChange={(align) => update({ align: align as TextAlign })}
+          options={[
+            { value: "left", label: "Left" },
+            { value: "center", label: "Center" },
+            { value: "right", label: "Right" },
+          ]}
+        />
+      </div>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Type style</p>
+      <div className="flex flex-wrap gap-1">
+        {TEXT_STYLES.map((style) => (
+          <Button
+            key={style.id}
+            size="sm"
+            variant="ghost"
+            onClick={() => update({
+              fontSize: style.size,
+              fontWeight: style.weight,
+              fontRole: style.fontRole,
+              letterSpacing: style.id === "eyebrow" ? 3 : node.letterSpacing,
+              uppercase: style.id === "eyebrow" ? true : node.uppercase,
+            })}
+          >
+            {style.name}
+          </Button>
+        ))}
+      </div>
+      <InspectorSlider
+        label="Tracking"
+        value={node.letterSpacing}
+        min={-2}
+        max={12}
+        step={0.5}
+        onChange={(letterSpacing) => update({ letterSpacing })}
+      />
+      <Button
+        size="sm"
+        variant={node.uppercase ? "secondary" : "outline"}
+        onClick={() => update({ uppercase: !node.uppercase })}
+      >
+        {node.uppercase ? "Uppercase on" : "Uppercase"}
+      </Button>
+      <ColorPicker label="Colour" value={node.color} onChange={(color) => update({ color })} />
+      <Textarea
+        value={node.text}
+        rows={4}
+        aria-label="Text"
+        className="min-h-[5rem] text-sm"
+        onChange={(event) => update({ text: event.target.value })}
+        onBlur={(event) => {
+          const patch = copyPatchFromNode(node.name, event.target.value);
+          if (patch) onCopyChange?.(patch);
+        }}
+      />
+    </div>
+  );
+}
+
+function FontFaceGrid({ value, onChange }: { value: string; onChange: (font: string) => void }) {
+  const fonts = documentFonts(useCraftStore.getState().doc);
+  const more = fonts.filter((name) => !(STRATA_SITE_FONTS as readonly string[]).includes(name));
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Typeface</p>
+      <div className="grid gap-1">
+        {STRATA_SITE_FONTS.map((name) => (
+          <button
+            key={name}
+            type="button"
+            className={cn(
+              "rounded-md border px-3 py-2 text-left text-foreground hover:bg-muted/60",
+              value === name ? "border-[var(--suite-accent)] bg-muted" : "border-input",
+            )}
+            style={{ fontFamily: `"${name}", Inter, sans-serif` }}
+            onClick={() => onChange(name)}
+          >
+            <span className="block text-base leading-tight">Aa · {name}</span>
+            {name === "Unbounded" && (
+              <span className="block font-[family-name:var(--font-ui)] text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                Strata hero
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <CraftMenuSelect
+        label="More typefaces"
+        value={more.includes(value) ? value : ""}
+        placeholder="Other…"
+        onChange={onChange}
+        options={more.map((name) => ({ value: name, label: name }))}
+      />
+    </div>
+  );
+}
+
+function CraftMenuSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  groups,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options?: Array<{ value: string; label: string }>;
+  placeholder?: string;
+  groups?: Array<{ label: string; options: Array<{ value: string; label: string }> }>;
+}) {
+  const rows = groups ?? [{ label: "", options: options ?? [] }];
+  return (
+    <label className="grid gap-1 text-[11px] text-muted-foreground">
+      {label}
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger
+          aria-label={label}
+          className="h-8 bg-zinc-900 text-zinc-50 border-white/20 text-xs font-[family-name:var(--font-ui)]"
+        >
+          <SelectValue placeholder={placeholder ?? "Choose…"} />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          className="z-[80] max-h-64 min-w-[12rem] border-white/20 bg-zinc-900 text-zinc-50"
+        >
+          {rows.map((group) => (
+            <SelectGroup key={group.label || "items"}>
+              {group.label ? (
+                <SelectLabel className="pl-8 text-[10px] uppercase tracking-[0.12em] text-zinc-400">
+                  {group.label}
+                </SelectLabel>
+              ) : null}
+              {group.options.map((item) => (
+                <SelectItem
+                  key={item.value}
+                  value={item.value}
+                  className="text-zinc-50 font-[family-name:var(--font-ui)] focus:bg-white/15 focus:text-white"
+                >
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
+  );
+}
+
+function FontPicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (font: string) => void;
+}) {
+  const fonts = documentFonts(useCraftStore.getState().doc);
+  const list = fonts.includes(value) ? fonts : [value, ...fonts];
+  const site = STRATA_SITE_FONTS.filter((name) => list.includes(name));
+  const rest = list.filter((name) => !site.includes(name as (typeof STRATA_SITE_FONTS)[number]));
+  const named = (name: string) => ({
+    value: name,
+    label: name === "Unbounded" ? "Unbounded — hero" : name,
+  });
+  return (
+    <CraftMenuSelect
+      label={label}
+      value={value}
+      onChange={onChange}
+      groups={[
+        ...(site.length ? [{ label: "Strata site", options: site.map(named) }] : []),
+        ...(rest.length ? [{ label: "More", options: rest.map(named) }] : []),
+      ]}
+    />
   );
 }
 
@@ -1264,10 +1543,4 @@ function TemplateStrip({ empty }: { empty?: boolean }) {
   );
 }
 
-function toColorInput(value: string): string {
-  if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
-  if (/^#[0-9a-fA-F]{3}$/.test(value)) {
-    return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`;
-  }
-  return DEFAULT_BRAND.colors.accent;
-}
+

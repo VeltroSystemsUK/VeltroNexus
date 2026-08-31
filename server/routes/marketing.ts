@@ -5,7 +5,8 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
 import { insertMarketingContactSchema, insertWaitlistEntrySchema } from "@shared/schema";
-import { generateText, DEFAULT_GEMINI_MODEL } from "../utils/geminiClient";
+import { caseyTextModel } from "@shared/craftScout";
+import { generateText } from "../utils/geminiClient";
 import { searchExa } from "../utils/exaClient";
 
 interface AuthenticatedRequest extends Request {
@@ -83,9 +84,10 @@ router.post(
 
       if (!finalPrompt) return res.status(400).json({ error: "Prompt or type params required" });
 
+      const engine = caseyTextModel(process.env);
       const text = await generateText(
         finalPrompt,
-        model || DEFAULT_GEMINI_MODEL,
+        model?.startsWith("claude-") || model?.startsWith("grok-") ? model : engine.model,
         finalSystemInstruction
       );
       res.json({ text });
@@ -190,7 +192,7 @@ router.post(
         6. Format your response in clean Markdown.
       `;
 
-      const answer = await generateText(prompt, DEFAULT_GEMINI_MODEL);
+      const answer = await generateText(prompt, caseyTextModel(process.env).model);
 
       res.json({
         answer,

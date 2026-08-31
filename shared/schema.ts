@@ -1569,3 +1569,74 @@ export const insertExpenseSchema = expenseSchema.omit({
   updatedAt: true,
 });
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
+
+// --- Reporting: task board + auto-generated weekly reports ---
+
+export const reportTaskStatusEnum = z.enum(["todo", "doing", "done"]);
+
+export const reportTaskSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  title: z.string().min(1),
+  notes: z.string().nullable().optional(),
+  timeSlot: z.string().nullable().optional(), // e.g. "09:00 - 11:00"; display only
+  dueDate: dateSchema.nullable().optional(),
+  status: reportTaskStatusEnum.default("todo"),
+  completedAt: dateSchema.nullable().optional(),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type ReportTask = z.infer<typeof reportTaskSchema>;
+
+export const insertReportTaskSchema = reportTaskSchema.omit({
+  id: true,
+  userId: true,
+  completedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertReportTask = z.infer<typeof insertReportTaskSchema>;
+
+export const reportTypeEnum = z.enum(["worksheet", "progress"]);
+
+export const reportLogSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  type: reportTypeEnum,
+  weekLabel: z.string(),
+  recipient: z.string(),
+  taskCount: z.number().default(0),
+  status: z.enum(["sent", "failed", "skipped"]).default("sent"),
+  sentAt: dateSchema.nullable().optional(),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type ReportLog = z.infer<typeof reportLogSchema>;
+
+export const reportSettingsSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  recipientName: z.string().default("David Griffiths"),
+  recipientEmail: z.string().default(""),
+  preparedByName: z.string().default("Shaun Tuhey"),
+  projectCode: z.string().default("STRATA-NEXUS-INT-001"),
+  executiveSummary: z.string().default(""),
+  monthlyFee: z.string().default("£2,500.00"),
+  weeklyPayment: z.string().default("£625.00"),
+  weeklyHours: z.string().default("30 hours (6 hours/day, 5 days/week)"),
+  autoSendWorksheet: z.boolean().default(true),
+  autoSendProgress: z.boolean().default(true),
+  skipNextWorksheet: z.boolean().default(false),
+  skipNextProgress: z.boolean().default(false),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type ReportSettings = z.infer<typeof reportSettingsSchema>;
+
+export const updateReportSettingsSchema = reportSettingsSchema.partial().omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type UpdateReportSettings = z.infer<typeof updateReportSettingsSchema>;

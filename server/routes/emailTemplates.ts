@@ -5,7 +5,8 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
 import { insertEmailTemplateSchema } from "@shared/schema";
-import { generateText, DEFAULT_GEMINI_MODEL } from "../utils/geminiClient";
+import { caseyTextModel } from "@shared/craftScout";
+import { generateText } from "../utils/geminiClient";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -149,7 +150,7 @@ Requirements:
       const systemInstruction =
         "You are an expert email marketing copywriter for Veltro, a UK commercial finance platform. Write highly engaging, professional email templates that convert.";
 
-      const text = await generateText(prompt, DEFAULT_GEMINI_MODEL, systemInstruction);
+      const text = await generateText(prompt, caseyTextModel(process.env).model, systemInstruction);
 
       // Parse subject and body from the response
       const lines = text.split("\n");

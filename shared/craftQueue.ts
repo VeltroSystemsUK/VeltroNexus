@@ -40,6 +40,7 @@ export type CraftPost = {
   presetId: string;
   extraPresets: Partial<Record<SocialChannel, string>>;
   title: string;
+  eyebrow: string;
   hook: string;
   hook2: string;
   body: string;
@@ -64,6 +65,7 @@ export const RATE_CLAIM = /\bfrom\s+\d+(\.\d+)?%|\b\d+(\.\d+)?%\s*(apr|p\.?a\.?|
 export const PACKAGER_IDENTITY = /\b(do not lend|don't lend|does not lend|packager)\b/i;
 
 export const COPY_LIMITS = {
+  eyebrow: 36,
   hook: 40,
   hook2: 36,
   body: 120,
@@ -71,6 +73,10 @@ export const COPY_LIMITS = {
   hashtags: 3,
   links: 2,
 } as const;
+
+export function defaultEyebrow(track: PostTrack): string {
+  return track === "introducer" ? "INTRODUCERS  ·  STRATA" : "SME DIRECTORS  ·  STRATA";
+}
 
 function clipHook(text: string, max: number): string {
   const t = text.replace(/\s+/g, " ").trim();
@@ -175,7 +181,13 @@ export function parseWeekGenerate(input: unknown): {
 }
 
 function heldPost(post: CraftPost): boolean {
-  return post.status !== "draft" || post.compliance === "cleared" || post.compliance === "blocked";
+  if (post.status === "rejected") return false;
+  return (
+    post.status === "approved" ||
+    post.status === "exported" ||
+    post.compliance === "cleared" ||
+    post.compliance === "blocked"
+  );
 }
 
 export function mergeGeneratedWeek(
@@ -223,6 +235,37 @@ export function weekDesignWipeIds(
   return existing.filter((post) => !heldPost(post)).map((post) => post.id);
 }
 
+export function stampAmmoOnPost(post: CraftPost, brief: CreativeAmmoBrief): CraftPost {
+  const copy = copyFromAmmo(brief);
+  const visual = visualForTrack(copy.track, copy.stockId);
+  return {
+    ...post,
+    track: copy.track,
+    title: copy.title,
+    eyebrow: defaultEyebrow(copy.track),
+    hook: copy.hook,
+    hook2: copy.hook2,
+    body: copy.body,
+    cta: copy.cta,
+    hashtags: [...copy.hashtags],
+    visual: {
+      ...visual,
+      prompt: brief.imagePrompt || visual.prompt,
+    },
+    status: "draft",
+    compliance: "pending",
+  };
+}
+
+export function applyAmmoToWeek(week: CraftPost[], briefs: CreativeAmmoBrief[]): CraftPost[] {
+  return week.map((post, i) => {
+    if (heldPost(post)) return post;
+    const brief = briefs[i];
+    if (!brief) return post;
+    return stampAmmoOnPost(post, brief);
+  });
+}
+
 export function generateWeek(fromIso: string, ammo: CreativeAmmoBrief[] = scanWeek(), stamp?: string): CraftPost[] {
   const start = mondayOf(fromIso);
   const briefs = ammo.length === 7 ? ammo : scanWeek();
@@ -245,6 +288,7 @@ export function generateWeek(fromIso: string, ammo: CreativeAmmoBrief[] = scanWe
       presetId: PRESETS.linkedin,
       extraPresets: { instagram: PRESETS.instagram, facebook: PRESETS.facebook, tiktok: PRESETS.tiktok },
       title: copy.title,
+      eyebrow: defaultEyebrow(copy.track),
       hook: copy.hook,
       hook2: copy.hook2,
       body: copy.body,
@@ -260,7 +304,12 @@ export function generateWeek(fromIso: string, ammo: CreativeAmmoBrief[] = scanWe
   });
 }
 
-export function assertCopyLimits(post: Pick<CraftPost, "hook" | "hook2" | "body" | "cta" | "hashtags" | "links">): void {
+export function assertCopyLimits(
+  post: Pick<CraftPost, "hook" | "hook2" | "body" | "cta" | "hashtags" | "links"> & { eyebrow?: string },
+): void {
+  if ((post.eyebrow ?? "").length > COPY_LIMITS.eyebrow) {
+    throw new Error(`Eyebrow must be ${COPY_LIMITS.eyebrow} characters or fewer.`);
+  }
   if (post.hook.length > COPY_LIMITS.hook) {
     throw new Error(`Hook 1 must be ${COPY_LIMITS.hook} characters or fewer.`);
   }
@@ -282,12 +331,13 @@ export function assertCopyLimits(post: Pick<CraftPost, "hook" | "hook2" | "body"
 }
 
 export function weekCopyIsClean(post: CraftPost): boolean {
-  const text = `${post.title} ${post.hook} ${post.hook2} ${post.body} ${post.cta} ${(post.links ?? []).join(" ")} ${post.hashtags.join(" ")}`;
+  const text = `${post.title} ${post.eyebrow} ${post.hook} ${post.hook2} ${post.body} ${post.cta} ${(post.links ?? []).join(" ")} ${post.hashtags.join(" ")}`;
   return !BANNED.test(text) && !RATE_CLAIM.test(text);
 }
 
 export type CraftCopyPatch = {
   title?: string;
+  eyebrow?: string;
   hook?: string;
   hook2?: string;
   body?: string;
@@ -310,7 +360,7 @@ export type ComplianceReview = {
 };
 
 export function reviewMarketingCopy(post: CraftPost): ComplianceReview {
-  const text = `${post.title} ${post.hook} ${post.hook2} ${post.body} ${post.cta} ${(post.links ?? []).join(" ")} ${post.hashtags.join(" ")}`;
+  const text = `${post.title} ${post.eyebrow} ${post.hook} ${post.hook2} ${post.body} ${post.cta} ${(post.links ?? []).join(" ")} ${post.hashtags.join(" ")}`;
   const findings: ComplianceFinding[] = [];
   if (BANNED.test(text) || RATE_CLAIM.test(text)) {
     findings.push({
@@ -372,6 +422,7 @@ export function normalizePost(post: CraftPost): CraftPost {
     ...post,
     autoPublish: false,
     compliance,
+    eyebrow: typeof post.eyebrow === "string" ? post.eyebrow : defaultEyebrow(post.track),
     hook: split.hook,
     hook2: split.hook2,
     links: Array.isArray(post.links) ? post.links : [],
@@ -413,6 +464,7 @@ export function parseCopyPatch(input: unknown): CraftCopyPatch {
   const raw = input as Record<string, unknown>;
   const patch: CraftCopyPatch = {};
   if (typeof raw.title === "string") patch.title = raw.title;
+  if (typeof raw.eyebrow === "string") patch.eyebrow = raw.eyebrow;
   if (typeof raw.hook === "string") patch.hook = raw.hook;
   if (typeof raw.hook2 === "string") patch.hook2 = raw.hook2;
   if (typeof raw.body === "string") patch.body = raw.body;
@@ -444,6 +496,7 @@ export function parseCopyPatch(input: unknown): CraftCopyPatch {
 export function applyCopyPatch(post: CraftPost, patch: CraftCopyPatch): CraftPost {
   const copyChanged =
     patch.title !== undefined ||
+    patch.eyebrow !== undefined ||
     patch.hook !== undefined ||
     patch.hook2 !== undefined ||
     patch.body !== undefined ||
@@ -453,6 +506,7 @@ export function applyCopyPatch(post: CraftPost, patch: CraftCopyPatch): CraftPos
 
   const next: CraftPost = { ...normalizePost(post) };
   if (typeof patch.title === "string") next.title = patch.title.trim();
+  if (typeof patch.eyebrow === "string") next.eyebrow = patch.eyebrow.trim();
   if (typeof patch.hook === "string") next.hook = patch.hook.trim();
   if (typeof patch.hook2 === "string") next.hook2 = patch.hook2.trim();
   if (typeof patch.body === "string") next.body = patch.body.trim();

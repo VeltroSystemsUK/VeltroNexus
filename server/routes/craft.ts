@@ -5,6 +5,7 @@ import path from "path";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import {
+  applyAmmoToWeek,
   applyChannelHandles,
   applyCopyPatch,
   defaultChannels,
@@ -17,8 +18,9 @@ import {
   type CraftChannel,
   type CraftPost,
 } from "@shared/craftQueue";
-import { normalizeAmmo, scanWeek, type CreativeAmmoBrief } from "@shared/craftScout";
+import { normalizeAmmo, type CreativeAmmoBrief } from "@shared/craftScout";
 import { ammoForPost, parseYaffleImageRequest, yafflePromptFromAmmo } from "@shared/craftYaffle";
+import { researchWeek } from "../services/caseyScout";
 import { grokFile, grokGenerateStill, grokJob } from "../services/grokImages";
 import { stillStatus, yaffleFileBuffer, yaffleJob } from "../services/yaffleSidecar";
 
@@ -78,12 +80,15 @@ router.get("/craft/desk", isAuthenticated, (req: AuthenticatedRequest, res: Resp
   }
 });
 
-router.post("/craft/week", isAuthenticated, (req: AuthenticatedRequest, res: Response) => {
+router.post("/craft/week", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const desk = deskFor(req.user!.id);
     const { from, mode, selectedId, stamp } = parseWeekGenerate(req.body);
     const channels = desk.channels.length ? desk.channels : defaultChannels();
-    const briefs = desk.briefs.length === 7 ? desk.briefs : scanWeek();
+    const briefs =
+      mode === "selected" && desk.briefs.length === 7
+        ? desk.briefs
+        : await researchWeek(desk.briefs);
     const generated = generateWeek(
       from,
       briefs,
@@ -102,10 +107,17 @@ router.post("/craft/week", isAuthenticated, (req: AuthenticatedRequest, res: Res
   }
 });
 
-router.post("/craft/scan", isAuthenticated, (req: AuthenticatedRequest, res: Response) => {
+router.post("/craft/scan", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const desk = deskFor(req.user!.id);
-    const next: Desk = { ...desk, briefs: scanWeek() };
+    const briefs = await researchWeek(desk.briefs);
+    const channels = desk.channels.length ? desk.channels : defaultChannels();
+    const week = desk.week.length
+      ? applyAmmoToWeek(desk.week, briefs)
+      : generateWeek(desk.weekStart || new Date().toISOString().slice(0, 10), briefs).map((post) =>
+          applyChannelHandles(post, channels),
+        );
+    const next: Desk = { ...desk, channels, week, weekStart: week[0]?.date ?? desk.weekStart, briefs };
     saveDesk(req.user!.id, next);
     res.json(next);
   } catch (err) {
@@ -179,11 +191,9 @@ router.post("/craft/yaffle/image", isAuthenticated, async (req: AuthenticatedReq
     const job = await grokGenerateStill(line, post.presetId);
     res.json({ ...job, postId });
   } catch (err: any) {
-    const msg = String(err?.message || "");
-    if (/not reachable|gpu|media worker|empty prompt|pick a post|XAI_API_KEY|xAI credential|Grok Images/i.test(msg)) {
-      return res.status(msg.includes("GPU") || msg.includes("memory") ? 409 : 400).json({ error: msg });
-    }
-    handleApiError(res, err, "craft-yaffle-image");
+    const msg = String(err?.message || "Images failed");
+    const status = /timed out/i.test(msg) ? 504 : /expired|credential|XAI_API_KEY|sign in/i.test(msg) ? 401 : 400;
+    return res.status(status).json({ error: msg.slice(0, 400) });
   }
 });
 

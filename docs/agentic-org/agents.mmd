@@ -7,6 +7,7 @@ graph TD
     ORC --> FIN["FIN-2 File factory<br/>Priya"]
     D --> MKT["MKT-2 Brand social + Editorial<br/>Isla · CRAFT / editorial desk"]
     MKT --> SCOUT["MKT-3 Content Scout<br/>Casey · Creative Ammo"]
+    MKT --> CURATE["MKT-4 Media Curator<br/>Kit · Gallery index"]
 
     RES --> T_CH[("Companies House")]
     RES --> T_GZ[("Gazette")]
@@ -25,11 +26,15 @@ graph TD
 
     MKT --> T_CRAFT[("CRAFT queue + compositor")]
     MKT --> T_EDIT[("Editorial drafts · md/html export")]
+    MKT --> T_EMAIL[("Email templates · merge tags")]
     MKT --> T_SOC["Channel URLs — no passwords"]
     MKT -->|approve / post| D
     SCOUT -->|Creative Ammo Briefs| MKT
     SCOUT -->|topic notes| MKT
     SCOUT --> T_SCAN["BoE / NACFB / trade press — no invented numbers"]
+    CURATE -->|tagged stills| MKT
+    CURATE --> T_GAL[("Media Gallery index")]
+    CURATE --> T_STOCK["Unsplash / Pexels / Openverse / Firecrawl"]
 
     RES -->|ambiguous match| D
     SAL -->|live reply / complaint / P0| D
