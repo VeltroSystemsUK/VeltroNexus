@@ -67,7 +67,7 @@ export function caseyNoteOnScope(note: CaseyNote): boolean {
 
 export type CaseyNote = { title: string; url: string; snippet: string };
 
-function caseyHostAllowed(url: string): boolean {
+export function caseyHostAllowed(url: string): boolean {
   try {
     const host = new URL(url).hostname.toLowerCase();
     return CASEY_SOURCE_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));

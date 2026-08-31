@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   CASEY_FIRECRAWL_QUERIES,
+  caseyHostAllowed,
+  caseyNoteOnScope,
   caseyNotesFromFirecrawlSearch,
   caseyTextModel,
   formatCaseyNotes,
@@ -9,6 +11,7 @@ import {
   scanWeek,
   STRATA_CASEY_SCOPE,
   type CaseyNote,
+  type CaseyTextEngine,
   type CreativeAmmoBrief,
 } from "@shared/craftScout";
 import { xaiBearer } from "@shared/craftYaffle";
@@ -73,30 +76,46 @@ async function xaiChat(prompt: string, system: string, model: string): Promise<s
   return text;
 }
 
-export async function houseAsk(
+export async function houseAskWithEngine(
   prompt: string,
   model?: string,
   systemInstruction?: string,
-): Promise<string> {
+): Promise<{ text: string; engine: CaseyTextEngine }> {
   const system = systemInstruction || MARKET_RESEARCHER_PROMPT;
   const errors: string[] = [];
   if (process.env.ANTHROPIC_API_KEY?.trim()) {
     try {
-      const engine = caseyTextModel({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY, ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL });
-      return await anthropicChat(prompt, system, model?.startsWith("claude-") ? model : engine.model);
+      const engine = caseyTextModel({
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+        ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
+      });
+      const text = await anthropicChat(prompt, system, model?.startsWith("claude-") ? model : engine.model);
+      return { text, engine };
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }
   }
   if (xaiBearer(process.env)) {
     try {
-      const engine = caseyTextModel({ XAI_API_KEY: process.env.XAI_API_KEY, XAI_MODEL: process.env.XAI_MODEL });
-      return await xaiChat(prompt, system, engine.model);
+      const engine = caseyTextModel({
+        XAI_API_KEY: process.env.XAI_API_KEY,
+        XAI_MODEL: process.env.XAI_MODEL,
+      });
+      const text = await xaiChat(prompt, system, engine.model);
+      return { text, engine };
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }
   }
   throw new Error(errors[0] || "Casey needs ANTHROPIC_API_KEY or XAI_API_KEY");
+}
+
+export async function houseAsk(
+  prompt: string,
+  model?: string,
+  systemInstruction?: string,
+): Promise<string> {
+  return (await houseAskWithEngine(prompt, model, systemInstruction)).text;
 }
 
 export async function caseyFirecrawlScan(): Promise<CaseyNote[]> {
@@ -123,6 +142,39 @@ export async function caseyFirecrawlScan(): Promise<CaseyNote[]> {
     seen.add(note.url);
     return true;
   }).slice(0, 8);
+}
+
+export async function caseyFirecrawlTopicScan(query: string): Promise<CaseyNote[]> {
+  const key = process.env.FIRECRAWL_API_KEY?.trim();
+  if (!key) return [];
+  const res = await fetch("https://api.firecrawl.dev/v2/search", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ query, limit: 8, sources: ["web"], country: "GB" }),
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!res.ok) throw new Error(`Firecrawl topic scan failed (${res.status})`);
+  return caseyNotesFromFirecrawlSearch(await res.json());
+}
+
+export async function researchTopic(
+  topic: string,
+  crawl: (query: string) => Promise<CaseyNote[]> = caseyFirecrawlTopicScan,
+): Promise<{ notes: CaseyNote[]; warning?: string }> {
+  const query = topic.trim();
+  if (!query) return { notes: [], warning: "No in-scope official sources landed" };
+  const raw = await crawl(query);
+  const seen = new Set<string>();
+  const notes: CaseyNote[] = [];
+  for (const note of raw) {
+    if (!caseyHostAllowed(note.url) || !caseyNoteOnScope(note)) continue;
+    if (seen.has(note.url)) continue;
+    seen.add(note.url);
+    notes.push(note);
+    if (notes.length >= 8) break;
+  }
+  if (!notes.length) return { notes: [], warning: "No in-scope official sources landed" };
+  return { notes };
 }
 
 export async function researchWeek(
