@@ -76,7 +76,7 @@ export function caseyHostAllowed(url: string): boolean {
   }
 }
 
-export function caseyNotesFromFirecrawlSearch(data: unknown): CaseyNote[] {
+function firecrawlWebRows(data: unknown): CaseyNote[] {
   const root = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
   const nested = root?.data && typeof root.data === "object" ? (root.data as Record<string, unknown>) : null;
   const web = Array.isArray(root?.web) ? root.web : Array.isArray(nested?.web) ? nested.web : [];
@@ -84,7 +84,7 @@ export function caseyNotesFromFirecrawlSearch(data: unknown): CaseyNote[] {
   for (const item of web) {
     const row = item && typeof item === "object" ? (item as Record<string, unknown>) : null;
     const url = typeof row?.url === "string" ? row.url : "";
-    if (!caseyHostAllowed(url)) continue;
+    if (!url) continue;
     const title = typeof row?.title === "string" ? row.title : "Untitled";
     const snippet =
       (typeof row?.description === "string" && row.description) ||
@@ -92,7 +92,33 @@ export function caseyNotesFromFirecrawlSearch(data: unknown): CaseyNote[] {
       "";
     notes.push({ title, url, snippet: snippet.replace(/\s+/g, " ").trim().slice(0, 280) });
   }
-  return notes.filter(caseyNoteOnScope);
+  return notes;
+}
+
+export function caseyNotesFromFirecrawlSearch(data: unknown): CaseyNote[] {
+  return firecrawlWebRows(data).filter((note) => caseyHostAllowed(note.url) && caseyNoteOnScope(note));
+}
+
+export function editorialNotesFromFirecrawlSearch(data: unknown): CaseyNote[] {
+  return firecrawlWebRows(data);
+}
+
+export function editorialNotesFromTavilySearch(data: unknown): CaseyNote[] {
+  const root = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  const results = Array.isArray(root?.results) ? root.results : [];
+  const notes: CaseyNote[] = [];
+  for (const item of results) {
+    const row = item && typeof item === "object" ? (item as Record<string, unknown>) : null;
+    const url = typeof row?.url === "string" ? row.url : "";
+    if (!url) continue;
+    const title = typeof row?.title === "string" ? row.title : "Untitled";
+    const snippet =
+      (typeof row?.content === "string" && row.content) ||
+      (typeof row?.snippet === "string" && row.snippet) ||
+      "";
+    notes.push({ title, url, snippet: snippet.replace(/\s+/g, " ").trim().slice(0, 280) });
+  }
+  return notes;
 }
 
 export function formatCaseyNotes(notes: CaseyNote[]): string {

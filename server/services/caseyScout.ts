@@ -1,10 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   CASEY_FIRECRAWL_QUERIES,
-  caseyHostAllowed,
-  caseyNoteOnScope,
   caseyNotesFromFirecrawlSearch,
   caseyTextModel,
+  editorialNotesFromFirecrawlSearch,
+  editorialNotesFromTavilySearch,
   formatCaseyNotes,
   MARKET_RESEARCHER_PROMPT,
   parseCaseyBriefs,
@@ -154,26 +154,57 @@ export async function caseyFirecrawlTopicScan(query: string): Promise<CaseyNote[
     signal: AbortSignal.timeout(25000),
   });
   if (!res.ok) throw new Error(`Firecrawl topic scan failed (${res.status})`);
-  return caseyNotesFromFirecrawlSearch(await res.json());
+  return editorialNotesFromFirecrawlSearch(await res.json());
+}
+
+export async function tavilyTopicScan(query: string): Promise<CaseyNote[]> {
+  const key = process.env.TAVILY_API_KEY?.trim();
+  if (!key) return [];
+  const res = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: key,
+      query,
+      search_depth: "basic",
+      include_answer: false,
+      include_raw_content: false,
+      max_results: 8,
+    }),
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!res.ok) return [];
+  return editorialNotesFromTavilySearch(await res.json());
+}
+
+export async function editorialWebScan(query: string): Promise<CaseyNote[]> {
+  const fire = await caseyFirecrawlTopicScan(query);
+  let extra: CaseyNote[] = [];
+  try {
+    extra = await tavilyTopicScan(query);
+  } catch {
+    extra = [];
+  }
+  return [...fire, ...extra];
 }
 
 export async function researchTopic(
   topic: string,
-  crawl: (query: string) => Promise<CaseyNote[]> = caseyFirecrawlTopicScan,
+  crawl: (query: string) => Promise<CaseyNote[]> = editorialWebScan,
 ): Promise<{ notes: CaseyNote[]; warning?: string }> {
   const query = topic.trim();
-  if (!query) return { notes: [], warning: "No in-scope official sources landed" };
+  if (!query) return { notes: [], warning: "No sources landed" };
   const raw = await crawl(query);
   const seen = new Set<string>();
   const notes: CaseyNote[] = [];
   for (const note of raw) {
-    if (!caseyHostAllowed(note.url) || !caseyNoteOnScope(note)) continue;
+    if (!note.url) continue;
     if (seen.has(note.url)) continue;
     seen.add(note.url);
     notes.push(note);
-    if (notes.length >= 8) break;
+    if (notes.length >= 12) break;
   }
-  if (!notes.length) return { notes: [], warning: "No in-scope official sources landed" };
+  if (!notes.length) return { notes: [], warning: "No sources landed" };
   return { notes };
 }
 

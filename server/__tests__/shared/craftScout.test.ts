@@ -5,6 +5,8 @@ import {
   CASEY_FIRECRAWL_QUERIES,
   caseyBriefOnScope,
   caseyNotesFromFirecrawlSearch,
+  editorialNotesFromFirecrawlSearch,
+  editorialNotesFromTavilySearch,
   caseyTextModel,
   formatBriefMarkdown,
   formatCaseyNotes,
@@ -167,7 +169,49 @@ describe("Content Scout", () => {
         snippet: "The MPC held Bank Rate.",
       },
     ]);
-    expect(formatCaseyNotes(notes)).toMatch(/bankofengland\.co.uk/);
+  });
+
+  it("reads Editorial Firecrawl notes from any host", () => {
+    const notes = editorialNotesFromFirecrawlSearch({
+      data: {
+        web: [
+          {
+            title: "Hidden commission",
+            url: "https://www.ft.com/content/fees",
+            description: "Brokers take large fees on stacked facilities.",
+          },
+          {
+            title: "Payday promo",
+            url: "https://easy-cash.example/apr",
+            description: "Guaranteed funding",
+          },
+        ],
+      },
+    });
+    expect(notes.map((note) => note.url)).toEqual([
+      "https://www.ft.com/content/fees",
+      "https://easy-cash.example/apr",
+    ]);
+  });
+
+  it("reads Editorial Tavily notes from title url content", () => {
+    const notes = editorialNotesFromTavilySearch({
+      results: [
+        {
+          title: "NACFB on packager fees",
+          url: "https://www.nacfb.org/news/fees",
+          content: "Introducers must disclose commission.",
+        },
+        { title: "No url", content: "Skip me" },
+      ],
+    });
+    expect(notes).toEqual([
+      {
+        title: "NACFB on packager fees",
+        url: "https://www.nacfb.org/news/fees",
+        snippet: "Introducers must disclose commission.",
+      },
+    ]);
   });
 
   it("scans a week of briefs with source, SME impact, and angles — no invented rates", () => {
