@@ -56,12 +56,12 @@ export type CraftPost = {
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-const BANNED =
+export const BANNED =
   /\b(guaranteed|instant approval|payday|0%\s*apr|apr\b|consumer loan|no credit check|guaranteed funding|we will lend|we lend)\b/i;
 
-const RATE_CLAIM = /\bfrom\s+\d+(\.\d+)?%|\b\d+(\.\d+)?%\s*(apr|p\.?a\.?|interest|per year)\b/i;
+export const RATE_CLAIM = /\bfrom\s+\d+(\.\d+)?%|\b\d+(\.\d+)?%\s*(apr|p\.?a\.?|interest|per year)\b/i;
 
-const PACKAGER_IDENTITY = /\b(do not lend|don't lend|does not lend|packager)\b/i;
+export const PACKAGER_IDENTITY = /\b(do not lend|don't lend|does not lend|packager)\b/i;
 
 export const COPY_LIMITS = {
   hook: 40,

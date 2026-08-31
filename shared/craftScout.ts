@@ -1,3 +1,10 @@
+export type CaseyNote = { title: string; url: string; snippet: string };
+
+export function formatCaseyNotes(notes: CaseyNote[]): string {
+  if (!notes.length) return "";
+  return notes.map((note) => `- ${note.title} | ${note.url} | ${note.snippet}`).join("\n");
+}
+
 export type AmmoTrack = "borrower" | "introducer";
 
 export type CreativeAmmoBrief = {
