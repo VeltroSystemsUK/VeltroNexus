@@ -71,6 +71,7 @@ storage/
 
 # --- Brainstorm mockups ---
 .superpowers/
+.worktrees/
 
 # --- Local junk ---
 desktop.ini
