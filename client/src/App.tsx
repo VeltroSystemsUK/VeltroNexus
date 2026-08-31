@@ -50,6 +50,7 @@ const Invoicing = lazy(() => import("@/pages/Invoicing"));
 const Income = lazy(() => import("@/pages/Income"));
 const EmailTemplates = lazy(() => import("@/pages/EmailTemplates"));
 const EmailCampaigns = lazy(() => import("@/pages/EmailCampaigns"));
+const Editorial = lazy(() => import("@/pages/Editorial"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const Craft = lazy(() => import("@/pages/Craft"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
@@ -208,6 +209,9 @@ function Router() {
         </Route>
         <Route path="/email-campaigns">
           {!isAuthenticated ? <Redirect to="/auth" /> : <EmailCampaigns />}
+        </Route>
+        <Route path="/editorial">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Editorial />}
         </Route>
         <Route path="/media">
           {!isAuthenticated ? <Redirect to="/auth" /> : <MediaGallery />}
