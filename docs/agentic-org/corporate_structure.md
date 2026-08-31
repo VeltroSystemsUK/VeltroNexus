@@ -30,8 +30,8 @@ Agents do not replace Shaun with customers. They remove the admin so Shaun can t
 | RES-2 | Origination — Daniel Crowe / Maya Hart / Elena Ward (`database-builder`, `inbound-intake`, `contact-finder`) | 2 | Find, match company, complete contact, open deal file |
 | SAL-2 | Communications — James Hale / Sophie Reed (`outreach-sales`, `fulfilment-manager`) | 2 | Template cadence, pack request, chase, LinkedIn *drafts*, queue Shaun’s calls |
 | FIN-2 | File factory — Priya Shah (`deal-processing-underwriter`) | 2 | Ingest → SFP → credit memo recommendation → completeness → Sterling zip |
-| MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: copy + curated visuals in Craft from MKT-3 ammo; never posts |
-| MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | UK commercial-finance intelligence; Creative Ammo Briefs for Isla; never writes final ad copy |
+| MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: copy + curated visuals in Craft from MKT-3 ammo; never posts + Editorial blogs/press releases |
+| MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | UK commercial-finance intelligence; Creative Ammo Briefs for Isla; never writes final ad copy + Editorial topic-scan notes |
 
 **Hibernated (not in launch scope):** Oliver Grant (`accounts-monitor`), Nathan Cole (`capital-strategist`), **ARES / ARES Control**. Tom Brennan (`database-builder-se`) is a regional parameter on RES-2, not a separate company. Do not start the ARES loop. Do not invent replacements.
 
@@ -60,10 +60,10 @@ Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn c
 Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep, credit memo *recommendation*, completeness gate, compilation of the Sterling zip.
 
 **MKT-2 Brand social**  
-Owns: weekly social drafts on the CRAFT desk, translated from MKT-3 Creative Ammo Briefs. LinkedIn home; IG/FB/TikTok extra sizes. Channel handles as public URLs only. Shaun approves and posts. Ads stay draft. Spend still needs the £500 gate.
+Owns: weekly social drafts on the CRAFT desk, translated from MKT-3 Creative Ammo Briefs. LinkedIn home; IG/FB/TikTok extra sizes. Channel handles as public URLs only. Shaun approves and posts. Ads stay draft. Spend still needs the £500 gate. Isla also drafts blogs and press releases on `/editorial`.
 
 **MKT-3 Content Scout**  
-Owns: UK lending / SME / regulatory scan and Creative Ammo Briefs on the CRAFT Content aid. Does not write final ad copy. Does not invent rates. Hands off to Isla.
+Owns: UK lending / SME / regulatory scan and Creative Ammo Briefs on the CRAFT Content aid. Casey topic-scans for Editorial as well as weekly Craft ammo. Does not write final ad copy. Does not invent rates. Hands off to Isla.
 
 ---
 
@@ -91,6 +91,10 @@ Owns: UK lending / SME / regulatory scan and Creative Ammo Briefs on the CRAFT C
 | Brand social week (LinkedIn + IG/FB/TikTok crops) | MKT-3 → MKT-2 | Isla writes from ammo; draft only; Shaun posts |
 | CRAFT export (copy pack / PNG / size pack) | MKT-2 → marketing approve → compliance sign-off | No release until both gates pass |
 | Social publish / paid ads | MKT-2 → Shaun | Never auto-post; ads are draft until Shaun spends |
+| Editorial topic scan | MKT-3 | Notes only; missing numbers stay missing |
+| Editorial draft (blog / press release) | MKT-2 | Draft only on /editorial |
+| Editorial export | MKT-2 → Shaun | Marketing approve then compliance; Markdown/HTML |
+| Editorial publish | MKT-2 → Shaun | Off-platform; never auto-post |
 | Change this directive or add an agent | Shaun | Update this file + agents.mmd |
 | Invoicing, Xero, Nathan-style CFO advice | Nobody (hibernated) | Out of launch scope |
 

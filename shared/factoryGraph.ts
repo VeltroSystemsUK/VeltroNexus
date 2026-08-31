@@ -44,6 +44,12 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "sterling", label: "Sterling zip", desk: "ORC-1", kind: "output", detail: "Blocked if incomplete", x: 2800, y: 360 },
   { id: "david", label: "David", desk: "Sterling", kind: "output", detail: "Lender recommendation", x: 3080, y: 360 },
   { id: "parked", label: "Parked / stopped", desk: "ORC-1", kind: "fail", detail: "Opt-out, no pack, BBB fail", x: 2240, y: 520 },
+  { id: "mkt-post", label: "You post", desk: "You", kind: "human", detail: "Never auto-post", x: 1400, y: 700 },
+  { id: "mkt-editorial-scan", label: "Topic scan", desk: "Casey", kind: "trigger", detail: "Editorial · Firecrawl official UK hosts", x: 0, y: 1060 },
+  { id: "mkt-editorial-compose", label: "Compose article", desk: "Isla", kind: "auto", detail: "Blog / press release · Markdown", x: 280, y: 1060 },
+  { id: "mkt-editorial-approve", label: "Marketing approve", desk: "You", kind: "human", detail: "Copy on /editorial", x: 560, y: 1060 },
+  { id: "mkt-editorial-compliance", label: "Compliance sign-off", desk: "You", kind: "gate", detail: "Packager · no rates · no payday", x: 840, y: 1060 },
+  { id: "mkt-editorial-export", label: "Export article", desk: "Isla", kind: "output", detail: "Markdown / HTML", x: 1120, y: 1060 },
 ];
 
 export const FACTORY_EDGES: FactoryEdgeDef[] = [
@@ -74,6 +80,11 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-complete-credit", source: "complete", target: "credit" },
   { id: "e-credit-sterling", source: "credit", target: "sterling" },
   { id: "e-sterling-david", source: "sterling", target: "david" },
+  { id: "e-mkt-ed-scan-compose", source: "mkt-editorial-scan", target: "mkt-editorial-compose", label: "notes" },
+  { id: "e-mkt-ed-compose-approve", source: "mkt-editorial-compose", target: "mkt-editorial-approve" },
+  { id: "e-mkt-ed-approve-comp", source: "mkt-editorial-approve", target: "mkt-editorial-compliance" },
+  { id: "e-mkt-ed-comp-export", source: "mkt-editorial-compliance", target: "mkt-editorial-export" },
+  { id: "e-mkt-ed-export-post", source: "mkt-editorial-export", target: "mkt-post", label: "you publish" },
 ];
 
 export function nodeForDeal(

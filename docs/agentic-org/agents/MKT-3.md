@@ -12,12 +12,14 @@
 - Mark missing numbers as missing — never invent Bank Rate, APR, or insolvency counts
 - Feed `/craft` Content aid so Isla can write the week
 - Stay inside house policy: packager, not lender; no consumer-credit claims
+- Topic-scan official UK hosts for an Editorial piece on /editorial; return notes only
 
 ### Tools & Integrations
 
 - CRAFT Content aid (`/api/craft/scan`, desk `briefs`)
 - Trade press and public official sources (BoE, FCA, Treasury, NACFB, UK Finance, FLA, ONS)
 - No social passwords. No ad accounts.
+- Editorial topic scan (/api/editorial/:id/scan)
 
 ### Autonomy Scope
 
@@ -33,6 +35,7 @@
 ### Outputs
 
 - Seven Creative Ammo Briefs on `/craft`
+- CaseyNote[] on the Editorial piece. Do not write the article.
 - Passes to MKT-2 (Isla) to write copy and curate visuals
 
 ### Escalation Path

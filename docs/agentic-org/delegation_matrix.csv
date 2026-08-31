@@ -31,3 +31,8 @@ social_publish_or_ads,MKT-2,yes,Never auto-post; ads draft only; spend uses £50
 change_agent_scope,ORC-1,yes,Update corporate_structure.md
 accounts_xero_invoicing,NONE,yes,Hibernated Oliver
 cfo_capital_strategist,NONE,yes,Hibernated Nathan
+editorial_topic_scan,MKT-3,no,Notes only; official UK hosts; never invent rates; never write the article
+editorial_draft,MKT-2,no,Blog or press release on /editorial; draft only
+editorial_export,MKT-2,yes,Marketing approve then compliance sign-off; Markdown/HTML
+editorial_publish,MKT-2,yes,Off-platform; never auto-post
+

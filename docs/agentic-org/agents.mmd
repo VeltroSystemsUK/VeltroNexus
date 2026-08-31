@@ -5,7 +5,7 @@ graph TD
     ORC --> RES["RES-2 Origination<br/>Daniel / Maya / Elena"]
     ORC --> SAL["SAL-2 Communications<br/>James / Sophie"]
     ORC --> FIN["FIN-2 File factory<br/>Priya"]
-    D --> MKT["MKT-2 Brand social<br/>Isla · CRAFT desk"]
+    D --> MKT["MKT-2 Brand social + Editorial<br/>Isla · CRAFT / editorial desk"]
     MKT --> SCOUT["MKT-3 Content Scout<br/>Casey · Creative Ammo"]
 
     RES --> T_CH[("Companies House")]
@@ -24,9 +24,11 @@ graph TD
     FIN --> T_ZIP[("Sterling zip")]
 
     MKT --> T_CRAFT[("CRAFT queue + compositor")]
+    MKT --> T_EDIT[("Editorial drafts · md/html export")]
     MKT --> T_SOC["Channel URLs — no passwords"]
     MKT -->|approve / post| D
     SCOUT -->|Creative Ammo Briefs| MKT
+    SCOUT -->|topic notes| MKT
     SCOUT --> T_SCAN["BoE / NACFB / trade press — no invented numbers"]
 
     RES -->|ambiguous match| D

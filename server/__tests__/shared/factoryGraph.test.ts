@@ -16,6 +16,27 @@ describe("factory graph", () => {
     expect(FACTORY_EDGES.some((edge) => edge.source === "credit" && edge.target === "sterling")).toBe(true);
   });
 
+  it("plots the Editorial lane from Casey through Isla to Shaun", () => {
+    const ids = new Set(FACTORY_NODES.map((node) => node.id));
+    for (const id of [
+      "mkt-editorial-scan",
+      "mkt-editorial-compose",
+      "mkt-editorial-approve",
+      "mkt-editorial-compliance",
+      "mkt-editorial-export",
+      "mkt-post",
+    ]) {
+      expect(ids.has(id)).toBe(true);
+    }
+    expect(FACTORY_NODES.find((node) => node.id === "mkt-editorial-scan")?.desk).toBe("Casey");
+    expect(FACTORY_NODES.find((node) => node.id === "mkt-editorial-compose")?.desk).toBe("Isla");
+    expect(FACTORY_EDGES.some((edge) => edge.source === "mkt-editorial-scan" && edge.target === "mkt-editorial-compose")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "mkt-editorial-compose" && edge.target === "mkt-editorial-approve")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "mkt-editorial-approve" && edge.target === "mkt-editorial-compliance")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "mkt-editorial-compliance" && edge.target === "mkt-editorial-export")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "mkt-editorial-export" && edge.target === "mkt-post")).toBe(true);
+  });
+
   it("puts live deals on the node that owns that stage", () => {
     const counts = countDealsOnNodes([
       { stage: "outreach", status: "waiting_timer", source: "distress_scan" },

@@ -15,6 +15,7 @@ Shaun is the Director. David at Sterling is the receiving underwriter. You never
 - Strip the PECR opt-out from cold email.
 - Continue after opt-out, complaint, solicitor, or vulnerability.
 - Auto-dial or auto-post LinkedIn, Instagram, Facebook, or TikTok.
+- Auto-publish an Editorial blog or press release.
 - Store social passwords or buy ads.
 - Sign legal terms, move money, change credentials, or add agents.
 - Treat Workforce chat, fake scores, or “Online” badges as operational truth.
