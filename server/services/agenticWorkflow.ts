@@ -26,6 +26,7 @@ import {
   rejectBeforeCharges,
   type StrataFitResult,
 } from "./strataFit";
+import { isExcludedFromSmeHunt, shouldEnterSmeHunt, type ChargeLike } from "./smeLeadHopper";
 import { assessBbbEligibility, bbbBlockMessage, type BbbAssessment } from "@shared/bbbEligibility";
 import { mailboxForAgent, inboundMailbox } from "@shared/agentMailboxes";
 import { listLeadFinderCandidates } from "./leadFinderPool";
@@ -246,6 +247,28 @@ function bumpReject(rejected: Record<string, number>, reason: string) {
   rejected[reason] = (rejected[reason] || 0) + 1;
 }
 
+function newestChargeCreatedOn(charges?: ChargeLike[]): string | undefined {
+  let best: string | undefined;
+  let bestTs = Number.NEGATIVE_INFINITY;
+  for (const charge of charges || []) {
+    if (!charge.createdOn) continue;
+    const ts = Date.parse(charge.createdOn);
+    if (Number.isFinite(ts) && ts >= bestTs) {
+      bestTs = ts;
+      best = charge.createdOn;
+    }
+  }
+  return best;
+}
+
+function smeHuntFitSummary(liveNonBankChargeCount: number, hasPetition?: boolean): string {
+  if (hasPetition && liveNonBankChargeCount >= 1) {
+    return `P0 hunt: HMRC petition and ${liveNonBankChargeCount} live non-bank charge${liveNonBankChargeCount === 1 ? "" : "s"}`;
+  }
+  if (hasPetition) return "P0 hunt: HMRC petition";
+  return `P0 hunt: ${liveNonBankChargeCount} live non-bank charge${liveNonBankChargeCount === 1 ? "" : "s"}`;
+}
+
 async function loadBookedCompanyNumbers(ownerUserId: string): Promise<Set<string>> {
   const numbers = new Set<string>();
   const prospects = await storage.listProspects(ownerUserId);
@@ -328,7 +351,7 @@ function bbbFromProfile(
   });
 }
 
-async function assessCompanyFit(item: any, booked: Set<string>): Promise<StrataFitResult> {
+async function assessCompanyFit(item: any, booked: Set<string>): Promise<StrataFitResult & { charges: ChargeLike[] }> {
   const companyName = item.company_name || "";
   const companyNumber = item.company_number || "";
   const sicCodes = item.sic_codes || [];
@@ -349,6 +372,7 @@ async function assessCompanyFit(item: any, booked: Set<string>): Promise<StrataF
       reasons: [],
       summary: early,
       lenders: [],
+      charges: [],
     };
   }
 
@@ -364,6 +388,7 @@ async function assessCompanyFit(item: any, booked: Set<string>): Promise<StrataF
         reasons: [],
         summary: "Companies House rate limit",
         lenders: [],
+        charges: [],
       };
     }
     if (result.ok) charges = result.data?.items || [];
@@ -371,20 +396,25 @@ async function assessCompanyFit(item: any, booked: Set<string>): Promise<StrataF
     charges = [];
   }
 
-  return assessStrataFit({
-    companyName,
-    companyNumber,
-    companyStatus: item.company_status,
-    companyStatusDetail: item.company_status_detail,
-    dateOfCreation: item.date_of_creation,
-    sicCodes,
-    alreadyOnBook: false,
-    charges: charges.map((charge) => ({
-      status: charge.status,
-      createdOn: charge.created_on,
-      personsEntitled: (charge.persons_entitled || []).map((person: any) => person.name || "").filter(Boolean),
-    })),
-  });
+  const mapped: ChargeLike[] = charges.map((charge) => ({
+    status: charge.status,
+    createdOn: charge.created_on,
+    personsEntitled: (charge.persons_entitled || []).map((person: any) => person.name || "").filter(Boolean),
+  }));
+
+  return {
+    ...assessStrataFit({
+      companyName,
+      companyNumber,
+      companyStatus: item.company_status,
+      companyStatusDetail: item.company_status_detail,
+      dateOfCreation: item.date_of_creation,
+      sicCodes,
+      alreadyOnBook: false,
+      charges: mapped,
+    }),
+    charges: mapped,
+  };
 }
 
 async function findMissingContact(deal: AgenticDealFile): Promise<Partial<AgenticDealFile>> {
@@ -476,6 +506,17 @@ export const agenticWorkflow = {
     const seen = new Set(existing.map((deal) => deal.companyNumber).filter(Boolean));
     const ownerUserId = await resolveOwnerUserId();
     const booked = await loadBookedCompanyNumbers(ownerUserId);
+    const inboundNumbers = new Set(
+      existing
+        .filter((deal) => deal.source === "strata_inbound" && deal.companyNumber)
+        .map((deal) => String(deal.companyNumber))
+    );
+    const inboundEmails = new Set(
+      existing
+        .filter((deal) => deal.source === "strata_inbound")
+        .map((deal) => String(deal.email || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
     let scanned = 0;
 
     const gazetteByNumber = new Map<string, HmrcMarker>();
@@ -488,6 +529,16 @@ export const agenticWorkflow = {
         if (!wantsSme) continue;
         if (opened.length >= GAZETTE_HMRC_LIMIT) continue;
         if (seen.has(marker.companyNumber) || booked.has(marker.companyNumber)) continue;
+        if (
+          isExcludedFromSmeHunt(
+            { source: "distress_scan", companyNumber: marker.companyNumber },
+            booked,
+            inboundNumbers,
+            inboundEmails
+          )
+        ) {
+          continue;
+        }
         seen.add(marker.companyNumber);
         scanned += 1;
 
@@ -502,6 +553,21 @@ export const agenticWorkflow = {
         }
 
         const companyName = marker.companyName || profile?.company_name || marker.companyNumber;
+        const hunt = shouldEnterSmeHunt({
+          companyName,
+          companyNumber: marker.companyNumber,
+          companyStatus: profile?.company_status || "active",
+          companyStatusDetail: profile?.company_status_detail,
+          dateOfCreation: profile?.date_of_creation,
+          sicCodes: profile?.sic_codes || [],
+          alreadyOnBook: booked.has(marker.companyNumber),
+          charges: [],
+          hasPetition: true,
+        });
+        if (!hunt.ok) {
+          bumpReject(rejected, hunt.reason || "HMRC petition did not meet Strata fit");
+          continue;
+        }
         const fit = assessStrataFit({
           companyName,
           companyNumber: marker.companyNumber,
@@ -513,10 +579,7 @@ export const agenticWorkflow = {
           charges: [],
           hmrcTtp: true,
         });
-        if (!fit.pass) {
-          bumpReject(rejected, fit.rejectReason || "HMRC petition did not meet Strata fit");
-          continue;
-        }
+        const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, true);
         const deal = await storage.createAgenticDeal({
           source: "distress_scan",
           stream: "sme",
@@ -525,10 +588,14 @@ export const agenticWorkflow = {
           ownerUserId,
           companyName,
           companyNumber: marker.companyNumber,
-          fitScore: fit.score,
-          fitReasons: fit.reasons,
-          fitSummary: fit.summary,
+          fitScore: fit.pass ? fit.score : undefined,
+          fitReasons: fit.pass ? fit.reasons : [huntSummary],
+          fitSummary: fit.pass ? fit.summary : huntSummary,
           petition: toDealPetition(marker),
+          hopper: "gated",
+          nonBankChargeCount: hunt.liveNonBankChargeCount,
+          lastSignalAt: marker.publishedAt,
+          incorporatedAt: profile?.date_of_creation,
           events: [
             {
               at: nowIso(),
@@ -563,6 +630,16 @@ export const agenticWorkflow = {
       const companyNumber = candidate.companyNumber;
       if (seen.has(companyNumber) || booked.has(companyNumber)) continue;
       if (
+        isExcludedFromSmeHunt(
+          { source: "distress_scan", companyNumber, email: candidate.email },
+          booked,
+          inboundNumbers,
+          inboundEmails
+        )
+      ) {
+        continue;
+      }
+      if (
         !isDistressHuntRow({
           companyName: candidate.companyName,
           sicCodes: candidate.sicCode ? [candidate.sicCode] : [],
@@ -575,22 +652,34 @@ export const agenticWorkflow = {
       seen.add(companyNumber);
       scanned += 1;
       const liveLenders = candidate.lenders.filter(Boolean);
+      const charges = liveLenders.map((lender) => ({
+        status: "outstanding",
+        createdOn: candidate.lastChargeDate,
+        personsEntitled: [lender],
+      }));
+      const hasPetition = gazetteByNumber.has(companyNumber);
+      const hunt = shouldEnterSmeHunt({
+        companyName: candidate.companyName,
+        companyNumber,
+        companyStatus: "active",
+        dateOfCreation: candidate.incorporationDate,
+        sicCodes: candidate.sicCode ? [candidate.sicCode] : [],
+        alreadyOnBook: false,
+        charges,
+        hasPetition,
+      });
       const fit = assessStrataFit({
         companyName: candidate.companyName,
         companyNumber,
         sicCodes: candidate.sicCode ? [candidate.sicCode] : [],
         dateOfCreation: candidate.incorporationDate,
         alreadyOnBook: false,
-        hmrcTtp: gazetteByNumber.has(companyNumber),
-        charges: liveLenders.map((lender) => ({
-          status: "outstanding",
-          createdOn: candidate.lastChargeDate,
-          personsEntitled: [lender],
-        })),
+        hmrcTtp: hasPetition,
+        charges,
       });
-      if (!fit.pass) {
+      if (!hunt.ok) {
         if (!wantsIntroducer) {
-          bumpReject(rejected, fit.rejectReason || "did not meet Strata fit");
+          bumpReject(rejected, hunt.reason || fit.rejectReason || "did not meet Strata fit");
           continue;
         }
         const intro = assessIntroducerFit({
@@ -600,7 +689,7 @@ export const agenticWorkflow = {
           alreadyOnBook: booked.has(companyNumber),
         });
         if (!intro.pass) {
-          bumpReject(rejected, fit.rejectReason || intro.rejectReason || "did not meet Strata fit");
+          bumpReject(rejected, hunt.reason || fit.rejectReason || intro.rejectReason || "did not meet Strata fit");
           continue;
         }
         const deal = await storage.createAgenticDeal({
@@ -638,6 +727,8 @@ export const agenticWorkflow = {
         continue;
       }
       if (!wantsSme) continue;
+      const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, hasPetition);
+      const petition = hasPetition ? toDealPetition(gazetteByNumber.get(companyNumber)!) : undefined;
       const deal = await storage.createAgenticDeal({
         source: "distress_scan",
         stream: "sme",
@@ -650,18 +741,22 @@ export const agenticWorkflow = {
         email: candidate.email,
         phone: candidate.phone,
         website: candidate.website,
-        fitScore: fit.score,
-        fitReasons: fit.reasons,
-        fitSummary: fit.summary,
-        petition: gazetteByNumber.has(companyNumber)
-          ? toDealPetition(gazetteByNumber.get(companyNumber)!)
-          : undefined,
+        fitScore: fit.pass ? fit.score : undefined,
+        fitReasons: fit.pass ? fit.reasons : [huntSummary],
+        fitSummary: fit.pass ? fit.summary : huntSummary,
+        petition,
+        hopper: "gated",
+        nonBankChargeCount: hunt.liveNonBankChargeCount,
+        lastSignalAt: petition?.publishedAt || candidate.lastChargeDate,
+        incorporatedAt: candidate.incorporationDate,
         events: [
           {
             at: nowIso(),
             stage: "ingest",
             agent: "database-builder",
-            message: `Strata fit ${fit.score}/100 from Lead Finder: ${candidate.companyName} — ${fit.reasons.join("; ")}`,
+            message: fit.pass
+              ? `Strata fit ${fit.score}/100 from Lead Finder: ${candidate.companyName} — ${fit.reasons.join("; ")}`
+              : `${huntSummary} from Lead Finder: ${candidate.companyName}`,
           },
         ],
       });
@@ -686,6 +781,16 @@ export const agenticWorkflow = {
       const companyNumber = String(lead.companyNumber || "");
       const companyName = lead.companyName;
       if (!companyNumber || companyNumber.startsWith("WEB-") || seen.has(companyNumber)) continue;
+      if (
+        isExcludedFromSmeHunt(
+          { source: "distress_scan", companyNumber, email: lead.email || undefined },
+          booked,
+          inboundNumbers,
+          inboundEmails
+        )
+      ) {
+        continue;
+      }
       const lender = String(lead.identifiedLender || "").trim();
       const liveCharge = Boolean(lender) && String(lead.chargeStatus || "").toLowerCase() !== "satisfied";
       if (
@@ -700,22 +805,36 @@ export const agenticWorkflow = {
       }
       seen.add(companyNumber);
       scanned += 1;
+      const charges = liveCharge
+        ? [{ status: "outstanding", createdOn: lead.chargeDate, personsEntitled: [lender] }]
+        : [];
+      const hasPetition = gazetteByNumber.has(companyNumber);
+      const hunt = shouldEnterSmeHunt({
+        companyName,
+        companyNumber,
+        companyStatus: "active",
+        dateOfCreation: lead.incorporationDate,
+        sicCodes: lead.sicCode ? [String(lead.sicCode)] : [],
+        alreadyOnBook: booked.has(companyNumber),
+        charges,
+        hasPetition,
+      });
       const fit = assessStrataFit({
         companyName,
         companyNumber,
         sicCodes: lead.sicCode ? [String(lead.sicCode)] : [],
         dateOfCreation: lead.incorporationDate,
         alreadyOnBook: booked.has(companyNumber),
-        hmrcTtp: gazetteByNumber.has(companyNumber),
-        charges: liveCharge
-          ? [{ status: "outstanding", createdOn: lead.chargeDate, personsEntitled: [lender] }]
-          : [],
+        hmrcTtp: hasPetition,
+        charges,
       });
-      if (!fit.pass) {
-        bumpReject(rejected, fit.rejectReason || "did not meet Strata fit");
+      if (!hunt.ok) {
+        bumpReject(rejected, hunt.reason || fit.rejectReason || "did not meet Strata fit");
         continue;
       }
 
+      const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, hasPetition);
+      const petition = hasPetition ? toDealPetition(gazetteByNumber.get(companyNumber)!) : undefined;
       const deal = await storage.createAgenticDeal({
         source: "distress_scan",
         stream: "sme",
@@ -728,18 +847,22 @@ export const agenticWorkflow = {
         email: lead.email || undefined,
         phone: lead.phone || undefined,
         website: lead.website || undefined,
-        fitScore: fit.score,
-        fitReasons: fit.reasons,
-        fitSummary: fit.summary,
-        petition: gazetteByNumber.has(companyNumber)
-          ? toDealPetition(gazetteByNumber.get(companyNumber)!)
-          : undefined,
+        fitScore: fit.pass ? fit.score : undefined,
+        fitReasons: fit.pass ? fit.reasons : [huntSummary],
+        fitSummary: fit.pass ? fit.summary : huntSummary,
+        petition,
+        hopper: "gated",
+        nonBankChargeCount: hunt.liveNonBankChargeCount,
+        lastSignalAt: petition?.publishedAt || lead.chargeDate,
+        incorporatedAt: lead.incorporationDate,
         events: [
           {
             at: nowIso(),
             stage: "ingest",
             agent: "database-builder",
-            message: `Strata fit ${fit.score}/100 from local book: ${companyName} — ${fit.reasons.join("; ")}`,
+            message: fit.pass
+              ? `Strata fit ${fit.score}/100 from local book: ${companyName} — ${fit.reasons.join("; ")}`
+              : `${huntSummary} from local book: ${companyName}`,
           },
         ],
       });
@@ -788,20 +911,42 @@ export const agenticWorkflow = {
             if (excludedSectorReason(item.sic_codes || [], companyName) || isBrokerProspect(companyName, item.sic_codes || [])) {
               continue;
             }
+            if (
+              isExcludedFromSmeHunt(
+                { source: "distress_scan", companyNumber },
+                booked,
+                inboundNumbers,
+                inboundEmails
+              )
+            ) {
+              continue;
+            }
             seen.add(companyNumber);
             scanned += 1;
             const fit = await assessCompanyFit(item, booked);
-            if (!fit.pass) {
-              if (fit.rejectReason?.includes("rate limit")) {
-                const until = setChCooldown();
-                bumpReject(
-                  rejected,
-                  `Companies House rate limit — cooling off until ${new Date(until).toLocaleTimeString("en-GB")}`
-                );
-                return { deals: opened, scanned, rejected };
-              }
+            if (fit.rejectReason?.includes("rate limit")) {
+              const until = setChCooldown();
+              bumpReject(
+                rejected,
+                `Companies House rate limit — cooling off until ${new Date(until).toLocaleTimeString("en-GB")}`
+              );
+              return { deals: opened, scanned, rejected };
+            }
+            const hasPetition = gazetteByNumber.has(companyNumber);
+            const hunt = shouldEnterSmeHunt({
+              companyName,
+              companyNumber,
+              companyStatus: item.company_status,
+              companyStatusDetail: item.company_status_detail,
+              dateOfCreation: item.date_of_creation,
+              sicCodes: item.sic_codes || [],
+              alreadyOnBook: booked.has(companyNumber),
+              charges: fit.charges,
+              hasPetition,
+            });
+            if (!hunt.ok) {
               if (!wantsIntroducer) {
-                bumpReject(rejected, fit.rejectReason || "did not meet Strata fit");
+                bumpReject(rejected, hunt.reason || fit.rejectReason || "did not meet Strata fit");
                 continue;
               }
               const intro = assessIntroducerFit({
@@ -812,7 +957,7 @@ export const agenticWorkflow = {
                 alreadyOnBook: booked.has(companyNumber),
               });
               if (!intro.pass) {
-                bumpReject(rejected, fit.rejectReason || intro.rejectReason || "did not meet Strata fit");
+                bumpReject(rejected, hunt.reason || fit.rejectReason || intro.rejectReason || "did not meet Strata fit");
                 continue;
               }
               const introDeal = await storage.createAgenticDeal({
@@ -851,6 +996,8 @@ export const agenticWorkflow = {
               continue;
             }
             if (!wantsSme) continue;
+            const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, hasPetition);
+            const petition = hasPetition ? toDealPetition(gazetteByNumber.get(companyNumber)!) : undefined;
             const deal = await storage.createAgenticDeal({
               source: "distress_scan",
               stream: "sme",
@@ -859,15 +1006,22 @@ export const agenticWorkflow = {
               ownerUserId,
               companyName,
               companyNumber,
-              fitScore: fit.score,
-              fitReasons: fit.reasons,
-              fitSummary: fit.summary,
+              fitScore: fit.pass ? fit.score : undefined,
+              fitReasons: fit.pass ? fit.reasons : [huntSummary],
+              fitSummary: fit.pass ? fit.summary : huntSummary,
+              petition,
+              hopper: "gated",
+              nonBankChargeCount: hunt.liveNonBankChargeCount,
+              lastSignalAt: petition?.publishedAt || newestChargeCreatedOn(fit.charges),
+              incorporatedAt: item.date_of_creation,
               events: [
                 {
                   at: nowIso(),
                   stage: "ingest",
                   agent: "database-builder",
-                  message: `Strata fit ${fit.score}/100: ${companyName} — ${fit.reasons.join("; ")}`,
+                  message: fit.pass
+                    ? `Strata fit ${fit.score}/100: ${companyName} — ${fit.reasons.join("; ")}`
+                    : `${huntSummary}: ${companyName}`,
                 },
               ],
             });
