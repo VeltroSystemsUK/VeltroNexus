@@ -1,5 +1,14 @@
-import { dealStream } from "@shared/salesOs";
+import type { AgenticDealFile } from "@shared/agenticWorkflow";
 import { countLiveNonBankCharges, isP0 } from "@shared/chargeClassifier";
+import { dealStream } from "@shared/salesOs";
+import {
+  SME_ATTACH_ATTEMPT_CAP,
+  SME_HOPPER_TARGET,
+  compareSendable,
+  isSendableContact,
+  sendableShortfall,
+  type HopperDeal,
+} from "@shared/smeHopper";
 import { rejectBeforeCharges } from "./strataFit";
 
 export type ChargeLike = {
@@ -91,4 +100,351 @@ export function isExcludedFromSmeHunt(
     }
   }
   return false;
+}
+
+export type AttachBudget = { ch: number; places: number; firecrawl: number; smtp: number };
+
+export const DEFAULT_ATTACH_BUDGET: AttachBudget = { ch: 400, places: 100, firecrawl: 50, smtp: 50 };
+
+export type AttachPlaceHit = { website?: string; email?: string; phone?: string };
+
+export type AttachDeps = {
+  officers(companyNumber: string): Promise<string[]>;
+  places(companyName: string, address?: string): Promise<AttachPlaceHit | null>;
+  firecrawl(website: string): Promise<string[]>;
+  mxValid(email: string): Promise<boolean>;
+  smtpValid?(email: string): Promise<boolean>;
+};
+
+export class SmeAttachRateLimitError extends Error {
+  readonly code = "CH_429" as const;
+  constructor() {
+    super("Companies House rate limit");
+    this.name = "SmeAttachRateLimitError";
+  }
+}
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+const PLACES_TEXT_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json";
+
+function copyBudget(budget: AttachBudget): AttachBudget {
+  return { ch: budget.ch, places: budget.places, firecrawl: budget.firecrawl, smtp: budget.smtp };
+}
+
+function isRateLimit(err: unknown): boolean {
+  return err instanceof SmeAttachRateLimitError || (err as { code?: string })?.code === "CH_429";
+}
+
+function hopperRankFields(deal: AgenticDealFile): HopperDeal {
+  const row = deal as AgenticDealFile & { hasPetition?: boolean; hearingAt?: string };
+  return {
+    id: deal.id,
+    hopper: deal.hopper,
+    source: deal.source,
+    nonBankChargeCount: deal.nonBankChargeCount,
+    lastSignalAt: deal.lastSignalAt,
+    incorporatedAt: deal.incorporatedAt,
+    hasPetition: Boolean(row.hasPetition || deal.petition),
+    hearingAt: row.hearingAt || deal.petition?.hearingAt,
+  };
+}
+
+function officerDisplayName(raw: string): string {
+  const name = String(raw || "").trim();
+  if (!name) return "";
+  if (!name.includes(",")) return name;
+  const [surname, forenames] = name.split(",").map((part) => part.trim());
+  return [forenames, surname].filter(Boolean).join(" ");
+}
+
+function contactNameForEmail(email: string, directorNames: string[], fallback?: string): string | undefined {
+  const local = String(email || "").split("@")[0]?.toLowerCase() || "";
+  const matched = directorNames.find((name) => {
+    const tokens = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return false;
+    const first = tokens[0].toLowerCase();
+    const last = tokens[tokens.length - 1].toLowerCase();
+    return (first.length > 1 && local.includes(first)) || (last.length > 1 && local.includes(last));
+  });
+  if (matched) return matched;
+  if (fallback && isSendableContact({ email, contactName: fallback, directorNames })) return fallback;
+  return directorNames.find((name) => isSendableContact({ email, contactName: name, directorNames }));
+}
+
+async function mailboxPasses(
+  email: string,
+  contactName: string,
+  directorNames: string[],
+  deps: AttachDeps,
+  budget: AttachBudget
+): Promise<boolean> {
+  if (!isSendableContact({ email, contactName, directorNames })) return false;
+  if (!(await deps.mxValid(email))) return false;
+  if (!deps.smtpValid || budget.smtp <= 0) return true;
+  budget.smtp -= 1;
+  return deps.smtpValid(email);
+}
+
+function failAttachPatch(
+  deal: AgenticDealFile,
+  extra: Partial<AgenticDealFile>,
+  now: Date
+): Partial<AgenticDealFile> {
+  const attachAttempts = (deal.attachAttempts || 0) + 1;
+  if (attachAttempts >= SME_ATTACH_ATTEMPT_CAP) {
+    return {
+      ...extra,
+      attachAttempts,
+      hopper: "parked",
+      humanReason: "no director mailbox after 5 attach nights",
+      stage: "failed",
+      status: "failed",
+    };
+  }
+  return {
+    ...extra,
+    attachAttempts,
+    hopper: "hunt_contact",
+    waitUntil: new Date(now.getTime() + ONE_DAY_MS).toISOString(),
+  };
+}
+
+export async function attachOne(
+  deal: AgenticDealFile,
+  deps: AttachDeps,
+  budget: AttachBudget,
+  now: Date = new Date()
+): Promise<{ dealPatch: Partial<AgenticDealFile>; budget: AttachBudget }> {
+  const next = copyBudget(budget);
+  const extra: Partial<AgenticDealFile> = {};
+  let directorNames = [...(deal.directorNames || [])];
+  let email = String(deal.email || "").trim() || undefined;
+  let website = deal.website;
+  let phone = deal.phone;
+  let contactSource: AgenticDealFile["contactSource"] | undefined;
+  let contactName = deal.contactName;
+
+  if (deal.companyNumber && next.ch > 0) {
+    next.ch -= 1;
+    directorNames = await deps.officers(deal.companyNumber);
+    extra.directorNames = directorNames;
+  }
+
+  const accept = async (
+    candidate: string,
+    source: NonNullable<AgenticDealFile["contactSource"]>
+  ): Promise<boolean> => {
+    const name = contactNameForEmail(candidate, directorNames, contactName);
+    if (!name) return false;
+    if (!(await mailboxPasses(candidate, name, directorNames, deps, next))) return false;
+    email = candidate;
+    contactName = name;
+    contactSource = source;
+    return true;
+  };
+
+  if (email && (await accept(email, "ch"))) {
+    return {
+      dealPatch: {
+        ...extra,
+        hopper: "sendable",
+        contactSource: "ch",
+        contactName,
+        email,
+        website,
+        phone,
+        waitUntil: undefined,
+      },
+      budget: next,
+    };
+  }
+
+  if (!email && next.places > 0) {
+    next.places -= 1;
+    let place: AttachPlaceHit | null = null;
+    try {
+      place = await deps.places(deal.companyName, deal.placeAddress);
+    } catch {
+      place = null;
+    }
+    if (place) {
+      if (place.website && !website) website = place.website;
+      if (place.phone && !phone) phone = place.phone;
+      if (place.email) {
+        extra.website = website;
+        extra.phone = phone;
+        if (await accept(place.email, "places")) {
+          return {
+            dealPatch: {
+              ...extra,
+              hopper: "sendable",
+              contactSource: "places",
+              contactName,
+              email,
+              website,
+              phone,
+              waitUntil: undefined,
+            },
+            budget: next,
+          };
+        }
+      }
+    }
+  }
+
+  if (!contactSource && website && next.firecrawl > 0) {
+    next.firecrawl -= 1;
+    let found: string[] = [];
+    try {
+      found = await deps.firecrawl(website);
+    } catch {
+      found = [];
+    }
+    for (const candidate of found) {
+      if (await accept(candidate, "firecrawl")) {
+        return {
+          dealPatch: {
+            ...extra,
+            hopper: "sendable",
+            contactSource: "firecrawl",
+            contactName,
+            email,
+            website,
+            phone,
+            waitUntil: undefined,
+          },
+          budget: next,
+        };
+      }
+    }
+  }
+
+  if (website) extra.website = website;
+  if (phone) extra.phone = phone;
+  return { dealPatch: failAttachPatch(deal, extra, now), budget: next };
+}
+
+export async function refillSendableHopper(opts: {
+  deals: AgenticDealFile[];
+  deps: AttachDeps;
+  budget?: AttachBudget;
+  target?: number;
+  now?: Date;
+}): Promise<{ patches: Array<{ id: number; patch: Partial<AgenticDealFile> }>; budget: AttachBudget }> {
+  let budget = copyBudget(opts.budget || DEFAULT_ATTACH_BUDGET);
+  const shortfall = sendableShortfall(opts.deals, opts.target ?? SME_HOPPER_TARGET);
+  if (shortfall === 0) return { patches: [], budget };
+
+  const now = opts.now || new Date();
+  const nowMs = now.getTime();
+  const candidates = opts.deals
+    .filter((deal) => {
+      if (deal.source === "strata_inbound") return false;
+      if (deal.hopper !== "gated" && deal.hopper !== "hunt_contact") return false;
+      if (deal.waitUntil && Date.parse(deal.waitUntil) > nowMs) return false;
+      return true;
+    })
+    .sort((a, b) => compareSendable(hopperRankFields(a), hopperRankFields(b)));
+
+  const patches: Array<{ id: number; patch: Partial<AgenticDealFile> }> = [];
+  let remaining = shortfall;
+
+  for (const deal of candidates) {
+    if (remaining <= 0) break;
+    if (budget.ch <= 0) break;
+    try {
+      const result = await attachOne(deal, opts.deps, budget, now);
+      budget = result.budget;
+      patches.push({ id: deal.id, patch: result.dealPatch });
+      if (result.dealPatch.hopper === "sendable") remaining -= 1;
+    } catch (err) {
+      if (isRateLimit(err)) return { patches, budget };
+      throw err;
+    }
+  }
+
+  return { patches, budget };
+}
+
+function placesApiKey(): string | undefined {
+  return process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API || process.env.GOOGLE_MAPS_API_KEY;
+}
+
+export function liveAttachDeps(): AttachDeps {
+  return {
+    async officers(companyNumber: string) {
+      try {
+        const { chFetch } = await import("../utils/companiesHouseClient");
+        const res = await chFetch(`/company/${encodeURIComponent(companyNumber)}/officers`);
+        if (res.status === 429) throw new SmeAttachRateLimitError();
+        if (!res.ok) return [];
+        const data = await res.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        return items
+          .filter((officer: { resigned_on?: string | null }) => !officer.resigned_on)
+          .map((officer: { name?: string }) => officerDisplayName(officer.name || ""))
+          .filter((name: string) => name.length > 1);
+      } catch (err) {
+        if (isRateLimit(err)) throw err;
+        return [];
+      }
+    },
+    async places(companyName: string, address?: string) {
+      const key = placesApiKey();
+      if (!key) return null;
+      const query = [companyName, address].filter(Boolean).join(" ");
+      const response = await fetch(`${PLACES_TEXT_URL}?query=${encodeURIComponent(query)}&key=${key}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      const top = data.results?.[0];
+      if (!top) return null;
+      let phone: string | undefined;
+      let website: string | undefined;
+      if (top.place_id) {
+        try {
+          const detailsRes = await fetch(
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(top.place_id)}&fields=formatted_phone_number,international_phone_number,website&key=${key}`
+          );
+          const details = detailsRes.ok ? await detailsRes.json() : null;
+          const result = details?.result;
+          phone = result?.international_phone_number || result?.formatted_phone_number;
+          website = result?.website;
+        } catch {
+          // details are optional
+        }
+      }
+      return { website, phone };
+    },
+    async firecrawl(website: string) {
+      const key = process.env.FIRECRAWL_API_KEY?.trim();
+      if (!key || !website) return [];
+      const url = /^https?:\/\//i.test(website) ? website : `https://${website}`;
+      try {
+        const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url, formats: ["markdown", "html"] }),
+        });
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        const text = JSON.stringify(data);
+        const found = text.match(EMAIL_RE) || [];
+        return [...new Set(found.map((item: string) => item.toLowerCase()))];
+      } catch {
+        return [];
+      }
+    },
+    async mxValid(email: string) {
+      const domain = String(email || "").split("@")[1];
+      if (!domain) return false;
+      try {
+        const { resolveMx } = await import("dns/promises");
+        const records = await resolveMx(domain);
+        return Array.isArray(records) && records.length > 0;
+      } catch {
+        return false;
+      }
+    },
+  };
 }
