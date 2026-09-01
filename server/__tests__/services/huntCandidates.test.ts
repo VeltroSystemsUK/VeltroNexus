@@ -40,5 +40,19 @@ describe("isDistressHuntRow", () => {
         sicCodes: ["69201"],
       })
     ).toBe(true);
+    expect(
+      isDistressHuntRow({
+        companyName: "Joinery Ltd",
+        sicCodes: ["16230"],
+        lenders: ["SIEMENS FINANCIAL SERVICES LIMITED"],
+      })
+    ).toBe(true);
+    expect(
+      isDistressHuntRow({
+        companyName: "Joinery Ltd",
+        sicCodes: ["16230"],
+        lenders: ["HSBC BANK PLC"],
+      })
+    ).toBe(false);
   });
 });

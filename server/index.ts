@@ -296,12 +296,18 @@ app.use((req: any, res, next) => {
             const today = new Date().toISOString().slice(0, 10);
             if (lastDistressScanDate !== today && new Date().getHours() >= 8) {
               lastDistressScanDate = today;
-              agenticWorkflow.startFromDistressScan(undefined, "sme").catch((error) => {
-                console.error("[Agentic] Client Agent distress scan failed:", error);
-              });
-              agenticWorkflow.startFromDistressScan(undefined, "introducer").catch((error) => {
-                console.error("[Agentic] Refer Agent distress scan failed:", error);
-              });
+              void (async () => {
+                try {
+                  await agenticWorkflow.startFromDistressScan(undefined, "sme");
+                } catch (error) {
+                  console.error("[Agentic] Client Agent distress scan failed:", error);
+                }
+                try {
+                  await agenticWorkflow.startSmeOutreachBatch();
+                } catch (error) {
+                  console.error("[Agentic] SME first-touch queue failed:", error);
+                }
+              })();
             }
           }, 60 * 1000);
           console.log("[Agentic] Deal-file timer and daily hunt started");

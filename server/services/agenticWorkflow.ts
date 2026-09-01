@@ -4,7 +4,7 @@ import path from "path";
 import { storage } from "../storage";
 import { searchCompanies, companiesHouseClient, chFetch } from "../utils/companiesHouseClient";
 import { sendEmail } from "./email";
-import { renderCallForDeal, renderOutreachEmail } from "@shared/strataOutreach";
+import { applyOutreachTemplateOverride, renderCallForDeal, renderOutreachEmail, type OutreachTemplateOverride } from "@shared/strataOutreach";
 import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { cadenceAfterOutreach, wasEmailDelivered } from "@shared/outreachSend";
 import { buildSfp, type StandardFinancialProfile } from "@shared/sfp";
@@ -27,12 +27,17 @@ import {
   type StrataFitResult,
 } from "./strataFit";
 import {
+  DEFAULT_ATTACH_BUDGET,
   GATED_SME_HUNT_HOLD,
+  attachOne,
   isExcludedFromSmeHunt,
+  liveAttachDeps,
+  refillSendableHopper,
   shouldEnterSmeHunt,
   shouldSendOutreachAfterSmeHunt,
   type ChargeLike,
 } from "./smeLeadHopper";
+import { isSendableContact, isSmeHopperSendable, rankSendable } from "@shared/smeHopper";
 import { assessBbbEligibility, bbbBlockMessage, type BbbAssessment } from "@shared/bbbEligibility";
 import { mailboxForAgent, inboundMailbox } from "@shared/agentMailboxes";
 import { listLeadFinderCandidates } from "./leadFinderPool";
@@ -52,6 +57,18 @@ import {
   type AgenticSource,
   type AgenticStage,
 } from "@shared/agenticWorkflow";
+import {
+  introducerWorkPaused,
+  isWaitingSmeEmailApproval,
+  mergeSmeCandidatePools,
+  pickSmeHopperOrLegacy,
+  remainingSmeFirstTouchSlots,
+  smeApprovalReason,
+  smeEmailNeedsApproval,
+  shouldProcessAgenticTick,
+  SME_DAILY_FIRST_TOUCH_CAP,
+  type SmeOutreachCandidate,
+} from "@shared/smeOutreach";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 export const DISTRESS_SCAN_LIMIT = 25;
@@ -286,6 +303,46 @@ async function holdOpenedGatedSme(deal: AgenticDealFile, address?: string): Prom
   }) as Promise<AgenticDealFile>;
 }
 
+function withHopperRank(deal: AgenticDealFile): AgenticDealFile & { hasPetition: boolean; hearingAt?: string } {
+  return {
+    ...deal,
+    hasPetition: Boolean(deal.petition),
+    hearingAt: deal.petition?.hearingAt,
+  };
+}
+
+function toSmeOutreachCandidate(deal: AgenticDealFile): SmeOutreachCandidate {
+  return {
+    companyName: deal.companyName,
+    companyNumber: String(deal.companyNumber || ""),
+    email: deal.email,
+    phone: deal.phone,
+    contactName: deal.contactName,
+    website: deal.website,
+    address: deal.placeAddress,
+    hmrc: Boolean(deal.petition),
+    incorporationDate: deal.incorporatedAt,
+  };
+}
+
+function isSmeHuntContactRetry(deal: Pick<AgenticDealFile, "hopper" | "source">): boolean {
+  return deal.hopper === "hunt_contact" && deal.source !== "strata_inbound";
+}
+
+async function applySendableHopperPatches(
+  opened: AgenticDealFile[]
+): Promise<AgenticDealFile[]> {
+  const latest = await storage.listAgenticDeals();
+  const { patches } = await refillSendableHopper({ deals: latest, deps: liveAttachDeps() });
+  const next = [...opened];
+  for (const { id, patch } of patches) {
+    const updated = await storage.updateAgenticDeal(id, patch);
+    const idx = next.findIndex((deal) => deal.id === id);
+    if (idx >= 0) next[idx] = updated;
+  }
+  return next;
+}
+
 async function loadBookedCompanyNumbers(ownerUserId: string): Promise<Set<string>> {
   const numbers = new Set<string>();
   const prospects = await storage.listProspects(ownerUserId);
@@ -514,8 +571,11 @@ export const agenticWorkflow = {
    * Omitted, it runs both (used by the unscoped manual scan endpoint).
    */
   async startFromDistressScan(limit = DISTRESS_SCAN_LIMIT, streamFilter?: "sme" | "introducer"): Promise<DistressHuntResult> {
+    if (streamFilter === "introducer" && introducerWorkPaused()) {
+      return { deals: [], scanned: 0, rejected: { "introducer outreach paused": 1 } };
+    }
     const wantsSme = streamFilter !== "introducer";
-    const wantsIntroducer = streamFilter !== "sme";
+    const wantsIntroducer = streamFilter !== "sme" && !introducerWorkPaused();
     const opened: AgenticDealFile[] = [];
     const rejected: Record<string, number> = {};
     let chargeOpened = 0;
@@ -924,7 +984,15 @@ export const agenticWorkflow = {
                 rejected,
                 `Companies House rate limit — cooling off until ${new Date(until).toLocaleTimeString("en-GB")}`
               );
-              return { deals: opened, scanned, rejected };
+              let hunted = opened;
+              if (wantsSme) {
+                try {
+                  hunted = await applySendableHopperPatches(opened);
+                } catch (error: any) {
+                  console.warn("[Agentic] Hopper refill failed:", error?.message || error);
+                }
+              }
+              return { deals: hunted, scanned, rejected };
             }
             const hasPetition = gazetteByNumber.has(companyNumber);
             const hunt = shouldEnterSmeHunt({
@@ -1083,8 +1151,162 @@ export const agenticWorkflow = {
       }
     }
 
+    let hunted = opened;
+    if (wantsSme) {
+      try {
+        hunted = await applySendableHopperPatches(opened);
+      } catch (error: any) {
+        console.warn("[Agentic] Hopper refill failed:", error?.message || error);
+      }
+    }
+
     console.log(
-      `[Agentic] Hunt scanned ${scanned}, opened ${opened.length}, rejected ${JSON.stringify(rejected)}`
+      `[Agentic] Hunt scanned ${scanned}, opened ${hunted.length}, rejected ${JSON.stringify(rejected)}`
+    );
+    return { deals: hunted, scanned, rejected };
+  },
+
+  async startSmeOutreachBatch(limit = SME_DAILY_FIRST_TOUCH_CAP): Promise<DistressHuntResult> {
+    const existing = await storage.listAgenticDeals();
+    const remaining = remainingSmeFirstTouchSlots({ deals: existing });
+    const cap = Math.min(limit, remaining);
+    if (cap <= 0) {
+      return { deals: [], scanned: 0, rejected: { "daily first-touch cap reached": 1 } };
+    }
+
+    const ownerUserId = await resolveOwnerUserId();
+    const booked = await loadBookedCompanyNumbers(ownerUserId);
+    const hopperDeals = rankSendable(existing.filter(isSmeHopperSendable).map(withHopperRank));
+    const hopperCandidates = hopperDeals.map(toSmeOutreachCandidate);
+    const useHopper = hopperCandidates.length > 0;
+
+    const seenNumbers = new Set<string>();
+    const seenEmails = new Set<string>();
+    if (useHopper) {
+      const hopperNumbers = new Set(
+        hopperDeals.map((deal) => String(deal.companyNumber || "")).filter(Boolean)
+      );
+      for (const number of booked) {
+        if (!hopperNumbers.has(String(number))) seenNumbers.add(String(number));
+      }
+      for (const deal of existing) {
+        if (isSmeHopperSendable(deal)) continue;
+        const email = String(deal.email || "").trim().toLowerCase();
+        if (email) seenEmails.add(email);
+      }
+    } else {
+      for (const value of [...existing.map((deal) => deal.companyNumber).filter(Boolean), ...booked]) {
+        seenNumbers.add(String(value));
+      }
+      for (const deal of existing) {
+        const email = String(deal.email || "").trim().toLowerCase();
+        if (email) seenEmails.add(email);
+      }
+    }
+
+    let legacyCandidates: SmeOutreachCandidate[] = [];
+    if (!useHopper) {
+      const finder: SmeOutreachCandidate[] = listLeadFinderCandidates(400).map((row) => ({
+        companyName: row.companyName,
+        companyNumber: row.companyNumber,
+        email: row.email,
+        phone: row.phone,
+        contactName: row.contactName,
+        website: row.website,
+        address: row.address,
+        sicCodes: row.sicCode ? [row.sicCode] : [],
+        lenders: row.lenders,
+        incorporationDate: row.incorporationDate,
+      }));
+      const localLeads = await storage.listInternalLeads();
+      const local: SmeOutreachCandidate[] = localLeads.map((lead) => {
+        const lender = String(lead.identifiedLender || "").trim();
+        const liveCharge = Boolean(lender) && String(lead.chargeStatus || "").toLowerCase() !== "satisfied";
+        return {
+          companyName: lead.companyName,
+          companyNumber: String(lead.companyNumber || ""),
+          email: lead.email || undefined,
+          phone: lead.phone || undefined,
+          contactName: lead.contactName || undefined,
+          website: lead.website || undefined,
+          address: [lead.address, lead.city].filter(Boolean).join(", ") || undefined,
+          sicCodes: lead.sicCode ? [String(lead.sicCode)] : [],
+          lenders: liveCharge ? [lender] : [],
+          incorporationDate: lead.incorporationDate || undefined,
+        };
+      });
+      legacyCandidates = mergeSmeCandidatePools(local, finder).filter((row) =>
+        isSendableContact({ email: row.email, contactName: row.contactName })
+      );
+    }
+
+    const picked = pickSmeHopperOrLegacy({
+      hopperCandidates,
+      legacyCandidates,
+      seenNumbers,
+      seenEmails,
+      limit: cap,
+    });
+
+    const opened: AgenticDealFile[] = [];
+    const rejected: Record<string, number> = {};
+    const scanned = useHopper ? hopperCandidates.length : legacyCandidates.length;
+    if (picked.length < cap) {
+      bumpReject(
+        rejected,
+        useHopper
+          ? `only ${picked.length} sendable hopper contacts after filters`
+          : `only ${picked.length} sendable SME contacts after filters`
+      );
+    }
+
+    if (useHopper) {
+      const byNumber = new Map(hopperDeals.map((deal) => [String(deal.companyNumber || ""), deal]));
+      for (const row of picked) {
+        const deal = byNumber.get(row.companyNumber);
+        if (!deal) continue;
+        const queued = await storage.updateAgenticDeal(deal.id, {
+          hopper: "queued",
+          events: addEvent(
+            deal,
+            "outreach",
+            `SME first-touch queued from hopper: ${deal.companyName}`,
+            "database-builder"
+          ),
+        });
+        opened.push(await this.sendOutreach(queued));
+      }
+    } else {
+      for (const row of picked) {
+        const deal = await storage.createAgenticDeal({
+          source: "distress_scan" as AgenticSource,
+          stream: "sme",
+          stage: "outreach",
+          status: "running",
+          ownerUserId,
+          companyName: row.companyName,
+          companyNumber: row.companyNumber,
+          contactName: row.contactName,
+          email: row.email,
+          phone: row.phone,
+          website: row.website,
+          placeAddress: row.address,
+          hopper: "queued",
+          events: [
+            {
+              at: nowIso(),
+              stage: "outreach",
+              agent: "database-builder",
+              message: `SME first-touch queued from Leads: ${row.companyName}`,
+            },
+          ],
+        });
+        opened.push(await this.sendOutreach(deal));
+      }
+    }
+
+    console.log(
+      `[Agentic] SME first-touch queued ${opened.length}/${cap} from ${useHopper ? "hopper" : "legacy"}, scanned ${scanned}, rejected ${JSON.stringify(rejected)}`
     );
     return { deals: opened, scanned, rejected };
   },
@@ -1165,6 +1387,11 @@ export const agenticWorkflow = {
   },
 
   async completeContact(deal: AgenticDealFile): Promise<AgenticDealFile> {
+    if (isSmeHuntContactRetry(deal)) {
+      const { dealPatch } = await attachOne(deal, liveAttachDeps(), DEFAULT_ATTACH_BUDGET);
+      return storage.updateAgenticDeal(deal.id, dealPatch) as Promise<AgenticDealFile>;
+    }
+
     let working = deal;
     if (!working.website || !working.phone || !working.placeName) {
       const place = await searchPlaces(working.companyName, working.placeAddress || undefined);
@@ -1406,9 +1633,22 @@ export const agenticWorkflow = {
   async sendOutreach(deal: AgenticDealFile): Promise<AgenticDealFile> {
     const stream = dealStream(deal.source, deal.stream);
     if (stream === "introducer") {
+      if (introducerWorkPaused()) {
+        return storage.updateAgenticDeal(deal.id, {
+          stage: "outreach",
+          status: "waiting_human",
+          waitUntil: undefined,
+          humanReason: "Introducer outreach is paused until further notice.",
+          events: addEvent(deal, "outreach", "Held — introducer outreach paused", "database-builder-se"),
+        }) as Promise<AgenticDealFile>;
+      }
       return this.promoteToIntroducerPipeline(deal);
     }
-    if (stream === "sme" && (deal.fitScore ?? 0) < MIN_FIT_SCORE) {
+    if (stream === "sme" && deal.source !== "strata_inbound" && deal.hopper && deal.hopper !== "queued") {
+      if (isSmeHuntContactRetry(deal)) return this.completeContact(deal);
+      return deal;
+    }
+    if (stream === "sme" && typeof deal.fitScore === "number" && deal.fitScore > 0 && deal.fitScore < MIN_FIT_SCORE) {
       return storage.updateAgenticDeal(deal.id, {
         stage: "failed",
         status: "failed",
@@ -1459,14 +1699,24 @@ export const agenticWorkflow = {
         : "fulfilment-manager"
       : "outreach-sales";
     const mailbox = inbound ? inboundMailbox(agentId) : mailboxForAgent("outreach-sales");
-    const script = renderOutreachEmail(deal, step.touchId, mailbox);
+    const builtInScript = renderOutreachEmail(deal, step.touchId, mailbox);
+    const templateOverrides = (await storage.getSystemSetting("agent_outreach_templates")) || {};
+    const script = applyOutreachTemplateOverride(
+      builtInScript,
+      templateOverrides[step.touchId] as OutreachTemplateOverride | undefined,
+      deal,
+      mailbox,
+    );
     const nextTouch = (deal.outreachTouch || 0) + 1;
     const following = nextCadenceStep(stream, nextTouch);
     const isLinkedIn = step.channel === "linkedin";
 
     const pecrReason = coldEmailBlockedReason(deal.email, stream);
+    const needsApproval = smeEmailNeedsApproval({ stream, isLinkedIn });
     let delivered = !step.autoSend || isLinkedIn;
     if (step.autoSend && !isLinkedIn && pecrReason) {
+      delivered = false;
+    } else if (needsApproval) {
       delivered = false;
     } else if (step.autoSend && !isLinkedIn && deal.email) {
       try {
@@ -1495,6 +1745,8 @@ export const agenticWorkflow = {
       isLinkedIn,
       delivered,
       blockReason: step.autoSend && !isLinkedIn ? pecrReason : null,
+      requireApproval: needsApproval,
+      approved: false,
     });
 
     if (stream === "introducer" && (outcome === "advance" || outcome === "hold_linkedin") && !isLinkedIn && delivered) {
@@ -1536,6 +1788,26 @@ export const agenticWorkflow = {
     const socialPlaybook = isLinkedIn
       ? { network: "linkedin" as const, action: "Profile review then connection request", message: script.text }
       : deal.socialPlaybook;
+
+    if (outcome === "hold_approval") {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        waitUntil: undefined,
+        uploadToken: deal.uploadToken,
+        outreachSubject: script.subject,
+        outreachBody: script.html,
+        outreachTouchId: script.touchId,
+        socialPlaybook,
+        humanReason: smeApprovalReason(deal.email || "the mailbox"),
+        events: addEvent(
+          deal,
+          "outreach",
+          `Day ${step.day} email drafted for approval: ${script.purpose}`,
+          agentId
+        ),
+      }) as Promise<AgenticDealFile>;
+    }
 
     if (outcome === "hold_linkedin") {
       return storage.updateAgenticDeal(deal.id, {
@@ -1664,7 +1936,14 @@ export const agenticWorkflow = {
   async keepChasingPack(deal: AgenticDealFile): Promise<AgenticDealFile> {
     deal = await withUploadToken(deal);
     const mailbox = inboundMailbox("fulfilment-manager");
-    const script = renderOutreachEmail(deal, "inbound_chase", mailbox);
+    const builtInScript = renderOutreachEmail(deal, "inbound_chase", mailbox);
+    const templateOverrides = (await storage.getSystemSetting("agent_outreach_templates")) || {};
+    const script = applyOutreachTemplateOverride(
+      builtInScript,
+      templateOverrides.inbound_chase as OutreachTemplateOverride | undefined,
+      deal,
+      mailbox,
+    );
     const gaps = deal.sfp?.missing?.length ? deal.sfp.missing.join("; ") : namedPackGaps(deal).join("; ");
     if (deal.email) {
       const pecrReason = coldEmailBlockedReason(deal.email, dealStream(deal.source, deal.stream));
@@ -1809,13 +2088,135 @@ export const agenticWorkflow = {
     return this.applyCompany(deal, match);
   },
 
+  async approveSmeSend(deal: AgenticDealFile, note?: string): Promise<AgenticDealFile> {
+    if (!isWaitingSmeEmailApproval(deal)) {
+      throw new Error("This file is not waiting for email approval");
+    }
+    const stream = dealStream(deal.source, deal.stream);
+    const step = nextCadenceStep(stream, cadenceRetryIndex(deal.outreachTouch));
+    if (!step || step.channel === "linkedin") {
+      throw new Error("No email step waiting on this file");
+    }
+    if (!deal.email || !deal.outreachSubject || !deal.outreachBody) {
+      throw new Error("Draft email is missing");
+    }
+    const pecrReason = coldEmailBlockedReason(deal.email, stream);
+    if (pecrReason) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        humanReason: `Will not send cold email: ${pecrReason}`,
+        events: addEvent(deal, "outreach", `Held — ${pecrReason}`, "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    const inbound = stream === "inbound";
+    const agentId = inbound
+      ? step.touchId === "inbound_ack"
+        ? "inbound-intake"
+        : "fulfilment-manager"
+      : "outreach-sales";
+    const mailbox = inbound ? inboundMailbox(agentId) : mailboxForAgent("outreach-sales");
+    let delivered = false;
+    try {
+      const sendResult = await sendEmail(
+        {
+          agentId,
+          fromEmail: mailbox.address,
+          fromName: mailbox.fromName,
+          replyTo: mailbox.replyTo,
+          dealId: deal.id,
+          prospectId: deal.prospectId,
+        },
+        deal.email,
+        deal.outreachSubject,
+        deal.outreachBody
+      );
+      delivered = wasEmailDelivered(sendResult);
+    } catch (error: any) {
+      console.error("[Agentic] Approved outreach email failed:", error);
+      delivered = false;
+    }
+    if (!delivered) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        humanReason: "Email did not send (SMTP missing or failed). Retry when mail is live.",
+        events: addEvent(deal, "outreach", "Email not delivered — cadence not advanced", agentId),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    const nextTouch = (deal.outreachTouch || 0) + 1;
+    const following = nextCadenceStep(stream, nextTouch);
+    if (deal.prospectId) {
+      await storage.createActivity(
+        {
+          prospectId: deal.prospectId,
+          title: `Agent outreach ${nextTouch} sent`,
+          description: deal.outreachSubject,
+          activityType: "email",
+        } as any,
+        deal.ownerUserId
+      );
+    }
+    if (step.queueCall) {
+      const callPlaybook = renderCallForDeal(deal, process.env.STRATA_PHONE || process.env.STRATA_CALLBACK_NUMBER);
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "human_call",
+        status: "waiting_human",
+        waitUntil: undefined,
+        outreachTouch: nextTouch,
+        outreachTouchId: step.touchId,
+        callPlaybook,
+        humanReason: "Stream A day 14 — SME close call",
+        events: addEvent(deal, "human_call", note || "Approved email sent. Call script is on the file.", agentId),
+      }) as Promise<AgenticDealFile>;
+    }
+    const waitDays = following?.delayDaysFromPrevious ?? 3;
+    return storage.updateAgenticDeal(deal.id, {
+      stage: "fulfilment",
+      status: "waiting_timer",
+      waitUntil: new Date(Date.now() + daysMs(waitDays)).toISOString(),
+      outreachTouch: nextTouch,
+      outreachTouchId: step.touchId,
+      humanReason: undefined,
+      events: addEvent(
+        deal,
+        nextTouch === 1 ? "outreach" : "fulfilment",
+        note || `Day ${step.day} email to ${deal.email}: ${step.job}`,
+        agentId
+      ),
+    }) as Promise<AgenticDealFile>;
+  },
+
+  async approveSmeQueue(): Promise<{ sent: number; held: number; deals: AgenticDealFile[] }> {
+    const waiting = (await storage.listAgenticDeals()).filter((deal) => isWaitingSmeEmailApproval(deal));
+    const deals: AgenticDealFile[] = [];
+    let sent = 0;
+    let held = 0;
+    for (const deal of waiting) {
+      const updated = await this.approveSmeSend(deal);
+      deals.push(updated);
+      if (isWaitingSmeEmailApproval(updated) || /did not send|SMTP|PECR|personal mailbox/i.test(updated.humanReason || "")) {
+        held += 1;
+      } else {
+        sent += 1;
+      }
+    }
+    return { sent, held, deals };
+  },
+
   async resolveHuman(
     dealId: number,
-    action: "call_done" | "approve_sterling" | "stop" | "linkedin_posted" | "retry_send",
+    action: "call_done" | "approve_sterling" | "stop" | "linkedin_posted" | "retry_send" | "approve_send",
     note?: string
   ): Promise<AgenticDealFile> {
     const deal = await storage.getAgenticDeal(dealId);
     if (!deal) throw new Error("Deal file not found");
+
+    if (action === "approve_send") {
+      return this.approveSmeSend(deal, note);
+    }
 
     if (action === "stop") {
       return storage.updateAgenticDeal(deal.id, {
@@ -1829,6 +2230,14 @@ export const agenticWorkflow = {
       const stream = dealStream(deal.source, deal.stream);
       const cleared = { ...deal, status: "running" as const, humanReason: undefined };
       if (stream === "introducer") {
+        if (introducerWorkPaused()) {
+          return storage.updateAgenticDeal(deal.id, {
+            stage: "outreach",
+            status: "waiting_human",
+            humanReason: "Introducer outreach is paused until further notice.",
+            events: addEvent(deal, "outreach", "Held — introducer outreach paused", "database-builder-se"),
+          }) as Promise<AgenticDealFile>;
+        }
         return this.promoteToIntroducerPipeline(cleared);
       }
       const step = nextCadenceStep(stream, cadenceRetryIndex(deal.outreachTouch));
@@ -1970,10 +2379,18 @@ export const agenticWorkflow = {
 
   async tick(): Promise<number> {
     const due = (await storage.listAgenticDeals()).filter(
-      (deal) => deal.status === "waiting_timer" && deal.waitUntil && new Date(deal.waitUntil).getTime() <= Date.now()
+      (deal) =>
+        deal.status === "waiting_timer" &&
+        deal.waitUntil &&
+        new Date(deal.waitUntil).getTime() <= Date.now() &&
+        (isSmeHuntContactRetry(deal) || shouldProcessAgenticTick(deal))
     );
     for (const deal of due) {
       try {
+        if (isSmeHuntContactRetry(deal)) {
+          await this.completeContact(deal);
+          continue;
+        }
         const kind = tickKindForDeal(deal);
         if (kind === "fulfilment") await this.runFulfilment(deal);
         if (kind === "introducer_retry") {

@@ -4,6 +4,7 @@ import {
   hopperCounts,
   isRoleMailbox,
   isSendableContact,
+  isSmeHopperSendable,
   rankSendable,
   sendableShortfall,
   SME_HOPPER_TARGET,
@@ -51,5 +52,14 @@ describe("hopper rank", () => {
       parked: 0,
       gated: 0,
     });
+  });
+
+  it("isSmeHopperSendable is true only for sendable hopper files", () => {
+    expect(isSmeHopperSendable({ hopper: "sendable" })).toBe(true);
+    expect(isSmeHopperSendable({ hopper: "hunt_contact" })).toBe(false);
+    expect(isSmeHopperSendable({ hopper: "sendable", source: "strata_inbound" })).toBe(false);
+    expect(isSmeHopperSendable({ hopper: "gated" })).toBe(false);
+    expect(isSmeHopperSendable({ hopper: "queued" })).toBe(false);
+    expect(isSmeHopperSendable({ hopper: "parked" })).toBe(false);
   });
 });

@@ -442,31 +442,21 @@ export function liveAttachDeps(): AttachDeps {
       return { website, phone };
     },
     async firecrawl(website: string) {
-      if (!website) return [];
-      const emails = new Set<string>();
       const key = process.env.FIRECRAWL_API_KEY?.trim();
-      if (key) {
-        for (const url of firecrawlTargetUrls(website)) {
-          try {
-            const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ url, formats: ["markdown", "html"] }),
-            });
-            if (!resp.ok) continue;
-            const found = JSON.stringify(await resp.json()).match(EMAIL_RE) || [];
-            for (const item of found) emails.add(item.toLowerCase());
-          } catch {
-            // skip this path
-          }
-        }
-      } else {
+      if (!key || !website) return [];
+      const emails = new Set<string>();
+      for (const url of firecrawlTargetUrls(website)) {
         try {
-          const { findEmail } = await import("../utils/scraperUtils");
-          const hit = await findEmail(website, null);
-          if (hit?.email) emails.add(hit.email.toLowerCase());
+          const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ url, formats: ["markdown", "html"] }),
+          });
+          if (!resp.ok) continue;
+          const found = JSON.stringify(await resp.json()).match(EMAIL_RE) || [];
+          for (const item of found) emails.add(item.toLowerCase());
         } catch {
-          return [];
+          // skip this path
         }
       }
       return [...emails];

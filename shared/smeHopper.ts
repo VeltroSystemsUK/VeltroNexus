@@ -120,3 +120,13 @@ export function sendableShortfall(
 ): number {
   return Math.max(0, target - hopperCounts(deals).sendable);
 }
+
+export function isSmeHopperSendable(deal: {
+  hopper?: string;
+  source?: string;
+  stream?: string;
+  email?: string | null;
+}): boolean {
+  if (deal.source === "strata_inbound") return false;
+  return deal.hopper === "sendable";
+}
