@@ -26,7 +26,13 @@ import {
   rejectBeforeCharges,
   type StrataFitResult,
 } from "./strataFit";
-import { isExcludedFromSmeHunt, shouldEnterSmeHunt, type ChargeLike } from "./smeLeadHopper";
+import {
+  GATED_SME_HUNT_HOLD,
+  isExcludedFromSmeHunt,
+  shouldEnterSmeHunt,
+  shouldSendOutreachAfterSmeHunt,
+  type ChargeLike,
+} from "./smeLeadHopper";
 import { assessBbbEligibility, bbbBlockMessage, type BbbAssessment } from "@shared/bbbEligibility";
 import { mailboxForAgent, inboundMailbox } from "@shared/agentMailboxes";
 import { listLeadFinderCandidates } from "./leadFinderPool";
@@ -267,6 +273,17 @@ function smeHuntFitSummary(liveNonBankChargeCount: number, hasPetition?: boolean
   }
   if (hasPetition) return "P0 hunt: HMRC petition";
   return `P0 hunt: ${liveNonBankChargeCount} live non-bank charge${liveNonBankChargeCount === 1 ? "" : "s"}`;
+}
+
+async function holdOpenedGatedSme(deal: AgenticDealFile, address?: string): Promise<AgenticDealFile> {
+  if (shouldSendOutreachAfterSmeHunt(deal)) {
+    throw new Error("holdOpenedGatedSme is only for gated SME hunt files");
+  }
+  return storage.updateAgenticDeal(deal.id, {
+    ...GATED_SME_HUNT_HOLD,
+    waitUntil: undefined,
+    ...(address ? { placeAddress: deal.placeAddress || address } : {}),
+  }) as Promise<AgenticDealFile>;
 }
 
 async function loadBookedCompanyNumbers(ownerUserId: string): Promise<Set<string>> {
@@ -580,19 +597,23 @@ export const agenticWorkflow = {
           hmrcTtp: true,
         });
         const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, true);
+        const address = profile?.registered_office_address
+          ? [profile.registered_office_address.address_line_1, profile.registered_office_address.locality, profile.registered_office_address.postal_code]
+              .filter(Boolean)
+              .join(", ")
+          : undefined;
         const deal = await storage.createAgenticDeal({
           source: "distress_scan",
           stream: "sme",
-          stage: "ingest",
-          status: "running",
+          ...GATED_SME_HUNT_HOLD,
           ownerUserId,
           companyName,
           companyNumber: marker.companyNumber,
+          placeAddress: address,
           fitScore: fit.pass ? fit.score : undefined,
           fitReasons: fit.pass ? fit.reasons : [huntSummary],
           fitSummary: fit.pass ? fit.summary : huntSummary,
           petition: toDealPetition(marker),
-          hopper: "gated",
           nonBankChargeCount: hunt.liveNonBankChargeCount,
           lastSignalAt: marker.publishedAt,
           incorporatedAt: profile?.date_of_creation,
@@ -605,19 +626,7 @@ export const agenticWorkflow = {
             },
           ],
         });
-        const address = profile?.registered_office_address
-          ? [profile.registered_office_address.address_line_1, profile.registered_office_address.locality, profile.registered_office_address.postal_code]
-              .filter(Boolean)
-              .join(", ")
-          : undefined;
-        opened.push(
-          await this.applyCompany(deal, {
-            companyName,
-            companyNumber: marker.companyNumber,
-            companyStatus: profile?.company_status || "active",
-            address,
-          })
-        );
+        opened.push(await holdOpenedGatedSme(deal, address));
       }
     } catch (error: any) {
       console.warn("[Agentic] Gazette HMRC ingest failed:", error?.message || error);
@@ -732,8 +741,7 @@ export const agenticWorkflow = {
       const deal = await storage.createAgenticDeal({
         source: "distress_scan",
         stream: "sme",
-        stage: "ingest",
-        status: "running",
+        ...GATED_SME_HUNT_HOLD,
         ownerUserId,
         companyName: candidate.companyName,
         companyNumber,
@@ -741,11 +749,11 @@ export const agenticWorkflow = {
         email: candidate.email,
         phone: candidate.phone,
         website: candidate.website,
+        placeAddress: candidate.address,
         fitScore: fit.pass ? fit.score : undefined,
         fitReasons: fit.pass ? fit.reasons : [huntSummary],
         fitSummary: fit.pass ? fit.summary : huntSummary,
         petition,
-        hopper: "gated",
         nonBankChargeCount: hunt.liveNonBankChargeCount,
         lastSignalAt: petition?.publishedAt || candidate.lastChargeDate,
         incorporatedAt: candidate.incorporationDate,
@@ -760,14 +768,7 @@ export const agenticWorkflow = {
           },
         ],
       });
-      opened.push(
-        await this.applyCompany(deal, {
-          companyName: candidate.companyName,
-          companyNumber,
-          companyStatus: "active",
-          address: candidate.address,
-        })
-      );
+      opened.push(await holdOpenedGatedSme(deal, candidate.address));
       chargeOpened += 1;
     }
 
@@ -835,11 +836,11 @@ export const agenticWorkflow = {
 
       const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, hasPetition);
       const petition = hasPetition ? toDealPetition(gazetteByNumber.get(companyNumber)!) : undefined;
+      const address = [lead.address, lead.city].filter(Boolean).join(", ") || undefined;
       const deal = await storage.createAgenticDeal({
         source: "distress_scan",
         stream: "sme",
-        stage: "ingest",
-        status: "running",
+        ...GATED_SME_HUNT_HOLD,
         ownerUserId,
         companyName,
         companyNumber,
@@ -847,11 +848,11 @@ export const agenticWorkflow = {
         email: lead.email || undefined,
         phone: lead.phone || undefined,
         website: lead.website || undefined,
+        placeAddress: address,
         fitScore: fit.pass ? fit.score : undefined,
         fitReasons: fit.pass ? fit.reasons : [huntSummary],
         fitSummary: fit.pass ? fit.summary : huntSummary,
         petition,
-        hopper: "gated",
         nonBankChargeCount: hunt.liveNonBankChargeCount,
         lastSignalAt: petition?.publishedAt || lead.chargeDate,
         incorporatedAt: lead.incorporationDate,
@@ -866,14 +867,7 @@ export const agenticWorkflow = {
           },
         ],
       });
-      opened.push(
-        await this.applyCompany(deal, {
-          companyName,
-          companyNumber,
-          companyStatus: "active",
-          address: [lead.address, lead.city].filter(Boolean).join(", ") || undefined,
-        })
-      );
+      opened.push(await holdOpenedGatedSme(deal, address));
       chargeOpened += 1;
     }
 
@@ -998,19 +992,23 @@ export const agenticWorkflow = {
             if (!wantsSme) continue;
             const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, hasPetition);
             const petition = hasPetition ? toDealPetition(gazetteByNumber.get(companyNumber)!) : undefined;
+            const address = item.registered_office_address
+              ? [item.registered_office_address.address_line_1, item.registered_office_address.locality, item.registered_office_address.postal_code]
+                  .filter(Boolean)
+                  .join(", ")
+              : undefined;
             const deal = await storage.createAgenticDeal({
               source: "distress_scan",
               stream: "sme",
-              stage: "ingest",
-              status: "running",
+              ...GATED_SME_HUNT_HOLD,
               ownerUserId,
               companyName,
               companyNumber,
+              placeAddress: address,
               fitScore: fit.pass ? fit.score : undefined,
               fitReasons: fit.pass ? fit.reasons : [huntSummary],
               fitSummary: fit.pass ? fit.summary : huntSummary,
               petition,
-              hopper: "gated",
               nonBankChargeCount: hunt.liveNonBankChargeCount,
               lastSignalAt: petition?.publishedAt || newestChargeCreatedOn(fit.charges),
               incorporatedAt: item.date_of_creation,
@@ -1025,19 +1023,7 @@ export const agenticWorkflow = {
                 },
               ],
             });
-            const address = item.registered_office_address
-              ? [item.registered_office_address.address_line_1, item.registered_office_address.locality, item.registered_office_address.postal_code]
-                  .filter(Boolean)
-                  .join(", ")
-              : undefined;
-            opened.push(
-              await this.applyCompany(deal, {
-                companyName,
-                companyNumber,
-                companyStatus: item.company_status || "active",
-                address,
-              })
-            );
+            opened.push(await holdOpenedGatedSme(deal, address));
             chargeOpened += 1;
           }
         } catch (error) {

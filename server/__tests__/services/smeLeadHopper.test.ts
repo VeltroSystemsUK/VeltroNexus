@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { shouldEnterSmeHunt, isExcludedFromSmeHunt } from "../../services/smeLeadHopper";
+import {
+  GATED_SME_HUNT_HOLD,
+  isExcludedFromSmeHunt,
+  shouldEnterSmeHunt,
+  shouldSendOutreachAfterSmeHunt,
+} from "../../services/smeLeadHopper";
 
 describe("SME hunt gate", () => {
   it("accepts a 13-month-old ltd with one live Iwoca charge", () => {
@@ -53,5 +58,12 @@ describe("SME hunt gate", () => {
         new Set()
       )
     ).toBe(true);
+  });
+
+  it("holds gated P0s in the waiting room instead of sending", () => {
+    expect(GATED_SME_HUNT_HOLD).toEqual({ hopper: "gated", stage: "ingest", status: "waiting_timer" });
+    expect(shouldSendOutreachAfterSmeHunt({ hopper: "gated", source: "distress_scan" })).toBe(false);
+    expect(shouldSendOutreachAfterSmeHunt({ hopper: "sendable", source: "distress_scan" })).toBe(true);
+    expect(shouldSendOutreachAfterSmeHunt({ source: "strata_inbound" })).toBe(true);
   });
 });

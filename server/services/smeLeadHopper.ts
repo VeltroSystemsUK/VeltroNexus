@@ -24,6 +24,17 @@ export type SmeHuntResult =
   | { ok: true; liveNonBankChargeCount: number }
   | { ok: false; reason: string };
 
+export const GATED_SME_HUNT_HOLD = {
+  hopper: "gated" as const,
+  stage: "ingest" as const,
+  status: "waiting_timer" as const,
+};
+
+export function shouldSendOutreachAfterSmeHunt(deal: { hopper?: string | null; source?: string }): boolean {
+  if (deal.source === "strata_inbound") return true;
+  return deal.hopper !== "gated";
+}
+
 function normCompanyNumber(value?: string | null): string {
   const raw = String(value || "")
     .toUpperCase()
