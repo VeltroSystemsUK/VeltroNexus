@@ -128,6 +128,20 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 const PLACES_TEXT_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json";
 
+export const ATTACH_FIRECRAWL_PATHS = ["/", "/contact", "/about", "/team"] as const;
+
+export function firecrawlTargetUrls(website: string): string[] {
+  const raw = String(website || "").trim();
+  if (!raw) return [];
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const origin = new URL(withScheme).origin;
+    return ATTACH_FIRECRAWL_PATHS.map((path) => (path === "/" ? `${origin}/` : `${origin}${path}`));
+  } catch {
+    return [];
+  }
+}
+
 function copyBudget(budget: AttachBudget): AttachBudget {
   return { ch: budget.ch, places: budget.places, firecrawl: budget.firecrawl, smtp: budget.smtp };
 }
@@ -158,18 +172,16 @@ function officerDisplayName(raw: string): string {
   return [forenames, surname].filter(Boolean).join(" ");
 }
 
-function contactNameForEmail(email: string, directorNames: string[], fallback?: string): string | undefined {
+function contactNameForEmail(email: string, directorNames: string[]): string | undefined {
   const local = String(email || "").split("@")[0]?.toLowerCase() || "";
-  const matched = directorNames.find((name) => {
+  if (!local) return undefined;
+  return directorNames.find((name) => {
     const tokens = String(name || "").trim().split(/\s+/).filter(Boolean);
     if (!tokens.length) return false;
     const first = tokens[0].toLowerCase();
     const last = tokens[tokens.length - 1].toLowerCase();
     return (first.length > 1 && local.includes(first)) || (last.length > 1 && local.includes(last));
   });
-  if (matched) return matched;
-  if (fallback && isSendableContact({ email, contactName: fallback, directorNames })) return fallback;
-  return directorNames.find((name) => isSendableContact({ email, contactName: name, directorNames }));
 }
 
 async function mailboxPasses(
@@ -227,15 +239,16 @@ export async function attachOne(
 
   if (deal.companyNumber && next.ch > 0) {
     next.ch -= 1;
-    directorNames = await deps.officers(deal.companyNumber);
-    extra.directorNames = directorNames;
+    const fetched = await deps.officers(deal.companyNumber);
+    if (fetched.length) directorNames = fetched;
   }
+  if (directorNames.length) extra.directorNames = directorNames;
 
   const accept = async (
     candidate: string,
     source: NonNullable<AgenticDealFile["contactSource"]>
   ): Promise<boolean> => {
-    const name = contactNameForEmail(candidate, directorNames, contactName);
+    const name = contactNameForEmail(candidate, directorNames);
     if (!name) return false;
     if (!(await mailboxPasses(candidate, name, directorNames, deps, next))) return false;
     email = candidate;
@@ -352,7 +365,7 @@ export async function refillSendableHopper(opts: {
 
   for (const deal of candidates) {
     if (remaining <= 0) break;
-    if (budget.ch <= 0) break;
+    if (!canAttachWithBudget(deal, budget)) continue;
     try {
       const result = await attachOne(deal, opts.deps, budget, now);
       budget = result.budget;
@@ -365,6 +378,18 @@ export async function refillSendableHopper(opts: {
   }
 
   return { patches, budget };
+}
+
+function canAttachWithBudget(deal: AgenticDealFile, budget: AttachBudget): boolean {
+  const hasNames = (deal.directorNames || []).length > 0;
+  if (!hasNames && budget.ch <= 0) return false;
+
+  const email = String(deal.email || "").trim();
+  if (email) return true;
+
+  if (budget.places > 0) return true;
+  if (deal.website && budget.firecrawl > 0) return true;
+  return false;
 }
 
 function placesApiKey(): string | undefined {
@@ -417,23 +442,34 @@ export function liveAttachDeps(): AttachDeps {
       return { website, phone };
     },
     async firecrawl(website: string) {
+      if (!website) return [];
+      const emails = new Set<string>();
       const key = process.env.FIRECRAWL_API_KEY?.trim();
-      if (!key || !website) return [];
-      const url = /^https?:\/\//i.test(website) ? website : `https://${website}`;
-      try {
-        const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ url, formats: ["markdown", "html"] }),
-        });
-        if (!resp.ok) return [];
-        const data = await resp.json();
-        const text = JSON.stringify(data);
-        const found = text.match(EMAIL_RE) || [];
-        return [...new Set(found.map((item: string) => item.toLowerCase()))];
-      } catch {
-        return [];
+      if (key) {
+        for (const url of firecrawlTargetUrls(website)) {
+          try {
+            const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ url, formats: ["markdown", "html"] }),
+            });
+            if (!resp.ok) continue;
+            const found = JSON.stringify(await resp.json()).match(EMAIL_RE) || [];
+            for (const item of found) emails.add(item.toLowerCase());
+          } catch {
+            // skip this path
+          }
+        }
+      } else {
+        try {
+          const { findEmail } = await import("../utils/scraperUtils");
+          const hit = await findEmail(website, null);
+          if (hit?.email) emails.add(hit.email.toLowerCase());
+        } catch {
+          return [];
+        }
       }
+      return [...emails];
     },
     async mxValid(email: string) {
       const domain = String(email || "").split("@")[1];

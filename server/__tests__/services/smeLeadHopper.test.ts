@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ATTACH_FIRECRAWL_PATHS,
   GATED_SME_HUNT_HOLD,
   attachOne,
+  firecrawlTargetUrls,
   isExcludedFromSmeHunt,
   refillSendableHopper,
   shouldEnterSmeHunt,
@@ -118,5 +120,118 @@ describe("SME attach waterfall", () => {
     expect(dealPatch.hopper).toBe("sendable");
     expect(dealPatch.email).toBe("adam@petshop.co.uk");
     expect(dealPatch.contactSource).toBe("places");
+  });
+
+  it("does not mark ops@ sendable just because officers include a director", async () => {
+    const { dealPatch } = await attachOne(
+      { attachAttempts: 0, hopper: "gated", companyName: "X Ltd", companyNumber: "1" } as any,
+      {
+        officers: async () => ["Adam Taylor"],
+        places: async () => ({ email: "ops@petshop.co.uk", website: "https://petshop.co.uk" }),
+        firecrawl: async () => ["finance@petshop.co.uk"],
+        mxValid: async () => true,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.hopper).not.toBe("sendable");
+    expect(dealPatch.email).not.toBe("ops@petshop.co.uk");
+    expect(dealPatch.email).not.toBe("finance@petshop.co.uk");
+  });
+
+  it("keeps stored directorNames when officers fetch is empty", async () => {
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "gated",
+        companyName: "X Ltd",
+        companyNumber: "1",
+        directorNames: ["Adam Taylor"],
+        email: "adam@petshop.co.uk",
+      } as any,
+      {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.directorNames).toEqual(["Adam Taylor"]);
+    expect(dealPatch.hopper).toBe("sendable");
+    expect(dealPatch.email).toBe("adam@petshop.co.uk");
+  });
+
+  it("targets /, /contact, /about, /team for Firecrawl", () => {
+    expect(ATTACH_FIRECRAWL_PATHS).toEqual(["/", "/contact", "/about", "/team"]);
+    expect(firecrawlTargetUrls("https://petshop.co.uk")).toEqual([
+      "https://petshop.co.uk/",
+      "https://petshop.co.uk/contact",
+      "https://petshop.co.uk/about",
+      "https://petshop.co.uk/team",
+    ]);
+  });
+
+  it("skips attach when Places and Firecrawl budgets cannot produce an email", async () => {
+    const places = vi.fn();
+    const officers = vi.fn(async () => ["Adam Taylor"]);
+    const firecrawl = vi.fn();
+    const { patches } = await refillSendableHopper({
+      deals: [
+        {
+          id: 1,
+          source: "distress_scan" as const,
+          hopper: "gated" as const,
+          companyName: "X Ltd",
+          companyNumber: "1",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+      ] as any,
+      deps: { officers, places, firecrawl, mxValid: async () => true },
+      budget: { ch: 10, places: 0, firecrawl: 0, smtp: 10 },
+    });
+    expect(patches).toEqual([]);
+    expect(officers).not.toHaveBeenCalled();
+    expect(places).not.toHaveBeenCalled();
+    expect(firecrawl).not.toHaveBeenCalled();
+  });
+
+  it("still firecrawls when Places budget is 0 but a website is known", async () => {
+    const places = vi.fn();
+    const firecrawl = vi.fn(async () => ["adam@petshop.co.uk"]);
+    const { patches } = await refillSendableHopper({
+      deals: [
+        {
+          id: 1,
+          source: "distress_scan" as const,
+          hopper: "gated" as const,
+          companyName: "X Ltd",
+          companyNumber: "1",
+          website: "https://petshop.co.uk",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+      ] as any,
+      deps: {
+        officers: async () => ["Adam Taylor"],
+        places,
+        firecrawl,
+        mxValid: async () => true,
+      },
+      budget: { ch: 10, places: 0, firecrawl: 10, smtp: 10 },
+    });
+    expect(places).not.toHaveBeenCalled();
+    expect(firecrawl).toHaveBeenCalledWith("https://petshop.co.uk");
+    expect(patches).toHaveLength(1);
+    expect(patches[0].patch.hopper).toBe("sendable");
+    expect(patches[0].patch.contactSource).toBe("firecrawl");
   });
 });
