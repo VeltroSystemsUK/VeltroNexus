@@ -14,7 +14,7 @@ An always-on origination loop that keeps ~250 **sendable** SME directors in the 
 - **P0 only.** No charge/petition, no lead. Places/Firecrawl do not invent companies.
 - **SIG-02:** Gazette HMRC winding-up petition, still trading, qualifies with zero charges.
 - **SIG-01:** **one** live (unsatisfied) **non-bank** Companies House charge. HP, lease, invoice finance, MCA, specialist, CDFI all count. High-street bank / building-society charges do not.
-- **Sales OS hard gates still apply:** 18+ months trading, excluded SIC (property development, finance 64–66, real estate 68, gambling, tobacco, brokers), ltd/LLP, not on book, not suppressed. A petition on a broker or a six-month-old shop is dead.
+- **Sales OS hard gates still apply:** **12+ months trading** (Companies House `date_of_creation`; `MIN_TRADING_MONTHS` in `shared/salesOs.ts` is the single source of truth), excluded SIC (property development, finance 64–66, real estate 68, gambling, tobacco, brokers), ltd/LLP, not on book, not suppressed. A petition on a broker or a six-month-old shop is dead.
 - **Sendable contact:** current CH director or PSC **and** a company-domain mailbox that is not a personal domain and not a role local (`info`, `sales`, `enquiries`, `admin`, `hello`, `office`, `accounts`). MX required. SMTP handshake optional within budget.
 - **Hopper depth:** 250 sendable. Nightly Attach runs only for the shortfall.
 - **Ranking:** petition with hearing → petition → more live non-bank charges → fresher charge/petition filing → older company as tie-break.
@@ -39,7 +39,7 @@ An always-on origination loop that keeps ~250 **sendable** SME directors in the 
 08:30 Hunt (database-builder)
   CH new/updated charges + Gazette 2450 HMRC petitions
   → P0 filter (petition OR ≥1 live non-bank charge)
-  → Sales OS gates + inbound/on-book/suppression dedup
+  → Sales OS gates (12+ months, SIC, broker, on-book) + inbound/suppression dedup
   → gated P0 waiting room (no email yet)
 
 Nightly refill (contact-finder / Elena)
@@ -167,7 +167,7 @@ Workforce Deal files (and/or a thin hopper strip on that panel):
 
 - `isNonBankCharge(chargee)` deny-list and alias cases.
 - `isP0({ petition, liveNonBankCharges })` — one non-bank yes; bank-only no; petition yes.
-- Sales OS gates still reject brokers, young companies, excluded SIC.
+- Sales OS gates still reject brokers, companies under 12 months, excluded SIC. A 13-month-old company with one live non-bank charge passes age.
 - `isSendableContact({ directorNames, email })` — named director + corporate MX domain; reject gmail and `info@`.
 - Hopper rank order fixture (hearing > petition > 3 charges > 1 charge > recency).
 - `startSmeOutreachBatch` ignores inbound and `hunt_contact` / `parked`.
@@ -180,7 +180,7 @@ Workforce Deal files (and/or a thin hopper strip on that panel):
 - `shared/chargeClassifier.ts` — new, pure.
 - `shared/smeOutreach.ts` — sendable predicate, hopper rank, pick from `hopper === "sendable"`.
 - `shared/agenticWorkflow.ts` — additive deal fields.
-- `shared/salesOs.ts` — SIG-01 wording: one live non-bank charge (do not fork a second matrix).
+- `shared/salesOs.ts` — `MIN_TRADING_MONTHS = 12`; SIG-01 is one live non-bank charge at P0 (do not fork a second matrix).
 - `server/services/signalHarvest.ts` / `agenticWorkflow.ts` — hunt filter + refill job.
 - `server/services/agenticWorkflow.ts` `completeContact` / Attach waterfall budgets.
 - `client/src/components/agentic/DealFilesPanel.tsx` — hopper counts.
