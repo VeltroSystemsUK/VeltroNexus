@@ -257,7 +257,7 @@ describe("direct SME candidate picker", () => {
     expect(picked.map((row) => row.companyNumber)).toEqual(["3"]);
   });
 
-  it("falls back to finder/local only when hopper sendable is empty", () => {
+  it("does not fill from finder/local when hopper sendable is empty", () => {
     const picked = pickSmeHopperOrLegacy({
       hopperCandidates: [],
       legacyCandidates: [
@@ -265,7 +265,7 @@ describe("direct SME candidate picker", () => {
       ],
       limit: 50,
     });
-    expect(picked.map((row) => row.companyNumber)).toEqual(["4"]);
+    expect(picked).toEqual([]);
   });
 });
 

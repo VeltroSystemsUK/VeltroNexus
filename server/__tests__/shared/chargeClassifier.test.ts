@@ -14,6 +14,9 @@ describe("charge classifier", () => {
     expect(isBankOrBuildingSocietyChargee("BARCLAYS BANK PLC")).toBe(true);
     expect(isBankOrBuildingSocietyChargee("Nationwide Building Society")).toBe(true);
     expect(isBankOrBuildingSocietyChargee("Santander UK PLC")).toBe(true);
+    expect(isBankOrBuildingSocietyChargee("AIB GROUP (UK) P.L.C.")).toBe(true);
+    expect(isBankOrBuildingSocietyChargee("RBS INVOICE FINANCE LIMITED")).toBe(true);
+    expect(isBankOrBuildingSocietyChargee("HARBSX LIMITED")).toBe(false);
   });
 
   it("treats MCA, HP, invoice finance as non-bank", () => {
@@ -33,6 +36,9 @@ describe("charge classifier", () => {
         { status: "outstanding", personsEntitled: ["IWOCA LIMITED"] },
         { status: "satisfied", personsEntitled: ["YOULEND LIMITED"] },
       ])
+    ).toBe(1);
+    expect(
+      countLiveNonBankCharges([{ status: "outstanding", personsEntitled: ["HSBC BANK PLC", "IWOCA LIMITED"] }])
     ).toBe(1);
   });
 

@@ -66,6 +66,9 @@ function setHasCompanyNumber(set: Set<string>, companyNumber?: string): boolean 
 }
 
 export function shouldEnterSmeHunt(input: SmeHuntInput): SmeHuntResult {
+  if (!String(input.dateOfCreation || "").trim()) {
+    return { ok: false, reason: "missing incorporation date" };
+  }
   const early = rejectBeforeCharges({
     companyName: input.companyName,
     companyNumber: input.companyNumber,
@@ -172,15 +175,23 @@ function officerDisplayName(raw: string): string {
   return [forenames, surname].filter(Boolean).join(" ");
 }
 
+function nameTokens(value: string): string[] {
+  return String(value || "")
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((token) => token.length > 1);
+}
+
 function contactNameForEmail(email: string, directorNames: string[]): string | undefined {
-  const local = String(email || "").split("@")[0]?.toLowerCase() || "";
-  if (!local) return undefined;
+  const local = String(email || "").split("@")[0] || "";
+  const localTokens = nameTokens(local);
+  if (!localTokens.length) return undefined;
   return directorNames.find((name) => {
-    const tokens = String(name || "").trim().split(/\s+/).filter(Boolean);
+    const tokens = nameTokens(name);
     if (!tokens.length) return false;
-    const first = tokens[0].toLowerCase();
-    const last = tokens[tokens.length - 1].toLowerCase();
-    return (first.length > 1 && local.includes(first)) || (last.length > 1 && local.includes(last));
+    const first = tokens[0];
+    const last = tokens[tokens.length - 1];
+    return localTokens.includes(first) || localTokens.includes(last);
   });
 }
 
@@ -222,11 +233,48 @@ function failAttachPatch(
   };
 }
 
+function sendableAttachPatch(
+  extra: Partial<AgenticDealFile>,
+  fields: {
+    contactSource: NonNullable<AgenticDealFile["contactSource"]>;
+    contactName?: string;
+    email?: string;
+    website?: string;
+    phone?: string;
+  }
+): Partial<AgenticDealFile> {
+  return {
+    ...extra,
+    hopper: "sendable",
+    stage: "outreach",
+    status: "waiting_timer",
+    contactSource: fields.contactSource,
+    contactName: fields.contactName,
+    email: fields.email,
+    website: fields.website,
+    phone: fields.phone,
+    waitUntil: undefined,
+  };
+}
+
+export function inboundEmailsFromDeals(
+  deals: Array<{ source?: string; email?: string | null }>
+): Set<string> {
+  const emails = new Set<string>();
+  for (const deal of deals) {
+    if (deal.source !== "strata_inbound") continue;
+    const email = String(deal.email || "").trim().toLowerCase();
+    if (email) emails.add(email);
+  }
+  return emails;
+}
+
 export async function attachOne(
   deal: AgenticDealFile,
   deps: AttachDeps,
   budget: AttachBudget,
-  now: Date = new Date()
+  now: Date = new Date(),
+  inboundEmails: Set<string> = new Set()
 ): Promise<{ dealPatch: Partial<AgenticDealFile>; budget: AttachBudget }> {
   const next = copyBudget(budget);
   const extra: Partial<AgenticDealFile> = {};
@@ -248,6 +296,7 @@ export async function attachOne(
     candidate: string,
     source: NonNullable<AgenticDealFile["contactSource"]>
   ): Promise<boolean> => {
+    if (isExcludedFromSmeHunt({ email: candidate }, new Set(), new Set(), inboundEmails)) return false;
     const name = contactNameForEmail(candidate, directorNames);
     if (!name) return false;
     if (!(await mailboxPasses(candidate, name, directorNames, deps, next))) return false;
@@ -259,21 +308,12 @@ export async function attachOne(
 
   if (email && (await accept(email, "ch"))) {
     return {
-      dealPatch: {
-        ...extra,
-        hopper: "sendable",
-        contactSource: "ch",
-        contactName,
-        email,
-        website,
-        phone,
-        waitUntil: undefined,
-      },
+      dealPatch: sendableAttachPatch(extra, { contactSource: "ch", contactName, email, website, phone }),
       budget: next,
     };
   }
 
-  if (!email && next.places > 0) {
+  if (next.places > 0) {
     next.places -= 1;
     let place: AttachPlaceHit | null = null;
     try {
@@ -289,16 +329,13 @@ export async function attachOne(
         extra.phone = phone;
         if (await accept(place.email, "places")) {
           return {
-            dealPatch: {
-              ...extra,
-              hopper: "sendable",
+            dealPatch: sendableAttachPatch(extra, {
               contactSource: "places",
               contactName,
               email,
               website,
               phone,
-              waitUntil: undefined,
-            },
+            }),
             budget: next,
           };
         }
@@ -317,16 +354,13 @@ export async function attachOne(
     for (const candidate of found) {
       if (await accept(candidate, "firecrawl")) {
         return {
-          dealPatch: {
-            ...extra,
-            hopper: "sendable",
+          dealPatch: sendableAttachPatch(extra, {
             contactSource: "firecrawl",
             contactName,
             email,
             website,
             phone,
-            waitUntil: undefined,
-          },
+          }),
           budget: next,
         };
       }
@@ -344,6 +378,7 @@ export async function refillSendableHopper(opts: {
   budget?: AttachBudget;
   target?: number;
   now?: Date;
+  inboundEmails?: Set<string>;
 }): Promise<{ patches: Array<{ id: number; patch: Partial<AgenticDealFile> }>; budget: AttachBudget }> {
   let budget = copyBudget(opts.budget || DEFAULT_ATTACH_BUDGET);
   const shortfall = sendableShortfall(opts.deals, opts.target ?? SME_HOPPER_TARGET);
@@ -351,6 +386,7 @@ export async function refillSendableHopper(opts: {
 
   const now = opts.now || new Date();
   const nowMs = now.getTime();
+  const inboundEmails = opts.inboundEmails ?? inboundEmailsFromDeals(opts.deals);
   const candidates = opts.deals
     .filter((deal) => {
       if (deal.source === "strata_inbound") return false;
@@ -367,7 +403,7 @@ export async function refillSendableHopper(opts: {
     if (remaining <= 0) break;
     if (!canAttachWithBudget(deal, budget)) continue;
     try {
-      const result = await attachOne(deal, opts.deps, budget, now);
+      const result = await attachOne(deal, opts.deps, budget, now, inboundEmails);
       budget = result.budget;
       patches.push({ id: deal.id, patch: result.dealPatch });
       if (result.dealPatch.hopper === "sendable") remaining -= 1;

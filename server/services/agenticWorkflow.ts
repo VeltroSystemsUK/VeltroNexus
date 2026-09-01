@@ -27,9 +27,7 @@ import {
   type StrataFitResult,
 } from "./strataFit";
 import {
-  DEFAULT_ATTACH_BUDGET,
   GATED_SME_HUNT_HOLD,
-  attachOne,
   isExcludedFromSmeHunt,
   liveAttachDeps,
   refillSendableHopper,
@@ -37,7 +35,7 @@ import {
   shouldSendOutreachAfterSmeHunt,
   type ChargeLike,
 } from "./smeLeadHopper";
-import { isSendableContact, isSmeHopperSendable, rankSendable } from "@shared/smeHopper";
+import { isSmeHopperSendable, rankSendable } from "@shared/smeHopper";
 import { assessBbbEligibility, bbbBlockMessage, type BbbAssessment } from "@shared/bbbEligibility";
 import { mailboxForAgent, inboundMailbox } from "@shared/agentMailboxes";
 import { listLeadFinderCandidates } from "./leadFinderPool";
@@ -60,7 +58,6 @@ import {
 import {
   introducerWorkPaused,
   isWaitingSmeEmailApproval,
-  mergeSmeCandidatePools,
   pickSmeHopperOrLegacy,
   remainingSmeFirstTouchSlots,
   smeApprovalReason,
@@ -1178,71 +1175,24 @@ export const agenticWorkflow = {
     const booked = await loadBookedCompanyNumbers(ownerUserId);
     const hopperDeals = rankSendable(existing.filter(isSmeHopperSendable).map(withHopperRank));
     const hopperCandidates = hopperDeals.map(toSmeOutreachCandidate);
-    const useHopper = hopperCandidates.length > 0;
 
     const seenNumbers = new Set<string>();
     const seenEmails = new Set<string>();
-    if (useHopper) {
-      const hopperNumbers = new Set(
-        hopperDeals.map((deal) => String(deal.companyNumber || "")).filter(Boolean)
-      );
-      for (const number of booked) {
-        if (!hopperNumbers.has(String(number))) seenNumbers.add(String(number));
-      }
-      for (const deal of existing) {
-        if (isSmeHopperSendable(deal)) continue;
-        const email = String(deal.email || "").trim().toLowerCase();
-        if (email) seenEmails.add(email);
-      }
-    } else {
-      for (const value of [...existing.map((deal) => deal.companyNumber).filter(Boolean), ...booked]) {
-        seenNumbers.add(String(value));
-      }
-      for (const deal of existing) {
-        const email = String(deal.email || "").trim().toLowerCase();
-        if (email) seenEmails.add(email);
-      }
+    const hopperNumbers = new Set(
+      hopperDeals.map((deal) => String(deal.companyNumber || "")).filter(Boolean)
+    );
+    for (const number of booked) {
+      if (!hopperNumbers.has(String(number))) seenNumbers.add(String(number));
     }
-
-    let legacyCandidates: SmeOutreachCandidate[] = [];
-    if (!useHopper) {
-      const finder: SmeOutreachCandidate[] = listLeadFinderCandidates(400).map((row) => ({
-        companyName: row.companyName,
-        companyNumber: row.companyNumber,
-        email: row.email,
-        phone: row.phone,
-        contactName: row.contactName,
-        website: row.website,
-        address: row.address,
-        sicCodes: row.sicCode ? [row.sicCode] : [],
-        lenders: row.lenders,
-        incorporationDate: row.incorporationDate,
-      }));
-      const localLeads = await storage.listInternalLeads();
-      const local: SmeOutreachCandidate[] = localLeads.map((lead) => {
-        const lender = String(lead.identifiedLender || "").trim();
-        const liveCharge = Boolean(lender) && String(lead.chargeStatus || "").toLowerCase() !== "satisfied";
-        return {
-          companyName: lead.companyName,
-          companyNumber: String(lead.companyNumber || ""),
-          email: lead.email || undefined,
-          phone: lead.phone || undefined,
-          contactName: lead.contactName || undefined,
-          website: lead.website || undefined,
-          address: [lead.address, lead.city].filter(Boolean).join(", ") || undefined,
-          sicCodes: lead.sicCode ? [String(lead.sicCode)] : [],
-          lenders: liveCharge ? [lender] : [],
-          incorporationDate: lead.incorporationDate || undefined,
-        };
-      });
-      legacyCandidates = mergeSmeCandidatePools(local, finder).filter((row) =>
-        isSendableContact({ email: row.email, contactName: row.contactName })
-      );
+    for (const deal of existing) {
+      if (isSmeHopperSendable(deal)) continue;
+      const email = String(deal.email || "").trim().toLowerCase();
+      if (email) seenEmails.add(email);
     }
 
     const picked = pickSmeHopperOrLegacy({
       hopperCandidates,
-      legacyCandidates,
+      legacyCandidates: [],
       seenNumbers,
       seenEmails,
       limit: cap,
@@ -1250,63 +1200,29 @@ export const agenticWorkflow = {
 
     const opened: AgenticDealFile[] = [];
     const rejected: Record<string, number> = {};
-    const scanned = useHopper ? hopperCandidates.length : legacyCandidates.length;
+    const scanned = hopperCandidates.length;
     if (picked.length < cap) {
-      bumpReject(
-        rejected,
-        useHopper
-          ? `only ${picked.length} sendable hopper contacts after filters`
-          : `only ${picked.length} sendable SME contacts after filters`
-      );
+      bumpReject(rejected, `only ${picked.length} sendable hopper contacts after filters`);
     }
 
-    if (useHopper) {
-      const byNumber = new Map(hopperDeals.map((deal) => [String(deal.companyNumber || ""), deal]));
-      for (const row of picked) {
-        const deal = byNumber.get(row.companyNumber);
-        if (!deal) continue;
-        const queued = await storage.updateAgenticDeal(deal.id, {
-          hopper: "queued",
-          events: addEvent(
-            deal,
-            "outreach",
-            `SME first-touch queued from hopper: ${deal.companyName}`,
-            "database-builder"
-          ),
-        });
-        opened.push(await this.sendOutreach(queued));
-      }
-    } else {
-      for (const row of picked) {
-        const deal = await storage.createAgenticDeal({
-          source: "distress_scan" as AgenticSource,
-          stream: "sme",
-          stage: "outreach",
-          status: "running",
-          ownerUserId,
-          companyName: row.companyName,
-          companyNumber: row.companyNumber,
-          contactName: row.contactName,
-          email: row.email,
-          phone: row.phone,
-          website: row.website,
-          placeAddress: row.address,
-          hopper: "queued",
-          events: [
-            {
-              at: nowIso(),
-              stage: "outreach",
-              agent: "database-builder",
-              message: `SME first-touch queued from Leads: ${row.companyName}`,
-            },
-          ],
-        });
-        opened.push(await this.sendOutreach(deal));
-      }
+    const byNumber = new Map(hopperDeals.map((deal) => [String(deal.companyNumber || ""), deal]));
+    for (const row of picked) {
+      const deal = byNumber.get(row.companyNumber);
+      if (!deal) continue;
+      const queued = await storage.updateAgenticDeal(deal.id, {
+        hopper: "queued",
+        events: addEvent(
+          deal,
+          "outreach",
+          `SME first-touch queued from hopper: ${deal.companyName}`,
+          "database-builder"
+        ),
+      });
+      opened.push(await this.sendOutreach(queued));
     }
 
     console.log(
-      `[Agentic] SME first-touch queued ${opened.length}/${cap} from ${useHopper ? "hopper" : "legacy"}, scanned ${scanned}, rejected ${JSON.stringify(rejected)}`
+      `[Agentic] SME first-touch queued ${opened.length}/${cap} from hopper, scanned ${scanned}, rejected ${JSON.stringify(rejected)}`
     );
     return { deals: opened, scanned, rejected };
   },
@@ -1388,8 +1304,8 @@ export const agenticWorkflow = {
 
   async completeContact(deal: AgenticDealFile): Promise<AgenticDealFile> {
     if (isSmeHuntContactRetry(deal)) {
-      const { dealPatch } = await attachOne(deal, liveAttachDeps(), DEFAULT_ATTACH_BUDGET);
-      return storage.updateAgenticDeal(deal.id, dealPatch) as Promise<AgenticDealFile>;
+      const [updated] = await applySendableHopperPatches([deal]);
+      return updated;
     }
 
     let working = deal;
@@ -2385,12 +2301,17 @@ export const agenticWorkflow = {
         new Date(deal.waitUntil).getTime() <= Date.now() &&
         (isSmeHuntContactRetry(deal) || shouldProcessAgenticTick(deal))
     );
-    for (const deal of due) {
+    const huntDue = due.filter(isSmeHuntContactRetry);
+    if (huntDue.length) {
       try {
-        if (isSmeHuntContactRetry(deal)) {
-          await this.completeContact(deal);
-          continue;
-        }
+        await applySendableHopperPatches([]);
+      } catch (error) {
+        console.error("[Agentic] Hopper refill on tick failed:", error);
+      }
+    }
+    for (const deal of due) {
+      if (isSmeHuntContactRetry(deal)) continue;
+      try {
         const kind = tickKindForDeal(deal);
         if (kind === "fulfilment") await this.runFulfilment(deal);
         if (kind === "introducer_retry") {

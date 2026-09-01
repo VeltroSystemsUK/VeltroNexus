@@ -17,6 +17,7 @@ const BANK_NEEDLES = [
   "YORKSHIRE BANK",
   "METRO BANK",
   "VIRGIN MONEY",
+  "AIB",
   "BANK OF IRELAND",
   "ALLIED IRISH",
   "DANSKE",
@@ -32,7 +33,7 @@ function norm(name: string): string {
 export function isBankOrBuildingSocietyChargee(name: string): boolean {
   const n = norm(name);
   if (!n) return false;
-  return BANK_NEEDLES.some((needle) => n.includes(needle.trim()));
+  return BANK_NEEDLES.some((needle) => n.includes(needle));
 }
 
 export function isLiveCharge(status?: string | null): boolean {

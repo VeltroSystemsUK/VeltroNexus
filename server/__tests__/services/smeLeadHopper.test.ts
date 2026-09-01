@@ -38,6 +38,18 @@ describe("SME hunt gate", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("rejects missing incorporation date so young shops cannot sneak in", () => {
+    const result = shouldEnterSmeHunt({
+      companyName: "Newco Limited",
+      companyNumber: "09999999",
+      companyStatus: "active",
+      sicCodes: ["16230"],
+      hasPetition: true,
+      charges: [],
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("rejects companies younger than 12 months even with a petition", () => {
     const created = new Date();
     created.setMonth(created.getMonth() - 6);
@@ -118,8 +130,66 @@ describe("SME attach waterfall", () => {
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
     );
     expect(dealPatch.hopper).toBe("sendable");
+    expect(dealPatch.stage).toBe("outreach");
+    expect(dealPatch.status).toBe("waiting_timer");
     expect(dealPatch.email).toBe("adam@petshop.co.uk");
     expect(dealPatch.contactSource).toBe("places");
+  });
+
+  it("still runs Places when stored email is not sendable", async () => {
+    const places = vi.fn(async () => ({ email: "adam@petshop.co.uk" }));
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "gated",
+        companyName: "X Ltd",
+        companyNumber: "1",
+        directorNames: ["Adam Taylor"],
+        email: "info@petshop.co.uk",
+      } as any,
+      {
+        officers: async () => ["Adam Taylor"],
+        places,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(places).toHaveBeenCalled();
+    expect(dealPatch.hopper).toBe("sendable");
+    expect(dealPatch.email).toBe("adam@petshop.co.uk");
+    expect(dealPatch.contactSource).toBe("places");
+  });
+
+  it("does not match Ann local-part to director Joanna", async () => {
+    const { dealPatch } = await attachOne(
+      { attachAttempts: 0, hopper: "gated", companyName: "X Ltd", companyNumber: "1" } as any,
+      {
+        officers: async () => ["Joanna Smith"],
+        places: async () => ({ email: "ann@petshop.co.uk" }),
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.hopper).not.toBe("sendable");
+  });
+
+  it("refuses a mailbox already on an inbound deal", async () => {
+    const { dealPatch } = await attachOne(
+      { attachAttempts: 0, hopper: "gated", companyName: "X Ltd", companyNumber: "1" } as any,
+      {
+        officers: async () => ["Adam Taylor"],
+        places: async () => ({ email: "adam@petshop.co.uk" }),
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 },
+      new Date(),
+      new Set(["adam@petshop.co.uk"])
+    );
+    expect(dealPatch.hopper).not.toBe("sendable");
+    expect(dealPatch.email).not.toBe("adam@petshop.co.uk");
   });
 
   it("does not mark ops@ sendable just because officers include a director", async () => {
@@ -158,6 +228,8 @@ describe("SME attach waterfall", () => {
     );
     expect(dealPatch.directorNames).toEqual(["Adam Taylor"]);
     expect(dealPatch.hopper).toBe("sendable");
+    expect(dealPatch.stage).toBe("outreach");
+    expect(dealPatch.status).toBe("waiting_timer");
     expect(dealPatch.email).toBe("adam@petshop.co.uk");
   });
 
@@ -232,6 +304,77 @@ describe("SME attach waterfall", () => {
     expect(firecrawl).toHaveBeenCalledWith("https://petshop.co.uk");
     expect(patches).toHaveLength(1);
     expect(patches[0].patch.hopper).toBe("sendable");
+    expect(patches[0].patch.stage).toBe("outreach");
     expect(patches[0].patch.contactSource).toBe("firecrawl");
+  });
+
+  it("shares one Places budget across refill candidates", async () => {
+    const places = vi.fn(async () => ({ email: "adam@petshop.co.uk" }));
+    const base = {
+      source: "distress_scan" as const,
+      hopper: "gated" as const,
+      ownerUserId: "u",
+      stage: "ingest" as const,
+      status: "waiting_timer" as const,
+      events: [],
+      createdAt: "",
+      updatedAt: "",
+    };
+    const { patches } = await refillSendableHopper({
+      deals: [
+        { ...base, id: 1, companyName: "A Ltd", companyNumber: "1" },
+        { ...base, id: 2, companyName: "B Ltd", companyNumber: "2" },
+      ] as any,
+      deps: {
+        officers: async () => ["Adam Taylor"],
+        places,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      budget: { ch: 10, places: 1, firecrawl: 0, smtp: 10 },
+    });
+    expect(places).toHaveBeenCalledTimes(1);
+    expect(patches.filter((row) => row.patch.hopper === "sendable")).toHaveLength(1);
+  });
+
+  it("does not mark sendable an email already on an inbound file", async () => {
+    const { patches } = await refillSendableHopper({
+      deals: [
+        {
+          id: 1,
+          source: "strata_inbound" as const,
+          companyName: "Inbound Ltd",
+          email: "adam@petshop.co.uk",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+        {
+          id: 2,
+          source: "distress_scan" as const,
+          hopper: "gated" as const,
+          companyName: "X Ltd",
+          companyNumber: "1",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+      ] as any,
+      deps: {
+        officers: async () => ["Adam Taylor"],
+        places: async () => ({ email: "adam@petshop.co.uk" }),
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+    });
+    expect(patches).toHaveLength(1);
+    expect(patches[0].id).toBe(2);
+    expect(patches[0].patch.hopper).not.toBe("sendable");
   });
 });

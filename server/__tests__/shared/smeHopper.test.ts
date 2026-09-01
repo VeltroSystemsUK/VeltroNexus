@@ -19,6 +19,18 @@ describe("sendable contact", () => {
     expect(isSendableContact({ email: "ops@petshop.co.uk", contactName: "Sam", directorNames: ["Adam Taylor"] })).toBe(false);
     expect(isRoleMailbox("enquiries@joinery.co.uk")).toBe(true);
   });
+
+  it("matches director first token or whole word, not substrings like Ann in Joanna", () => {
+    expect(
+      isSendableContact({ email: "ann@petshop.co.uk", contactName: "Ann", directorNames: ["Joanna Smith"] })
+    ).toBe(false);
+    expect(
+      isSendableContact({ email: "ann@petshop.co.uk", contactName: "Ann Taylor", directorNames: ["Ann Taylor"] })
+    ).toBe(true);
+    expect(
+      isSendableContact({ email: "ann@petshop.co.uk", contactName: "Ann", directorNames: ["Mary Ann Jones"] })
+    ).toBe(true);
+  });
 });
 
 describe("hopper rank", () => {

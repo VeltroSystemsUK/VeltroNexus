@@ -43,10 +43,23 @@ export function isRoleMailbox(email?: string | null): boolean {
   return !!local && ROLE_LOCALS.has(local);
 }
 
+function firstToken(value: string): string {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)[0]
+    ?.toLowerCase() || "";
+}
+
+function hasWholeWord(haystack: string, word: string): boolean {
+  if (!word) return false;
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, "i").test(haystack);
+}
+
 function directorMatches(contactName: string, directorNames?: string[]): boolean {
   const name = contactName.trim();
   if (!name) return false;
-  const first = name.split(/\s+/)[0]?.toLowerCase();
+  const first = firstToken(name);
   if (!first) return false;
 
   if (directorNames == null) {
@@ -54,10 +67,10 @@ function directorMatches(contactName: string, directorNames?: string[]): boolean
   }
 
   return directorNames.some((d) => {
-    const entry = String(d || "").trim().toLowerCase();
+    const entry = String(d || "").trim();
     if (!entry) return false;
-    if (entry.includes(first)) return true;
-    return entry.split(/\s+/)[0] === first;
+    if (firstToken(entry) === first) return true;
+    return hasWholeWord(entry, first);
   });
 }
 

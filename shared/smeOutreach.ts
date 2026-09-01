@@ -159,7 +159,7 @@ export function pickSmeOutreachBatch(opts: {
   });
 }
 
-/** Hopper-only when any sendable exist; finder/local are legacy fill. Preserves hopper rank order. */
+/** Hopper-only drain. Finder/local never fill the 50; empty hopper queues nothing. Preserves hopper rank order. */
 export function pickSmeHopperOrLegacy(opts: {
   hopperCandidates: SmeOutreachCandidate[];
   legacyCandidates: SmeOutreachCandidate[];
@@ -167,16 +167,8 @@ export function pickSmeHopperOrLegacy(opts: {
   seenEmails?: Set<string>;
   limit: number;
 }): SmeOutreachCandidate[] {
-  if (opts.hopperCandidates.length > 0) {
-    return takeEligibleSmeOutreach({
-      candidates: opts.hopperCandidates,
-      seenNumbers: opts.seenNumbers,
-      seenEmails: opts.seenEmails,
-      limit: opts.limit,
-    });
-  }
-  return pickSmeOutreachBatch({
-    candidates: opts.legacyCandidates,
+  return takeEligibleSmeOutreach({
+    candidates: opts.hopperCandidates,
     seenNumbers: opts.seenNumbers,
     seenEmails: opts.seenEmails,
     limit: opts.limit,
