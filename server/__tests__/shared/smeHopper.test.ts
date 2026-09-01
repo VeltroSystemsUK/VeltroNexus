@@ -43,4 +43,13 @@ describe("hopper rank", () => {
     expect(hopperCounts(deals)).toEqual({ sendable: 2, huntContact: 1, parked: 1, gated: 1 });
     expect(sendableShortfall(deals)).toBe(248);
   });
+
+  it("treats missing hopper as not sendable", () => {
+    expect(hopperCounts([{ source: "distress_scan" }])).toEqual({
+      sendable: 0,
+      huntContact: 0,
+      parked: 0,
+      gated: 0,
+    });
+  });
 });

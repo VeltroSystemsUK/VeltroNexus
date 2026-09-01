@@ -104,6 +104,13 @@ export interface AgenticDealFile {
     gazetteUrl?: string;
     caseNumber?: string;
   };
+  hopper?: "gated" | "hunt_contact" | "sendable" | "parked" | "queued";
+  attachAttempts?: number;
+  nonBankChargeCount?: number;
+  lastSignalAt?: string;
+  contactSource?: "ch" | "places" | "firecrawl";
+  directorNames?: string[];
+  incorporatedAt?: string;
   uploadToken?: string;
   packDocuments?: PackDocument[];
   fundingReason?: string;
