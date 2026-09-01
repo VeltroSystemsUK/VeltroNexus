@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareSendable,
   hopperCounts,
+  hopperStatusLine,
   isRoleMailbox,
   isSendableContact,
   isSmeHopperSendable,
@@ -61,5 +62,11 @@ describe("hopper rank", () => {
     expect(isSmeHopperSendable({ hopper: "gated" })).toBe(false);
     expect(isSmeHopperSendable({ hopper: "queued" })).toBe(false);
     expect(isSmeHopperSendable({ hopper: "parked" })).toBe(false);
+  });
+
+  it("hopperStatusLine formats sendable/hunt-contact/parked counts", () => {
+    expect(hopperStatusLine([{ hopper: "sendable" }, { hopper: "hunt_contact" }])).toBe(
+      "Hopper 1/250 sendable · 1 hunt-contact · 0 parked"
+    );
   });
 });

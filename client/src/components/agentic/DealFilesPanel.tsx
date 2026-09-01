@@ -8,6 +8,12 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { STAGE_LABELS, type AgenticDealFile } from "@shared/agenticWorkflow";
 import { namedPackGaps } from "@shared/sterlingCompleteness";
 import { packUploadUrl } from "@shared/strataOutreach";
+import {
+  isWaitingSmeEmailApproval,
+  remainingSmeFirstTouchSlots,
+  SME_DAILY_FIRST_TOUCH_CAP,
+} from "@shared/smeOutreach";
+import { hopperStatusLine } from "@shared/smeHopper";
 import { Link } from "wouter";
 import { ChevronDown, Trash2 } from "lucide-react";
 import { OutreachPlaybook } from "./OutreachPlaybook";
@@ -28,7 +34,7 @@ function HuntSummary({ report }: { report: HuntReport }) {
     .join("; ");
   return (
     <p className="text-xs text-slate-500">
-      Last hunt: looked at {report.scanned} distress/introducer candidates, opened {report.opened}.
+      Last queue: looked at {report.scanned} Leads, staged {report.opened} SME first-touch drafts.
       {report.rejectedTotal ? ` Dropped ${report.rejectedTotal}${topRejects ? ` — ${topRejects}` : ""}.` : ""}
     </p>
   );
@@ -101,7 +107,7 @@ export function DealFilesPanel() {
       action,
     }: {
       id: number;
-      action: "call_done" | "approve_sterling" | "stop" | "linkedin_posted" | "retry_send";
+      action: "call_done" | "approve_sterling" | "stop" | "linkedin_posted" | "retry_send" | "approve_send";
     }) => {
       const res = await apiRequest(`/api/agentic/deals/${id}/human`, "POST", { action });
       return res.json();
@@ -144,6 +150,14 @@ export function DealFilesPanel() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] }),
   });
 
+  const approveQueue = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/agentic/outreach/approve-queue", "POST");
+      return res.json() as Promise<{ sent: number; held: number }>;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] }),
+  });
+
   if (isLoading) {
     return <p className="text-sm text-slate-500">Loading deal files…</p>;
   }
@@ -159,17 +173,22 @@ export function DealFilesPanel() {
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
           <CardTitle className="text-white">No deal files yet</CardTitle>
-          <CardDescription>Find opportunities runs Companies House / Gazette and only opens files that pass the Strata gate.</CardDescription>
+          <CardDescription>
+            Queue up to {SME_DAILY_FIRST_TOUCH_CAP} personalised SME first-touch drafts from Leads. Nothing sends until you approve it. Introducer outreach is paused.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button onClick={() => hunt.mutate()} disabled={hunt.isPending}>
-            {hunt.isPending ? "Hunting…" : "Find opportunities"}
+            {hunt.isPending ? "Queuing…" : "Queue SME emails"}
           </Button>
           {huntReport && <HuntSummary report={huntReport} />}
         </CardContent>
       </Card>
     );
   }
+
+  const waitingEmails = deals.filter(isWaitingSmeEmailApproval);
+  const remainingToday = remainingSmeFirstTouchSlots({ deals });
 
   return (
     <div className="space-y-4">
@@ -191,10 +210,25 @@ export function DealFilesPanel() {
           </Button>
           {huntReport && <HuntSummary report={huntReport} />}
         </div>
-        <Button size="sm" variant="outline" onClick={() => hunt.mutate()} disabled={hunt.isPending}>
-          {hunt.isPending ? "Hunting…" : "Find opportunities"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {waitingEmails.length > 0 && (
+            <Button
+              size="sm"
+              onClick={() => approveQueue.mutate()}
+              disabled={approveQueue.isPending}
+            >
+              {approveQueue.isPending ? "Sending…" : `Approve & send ${waitingEmails.length}`}
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => hunt.mutate()} disabled={hunt.isPending}>
+            {hunt.isPending ? "Queuing…" : "Queue SME emails"}
+          </Button>
+        </div>
       </div>
+      <p className="text-xs text-slate-500">
+        Introducer outreach is paused. SME first-touch cap {SME_DAILY_FIRST_TOUCH_CAP}/day — {waitingEmails.length} waiting approval, {remainingToday} slots left today.{" "}
+        {hopperStatusLine(deals)}
+      </p>
 
       {visible.length === 0 && (
         <p className="text-sm text-slate-500">
@@ -338,6 +372,11 @@ export function DealFilesPanel() {
               {deal.humanReason?.includes("SMTP") && (
                 <Button size="sm" variant="outline" onClick={() => resolveHuman.mutate({ id: deal.id, action: "retry_send" })}>
                   Retry email
+                </Button>
+              )}
+              {isWaitingSmeEmailApproval(deal) && (
+                <Button size="sm" onClick={() => resolveHuman.mutate({ id: deal.id, action: "approve_send" })}>
+                  Approve & send
                 </Button>
               )}
               {deal.stage === "human_review" && (

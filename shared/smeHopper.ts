@@ -114,6 +114,11 @@ export function hopperCounts(
   return counts;
 }
 
+export function hopperStatusLine(deals: Parameters<typeof hopperCounts>[0]): string {
+  const c = hopperCounts(deals);
+  return `Hopper ${c.sendable}/${SME_HOPPER_TARGET} sendable · ${c.huntContact} hunt-contact · ${c.parked} parked`;
+}
+
 export function sendableShortfall(
   deals: Array<{ hopper?: string | null; source?: string | null }>,
   target: number = SME_HOPPER_TARGET
