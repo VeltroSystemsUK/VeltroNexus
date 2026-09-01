@@ -39,7 +39,7 @@ export const SIZE_PRESETS: SizePreset[] = [
   { id: "story", name: "Story", description: "1080 × 1920", category: "Social", width: 1080, height: 1920 },
   { id: "square", name: "Instagram Square", description: "1080 × 1080", category: "Social", width: 1080, height: 1080 },
   { id: "twitter", name: "X / Twitter", description: "1200 × 675", category: "Social", width: 1200, height: 675 },
-  { id: "linkedin", name: "LinkedIn Banner", description: "1584 × 396", category: "Web", width: 1584, height: 396 },
+  { id: "linkedin", name: "LinkedIn Banner", description: "1584 × 396", category: "Social", width: 1584, height: 396 },
   { id: "og", name: "Open Graph", description: "1200 × 630", category: "Web", width: 1200, height: 630 },
   { id: "banner", name: "Web Banner", description: "1200 × 628", category: "Web", width: 1200, height: 628 },
   { id: "hero", name: "Hero", description: "1920 × 600", category: "Web", width: 1920, height: 600 },
@@ -207,13 +207,20 @@ function ogBanner(): CraftPage {
 }
 
 function linkedInBanner(): CraftPage {
-  return pageOf("linkedin", "LinkedIn Banner", [
-    shape("Ground", "rect", 0, 0, 1584, 396, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Accent", "rect", 0, 0, 18, 396, "accent", { constraints: { horizontal: "start", vertical: "stretch" } }),
-    text("Title", "Work at the speed of thought.", 64, 120, 980, 90, 48, "secondary", { fontRole: "heading" }),
-    text("Sub", "Local-first design for the posts, banners, and pages you actually ship.", 64, 230, 900, 50, 22, "muted", { fontRole: "body", fontWeight: "400" }),
-    shape("Mark", "rounded-rect", 1360, 148, 160, 100, "accent", { borderRadius: 18, constraints: { horizontal: "end", vertical: "center" } }),
-  ]);
+  // LinkedIn personal cover: profile photo covers ~240×160 bottom-left.
+  return pageOf(
+    "linkedin",
+    "LinkedIn Banner",
+    [
+      shape("Ground", "rect", 0, 0, 1584, 396, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
+      shape("Accent bar", "rect", 0, 0, 1584, 8, "accent", { constraints: defaultConstraintsFor("bar") }),
+      text("Wordmark", "STRATA FINANCE", 360, 72, 860, 28, 14, "muted", { letterSpacing: 4, fontWeight: "700", fontRole: "body" }),
+      text("Title", "UK commercial finance, packaged.", 360, 110, 980, 90, 42, "secondary", { fontRole: "heading", lineHeight: 1.08 }),
+      text("Sub", "£25k–£250k facilities for SME directors. We do not lend.", 360, 214, 900, 44, 18, "muted", { fontRole: "body", fontWeight: "400" }),
+      text("Link", "stratafinance.co.uk", 360, 270, 420, 28, 16, "accent", { fontRole: "body", fontWeight: "400" }),
+    ],
+    { mode: "solid", color: DEFAULT_BRAND.colors.primary },
+  );
 }
 
 function xPost(): CraftPage {
@@ -387,6 +394,7 @@ function priceList(): CraftPage {
 }
 
 export const DESIGN_TEMPLATES: DesignTemplate[] = [
+  { id: "linkedin-banner", name: "LinkedIn Banner", description: "1584 × 396 profile cover", category: "Social", presetId: "linkedin", build: linkedInBanner },
   { id: "announce-post", name: "Announcement", description: "Post with media frame and CTA", category: "Social", presetId: "post", build: announcePost },
   { id: "story-launch", name: "Launch Story", description: "Full-bleed launch frame", category: "Social", presetId: "story", build: storyLaunch },
   { id: "quote-square", name: "Quote Card", description: "Pull-quote on a square", category: "Social", presetId: "square", build: quoteSquare },
@@ -394,7 +402,6 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   { id: "event-story", name: "Event Story", description: "Date block and venue", category: "Social", presetId: "story", build: eventStory },
   { id: "x-post", name: "X Post", description: "Headline and handle", category: "Social", presetId: "twitter", build: xPost },
   { id: "og-banner", name: "Open Graph", description: "Link preview split", category: "Web", presetId: "og", build: ogBanner },
-  { id: "linkedin-banner", name: "LinkedIn", description: "Cover with wordmark", category: "Web", presetId: "linkedin", build: linkedInBanner },
   { id: "email-header", name: "Email Header", description: "Narrow newsletter mast", category: "Web", presetId: "email", build: emailHeader },
   { id: "email-letter", name: "Email letter", description: "600px letter with merge tags", category: "Docs", presetId: "email-letter", build: emailLetter },
   { id: "gif-caption", name: "Caption GIF", description: "Top and bottom motion bars", category: "Motion", presetId: "gif-square", build: gifCaption },

@@ -176,10 +176,13 @@ export function CraftView({
         <div className="min-h-0 flex-1">
           <EmptyState
             title="New design"
-            body="Start from a 1080×1080 square, open a .craft.json file, or pick a template. Brand once, resize to story / square / OG, and export."
+            body="Start from a LinkedIn banner (1584×396), a 1080×1080 square, or pick a template. Brand once, resize to story / square / OG, and export."
             actions={(
               <>
-                <Button onClick={() => void useCraftStore.getState().newBlank()}>
+                <Button onClick={() => useCraftStore.getState().applyTemplate("linkedin-banner")}>
+                  LinkedIn banner
+                </Button>
+                <Button variant="outline" onClick={() => void useCraftStore.getState().newBlank()}>
                   <FilePlus />
                   New design
                 </Button>
