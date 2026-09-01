@@ -190,7 +190,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
             "Find UK SMEs that need distress-refinance or CDFI funding as described at stratafinance.co.uk.",
           trigger: "scheduled",
           steps: [
-            "Scan Companies House for active trading companies at least 18 months old",
+            "Scan Companies House for active trading companies at least 12 months old",
             "Drop finance, property, SPV, strike-off, and names already on the book",
             "Read charges — only MCA, high-cost alternative, or a real stack passes",
             "Score fit. Below 70/100 is not contacted",

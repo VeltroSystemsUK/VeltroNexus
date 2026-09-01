@@ -14,7 +14,7 @@ export const FACILITY_MAX_GBP = 250_000;
 export const TURNOVER_MIN_GBP = 250_000;
 export const TURNOVER_MAX_GBP = 5_000_000;
 export const TURNOVER_DISQUALIFY_GBP = 100_000;
-export const MIN_TRADING_MONTHS = 18;
+export const MIN_TRADING_MONTHS = 12;
 
 export const CDFI_PANEL = [
   "Finance For Enterprise (FFE)",
@@ -47,7 +47,7 @@ export const SIGNAL_MATRIX: Record<
   { description: string; weight: number; priority: SignalPriority }
 > = {
   "SIG-01": {
-    description: "Multiple active charges from non-bank alternative lenders or MCA funders",
+    description: "One live non-bank charge (HP, lease, invoice finance, MCA, or specialist)",
     weight: 40,
     priority: "P0",
   },
@@ -216,20 +216,13 @@ export function scoreSignals(input: SignalInput, now = Date.now()): SignalScore 
   }
 
   const highCost = input.outstandingHighCostChargeCount || 0;
-  if (highCost >= 2) {
+  if (highCost >= 1) {
     const sig = SIGNAL_MATRIX["SIG-01"];
     signals.push({
       code: "SIG-01",
       weight: sig.weight,
       priority: sig.priority,
-      note: `${highCost} active non-bank / MCA charges`,
-    });
-  } else if (highCost === 1) {
-    signals.push({
-      code: "SIG-01",
-      weight: 20,
-      priority: "P1",
-      note: "single active non-bank / MCA charge (qualified item, not a stack)",
+      note: `${highCost} live non-bank charge${highCost === 1 ? "" : "s"}`,
     });
   }
 

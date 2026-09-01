@@ -5,6 +5,7 @@ import {
   excludedSectorReason,
   isBrokerProspect,
   isBrokerSearchQuery,
+  MIN_TRADING_MONTHS,
   nextCadenceStep,
   scoreSignals,
 } from "@shared/salesOs";
@@ -50,6 +51,10 @@ describe("Nexus Sales OS guardrails", () => {
 });
 
 describe("SIG scoring matrix", () => {
+  it("uses a 12-month trading gate", () => {
+    expect(MIN_TRADING_MONTHS).toBe(12);
+  });
+
   it("scores stacked MCA charges as SIG-01 P0", () => {
     const result = scoreSignals({
       companyName: "Acme Joinery Limited",
@@ -58,6 +63,16 @@ describe("SIG scoring matrix", () => {
     expect(result.disqualified).toBe(false);
     expect(result.priority).toBe("P0");
     expect(result.signals.some((s) => s.code === "SIG-01" && s.weight === 40)).toBe(true);
+  });
+
+  it("treats a single live non-bank charge as SIG-01 P0", () => {
+    const result = scoreSignals({
+      companyName: "Acme Joinery Limited",
+      outstandingHighCostChargeCount: 1,
+    });
+    expect(result.disqualified).toBe(false);
+    expect(result.priority).toBe("P0");
+    expect(result.signals.some((s) => s.code === "SIG-01" && s.weight === 40 && s.priority === "P0")).toBe(true);
   });
 
   it("treats an HMRC petition as the primary P0 buying signal", () => {

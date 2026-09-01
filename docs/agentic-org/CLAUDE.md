@@ -37,7 +37,7 @@ Alert format: `[AGENT ID] | [ISSUE TYPE] | [DEAL / COMPANY] | [RECOMMENDED ACTIO
 
 ## Thresholds (house policy)
 
-- Facility £25,000–£250,000; turnover £250k–£5m; trading ≥ 18 months
+- Facility £25,000–£250,000; turnover £250k–£5m; trading ≥ 12 months
 - Fit score below 70: do not contact
 - SIG-06: disqualify
 - DSCR floor 1.25x, ICR floor 2.0x, leverage ceiling 3.0x unless Shaun overrides in writing on the memo
