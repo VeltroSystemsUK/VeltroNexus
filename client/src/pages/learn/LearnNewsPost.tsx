@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { editorialMarkdownToHtml } from "@shared/editorial";
 import { parseLikedCookie, type LearnNewsCommentPublic } from "@shared/learnNews";
-import type { LearnPiecePublic } from "@shared/learn";
+import { NEWS_CATEGORY_LABELS, type LearnPiecePublic } from "@shared/learn";
 import { LearnCta, LearnNotFound, PackagerLine, setLearnMeta } from "./LearnHome";
 
 type NewsPiece = LearnPiecePublic & { comments?: LearnNewsCommentPublic[] };
@@ -87,7 +87,9 @@ export default function LearnNewsPost() {
   return (
     <article className="space-y-10">
       <header className="space-y-3">
-        <p className="font-['Space_Mono'] text-emerald-400 text-sm">News</p>
+        <p className="font-['Space_Mono'] text-emerald-400 text-sm">
+          News{piece.category && piece.category in NEWS_CATEGORY_LABELS ? ` · ${NEWS_CATEGORY_LABELS[piece.category]}` : ""}
+        </p>
         <h1 className="font-['Unbounded'] text-3xl md:text-4xl tracking-tight leading-tight">{piece.title}</h1>
         {piece.excerpt && <p className="text-lg text-zinc-300 max-w-2xl">{piece.excerpt}</p>}
         <PackagerLine />

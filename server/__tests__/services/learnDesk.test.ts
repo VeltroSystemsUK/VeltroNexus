@@ -222,18 +222,30 @@ describe("learn desk publish API", () => {
     expect(mocked.upsertLiveLearnPiece).toHaveBeenCalled();
   });
 
+  it("refuses a news post publish-learn without a category", async () => {
+    mocked.getEditorialPiece.mockResolvedValue({ ...clearedBlog, type: "news", title: "HMRC is writing again" });
+    const res = await request("POST", "/api/editorial/1/publish-learn", {
+      slug: "hmrc-is-writing-again",
+      excerpt: "A note from the desk.",
+    });
+    expect(res.status).toBe(400);
+    expect(mocked.upsertLiveLearnPiece).not.toHaveBeenCalled();
+  });
+
   it("publishes a cleared news post to the news lane", async () => {
     mocked.getEditorialPiece.mockResolvedValue({ ...clearedBlog, type: "news", title: "HMRC is writing again" });
     const res = await request("POST", "/api/editorial/1/publish-learn", {
       slug: "hmrc-is-writing-again",
       excerpt: "A note from the desk.",
       pathPosition: 2,
+      category: "uk_commercial_finance",
     });
     expect(res.status).toBe(200);
     const snap = mocked.upsertLiveLearnPiece.mock.calls[0][0];
     expect(snap.kind).toBe("news");
     expect(snap.pathPosition).toBeNull();
     expect(snap.slug).toBe("hmrc-is-writing-again");
+    expect(snap.category).toBe("uk_commercial_finance");
   });
 
   it("publishes a cleared blog via editorial publish-learn", async () => {

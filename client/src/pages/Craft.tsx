@@ -14,6 +14,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -31,6 +46,7 @@ import {
 } from "@shared/craftQueue";
 import type { CreativeAmmoBrief } from "@shared/craftScout";
 import { ammoForPost, yafflePromptFromAmmo } from "@shared/craftYaffle";
+import { slugifyLearnTitle, NEWS_CATEGORIES, NEWS_CATEGORY_LABELS } from "@shared/learn";
 
 type Desk = { week: CraftPost[]; channels: CraftChannel[]; weekStart: string | null; briefs?: CreativeAmmoBrief[] };
 
@@ -104,6 +120,10 @@ export default function Craft() {
   const [contentAidOpen, setContentAidOpen] = useState(false);
   const [yaffleProgress, setYaffleProgress] = useState("");
   const [copy, setCopy] = useState<CopyDraft | null>(null);
+  const [learnOpen, setLearnOpen] = useState(false);
+  const [learnSlug, setLearnSlug] = useState("");
+  const [learnExcerpt, setLearnExcerpt] = useState("");
+  const [learnCategory, setLearnCategory] = useState<string>("uk_commercial_finance");
 
   const { data: desk, isLoading } = useQuery<Desk>({
     queryKey: ["/api/craft/desk"],
@@ -186,6 +206,35 @@ export default function Craft() {
       queryClient.setQueryData(["/api/craft/desk"], next);
       const post = next.week.find((p) => p.id === vars.id);
       if (post) useCraftStore.getState().syncFromPost(post);
+    },
+    onError: (err: Error) => {
+      const match = err.message.match(/^\d+:\s*(\{.*\})\s*$/);
+      if (match) {
+        try {
+          const parsed = JSON.parse(match[1]);
+          if (parsed.error) {
+            toast.error(parsed.error);
+            return;
+          }
+        } catch {
+          /* use raw message */
+        }
+      }
+      toast.error(err.message);
+    },
+  });
+
+  const publishLearn = useMutation({
+    mutationFn: async ({ id, ...body }: { id: string; slug: string; excerpt: string; category: string }) => {
+      const res = await apiRequest(`/api/craft/week/${id}/publish-learn`, "POST", {
+        ...body,
+        overrideCompliance: true,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      setLearnOpen(false);
+      toast.success("Published to Learn");
     },
     onError: (err: Error) => {
       const match = err.message.match(/^\d+:\s*(\{.*\})\s*$/);
@@ -734,6 +783,21 @@ export default function Craft() {
                   {canExportPost(selected) && (
                     <p className="text-[10px] text-primary">Cleared for export.</p>
                   )}
+                  {canExportPost(selected) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setLearnSlug(slugifyLearnTitle(selected.title));
+                        setLearnExcerpt(selected.hook || selected.body);
+                        setLearnCategory("uk_commercial_finance");
+                        setLearnOpen(true);
+                      }}
+                    >
+                      Publish to Learn
+                    </Button>
+                  )}
                   <div className="flex gap-2">
                     {selected.status !== "approved" && selected.status !== "exported" && (
                       <Button
@@ -822,6 +886,52 @@ export default function Craft() {
           />
         </div>
       </div>
+
+      <Dialog open={learnOpen} onOpenChange={setLearnOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publish to Learn</DialogTitle>
+            <DialogDescription>Live post on learn.stratanexus.co.uk. Never auto-publish.</DialogDescription>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Slug</Label>
+                <Input value={learnSlug} onChange={(e) => setLearnSlug(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Excerpt</Label>
+                <Textarea value={learnExcerpt} onChange={(e) => setLearnExcerpt(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>News section</Label>
+                <Select value={learnCategory} onValueChange={setLearnCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {NEWS_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{NEWS_CATEGORY_LABELS[cat]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                className="w-full"
+                disabled={publishLearn.isPending}
+                onClick={() =>
+                  publishLearn.mutate({
+                    id: selected.id,
+                    slug: learnSlug,
+                    excerpt: learnExcerpt,
+                    category: learnCategory,
+                  })
+                }
+              >
+                {publishLearn.isPending ? "Publishing…" : "Publish"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

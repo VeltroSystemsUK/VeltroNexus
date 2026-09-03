@@ -68,7 +68,7 @@ import {
   type EditorialLinkedInPack,
   type EditorialReadiness,
 } from "@shared/editorial";
-import { slugifyLearnTitle } from "@shared/learn";
+import { slugifyLearnTitle, NEWS_CATEGORIES, NEWS_CATEGORY_LABELS } from "@shared/learn";
 
 const statusFilterValues = ["all", "draft", "approved", "exported"] as const;
 
@@ -187,6 +187,7 @@ export default function Editorial() {
   const [learnSlug, setLearnSlug] = useState("");
   const [learnExcerpt, setLearnExcerpt] = useState("");
   const [learnPath, setLearnPath] = useState("none");
+  const [learnCategory, setLearnCategory] = useState<string>("uk_commercial_finance");
 
   const { data: pieces = [], isLoading } = useQuery<EditorialPiece[]>({
     queryKey: ["/api/editorial"],
@@ -411,6 +412,7 @@ export default function Editorial() {
                 setLearnSlug(slugifyLearnTitle(title));
                 setLearnExcerpt("");
                 setLearnPath("none");
+                setLearnCategory("uk_commercial_finance");
                 setLearnOpen(true);
               }}
             >
@@ -650,6 +652,19 @@ export default function Editorial() {
                   </Select>
                 </div>
               )}
+              {selected.type === "news" && (
+                <div className="space-y-1">
+                  <Label>News section</Label>
+                  <Select value={learnCategory} onValueChange={setLearnCategory}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {NEWS_CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{NEWS_CATEGORY_LABELS[cat]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {selected.compliance !== "cleared" && (
                 <p className="text-xs text-muted-foreground">
                   Compliance is {selected.compliance}. This publish is a director override.
@@ -662,6 +677,7 @@ export default function Editorial() {
                     slug: learnSlug,
                     excerpt: learnExcerpt,
                     pathPosition: learnPath === "none" ? null : parseInt(learnPath, 10),
+                    category: selected.type === "news" ? learnCategory : undefined,
                     overrideCompliance: true,
                   })
                     .then(() => {

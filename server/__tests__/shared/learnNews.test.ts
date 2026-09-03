@@ -128,11 +128,24 @@ describe("news lane vs lessons", () => {
         autoPublish: false,
         kind: "news",
         type: "news",
+        category: "uk_commercial_finance",
         title: "HMRC is writing again",
         excerpt: "A note from the desk.",
         body: "Strata packages. We do not lend.",
       }).ok,
     ).toBe(true);
+    expect(
+      canPublishLearn({
+        status: "approved",
+        compliance: "cleared",
+        autoPublish: false,
+        kind: "news",
+        type: "news",
+        title: "HMRC is writing again",
+        excerpt: "A note from the desk.",
+        body: "Strata packages. We do not lend.",
+      }).ok,
+    ).toBe(false);
     expect(
       canPublishLearn({
         status: "approved",

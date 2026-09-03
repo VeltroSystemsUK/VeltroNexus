@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { approveEditorial, reviewEditorialCopy, signOffEditorialCompliance } from "../shared/editorial";
-import { canPublishLearn, snapshotLearnPiece } from "../shared/learn";
+import { canPublishLearn, snapshotLearnPiece, isNewsCategory, type NewsCategory } from "../shared/learn";
 import type { LearnPiece } from "../shared/schema";
 import { storage } from "../server/storage";
 
@@ -15,6 +15,7 @@ type Meta = {
   excerpt: string;
   durationLabel: string;
   topic: string;
+  category: NewsCategory;
 };
 
 function parseFile(raw: string): { meta: Meta; body: string } {
@@ -26,12 +27,16 @@ function parseFile(raw: string): { meta: Meta; body: string } {
     if (idx < 1) continue;
     fields[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
   }
-  const meta = {
+  if (!isNewsCategory(fields.category)) {
+    throw new Error(`Frontmatter category must be one of: uk_commercial_finance, uk_economy, uk_politics (got "${fields.category || ""}")`);
+  }
+  const meta: Meta = {
     slug: fields.slug || "",
     title: fields.title || "",
     excerpt: fields.excerpt || "",
     durationLabel: fields.durationLabel || "",
     topic: fields.topic || "learn-news",
+    category: fields.category,
   };
   if (!meta.slug || !meta.title || !meta.excerpt) throw new Error("Frontmatter needs slug, title, excerpt.");
   return { meta, body: match[2]!.trim() };
@@ -103,6 +108,7 @@ async function main() {
       autoPublish: gated.autoPublish !== false,
       kind: "news",
       type: "news",
+      category: parsed.meta.category,
       title: gated.title,
       excerpt: parsed.meta.excerpt,
       body: gated.body,
@@ -117,6 +123,7 @@ async function main() {
         body: gated.body,
         durationLabel: parsed.meta.durationLabel,
         pathPosition: null,
+        category: parsed.meta.category,
         source: { desk: "editorial", id: gated.id! },
         userId,
       }) as LearnPiece,

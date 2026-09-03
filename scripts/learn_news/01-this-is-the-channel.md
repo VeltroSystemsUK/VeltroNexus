@@ -4,6 +4,7 @@ title: This is the channel
 excerpt: Notes from the desk — HMRC, stacked facilities, brokers, and what we are actually seeing. Comments welcome. Email is never shown.
 durationLabel: 3 min
 topic: learn-news
+category: uk_commercial_finance
 ---
 
 This is not the handbook. The handbook is the reference. This is the channel: dated notes from the desk, written as things move.

@@ -18,9 +18,22 @@ const YOUTUBE_SOURCE =
   /^https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=[\w-]+|embed\/[\w-]+)|youtu\.be\/[\w-]+)/i;
 const VIMEO_SOURCE = /^https?:\/\/(?:www\.)?vimeo\.com\/\d+/i;
 
-export type LearnPieceSource = { desk: "editorial" | "learn-video"; id: number };
+export type LearnPieceSource = { desk: "editorial" | "learn-video" | "craft"; id: number | string };
 
 export type LearnPieceKind = "article" | "video" | "news";
+
+export const NEWS_CATEGORIES = ["uk_commercial_finance", "uk_economy", "uk_politics"] as const;
+export type NewsCategory = (typeof NEWS_CATEGORIES)[number];
+
+export const NEWS_CATEGORY_LABELS: Record<NewsCategory, string> = {
+  uk_commercial_finance: "UK Commercial Finance",
+  uk_economy: "UK Economy",
+  uk_politics: "UK Politics",
+};
+
+export function isNewsCategory(value: unknown): value is NewsCategory {
+  return typeof value === "string" && (NEWS_CATEGORIES as readonly string[]).includes(value);
+}
 
 export type LearnPieceLike = {
   id?: number;
@@ -42,6 +55,7 @@ export type LearnPieceLike = {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  category?: NewsCategory | null;
 };
 
 export type LearnPiecePublic = {
@@ -58,6 +72,7 @@ export type LearnPiecePublic = {
   durationLabel: string;
   thisHelped: number;
   publishedAt: string;
+  category?: NewsCategory | null;
 };
 
 export type CanPublishLearnInput = {
@@ -73,6 +88,7 @@ export type CanPublishLearnInput = {
   description?: string;
   transcript?: string;
   overrideCompliance?: boolean;
+  category?: string | null;
 };
 
 export type SnapshotLearnInput = {
@@ -86,6 +102,7 @@ export type SnapshotLearnInput = {
   heroImageUrl?: string | null;
   durationLabel?: string;
   pathPosition?: number | null;
+  category?: NewsCategory | null;
   source: LearnPieceSource;
   userId: string;
 };
@@ -164,6 +181,7 @@ export function canPublishLearn(input: CanPublishLearnInput): { ok: boolean; err
 
   if (input.kind === "news") {
     if (input.type !== "news") return { ok: false, error: "Only news posts publish to the News lane." };
+    if (!isNewsCategory(input.category)) return { ok: false, error: "Pick a News section." };
     return { ok: true };
   }
 
@@ -193,6 +211,7 @@ export function toLearnPublic(piece: LearnPieceLike): LearnPiecePublic {
     durationLabel: piece.durationLabel,
     thisHelped: piece.thisHelped,
     publishedAt: piece.publishedAt,
+    category: piece.kind === "news" ? piece.category ?? null : undefined,
   };
 }
 
@@ -281,6 +300,7 @@ export function snapshotLearnPiece(input: SnapshotLearnInput): LearnPieceLike {
     durationLabel: input.durationLabel || "",
     thisHelped: 0,
     source: input.source,
+    category: input.kind === "news" ? input.category ?? null : null,
     live: true,
     publishedAt: now,
     unpublishedAt: null,

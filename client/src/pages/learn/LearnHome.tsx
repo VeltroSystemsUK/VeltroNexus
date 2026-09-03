@@ -241,7 +241,7 @@ export default function LearnHome() {
         </h1>
         <p className="text-lg text-zinc-300 max-w-2xl">
           Training for UK directors dealing with stacked short-term finance and HMRC commitments.
-          The handbook is a reference if the company is already in trouble.
+          The handbook is a reference if the company is already facing difficulties.
         </p>
         <PackagerLine />
       </section>

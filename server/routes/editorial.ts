@@ -27,7 +27,7 @@ import {
   reviewEditorialCopy,
   signOffEditorialCompliance,
 } from "@shared/editorial";
-import { canPublishLearn, slugifyLearnTitle, snapshotLearnPiece } from "@shared/learn";
+import { canPublishLearn, slugifyLearnTitle, snapshotLearnPiece, NEWS_CATEGORIES } from "@shared/learn";
 import { houseAskWithEngine, researchTopic } from "../services/caseyScout";
 import { grokFile, grokGenerateStill } from "../services/grokImages";
 
@@ -46,6 +46,7 @@ const publishLearnSchema = z.object({
   excerpt: z.string().optional(),
   pathPosition: z.number().int().min(1).max(6).nullable().optional(),
   overrideCompliance: z.boolean().optional(),
+  category: z.enum(NEWS_CATEGORIES).nullable().optional(),
 });
 
 async function loadPiece(req: AuthenticatedRequest, res: Response) {
@@ -277,6 +278,7 @@ router.post("/editorial/:id/publish-learn", isAuthenticated, async (req: Authent
       excerpt,
       body: existing.body,
       overrideCompliance: parsed.data.overrideCompliance === true,
+      category: parsed.data.category,
     });
     if (!gate.ok) return res.status(400).json({ error: gate.error });
     const snapshot = snapshotLearnPiece({
@@ -287,6 +289,7 @@ router.post("/editorial/:id/publish-learn", isAuthenticated, async (req: Authent
       body: existing.body,
       heroImageUrl: existing.heroImageUrl,
       pathPosition,
+      category: parsed.data.category,
       source: { desk: "editorial", id: existing.id! },
       userId: req.user.id,
     });

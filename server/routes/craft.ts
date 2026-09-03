@@ -2,7 +2,9 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import fs from "fs";
 import path from "path";
+import { z } from "zod";
 import { isAuthenticated } from "../auth";
+import { storage } from "../storage";
 import { handleApiError } from "../utils/errorHandler";
 import {
   applyAmmoToWeek,
@@ -20,6 +22,8 @@ import {
 } from "@shared/craftQueue";
 import { normalizeAmmo, type CreativeAmmoBrief } from "@shared/craftScout";
 import { ammoForPost, parseYaffleImageRequest, yafflePromptFromAmmo } from "@shared/craftYaffle";
+import { canPublishLearn, slugifyLearnTitle, snapshotLearnPiece, NEWS_CATEGORIES } from "@shared/learn";
+import type { LearnPiece } from "@shared/schema";
 import { researchWeek } from "../services/caseyScout";
 import { grokFile, grokGenerateStill, grokJob } from "../services/grokImages";
 import { stillStatus, yaffleFileBuffer, yaffleJob } from "../services/yaffleSidecar";
@@ -147,6 +151,65 @@ router.patch("/craft/week/:id", isAuthenticated, (req: AuthenticatedRequest, res
       return res.status(400).json({ error: msg });
     }
     handleApiError(res, err, "craft-week-patch");
+  }
+});
+
+const publishLearnSchema = z.object({
+  slug: z.string().optional(),
+  excerpt: z.string().optional(),
+  category: z.enum(NEWS_CATEGORIES).nullable().optional(),
+  overrideCompliance: z.boolean().optional(),
+});
+
+function craftPostToLearnBody(post: CraftPost): string {
+  const heroLine = [post.hook, post.hook2].filter(Boolean).join(" ");
+  return [heroLine, post.body, post.cta].filter((part) => part && part.trim().length > 0).join("\n\n");
+}
+
+router.post("/craft/week/:id/publish-learn", isAuthenticated, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = publishLearnSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid request" });
+    const desk = deskFor(req.user!.id);
+    const post = desk.week.find((row) => row.id === req.params.id);
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    const slug = slugifyLearnTitle(parsed.data.slug || post.title);
+    if (!slug) return res.status(400).json({ error: "Slug is required." });
+    const excerpt = parsed.data.excerpt ?? "";
+    const body = craftPostToLearnBody(post);
+    const gate = canPublishLearn({
+      status: post.status,
+      compliance: post.compliance,
+      autoPublish: post.autoPublish !== false,
+      kind: "news",
+      type: "news",
+      title: post.title,
+      excerpt,
+      body,
+      overrideCompliance: parsed.data.overrideCompliance === true,
+      category: parsed.data.category,
+    });
+    if (!gate.ok) return res.status(400).json({ error: gate.error });
+    const snapshot = snapshotLearnPiece({
+      kind: "news",
+      slug,
+      title: post.title,
+      excerpt,
+      body,
+      pathPosition: null,
+      category: parsed.data.category,
+      source: { desk: "craft", id: post.id },
+      userId: req.user!.id,
+    });
+    storage
+      .upsertLiveLearnPiece(snapshot as LearnPiece)
+      .then((live) => res.json(live))
+      .catch((err: any) => {
+        if (err?.message === "slug taken") return res.status(400).json({ error: err.message });
+        handleApiError(res, err, "craft-publish-learn");
+      });
+  } catch (err: any) {
+    handleApiError(res, err, "craft-publish-learn");
   }
 });
 

@@ -1407,9 +1407,10 @@ export type LearnVideo = z.infer<typeof learnVideoSchema>;
 export const createLearnVideoSchema = learnVideoSchema.pick({ title: true, topic: true });
 
 export const learnPieceSourceSchema = z.object({
-  desk: z.enum(["editorial", "learn-video"]),
-  id: z.number(),
+  desk: z.enum(["editorial", "learn-video", "craft"]),
+  id: z.union([z.number(), z.string()]),
 });
+export const learnNewsCategoryEnum = z.enum(["uk_commercial_finance", "uk_economy", "uk_politics"]);
 export const learnPieceSchema = z.object({
   id: z.number().optional(),
   userId: z.string(),
@@ -1425,6 +1426,7 @@ export const learnPieceSchema = z.object({
   durationLabel: z.string().default(""),
   thisHelped: z.number().int().nonnegative().default(0),
   source: learnPieceSourceSchema,
+  category: learnNewsCategoryEnum.nullable().optional().default(null),
   live: z.boolean().default(false),
   publishedAt: dateSchema,
   unpublishedAt: dateSchema,
