@@ -7,7 +7,7 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
-import { createEditorialPieceSchema } from "@shared/schema";
+import { createEditorialPieceSchema, type LearnPiece } from "@shared/schema";
 import {
   EDITORIAL_LINKEDIN_PROMPT,
   EDITORIAL_WRITER_PROMPT,
@@ -27,6 +27,7 @@ import {
   reviewEditorialCopy,
   signOffEditorialCompliance,
 } from "@shared/editorial";
+import { canPublishLearn, slugifyLearnTitle, snapshotLearnPiece } from "@shared/learn";
 import { houseAskWithEngine, researchTopic } from "../services/caseyScout";
 import { grokFile, grokGenerateStill } from "../services/grokImages";
 
@@ -39,6 +40,11 @@ const patchSchema = z.object({
   title: z.string().min(1).optional(),
   topic: z.string().min(1).optional(),
   body: z.string().optional(),
+});
+const publishLearnSchema = z.object({
+  slug: z.string().optional(),
+  excerpt: z.string().optional(),
+  pathPosition: z.number().int().min(1).max(6).nullable().optional(),
 });
 
 async function loadPiece(req: AuthenticatedRequest, res: Response) {
@@ -243,6 +249,55 @@ router.post("/editorial/:id/linkedin", isAuthenticated, async (req: Authenticate
     }
     console.error("[Editorial] linkedin", err);
     res.status(500).json({ error: msg.slice(0, 400) });
+  }
+});
+
+router.post("/editorial/:id/publish-learn", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const existing = await loadPiece(req, res);
+    if (!existing) return;
+    const parsed = publishLearnSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: fromZodError(parsed.error).message });
+    if (existing.type !== "blog") {
+      return res.status(400).json({ error: "Only blog articles publish to Learn." });
+    }
+    const slug = slugifyLearnTitle(parsed.data.slug || existing.title);
+    if (!slug) return res.status(400).json({ error: "Slug is required." });
+    const excerpt = parsed.data.excerpt ?? "";
+    const pathPosition = parsed.data.pathPosition === undefined ? null : parsed.data.pathPosition;
+    const gate = canPublishLearn({
+      status: existing.status,
+      compliance: existing.compliance,
+      autoPublish: existing.autoPublish !== false,
+      kind: "article",
+      type: existing.type,
+      title: existing.title,
+      excerpt,
+      body: existing.body,
+    });
+    if (!gate.ok) return res.status(400).json({ error: gate.error });
+    const snapshot = snapshotLearnPiece({
+      kind: "article",
+      slug,
+      title: existing.title,
+      excerpt,
+      body: existing.body,
+      heroImageUrl: existing.heroImageUrl,
+      pathPosition,
+      source: { desk: "editorial", id: existing.id! },
+      userId: req.user.id,
+    });
+    try {
+      const live = await storage.upsertLiveLearnPiece(snapshot as LearnPiece);
+      res.json(live);
+    } catch (err: any) {
+      if (err?.message === "slug taken" || err?.message === "path position taken") {
+        return res.status(400).json({ error: err.message });
+      }
+      throw err;
+    }
+  } catch (err: any) {
+    handleApiError(res, err, "publish-learn-editorial");
   }
 });
 

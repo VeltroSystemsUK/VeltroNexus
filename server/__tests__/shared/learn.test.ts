@@ -6,6 +6,7 @@ import {
   helpedCookieValue,
   isAllowedVideoSource,
   isLearnHost,
+  learnVideoGenerateInputError,
   normalizeLearnVideo,
   parseHelpedCookie,
   pathPositionTaken,
@@ -195,6 +196,31 @@ describe("schema", () => {
     expect(createLearnVideoSchema.parse({ title: "Cashflow", topic: "cash" }).title).toBe("Cashflow");
   });
 });
+
+describe("learnVideoGenerateInputError", () => {
+  it("generate is an error without notes", () => {
+    const video = normalizeLearnVideo({
+      userId: "u1",
+      title: "Payday",
+      topic: "stacked debt",
+      description: "Strata packages. We do not lend.",
+      transcript: "",
+      videoUrl: "/uploads/learn/videos/StrataFinance_PaydayLenders.mp4",
+      status: "draft",
+      compliance: "pending",
+      autoPublish: false,
+      notes: [],
+    });
+    expect(learnVideoGenerateInputError(video)).toMatch(/scan/i);
+    expect(
+      learnVideoGenerateInputError({
+        ...video,
+        notes: [{ title: "Bank Rate held", url: "https://www.bankofengland.co.uk/n", snippet: "Held." }],
+      }),
+    ).toBeNull();
+  });
+});
+
 
 describe("unpublishLearnPiece", () => {
   it("sets live false and stamps unpublishedAt", () => {

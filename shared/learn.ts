@@ -285,6 +285,30 @@ export function normalizeLearnVideo(row: LearnVideoLike): LearnVideoLike {
   };
 }
 
+export function learnVideoGenerateInputError(video: Pick<LearnVideoLike, "notes">): string | null {
+  if (!video.notes?.length) return "Scan Casey before generating";
+  return null;
+}
+
+export function learnVideoCopy(video: Pick<LearnVideoLike, "title" | "topic" | "description" | "transcript">): string {
+  return [video.title, video.topic, video.description || "", video.transcript || ""].join(" ");
+}
+
+export function signOffLearnVideoCompliance(video: LearnVideoLike): LearnVideoLike {
+  if (video.status !== "approved") {
+    throw new Error("Marketing must approve the copy before compliance can sign off.");
+  }
+  const review = reviewLearnCopy(learnVideoCopy(video));
+  if (!review.ok) {
+    const msg = review.findings
+      .filter((item) => item.level === "block")
+      .map((item) => item.message)
+      .join(" ");
+    throw new Error(msg || "Copy failed compliance review.");
+  }
+  return { ...video, autoPublish: false, compliance: "cleared" };
+}
+
 export function applyLearnVideoPatch(
   video: LearnVideoLike,
   updates: Partial<Pick<LearnVideoLike, "title" | "topic" | "description" | "transcript" | "videoUrl">>,
