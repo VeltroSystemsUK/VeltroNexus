@@ -23,8 +23,10 @@ describe("delegate jobs", () => {
     const ids = liveDelegateDesks().map((desk) => desk.agentId);
     expect(ids).toContain("database-builder");
     expect(ids).toContain("contact-finder");
+    expect(ids).toContain("harvest");
     expect(ids).not.toContain("accounts-monitor");
     expect(ids).not.toContain("capital-strategist");
+    expect(ids).not.toContain("database-builder-se");
   });
 
   it("gives each live desk a real job they can run", () => {
@@ -41,6 +43,13 @@ describe("delegate jobs", () => {
   it("hunt does not take a deal file", () => {
     expect(isDealEligible("hunt", deal())).toBe(false);
     expect(eligibleDeals("hunt", [deal()])).toEqual([]);
+  });
+
+  it("gives Harvest a mailbox job that runs across the book, not one file", () => {
+    expect(getDelegateJob("harvest", "harvest_mailboxes")?.label).toBe("Harvest mailboxes");
+    expect(isDealEligible("harvest_mailboxes", deal({ email: undefined }))).toBe(false);
+    expect(eligibleDeals("harvest_mailboxes", [deal({ email: undefined })])).toEqual([]);
+    expect(getDelegateJob("contact-finder", "harvest_mailboxes")).toBeUndefined();
   });
 
   it("find-contact only on files missing email or phone", () => {

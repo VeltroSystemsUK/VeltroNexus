@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,12 @@ import {
   remainingSmeFirstTouchSlots,
   SME_DAILY_FIRST_TOUCH_CAP,
 } from "@shared/smeOutreach";
-import { hopperStatusLine } from "@shared/smeHopper";
+import { hopperStatusLine, isContactableDeal } from "@shared/smeHopper";
+import { deskJobProgress } from "@shared/deskOps";
+import type { HuntQuality, QualityAlert } from "@shared/smeQuality";
+import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown, Trash2, Upload } from "lucide-react";
 import { OutreachPlaybook } from "./OutreachPlaybook";
 import { BbbGate } from "./BbbGate";
 
@@ -25,6 +28,111 @@ type HuntReport = {
   rejectedTotal: number;
   rejected: Record<string, number>;
 };
+
+type QualityPayload = HuntQuality & {
+  hopper?: { sendable: number; huntContact: number; parked: number; gated: number; quarantine: number };
+  quarantine?: AgenticDealFile[];
+};
+
+function meter(remaining: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round(((total - remaining) / total) * 100));
+}
+
+function QualityStrip({
+  quality,
+  onKeep,
+  onDelete,
+  onPurge,
+  busy,
+}: {
+  quality: QualityPayload;
+  onKeep: (id: number) => void;
+  onDelete: (id: number) => void;
+  onPurge: () => void;
+  busy?: boolean;
+}) {
+  const apis: Array<[string, number, number]> = [
+    ["CH", quality.budget.remaining.ch, quality.budget.total.ch],
+    ["Places", quality.budget.remaining.places, quality.budget.total.places],
+    ["Firecrawl", quality.budget.remaining.firecrawl, quality.budget.total.firecrawl],
+    ["MX", quality.budget.remaining.smtp, quality.budget.total.smtp],
+  ];
+  const quarantined = quality.quarantine || [];
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm text-white">
+          Lead quality{" "}
+          <span className="text-slate-400 font-normal">
+            {quality.hopper?.sendable ?? quality.deliverable}/{quality.target} mail-ready · yield {quality.yieldPct}%
+          </span>
+        </p>
+        <p className="text-xs tabular-nums text-slate-500">
+          {quality.scanned} scanned · {quality.sent} sent · {quality.opened} opened · {quality.replied} replied ·{" "}
+          {quality.director} director / {quality.role} role
+        </p>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {apis.map(([label, remaining, total]) => {
+          const used = meter(remaining, total);
+          return (
+            <div key={label} className="rounded border border-slate-800 px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 flex justify-between">
+                <span>{label}</span>
+                <span className={used >= 80 ? "text-amber-300" : "text-slate-400"}>{used}%</span>
+              </p>
+              <div className="mt-1 h-1 rounded bg-slate-800">
+                <div
+                  className={`h-1 rounded ${used >= 80 ? "bg-amber-400" : "bg-emerald-500"}`}
+                  style={{ width: `${used}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {quality.alerts.map((alert: QualityAlert) => (
+        <p
+          key={alert.message}
+          className={alert.tone === "red" ? "text-xs text-red-300" : "text-xs text-amber-200"}
+        >
+          {alert.message}
+        </p>
+      ))}
+      {quarantined.length > 0 && (
+        <div className="border-t border-slate-800 pt-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-slate-400">{quarantined.length} in quarantine — inspect before delete</p>
+            <Button size="sm" variant="ghost" className="h-7 text-red-300" disabled={busy} onClick={onPurge}>
+              Delete all
+            </Button>
+          </div>
+          <ul className="space-y-1 max-h-40 overflow-y-auto">
+            {quarantined.slice(0, 20).map((deal) => (
+              <li key={deal.id} className="flex items-center gap-2 text-xs text-slate-300">
+                <span className="flex-1 truncate">{deal.companyName}</span>
+                <span className="text-slate-500 truncate max-w-[40%]">{deal.humanReason}</span>
+                <Button size="sm" variant="ghost" className="h-6 px-2" disabled={busy} onClick={() => onKeep(deal.id)}>
+                  Keep
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-red-300"
+                  disabled={busy}
+                  onClick={() => onDelete(deal.id)}
+                >
+                  Delete
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function HuntSummary({ report }: { report: HuntReport }) {
   const topRejects = Object.entries(report.rejected || {})
@@ -65,6 +173,18 @@ function stamp(value?: string | Date) {
   });
 }
 
+function ChargeHolders({ names, clamp }: { names?: string[]; clamp?: boolean }) {
+  const list = (names || []).filter(Boolean);
+  return (
+    <span className={clamp ? "block text-xs leading-snug line-clamp-2" : "block text-xs leading-snug"}>
+      <span className="text-amber-500/90">Registered charge holders · </span>
+      <span className={list.length ? "text-amber-200" : "text-slate-500"}>
+        {list.length ? list.join(" · ") : "None on file"}
+      </span>
+    </span>
+  );
+}
+
 function lastActivity(deal: AgenticDealFile): { at: string; task: string } {
   const events = deal.events || [];
   const last = events[events.length - 1];
@@ -89,9 +209,22 @@ function showPlaybook(deal: AgenticDealFile) {
 export function DealFilesPanel() {
   const [huntReport, setHuntReport] = useState<HuntReport | null>(null);
   const [showStopped, setShowStopped] = useState(false);
+  const [csvNote, setCsvNote] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const { data: deals = [], isLoading } = useQuery<AgenticDealFile[]>({
     queryKey: ["/api/agentic/deals"],
   });
+  const { data: quality } = useQuery<QualityPayload>({
+    queryKey: ["/api/agentic/quality"],
+    refetchInterval: 15000,
+  });
+  const { data: runningJobs = [] } = useQuery<
+    Array<{ agentId?: string; status?: string; totalSteps?: number; completedSteps?: number; currentStep?: string }>
+  >({
+    queryKey: ["/api/agent-jobs/running"],
+    refetchInterval: 2000,
+  });
+  const harvestProgress = deskJobProgress(runningJobs, "harvest");
 
   const selectCompany = useMutation({
     mutationFn: async ({ id, companyNumber }: { id: number; companyNumber: string }) => {
@@ -123,6 +256,7 @@ export function DealFilesPanel() {
     onSuccess: (data) => {
       setHuntReport(data);
       queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
     },
   });
 
@@ -158,13 +292,109 @@ export function DealFilesPanel() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] }),
   });
 
+  const keepQuarantine = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest(`/api/agentic/quarantine/${id}/keep`, "POST", {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
+    },
+  });
+
+  const deleteQuarantine = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest(`/api/agentic/quarantine/${id}`, "DELETE");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
+    },
+  });
+
+  const purgeQuarantine = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/agentic/quarantine/purge", "POST");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
+    },
+  });
+
+  const uploadCsv = useMutation({
+    mutationFn: async (payload: { fileName: string; csvData: string }) => {
+      const res = await apiRequest("/api/agentic/harvest/csv", "POST", payload);
+      return res.json() as Promise<{
+        created: number;
+        skipped: number;
+        errors: { row: number; message: string }[];
+      }>;
+    },
+    onSuccess: (data) => {
+      const fail = data.errors.length;
+      setCsvNote(
+        `Harper: ${data.created} opened, ${data.skipped} already on book${
+          fail ? `, ${fail} row error${fail === 1 ? "" : "s"}` : ""
+        }.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-jobs/running"] });
+    },
+    onError: (error: Error) => {
+      setCsvNote(error.message || "CSV upload failed");
+    },
+  });
+
+  const csvPicker = (
+    <>
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            uploadCsv.mutate({ fileName: file.name, csvData: String(reader.result || "") });
+          };
+          reader.readAsText(file);
+        }}
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => csvInputRef.current?.click()}
+        disabled={uploadCsv.isPending}
+      >
+        <Upload className="h-3.5 w-3.5 mr-1.5" />
+        {uploadCsv.isPending ? "Uploading…" : "Upload CSV for Harper"}
+      </Button>
+    </>
+  );
+
   if (isLoading) {
     return <p className="text-sm text-slate-500">Loading deal files…</p>;
   }
 
   const byWhen = (a: AgenticDealFile, b: AgenticDealFile) =>
     new Date(lastActivity(b).at).getTime() - new Date(lastActivity(a).at).getTime();
-  const active = deals.filter((deal) => deal.status !== "failed" && deal.status !== "complete").sort(byWhen);
+  const active = deals
+    .filter(
+      (deal) =>
+        deal.status !== "failed" &&
+        deal.status !== "complete" &&
+        deal.hopper !== "quarantine" &&
+        isContactableDeal(deal)
+    )
+    .sort(byWhen);
   const stopped = deals.filter((deal) => deal.status === "failed" || deal.status === "complete").sort(byWhen);
   const visible = showStopped ? stopped : active;
 
@@ -174,13 +404,17 @@ export function DealFilesPanel() {
         <CardHeader>
           <CardTitle className="text-white">No deal files yet</CardTitle>
           <CardDescription>
-            Queue up to {SME_DAILY_FIRST_TOUCH_CAP} personalised SME first-touch drafts from Leads. Nothing sends until you approve it. Introducer outreach is paused.
+            Queue up to {SME_DAILY_FIRST_TOUCH_CAP} personalised SME first-touch drafts from Leads, or upload a CSV for Harper to verify emails and open files. Nothing sends until you approve it. Introducer outreach is paused.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button onClick={() => hunt.mutate()} disabled={hunt.isPending}>
-            {hunt.isPending ? "Queuing…" : "Queue SME emails"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => hunt.mutate()} disabled={hunt.isPending}>
+              {hunt.isPending ? "Queuing…" : "Hunt & queue mail-ready leads"}
+            </Button>
+            {csvPicker}
+          </div>
+          {csvNote && <p className="text-xs text-slate-400">{csvNote}</p>}
           {huntReport && <HuntSummary report={huntReport} />}
         </CardContent>
       </Card>
@@ -192,6 +426,31 @@ export function DealFilesPanel() {
 
   return (
     <div className="space-y-4">
+      {harvestProgress ? (
+        <div className="rounded-lg border border-emerald-900/60 bg-slate-900 px-4 py-3 space-y-1.5" aria-live="polite">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm text-white">
+              Harper harvesting{" "}
+              <span className="text-slate-400 font-normal">{harvestProgress.current || "company mailboxes"}</span>
+            </p>
+            <p className="text-xs tabular-nums text-slate-500">{harvestProgress.label}</p>
+          </div>
+          <Progress value={harvestProgress.pct} className="h-1.5 bg-slate-800" />
+        </div>
+      ) : null}
+      {quality ? (
+        <QualityStrip
+          quality={quality}
+          busy={keepQuarantine.isPending || deleteQuarantine.isPending || purgeQuarantine.isPending}
+          onKeep={(id) => keepQuarantine.mutate(id)}
+          onDelete={(id) => deleteQuarantine.mutate(id)}
+          onPurge={() => {
+            if (window.confirm("Delete every quarantined lead that has no corporate mailbox?")) {
+              purgeQuarantine.mutate();
+            }
+          }}
+        />
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button
@@ -221,14 +480,16 @@ export function DealFilesPanel() {
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => hunt.mutate()} disabled={hunt.isPending}>
-            {hunt.isPending ? "Queuing…" : "Queue SME emails"}
+            {hunt.isPending ? "Queuing…" : "Hunt & queue mail-ready leads"}
           </Button>
+          {csvPicker}
         </div>
       </div>
       <p className="text-xs text-slate-500">
         Introducer outreach is paused. SME first-touch cap {SME_DAILY_FIRST_TOUCH_CAP}/day — {waitingEmails.length} waiting approval, {remainingToday} slots left today.{" "}
         {hopperStatusLine(deals)}
       </p>
+      {csvNote && <p className="text-xs text-slate-400">{csvNote}</p>}
 
       {visible.length === 0 && (
         <p className="text-sm text-slate-500">
@@ -247,6 +508,7 @@ export function DealFilesPanel() {
             </span>
             <span className="flex-1 min-w-0">
               <span className="block text-sm text-white truncate">{deal.companyName}</span>
+              <ChargeHolders names={deal.chargeHolders} clamp />
               <span className="block text-xs text-slate-400 truncate">{activity.task}</span>
             </span>
             <span className="ml-auto flex items-center gap-2 shrink-0">
@@ -284,6 +546,9 @@ export function DealFilesPanel() {
               {" · "}
               {deal.email || "no email"}
               {deal.phone ? ` · ${deal.phone}` : ""}
+            </p>
+            <p className="text-xs">
+              <ChargeHolders names={deal.chargeHolders} />
             </p>
             {deal.humanReason && (
               <p className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">

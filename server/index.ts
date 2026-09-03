@@ -201,6 +201,11 @@ app.use((req: any, res, next) => {
     const server = await registerRoutes(app);
     mountStrataEmbed(app);
 
+    // Unmatched /api calls must not fall through to the HTML SPA.
+    app.use("/api", (req, res) => {
+      res.status(404).json({ error: `No API route for ${req.method} ${req.originalUrl}` });
+    });
+
     app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const requestId = (req as any).requestId;
@@ -311,6 +316,9 @@ app.use((req: any, res, next) => {
             }
           }, 60 * 1000);
           console.log("[Agentic] Deal-file timer and daily hunt started");
+
+          const { startImapInboxPoll } = await import("./services/imapInbox");
+          startImapInboxPoll();
 
         } catch (error) {
           console.error("[Startup] Failed to initialize agents/schedulers:", error);

@@ -13,6 +13,8 @@ describe("agent mailboxes", () => {
     expect(mailboxForAgent("outreach-sales").role).toBe("Business Consultant");
     expect(mailboxForAgent("deal-processing-underwriter").role).toBe("Process Manager");
     expect(mailboxForAgent("fulfilment-manager").role).toBe("New Business Manager");
+    expect(mailboxForAgent("harvest").displayName).toBe("Harper Cole");
+    expect(mailboxForAgent("harvest").role).toBe("Harvest Agent");
   });
 
   it("resolves an inbound address back to the agent", () => {

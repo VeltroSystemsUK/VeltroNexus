@@ -53,6 +53,7 @@ import { DeskOpsPanel } from "@/components/agentic/DeskOpsPanel";
 import { DelegateDialog } from "@/components/agentic/DelegateDialog";
 import { FactoryCanvas } from "@/components/agentic/FactoryCanvas";
 import { DeskFunctionsPanel } from "@/components/agentic/DeskFunctionsPanel";
+import { AgentOutreachTemplates } from "@/components/agentic/AgentOutreachTemplates";
 import { ProcessCanvas } from "@/components/process-canvas";
 import { graphToWorkflow, workflowToGraph } from "@shared/processGraph";
 
@@ -450,6 +451,9 @@ export default function Workforce() {
               <TabsTrigger value="activity" className="data-[state=active]:bg-primary">
                 Jobs
               </TabsTrigger>
+              <TabsTrigger value="templates" className="data-[state=active]:bg-primary">
+                Outreach templates
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -771,6 +775,14 @@ export default function Workforce() {
 
           <TabsContent value="activity">
             <AgentJobProgress refreshInterval={2000} />
+          </TabsContent>
+
+          <TabsContent value="templates" className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Agent outreach templates</h2>
+              <p className="text-sm text-slate-400">Review and edit the copy used by the automated email cadence. Campaign templates remain separate.</p>
+            </div>
+            <AgentOutreachTemplates />
           </TabsContent>
         </Tabs>
 

@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
+import crypto from "crypto";
 import { mailboxForAgent } from "@shared/agentMailboxes";
-import { logAgentMail } from "./agentMailLog";
+import { logAgentMail, injectMailTracking } from "./agentMailLog";
 
 function applyVariables(content: string, variables: Record<string, any>): string {
     let finalContent = content;
@@ -68,6 +69,7 @@ export async function sendEmail(
     const fromAddress = credentials?.fromEmail || mailbox.address || process.env.SMTP_FROM;
     const fromName = credentials?.fromName || mailbox.fromName;
     const replyTo = credentials?.replyTo || mailbox.replyTo;
+    const mailLogId = crypto.randomUUID();
 
     try {
         const transporter = buildTransport(credentials || {});
@@ -75,6 +77,7 @@ export async function sendEmail(
             console.warn("No SMTP or Gmail credentials. Logging email instead.");
             console.log(`[MOCK EMAIL] From: ${fromName} <${fromAddress}>\nReply-To: ${replyTo}\nTo: ${to}\nSubject: ${subject}\nBody:\n${text}`);
             logAgentMail({
+                id: mailLogId,
                 direction: "outbound",
                 agentId: mailbox.agentId,
                 agentName: mailbox.displayName,
@@ -90,17 +93,22 @@ export async function sendEmail(
             return { success: false, mock: true };
         }
 
+        // Tracked HTML is what the customer actually receives, so it's also
+        // what gets stored for the "exactly as the customer saw it" preview.
+        const trackedHtml = html ? injectMailTracking(html, mailLogId) : html;
+
         const info = await transporter.sendMail({
             from: `"${fromName}" <${fromAddress}>`,
             replyTo,
             to,
             subject,
             text,
-            html,
+            html: trackedHtml,
             attachments,
         });
         console.log(`Email sent from ${fromAddress} to ${to}: ${info.response}`);
         logAgentMail({
+            id: mailLogId,
             direction: "outbound",
             agentId: mailbox.agentId,
             agentName: mailbox.displayName,
@@ -108,7 +116,7 @@ export async function sendEmail(
             to,
             subject,
             text,
-            html,
+            html: trackedHtml,
             status: "sent",
             messageId: info.messageId,
             dealId: credentials?.dealId,
@@ -118,6 +126,7 @@ export async function sendEmail(
     } catch (error: any) {
         console.error("Error sending email:", error);
         logAgentMail({
+            id: mailLogId,
             direction: "outbound",
             agentId: mailbox.agentId,
             agentName: mailbox.displayName,

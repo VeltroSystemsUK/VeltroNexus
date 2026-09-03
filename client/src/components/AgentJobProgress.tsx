@@ -6,14 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle, AlertCircle, Clock, Activity, Trash2, Search, Database } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, Clock, Activity, Trash2, Search, Database, Pause } from "lucide-react";
 import { toast } from "sonner";
 
 interface AgentJob {
   id: string;
   agentId: string;
   type: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "paused" | "completed" | "failed";
   title: string;
   description: string;
   totalSteps: number;
@@ -64,6 +64,19 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
     }
   });
 
+  const stopJobMutation = useMutation({
+    mutationFn: ({ jobId, action }: { jobId: string; action: "pause" | "complete" }) =>
+      apiRequest(`/api/agent-jobs/${jobId}/${action}`, "POST"),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-jobs/running"] });
+      toast.success(vars.action === "pause" ? "Job paused" : "Job completed");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to stop job: " + error.message);
+    },
+  });
+
   const getAgentName = (agentId: string) => {
     if (agentId === "enrichment-agent") return "Agent B (Enrichment)";
     if (agentId === "database-builder") return "Opportunity Hunter";
@@ -81,6 +94,8 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
     switch (status) {
       case "running":
         return <Loader2 className="h-4 w-4 animate-spin text-sky-300" />;
+      case "paused":
+        return <Pause className="h-4 w-4 text-amber-300" />;
       case "completed":
         return <CheckCircle className="h-4 w-4 text-emerald-400" />;
       case "failed":
@@ -107,6 +122,12 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
         return (
           <Badge className="bg-sky-500/15 text-sky-200 border border-sky-500/30 hover:bg-sky-500/15">
             In Progress
+          </Badge>
+        );
+      case "paused":
+        return (
+          <Badge className="bg-amber-500/15 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15">
+            Paused
           </Badge>
         );
       case "completed":
@@ -170,9 +191,12 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
     );
   }
 
-  // Show only recent jobs (last 5)
-  const recentJobs = jobs.slice(0, 5);
-  const hasRunningJobs = runningJobs && runningJobs.length > 0;
+  const pinnedRunning = runningJobs ?? [];
+  const recentJobs = [
+    ...pinnedRunning,
+    ...jobs.filter((job) => !pinnedRunning.some((running) => running.id === job.id)),
+  ].slice(0, Math.max(5, pinnedRunning.length));
+  const hasRunningJobs = pinnedRunning.length > 0;
 
   return (
     <Card className="bg-slate-900 border-slate-800">
@@ -200,7 +224,7 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
                   : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
               }`}
             >
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between mb-2 gap-2 flex-wrap">
                 <div
                   className="flex flex-col gap-1 cursor-pointer flex-1"
                   onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
@@ -210,7 +234,7 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
                     <span className="font-semibold text-sm text-white">{job.title}</span>
                     <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-400">
                       {getTypeIcon(job.type)}
-                      {job.type === "data_enrichment" ? "Enrichment" : "Discovery"}
+                      {job.type === "harvest" ? "Harvest" : job.type === "data_enrichment" ? "Enrichment" : "Discovery"}
                     </div>
                   </div>
                   <span className="text-[10px] text-slate-500 ml-6">
@@ -226,6 +250,43 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
 
                 <div className="flex items-center gap-2">
                   {getStatusBadge(job.status)}
+                  {job.status === "running" && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[10px] text-amber-200 hover:text-amber-100 hover:bg-amber-500/10"
+                        disabled={stopJobMutation.isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            window.confirm(
+                              "Pause this job? Work already done is kept. In-flight API calls may finish, then it stops."
+                            )
+                          ) {
+                            stopJobMutation.mutate({ jobId: job.id, action: "pause" });
+                          }
+                        }}
+                      >
+                        <Pause className="h-3 w-3 mr-1" />
+                        Pause
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[10px] text-emerald-200 hover:text-emerald-100 hover:bg-emerald-500/10"
+                        disabled={stopJobMutation.isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm("Mark this job complete now? Remaining items will not run.")) {
+                            stopJobMutation.mutate({ jobId: job.id, action: "complete" });
+                          }
+                        }}
+                      >
+                        Complete now
+                      </Button>
+                    </div>
+                  )}
                   {job.status !== "running" && (
                     <Button
                       variant="ghost"

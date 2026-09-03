@@ -21,6 +21,7 @@ How to initialise an agent for a session on Nexus.
 - Hunt from Lead Finder pool + Gazette; never from invented companies.
 - Apply `shared/salesOs.ts` and `server/services/strataFit.ts` before opening a file.
 - Inbound: always open a file, then match Companies House.
+- Harper (`harvest`) works every real SME file without an email, plus CSV uploads from Deal Files. Domain from the company website. SMTP must pass. No invented `info@`. CSV emails are not trusted until Harper grades them; Gmail/Hotmail stay personal.
 
 ## SAL-2
 

@@ -2,8 +2,8 @@ graph TD
     D["Shaun — Director T0<br/>Calls, live replies, credit sign-off, Sterling send"]
     D --> ORC["ORC-1 Orchestrator<br/>Stage machine · gates · tick()"]
 
-    ORC --> RES["RES-2 Origination<br/>Daniel / Maya / Elena"]
-    ORC --> SAL["SAL-2 Communications<br/>James / Sophie"]
+    ORC --> RES["RES-2 Origination<br/>Daniel / Maya / Elena / Harper"]
+    ORC --> SAL["SAL-2 Communications<br/>James / Sophie / Rowan"]
     ORC --> FIN["FIN-2 File factory<br/>Priya"]
     D --> MKT["MKT-2 Brand social + Editorial<br/>Isla · CRAFT / editorial desk"]
     MKT --> SCOUT["MKT-3 Content Scout<br/>Casey · Creative Ammo"]
@@ -14,7 +14,8 @@ graph TD
     RES --> T_PL[("Google Places")]
     RES --> T_CRM[("Prospect pipeline")]
 
-    SAL --> T_SMTP[("SMTP shared inbox")]
+    SAL --> T_SMTP[("SMTP + IMAP shared inbox")]
+    SAL -->|STOP / bounce / live reply| D
     SAL --> T_PACK[("Pack portal")]
     SAL --> T_LI["LinkedIn draft — Shaun posts"]
     SAL --> T_CALL["Call queue — Shaun dials"]

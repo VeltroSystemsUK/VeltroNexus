@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { storage } from "../storage";
@@ -7,18 +9,26 @@ import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 import { createEditorialPieceSchema } from "@shared/schema";
 import {
+  EDITORIAL_LINKEDIN_PROMPT,
   EDITORIAL_WRITER_PROMPT,
   approveEditorial,
   canExportPiece,
   editorialExportPayload,
   editorialGenerateInputError,
+  editorialLinkedInUserPrompt,
+  editorialStillPrompt,
   editorialUserPrompt,
+  formatEditorialLinkedInPost,
+  insertEditorialImage,
   markEditorialExported,
+  parseEditorialImageRequest,
+  parseEditorialLinkedInPack,
   rejectEditorial,
   reviewEditorialCopy,
   signOffEditorialCompliance,
 } from "@shared/editorial";
 import { houseAskWithEngine, researchTopic } from "../services/caseyScout";
+import { grokFile, grokGenerateStill } from "../services/grokImages";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -178,6 +188,61 @@ router.post("/editorial/:id/compliance", isAuthenticated, async (req: Authentica
     }
   } catch (err: any) {
     handleApiError(res, err, "compliance-editorial");
+  }
+});
+
+router.post("/editorial/:id/image", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const existing = await loadPiece(req, res);
+    if (!existing) return;
+    const parsed = parseEditorialImageRequest(req.body);
+    const prompt = editorialStillPrompt(existing, parsed.prompt);
+    const job = await grokGenerateStill(prompt, "og");
+    const file = grokFile(job.id);
+    if (!file?.buffer?.length) {
+      return res.status(422).json({ error: "Grok could not generate an image. Try a different prompt." });
+    }
+    const mime = file.mime || "image/jpeg";
+    const extension = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+    const filename = `editorial-${existing.id}-${Date.now()}.${extension}`;
+    const storagePath = `media/${req.user.id}/${filename}`;
+    const localFilePath = path.resolve(process.cwd(), "uploads", storagePath);
+    fs.mkdirSync(path.dirname(localFilePath), { recursive: true });
+    fs.writeFileSync(localFilePath, file.buffer);
+    const url = `/uploads/${storagePath}`;
+    const insert = req.body?.insert === true;
+    const body = insert ? insertEditorialImage(existing.body || "", url, existing.title) : undefined;
+    const piece = await storage.updateEditorialPiece(existing.id!, req.user.id, {
+      heroImageUrl: url,
+      ...(body !== undefined ? { body } : {}),
+    });
+    res.json({ url, prompt, piece: piece || existing });
+  } catch (err: any) {
+    const msg = String(err?.message || "Images failed");
+    const status = /timed out/i.test(msg) ? 504 : /expired|credential|XAI_API_KEY|sign in/i.test(msg) ? 401 : 400;
+    return res.status(status).json({ error: msg.slice(0, 400) });
+  }
+});
+
+router.post("/editorial/:id/linkedin", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const existing = await loadPiece(req, res);
+    if (!existing) return;
+    const { text } = await houseAskWithEngine(
+      editorialLinkedInUserPrompt({ ...existing, title: existing.title, body: existing.body || "" }),
+      undefined,
+      EDITORIAL_LINKEDIN_PROMPT,
+    );
+    const pack = parseEditorialLinkedInPack(text);
+    const piece = await storage.updateEditorialPiece(existing.id!, req.user.id, { linkedinPack: pack });
+    res.json({ pack, formatted: formatEditorialLinkedInPost(pack), piece: piece || { ...existing, linkedinPack: pack } });
+  } catch (err: any) {
+    const msg = String(err?.message || "Failed to generate LinkedIn pack");
+    if (/house policy|hashtag|keyword|hook, body|Invalid LinkedIn/i.test(msg)) {
+      return res.status(400).json({ error: msg.slice(0, 400) });
+    }
+    console.error("[Editorial] linkedin", err);
+    res.status(500).json({ error: msg.slice(0, 400) });
   }
 });
 

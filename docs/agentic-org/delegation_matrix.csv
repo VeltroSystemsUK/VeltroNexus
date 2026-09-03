@@ -3,7 +3,8 @@ hunt_companies_house_gazette,RES-2,no,Drop fit<70 and SIG-06
 inbound_enquiry_open_file,RES-2,no,Always open
 companies_house_single_match,RES-2,no,
 companies_house_ambiguous_match,ORC-1,yes,waiting_human
-contact_enrichment,RES-2,no,One retry then proceed or park
+contact_enrichment,RES-2,no,Elena inbound/introducer one retry then proceed or park
+mailbox_harvest,RES-2,no,Harper desk: domain-locked SMTP harvest on every real SME file without an email including quarantine; skip test companies; never invent info@
 cold_template_email,SAL-2,no,PECR stop line required; SMTP must be live
 inbound_ack_pack_request,SAL-2,no,Request full Sterling 14
 cadence_followup_email,SAL-2,no,OS timer

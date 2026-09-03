@@ -104,11 +104,14 @@ export interface AgenticDealFile {
     gazetteUrl?: string;
     caseNumber?: string;
   };
-  hopper?: "gated" | "hunt_contact" | "sendable" | "parked" | "queued";
+  hopper?: "gated" | "hunt_contact" | "sendable" | "parked" | "queued" | "quarantine";
+  mailboxGrade?: "director" | "role";
   attachAttempts?: number;
   nonBankChargeCount?: number;
+  chargeHolders?: string[];
   lastSignalAt?: string;
-  contactSource?: "ch" | "places" | "firecrawl";
+  contactSource?: "ch" | "places" | "firecrawl" | "domain" | "osint" | "wayback";
+  mailboxConfidence?: number;
   directorNames?: string[];
   incorporatedAt?: string;
   uploadToken?: string;

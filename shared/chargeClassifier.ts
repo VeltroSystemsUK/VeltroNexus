@@ -59,3 +59,58 @@ export function isP0(input: { hasPetition?: boolean; liveNonBankChargeCount: num
   if (input.hasPetition) return true;
   return (input.liveNonBankChargeCount || 0) >= 1;
 }
+
+export function liveChargeHolders(
+  charges: Array<{ status?: string | null; personsEntitled?: string[] }>
+): string[] {
+  return chargeHoldersFromNames(
+    charges.flatMap((charge) => {
+      if (!isLiveCharge(charge.status)) return [];
+      return charge.personsEntitled || [];
+    })
+  );
+}
+
+export function registeredChargeHolders(
+  charges: Array<{ status?: string | null; personsEntitled?: string[] }>
+): string[] {
+  return registeredChargeHoldersFromNames(
+    charges.flatMap((charge) => {
+      if (!isLiveCharge(charge.status)) return [];
+      return charge.personsEntitled || [];
+    })
+  );
+}
+
+function uniqueHolderNames(
+  names: Array<string | null | undefined>,
+  skip?: (name: string) => boolean
+): string[] {
+  const seen = new Set<string>();
+  const holders: string[] = [];
+  for (const raw of names) {
+    const name = String(raw || "").trim();
+    if (!name) continue;
+    if (skip?.(name)) continue;
+    const key = name.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    holders.push(name);
+  }
+  return holders;
+}
+
+export function chargeHoldersFromNames(names: Array<string | null | undefined>): string[] {
+  return uniqueHolderNames(names, isBankOrBuildingSocietyChargee);
+}
+
+export function registeredChargeHoldersFromNames(names: Array<string | null | undefined>): string[] {
+  return uniqueHolderNames(names);
+}
+
+export function dealChargeHolders(
+  deal: { chargeHolders?: string[] | null },
+  bookNames: Array<string | null | undefined> = []
+): string[] {
+  return registeredChargeHoldersFromNames([...(deal.chargeHolders || []), ...bookNames]);
+}

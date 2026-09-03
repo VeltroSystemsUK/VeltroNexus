@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { HIBERNATED_DESKS, deskForDeal, summariseDeskOps } from "@shared/deskOps";
+import { HIBERNATED_DESKS, deskForDeal, deskJobProgress, summariseDeskOps } from "@shared/deskOps";
 
 describe("desk ops", () => {
   it("does not report hibernated desks", () => {
-    expect(HIBERNATED_DESKS).toEqual(expect.arrayContaining(["accounts-monitor", "capital-strategist"]));
+    expect(HIBERNATED_DESKS).toEqual(expect.arrayContaining(["accounts-monitor", "capital-strategist", "database-builder-se"]));
     const rows = summariseDeskOps({ deals: [], mail: [] });
     expect(rows.map((row) => row.agentId)).not.toEqual(
       expect.arrayContaining(["accounts-monitor", "capital-strategist"])
@@ -107,5 +107,83 @@ describe("desk ops", () => {
         events: [],
       })
     ).toBe("fulfilment-manager");
+  });
+
+  it("puts SME files without an email on Harvest, including quarantine", () => {
+    expect(
+      deskForDeal({
+        stage: "ingest",
+        source: "distress_scan",
+        hopper: "quarantine",
+        events: [],
+      })
+    ).toBe("harvest");
+    expect(
+      deskForDeal({
+        stage: "ingest",
+        source: "distress_scan",
+        hopper: "hunt_contact",
+        events: [],
+      })
+    ).toBe("harvest");
+    expect(
+      deskForDeal({
+        stage: "enrich",
+        source: "strata_inbound",
+        events: [],
+      })
+    ).toBe("contact-finder");
+  });
+
+  it("turns a running harvest job into a progress bar payload", () => {
+    expect(
+      deskJobProgress(
+        [
+          {
+            agentId: "harvest",
+            status: "running",
+            totalSteps: 49,
+            completedSteps: 12,
+            currentStep: "ENSYGN LIMITED",
+          },
+        ],
+        "harvest"
+      )
+    ).toEqual({
+      pct: 24,
+      label: "12 / 49",
+      current: "ENSYGN LIMITED",
+    });
+    expect(deskJobProgress([], "harvest")).toBeNull();
+  });
+
+  it("shows the newest running harvest job when two passes overlap", () => {
+    expect(
+      deskJobProgress(
+        [
+          {
+            agentId: "harvest",
+            status: "running",
+            totalSteps: 48,
+            completedSteps: 3,
+            currentStep: "GREAT GIDDING GREEN ENERGY LIMITED",
+            startedAt: "2026-09-02T10:04:18.451Z",
+          },
+          {
+            agentId: "harvest",
+            status: "running",
+            totalSteps: 48,
+            completedSteps: 5,
+            currentStep: "STEPHEN JAMES CONSULTING LIMITED",
+            startedAt: "2026-09-02T10:05:49.620Z",
+          },
+        ],
+        "harvest"
+      )
+    ).toEqual({
+      pct: 10,
+      label: "5 / 48",
+      current: "STEPHEN JAMES CONSULTING LIMITED",
+    });
   });
 });

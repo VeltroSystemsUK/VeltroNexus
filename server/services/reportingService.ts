@@ -1,8 +1,30 @@
 import cron from "node-cron";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { storage } from "../storage";
 import { sendEmail } from "./email";
+import { houseAskWithEngine } from "./caseyScout";
 import { generateWorksheetPdf, generateProgressReportPdf } from "../utils/reportPdf";
+import { listAgentMail } from "./agentMailLog";
+import { isInboundLead } from "./inboundPipeline";
+import {
+  buildProgressSummaryPrompt,
+  fallbackProgressSummary,
+  PROGRESS_SUMMARY_SYSTEM,
+  summarizeWeeklySalesActivity,
+  type WeeklySalesActivity,
+} from "@shared/progressReport";
 import type { ReportTask, ReportSettings } from "@shared/schema";
+
+const REPORTS_DIR = path.resolve(process.cwd(), "uploads", "reports");
+
+function savePdfFile(pdf: Buffer): string {
+  if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
+  const filename = `${crypto.randomUUID()}.pdf`;
+  fs.writeFileSync(path.join(REPORTS_DIR, filename), pdf);
+  return filename;
+}
 
 const TIMEZONE = "Europe/London";
 const DAY_MS = 86400000;
@@ -23,6 +45,16 @@ function isoWeekNumber(d: Date): number {
   return Math.ceil((((date.getTime() - yearStart.getTime()) / DAY_MS) + 1) / 7);
 }
 
+// Project week number, anchored to a user-defined week in Report Settings
+// (e.g. "w/c 31/08/26 is Week 5") instead of the calendar's ISO week.
+// Falls back to the ISO week if no anchor is set.
+function projectWeekNumber(weekStartMonday: Date, settings: ReportSettings): number {
+  if (!settings.weekAnchorDate) return isoWeekNumber(weekStartMonday);
+  const anchorMonday = startOfWeekMonday(new Date(settings.weekAnchorDate));
+  const weeksDiff = Math.round((weekStartMonday.getTime() - anchorMonday.getTime()) / (7 * DAY_MS));
+  return settings.weekAnchorNumber + weeksDiff;
+}
+
 function withDefaults(settings: Partial<ReportSettings> | undefined, userId: string): ReportSettings {
   return {
     id: settings?.id,
@@ -32,6 +64,8 @@ function withDefaults(settings: Partial<ReportSettings> | undefined, userId: str
     preparedByName: settings?.preparedByName || "Shaun Tuhey",
     projectCode: settings?.projectCode || "STRATA-NEXUS-INT-001",
     executiveSummary: settings?.executiveSummary || "",
+    weekAnchorDate: settings?.weekAnchorDate || "",
+    weekAnchorNumber: settings?.weekAnchorNumber ?? 1,
     monthlyFee: settings?.monthlyFee || "£2,500.00",
     weeklyPayment: settings?.weeklyPayment || "£625.00",
     weeklyHours: settings?.weeklyHours || "30 hours (6 hours/day, 5 days/week)",
@@ -57,15 +91,16 @@ export async function buildWorksheetForUser(userId: string, refDate: Date = new 
     return d >= weekStart && d <= weekEnd;
   });
 
+  const weekNumber = projectWeekNumber(weekStart, settings);
   const pdf = await generateWorksheetPdf({
-    weekNumber: isoWeekNumber(weekStart),
+    weekNumber,
     weekStart,
     weekEnd,
     settings,
     tasks: weekTasks,
   });
 
-  return { pdf, settings, weekTasks, weekStart, weekEnd, weekNumber: isoWeekNumber(weekStart) };
+  return { pdf, settings, weekTasks, weekStart, weekEnd, weekNumber };
 }
 
 export async function buildProgressReportForUser(userId: string, refDate: Date = new Date()) {
@@ -91,17 +126,108 @@ export async function buildProgressReportForUser(userId: string, refDate: Date =
     return d >= nextWeekStart && d <= nextWeekEnd;
   });
 
+  const weekNumber = projectWeekNumber(weekStart, settings);
+  const inboundLeads = (await storage.listInternalLeads()).filter(isInboundLead);
+  const salesActivity = summarizeWeeklySalesActivity({
+    mail: listAgentMail(2000),
+    inboundLeads,
+    weekStart,
+    weekEnd,
+  });
+  const summaryText = await composeProgressSummary({
+    weekNumber,
+    completedPlanned: completedPlanned.map((t) => t.title),
+    completedExtra: completedExtra.map((t) => t.title),
+    sales: salesActivity,
+  });
   const pdf = await generateProgressReportPdf({
-    weekNumber: isoWeekNumber(weekStart),
+    weekNumber,
     weekStart,
     weekEnd,
     settings,
     completedPlanned,
     completedExtra,
     upcoming,
+    salesActivity,
+    summaryText,
   });
 
-  return { pdf, settings, completedPlanned, completedExtra, upcoming, weekStart, weekEnd, weekNumber: isoWeekNumber(weekStart) };
+  return { pdf, settings, completedPlanned, completedExtra, upcoming, weekStart, weekEnd, weekNumber, salesActivity, summaryText };
+}
+
+export async function composeProgressSummary(
+  input: {
+    weekNumber: number;
+    completedPlanned: string[];
+    completedExtra: string[];
+    sales: WeeklySalesActivity;
+  },
+  ask: typeof houseAskWithEngine = houseAskWithEngine,
+): Promise<string> {
+  try {
+    const { text } = await ask(buildProgressSummaryPrompt(input), undefined, PROGRESS_SUMMARY_SYSTEM);
+    const cleaned = (text || "").trim();
+    if (cleaned) return cleaned;
+  } catch (err) {
+    console.error("[Reporting] Progress summary AI failed:", err);
+  }
+  return fallbackProgressSummary(input);
+}
+
+// To-do agent: reads the current state-of-play and open tasks, proposes follow-up
+// tasks grounded in that text (never invents unrelated work), and logs them to the board.
+const TODO_AGENT_SYSTEM = "You are a delivery-focused project assistant for a small software/finance operation. You only ever suggest follow-up tasks that are directly grounded in the notes you're given — never invent unrelated work or specifics not implied by the text.";
+
+export async function runTodoAgent(userId: string): Promise<ReportTask[]> {
+  const settings = withDefaults(await storage.getReportSettings(userId), userId);
+  const allTasks = await storage.listReportTasks(userId);
+  const openTitles = allTasks.filter((t) => t.status !== "done").map((t) => t.title);
+
+  const prompt = [
+    "Current state of play for this project:",
+    settings.executiveSummary?.trim() || "(no state-of-play notes recorded)",
+    "",
+    "Tasks already open on the board — do not repeat these:",
+    openTitles.length ? openTitles.map((t) => `- ${t}`).join("\n") : "(none)",
+    "",
+    'Based only on the state of play above, identify up to 4 concrete follow-up tasks that still need doing and are not already listed. Do not invent details not implied by the text. Return ONLY a JSON array of objects with "title" (short, actionable, under 80 characters) and "notes" (one short sentence, optional). If nothing new is warranted, return [].',
+  ].join("\n");
+
+  const { text } = await houseAskWithEngine(prompt, undefined, TODO_AGENT_SYSTEM);
+
+  let suggestions: Array<{ title?: string; notes?: string }> = [];
+  try {
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    suggestions = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+  } catch {
+    return [];
+  }
+
+  // Give each task a due date inside the current Mon-Fri worksheet week (never in the
+  // past) — the worksheet only pulls tasks that have a dueDate, so an undated task
+  // would be added to the board but never show up in "Week Objectives" / "Daily Breakdown".
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekStart = startOfWeekMonday(today);
+  const weekEnd = new Date(weekStart.getTime() + 4 * DAY_MS);
+  const scheduleStart = today > weekStart ? today : weekStart;
+
+  const existingLower = new Set(allTasks.map((t) => t.title.trim().toLowerCase()));
+  const created: ReportTask[] = [];
+  let slot = 0;
+  for (const s of suggestions) {
+    const title = (s.title || "").trim();
+    if (!title || existingLower.has(title.toLowerCase())) continue;
+    const dueDate = new Date(Math.min(scheduleStart.getTime() + slot * DAY_MS, weekEnd.getTime()));
+    const task = await storage.createReportTask(
+      { title, notes: s.notes?.trim() || null, timeSlot: null, dueDate, status: "todo" },
+      userId,
+    );
+    created.push(task);
+    existingLower.add(title.toLowerCase());
+    slot++;
+  }
+  return created;
 }
 
 async function dispatchWorksheet(userId: string) {
@@ -110,7 +236,7 @@ async function dispatchWorksheet(userId: string) {
   if (settings.skipNextWorksheet) {
     await storage.upsertReportSettings(userId, { skipNextWorksheet: false });
     await storage.createReportLog({
-      userId, type: "worksheet", weekLabel: `Week ${isoWeekNumber(new Date())}`,
+      userId, type: "worksheet", weekLabel: `Week ${projectWeekNumber(startOfWeekMonday(new Date()), settings)}`,
       recipient: settings.recipientEmail, taskCount: 0, status: "skipped", sentAt: new Date(),
     });
     return;
@@ -128,7 +254,7 @@ async function dispatchProgress(userId: string) {
   if (settings.skipNextProgress) {
     await storage.upsertReportSettings(userId, { skipNextProgress: false });
     await storage.createReportLog({
-      userId, type: "progress", weekLabel: `Week ${isoWeekNumber(new Date())}`,
+      userId, type: "progress", weekLabel: `Week ${projectWeekNumber(startOfWeekMonday(new Date()), settings)}`,
       recipient: settings.recipientEmail, taskCount: 0, status: "skipped", sentAt: new Date(),
     });
     return;
@@ -164,6 +290,8 @@ async function sendReport(
     status = "failed";
   }
 
+  const pdfFile = savePdfFile(pdf);
+
   await storage.createReportLog({
     userId,
     type,
@@ -172,6 +300,7 @@ async function sendReport(
     taskCount,
     status,
     sentAt: new Date(),
+    pdfFile,
   });
 }
 

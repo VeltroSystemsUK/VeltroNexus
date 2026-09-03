@@ -1,5 +1,10 @@
 import PDFDocument from "pdfkit";
 import type { ReportTask, ReportSettings } from "@shared/schema";
+import {
+  formatInboundProspectLine,
+  salesActivityTableRows,
+  type WeeklySalesActivity,
+} from "@shared/progressReport";
 
 const MARGIN = 50;
 const PAGE_WIDTH = 612; // US Letter, pdfkit default
@@ -41,6 +46,109 @@ function sectionHeader(doc: PDFKit.PDFDocument, title: string) {
   doc.fillColor(COLORS.text);
 }
 
+// Shared STRATA FINANCE letterhead + meta strip, used by both report types.
+function drawLetterhead(doc: PDFKit.PDFDocument, subtitle: string, settings: ReportSettings) {
+  doc.font("Helvetica-Bold").fontSize(20).fillColor(COLORS.navy).text("STRATA FINANCE", MARGIN, MARGIN);
+  const tagW = 80;
+  doc.rect(MARGIN + CONTENT_WIDTH - tagW, MARGIN, tagW, 18).fill(COLORS.danger);
+  doc.fillColor("#fff").fontSize(8).text("CONFIDENTIAL", MARGIN + CONTENT_WIDTH - tagW, MARGIN + 5, { width: tagW, align: "center" });
+
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.muted).text(subtitle, MARGIN, MARGIN + 28);
+
+  const metaY = MARGIN + 52;
+  doc.rect(MARGIN, metaY, CONTENT_WIDTH, 34).fillOpacity(1).fill(COLORS.bgLight);
+  doc.fillColor(COLORS.text).font("Helvetica-Bold").fontSize(7);
+  const cols = [MARGIN + 10, MARGIN + 160, MARGIN + 300, MARGIN + 420];
+  const labels = ["PROJECT CODE", "DATE", "VERSION", "PREPARED BY"];
+  const values = [settings.projectCode, fmtLong(new Date()), "Auto-generated", settings.preparedByName];
+  labels.forEach((l, i) => doc.text(l, cols[i], metaY + 6));
+  doc.font("Helvetica").fontSize(9);
+  values.forEach((v, i) => doc.text(v || "", cols[i], metaY + 18));
+
+  doc.x = MARGIN;
+  doc.y = metaY + 46;
+}
+
+const SAFEGUARDS: Array<[string, (settings: ReportSettings) => string]> = [
+  ["Safeguard 1: Non-Regulated Status", () =>
+    "Strata Finance operates exclusively as a non-regulated entity focusing on unregulated commercial B2B finance and corporate restructuring consultancy."],
+  ["Safeguard 2: Regulatory Shield", () =>
+    "Any regulated activities or secondary requirements are held and processed under David Griffiths' existing, fully authorised corporate entity (Sterling Capital Reserve / Sterling Capital Finance)."],
+  ["Safeguard 3: IP Protection", () =>
+    "The Nexus source code, underlying data cleansing logic, algorithms, and front-end architecture remain 100% the proprietary intellectual property of Veltro Ltd. No direct code access or custody of infrastructure is granted to third-party developers."],
+  ["Safeguard 4: B2B JV Structure", () =>
+    "Shaun Tuhey and Veltro participate strictly as independent B2B tech vendors, maintaining the non-regulated status perimeter."],
+  ["Safeguard 5: Cost Certainty", (s) =>
+    `This role adds zero variable cost creep beyond the fixed monthly fee of ${s.monthlyFee}.`],
+  ["Safeguard 6: IR35 Compliance", () =>
+    "Engagement managed entirely within Strata Finance's commercial framework, removing contractor compliance risks."],
+];
+
+function drawKeySafeguards(doc: PDFKit.PDFDocument, settings: ReportSettings, sectionNum: number) {
+  sectionHeader(doc, `${sectionNum}. KEY SAFEGUARDS AND REGULATORY FRAMEWORK`);
+  SAFEGUARDS.forEach(([title, body]) => {
+    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(COLORS.navy).text(title, { width: CONTENT_WIDTH });
+    doc.font("Helvetica").fontSize(9).fillColor(COLORS.text).text(body(settings), { width: CONTENT_WIDTH });
+    doc.moveDown(0.4);
+  });
+}
+
+function drawApproval(doc: PDFKit.PDFDocument, settings: ReportSettings, sectionNum: number, scopeLabel: string) {
+  sectionHeader(doc, `${sectionNum}. APPROVAL`);
+  doc.font("Helvetica").fontSize(9).fillColor(COLORS.text).text(
+    `By signing below, the parties confirm agreement to the ${scopeLabel} set out in this document.`,
+    { width: CONTENT_WIDTH },
+  );
+  doc.moveDown(2.5);
+
+  const colW = CONTENT_WIDTH / 2 - 10;
+  const rightX = MARGIN + CONTENT_WIDTH - colW;
+  const y = doc.y;
+  doc.moveTo(MARGIN, y).lineTo(MARGIN + colW, y).strokeColor(COLORS.border).stroke();
+  doc.moveTo(rightX, y).lineTo(rightX + colW, y).strokeColor(COLORS.border).stroke();
+
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.text)
+    .text("Prepared by:", MARGIN, y + 6)
+    .text("Approved by:", rightX, y + 6);
+  doc.font("Helvetica").fontSize(9)
+    .text(`Name: ${settings.preparedByName}`, MARGIN, y + 20, { width: colW })
+    .text(`Date: ${fmtLong(new Date())}`, MARGIN, y + 34, { width: colW })
+    .text(`Name: ${settings.recipientName}`, rightX, y + 20, { width: colW })
+    .text("Date: ________________________", rightX, y + 34, { width: colW });
+
+  doc.x = MARGIN;
+  doc.y = y + 50;
+}
+
+function ensureSpace(doc: PDFKit.PDFDocument, needed: number) {
+  if (doc.y + needed <= doc.page.height - MARGIN) return;
+  doc.addPage();
+  doc.x = MARGIN;
+  doc.y = MARGIN;
+}
+
+function drawSignOff(doc: PDFKit.PDFDocument, settings: ReportSettings, sectionNum: number) {
+  ensureSpace(doc, 120);
+  sectionHeader(doc, `${sectionNum}. SIGN-OFF`);
+  doc.font("Helvetica").fontSize(9).fillColor(COLORS.text).text(
+    "This report is a record of the week just closed and is signed off by the author. It does not require counter-approval.",
+    { width: CONTENT_WIDTH },
+  );
+  doc.moveDown(1.2);
+
+  const colW = CONTENT_WIDTH / 2;
+  const y = doc.y;
+  doc.moveTo(MARGIN, y).lineTo(MARGIN + colW, y).strokeColor(COLORS.border).stroke();
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.text)
+    .text("Signed off by:", MARGIN, y + 6, { width: colW });
+  doc.font("Helvetica").fontSize(9)
+    .text(`Name: ${settings.preparedByName}`, MARGIN, y + 20, { width: colW })
+    .text(`Date: ${fmtLong(new Date())}`, MARGIN, y + 34, { width: colW });
+
+  doc.x = MARGIN;
+  doc.y = y + 50;
+}
+
 // --- Weekly Worksheet (forward-looking, sent Monday) ---
 
 export interface WorksheetData {
@@ -52,31 +160,10 @@ export interface WorksheetData {
 }
 
 export async function generateWorksheetPdf(data: WorksheetData): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "A4", margin: MARGIN, bufferPages: true });
+  const doc = new PDFDocument({ size: "A4", margin: MARGIN, bufferPages: true, compress: false });
   const { settings, tasks, weekNumber, weekStart, weekEnd } = data;
 
-  // Header bar
-  doc.font("Helvetica-Bold").fontSize(20).fillColor(COLORS.navy).text("VELTRO NEXUS", MARGIN, MARGIN);
-  doc.font("Helvetica-Bold").fontSize(9).fillColor("#fff");
-  const tagW = 80;
-  doc.rect(MARGIN + CONTENT_WIDTH - tagW, MARGIN, tagW, 18).fill(COLORS.danger);
-  doc.fillColor("#fff").fontSize(8).text("CONFIDENTIAL", MARGIN + CONTENT_WIDTH - tagW, MARGIN + 5, { width: tagW, align: "center" });
-
-  doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.muted)
-    .text(`OPERATIONAL WORK SHEET — WEEK ${weekNumber}`, MARGIN, MARGIN + 28);
-
-  // Meta box
-  const metaY = MARGIN + 52;
-  doc.rect(MARGIN, metaY, CONTENT_WIDTH, 34).fillOpacity(1).fill(COLORS.bgLight);
-  doc.fillColor(COLORS.text).font("Helvetica-Bold").fontSize(7);
-  const cols = [MARGIN + 10, MARGIN + 160, MARGIN + 300, MARGIN + 420];
-  const labels = ["PROJECT CODE", "DATE", "VERSION", "PREPARED BY"];
-  const values = [settings.projectCode, fmtLong(new Date()), "Auto-generated", settings.preparedByName];
-  labels.forEach((l, i) => doc.text(l, cols[i], metaY + 6));
-  doc.font("Helvetica").fontSize(9);
-  values.forEach((v, i) => doc.text(v || "", cols[i], metaY + 18));
-
-  doc.y = metaY + 46;
+  drawLetterhead(doc, `OPERATIONAL WORK SHEET — WEEK ${weekNumber}`, settings);
 
   sectionHeader(doc, "1. EXECUTIVE SUMMARY");
   doc.font("Helvetica").fontSize(9.5).fillColor(COLORS.text)
@@ -136,6 +223,9 @@ export async function generateWorksheetPdf(data: WorksheetData): Promise<Buffer>
     [CONTENT_WIDTH / 3, CONTENT_WIDTH / 3, CONTENT_WIDTH / 3]
   );
 
+  drawKeySafeguards(doc, settings, 6);
+  drawApproval(doc, settings, 7, `Week ${weekNumber} proposed scope of work, operational parameters, and regulatory boundary framework`);
+
   addFooter(doc, `CONFIDENTIAL — ${settings.recipientName}`);
   return bufferFromDoc(doc);
 }
@@ -150,46 +240,72 @@ export interface ProgressReportData {
   completedPlanned: ReportTask[]; // done, had a due date this week
   completedExtra: ReportTask[]; // done, no due date (unplanned wins)
   upcoming: ReportTask[]; // open tasks due next week — for priorities
+  salesActivity?: WeeklySalesActivity;
   summaryText?: string;
 }
 
-export async function generateProgressReportPdf(data: ProgressReportData): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "A4", margin: MARGIN, bufferPages: true });
-  const { settings, weekNumber, weekEnd, completedPlanned, completedExtra, upcoming, summaryText } = data;
-
-  doc.font("Helvetica-Bold").fontSize(20).fillColor(COLORS.text).text(`Week ${weekNumber} Progress Report`);
-  doc.font("Helvetica").fontSize(10).fillColor(COLORS.muted)
-    .text(`Prepared for ${settings.recipientName} | Week ending ${fmtLong(weekEnd)}`);
-  doc.moveDown(0.8);
-
-  doc.font("Helvetica-Bold").fontSize(12).fillColor(COLORS.text).text("Completed Tasks");
+function drawSalesActivity(doc: PDFKit.PDFDocument, sales: WeeklySalesActivity) {
+  doc.moveDown(0.3);
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.accent).text("Outbound sales activity");
   doc.moveDown(0.2);
+  drawTable(doc, ["ACTIVITY", "COUNT"], salesActivityTableRows(sales), [CONTENT_WIDTH - 90, 90]);
+
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.accent).text("Inbound from stratafinance.co.uk");
+  doc.moveDown(0.2);
+  if (sales.inboundProspects.length === 0) {
+    doc.font("Helvetica-Oblique").fontSize(9.5).fillColor(COLORS.muted)
+      .text("No inbound prospects received from stratafinance.co.uk this week.");
+  } else {
+    sales.inboundProspects.forEach((p) => bullet(doc, formatInboundProspectLine(p)));
+  }
+}
+
+function drawSummaryProse(doc: PDFKit.PDFDocument, summaryText: string) {
+  const paras = summaryText.split("\n").map((s) => s.trim()).filter(Boolean);
+  paras.forEach((para) => {
+    const cleaned = para.replace(/^[-•*]\s+/, "");
+    doc.font("Helvetica").fontSize(9.5).fillColor(COLORS.text)
+      .text(cleaned, { width: CONTENT_WIDTH, align: "justify" });
+    doc.moveDown(0.35);
+  });
+}
+
+export async function generateProgressReportPdf(data: ProgressReportData): Promise<Buffer> {
+  const doc = new PDFDocument({ size: "A4", margin: MARGIN, bufferPages: true, compress: false });
+  const { settings, weekNumber, weekEnd, completedPlanned, completedExtra, upcoming, salesActivity, summaryText } = data;
+
+  drawLetterhead(doc, `PROGRESS REPORT — WEEK ${weekNumber}`, settings);
+  doc.font("Helvetica").fontSize(9).fillColor(COLORS.muted)
+    .text(`Prepared for ${settings.recipientName} | Week ending ${fmtLong(weekEnd)}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.x = MARGIN;
+  doc.moveDown(0.3);
+
+  sectionHeader(doc, "1. COMPLETED TASKS");
   if (completedPlanned.length === 0) {
     doc.font("Helvetica-Oblique").fontSize(9.5).fillColor(COLORS.muted).text("No planned tasks were marked done this week.");
   } else {
     completedPlanned.forEach((t) => checkBullet(doc, t));
   }
 
-  doc.moveDown(0.6);
-  doc.font("Helvetica-Bold").fontSize(12).fillColor(COLORS.text).text("Additional Activity");
-  doc.moveDown(0.2);
-  if (completedExtra.length === 0) {
+  sectionHeader(doc, "2. ADDITIONAL ACTIVITY");
+  if (completedExtra.length === 0 && !salesActivity) {
     doc.font("Helvetica-Oblique").fontSize(9.5).fillColor(COLORS.muted).text("No additional unplanned activity logged.");
   } else {
     completedExtra.forEach((t) => checkBullet(doc, t));
+    if (salesActivity) drawSalesActivity(doc, salesActivity);
   }
 
-  doc.moveDown(0.6);
-  doc.font("Helvetica-Bold").fontSize(12).fillColor(COLORS.text).text("Summary");
-  doc.moveDown(0.2);
-  const summaryLines = (summaryText || "").split("\n").map((s) => s.trim()).filter(Boolean);
-  if (summaryLines.length > 0) {
-    summaryLines.forEach((line) => bullet(doc, line));
+  sectionHeader(doc, "3. SUMMARY");
+  if (summaryText?.trim()) {
+    drawSummaryProse(doc, summaryText);
   } else if (upcoming.length > 0) {
     bullet(doc, `Week ${weekNumber + 1} priorities: ${upcoming.map((t) => t.title).join(", ")}.`);
   } else {
     doc.font("Helvetica-Oblique").fontSize(9.5).fillColor(COLORS.muted).text("No summary notes added for this week.");
   }
+
+  drawKeySafeguards(doc, settings, 4);
+  drawSignOff(doc, settings, 5);
 
   addFooter(doc, `CONFIDENTIAL — ${settings.recipientName}`);
   return bufferFromDoc(doc);
@@ -201,13 +317,23 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+// Standard Helvetica has no ✓ glyph in its WinAnsi encoding — PDFKit silently
+// mangles it. Draw the tick as a vector stroke instead of relying on the font.
 function checkBullet(doc: PDFKit.PDFDocument, t: ReportTask) {
   const day = t.dueDate ? fmtDay(new Date(t.dueDate as any)) : t.completedAt ? fmtDay(new Date(t.completedAt as any)) : "";
-  doc.font("Helvetica-Bold").fontSize(9.5).fillColor(COLORS.accent).text("✓ ", { continued: true });
-  doc.font("Helvetica").fillColor(COLORS.text).text(`${t.title}${day ? ` — ${day}` : ""}`);
+  const y = doc.y;
+  const size = 8;
+  const textX = MARGIN + size + 6;
+  const textW = CONTENT_WIDTH - size - 6;
+  doc.save();
+  doc.strokeColor(COLORS.accent).lineWidth(1.3);
+  doc.moveTo(MARGIN, y + size * 0.55).lineTo(MARGIN + size * 0.35, y + size * 0.9).lineTo(MARGIN + size, y + size * 0.1).stroke();
+  doc.restore();
+  doc.font("Helvetica").fontSize(9.5).fillColor(COLORS.text).text(`${t.title}${day ? ` — ${day}` : ""}`, textX, y, { width: textW });
   if (t.notes) {
-    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(t.notes, { indent: 14 });
+    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(t.notes, textX, doc.y, { width: textW });
   }
+  doc.x = MARGIN;
   doc.moveDown(0.15);
 }
 
@@ -247,13 +373,14 @@ function drawTable(doc: PDFKit.PDFDocument, headers: string[], rows: string[][],
     }
     x = startX;
     row.forEach((cell, i) => {
-      doc.text(cell || "", x + rowPad, y + rowPad, { width: colWidths[i] - rowPad * 2 });
+      doc.text(cell || "", x + rowPad, y + rowPad, { width: colWidths[i] - rowPad * 2, lineBreak: false });
       x += colWidths[i];
     });
     doc.moveTo(startX, y + rowH).lineTo(startX + CONTENT_WIDTH, y + rowH).strokeColor(COLORS.border).stroke();
     y += rowH;
   });
 
+  doc.x = MARGIN;
   doc.y = y + 6;
 }
 
@@ -268,13 +395,21 @@ function drawChecklist(doc: PDFKit.PDFDocument, tasks: ReportTask[]) {
     doc.font("Helvetica").fontSize(9.5).fillColor(COLORS.text).text(t.title, MARGIN + boxSize + 8, y, { width: CONTENT_WIDTH - boxSize - 8 });
     doc.moveDown(0.25);
   });
+  doc.x = MARGIN;
 }
 
 function addFooter(doc: PDFKit.PDFDocument, text: string) {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
+    const bottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
     doc.font("Helvetica").fontSize(7).fillColor(COLORS.muted)
-      .text(text, MARGIN, doc.page.height - 30, { width: CONTENT_WIDTH, align: "center" });
+      .text(text, MARGIN, doc.page.height - 28, {
+        width: CONTENT_WIDTH,
+        align: "center",
+        lineBreak: false,
+      });
+    doc.page.margins.bottom = bottom;
   }
 }

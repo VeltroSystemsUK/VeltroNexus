@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { createEditorialPieceSchema, insertEditorialPieceSchema } from "@shared/schema";
 import {
+  EDITORIAL_LINKEDIN_PROMPT,
   EDITORIAL_WRITER_PROMPT,
   applyEditorialPatch,
   approveEditorial,
   canExportPiece,
   editorialExportPayload,
   editorialGenerateInputError,
+  editorialLinkedInUserPrompt,
+  editorialReadiness,
   editorialMarkdownToHtml,
+  editorialStillPrompt,
   editorialUserPrompt,
+  formatEditorialLinkedInPost,
+  insertEditorialImage,
   markEditorialExported,
   normalizeEditorialPiece,
+  parseEditorialImageRequest,
+  parseEditorialLinkedInPack,
   rejectEditorial,
   reviewEditorialCopy,
   signOffEditorialCompliance,
@@ -209,5 +217,213 @@ describe("editorial schema", () => {
       autoPublish: true,
     });
     expect(parsed.success).toBe(false);
+  });
+
+  it("accepts an optional hero still and LinkedIn pack", () => {
+    const parsed = insertEditorialPieceSchema.safeParse({
+      type: "blog",
+      title: "A",
+      topic: "B",
+      heroImageUrl: "/uploads/media/u1/still.jpg",
+      linkedinPack: {
+        hook: "The refinance file sat for 11 months.",
+        body: "Stacked short-term loans. No one owned the pack. Strata packages the file. We do not lend.",
+        cta: "Talk to Strata",
+        hashtags: ["#SMEFinance", "#UKBusiness", "#WorkingCapital"],
+        keywords: ["SME refinance", "distress refinance", "UK packager", "working capital"],
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.heroImageUrl).toBe("/uploads/media/u1/still.jpg");
+    expect(parsed.data.linkedinPack?.hashtags).toHaveLength(3);
+  });
+});
+
+describe("editorial still prompt", () => {
+  it("seeds a photographic prompt from title and topic, not slop or rates", () => {
+    const prompt = editorialStillPrompt(piece());
+    expect(prompt).toMatch(/Stacked debt, then the pack/);
+    expect(prompt).toMatch(/UK SME stacked short-term loans refinance/);
+    expect(prompt.toLowerCase()).toMatch(/no (readable )?text/);
+    expect(prompt.toLowerCase()).not.toMatch(/\b(8k|masterpiece|octane|unreal engine)\b/);
+    expect(prompt.toLowerCase()).not.toMatch(/\b(apr|payday|guaranteed)\b/);
+  });
+
+  it("uses a custom prompt when provided and still strips slop", () => {
+    const prompt = editorialStillPrompt(piece(), "Oak desk, closed laptop, masterpiece 8k");
+    expect(prompt).toMatch(/Oak desk, closed laptop/);
+    expect(prompt.toLowerCase()).not.toMatch(/\b(8k|masterpiece)\b/);
+  });
+
+  it("strips hashtags from the seeded still prompt", () => {
+    const prompt = editorialStillPrompt(piece({ topic: "Refinance #SMEFinance #UKBusiness" }));
+    expect(prompt).toMatch(/Refinance/);
+    expect(prompt).not.toMatch(/#SMEFinance|#UKBusiness/);
+  });
+
+  it("parseEditorialImageRequest accepts an optional prompt", () => {
+    expect(parseEditorialImageRequest({})).toEqual({});
+    expect(parseEditorialImageRequest({ prompt: "  Desk at dusk  " })).toEqual({ prompt: "Desk at dusk" });
+    expect(() => parseEditorialImageRequest(null)).toThrow(/invalid/i);
+  });
+});
+
+describe("editorial image insert and markdown", () => {
+  it("prepends a markdown image for a media upload URL", () => {
+    const next = insertEditorialImage("Body. We do not lend.", "/uploads/media/u1/still.jpg", "Stacked debt");
+    expect(next).toBe("![Stacked debt](/uploads/media/u1/still.jpg)\n\nBody. We do not lend.");
+  });
+
+  it("rejects a non-media URL", () => {
+    expect(() => insertEditorialImage("Body", "javascript:alert(1)", "x")).toThrow(/image url/i);
+    expect(() => insertEditorialImage("Body", "/uploads/agent_jobs.json", "x")).toThrow(/image url/i);
+  });
+
+  it("renders a media image in the HTML preview", () => {
+    const html = editorialMarkdownToHtml(
+      "![Hero](/uploads/media/u1/still.jpg)\n\nStrata packages files. We do not lend.",
+      "T",
+    );
+    expect(html).toContain('<img src="/uploads/media/u1/still.jpg" alt="Hero">');
+    expect(html).not.toMatch(/javascript:/i);
+  });
+});
+
+describe("editorial LinkedIn pack", () => {
+  it("writer prompt is Isla, JSON-only, virality rules, house policy", () => {
+    expect(EDITORIAL_LINKEDIN_PROMPT).toMatch(/Isla Quinn/i);
+    expect(EDITORIAL_LINKEDIN_PROMPT).toMatch(/JSON/);
+    expect(EDITORIAL_LINKEDIN_PROMPT).toMatch(/hashtag/i);
+    expect(EDITORIAL_LINKEDIN_PROMPT).toMatch(/do not lend/i);
+    expect(EDITORIAL_LINKEDIN_PROMPT).toMatch(/first line/i);
+    expect(EDITORIAL_LINKEDIN_PROMPT).not.toMatch(/gemini/i);
+  });
+
+  it("user prompt grounds in the piece and asks for hook, hashtags, keywords", () => {
+    const prompt = editorialLinkedInUserPrompt(piece({ body: "# Title\n\nStrata packages files. We do not lend." }));
+    expect(prompt).toMatch(/Stacked debt, then the pack/);
+    expect(prompt).toMatch(/We do not lend/);
+    expect(prompt).toMatch(/hashtags/);
+    expect(prompt).toMatch(/keywords/);
+  });
+
+  it("parses a JSON pack, caps hashtags at 5, prefixes #", () => {
+    const pack = parseEditorialLinkedInPack(`{
+      "hook": "The file sat for 11 months.",
+      "body": "Stacked loans. No one owned the pack.\\n\\nStrata packages the file. We do not lend.",
+      "cta": "Talk to Strata",
+      "hashtags": ["SMEFinance", "#UKBusiness", "WorkingCapital", "Cashflow", "Directors", "Extra"],
+      "keywords": ["SME refinance", "distress refinance", "UK packager", "working capital"]
+    }`);
+    expect(pack.hook).toBe("The file sat for 11 months.");
+    expect(pack.cta).toBe("Talk to Strata");
+    expect(pack.hashtags).toEqual([
+      "#SMEFinance",
+      "#UKBusiness",
+      "#WorkingCapital",
+      "#Cashflow",
+      "#Directors",
+    ]);
+    expect(pack.keywords).toEqual(["SME refinance", "distress refinance", "UK packager", "working capital"]);
+    expect(pack.body).toMatch(/do not lend/i);
+  });
+
+  it("appends packager identity when the model omits it", () => {
+    const pack = parseEditorialLinkedInPack({
+      hook: "Eleven months.",
+      body: "Stacked short-term loans. No owner.",
+      cta: "Talk to Strata",
+      hashtags: ["#SMEFinance", "#UKBusiness", "#WorkingCapital"],
+      keywords: ["SME refinance", "packager", "working capital", "UK SME"],
+    });
+    expect(pack.body).toMatch(/do not lend/i);
+  });
+
+  it("rejects banned terms in the pack", () => {
+    expect(() =>
+      parseEditorialLinkedInPack({
+        hook: "Guaranteed funding from 4.9% APR.",
+        body: "We lend. We do not lend.",
+        cta: "Apply now",
+        hashtags: ["#SMEFinance", "#UKBusiness", "#WorkingCapital"],
+        keywords: ["APR", "loan", "funding", "rate"],
+      }),
+    ).toThrow(/house policy|rate|lend/i);
+  });
+
+  it("formats a clipboard-ready LinkedIn post", () => {
+    const text = formatEditorialLinkedInPost({
+      hook: "The file sat for 11 months.",
+      body: "Stacked loans.\n\nStrata packages the file. We do not lend.",
+      cta: "Talk to Strata",
+      hashtags: ["#SMEFinance", "#UKBusiness", "#WorkingCapital"],
+      keywords: ["SME refinance", "distress refinance", "UK packager", "working capital"],
+    });
+    expect(text).toBe(
+      "The file sat for 11 months.\n\nStacked loans.\n\nStrata packages the file. We do not lend.\n\nTalk to Strata\n\n#SMEFinance #UKBusiness #WorkingCapital",
+    );
+  });
+
+  it("keeps hero still and LinkedIn pack through normalize", () => {
+    const next = normalizeEditorialPiece(
+      piece({
+        heroImageUrl: "/uploads/media/u1/still.jpg",
+        linkedinPack: {
+          hook: "The file sat.",
+          body: "We do not lend.",
+          cta: "Talk to Strata",
+          hashtags: ["#SMEFinance", "#UKBusiness", "#WorkingCapital"],
+          keywords: ["SME refinance", "packager", "working capital", "UK SME"],
+        },
+      }),
+    );
+    expect(next.heroImageUrl).toBe("/uploads/media/u1/still.jpg");
+    expect(next.linkedinPack?.hashtags).toHaveLength(3);
+  });
+});
+
+describe("editorialReadiness", () => {
+  it("starts at 0 with no scan and no body", () => {
+    const next = editorialReadiness(piece({ body: "", notes: [] }));
+    expect(next.percent).toBe(0);
+    expect(next.label).toMatch(/scan/i);
+    expect(next.tone).toBe("idle");
+  });
+
+  it("steps 20% per gate: scan, body, policy, approve, compliance", () => {
+    const scanned = piece({
+      body: "",
+      notes: [{ title: "BoE", url: "https://www.bankofengland.co.uk/n", snippet: "Held." }],
+    });
+    expect(editorialReadiness(scanned)).toMatchObject({ percent: 20, label: expect.stringMatching(/write/i) });
+
+    const drafted = piece({ notes: scanned.notes });
+    expect(editorialReadiness(drafted)).toMatchObject({ percent: 60, label: expect.stringMatching(/approve/i) });
+
+    const approved = piece({ notes: scanned.notes, status: "approved" });
+    expect(editorialReadiness(approved)).toMatchObject({ percent: 80, label: expect.stringMatching(/compliance/i) });
+
+    const cleared = piece({ notes: scanned.notes, status: "approved", compliance: "cleared" });
+    expect(editorialReadiness(cleared)).toMatchObject({ percent: 100, label: expect.stringMatching(/export/i), tone: "ready" });
+  });
+
+  it("holds at 40 until house policy is clear", () => {
+    const dirty = piece({
+      notes: [{ title: "BoE", url: "https://www.bankofengland.co.uk/n", snippet: "Held." }],
+      body: "Guaranteed funding from 4.9% APR.",
+    });
+    expect(editorialReadiness(dirty).percent).toBe(40);
+    expect(editorialReadiness(dirty).label).toMatch(/policy/i);
+  });
+
+  it("marks rejected and blocked as blocked tone without claiming 100", () => {
+    expect(editorialReadiness(piece({ status: "rejected" })).tone).toBe("blocked");
+    expect(editorialReadiness(piece({ status: "rejected" })).percent).toBeLessThan(100);
+    expect(editorialReadiness(piece({ status: "approved", compliance: "blocked" })).tone).toBe("blocked");
+    expect(editorialReadiness(piece({ status: "exported", compliance: "cleared" }))).toMatchObject({
+      percent: 100,
+      tone: "ready",
+    });
   });
 });

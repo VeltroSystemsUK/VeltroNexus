@@ -123,7 +123,7 @@ router.patch(
   const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB limit
 
 router.post(
-    "/api/user/branding/logo",
+    "/user/branding/logo",
     isAuthenticated,
     (req: Request, res: Response) => {
       const userId = req.user!.id;
@@ -316,7 +316,7 @@ router.post(
 
   // Delete branding logo
 router.delete(
-    "/api/user/branding/logo",
+    "/user/branding/logo",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -338,7 +338,7 @@ router.delete(
 
   // Get onboarding state
 router.get(
-    "/api/user/onboarding",
+    "/user/onboarding",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -378,7 +378,7 @@ router.get(
   });
 
 router.patch(
-    "/api/user/onboarding",
+    "/user/onboarding",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -428,7 +428,7 @@ router.patch(
 
   // Complete an onboarding step
 router.post(
-    "/api/user/onboarding/complete-step",
+    "/user/onboarding/complete-step",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -476,7 +476,7 @@ router.post(
 
   // Reset onboarding
 router.post(
-    "/api/user/onboarding/reset",
+    "/user/onboarding/reset",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -655,7 +655,7 @@ router.get("/teams/:id", isAuthenticated, async (req: Request, res: Response) =>
 
   // Add member to team
 router.post(
-    "/api/teams/:id/members",
+    "/teams/:id/members",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -701,7 +701,7 @@ router.post(
 
   // Remove member from team
 router.delete(
-    "/api/teams/:teamId/members/:userId",
+    "/teams/:teamId/members/:userId",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -767,7 +767,7 @@ router.get("/users", isAuthenticated, async (req: Request, res: Response) => {
 
   // Update user role (super_admin only)
 router.patch(
-    "/api/users/:id/role",
+    "/users/:id/role",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {

@@ -3,7 +3,7 @@ import { dealStream, excludedSectorReason, isBrokerProspect, looksLikeIntroducer
 import { isPersonalMailbox } from "./pecrSend";
 
 export const INTRODUCER_OUTREACH_PAUSED = true;
-export const SME_DAILY_FIRST_TOUCH_CAP = 50;
+export const SME_DAILY_FIRST_TOUCH_CAP = 100;
 export const SME_EMAIL_APPROVAL_REASON = "Approve this email";
 
 export type SmeOutreachCandidate = {

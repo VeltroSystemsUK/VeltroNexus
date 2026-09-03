@@ -9,6 +9,7 @@ import { prepareCampaignSend } from "@shared/campaignSend";
 import { wasEmailDelivered } from "@shared/outreachSend";
 import { EmailVerificationService } from "../services/emailVerification";
 import { sendEmail } from "../services/email";
+import { sendTrackingPixel } from "../utils/trackingPixel";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -479,12 +480,6 @@ router.get(
   }
 );
 
-// 1x1 transparent GIF pixel
-const TRACKING_PIXEL = Buffer.from(
-  "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
-  "base64"
-);
-
 // Open tracking pixel — public endpoint (no auth), called when email client loads the image
 router.get(
   "/email-tracking/open/:recipientId",
@@ -508,14 +503,7 @@ router.get(
     }
 
     // Always return the pixel regardless of tracking success
-    res.set({
-      "Content-Type": "image/gif",
-      "Content-Length": TRACKING_PIXEL.length.toString(),
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-    });
-    res.end(TRACKING_PIXEL);
+    sendTrackingPixel(res);
   }
 );
 

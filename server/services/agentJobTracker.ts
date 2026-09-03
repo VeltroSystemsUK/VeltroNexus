@@ -2,12 +2,18 @@ import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
+export const FACTORY_JOB_USER = "factory";
+
+export function jobVisibleToUser(job: { userId?: string }, userId: string): boolean {
+  return job.userId === userId || job.userId === FACTORY_JOB_USER;
+}
+
 export interface AgentJob {
   id: string;
   agentId: string;
   userId: string;
-  type: "data_enrichment" | "research" | "update" | "scheduled_task";
-  status: "pending" | "running" | "completed" | "failed";
+  type: "data_enrichment" | "research" | "update" | "scheduled_task" | "harvest";
+  status: "pending" | "running" | "paused" | "completed" | "failed";
   title: string;
   description: string;
   totalSteps: number;
@@ -21,6 +27,51 @@ export interface AgentJob {
   results: any;
   startedAt: Date;
   completedAt?: Date;
+}
+
+export type JobStopAction = "pause" | "complete";
+
+export class JobStoppedError extends Error {
+  constructor(message = "job stopped") {
+    super(message);
+    this.name = "JobStoppedError";
+  }
+}
+
+export function isJobStoppedError(err: unknown): boolean {
+  return err instanceof JobStoppedError || (err instanceof Error && err.name === "JobStoppedError");
+}
+
+export function harvestPassBlocked(jobs: Array<{ agentId: string; status: string }>): boolean {
+  return jobs.some((job) => job.agentId === "harvest" && job.status === "paused");
+}
+
+export function applyJobStop(job: AgentJob, action: JobStopAction, at: Date): AgentJob | null {
+  if (job.status !== "running") return null;
+
+  const paused = action === "pause";
+  return {
+    ...job,
+    status: paused ? "paused" : "completed",
+    currentStep: paused ? "Paused" : "Completed early",
+    completedAt: at,
+    results: paused
+      ? job.results
+      : {
+          ...(job.results && typeof job.results === "object" ? job.results : {}),
+          completed: job.completedSteps,
+          total: job.totalSteps,
+          early: true,
+        },
+    logs: [
+      ...job.logs,
+      {
+        timestamp: at,
+        message: paused ? "Paused by director" : "Completed early by director",
+        type: paused ? "warning" : "success",
+      },
+    ],
+  };
 }
 
 const JOBS_FILE_PATH = path.resolve(process.cwd(), "uploads", "agent_jobs.json");
@@ -104,7 +155,7 @@ export class AgentJobTracker {
   ): Promise<void> {
     const jobs = readJobs();
     const job = jobs[jobId];
-    if (!job) return;
+    if (!job || job.status !== "running") return;
 
     job.currentStep = step;
     job.completedSteps = completedSteps;
@@ -121,7 +172,7 @@ export class AgentJobTracker {
   async completeJob(jobId: string, results: any): Promise<void> {
     const jobs = readJobs();
     const job = jobs[jobId];
-    if (!job) return;
+    if (!job || job.status !== "running") return;
 
     job.status = "completed";
     job.completedSteps = job.totalSteps;
@@ -141,7 +192,7 @@ export class AgentJobTracker {
   async failJob(jobId: string, error: string): Promise<void> {
     const jobs = readJobs();
     const job = jobs[jobId];
-    if (!job) return;
+    if (!job || job.status !== "running") return;
 
     job.status = "failed";
     job.currentStep = "Failed";
@@ -156,6 +207,26 @@ export class AgentJobTracker {
     console.log(`[JobTracker] Job ${jobId} failed: ${error}`);
   }
 
+  async pauseJob(jobId: string): Promise<AgentJob | null> {
+    return this.stopJob(jobId, "pause");
+  }
+
+  async earlyCompleteJob(jobId: string): Promise<AgentJob | null> {
+    return this.stopJob(jobId, "complete");
+  }
+
+  private stopJob(jobId: string, action: JobStopAction): AgentJob | null {
+    const jobs = readJobs();
+    const job = jobs[jobId];
+    if (!job) return null;
+    const next = applyJobStop(job, action, new Date());
+    if (!next) return null;
+    jobs[jobId] = next;
+    writeJobs(jobs);
+    console.log(`[JobTracker] Job ${jobId} ${action === "pause" ? "paused" : "completed early"}`);
+    return next;
+  }
+
   async getJob(jobId: string): Promise<AgentJob | null> {
     const jobs = readJobs();
     return jobs[jobId] || null;
@@ -163,7 +234,7 @@ export class AgentJobTracker {
 
   async getJobsForUser(userId: string, limit: number = 10): Promise<AgentJob[]> {
     const jobs = readJobs();
-    const userJobs = Object.values(jobs).filter((job) => job.userId === userId);
+    const userJobs = Object.values(jobs).filter((job) => jobVisibleToUser(job, userId));
     return userJobs
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
       .slice(0, limit);
@@ -172,7 +243,7 @@ export class AgentJobTracker {
   async getRunningJobs(userId: string): Promise<AgentJob[]> {
     const jobs = readJobs();
     const runningJobs = Object.values(jobs).filter(
-      (job) => job.userId === userId && job.status === "running"
+      (job) => job.status === "running" && jobVisibleToUser(job, userId)
     );
     return runningJobs.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
   }

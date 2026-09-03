@@ -565,6 +565,7 @@ export interface IStorage {
   updateReportTask(id: number, userId: string, updates: Partial<InsertReportTask> & { status?: string; completedAt?: any }): Promise<ReportTask | undefined>;
   deleteReportTask(id: number, userId: string): Promise<void>;
   listReportLogs(userId: string): Promise<ReportLog[]>;
+  getReportLog(id: number, userId: string): Promise<ReportLog | undefined>;
   createReportLog(log: Omit<ReportLog, "id" | "createdAt" | "updatedAt">): Promise<ReportLog>;
   getReportSettings(userId: string): Promise<ReportSettings | undefined>;
   upsertReportSettings(userId: string, updates: UpdateReportSettings): Promise<ReportSettings>;

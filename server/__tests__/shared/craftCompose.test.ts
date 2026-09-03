@@ -3,6 +3,7 @@ import {
   applyCreativeDirection,
   applyPostCopy,
   applyPostVisual,
+  canvasCopyLimit,
   composeSocialPost,
   copyPatchFromNode,
   creativeDirectionFor,
@@ -124,6 +125,9 @@ describe("composeSocialPost", () => {
     expect(copyPatchFromNode("Headline", "x".repeat(COPY_LIMITS.hook + 8))?.hook?.length).toBe(
       COPY_LIMITS.hook,
     );
+    expect(canvasCopyLimit("Title", "linkedin-banner")).toBeUndefined();
+    expect(canvasCopyLimit("Title", "mkt-2")).toBe(COPY_LIMITS.hook);
+    expect(canvasCopyLimit("Hook 1", "mkt-2")).toBe(COPY_LIMITS.hook);
 
     const patch = copyPatchFromNode("Hook 1", "Rewritten hook from the board.");
     const next = applyCopyPatch(post, patch!);

@@ -33,7 +33,11 @@ export function OutreachPlaybook({ deal }: { deal: AgenticDealFile }) {
     <div className="space-y-3 rounded-md border border-slate-800 bg-slate-950/50 px-3 py-3">
       {lastEmail && !onCall && (
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">Email sent</p>
+          <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+            {deal.status === "waiting_human" && deal.humanReason?.includes("Approve this email")
+              ? "Email draft — waiting for approval"
+              : "Email sent"}
+          </p>
           <p className="text-sm font-medium text-white">{lastEmail.subject}</p>
           <p className="text-sm text-slate-300 whitespace-pre-wrap line-clamp-10 mt-1">{lastEmail.text}</p>
         </div>

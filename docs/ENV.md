@@ -75,6 +75,8 @@ Note: `DATABASE_URL` takes precedence if set.
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `TAVILY_API_KEY` | Tavily search API key | `tvly-...` |
+| `FIRECRAWL_API_KEY` | Cloud Firecrawl key for Casey/Craft **search** only. Harper does not scrape the cloud | `fc-...` |
+| `FIRECRAWL_API_URL` | Optional self-hosted Firecrawl (needs ~8GB Docker RAM). If unset, Harper fetches contact pages directly | `http://127.0.0.1:3002` |
 
 ### Telnyx Voice
 | Variable | Description | Example |

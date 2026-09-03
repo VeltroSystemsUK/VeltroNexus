@@ -2,6 +2,7 @@
 import { resolveMx } from 'dns/promises';
 import { Socket } from 'net';
 import { zeroBounceClient } from '../utils/zeroBounceClient';
+import { mxFamilyFromHosts, smtpTrusted, type SmtpProbe } from '@shared/mailboxScore';
 
 export interface EmailVerificationResult {
     email: string;
@@ -162,6 +163,64 @@ export class EmailVerificationService {
         if (deep && smtp) reasons.push("Security: Passive SMTP handshake verified mailbox existence.");
 
         return reasons.join(" ");
+    }
+
+    async probeMailbox(email: string): Promise<SmtpProbe> {
+        const domain = String(email || "").split("@")[1];
+        if (!domain) return "unknown";
+        let hosts: string[] = [];
+        try {
+            const records = await resolveMx(domain);
+            hosts = (records || []).sort((a, b) => a.priority - b.priority).map((row) => row.exchange);
+        } catch {
+            return "unknown";
+        }
+        if (!hosts.length) return "unknown";
+        if (!smtpTrusted(mxFamilyFromHosts(hosts))) return "unknown";
+        const addLog = (_msg: string) => undefined;
+        const code = await this.smtpReplyCode(hosts[0], email, addLog);
+        if (code === 250 || code === 251) return "deliverable";
+        if (code === 550 || code === 551 || code === 553) return "user_unknown";
+        return "unknown";
+    }
+
+    private smtpReplyCode(host: string, email: string, addLog: (m: string) => void): Promise<number> {
+        return new Promise((resolve) => {
+            const socket = new Socket();
+            let step = 0;
+            let code = 0;
+            socket.setTimeout(5000);
+            socket.connect(587, host);
+            const finish = (value: number) => {
+                try {
+                    socket.destroy();
+                } catch {
+                    // ignore
+                }
+                resolve(value);
+            };
+            socket.on("data", (data) => {
+                const response = data.toString();
+                code = parseInt(response.substring(0, 3), 10) || 0;
+                addLog(`> S: ${response.trim()}`);
+                if (step === 0 && code === 220) {
+                    socket.write(`EHLO veltro-verify.co.uk\r\n`);
+                    step++;
+                } else if (step === 1 && (code === 250 || code === 220)) {
+                    socket.write(`MAIL FROM: <verify@veltro.co.uk>\r\n`);
+                    step++;
+                } else if (step === 2 && code === 250) {
+                    socket.write(`RCPT TO: <${email}>\r\n`);
+                    step++;
+                } else if (step === 3) {
+                    socket.write("QUIT\r\n");
+                    finish(code);
+                }
+            });
+            socket.on("error", () => finish(0));
+            socket.on("timeout", () => finish(0));
+            socket.on("close", () => finish(code));
+        });
     }
 
     private async smtpCheck(host: string, email: string, addLog: (m: string) => void): Promise<boolean> {

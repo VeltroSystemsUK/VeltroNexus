@@ -49,6 +49,13 @@ export class DatabaseBuilderService {
 
         let completedTargets = 0;
         for (const target of targets) {
+            if (jobId) {
+                const currentJob = await agentJobTracker.getJob(jobId);
+                if (!currentJob || currentJob.status !== "running") {
+                    console.log(`[Database Builder] Job ${jobId} is no longer running. Stopping discovery.`);
+                    return newLeadIds;
+                }
+            }
             try {
                 const targetName = target.location || (target.sicCodes ? `SIC: ${target.sicCodes.join(",")}` : "Unknown");
                 console.log(`[Database Builder] Searching: ${targetName} (Target PC: ${target.postcode || "None"})`);

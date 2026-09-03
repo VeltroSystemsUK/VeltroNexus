@@ -14,7 +14,7 @@ export function InspectorRail({
   return (
     <aside
       className={cn(
-        'flex w-72 shrink-0 flex-col border-l border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-raised)_88%,transparent)]',
+        'flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden border-l border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-raised)_88%,transparent)]',
         className,
       )}
     >

@@ -277,7 +277,8 @@ const router = Router();
           return res.status(404).json({ error: "Job not found" });
         }
         // Verify user owns this job
-        if (job.userId !== req.user!.id) {
+        const { jobVisibleToUser } = await import("../services/agentJobTracker");
+        if (!jobVisibleToUser(job, req.user!.id)) {
           return res.status(403).json({ error: "Access denied" });
         }
         res.json(job);
@@ -299,7 +300,8 @@ const router = Router();
           return res.status(404).json({ error: "Job not found" });
         }
         // Verify user owns this job
-        if (job.userId !== req.user!.id) {
+        const { jobVisibleToUser } = await import("../services/agentJobTracker");
+        if (!jobVisibleToUser(job, req.user!.id)) {
           return res.status(403).json({ error: "Access denied" });
         }
         await agentJobTracker.deleteJob(req.params.jobId);
@@ -308,6 +310,45 @@ const router = Router();
         console.error("Error deleting agent job:", error);
         res.status(500).json({ error: "Failed to delete agent job" });
       }
+    }
+  );
+
+  async function stopAgentJob(req: Request, res: Response, action: "pause" | "complete") {
+    try {
+      const { agentJobTracker, jobVisibleToUser } = await import("../services/agentJobTracker");
+      const job = await agentJobTracker.getJob(req.params.jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      if (!jobVisibleToUser(job, req.user!.id)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const next = action === "pause"
+        ? await agentJobTracker.pauseJob(req.params.jobId)
+        : await agentJobTracker.earlyCompleteJob(req.params.jobId);
+      if (!next) {
+        return res.status(409).json({ error: "Job is not running" });
+      }
+      res.json(next);
+    } catch (error) {
+      console.error(`Error ${action === "pause" ? "pausing" : "completing"} agent job:`, error);
+      res.status(500).json({ error: action === "pause" ? "Failed to pause agent job" : "Failed to complete agent job" });
+    }
+  }
+
+  router.post(
+    "/agent-jobs/:jobId/pause",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      await stopAgentJob(req, res, "pause");
+    }
+  );
+
+  router.post(
+    "/agent-jobs/:jobId/complete",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      await stopAgentJob(req, res, "complete");
     }
   );
 

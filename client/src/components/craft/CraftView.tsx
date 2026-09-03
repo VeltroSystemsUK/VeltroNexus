@@ -48,10 +48,10 @@ import { FRAME_SHAPES, IMAGE_LOOKS, IMAGE_MOTIONS, SHADOW_PRESETS, pageHasMotion
 import { DESIGN_TEMPLATES, SHAPE_GROUPS, SHAPE_LABELS, SIZE_PRESETS, TEXT_STYLES } from './lib/templates';
 import { FONT_WEIGHTS, STRATA_SITE_FONTS, documentFonts } from "./lib/fonts";
 import { EMAIL_MERGE_CHIP } from "./lib/emailHtml";
-import { copyFieldForNodeName, copyPatchFromNode } from "./lib/composePost";
+import { canvasCopyLimit, copyPatchFromNode } from "./lib/composePost";
 import { textOverlayBox } from "./lib/text";
 import { pageOf, useCraftStore, type CraftTool } from "./store";
-import { COPY_LIMITS, type CraftCopyPatch } from "@shared/craftQueue";
+import { type CraftCopyPatch } from "@shared/craftQueue";
 
 const TOOLS: { id: CraftTool; label: string; shortcut: string; icon: typeof Type }[] = [
   { id: 'select', label: 'Select', shortcut: 'V', icon: MousePointer2 },
@@ -170,7 +170,7 @@ export function CraftView({
   if (!doc) {
     return (
       <div
-        {...getRootProps({ className: "flex h-full flex-col" })}
+        {...getRootProps({ className: "flex h-full min-h-0 flex-col overflow-hidden" })}
       >
         <input {...getInputProps()} />
         <div className="min-h-0 flex-1">
@@ -200,7 +200,7 @@ export function CraftView({
 
   return (
     <div
-      {...getRootProps({ className: "flex min-h-0 flex-1 flex-col" })}
+      {...getRootProps({ className: "flex h-full min-h-0 flex-1 flex-col overflow-hidden" })}
     >
       <div className="flex h-10 items-center gap-2 border-b border-[var(--border-subtle)] px-3">
         <input
@@ -271,9 +271,9 @@ export function CraftView({
           event.currentTarget.value = '';
         }}
       />
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <CraftTools onPickImage={() => imageInput.current?.click()} />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <CraftCanvas onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} />
           <LiveStatusBar
             getZoom={() => useCraftStore.getState().zoom}
@@ -748,14 +748,7 @@ function TextEditOverlay({
   const ref = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(node.text);
   const box = textOverlayBox(node, zoom, panX, panY);
-  const field = copyFieldForNodeName(node.name);
-  const maxLength =
-    field === "eyebrow" ? COPY_LIMITS.eyebrow
-    : field === "hook" ? COPY_LIMITS.hook
-    : field === "hook2" ? COPY_LIMITS.hook2
-    : field === "body" ? COPY_LIMITS.body
-    : field === "cta" ? COPY_LIMITS.cta
-    : undefined;
+  const maxLength = canvasCopyLimit(node.name, useCraftStore.getState().assetId);
 
   useEffect(() => {
     const el = ref.current;

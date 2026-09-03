@@ -1,7 +1,7 @@
 import { AGENT_DIRECTORY } from "./agentMailboxes";
 import { STAGE_AGENT, type AgenticDealFile, type AgenticStage } from "./agenticWorkflow";
 
-export const HIBERNATED_DESKS = ["accounts-monitor", "capital-strategist"] as const;
+export const HIBERNATED_DESKS = ["accounts-monitor", "capital-strategist", "database-builder-se"] as const;
 
 export type DeskMail = {
   agentId?: string;
@@ -21,12 +21,43 @@ export type DeskOpsRow = {
   lastEvent?: string;
 };
 
+export function deskJobProgress(
+  jobs: Array<{
+    agentId?: string;
+    status?: string;
+    totalSteps?: number;
+    completedSteps?: number;
+    currentStep?: string;
+    startedAt?: string;
+  }>,
+  agentId: string
+): { pct: number; label: string; current?: string } | null {
+  const running = jobs.filter((item) => item.agentId === agentId && (item.status === "running" || !item.status));
+  const job = [...running].sort((a, b) => String(b.startedAt || "").localeCompare(String(a.startedAt || "")))[0];
+  if (!job || !job.totalSteps) return null;
+  const done = job.completedSteps || 0;
+  return {
+    pct: Math.min(100, Math.round((done / job.totalSteps) * 100)),
+    label: `${done} / ${job.totalSteps}`,
+    current: job.currentStep,
+  };
+}
+
 export function deskForDeal(
   deal: Pick<AgenticDealFile, "stage" | "source" | "events"> &
-    Partial<Pick<AgenticDealFile, "stream" | "email" | "phone" | "status">>
+    Partial<Pick<AgenticDealFile, "stream" | "email" | "phone" | "status" | "hopper">>
 ): string {
   const lastAgent = [...(deal.events || [])].reverse().find((event) => event.agent)?.agent;
   const inbound = deal.source === "strata_inbound";
+  if (deal.hopper === "quarantine") return "harvest";
+  if (
+    !inbound &&
+    deal.stream !== "introducer" &&
+    !deal.email &&
+    (deal.hopper === "hunt_contact" || deal.hopper === "gated")
+  ) {
+    return "harvest";
+  }
 
   if (deal.stream === "introducer") {
     if (!deal.email && !deal.phone) {

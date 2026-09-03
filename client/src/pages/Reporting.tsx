@@ -17,7 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Loader2, FileText, Send, Eye, Clock } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, Loader2, FileText, Send, Eye, Clock, ExternalLink, ArrowUpDown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ReportTask {
@@ -36,6 +37,8 @@ interface ReportSettings {
   preparedByName: string;
   projectCode: string;
   executiveSummary: string;
+  weekAnchorDate: string;
+  weekAnchorNumber: number;
   monthlyFee: string;
   weeklyPayment: string;
   weeklyHours: string;
@@ -53,7 +56,10 @@ interface ReportLog {
   taskCount: number;
   status: "sent" | "failed" | "skipped";
   sentAt: string | null;
+  pdfFile: string | null;
 }
+
+type LogSort = "date-desc" | "date-asc" | "type" | "status";
 
 const DEFAULT_SETTINGS: ReportSettings = {
   recipientName: "David Griffiths",
@@ -61,6 +67,8 @@ const DEFAULT_SETTINGS: ReportSettings = {
   preparedByName: "Shaun Tuhey",
   projectCode: "STRATA-NEXUS-INT-001",
   executiveSummary: "",
+  weekAnchorDate: "",
+  weekAnchorNumber: 1,
   monthlyFee: "£2,500.00",
   weeklyPayment: "£625.00",
   weeklyHours: "30 hours (6 hours/day, 5 days/week)",
@@ -94,6 +102,15 @@ export default function Reporting() {
   const { data: logs = [] } = useQuery<ReportLog[]>({
     queryKey: ["/api/reporting/logs"],
   });
+  const [logSort, setLogSort] = useState<LogSort>("date-desc");
+  const sortedLogs = [...logs].sort((a, b) => {
+    switch (logSort) {
+      case "date-asc": return new Date(a.sentAt || 0).getTime() - new Date(b.sentAt || 0).getTime();
+      case "type": return a.type.localeCompare(b.type) || new Date(b.sentAt || 0).getTime() - new Date(a.sentAt || 0).getTime();
+      case "status": return a.status.localeCompare(b.status) || new Date(b.sentAt || 0).getTime() - new Date(a.sentAt || 0).getTime();
+      default: return new Date(b.sentAt || 0).getTime() - new Date(a.sentAt || 0).getTime();
+    }
+  });
 
   const createTask = useMutation({
     mutationFn: async (data: any) => {
@@ -123,6 +140,21 @@ export default function Reporting() {
       await apiRequest(`/api/reporting/tasks/${id}`, "DELETE");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/reporting/tasks"] }),
+  });
+
+  const runTodoAgent = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/reporting/todo-agent/run", "POST");
+      return res.json() as Promise<{ created: ReportTask[] }>;
+    },
+    onSuccess: ({ created }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reporting/tasks"] });
+      toast({
+        title: created.length ? `Added ${created.length} task${created.length === 1 ? "" : "s"}` : "Nothing new found",
+        description: created.length ? created.map((t) => t.title).join(", ") : "The board already covers what's in the state of play.",
+      });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const saveSettings = useMutation({
@@ -185,7 +217,11 @@ export default function Reporting() {
 
         {/* --- Task Board --- */}
         <TabsContent value="tasks" className="space-y-4 mt-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => runTodoAgent.mutate()} disabled={runTodoAgent.isPending}>
+              {runTodoAgent.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
+              Run to-do agent
+            </Button>
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="h-4 w-4 mr-1.5" /> Add task
             </Button>
@@ -272,6 +308,16 @@ export default function Reporting() {
                   <Label>Weekly hours</Label>
                   <Input value={active.weeklyHours} onChange={(e) => setForm({ ...active, weeklyHours: e.target.value })} />
                 </div>
+                <div>
+                  <Label>Week anchor date</Label>
+                  <Input type="date" value={active.weekAnchorDate} onChange={(e) => setForm({ ...active, weekAnchorDate: e.target.value })} />
+                  <p className="text-xs text-muted-foreground mt-1">Any date in a known week, e.g. 31/08/2026.</p>
+                </div>
+                <div>
+                  <Label>Is week number</Label>
+                  <Input type="number" min={1} value={active.weekAnchorNumber} onChange={(e) => setForm({ ...active, weekAnchorNumber: parseInt(e.target.value) || 1 })} />
+                  <p className="text-xs text-muted-foreground mt-1">Every report's week number is calculated from this automatically.</p>
+                </div>
                 <div className="md:col-span-2">
                   <Label>Executive summary (worksheet — leave blank to auto-generate)</Label>
                   <Textarea rows={4} value={active.executiveSummary} onChange={(e) => setForm({ ...active, executiveSummary: e.target.value })} />
@@ -325,11 +371,25 @@ export default function Reporting() {
         </TabsContent>
 
         {/* --- History --- */}
-        <TabsContent value="history" className="mt-4">
+        <TabsContent value="history" className="mt-4 space-y-3">
+          <div className="flex justify-end items-center gap-2">
+            <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select value={logSort} onValueChange={(v) => setLogSort(v as LogSort)}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date-desc">Newest first</SelectItem>
+                <SelectItem value="date-asc">Oldest first</SelectItem>
+                <SelectItem value="type">Type</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Card>
             <CardContent className="p-4 space-y-2">
-              {logs.length === 0 && <p className="text-sm text-muted-foreground italic">No reports sent yet.</p>}
-              {logs.map((l) => (
+              {sortedLogs.length === 0 && <p className="text-sm text-muted-foreground italic">No reports sent yet.</p>}
+              {sortedLogs.map((l) => (
                 <div key={l.id} className="flex items-center justify-between rounded-md border p-2.5">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
@@ -340,9 +400,16 @@ export default function Reporting() {
                       </p>
                     </div>
                   </div>
-                  <Badge variant={l.status === "sent" ? "default" : l.status === "skipped" ? "secondary" : "destructive"}>
-                    {l.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {l.pdfFile && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Open document" onClick={() => window.open(`/api/reporting/logs/${l.id}/pdf`, "_blank")}>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Badge variant={l.status === "sent" ? "default" : l.status === "skipped" ? "secondary" : "destructive"}>
+                      {l.status}
+                    </Badge>
+                  </div>
                 </div>
               ))}
             </CardContent>

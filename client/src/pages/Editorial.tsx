@@ -50,6 +50,9 @@ import {
   ArrowLeft,
   ShieldCheck,
   Download,
+  ImageIcon,
+  Hash,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { EditorialPiece } from "@shared/schema";
@@ -57,7 +60,13 @@ import {
   canExportPiece,
   editorialGenerateInputError,
   editorialMarkdownToHtml,
+  editorialReadiness,
+  editorialStillPrompt,
+  formatEditorialLinkedInPost,
+  insertEditorialImage,
   reviewEditorialCopy,
+  type EditorialLinkedInPack,
+  type EditorialReadiness,
 } from "@shared/editorial";
 
 const statusFilterValues = ["all", "draft", "approved", "exported"] as const;
@@ -70,6 +79,89 @@ function downloadText(filename: string, content: string, type: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function copyText(label: string, value: string) {
+  navigator.clipboard.writeText(value).then(
+    () => toast.success(`${label} copied`),
+    () => toast.error("Could not copy"),
+  );
+}
+
+function ReadinessBarometer({ percent, label, tone, kind }: EditorialReadiness & { kind: string }) {
+  const r = 46;
+  const cx = 64;
+  const cy = 56;
+  const color =
+    tone === "blocked"
+      ? "hsl(var(--destructive))"
+      : tone === "idle"
+        ? "hsl(var(--muted-foreground))"
+        : "hsl(var(--primary))";
+  const ticks = [0, 25, 50, 75, 100];
+  return (
+    <div className="flex items-center gap-3 shrink-0 pr-2" title={`${percent}% · ${label}`}>
+      <svg
+        viewBox="0 0 128 72"
+        className="h-14 w-[7.5rem]"
+        role="meter"
+        aria-label={`Readiness ${percent} percent. ${label}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none"
+          stroke="hsl(var(--border))"
+          strokeWidth="7"
+          strokeLinecap="round"
+        />
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none"
+          stroke={color}
+          strokeWidth="7"
+          strokeLinecap="round"
+          pathLength={100}
+          strokeDasharray={`${percent} 100`}
+        />
+        {ticks.map((tick) => {
+          const a = Math.PI - (tick / 100) * Math.PI;
+          const inner = tick % 50 === 0 ? r - 12 : r - 9;
+          return (
+            <line
+              key={tick}
+              x1={cx + Math.cos(a) * inner}
+              y1={cy - Math.sin(a) * inner}
+              x2={cx + Math.cos(a) * (r + 1)}
+              y2={cy - Math.sin(a) * (r + 1)}
+              stroke="hsl(var(--muted-foreground))"
+              strokeWidth={tick % 50 === 0 ? 1.6 : 1}
+              opacity={0.5}
+            />
+          );
+        })}
+        <g transform={`rotate(${percent * 1.8} ${cx} ${cy})`}>
+          <line
+            x1={cx}
+            y1={cy}
+            x2={cx - r + 10}
+            y2={cy}
+            stroke={color}
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        </g>
+        <circle cx={cx} cy={cy} r="3.4" fill={color} />
+      </svg>
+      <div className="min-w-[7.5rem] leading-tight">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{kind}</p>
+        <p className="text-lg font-semibold font-mono tabular-nums leading-none">{percent}%</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+      </div>
+    </div>
+  );
 }
 
 export default function Editorial() {
@@ -85,6 +177,11 @@ export default function Editorial() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [confirmGenerate, setConfirmGenerate] = useState(false);
+  const [stillPrompt, setStillPrompt] = useState("");
+  const [stillBusy, setStillBusy] = useState(false);
+  const [heroUrl, setHeroUrl] = useState<string | null>(null);
+  const [linkedinBusy, setLinkedinBusy] = useState(false);
+  const [linkedinPack, setLinkedinPack] = useState<EditorialLinkedInPack | null>(null);
 
   const { data: pieces = [], isLoading } = useQuery<EditorialPiece[]>({
     queryKey: ["/api/editorial"],
@@ -96,6 +193,9 @@ export default function Editorial() {
     if (!selected) return;
     setTitle(selected.title);
     setBody(selected.body || "");
+    setStillPrompt(editorialStillPrompt(selected));
+    setHeroUrl(selected.heroImageUrl || null);
+    setLinkedinPack(selected.linkedinPack ?? null);
     // Hydrate only when the open piece changes; a list refetch must not clobber keystrokes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
@@ -159,9 +259,15 @@ export default function Editorial() {
   async function postAction(path: string, data?: unknown) {
     await flushEdits();
     const res = await apiRequest(path, "POST", data);
-    const json = await res.json();
+    const text = await res.text();
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error("NEXUS is still running an old API build. Restart the NEXUS app, then try again.");
+    }
     queryClient.invalidateQueries({ queryKey: ["/api/editorial"] });
-    return json;
+    return json as any;
   }
 
   async function generateDraft() {
@@ -171,8 +277,38 @@ export default function Editorial() {
     toast.success("Draft written");
   }
 
-  const review = selected ? reviewEditorialCopy({ ...selected, title, body, autoPublish: false } as EditorialPiece) : null;
-  const exportOk = selected ? canExportPiece({ ...selected, title, body, autoPublish: false } as EditorialPiece) : false;
+  async function generateStill() {
+    if (!selected) return;
+    setStillBusy(true);
+    try {
+      const json = await postAction(`/api/editorial/${selected.id}/image`, { prompt: stillPrompt });
+      if (typeof json?.url === "string") setHeroUrl(json.url);
+      if (typeof json?.prompt === "string") setStillPrompt(json.prompt);
+      toast.success("Still ready");
+    } finally {
+      setStillBusy(false);
+    }
+  }
+
+  async function generateLinkedInPack() {
+    if (!selected) return;
+    setLinkedinBusy(true);
+    try {
+      await flushEdits();
+      const json = await postAction(`/api/editorial/${selected.id}/linkedin`);
+      if (json?.pack) setLinkedinPack(json.pack);
+      toast.success("LinkedIn pack ready");
+    } finally {
+      setLinkedinBusy(false);
+    }
+  }
+
+  const live = selected
+    ? ({ ...selected, title, body, autoPublish: false } as EditorialPiece)
+    : null;
+  const review = live ? reviewEditorialCopy(live) : null;
+  const exportOk = live ? canExportPiece(live) : false;
+  const readiness = live ? editorialReadiness(live) : null;
   const generateBlocked = selected ? editorialGenerateInputError(selected) : "Scan Casey before generating";
 
   if (selected) {
@@ -182,11 +318,11 @@ export default function Editorial() {
           <Button variant="ghost" onClick={() => setSelectedId(null)} className="gap-1.5">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
-          <Badge variant="outline">{selected.type === "blog" ? "Blog" : "Press release"}</Badge>
-          <Badge variant="outline">{selected.status}</Badge>
-          <Badge variant="outline">{selected.compliance}</Badge>
-          {selected.engine && (
-            <Badge variant="outline">{selected.engine.provider} · {selected.engine.model}</Badge>
+          {readiness && (
+            <ReadinessBarometer
+              {...readiness}
+              kind={selected.type === "blog" ? "Blog" : "Press release"}
+            />
           )}
           <div className="flex-1" />
           <Button
@@ -278,7 +414,154 @@ export default function Editorial() {
               srcDoc={editorialMarkdownToHtml(body, title)}
             />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold">Copy review</h3>
+              {review?.ok ? (
+                <p className="text-xs text-emerald-400">House policy clear</p>
+              ) : (
+                review?.findings.map((f) => (
+                  <p key={f.code} className="text-xs text-red-400">{f.message}</p>
+                ))
+              )}
+            </div>
+
+            <Card>
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Images</h3>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Same Grok Imagine still as Craft. Download it or drop it into the article.
+                </p>
+                <Textarea
+                  className="min-h-[4.5rem] text-xs"
+                  aria-label="Image prompt"
+                  value={stillPrompt}
+                  onChange={(e) => setStillPrompt(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  className="w-full"
+                  disabled={stillBusy || !stillPrompt.trim()}
+                  onClick={() => generateStill().catch((err: Error) => toast.error(err.message))}
+                >
+                  {stillBusy ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Generating still…
+                    </>
+                  ) : (
+                    "Generate still"
+                  )}
+                </Button>
+                {heroUrl && (
+                  <div className="space-y-2">
+                    <img
+                      src={heroUrl}
+                      alt={title || "Article still"}
+                      className="w-full rounded-md border border-white/10 object-cover"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          const a = document.createElement("a");
+                          a.href = heroUrl;
+                          a.download = `strata-editorial-${selected.id}.jpg`;
+                          a.click();
+                        }}
+                      >
+                        <Download className="h-3.5 w-3.5 mr-1" /> Download
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          try {
+                            setBody(insertEditorialImage(body, heroUrl, title || "Article still"));
+                            toast.success("Inserted at the top of the article");
+                          } catch (err: any) {
+                            toast.error(err.message);
+                          }
+                        }}
+                      >
+                        Insert
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Hash className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">LinkedIn</h3>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Feed post, 3–5 hashtags, and search keywords. You post it.
+                </p>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  disabled={linkedinBusy}
+                  onClick={() => generateLinkedInPack().catch((err: Error) => toast.error(err.message))}
+                >
+                  {linkedinBusy ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Writing pack…
+                    </>
+                  ) : (
+                    "Generate pack"
+                  )}
+                </Button>
+                {linkedinPack && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium leading-snug">{linkedinPack.hook}</p>
+                    <p className="text-xs whitespace-pre-wrap text-muted-foreground">{linkedinPack.body}</p>
+                    <p className="text-xs font-medium">{linkedinPack.cta}</p>
+                    <p className="text-xs text-primary">{linkedinPack.hashtags.join(" ")}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {linkedinPack.keywords.map((word) => (
+                        <Badge key={word} variant="outline" className="text-[10px] font-normal">
+                          {word}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => copyText("Post", formatEditorialLinkedInPost(linkedinPack))}
+                      >
+                        <Copy className="h-3.5 w-3.5 mr-1" /> Copy post
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyText("Hashtags", linkedinPack.hashtags.join(" "))}
+                      >
+                        Hashtags
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyText("Keywords", linkedinPack.keywords.join(", "))}
+                      >
+                        Keywords
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <h3 className="text-sm font-semibold">Casey notes</h3>
             {(selected.notes || []).length === 0 && (
               <p className="text-sm text-muted-foreground">No notes yet. Scan this topic, or write the body yourself.</p>
@@ -292,16 +575,6 @@ export default function Editorial() {
                 </CardContent>
               </Card>
             ))}
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold">Copy review</h3>
-              {review?.ok ? (
-                <p className="text-xs text-emerald-400">House policy clear</p>
-              ) : (
-                review?.findings.map((f) => (
-                  <p key={f.code} className="text-xs text-red-400">{f.message}</p>
-                ))
-              )}
-            </div>
           </div>
         </div>
 

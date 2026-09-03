@@ -1408,6 +1408,10 @@ export class SQLiteStorage implements IStorage {
     return insertItem("report_log", log) as ReportLog;
   }
 
+  async getReportLog(id: number, userId: string): Promise<ReportLog | undefined> {
+    return getCollection("report_log").find(l => l.id === id && l.userId === userId) as ReportLog | undefined;
+  }
+
   async getReportSettings(userId: string): Promise<ReportSettings | undefined> {
     return getCollection("report_settings").find(s => s.userId === userId) as ReportSettings | undefined;
   }
@@ -1487,6 +1491,8 @@ export class SQLiteStorage implements IStorage {
       status: "draft",
       compliance: "pending",
       autoPublish: false,
+      heroImageUrl: null,
+      linkedinPack: null,
       exportedAt: null,
       userId,
     }) as EditorialPiece;
@@ -1511,6 +1517,8 @@ export class SQLiteStorage implements IStorage {
       status: updates.status ?? content.status,
       compliance: updates.compliance ?? content.compliance,
       exportedAt: updates.exportedAt === undefined ? content.exportedAt : updates.exportedAt,
+      heroImageUrl: updates.heroImageUrl === undefined ? content.heroImageUrl ?? existing.heroImageUrl ?? null : updates.heroImageUrl,
+      linkedinPack: updates.linkedinPack === undefined ? content.linkedinPack ?? existing.linkedinPack ?? null : updates.linkedinPack,
       autoPublish: false as const,
     };
     // If title/topic/body changed, applyEditorialPatch already reset status/compliance.

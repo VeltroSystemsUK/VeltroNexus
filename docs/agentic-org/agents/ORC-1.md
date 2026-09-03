@@ -20,7 +20,7 @@
 
 ### Autonomy Scope
 
-- **Can do without approval:** Advance stages that have a stored procedure; start RES-2/SAL-2/FIN-2; retry contact-finder once; park SIG-06 and fit < 70
+- **Can do without approval:** Advance stages that have a stored procedure; start RES-2/SAL-2/FIN-2; retry contact-finder once; run Harvest on SME files without an email; park SIG-06 and fit < 70
 - **Requires Director approval:** Ambiguous company match; any stage listed as Shaun in corporate_structure.md; changing the rail itself
 - **Hard stops:** Never skip BBB fail into Sterling; never complete a PARTIAL file; never invent a new department; never auto-resolve a complaint
 

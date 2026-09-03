@@ -1,11 +1,15 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import fs from "fs";
+import path from "path";
 import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { insertReportTaskSchema, updateReportSettingsSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
-import { buildWorksheetForUser, buildProgressReportForUser, sendReport } from "../services/reportingService";
+import { buildWorksheetForUser, buildProgressReportForUser, sendReport, runTodoAgent } from "../services/reportingService";
+
+const REPORTS_DIR = path.resolve(process.cwd(), "uploads", "reports");
 
 const router = Router();
 
@@ -51,6 +55,17 @@ router.delete("/reporting/tasks/:id", isAuthenticated, async (req: Request, res:
     if (isNaN(id)) return res.status(400).json({ error: "Invalid task ID" });
     await storage.deleteReportTask(id, req.user!.id);
     res.json({ success: true });
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
+// --- To-do agent: identifies follow-up work from the state of play and logs it as tasks ---
+
+router.post("/reporting/todo-agent/run", isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const created = await runTodoAgent(req.user!.id);
+    res.json({ created });
   } catch (error) {
     handleApiError(res, error, "api-error");
   }
@@ -107,6 +122,26 @@ router.get("/reporting/preview/:type", isAuthenticated, async (req: Request, res
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="preview-${type}.pdf"`);
     res.send(built.pdf);
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
+// --- Open the exact PDF that was sent for a given history entry ---
+
+router.get("/reporting/logs/:id/pdf", isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid log ID" });
+    const log = await storage.getReportLog(id, req.user!.id);
+    if (!log?.pdfFile) return res.status(404).json({ error: "No document on file for this report" });
+
+    const filePath = path.join(REPORTS_DIR, path.basename(log.pdfFile));
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Document file is missing" });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${log.weekLabel.replace(/\s+/g, "_")}_${log.type}.pdf"`);
+    res.sendFile(filePath);
   } catch (error) {
     handleApiError(res, error, "api-error");
   }

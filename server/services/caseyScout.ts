@@ -15,6 +15,7 @@ import {
   type CreativeAmmoBrief,
 } from "@shared/craftScout";
 import { xaiBearer } from "@shared/craftYaffle";
+import { firecrawlAuthHeaders, firecrawlSearchUrl } from "@shared/firecrawl";
 
 type CaseyAsk = (prompt: string, model?: string, system?: string) => Promise<string>;
 
@@ -124,9 +125,9 @@ export async function caseyFirecrawlScan(): Promise<CaseyNote[]> {
   const notes: CaseyNote[] = [];
   for (const query of CASEY_FIRECRAWL_QUERIES) {
     try {
-      const res = await fetch("https://api.firecrawl.dev/v2/search", {
+      const res = await fetch(firecrawlSearchUrl(), {
         method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        headers: firecrawlAuthHeaders(),
         body: JSON.stringify({ query, limit: 5, sources: ["web"], country: "GB" }),
         signal: AbortSignal.timeout(25000),
       });
@@ -147,9 +148,9 @@ export async function caseyFirecrawlScan(): Promise<CaseyNote[]> {
 export async function caseyFirecrawlTopicScan(query: string): Promise<CaseyNote[]> {
   const key = process.env.FIRECRAWL_API_KEY?.trim();
   if (!key) return [];
-  const res = await fetch("https://api.firecrawl.dev/v2/search", {
+  const res = await fetch(firecrawlSearchUrl(), {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: firecrawlAuthHeaders(),
     body: JSON.stringify({ query, limit: 8, sources: ["web"], country: "GB" }),
     signal: AbortSignal.timeout(25000),
   });

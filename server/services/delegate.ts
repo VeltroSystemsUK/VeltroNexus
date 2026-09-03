@@ -43,23 +43,58 @@ export async function runDelegate(input: DelegateRequest) {
   }
 
   if (job.id === "hunt") {
-    const streamFilter =
-      agentId === "database-builder-se" ? "introducer" :
-      agentId === "database-builder" ? "sme" :
-      undefined;
-    const result = await agenticWorkflow.startFromDistressScan(undefined, streamFilter);
+    if (agentId === "database-builder-se") {
+      return {
+        ok: true,
+        jobId: job.id,
+        agentId,
+        summary: "Introducer outreach is paused until further notice.",
+        hunt: {
+          opened: 0,
+          scanned: 0,
+          rejected: { "introducer outreach paused": 1 },
+          rejectedTotal: 1,
+        },
+      };
+    }
+    const result = await agenticWorkflow.startSmeOutreachBatch();
     const rejectedTotal = Object.values(result.rejected).reduce((sum, count) => sum + count, 0);
     return {
       ok: true,
       jobId: job.id,
       agentId,
-      summary: `Looked at ${result.scanned} candidates, opened ${result.deals.length}.`,
+      summary: `Queued ${result.deals.length} SME first-touch drafts from ${result.scanned} Leads.`,
       hunt: {
         opened: result.deals.length,
         scanned: result.scanned,
         rejected: result.rejected,
         rejectedTotal,
       },
+    };
+  }
+
+  if (job.id === "harvest_mailboxes") {
+    const result = await agenticWorkflow.harvestMailboxes();
+    return {
+      ok: true,
+      jobId: job.id,
+      agentId,
+      summary: result.summary,
+      harvest: { patched: result.patched },
+    };
+  }
+
+  if (job.id === "triage_inbox") {
+    const { processAgentInbox } = await import("./mailDesk");
+    const result = await processAgentInbox();
+    return {
+      ok: true,
+      jobId: job.id,
+      agentId,
+      summary: result.processed
+        ? `Rowan processed ${result.processed}: ${result.replies} replies, ${result.stops} stops, ${result.bounces} bounces, ${result.spam} spam.`
+        : "Inbox already clean.",
+      inbox: result,
     };
   }
 

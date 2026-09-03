@@ -1342,6 +1342,14 @@ export const editorialEngineSchema = z
   })
   .nullable();
 
+export const editorialLinkedInPackSchema = z.object({
+  hook: z.string(),
+  body: z.string(),
+  cta: z.string(),
+  hashtags: z.array(z.string()),
+  keywords: z.array(z.string()),
+});
+
 export const editorialPieceSchema = z.object({
   id: z.number().optional(),
   userId: z.string(),
@@ -1354,6 +1362,8 @@ export const editorialPieceSchema = z.object({
   status: editorialStatusEnum.default("draft"),
   compliance: editorialComplianceEnum.default("pending"),
   autoPublish: z.literal(false).default(false),
+  heroImageUrl: z.string().nullable().optional().default(null),
+  linkedinPack: editorialLinkedInPackSchema.nullable().optional().default(null),
   exportedAt: dateSchema,
   createdAt: dateSchema,
   updatedAt: dateSchema,
@@ -1608,6 +1618,7 @@ export const reportLogSchema = z.object({
   taskCount: z.number().default(0),
   status: z.enum(["sent", "failed", "skipped"]).default("sent"),
   sentAt: dateSchema.nullable().optional(),
+  pdfFile: z.string().nullable().optional(), // filename under uploads/reports/ for "open doc"
   createdAt: dateSchema,
   updatedAt: dateSchema,
 });
@@ -1621,6 +1632,8 @@ export const reportSettingsSchema = z.object({
   preparedByName: z.string().default("Shaun Tuhey"),
   projectCode: z.string().default("STRATA-NEXUS-INT-001"),
   executiveSummary: z.string().default(""),
+  weekAnchorDate: z.string().default(""), // ISO date (any day) of a known week, e.g. "2026-08-31"
+  weekAnchorNumber: z.number().default(1), // the week number that date falls in, e.g. 5
   monthlyFee: z.string().default("£2,500.00"),
   weeklyPayment: z.string().default("£625.00"),
   weeklyHours: z.string().default("30 hours (6 hours/day, 5 days/week)"),

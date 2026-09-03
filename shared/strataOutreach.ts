@@ -20,6 +20,22 @@ export interface RenderedEmail {
   purpose: string;
 }
 
+export type OutreachTemplateOverride = {
+  subject?: string;
+  body?: string;
+  purpose?: string;
+};
+
+export const EDITABLE_OUTREACH_TOUCHES: OutreachTouchId[] = [
+  "inbound_ack",
+  "inbound_chase",
+  "sme_1",
+  "sme_2",
+  "sme_close",
+  "intro_1",
+  "intro_2",
+];
+
 export interface CallBeat {
   label: string;
   say: string;
@@ -397,6 +413,42 @@ export function renderOutreachEmail(
     text: signed.text,
     purpose: "Stream B day 10 — partner alignment. Queue the introducer voice call.",
   };
+}
+
+function templateTokens(value: string, deal: Pick<AgenticDealFile, "companyName" | "contactName" | "loanAmount" | "uploadToken">): string {
+  return value
+    .replace(/\{\{firstName\}\}/gi, firstName(deal.contactName))
+    .replace(/\{\{company\}\}/gi, deal.companyName || "the company")
+    .replace(/\{\{facility\}\}/gi, formatFacilityBand(deal.loanAmount))
+    .replace(/\{\{uploadUrl\}\}/gi, packUploadUrl(deal.uploadToken) || "the secure upload page");
+}
+
+export function applyOutreachTemplateOverride(
+  rendered: RenderedEmail,
+  override: OutreachTemplateOverride | undefined,
+  deal: Pick<AgenticDealFile, "companyName" | "contactName" | "loanAmount" | "uploadToken">,
+  mailbox: AgentMailbox,
+): RenderedEmail {
+  if (!override?.body?.trim() || /preview-token|\/pack\/preview-token/i.test(override.body)) return rendered;
+  const body = templateTokens(override.body.trim(), deal);
+  const lines = body.split(/\r?\n/).map((line) => line.trimEnd()).filter(Boolean);
+  const signed = withSignature(
+    lines,
+    mailbox,
+    rendered.touchId === "inbound_ack" || rendered.touchId === "inbound_chase" ? undefined : [STOP_LINE],
+  );
+  return {
+    ...rendered,
+    subject: templateTokens(String(override.subject || rendered.subject), deal),
+    purpose: String(override.purpose || rendered.purpose),
+    html: signed.html,
+    text: signed.text,
+  };
+}
+
+export function editableOutreachBody(rendered: RenderedEmail, mailbox: AgentMailbox): string {
+  const signatureIndex = rendered.text.indexOf(signatureText(mailbox));
+  return (signatureIndex >= 0 ? rendered.text.slice(0, signatureIndex) : rendered.text).trim();
 }
 
 export function nextColdTouch(outreachTouch: number | undefined, stream: SalesStream = "sme"): OutreachTouchId {

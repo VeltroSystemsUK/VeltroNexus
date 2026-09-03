@@ -57,8 +57,8 @@ describe("introducer pause", () => {
 });
 
 describe("SME first-touch cap", () => {
-  it("is 50 first-touches per London day", () => {
-    expect(SME_DAILY_FIRST_TOUCH_CAP).toBe(50);
+  it("is 100 first-touches per London day", () => {
+    expect(SME_DAILY_FIRST_TOUCH_CAP).toBe(100);
     expect(londonDayKey(new Date("2026-09-01T23:30:00.000Z"))).toBe("2026-09-02");
     expect(londonDayKey(new Date("2026-09-01T07:00:00.000Z"))).toBe("2026-09-01");
   });
@@ -103,7 +103,7 @@ describe("SME first-touch cap", () => {
         events: [],
       },
     ];
-    expect(remainingSmeFirstTouchSlots({ deals, now })).toBe(48);
+    expect(remainingSmeFirstTouchSlots({ deals, now })).toBe(98);
   });
 });
 

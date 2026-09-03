@@ -1,4 +1,12 @@
-export const MAIL_DOMAIN = process.env.MAIL_DOMAIN || "stratanexus.co.uk";
+function readEnv(name: string): string | undefined {
+  try {
+    return typeof process !== "undefined" ? process.env?.[name] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export const MAIL_DOMAIN = readEnv("MAIL_DOMAIN") || "stratanexus.co.uk";
 
 export type AgentMailbox = {
   agentId: string;
@@ -22,17 +30,19 @@ export const AGENT_DIRECTORY: Array<{
 }> = [
   { agentId: "inbound-intake", displayName: "Maya Hart", role: "New Business Administrator", local: "maya.hart" },
   { agentId: "contact-finder", displayName: "Elena Ward", role: "Contact Finder", local: "elena.ward" },
+  { agentId: "harvest", displayName: "Harper Cole", role: "Harvest Agent", local: "harper.cole" },
   { agentId: "database-builder", displayName: "Daniel Crowe", role: "Client Agent", local: "daniel.crowe" },
   { agentId: "database-builder-se", displayName: "Tom Brennan", role: "Refer Agent", local: "tom.brennan" },
   { agentId: "outreach-sales", displayName: "James Hale", role: "Business Consultant", local: "james.hale" },
   { agentId: "fulfilment-manager", displayName: "Sophie Reed", role: "New Business Manager", local: "sophie.reed" },
+  { agentId: "mailbox-clerk", displayName: "Rowan Vale", role: "Inbox Agent", local: "rowan.vale" },
   { agentId: "deal-processing-underwriter", displayName: "Priya Shah", role: "Process Manager", local: "priya.shah" },
   { agentId: "accounts-monitor", displayName: "Oliver Grant", role: "Finance Monitor", local: "oliver.grant" },
   { agentId: "capital-strategist", displayName: "Nathan Cole", role: "Capital Strategist", local: "nathan.cole" },
 ];
 
 export function sharedInbox(): string {
-  return process.env.MAIL_REPLY_TO || "enquiries@stratafinance.co.uk";
+  return readEnv("MAIL_REPLY_TO") || "enquiries@stratafinance.co.uk";
 }
 
 // Inbound enquiries (ack + chase) go out under the shared enquiries@stratafinance.co.uk

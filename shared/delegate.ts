@@ -6,6 +6,8 @@ export const DELEGATE_JOB_IDS = [
   "hunt",
   "match_company",
   "find_contact",
+  "harvest_mailboxes",
+  "triage_inbox",
   "retry_send",
   "chase_pack",
   "process_pack",
@@ -31,7 +33,7 @@ export const DELEGATE_JOBS: DelegateJob[] = [
     id: "hunt",
     agentIds: ["database-builder", "database-builder-se"],
     label: "Hunt opportunities",
-    description: "Scan Gazette, Companies House and the local book. Opens files that pass the Strata gate.",
+    description: "Queue up to 50 personalised SME first-touch drafts from Leads for director approval. Introducer hunt is paused.",
     needsDeal: false,
   },
   {
@@ -47,6 +49,20 @@ export const DELEGATE_JOBS: DelegateJob[] = [
     label: "Find contact",
     description: "Fill missing director name, email or phone on a file.",
     needsDeal: true,
+  },
+  {
+    id: "harvest_mailboxes",
+    agentIds: ["harvest"],
+    label: "Harvest mailboxes",
+    description: "Find and SMTP-verify company mailboxes on every real lead without an email.",
+    needsDeal: false,
+  },
+  {
+    id: "triage_inbox",
+    agentIds: ["mailbox-clerk"],
+    label: "Triage inbox",
+    description: "Read the shared inbox. STOP is law. Bounces get a reason. Live replies go to Shaun.",
+    needsDeal: false,
   },
   {
     id: "retry_send",
@@ -94,6 +110,10 @@ export function isDealEligible(jobId: DelegateJobId, deal: DelegateDeal): boolea
       return deal.stage === "ingest" || deal.stage === "company_match";
     case "find_contact":
       return !deal.email || !deal.phone;
+    case "harvest_mailboxes":
+      return false;
+    case "triage_inbox":
+      return false;
     case "retry_send":
       return /smtp|did not send/i.test(deal.humanReason || "");
     case "chase_pack":

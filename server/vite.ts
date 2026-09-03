@@ -42,6 +42,9 @@ export async function setupVite(app: Express, server: Server) {
     server: serverOptions,
     appType: "custom",
     plugins: [pluginReact()],
+    define: {
+      process: "({ env: {} })",
+    },
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "..", "client", "src"),

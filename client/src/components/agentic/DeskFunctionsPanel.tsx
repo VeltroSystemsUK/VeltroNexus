@@ -3,13 +3,21 @@ import { useQuery } from "@tanstack/react-query";
 import type { DigitalAssociate } from "@shared/agents";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
 import {
+  deskJobProgress,
   summariseDeskFunctions,
   type DeskFunctionSpec,
   type DeskLiveState,
 } from "@shared/deskOps";
 import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 
-type RunningJob = { agentId?: string; status?: string };
+type RunningJob = {
+  agentId?: string;
+  status?: string;
+  totalSteps?: number;
+  completedSteps?: number;
+  currentStep?: string;
+};
 
 const STATE_LABEL: Record<DeskLiveState, string> = {
   working: "Working",
@@ -106,7 +114,9 @@ export function DeskFunctionsPanel() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        {rows.map((row) => (
+        {rows.map((row) => {
+          const progress = deskJobProgress(runningJobs, row.agentId);
+          return (
           <article
             key={row.agentId}
             className={cn(
@@ -140,6 +150,15 @@ export function DeskFunctionsPanel() {
             ) : null}
 
             <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-slate-500">
+              {progress ? (
+                  <div className="mb-3 space-y-1.5" aria-live="polite">
+                    <div className="flex justify-between gap-2 text-[11px]">
+                      <span className="text-emerald-300 truncate">{progress.current || "Working"}</span>
+                      <span className="tabular-nums text-slate-400 shrink-0">{progress.label}</span>
+                    </div>
+                    <Progress value={progress.pct} className="h-1.5 bg-slate-800" />
+                  </div>
+              ) : null}
               {row.state === "working" && row.workingOn ? (
                 <p>
                   <span className="text-emerald-300">On file</span> {row.workingOn}
@@ -166,7 +185,8 @@ export function DeskFunctionsPanel() {
               {row.state === "hibernated" ? <p>Not in the launch factory.</p> : null}
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

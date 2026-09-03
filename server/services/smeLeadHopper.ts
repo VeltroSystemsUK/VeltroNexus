@@ -1,15 +1,36 @@
-import type { AgenticDealFile } from "@shared/agenticWorkflow";
+import { isNoiseDeal, type AgenticDealFile } from "@shared/agenticWorkflow";
 import { countLiveNonBankCharges, isP0 } from "@shared/chargeClassifier";
 import { dealStream } from "@shared/salesOs";
 import {
-  SME_ATTACH_ATTEMPT_CAP,
-  SME_HOPPER_TARGET,
   compareSendable,
+  directorForEmail,
+  gradeMailbox,
+  isProtectedFromQuarantine,
   isSendableContact,
-  sendableShortfall,
   type HopperDeal,
 } from "@shared/smeHopper";
 import { rejectBeforeCharges } from "./strataFit";
+import { suppressionSets } from "./mailSuppression";
+import { isBlockedOutreachHost, isPersonalMailbox, outreachHost } from "@shared/pecrSend";
+import { canFirecrawlScrape, firecrawlAuthHeaders, firecrawlScrapeUrl } from "@shared/firecrawl";
+import {
+  companyDomainFromWebsite,
+  contactMailboxGuesses,
+  emailOnCompanyDomain,
+  emailsFromScrapedText,
+  inferMailboxPattern,
+} from "@shared/companyMailbox";
+import {
+  MAILBOX_SEND_FLOOR,
+  catchAllStatus,
+  mailboxConfidence,
+  mxFamilyFromHosts,
+  smtpTrusted,
+  type CatchAllStatus,
+  type MailboxEvidenceSource,
+  type SmtpProbe,
+} from "@shared/mailboxScore";
+import { isJobStoppedError } from "./agentJobTracker";
 
 export type ChargeLike = {
   status?: string | null;
@@ -39,9 +60,44 @@ export const GATED_SME_HUNT_HOLD = {
   status: "waiting_timer" as const,
 };
 
+export const HARVEST_AGENT_ID = "harvest";
+export const HARVEST_RETRY_MS = 24 * 60 * 60 * 1000;
+
+export function isHarvestCandidate(
+  deal: {
+    source?: string;
+    hopper?: string | null;
+    email?: string | null;
+    companyName?: string;
+    ownerUserId?: string;
+    waitUntil?: string;
+    stream?: string;
+    outreachTouch?: number | null;
+    sterlingHandoffId?: number | null;
+    packDocuments?: Array<unknown> | null;
+    stage?: string;
+  },
+  now: Date = new Date()
+): boolean {
+  if (isNoiseDeal({ companyName: deal.companyName || "", ownerUserId: deal.ownerUserId || "" })) return false;
+  if (deal.source === "strata_inbound") return false;
+  if (isProtectedFromQuarantine(deal)) return false;
+  const hopper = deal.hopper;
+  if (hopper === "sendable" || hopper === "queued" || hopper === "parked") return false;
+  const hasEmail = Boolean(String(deal.email || "").trim());
+  if (hopper === "quarantine") {
+    if (hasEmail) return false;
+    if (deal.waitUntil && Date.parse(deal.waitUntil) > now.getTime()) return false;
+    return true;
+  }
+  if (hopper === "gated" || hopper === "hunt_contact") return true;
+  if (!hopper) return !hasEmail;
+  return false;
+}
+
 export function shouldSendOutreachAfterSmeHunt(deal: { hopper?: string | null; source?: string }): boolean {
   if (deal.source === "strata_inbound") return true;
-  return deal.hopper !== "gated";
+  return deal.hopper === "sendable" || deal.hopper === "queued";
 }
 
 function normCompanyNumber(value?: string | null): string {
@@ -107,7 +163,7 @@ export function isExcludedFromSmeHunt(
 
 export type AttachBudget = { ch: number; places: number; firecrawl: number; smtp: number };
 
-export const DEFAULT_ATTACH_BUDGET: AttachBudget = { ch: 400, places: 100, firecrawl: 50, smtp: 50 };
+export const DEFAULT_ATTACH_BUDGET: AttachBudget = { ch: 800, places: 400, firecrawl: 400, smtp: 150 };
 
 export type AttachPlaceHit = { website?: string; email?: string; phone?: string };
 
@@ -117,7 +173,17 @@ export type AttachDeps = {
   firecrawl(website: string): Promise<string[]>;
   mxValid(email: string): Promise<boolean>;
   smtpValid?(email: string): Promise<boolean>;
+  smtpProbe?(email: string): Promise<SmtpProbe>;
+  osint?(companyName: string, address?: string): Promise<{ emails: string[]; website?: string }>;
+  wayback?(website: string): Promise<string[]>;
+  mxHosts?(domain: string): Promise<string[]>;
 };
+
+async function probeSmtp(deps: AttachDeps, email: string): Promise<SmtpProbe> {
+  if (deps.smtpProbe) return deps.smtpProbe(email);
+  if (!deps.smtpValid) return "unknown";
+  return (await deps.smtpValid(email)) ? "deliverable" : "user_unknown";
+}
 
 export class SmeAttachRateLimitError extends Error {
   readonly code = "CH_429" as const;
@@ -127,11 +193,9 @@ export class SmeAttachRateLimitError extends Error {
   }
 }
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 const PLACES_TEXT_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json";
 
-export const ATTACH_FIRECRAWL_PATHS = ["/", "/contact", "/about", "/team"] as const;
+export const ATTACH_FIRECRAWL_PATHS = ["/contact", "/", "/about", "/team"] as const;
 
 export function firecrawlTargetUrls(website: string): string[] {
   const raw = String(website || "").trim();
@@ -143,6 +207,24 @@ export function firecrawlTargetUrls(website: string): string[] {
   } catch {
     return [];
   }
+}
+
+export async function collectPageEmails(
+  urls: string[],
+  fetchText: (url: string) => Promise<string | null>
+): Promise<string[]> {
+  const emails = new Set<string>();
+  for (const url of urls) {
+    let text: string | null = null;
+    try {
+      text = await fetchText(url);
+    } catch {
+      text = null;
+    }
+    for (const item of emailsFromScrapedText(text)) emails.add(item);
+    if (emails.size) break;
+  }
+  return [...emails];
 }
 
 function copyBudget(budget: AttachBudget): AttachBudget {
@@ -175,38 +257,35 @@ function officerDisplayName(raw: string): string {
   return [forenames, surname].filter(Boolean).join(" ");
 }
 
-function nameTokens(value: string): string[] {
-  return String(value || "")
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter((token) => token.length > 1);
-}
-
-function contactNameForEmail(email: string, directorNames: string[]): string | undefined {
-  const local = String(email || "").split("@")[0] || "";
-  const localTokens = nameTokens(local);
-  if (!localTokens.length) return undefined;
-  return directorNames.find((name) => {
-    const tokens = nameTokens(name);
-    if (!tokens.length) return false;
-    const first = tokens[0];
-    const last = tokens[tokens.length - 1];
-    return localTokens.includes(first) || localTokens.includes(last);
-  });
-}
-
 async function mailboxPasses(
   email: string,
   contactName: string,
   directorNames: string[],
   deps: AttachDeps,
-  budget: AttachBudget
+  budget: AttachBudget,
+  companyName?: string | null,
+  requireSmtp = false
 ): Promise<boolean> {
-  if (!isSendableContact({ email, contactName, directorNames })) return false;
+  if (!isSendableContact({ email, contactName, directorNames, companyName })) return false;
   if (!(await deps.mxValid(email))) return false;
-  if (!deps.smtpValid || budget.smtp <= 0) return true;
+  if (!requireSmtp) return true;
+  if (budget.smtp <= 0) return false;
   budget.smtp -= 1;
-  return deps.smtpValid(email);
+  return (await probeSmtp(deps, email)) === "deliverable";
+}
+
+function harvestEvent(
+  deal: AgenticDealFile,
+  message: string,
+  now: Date,
+  stage?: AgenticDealFile["stage"]
+): NonNullable<AgenticDealFile["events"]>[number] {
+  return {
+    at: now.toISOString(),
+    stage: stage || deal.stage || "ingest",
+    agent: HARVEST_AGENT_ID,
+    message,
+  };
 }
 
 function failAttachPatch(
@@ -215,25 +294,26 @@ function failAttachPatch(
   now: Date
 ): Partial<AgenticDealFile> {
   const attachAttempts = (deal.attachAttempts || 0) + 1;
-  if (attachAttempts >= SME_ATTACH_ATTEMPT_CAP) {
-    return {
-      ...extra,
-      attachAttempts,
-      hopper: "parked",
-      humanReason: "no director mailbox after 5 attach nights",
-      stage: "failed",
-      status: "failed",
-    };
+  const events = [
+    ...(deal.events || []),
+    harvestEvent(deal, "Harvest: no verified company mailbox", now),
+  ];
+  if (isProtectedFromQuarantine(deal)) {
+    return { ...extra, attachAttempts, events };
   }
   return {
     ...extra,
     attachAttempts,
-    hopper: "hunt_contact",
-    waitUntil: new Date(now.getTime() + ONE_DAY_MS).toISOString(),
+    hopper: "quarantine",
+    status: "waiting_human",
+    humanReason: "no corporate mailbox — inspect before delete",
+    waitUntil: new Date(now.getTime() + HARVEST_RETRY_MS).toISOString(),
+    events,
   };
 }
 
 function sendableAttachPatch(
+  deal: AgenticDealFile,
   extra: Partial<AgenticDealFile>,
   fields: {
     contactSource: NonNullable<AgenticDealFile["contactSource"]>;
@@ -241,8 +321,12 @@ function sendableAttachPatch(
     email?: string;
     website?: string;
     phone?: string;
-  }
+    mailboxGrade: NonNullable<AgenticDealFile["mailboxGrade"]>;
+    mailboxConfidence: number;
+  },
+  now: Date
 ): Partial<AgenticDealFile> {
+  const mailbox = fields.email || "mailbox";
   return {
     ...extra,
     hopper: "sendable",
@@ -253,7 +337,13 @@ function sendableAttachPatch(
     email: fields.email,
     website: fields.website,
     phone: fields.phone,
+    mailboxGrade: fields.mailboxGrade,
+    mailboxConfidence: fields.mailboxConfidence,
     waitUntil: undefined,
+    events: [
+      ...(deal.events || []),
+      harvestEvent(deal, `Harvest attached ${fields.mailboxGrade} mailbox ${mailbox}`, now, "outreach"),
+    ],
   };
 }
 
@@ -279,41 +369,21 @@ export async function attachOne(
   const next = copyBudget(budget);
   const extra: Partial<AgenticDealFile> = {};
   let directorNames = [...(deal.directorNames || [])];
-  let email = String(deal.email || "").trim() || undefined;
-  let website = deal.website;
+  let website = isBlockedOutreachHost(outreachHost(deal.website)) ? undefined : deal.website;
   let phone = deal.phone;
-  let contactSource: AgenticDealFile["contactSource"] | undefined;
-  let contactName = deal.contactName;
+  const found: Array<{ email: string; source: NonNullable<AgenticDealFile["contactSource"]> }> = [];
 
-  if (deal.companyNumber && next.ch > 0) {
+  if (deal.companyNumber && next.ch > 0 && directorNames.length === 0) {
     next.ch -= 1;
     const fetched = await deps.officers(deal.companyNumber);
     if (fetched.length) directorNames = fetched;
   }
   if (directorNames.length) extra.directorNames = directorNames;
 
-  const accept = async (
-    candidate: string,
-    source: NonNullable<AgenticDealFile["contactSource"]>
-  ): Promise<boolean> => {
-    if (isExcludedFromSmeHunt({ email: candidate }, new Set(), new Set(), inboundEmails)) return false;
-    const name = contactNameForEmail(candidate, directorNames);
-    if (!name) return false;
-    if (!(await mailboxPasses(candidate, name, directorNames, deps, next))) return false;
-    email = candidate;
-    contactName = name;
-    contactSource = source;
-    return true;
-  };
+  const stored = String(deal.email || "").trim();
+  if (stored) found.push({ email: stored, source: "ch" });
 
-  if (email && (await accept(email, "ch"))) {
-    return {
-      dealPatch: sendableAttachPatch(extra, { contactSource: "ch", contactName, email, website, phone }),
-      budget: next,
-    };
-  }
-
-  if (next.places > 0) {
+  if (next.places > 0 && !website) {
     next.places -= 1;
     let place: AttachPlaceHit | null = null;
     try {
@@ -322,55 +392,161 @@ export async function attachOne(
       place = null;
     }
     if (place) {
-      if (place.website && !website) website = place.website;
+      if (place.website && !website && !isBlockedOutreachHost(outreachHost(place.website))) {
+        website = place.website;
+      }
       if (place.phone && !phone) phone = place.phone;
-      if (place.email) {
-        extra.website = website;
-        extra.phone = phone;
-        if (await accept(place.email, "places")) {
-          return {
-            dealPatch: sendableAttachPatch(extra, {
-              contactSource: "places",
-              contactName,
-              email,
-              website,
-              phone,
-            }),
-            budget: next,
-          };
-        }
-      }
+      if (place.email) found.push({ email: place.email, source: "places" });
     }
   }
 
-  if (!contactSource && website && next.firecrawl > 0) {
+  let domain = companyDomainFromWebsite(website);
+
+  if (website && next.firecrawl > 0 && (!stored || isPersonalMailbox(stored))) {
     next.firecrawl -= 1;
-    let found: string[] = [];
+    let scraped: string[] = [];
     try {
-      found = await deps.firecrawl(website);
+      scraped = await deps.firecrawl(website);
     } catch {
-      found = [];
+      scraped = [];
     }
-    for (const candidate of found) {
-      if (await accept(candidate, "firecrawl")) {
-        return {
-          dealPatch: sendableAttachPatch(extra, {
-            contactSource: "firecrawl",
-            contactName,
-            email,
-            website,
-            phone,
-          }),
-          budget: next,
-        };
+    for (const candidate of scraped) found.push({ email: candidate, source: "firecrawl" });
+  }
+
+  if (website && deps.wayback && !found.some((item) => item.source === "firecrawl")) {
+    try {
+      for (const candidate of await deps.wayback(website)) found.push({ email: candidate, source: "wayback" });
+    } catch {
+      // archive is optional
+    }
+  }
+
+  if (deps.osint && (!domain || !found.length)) {
+    try {
+      const hit = await deps.osint(deal.companyName, deal.placeAddress);
+      if (hit.website && !website && !isBlockedOutreachHost(outreachHost(hit.website))) {
+        website = hit.website;
+        domain = companyDomainFromWebsite(website);
+      }
+      for (const candidate of hit.emails || []) found.push({ email: candidate, source: "osint" });
+    } catch {
+      // search is optional
+    }
+  }
+
+  if (domain) {
+    const onDomain = found.filter((item) => emailOnCompanyDomain(item.email, domain as string));
+    found.length = 0;
+    found.push(...onDomain);
+  }
+
+  const citedOnDomain = found.filter((item) => item.source !== "domain").length;
+  let catchAll: CatchAllStatus = "unknown";
+  let family = mxFamilyFromHosts(domain && deps.mxHosts ? await deps.mxHosts(domain) : []);
+  if (domain && directorNames.length && next.smtp > 0 && smtpTrusted(family)) {
+    const probes: SmtpProbe[] = [];
+    for (const box of [`nx-no-box-strata@${domain}`, `nx-no-box-strata-b@${domain}`]) {
+      if (next.smtp <= 0) break;
+      next.smtp -= 1;
+      probes.push(await probeSmtp(deps, box));
+    }
+    catchAll = catchAllStatus(probes);
+    if (catchAll === "not_catch_all") {
+      const pattern = inferMailboxPattern(
+        found.map((item) => item.email),
+        directorNames
+      );
+      for (const email of contactMailboxGuesses(domain, directorNames, pattern)) {
+        if (found.some((item) => item.email === email)) continue;
+        found.push({ email, source: "domain" });
       }
     }
   }
 
-  if (website) extra.website = website;
-  if (phone) extra.phone = phone;
+  extra.website = website;
+  extra.phone = phone;
+
+  const tryGrade = async (want: "director" | "role"): Promise<Partial<AgenticDealFile> | null> => {
+    const ranked = [...found].sort((a, b) => {
+      const am = directorForEmail(a.email, directorNames) ? 0 : 1;
+      const bm = directorForEmail(b.email, directorNames) ? 0 : 1;
+      return am - bm;
+    });
+    for (const item of ranked) {
+      if (isExcludedFromSmeHunt({ email: item.email }, new Set(), new Set(), inboundEmails)) continue;
+      const matched = directorForEmail(item.email, directorNames);
+      const grade = gradeMailbox({
+        email: item.email,
+        contactName: matched || deal.contactName,
+        directorNames,
+        companyName: deal.companyName,
+      });
+      if (grade !== want) continue;
+      const name =
+        want === "director"
+          ? matched || deal.contactName || "Director"
+          : directorNames[0] || deal.contactName || "Director";
+      if (
+        !(await mailboxPasses(
+          item.email,
+          name || "Director",
+          directorNames,
+          deps,
+          next,
+          deal.companyName,
+          false
+        ))
+      ) {
+        continue;
+      }
+      const smtp =
+        item.source === "domain" && next.smtp > 0
+          ? ((next.smtp -= 1), await probeSmtp(deps, item.email))
+          : "unknown";
+      const score = mailboxConfidence({
+        source: (item.source || "firecrawl") as MailboxEvidenceSource,
+        mx: true,
+        smtp,
+        catchAll,
+        citedOnDomain,
+        mxFamily: family,
+      });
+      if (item.source === "domain" && smtp !== "deliverable" && score < MAILBOX_SEND_FLOOR) continue;
+      if (score < MAILBOX_SEND_FLOOR) continue;
+      return sendableAttachPatch(
+        deal,
+        extra,
+        {
+          contactSource: item.source,
+          contactName: name,
+          email: item.email,
+          website,
+          phone,
+          mailboxGrade: want,
+          mailboxConfidence: score,
+        },
+        now
+      );
+    }
+    return null;
+  };
+
+  const directorHit = await tryGrade("director");
+  if (directorHit) return { dealPatch: directorHit, budget: next };
+  const roleHit = await tryGrade("role");
+  if (roleHit) return { dealPatch: roleHit, budget: next };
+
   return { dealPatch: failAttachPatch(deal, extra, now), budget: next };
 }
+
+export type HarvestProgress = {
+  index: number;
+  total: number;
+  companyName: string;
+  phase: "start" | "done" | "skip";
+  email?: string;
+  hopper?: string;
+};
 
 export async function refillSendableHopper(opts: {
   deals: AgenticDealFile[];
@@ -379,36 +555,51 @@ export async function refillSendableHopper(opts: {
   target?: number;
   now?: Date;
   inboundEmails?: Set<string>;
+  onProgress?: (row: HarvestProgress) => void | Promise<void>;
 }): Promise<{ patches: Array<{ id: number; patch: Partial<AgenticDealFile> }>; budget: AttachBudget }> {
   let budget = copyBudget(opts.budget || DEFAULT_ATTACH_BUDGET);
-  const shortfall = sendableShortfall(opts.deals, opts.target ?? SME_HOPPER_TARGET);
-  if (shortfall === 0) return { patches: [], budget };
-
   const now = opts.now || new Date();
-  const nowMs = now.getTime();
   const inboundEmails = opts.inboundEmails ?? inboundEmailsFromDeals(opts.deals);
+  for (const email of suppressionSets().emails) inboundEmails.add(email);
   const candidates = opts.deals
-    .filter((deal) => {
-      if (deal.source === "strata_inbound") return false;
-      if (deal.hopper !== "gated" && deal.hopper !== "hunt_contact") return false;
-      if (deal.waitUntil && Date.parse(deal.waitUntil) > nowMs) return false;
-      return true;
-    })
+    .filter((deal) => isHarvestCandidate(deal, now))
     .sort((a, b) => compareSendable(hopperRankFields(a), hopperRankFields(b)));
 
   const patches: Array<{ id: number; patch: Partial<AgenticDealFile> }> = [];
-  let remaining = shortfall;
+  const total = candidates.length;
 
-  for (const deal of candidates) {
-    if (remaining <= 0) break;
-    if (!canAttachWithBudget(deal, budget)) continue;
+  for (let i = 0; i < candidates.length; i++) {
+    const deal = candidates[i];
     try {
+      await opts.onProgress?.({
+        index: i,
+        total,
+        companyName: deal.companyName,
+        phase: "start",
+      });
+      if (!canAttachWithBudget(deal, budget)) {
+        await opts.onProgress?.({
+          index: i + 1,
+          total,
+          companyName: deal.companyName,
+          phase: "skip",
+        });
+        continue;
+      }
       const result = await attachOne(deal, opts.deps, budget, now, inboundEmails);
       budget = result.budget;
       patches.push({ id: deal.id, patch: result.dealPatch });
-      if (result.dealPatch.hopper === "sendable") remaining -= 1;
+      await opts.onProgress?.({
+        index: i + 1,
+        total,
+        companyName: deal.companyName,
+        phase: "done",
+        email: result.dealPatch.email,
+        hopper: result.dealPatch.hopper,
+      });
     } catch (err) {
       if (isRateLimit(err)) return { patches, budget };
+      if (isJobStoppedError(err)) return { patches, budget };
       throw err;
     }
   }
@@ -424,7 +615,8 @@ function canAttachWithBudget(deal: AgenticDealFile, budget: AttachBudget): boole
   if (email) return true;
 
   if (budget.places > 0) return true;
-  if (deal.website && budget.firecrawl > 0) return true;
+  if (deal.website && (budget.firecrawl > 0 || budget.smtp > 0)) return true;
+  if (!deal.website && hasNames) return true;
   return false;
 }
 
@@ -478,24 +670,33 @@ export function liveAttachDeps(): AttachDeps {
       return { website, phone };
     },
     async firecrawl(website: string) {
-      const key = process.env.FIRECRAWL_API_KEY?.trim();
-      if (!key || !website) return [];
-      const emails = new Set<string>();
-      for (const url of firecrawlTargetUrls(website)) {
-        try {
-          const resp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      if (!website) return [];
+      const urls = firecrawlTargetUrls(website);
+      if (canFirecrawlScrape()) {
+        const fromApi = await collectPageEmails(urls, async (url) => {
+          const resp = await fetch(firecrawlScrapeUrl(), {
             method: "POST",
-            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+            headers: firecrawlAuthHeaders(),
             body: JSON.stringify({ url, formats: ["markdown", "html"] }),
+            signal: AbortSignal.timeout(5000),
           });
-          if (!resp.ok) continue;
-          const found = JSON.stringify(await resp.json()).match(EMAIL_RE) || [];
-          for (const item of found) emails.add(item.toLowerCase());
-        } catch {
-          // skip this path
-        }
+          if (!resp.ok) return null;
+          const payload = await resp.json();
+          return [payload?.data?.markdown, payload?.data?.html, payload?.data?.content]
+            .filter(Boolean)
+            .join("\n");
+        });
+        if (fromApi.length) return fromApi;
       }
-      return [...emails];
+      return collectPageEmails(urls, async (url) => {
+        const resp = await fetch(url, {
+          redirect: "follow",
+          signal: AbortSignal.timeout(8000),
+          headers: { "User-Agent": "Mozilla/5.0 StrataHarvest/1.0" },
+        });
+        if (!resp.ok) return null;
+        return resp.text();
+      });
     },
     async mxValid(email: string) {
       const domain = String(email || "").split("@")[1];
@@ -507,6 +708,93 @@ export function liveAttachDeps(): AttachDeps {
       } catch {
         return false;
       }
+    },
+    async smtpValid(email: string) {
+      return (await this.smtpProbe(email)) === "deliverable";
+    },
+    async smtpProbe(email: string) {
+      try {
+        const { EmailVerificationService } = await import("./emailVerification");
+        return await new EmailVerificationService().probeMailbox(email);
+      } catch {
+        return "unknown" as const;
+      }
+    },
+    async mxHosts(domain: string) {
+      try {
+        const { resolveMx } = await import("dns/promises");
+        const records = await resolveMx(domain);
+        return (records || []).sort((a, b) => a.priority - b.priority).map((row) => row.exchange);
+      } catch {
+        return [];
+      }
+    },
+    async osint(companyName: string) {
+      const { companyEmailSearchQuery, harvestFromSearchSnippets } = await import("@shared/mailboxOsint");
+      const query = companyEmailSearchQuery(companyName);
+      const snippets: string[] = [];
+      const key = process.env.FIRECRAWL_API_KEY?.trim();
+      if (key) {
+        try {
+          const resp = await fetch("https://api.firecrawl.dev/v1/search", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ query, limit: 5 }),
+            signal: AbortSignal.timeout(12000),
+          });
+          if (resp.ok) {
+            const payload = await resp.json();
+            const rows = payload?.data || payload?.web || [];
+            for (const row of rows) {
+              snippets.push([row.title, row.description, row.url, row.markdown].filter(Boolean).join("\n"));
+            }
+          }
+        } catch {
+          // search is optional
+        }
+      }
+      if (!snippets.length) {
+        try {
+          const resp = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+            signal: AbortSignal.timeout(10000),
+            headers: { "User-Agent": "Mozilla/5.0 StrataHarvest/1.0" },
+          });
+          if (resp.ok) snippets.push(await resp.text());
+        } catch {
+          // ignore
+        }
+      }
+      const hit = harvestFromSearchSnippets({ companyName, snippets });
+      return { emails: hit.emails, website: hit.websites[0] };
+    },
+    async wayback(website: string) {
+      const emails = new Set<string>();
+      for (const url of firecrawlTargetUrls(website).slice(0, 2)) {
+        try {
+          const cdx = await fetch(
+            `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&fl=timestamp,original&filter=statuscode:200&limit=2`,
+            { signal: AbortSignal.timeout(10000) }
+          );
+          if (!cdx.ok) continue;
+          const rows = await cdx.json();
+          const hits = Array.isArray(rows) ? rows.slice(1) : [];
+          for (const row of hits) {
+            const ts = row[0];
+            const original = row[1];
+            if (!ts || !original) continue;
+            const snap = await fetch(`https://web.archive.org/web/${ts}id_/${original}`, {
+              signal: AbortSignal.timeout(10000),
+            });
+            if (!snap.ok) continue;
+            for (const item of emailsFromScrapedText(await snap.text())) emails.add(item);
+            if (emails.size) break;
+          }
+        } catch {
+          // archive is optional
+        }
+        if (emails.size) break;
+      }
+      return [...emails];
     },
   };
 }

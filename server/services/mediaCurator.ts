@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { firecrawlAuthHeaders, firecrawlSearchUrl } from "@shared/firecrawl";
 import {
   curatorScanQueries,
   findDuplicate,
@@ -244,12 +245,9 @@ export async function runDeskScan(
     await Promise.all(
       firecrawlQueriesFor(queries).map(async (q) => {
         try {
-          const res = await fetch("https://api.firecrawl.dev/v2/search", {
+          const res = await fetch(firecrawlSearchUrl(), {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${firecrawlKey}`,
-              "Content-Type": "application/json",
-            },
+            headers: firecrawlAuthHeaders(),
             body: JSON.stringify({ query: q, limit: 15, sources: ["images"], country: "GB" }),
             signal: AbortSignal.timeout(30000),
           });

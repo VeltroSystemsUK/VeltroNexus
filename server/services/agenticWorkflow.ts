@@ -27,18 +27,33 @@ import {
   type StrataFitResult,
 } from "./strataFit";
 import {
+  DEFAULT_ATTACH_BUDGET,
   GATED_SME_HUNT_HOLD,
+  attachOne,
+  inboundEmailsFromDeals,
   isExcludedFromSmeHunt,
+  isHarvestCandidate,
   liveAttachDeps,
   refillSendableHopper,
   shouldEnterSmeHunt,
-  shouldSendOutreachAfterSmeHunt,
+  type AttachBudget,
   type ChargeLike,
 } from "./smeLeadHopper";
-import { isSmeHopperSendable, rankSendable } from "@shared/smeHopper";
+import { hopperCounts, isContactableDeal, isProtectedFromQuarantine, isSmeHopperSendable, rankSendable, smeHuntNeed } from "@shared/smeHopper";
+import { buildHuntQuality, sendableUnsentCount } from "@shared/smeQuality";
+import { listAgentMail } from "./agentMailLog";
+import { mailIsSuppressed } from "./mailDesk";
+import { suppressionSets } from "./mailSuppression";
+import { isOpenedOutboundMail } from "@shared/mailTracking";
 import { assessBbbEligibility, bbbBlockMessage, type BbbAssessment } from "@shared/bbbEligibility";
 import { mailboxForAgent, inboundMailbox } from "@shared/agentMailboxes";
-import { listLeadFinderCandidates } from "./leadFinderPool";
+import { listLeadFinderCandidates, lendersByCompanyNumber, lendersForCompany } from "./leadFinderPool";
+import {
+  dealChargeHolders,
+  registeredChargeHolders,
+  registeredChargeHoldersFromNames,
+} from "@shared/chargeClassifier";
+
 import { isDistressHuntRow } from "./huntCandidates";
 import { harvestHmrcPetitions } from "./signalHarvest";
 import { toDealPetition, type HmrcMarker } from "@shared/distressSignals";
@@ -49,6 +64,7 @@ import {
   packMissingDisposition,
   shouldReprocessPack,
   tickKindForDeal,
+  isNoiseDeal,
   type AgenticCompanyCandidate,
   type AgenticDealFile,
   type AgenticEvent,
@@ -64,16 +80,28 @@ import {
   smeEmailNeedsApproval,
   shouldProcessAgenticTick,
   SME_DAILY_FIRST_TOUCH_CAP,
+  londonDayKey,
   type SmeOutreachCandidate,
 } from "@shared/smeOutreach";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-export const DISTRESS_SCAN_LIMIT = 25;
-export const GAZETTE_HMRC_LIMIT = 40;
+export const DISTRESS_SCAN_LIMIT = 1000;
+export const GAZETTE_HMRC_LIMIT = 200;
+const HUNT_QUALITY_KEY = "sme_hunt_quality";
 export const INTRODUCER_SCAN_LIMIT = 40;
 
 function daysMs(days: number) {
   return days * 24 * 60 * 60 * 1000;
+}
+
+function outreachBlockReason(
+  email?: string | null,
+  stream?: string | null,
+  companyNumber?: string | null,
+  companyName?: string | null
+): string | null {
+  if (mailIsSuppressed(email, companyNumber)) return "suppressed — do not contact";
+  return coldEmailBlockedReason(email, stream, companyName);
 }
 
 const PLACES_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json";
@@ -289,15 +317,103 @@ function smeHuntFitSummary(liveNonBankChargeCount: number, hasPetition?: boolean
   return `P0 hunt: ${liveNonBankChargeCount} live non-bank charge${liveNonBankChargeCount === 1 ? "" : "s"}`;
 }
 
-async function holdOpenedGatedSme(deal: AgenticDealFile, address?: string): Promise<AgenticDealFile> {
-  if (shouldSendOutreachAfterSmeHunt(deal)) {
-    throw new Error("holdOpenedGatedSme is only for gated SME hunt files");
-  }
-  return storage.updateAgenticDeal(deal.id, {
+function copyAttachBudget(budget: AttachBudget): AttachBudget {
+  return { ch: budget.ch, places: budget.places, firecrawl: budget.firecrawl, smtp: budget.smtp };
+}
+
+async function persistIfSendableSme(
+  fields: Record<string, unknown>,
+  budget: AttachBudget,
+  inboundEmails: Set<string>
+): Promise<{ deal: AgenticDealFile | null; budget: AttachBudget; drop?: string }> {
+  const draft = {
+    id: 0,
+    source: "distress_scan",
+    stream: "sme",
+    events: [],
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
     ...GATED_SME_HUNT_HOLD,
-    waitUntil: undefined,
-    ...(address ? { placeAddress: deal.placeAddress || address } : {}),
-  }) as Promise<AgenticDealFile>;
+    ...fields,
+  } as unknown as AgenticDealFile;
+  const { dealPatch, budget: next } = await attachOne(draft, liveAttachDeps(), budget, new Date(), inboundEmails);
+  if (dealPatch.hopper !== "sendable") {
+    return { deal: null, budget: next, drop: "no corporate mailbox" };
+  }
+  const deal = await storage.createAgenticDeal({
+    source: "distress_scan",
+    stream: "sme",
+    ...fields,
+    ...dealPatch,
+  });
+  return { deal, budget: next };
+}
+
+async function persistHuntQuality(input: {
+  scanned: number;
+  deliverable: number;
+  director: number;
+  role: number;
+  rejected: Record<string, number>;
+  budgetRemaining: AttachBudget;
+  chCooldown: boolean;
+}) {
+  const deals = await storage.listAgenticDeals();
+  const mail = listAgentMail(500);
+  const day = londonDayKey();
+  const todayMail = mail.filter((item) => londonDayKey(new Date(item.createdAt)) === day);
+  const sent = todayMail.filter((item) => item.direction === "outbound" && item.status === "sent").length;
+  const opened = todayMail.filter((item) => isOpenedOutboundMail(item)).length;
+  const replied = todayMail.filter((item) => item.direction === "inbound").length;
+  const smtpFailed = todayMail.filter((item) => item.direction === "outbound" && item.status === "failed").length;
+  const snap = buildHuntQuality({
+    scanned: input.scanned,
+    deliverable: input.deliverable,
+    director: input.director,
+    role: input.role,
+    sent,
+    opened,
+    replied,
+    rejected: input.rejected,
+    remainingSlots: remainingSmeFirstTouchSlots({ deals }),
+    budget: { total: DEFAULT_ATTACH_BUDGET, remaining: input.budgetRemaining },
+    chCooldown: input.chCooldown,
+    smtpFailed,
+  });
+  await storage.updateSystemSetting(HUNT_QUALITY_KEY, { ...snap, date: day, hopper: hopperCounts(deals) });
+}
+
+async function loadHuntQuality() {
+  const deals = (await storage.listAgenticDeals()).filter((deal) => !isNoiseDeal(deal));
+  const stored = (await storage.getSystemSetting(HUNT_QUALITY_KEY)) || {};
+  const mail = listAgentMail(500);
+  const day = londonDayKey();
+  const todayMail = mail.filter((item) => londonDayKey(new Date(item.createdAt)) === day);
+  const sent = todayMail.filter((item) => item.direction === "outbound" && item.status === "sent").length;
+  const opened = todayMail.filter((item) => isOpenedOutboundMail(item)).length;
+  const replied = todayMail.filter((item) => item.direction === "inbound").length;
+  const smtpFailed = todayMail.filter((item) => item.direction === "outbound" && item.status === "failed").length;
+  const remaining = stored.budget?.remaining || DEFAULT_ATTACH_BUDGET;
+  const snap = buildHuntQuality({
+    scanned: stored.scanned || 0,
+    deliverable: stored.deliverable || 0,
+    director: stored.director || 0,
+    role: stored.role || 0,
+    sent,
+    opened,
+    replied,
+    rejected: stored.rejected || {},
+    remainingSlots: remainingSmeFirstTouchSlots({ deals }),
+    budget: { total: DEFAULT_ATTACH_BUDGET, remaining },
+    chCooldown: stored.chCooldown,
+    smtpFailed,
+  });
+  return {
+    ...snap,
+    date: stored.date || day,
+    hopper: hopperCounts(deals),
+    quarantine: deals.filter((deal) => deal.hopper === "quarantine"),
+  };
 }
 
 function withHopperRank(deal: AgenticDealFile): AgenticDealFile & { hasPetition: boolean; hearingAt?: string } {
@@ -326,11 +442,76 @@ function isSmeHuntContactRetry(deal: Pick<AgenticDealFile, "hopper" | "source">)
   return deal.hopper === "hunt_contact" && deal.source !== "strata_inbound";
 }
 
+let harvestBusy = false;
+let tickBusy = false;
+
+async function runHarvestPass(): Promise<Array<{ id: number; patch: Partial<AgenticDealFile> }>> {
+  if (harvestBusy) return [];
+  harvestBusy = true;
+  try {
+    const latest = await storage.listAgenticDeals();
+    const now = new Date();
+    const total = latest.filter((deal) => isHarvestCandidate(deal, now)).length;
+    if (!total) return [];
+
+    const { agentJobTracker, FACTORY_JOB_USER, harvestPassBlocked } = await import("./agentJobTracker");
+    if (harvestPassBlocked(await agentJobTracker.getJobsForUser(FACTORY_JOB_USER, 20))) return [];
+    const already = (await agentJobTracker.getRunningJobs(FACTORY_JOB_USER)).filter((job) => job.agentId === "harvest");
+    const fresh = already.find((job) => {
+      const last = job.logs[job.logs.length - 1];
+      return last && Date.now() - new Date(last.timestamp).getTime() < 3 * 60 * 1000;
+    });
+    if (fresh) return [];
+    for (const job of already) {
+      await agentJobTracker.failJob(job.id, "replaced by a new harvest pass");
+    }
+    const jobId = await agentJobTracker.createJob(
+      "harvest",
+      FACTORY_JOB_USER,
+      "harvest",
+      "Harvest mailboxes",
+      `Verify company mailboxes on ${total} files without an email`,
+      total
+    );
+    try {
+      const { patches } = await refillSendableHopper({
+        deals: latest,
+        deps: liveAttachDeps(),
+        now,
+        onProgress: async (row) => {
+          const current = await agentJobTracker.getJob(jobId);
+          if (!current || current.status !== "running") {
+            const { JobStoppedError } = await import("./agentJobTracker");
+            throw new JobStoppedError();
+          }
+          const step = row.phase === "start" ? row.index : row.index;
+          const message =
+            row.phase === "start"
+              ? `Checking ${row.companyName} (${row.index + 1}/${row.total})`
+              : row.email
+                ? `Attached ${row.email} on ${row.companyName}`
+                : `No verified mailbox for ${row.companyName}`;
+          await agentJobTracker.updateProgress(jobId, row.companyName, step, message, row.email ? "success" : "info");
+        },
+      });
+      await agentJobTracker.completeJob(jobId, {
+        files: patches.length,
+        attached: patches.filter((row) => row.patch.hopper === "sendable").length,
+      });
+      return patches;
+    } catch (error) {
+      await agentJobTracker.failJob(jobId, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  } finally {
+    harvestBusy = false;
+  }
+}
+
 async function applySendableHopperPatches(
   opened: AgenticDealFile[]
 ): Promise<AgenticDealFile[]> {
-  const latest = await storage.listAgenticDeals();
-  const { patches } = await refillSendableHopper({ deals: latest, deps: liveAttachDeps() });
+  const patches = await runHarvestPass();
   const next = [...opened];
   for (const { id, patch } of patches) {
     const updated = await storage.updateAgenticDeal(id, patch);
@@ -575,11 +756,26 @@ export const agenticWorkflow = {
     const wantsIntroducer = streamFilter !== "sme" && !introducerWorkPaused();
     const opened: AgenticDealFile[] = [];
     const rejected: Record<string, number> = {};
-    let chargeOpened = 0;
+    if (wantsSme) {
+      try {
+        await applySendableHopperPatches([]);
+      } catch (error: any) {
+        console.warn("[Agentic] Existing-book attach failed:", error?.message || error);
+      }
+    }
     const existing = await storage.listAgenticDeals();
-    const seen = new Set(existing.map((deal) => deal.companyNumber).filter(Boolean));
+    const seen = new Set(
+      existing.map((deal) => deal.companyNumber).filter((value): value is string => Boolean(value))
+    );
     const ownerUserId = await resolveOwnerUserId();
     const booked = await loadBookedCompanyNumbers(ownerUserId);
+    let attachBudget = copyAttachBudget(DEFAULT_ATTACH_BUDGET);
+    let smeNeed = wantsSme
+      ? smeHuntNeed({
+          sendableUnsent: sendableUnsentCount(existing),
+          remainingSlots: remainingSmeFirstTouchSlots({ deals: existing }),
+        })
+      : 0;
     const inboundNumbers = new Set(
       existing
         .filter((deal) => deal.source === "strata_inbound" && deal.companyNumber)
@@ -591,6 +787,9 @@ export const agenticWorkflow = {
         .map((deal) => String(deal.email || "").trim().toLowerCase())
         .filter(Boolean)
     );
+    const suppressed = suppressionSets();
+    for (const email of suppressed.emails) inboundEmails.add(email);
+    for (const number of suppressed.numbers) inboundNumbers.add(number);
     let scanned = 0;
 
     const gazetteByNumber = new Map<string, HmrcMarker>();
@@ -601,7 +800,7 @@ export const agenticWorkflow = {
         gazetteByNumber.set(marker.companyNumber, marker);
         // HMRC petitions are always a direct-SME distress signal, never an introducer one.
         if (!wantsSme) continue;
-        if (opened.length >= GAZETTE_HMRC_LIMIT) continue;
+        if (smeNeed <= 0) continue;
         if (seen.has(marker.companyNumber) || booked.has(marker.companyNumber)) continue;
         if (
           isExcludedFromSmeHunt(
@@ -659,40 +858,48 @@ export const agenticWorkflow = {
               .filter(Boolean)
               .join(", ")
           : undefined;
-        const deal = await storage.createAgenticDeal({
-          source: "distress_scan",
-          stream: "sme",
-          ...GATED_SME_HUNT_HOLD,
-          ownerUserId,
-          companyName,
-          companyNumber: marker.companyNumber,
-          placeAddress: address,
-          fitScore: fit.pass ? fit.score : undefined,
-          fitReasons: fit.pass ? fit.reasons : [huntSummary],
-          fitSummary: fit.pass ? fit.summary : huntSummary,
-          petition: toDealPetition(marker),
-          nonBankChargeCount: hunt.liveNonBankChargeCount,
-          lastSignalAt: marker.publishedAt,
-          incorporatedAt: profile?.date_of_creation,
-          events: [
-            {
-              at: nowIso(),
-              stage: "ingest",
-              agent: "database-builder",
-              message: `SIG-02 Gazette HMRC petition: ${companyName} — ${marker.note}`,
-            },
-          ],
-        });
-        opened.push(await holdOpenedGatedSme(deal, address));
+        const attached = await persistIfSendableSme(
+          {
+            ownerUserId,
+            companyName,
+            companyNumber: marker.companyNumber,
+            placeAddress: address,
+            fitScore: fit.pass ? fit.score : undefined,
+            fitReasons: fit.pass ? fit.reasons : [huntSummary],
+            fitSummary: fit.pass ? fit.summary : huntSummary,
+            petition: toDealPetition(marker),
+            chargeHolders: registeredChargeHoldersFromNames(lendersForCompany(marker.companyNumber)),
+            nonBankChargeCount: hunt.liveNonBankChargeCount,
+            lastSignalAt: marker.publishedAt,
+            incorporatedAt: profile?.date_of_creation,
+            events: [
+              {
+                at: nowIso(),
+                stage: "ingest",
+                agent: "database-builder",
+                message: `SIG-02 Gazette HMRC petition: ${companyName} — ${marker.note}`,
+              },
+            ],
+          },
+          attachBudget,
+          inboundEmails
+        );
+        attachBudget = attached.budget;
+        if (!attached.deal) {
+          bumpReject(rejected, attached.drop || "no corporate mailbox");
+          continue;
+        }
+        opened.push(attached.deal);
+        smeNeed -= 1;
       }
     } catch (error: any) {
       console.warn("[Agentic] Gazette HMRC ingest failed:", error?.message || error);
       bumpReject(rejected, "Gazette HMRC ingest failed");
     }
 
-    const finderPool = listLeadFinderCandidates(400);
+    const finderPool = listLeadFinderCandidates(Math.max(limit, 1200));
     for (const candidate of finderPool) {
-      if (chargeOpened >= limit) break;
+      if (smeNeed <= 0) break;
       const companyNumber = candidate.companyNumber;
       if (seen.has(companyNumber) || booked.has(companyNumber)) continue;
       if (
@@ -795,38 +1002,45 @@ export const agenticWorkflow = {
       if (!wantsSme) continue;
       const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, hasPetition);
       const petition = hasPetition ? toDealPetition(gazetteByNumber.get(companyNumber)!) : undefined;
-      const deal = await storage.createAgenticDeal({
-        source: "distress_scan",
-        stream: "sme",
-        ...GATED_SME_HUNT_HOLD,
-        ownerUserId,
-        companyName: candidate.companyName,
-        companyNumber,
-        contactName: candidate.contactName,
-        email: candidate.email,
-        phone: candidate.phone,
-        website: candidate.website,
-        placeAddress: candidate.address,
-        fitScore: fit.pass ? fit.score : undefined,
-        fitReasons: fit.pass ? fit.reasons : [huntSummary],
-        fitSummary: fit.pass ? fit.summary : huntSummary,
-        petition,
-        nonBankChargeCount: hunt.liveNonBankChargeCount,
-        lastSignalAt: petition?.publishedAt || candidate.lastChargeDate,
-        incorporatedAt: candidate.incorporationDate,
-        events: [
-          {
-            at: nowIso(),
-            stage: "ingest",
-            agent: "database-builder",
-            message: fit.pass
-              ? `Strata fit ${fit.score}/100 from Lead Finder: ${candidate.companyName} — ${fit.reasons.join("; ")}`
-              : `${huntSummary} from Lead Finder: ${candidate.companyName}`,
-          },
-        ],
-      });
-      opened.push(await holdOpenedGatedSme(deal, candidate.address));
-      chargeOpened += 1;
+      const attached = await persistIfSendableSme(
+        {
+          ownerUserId,
+          companyName: candidate.companyName,
+          companyNumber,
+          contactName: candidate.contactName,
+          email: candidate.email,
+          phone: candidate.phone,
+          website: candidate.website,
+          placeAddress: candidate.address,
+          fitScore: fit.pass ? fit.score : undefined,
+          fitReasons: fit.pass ? fit.reasons : [huntSummary],
+          fitSummary: fit.pass ? fit.summary : huntSummary,
+          petition,
+          chargeHolders: registeredChargeHoldersFromNames(candidate.lenders),
+          nonBankChargeCount: hunt.liveNonBankChargeCount,
+          lastSignalAt: petition?.publishedAt || candidate.lastChargeDate,
+          incorporatedAt: candidate.incorporationDate,
+          events: [
+            {
+              at: nowIso(),
+              stage: "ingest",
+              agent: "database-builder",
+              message: fit.pass
+                ? `Strata fit ${fit.score}/100 from Lead Finder: ${candidate.companyName} — ${fit.reasons.join("; ")}`
+                : `${huntSummary} from Lead Finder: ${candidate.companyName}`,
+            },
+          ],
+        },
+        attachBudget,
+        inboundEmails
+      );
+      attachBudget = attached.budget;
+      if (!attached.deal) {
+        bumpReject(rejected, attached.drop || "no corporate mailbox");
+        continue;
+      }
+      opened.push(attached.deal);
+      smeNeed -= 1;
     }
 
     // The local Leads book only ever yields direct-SME candidates here — introducer
@@ -835,7 +1049,7 @@ export const agenticWorkflow = {
     const localLeads = wantsSme ? await storage.listInternalLeads() : [];
 
     for (const lead of localLeads) {
-      if (chargeOpened >= limit) break;
+      if (smeNeed <= 0) break;
       const companyNumber = String(lead.companyNumber || "");
       const companyName = lead.companyName;
       if (!companyNumber || companyNumber.startsWith("WEB-") || seen.has(companyNumber)) continue;
@@ -894,44 +1108,51 @@ export const agenticWorkflow = {
       const huntSummary = smeHuntFitSummary(hunt.liveNonBankChargeCount, hasPetition);
       const petition = hasPetition ? toDealPetition(gazetteByNumber.get(companyNumber)!) : undefined;
       const address = [lead.address, lead.city].filter(Boolean).join(", ") || undefined;
-      const deal = await storage.createAgenticDeal({
-        source: "distress_scan",
-        stream: "sme",
-        ...GATED_SME_HUNT_HOLD,
-        ownerUserId,
-        companyName,
-        companyNumber,
-        contactName: lead.contactName || undefined,
-        email: lead.email || undefined,
-        phone: lead.phone || undefined,
-        website: lead.website || undefined,
-        placeAddress: address,
-        fitScore: fit.pass ? fit.score : undefined,
-        fitReasons: fit.pass ? fit.reasons : [huntSummary],
-        fitSummary: fit.pass ? fit.summary : huntSummary,
-        petition,
-        nonBankChargeCount: hunt.liveNonBankChargeCount,
-        lastSignalAt: petition?.publishedAt || lead.chargeDate,
-        incorporatedAt: lead.incorporationDate,
-        events: [
-          {
-            at: nowIso(),
-            stage: "ingest",
-            agent: "database-builder",
-            message: fit.pass
-              ? `Strata fit ${fit.score}/100 from local book: ${companyName} — ${fit.reasons.join("; ")}`
-              : `${huntSummary} from local book: ${companyName}`,
-          },
-        ],
-      });
-      opened.push(await holdOpenedGatedSme(deal, address));
-      chargeOpened += 1;
+      const attached = await persistIfSendableSme(
+        {
+          ownerUserId,
+          companyName,
+          companyNumber,
+          contactName: lead.contactName || undefined,
+          email: lead.email || undefined,
+          phone: lead.phone || undefined,
+          website: lead.website || undefined,
+          placeAddress: address,
+          fitScore: fit.pass ? fit.score : undefined,
+          fitReasons: fit.pass ? fit.reasons : [huntSummary],
+          fitSummary: fit.pass ? fit.summary : huntSummary,
+          petition,
+          chargeHolders: registeredChargeHoldersFromNames([lead.identifiedLender]),
+          nonBankChargeCount: hunt.liveNonBankChargeCount,
+          lastSignalAt: petition?.publishedAt || lead.chargeDate,
+          incorporatedAt: lead.incorporationDate,
+          events: [
+            {
+              at: nowIso(),
+              stage: "ingest",
+              agent: "database-builder",
+              message: fit.pass
+                ? `Strata fit ${fit.score}/100 from local book: ${companyName} — ${fit.reasons.join("; ")}`
+                : `${huntSummary} from local book: ${companyName}`,
+            },
+          ],
+        },
+        attachBudget,
+        inboundEmails
+      );
+      attachBudget = attached.budget;
+      if (!attached.deal) {
+        bumpReject(rejected, attached.drop || "no corporate mailbox");
+        continue;
+      }
+      opened.push(attached.deal);
+      smeNeed -= 1;
     }
 
-    if (chargeOpened < limit && !chCooldownUntil()) {
+    if (smeNeed > 0 && !chCooldownUntil()) {
       const locations = ["Leicester", "Nottingham", "Derby"];
       for (const location of locations) {
-        if (chargeOpened >= limit) break;
+        if (smeNeed <= 0) break;
         const params = new URLSearchParams({
           company_status: "active",
           company_type: "ltd",
@@ -955,7 +1176,7 @@ export const agenticWorkflow = {
             continue;
           }
           for (const item of result.data?.items || []) {
-            if (chargeOpened >= limit) break;
+            if (smeNeed <= 0) break;
             const companyNumber = item.company_number;
             const companyName = item.company_name;
             if (!companyNumber || seen.has(companyNumber)) continue;
@@ -1062,34 +1283,41 @@ export const agenticWorkflow = {
                   .filter(Boolean)
                   .join(", ")
               : undefined;
-            const deal = await storage.createAgenticDeal({
-              source: "distress_scan",
-              stream: "sme",
-              ...GATED_SME_HUNT_HOLD,
-              ownerUserId,
-              companyName,
-              companyNumber,
-              placeAddress: address,
-              fitScore: fit.pass ? fit.score : undefined,
-              fitReasons: fit.pass ? fit.reasons : [huntSummary],
-              fitSummary: fit.pass ? fit.summary : huntSummary,
-              petition,
-              nonBankChargeCount: hunt.liveNonBankChargeCount,
-              lastSignalAt: petition?.publishedAt || newestChargeCreatedOn(fit.charges),
-              incorporatedAt: item.date_of_creation,
-              events: [
-                {
-                  at: nowIso(),
-                  stage: "ingest",
-                  agent: "database-builder",
-                  message: fit.pass
-                    ? `Strata fit ${fit.score}/100: ${companyName} — ${fit.reasons.join("; ")}`
-                    : `${huntSummary}: ${companyName}`,
-                },
-              ],
-            });
-            opened.push(await holdOpenedGatedSme(deal, address));
-            chargeOpened += 1;
+            const attached = await persistIfSendableSme(
+              {
+                ownerUserId,
+                companyName,
+                companyNumber,
+                placeAddress: address,
+                fitScore: fit.pass ? fit.score : undefined,
+                fitReasons: fit.pass ? fit.reasons : [huntSummary],
+                fitSummary: fit.pass ? fit.summary : huntSummary,
+                petition,
+                chargeHolders: registeredChargeHolders(fit.charges || []),
+                nonBankChargeCount: hunt.liveNonBankChargeCount,
+                lastSignalAt: petition?.publishedAt || newestChargeCreatedOn(fit.charges),
+                incorporatedAt: item.date_of_creation,
+                events: [
+                  {
+                    at: nowIso(),
+                    stage: "ingest",
+                    agent: "database-builder",
+                    message: fit.pass
+                      ? `Strata fit ${fit.score}/100: ${companyName} — ${fit.reasons.join("; ")}`
+                      : `${huntSummary}: ${companyName}`,
+                  },
+                ],
+              },
+              attachBudget,
+              inboundEmails
+            );
+            attachBudget = attached.budget;
+            if (!attached.deal) {
+              bumpReject(rejected, attached.drop || "no corporate mailbox");
+              continue;
+            }
+            opened.push(attached.deal);
+            smeNeed -= 1;
           }
         } catch (error) {
           console.warn(`[Agentic] Distress search failed for ${location}:`, error);
@@ -1160,7 +1388,137 @@ export const agenticWorkflow = {
     console.log(
       `[Agentic] Hunt scanned ${scanned}, opened ${hunted.length}, rejected ${JSON.stringify(rejected)}`
     );
+    if (wantsSme) {
+      await persistHuntQuality({
+        scanned,
+        deliverable: hunted.filter((deal) => deal.hopper === "sendable" || deal.mailboxGrade).length,
+        director: hunted.filter((deal) => deal.mailboxGrade === "director").length,
+        role: hunted.filter((deal) => deal.mailboxGrade === "role").length,
+        rejected,
+        budgetRemaining: attachBudget,
+        chCooldown: Boolean(chCooldownUntil()),
+      });
+    }
     return { deals: hunted, scanned, rejected };
+  },
+
+  async getHuntQuality() {
+    return loadHuntQuality();
+  },
+
+  async keepQuarantine(dealId: number, extras?: { email?: string; contactName?: string }): Promise<AgenticDealFile> {
+    const deal = await storage.getAgenticDeal(dealId);
+    if (!deal) throw new Error("Deal file not found");
+    if (deal.hopper !== "quarantine") throw new Error("This file is not in quarantine");
+    const email = String(extras?.email || deal.email || "").trim();
+    const contactName = String(extras?.contactName || deal.contactName || "").trim();
+    const working = {
+      ...deal,
+      email: email || deal.email,
+      contactName: contactName || deal.contactName,
+    };
+    const inbound = inboundEmailsFromDeals(await storage.listAgenticDeals());
+    const { dealPatch } = await attachOne(working, liveAttachDeps(), copyAttachBudget(DEFAULT_ATTACH_BUDGET), new Date(), inbound);
+    if (dealPatch.hopper !== "sendable") {
+      return storage.updateAgenticDeal(deal.id, {
+        email: email || deal.email,
+        contactName: contactName || deal.contactName,
+        humanReason: "Add a corporate mailbox before keeping this file",
+        events: addEvent(deal, deal.stage, "Keep requested — still needs a corporate mailbox", "database-builder"),
+      }) as Promise<AgenticDealFile>;
+    }
+    return storage.updateAgenticDeal(deal.id, {
+      ...dealPatch,
+      events: addEvent({ ...deal, events: deal.events }, "outreach", "Restored from quarantine", "database-builder"),
+    }) as Promise<AgenticDealFile>;
+  },
+
+  async deleteQuarantine(dealId: number): Promise<void> {
+    const deal = await storage.getAgenticDeal(dealId);
+    if (!deal) throw new Error("Deal file not found");
+    if (deal.hopper !== "quarantine") throw new Error("This file is not in quarantine");
+    if (isProtectedFromQuarantine(deal)) throw new Error("This file cannot be deleted from quarantine");
+    await storage.deleteAgenticDeal(dealId);
+  },
+
+  async sweepUncontactableSme(): Promise<{ attached: number; kept: number; discarded: number }> {
+    const deals = await storage.listAgenticDeals();
+    const holderIndex = lendersByCompanyNumber();
+    const inbound = inboundEmailsFromDeals(deals);
+    for (const email of suppressionSets().emails) inbound.add(email);
+    let budget = copyAttachBudget(DEFAULT_ATTACH_BUDGET);
+    let attached = 0;
+    let kept = 0;
+    let discarded = 0;
+
+    for (const deal of deals) {
+      if (isNoiseDeal(deal)) continue;
+      if (deal.stream === "introducer") continue;
+      const holders = dealChargeHolders(
+        deal,
+        lendersForCompany(deal.companyNumber, holderIndex)
+      );
+
+      if (isProtectedFromQuarantine(deal) || isContactableDeal(deal)) {
+        const patch: Record<string, unknown> = {};
+        if (
+          holders.length &&
+          holders.join("\0") !== (deal.chargeHolders || []).join("\0")
+        ) {
+          patch.chargeHolders = holders;
+        }
+        if (
+          isContactableDeal(deal) &&
+          !isProtectedFromQuarantine(deal) &&
+          deal.hopper !== "sendable" &&
+          deal.hopper !== "queued"
+        ) {
+          patch.hopper = "sendable";
+          patch.stage = "outreach";
+          patch.status = "waiting_timer";
+        }
+        if (Object.keys(patch).length) await storage.updateAgenticDeal(deal.id, patch);
+        kept += 1;
+        continue;
+      }
+
+      const { dealPatch, budget: next } = await attachOne(deal, liveAttachDeps(), budget, new Date(), inbound);
+      budget = next;
+      const merged = { ...deal, ...dealPatch };
+      if (dealPatch.hopper === "sendable" && isContactableDeal(merged)) {
+        await storage.updateAgenticDeal(deal.id, {
+          ...dealPatch,
+          chargeHolders: holders,
+          events: addEvent(
+            { ...deal, events: deal.events },
+            "outreach",
+            `Contactable: ${dealPatch.email}${holders.length ? ` · charge: ${holders.join(", ")}` : ""}`,
+            "contact-finder"
+          ),
+        });
+        attached += 1;
+        kept += 1;
+        continue;
+      }
+
+      await storage.deleteAgenticDeal(deal.id);
+      discarded += 1;
+    }
+
+    console.log(`[Agentic] Uncontactable sweep: kept ${kept}, attached ${attached}, discarded ${discarded}`);
+    return { attached, kept, discarded };
+  },
+
+  async purgeQuarantine(): Promise<{ deleted: number }> {
+    const deals = await storage.listAgenticDeals();
+    let deleted = 0;
+    for (const deal of deals) {
+      if (deal.hopper !== "quarantine") continue;
+      if (isProtectedFromQuarantine(deal)) continue;
+      await storage.deleteAgenticDeal(deal.id);
+      deleted += 1;
+    }
+    return { deleted };
   },
 
   async startSmeOutreachBatch(limit = SME_DAILY_FIRST_TOUCH_CAP): Promise<DistressHuntResult> {
@@ -1173,7 +1531,11 @@ export const agenticWorkflow = {
 
     const ownerUserId = await resolveOwnerUserId();
     const booked = await loadBookedCompanyNumbers(ownerUserId);
-    const hopperDeals = rankSendable(existing.filter(isSmeHopperSendable).map(withHopperRank));
+    const hopperDeals = rankSendable(
+      existing
+        .filter((deal) => isSmeHopperSendable(deal) && !mailIsSuppressed(deal.email, deal.companyNumber))
+        .map(withHopperRank)
+    );
     const hopperCandidates = hopperDeals.map(toSmeOutreachCandidate);
 
     const seenNumbers = new Set<string>();
@@ -1627,7 +1989,7 @@ export const agenticWorkflow = {
     const following = nextCadenceStep(stream, nextTouch);
     const isLinkedIn = step.channel === "linkedin";
 
-    const pecrReason = coldEmailBlockedReason(deal.email, stream);
+    const pecrReason = outreachBlockReason(deal.email, stream, deal.companyNumber, deal.companyName);
     const needsApproval = smeEmailNeedsApproval({ stream, isLinkedIn });
     let delivered = !step.autoSend || isLinkedIn;
     if (step.autoSend && !isLinkedIn && pecrReason) {
@@ -1862,7 +2224,12 @@ export const agenticWorkflow = {
     );
     const gaps = deal.sfp?.missing?.length ? deal.sfp.missing.join("; ") : namedPackGaps(deal).join("; ");
     if (deal.email) {
-      const pecrReason = coldEmailBlockedReason(deal.email, dealStream(deal.source, deal.stream));
+      const pecrReason = outreachBlockReason(
+        deal.email,
+        dealStream(deal.source, deal.stream),
+        deal.companyNumber,
+        deal.companyName
+      );
       if (!pecrReason) {
         try {
           await sendEmail(
@@ -2016,7 +2383,7 @@ export const agenticWorkflow = {
     if (!deal.email || !deal.outreachSubject || !deal.outreachBody) {
       throw new Error("Draft email is missing");
     }
-    const pecrReason = coldEmailBlockedReason(deal.email, stream);
+    const pecrReason = outreachBlockReason(deal.email, stream, deal.companyNumber, deal.companyName);
     if (pecrReason) {
       return storage.updateAgenticDeal(deal.id, {
         stage: "outreach",
@@ -2293,39 +2660,68 @@ export const agenticWorkflow = {
     return updated;
   },
 
+  async harvestMailboxes(): Promise<{ patched: number; summary: string }> {
+    const patches = await runHarvestPass();
+    for (const { id, patch } of patches) {
+      await storage.updateAgenticDeal(id, patch);
+    }
+    const patched = patches.length;
+    return {
+      patched,
+      summary: patched
+        ? `Harvest worked ${patched} file${patched === 1 ? "" : "s"} without an email.`
+        : "Harvest found no files ready to work.",
+    };
+  },
+
+  async ingestHarvestCsv(csvData: string, fileName: string) {
+    const { ingestHarvestCsv } = await import("./harvestCsv");
+    const ownerUserId = await resolveOwnerUserId();
+    const result = await ingestHarvestCsv({ csvData, fileName, ownerUserId });
+    if (result.created) {
+      void this.harvestMailboxes().catch((error) => {
+        console.error("[Agentic] Harper CSV harvest failed:", error);
+      });
+    }
+    return result;
+  },
+
   async tick(): Promise<number> {
-    const due = (await storage.listAgenticDeals()).filter(
-      (deal) =>
-        deal.status === "waiting_timer" &&
-        deal.waitUntil &&
-        new Date(deal.waitUntil).getTime() <= Date.now() &&
-        (isSmeHuntContactRetry(deal) || shouldProcessAgenticTick(deal))
-    );
-    const huntDue = due.filter(isSmeHuntContactRetry);
-    if (huntDue.length) {
+    if (tickBusy) return 0;
+    tickBusy = true;
+    try {
       try {
         await applySendableHopperPatches([]);
       } catch (error) {
         console.error("[Agentic] Hopper refill on tick failed:", error);
       }
-    }
-    for (const deal of due) {
-      if (isSmeHuntContactRetry(deal)) continue;
-      try {
-        const kind = tickKindForDeal(deal);
-        if (kind === "fulfilment") await this.runFulfilment(deal);
-        if (kind === "introducer_retry") {
-          const hunted = await this.completeContact(deal);
-          await this.promoteToIntroducerPipeline(hunted);
+      const due = (await storage.listAgenticDeals()).filter(
+        (deal) =>
+          deal.status === "waiting_timer" &&
+          deal.waitUntil &&
+          new Date(deal.waitUntil).getTime() <= Date.now() &&
+          (isSmeHuntContactRetry(deal) || shouldProcessAgenticTick(deal))
+      );
+      for (const deal of due) {
+        if (isSmeHuntContactRetry(deal)) continue;
+        try {
+          const kind = tickKindForDeal(deal);
+          if (kind === "fulfilment") await this.runFulfilment(deal);
+          if (kind === "introducer_retry") {
+            const hunted = await this.completeContact(deal);
+            await this.promoteToIntroducerPipeline(hunted);
+          }
+          if (kind === "outreach_retry") {
+            const hunted = await this.completeContact(deal);
+            await this.sendOutreach(hunted);
+          }
+        } catch (error) {
+          console.error(`[Agentic] Tick failed for deal ${deal.id}:`, error);
         }
-        if (kind === "outreach_retry") {
-          const hunted = await this.completeContact(deal);
-          await this.sendOutreach(hunted);
-        }
-      } catch (error) {
-        console.error(`[Agentic] Tick failed for deal ${deal.id}:`, error);
       }
+      return due.length;
+    } finally {
+      tickBusy = false;
     }
-    return due.length;
   },
 };

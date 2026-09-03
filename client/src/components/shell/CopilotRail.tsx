@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, ChevronRight, ArrowRight, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { attentionFromDeals } from "@shared/attention";
+import { attentionFromDeals, attentionFromMail } from "@shared/attention";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
 
 interface CopilotRailProps {
@@ -32,7 +32,13 @@ export function CopilotRail({ collapsed, onToggle, locked }: CopilotRailProps) {
   const { data: deals = [] } = useQuery<AgenticDealFile[]>({
     queryKey: ["/api/agentic/deals"],
   });
-  const items = attentionFromDeals(deals);
+  const { data: mailBox } = useQuery<{ messages?: Array<{ id: string; from?: string; subject?: string; createdAt?: string; deskKind?: string; deskNote?: string; direction?: string }> }>({
+    queryKey: ["/api/agent-mail"],
+    refetchInterval: 20_000,
+  });
+  const items = [...attentionFromDeals(deals), ...attentionFromMail(mailBox?.messages || [])].sort(
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+  );
 
   if (collapsed) {
     return (

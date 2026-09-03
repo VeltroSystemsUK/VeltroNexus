@@ -132,6 +132,18 @@ export function copyFieldForNodeName(name: string): keyof CraftCopyPatch | null 
   return null;
 }
 
+/** Queue posts cap board overlay typing. Templates (LinkedIn banner, etc.) do not. */
+export function canvasCopyLimit(nodeName: string, assetId: string | null | undefined): number | undefined {
+  if (!assetId?.startsWith("mkt-")) return undefined;
+  const field = copyFieldForNodeName(nodeName);
+  if (field === "eyebrow") return COPY_LIMITS.eyebrow;
+  if (field === "hook") return COPY_LIMITS.hook;
+  if (field === "hook2") return COPY_LIMITS.hook2;
+  if (field === "body") return COPY_LIMITS.body;
+  if (field === "cta") return COPY_LIMITS.cta;
+  return undefined;
+}
+
 export function copyPatchFromNode(name: string, text: string): CraftCopyPatch | null {
   const field = copyFieldForNodeName(name);
   if (!field) return null;

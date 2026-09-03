@@ -1,8 +1,8 @@
 ---
 document: corporate_structure.md
 business: Strata Finance (operated on Nexus)
-version: 1.1
-date: 2026-08-31
+version: 1.2
+date: 2026-09-02
 owner: Shaun
 ---
 
@@ -27,8 +27,8 @@ Agents do not replace Shaun with customers. They remove the admin so Shaun can t
 | Agent ID | Desk name (existing Nexus id) | Tier | Function |
 |---|---|---|---|
 | ORC-1 | Orchestrator (`agenticWorkflow`) | 1 | Stage machine. Routes work. Enforces gates. Never chats as a person. |
-| RES-2 | Origination — Daniel Crowe / Maya Hart / Elena Ward (`database-builder`, `inbound-intake`, `contact-finder`) | 2 | Find, match company, complete contact, open deal file |
-| SAL-2 | Communications — James Hale / Sophie Reed (`outreach-sales`, `fulfilment-manager`) | 2 | Template cadence, pack request, chase, LinkedIn *drafts*, queue Shaun’s calls |
+| RES-2 | Origination — Daniel Crowe / Maya Hart / Elena Ward / Harper Cole (`database-builder`, `inbound-intake`, `contact-finder`, `harvest`) | 2 | Find, match company, complete contact, harvest mailboxes, open deal file |
+| SAL-2 | Communications — James Hale / Sophie Reed / Rowan Vale (`outreach-sales`, `fulfilment-manager`, `mailbox-clerk`) | 2 | Template cadence, pack request, chase, inbox triage, LinkedIn *drafts*, queue Shaun’s calls |
 | FIN-2 | File factory — Priya Shah (`deal-processing-underwriter`) | 2 | Ingest → SFP → credit memo recommendation → completeness → Sterling zip |
 | MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: Craft week + email templates + Editorial blogs/press releases from MKT-3 ammo and MKT-4 stills; never posts |
 | MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | Strata-desk only (stacked debt, HMRC TTP, CDFI) plus relevant public news; Creative Ammo Briefs and Editorial topic-scan notes for Isla; no tangents; never writes final ad copy |
@@ -52,10 +52,10 @@ Owns the stage rail: ingest → company_match → enrich → pipeline → outrea
 Does not improvise. Does not call Gemini to “be a manager”.
 
 **RES-2 Origination**  
-Owns: hunt (Stream A SME / Stream B introducer), inbound Companies House match, contact enrichment, opening the pipeline lead marked Strata.
+Owns: hunt (Stream A SME / Stream B introducer), inbound Companies House match, contact enrichment, mailbox harvest on every real SME lead without an email, opening the pipeline lead marked Strata. Harper Cole (`harvest`) runs the domain+SMTP engine on gated, hunt-contact, quarantine, and empty-hopper files. Never invents `info@`. Never treats a registry page as the company website.
 
 **SAL-2 Communications**  
-Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file.
+Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file. Rowan Vale (`mailbox-clerk`) owns the shared inbox: STOP/unsubscribe is a permanent suppression + deal delete; bounces get a reason; spam is deleted; a live customer reply is Shaun’s immediately.
 
 **FIN-2 File factory**  
 Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep, credit memo *recommendation*, completeness gate, compilation of the Sterling zip.
@@ -78,7 +78,7 @@ Owns: Media Gallery index. Hunts Unsplash, Pexels, Openverse, and Firecrawl imag
 | Companies House / Gazette / charge hunt | RES-2 | Fit score < 70 or SIG-06 → drop, do not contact |
 | Ambiguous CH match | ORC-1 → Shaun | `waiting_human` |
 | Inbound stratafinance.co.uk enquiry | RES-2 (Maya desk) | Always open a file |
-| Missing email/phone | RES-2 (Elena desk) | One retry next day, then SAL-2 proceeds with what exists or parks |
+| Missing email/phone | RES-2 (Elena desk inbound/introducer; Harper desk SME harvest) | Elena: one retry next day. Harper: domain-locked SMTP harvest on every real SME file without an email, including quarantine. Skip test companies. |
 | First template email (cold or inbound ack) | SAL-2 | Auto-send if SMTP live and PECR stop line present |
 | Cadence follow-up email | SAL-2 | Auto on timer |
 | LinkedIn | SAL-2 drafts, Shaun posts | Never auto-post |
