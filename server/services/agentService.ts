@@ -3,6 +3,7 @@ import { DigitalAssociate, AssociateStatus } from "@shared/agents";
 import { MARKETING_DIRECTOR_PROMPT } from "@shared/craftDirector";
 import { MARKET_RESEARCHER_PROMPT } from "@shared/craftScout";
 import { MEDIA_CURATOR_PROMPT } from "@shared/mediaCurator";
+import { REPORTER_DIGEST_PROMPT } from "./reporterAgent";
 
 const CORE_WORKFORCE: DigitalAssociate[] = [
   {
@@ -863,6 +864,58 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
         },
       ],
       edges: [{ id: "e-kit-hunt-save", source: "curate-gallery", target: "save-uploads", label: "click" }],
+    },
+  },
+  {
+    id: "reporter",
+    name: "Reporter",
+    email: "reporter@stratanexus.co.uk",
+    role: "News Curator",
+    department: "Marketing",
+    status: AssociateStatus.AVAILABLE,
+    avatar: "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&q=80&w=400",
+    expertise: [
+      "UK Commercial Finance news",
+      "UK Economy news",
+      "UK Politics news",
+      "Source-grounded digests",
+    ],
+    tools: ["Firecrawl", "Editorial", "Strata Learn News"],
+    description:
+      "Curates a daily UK news digest for each Strata Learn News section. Drafts only — never approves, clears, or publishes.",
+    hourlyRate: 0,
+    scores: [
+      { subject: "Source grounding", A: 96, fullMark: 100 },
+      { subject: "Timeliness", A: 90, fullMark: 100 },
+    ],
+    voiceEnabled: false,
+    aresCertification: { status: "certified", score: 90 },
+    workflow: {
+      jobDescription: REPORTER_DIGEST_PROMPT,
+      responsibilities: [
+        "Research today's UK Commercial Finance, UK Economy, and UK Politics news",
+        "Draft one digest per section into Editorial as type \"news\"",
+        "Never invent a story or a source URL — leave it out if the notes don't cover it",
+        "Never approve, clear compliance, or publish — a human always does",
+      ],
+      tasks: [
+        {
+          id: "daily-digest",
+          name: "Curate daily digest",
+          description: "Research and draft one news digest per Learn News section.",
+          trigger: "scheduled",
+          steps: [
+            "06:00 Europe/London, once per section per day",
+            "Search live sources for the section's topic",
+            "Draft the digest grounded only in what was found",
+            "Save as an Editorial draft, status pending compliance",
+          ],
+          expectedOutput: "Editorial draft per section, awaiting your review and Publish to Learn",
+          x: 0,
+          y: 80,
+          shape: "circle",
+        },
+      ],
     },
   },
 ];

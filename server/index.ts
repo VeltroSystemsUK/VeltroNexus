@@ -291,6 +291,10 @@ app.use((req: any, res, next) => {
           const { reportingService } = await import("./services/reportingService");
           reportingService.start();
 
+          // Start the Reporter's daily News digest (drafts only, never auto-published)
+          const { reporterAgentService } = await import("./services/reporterAgent");
+          reporterAgentService.start();
+
           // Start Lead Finder autonomous agent
           const { getScheduler } = await import("./Lead Agent/src/scheduler.js");
           const leadFinderScheduler = getScheduler();
