@@ -210,9 +210,13 @@ export default function Editorial() {
     if (!selected) return;
     const handle = window.setTimeout(() => {
       if (title === selected.title && body === (selected.body || "")) return;
-      apiRequest(`/api/editorial/${selected.id}`, "PATCH", { title, body }).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/editorial"] });
-      });
+      apiRequest(`/api/editorial/${selected.id}`, "PATCH", { title, body })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/editorial"] });
+        })
+        .catch((err: Error) => {
+          toast.error(`Not saved: ${err.message}`);
+        });
     }, 600);
     return () => window.clearTimeout(handle);
   }, [title, body, selected?.id]);

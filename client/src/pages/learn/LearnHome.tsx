@@ -163,34 +163,44 @@ export function LearnPieceCard({
 }) {
   const href = pieceHref(piece.kind, piece.slug);
   const action = piece.kind === "news" ? "News" : piece.kind === "article" ? "Read" : "Watch";
+  const showBackgroundImage = piece.kind === "news" && Boolean(piece.heroImageUrl);
   return (
     <Link
       href={href}
-      className={`block rounded-xl border border-white/10 bg-white/[0.03] hover:border-emerald-400/40 transition-colors ${
+      className={`relative overflow-hidden block rounded-xl border border-white/10 bg-white/[0.03] hover:border-emerald-400/40 transition-colors ${
         featured ? "p-8 md:p-10" : "p-5"
       }`}
     >
-      {piece.pathPosition != null && (
-        <span className="font-['Space_Mono'] text-emerald-400 text-sm">
-          {String(piece.pathPosition).padStart(2, "0")}
-        </span>
+      {showBackgroundImage && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center opacity-15"
+          style={{ backgroundImage: `url(${piece.heroImageUrl})` }}
+        />
       )}
-      <h3
-        className={`font-['Unbounded'] tracking-tight text-zinc-50 mt-2 ${
-          featured ? "text-3xl md:text-4xl" : "text-lg"
-        }`}
-      >
-        {piece.title}
-      </h3>
-      {piece.excerpt && (
-        <p className={`text-zinc-400 mt-2 ${featured ? "text-base max-w-2xl" : "text-sm line-clamp-2"}`}>
-          {piece.excerpt}
+      <div className="relative">
+        {piece.pathPosition != null && (
+          <span className="font-['Space_Mono'] text-emerald-400 text-sm">
+            {String(piece.pathPosition).padStart(2, "0")}
+          </span>
+        )}
+        <h3
+          className={`font-['Unbounded'] tracking-tight text-zinc-50 mt-2 ${
+            featured ? "text-3xl md:text-4xl" : "text-lg"
+          }`}
+        >
+          {piece.title}
+        </h3>
+        {piece.excerpt && (
+          <p className={`text-zinc-400 mt-2 ${featured ? "text-base max-w-2xl" : "text-sm line-clamp-2"}`}>
+            {piece.excerpt}
+          </p>
+        )}
+        <p className="mt-4 text-xs uppercase tracking-wide text-emerald-400">
+          {action}
+          {piece.durationLabel ? ` · ${piece.durationLabel}` : ""}
         </p>
-      )}
-      <p className="mt-4 text-xs uppercase tracking-wide text-emerald-400">
-        {action}
-        {piece.durationLabel ? ` · ${piece.durationLabel}` : ""}
-      </p>
+      </div>
     </Link>
   );
 }
