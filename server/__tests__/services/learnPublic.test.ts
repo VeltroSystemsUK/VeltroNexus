@@ -8,6 +8,7 @@ vi.mock("../../storage", () => ({
     getLiveLearnPieceBySlug: vi.fn(),
     getLearnPiece: vi.fn(),
     incrementLearnHelped: vi.fn(),
+    incrementLearnNotHelped: vi.fn(),
     insertLearnBotLog: vi.fn(),
     listLiveNewsComments: vi.fn(),
     listNewsComments: vi.fn(),
@@ -25,6 +26,7 @@ const mocked = storage as unknown as {
   getLiveLearnPieceBySlug: ReturnType<typeof vi.fn>;
   getLearnPiece: ReturnType<typeof vi.fn>;
   incrementLearnHelped: ReturnType<typeof vi.fn>;
+  incrementLearnNotHelped: ReturnType<typeof vi.fn>;
   insertLearnBotLog: ReturnType<typeof vi.fn>;
   listLiveNewsComments: ReturnType<typeof vi.fn>;
   listNewsComments: ReturnType<typeof vi.fn>;
@@ -125,6 +127,7 @@ describe("learn public API host split", () => {
     mocked.getLiveLearnPieceBySlug.mockResolvedValue(piece);
     mocked.getLearnPiece.mockResolvedValue(piece);
     mocked.incrementLearnHelped.mockResolvedValue({ ...piece, thisHelped: 5 });
+    mocked.incrementLearnNotHelped.mockResolvedValue({ ...piece, thisNotHelped: 3 });
     mocked.insertLearnBotLog.mockResolvedValue({ id: 1 });
     mocked.listLiveNewsComments.mockResolvedValue([]);
     mocked.listNewsComments.mockResolvedValue([]);
@@ -157,6 +160,35 @@ describe("learn public API host split", () => {
     expect(again.status).toBe(200);
     expect(again.body.thisHelped).toBe(4);
     expect(mocked.incrementLearnHelped).not.toHaveBeenCalled();
+  });
+
+  it("thumbs up and down a news post, each once per cookie", async () => {
+    mocked.getLearnPiece.mockResolvedValue({ ...piece, kind: "news" });
+
+    const up = await post("/api/learn/news/1/like", "learn.stratanexus.co.uk");
+    expect(up.status).toBe(200);
+    expect(up.body.likes).toBe(5);
+    expect(mocked.incrementLearnHelped).toHaveBeenCalledTimes(1);
+
+    const upAgain = await post("/api/learn/news/1/like", "learn.stratanexus.co.uk", "learn_news_liked=1");
+    expect(upAgain.body.likes).toBe(4);
+    expect(mocked.incrementLearnHelped).toHaveBeenCalledTimes(1);
+
+    const down = await post("/api/learn/news/1/dislike", "learn.stratanexus.co.uk");
+    expect(down.status).toBe(200);
+    expect(down.body.dislikes).toBe(3);
+    expect(mocked.incrementLearnNotHelped).toHaveBeenCalledTimes(1);
+
+    const downAgain = await post("/api/learn/news/1/dislike", "learn.stratanexus.co.uk", "learn_news_disliked=1");
+    expect(downAgain.body.dislikes).toBe(0);
+    expect(mocked.incrementLearnNotHelped).toHaveBeenCalledTimes(1);
+  });
+
+  it("404s like/dislike for a non-news piece", async () => {
+    const up = await post("/api/learn/news/1/like", "learn.stratanexus.co.uk");
+    expect(up.status).toBe(404);
+    const down = await post("/api/learn/news/1/dislike", "learn.stratanexus.co.uk");
+    expect(down.status).toBe(404);
   });
 
   it("POST ask hands off eligibility without a model", async () => {

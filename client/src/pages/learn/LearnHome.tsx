@@ -199,6 +199,9 @@ export function LearnPieceCard({
         <p className="mt-4 text-xs uppercase tracking-wide text-emerald-400">
           {action}
           {piece.durationLabel ? ` · ${piece.durationLabel}` : ""}
+          {piece.kind === "news" && piece.publishedAt
+            ? ` · ${new Date(piece.publishedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+            : ""}
         </p>
       </div>
     </Link>

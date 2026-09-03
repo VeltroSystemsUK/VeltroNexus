@@ -621,6 +621,7 @@ export interface IStorage {
   upsertLiveLearnPiece(snapshot: LearnPiece): Promise<LearnPiece>;
   unpublishLearnPiece(id: number): Promise<LearnPiece | undefined>;
   incrementLearnHelped(id: number): Promise<LearnPiece | undefined>;
+  incrementLearnNotHelped(id: number): Promise<LearnPiece | undefined>;
   unpublishLearnPieceBySource(desk: "editorial" | "learn-video", sourceId: number): Promise<void>;
 
   // Learn bot logs

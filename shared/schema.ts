@@ -1425,6 +1425,7 @@ export const learnPieceSchema = z.object({
   pathPosition: z.number().int().min(1).max(6).nullable().optional().default(null),
   durationLabel: z.string().default(""),
   thisHelped: z.number().int().nonnegative().default(0),
+  thisNotHelped: z.number().int().nonnegative().default(0),
   source: learnPieceSourceSchema,
   category: learnNewsCategoryEnum.nullable().optional().default(null),
   live: z.boolean().default(false),

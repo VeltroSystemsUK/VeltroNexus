@@ -8,12 +8,12 @@ import { LearnCta, LearnNotFound, PackagerLine, setLearnMeta } from "./LearnHome
 
 type NewsPiece = LearnPiecePublic & { comments?: LearnNewsCommentPublic[] };
 
-function likedIds(): number[] {
+function cookieIds(name: string): number[] {
   const raw = document.cookie
     .split(";")
     .map((part) => part.trim())
-    .find((part) => part.toLowerCase().startsWith("learn_news_liked="))
-    ?.slice("learn_news_liked=".length);
+    .find((part) => part.toLowerCase().startsWith(`${name}=`))
+    ?.slice(`${name}=`.length);
   return parseLikedCookie(raw);
 }
 
@@ -27,6 +27,9 @@ export default function LearnNewsPost() {
   });
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(0);
+  const [disliked, setDisliked] = useState(false);
+  const [dislikes, setDislikes] = useState(0);
+  const [shareCopied, setShareCopied] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [body, setBody] = useState("");
@@ -37,7 +40,9 @@ export default function LearnNewsPost() {
     if (!piece) return;
     setLearnMeta(`${piece.title} — Strata Learn`, piece.excerpt || piece.title);
     setLikes(piece.thisHelped || 0);
-    setLiked(typeof piece.id === "number" && likedIds().includes(piece.id));
+    setDislikes(piece.thisNotHelped || 0);
+    setLiked(typeof piece.id === "number" && cookieIds("learn_news_liked").includes(piece.id));
+    setDisliked(typeof piece.id === "number" && cookieIds("learn_news_disliked").includes(piece.id));
   }, [piece]);
 
   const likeMutation = useMutation({
@@ -51,6 +56,37 @@ export default function LearnNewsPost() {
       setLikes(json.likes);
     },
   });
+
+  const dislikeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/learn/news/${id}/dislike`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error("dislike failed");
+      return (await res.json()) as { dislikes: number };
+    },
+    onSuccess: (json) => {
+      setDisliked(true);
+      setDislikes(json.dislikes);
+    },
+  });
+
+  async function onShare() {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: piece?.title, url });
+        return;
+      } catch {
+        return; // user cancelled the share sheet
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable; nothing to fall back to */
+    }
+  }
 
   const commentMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -77,6 +113,7 @@ export default function LearnNewsPost() {
 
   const comments = piece.comments ?? [];
   const canLike = typeof piece.id === "number" && !liked && !likeMutation.isPending;
+  const canDislike = typeof piece.id === "number" && !disliked && !dislikeMutation.isPending;
 
   function onComment(event: FormEvent) {
     event.preventDefault();
@@ -103,14 +140,31 @@ export default function LearnNewsPost() {
         dangerouslySetInnerHTML={{ __html: editorialMarkdownToHtml(piece.body, piece.title) }}
       />
 
-      <div>
+      <div className="flex flex-wrap gap-3">
         <button
           type="button"
           disabled={!canLike}
           onClick={() => typeof piece.id === "number" && likeMutation.mutate(piece.id)}
+          aria-pressed={liked}
           className="rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 disabled:opacity-50 hover:border-emerald-400/50"
         >
-          Like{likes ? ` · ${likes}` : ""}
+          👍 Thumbs up{likes ? ` · ${likes}` : ""}
+        </button>
+        <button
+          type="button"
+          disabled={!canDislike}
+          onClick={() => typeof piece.id === "number" && dislikeMutation.mutate(piece.id)}
+          aria-pressed={disliked}
+          className="rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 disabled:opacity-50 hover:border-emerald-400/50"
+        >
+          👎 Thumbs down{dislikes ? ` · ${dislikes}` : ""}
+        </button>
+        <button
+          type="button"
+          onClick={onShare}
+          className="rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 hover:border-emerald-400/50"
+        >
+          {shareCopied ? "Link copied" : "Share"}
         </button>
       </div>
 

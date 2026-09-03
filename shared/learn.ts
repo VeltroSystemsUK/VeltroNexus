@@ -48,6 +48,7 @@ export type LearnPieceLike = {
   pathPosition: number | null;
   durationLabel: string;
   thisHelped: number;
+  thisNotHelped: number;
   source: LearnPieceSource;
   live: boolean;
   publishedAt: string;
@@ -71,6 +72,7 @@ export type LearnPiecePublic = {
   pathPosition: number | null;
   durationLabel: string;
   thisHelped: number;
+  thisNotHelped: number;
   publishedAt: string;
   category?: NewsCategory | null;
 };
@@ -210,6 +212,7 @@ export function toLearnPublic(piece: LearnPieceLike): LearnPiecePublic {
     pathPosition: piece.pathPosition,
     durationLabel: piece.durationLabel,
     thisHelped: piece.thisHelped,
+    thisNotHelped: piece.thisNotHelped ?? 0,
     publishedAt: piece.publishedAt,
     category: piece.kind === "news" ? piece.category ?? null : undefined,
   };
@@ -299,6 +302,7 @@ export function snapshotLearnPiece(input: SnapshotLearnInput): LearnPieceLike {
     pathPosition: input.pathPosition ?? null,
     durationLabel: input.durationLabel || "",
     thisHelped: 0,
+    thisNotHelped: 0,
     source: input.source,
     category: input.kind === "news" ? input.category ?? null : null,
     live: true,

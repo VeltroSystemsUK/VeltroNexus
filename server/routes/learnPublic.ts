@@ -38,7 +38,9 @@ function cookieList(header: string | undefined, name: string): number[] {
     .map((part) => part.trim())
     .find((part) => part.toLowerCase().startsWith(`${name}=`))
     ?.slice(`${name}=`.length);
-  return name === "learn_news_liked" ? parseLikedCookie(raw) : parseHelpedCookie(raw);
+  return name === "learn_news_liked" || name === "learn_news_disliked"
+    ? parseLikedCookie(raw)
+    : parseHelpedCookie(raw);
 }
 
 function commentPepper(): string {
@@ -94,6 +96,22 @@ router.post("/learn/news/:id/like", async (req, res) => {
   }
   res.setHeader("Set-Cookie", `learn_news_liked=${likedCookieValue(ids)}; Path=/; SameSite=Lax; Max-Age=31536000`);
   res.json({ likes: thisHelped });
+});
+
+router.post("/learn/news/:id/dislike", async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  const already = cookieList(req.get("cookie"), "learn_news_disliked");
+  const row = await storage.getLearnPiece(id);
+  if (!row || !row.live || row.kind !== "news") return res.status(404).json({ error: "not found" });
+  let thisNotHelped = row.thisNotHelped || 0;
+  let ids = already;
+  if (!already.includes(id)) {
+    const next = await storage.incrementLearnNotHelped(id);
+    thisNotHelped = next?.thisNotHelped ?? thisNotHelped + 1;
+    ids = [...already, id];
+  }
+  res.setHeader("Set-Cookie", `learn_news_disliked=${likedCookieValue(ids)}; Path=/; SameSite=Lax; Max-Age=31536000`);
+  res.json({ dislikes: thisNotHelped });
 });
 
 router.post("/learn/news/:id/comments", async (req, res) => {

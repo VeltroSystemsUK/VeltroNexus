@@ -1689,6 +1689,7 @@ export class SQLiteStorage implements IStorage {
       ...snapshot,
       id: keepId,
       thisHelped: existing?.thisHelped ?? snapshot.thisHelped ?? 0,
+      thisNotHelped: existing?.thisNotHelped ?? snapshot.thisNotHelped ?? 0,
       live: snapshot.live ?? true,
       createdAt: existing?.createdAt ?? snapshot.createdAt,
     };
@@ -1714,6 +1715,13 @@ export class SQLiteStorage implements IStorage {
     if (!existing) return undefined;
     const current = typeof existing.thisHelped === "number" ? existing.thisHelped : 0;
     return updateItem("learn_pieces", id, { thisHelped: current + 1 }) as LearnPiece;
+  }
+
+  async incrementLearnNotHelped(id: number): Promise<LearnPiece | undefined> {
+    const existing = await this.getLearnPiece(id);
+    if (!existing) return undefined;
+    const current = typeof existing.thisNotHelped === "number" ? existing.thisNotHelped : 0;
+    return updateItem("learn_pieces", id, { thisNotHelped: current + 1 }) as LearnPiece;
   }
 
   async unpublishLearnPieceBySource(
