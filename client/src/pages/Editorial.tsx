@@ -68,6 +68,7 @@ import {
   type EditorialLinkedInPack,
   type EditorialReadiness,
 } from "@shared/editorial";
+import { slugifyLearnTitle } from "@shared/learn";
 
 const statusFilterValues = ["all", "draft", "approved", "exported"] as const;
 
@@ -182,6 +183,10 @@ export default function Editorial() {
   const [heroUrl, setHeroUrl] = useState<string | null>(null);
   const [linkedinBusy, setLinkedinBusy] = useState(false);
   const [linkedinPack, setLinkedinPack] = useState<EditorialLinkedInPack | null>(null);
+  const [learnOpen, setLearnOpen] = useState(false);
+  const [learnSlug, setLearnSlug] = useState("");
+  const [learnExcerpt, setLearnExcerpt] = useState("");
+  const [learnPath, setLearnPath] = useState("none");
 
   const { data: pieces = [], isLoading } = useQuery<EditorialPiece[]>({
     queryKey: ["/api/editorial"],
@@ -395,6 +400,20 @@ export default function Editorial() {
           >
             <Download className="h-4 w-4 mr-1" /> Export
           </Button>
+          {selected.type === "blog" && (
+            <Button
+              disabled={!exportOk}
+              variant="outline"
+              onClick={() => {
+                setLearnSlug(slugifyLearnTitle(title));
+                setLearnExcerpt("");
+                setLearnPath("none");
+                setLearnOpen(true);
+              }}
+            >
+              Publish to Learn
+            </Button>
+          )}
         </div>
 
         <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -598,6 +617,54 @@ export default function Editorial() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={learnOpen} onOpenChange={setLearnOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Publish to Learn</DialogTitle>
+              <DialogDescription>Live article on learn.stratanexus.co.uk. Never auto-publish.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Slug</Label>
+                <Input value={learnSlug} onChange={(e) => setLearnSlug(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Excerpt</Label>
+                <Textarea value={learnExcerpt} onChange={(e) => setLearnExcerpt(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Path position</Label>
+                <Select value={learnPath} onValueChange={setLearnPath}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() =>
+                  postAction(`/api/editorial/${selected.id}/publish-learn`, {
+                    slug: learnSlug,
+                    excerpt: learnExcerpt,
+                    pathPosition: learnPath === "none" ? null : parseInt(learnPath, 10),
+                  })
+                    .then(() => {
+                      setLearnOpen(false);
+                      toast.success("Published to Learn");
+                    })
+                    .catch((err: Error) => toast.error(err.message))
+                }
+              >
+                Publish
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

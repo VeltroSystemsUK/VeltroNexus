@@ -19,6 +19,7 @@ import {
   ImageIcon,
   Palette,
   Newspaper,
+  GraduationCap,
   Mail,
   MessageSquare,
   Target,
@@ -64,6 +65,7 @@ export const DESTINATIONS: Destination[] = [
   { path: "/email-templates", label: "Templates", icon: FileText, group: "Marketing", roles: FULL, keywords: "email html", description: "Reusable email templates" },
   { path: "/email-campaigns", label: "Campaigns", icon: Send, group: "Marketing", roles: FULL, keywords: "marketing email", description: "Send and track email campaigns" },
   { path: "/editorial", label: "Editorial", icon: Newspaper, group: "Marketing", roles: FULL, keywords: "blog press release article news casey isla", description: "Blogs and press releases — draft desk, never auto-publish" },
+  { path: "/learn-desk", label: "Learn", icon: GraduationCap, group: "Marketing", roles: FULL, keywords: "learn video article publish training", description: "Publish training videos and articles to learn.stratanexus.co.uk" },
   { path: "/media", label: "Media", icon: ImageIcon, group: "Marketing", roles: FULL, keywords: "gallery images", description: "Media gallery for campaigns" },
   { path: "/craft", label: "Craft", icon: Palette, group: "Marketing", roles: FULL, keywords: "social posts graphics linkedin instagram facebook tiktok mkt craft", description: "MKT-2 social queue and compositor" },
 
