@@ -654,6 +654,8 @@ export default function Editorial() {
                     pathPosition: learnPath === "none" ? null : parseInt(learnPath, 10),
                   })
                     .then(() => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/learn-desk/pieces"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/learn-desk/videos"] });
                       setLearnOpen(false);
                       toast.success("Published to Learn");
                     })

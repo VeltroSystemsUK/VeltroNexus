@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Loader2, GraduationCap, ArrowLeft, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import type { LearnBotLog, LearnPiece, LearnVideo } from "@shared/schema";
-import { slugifyLearnTitle } from "@shared/learn";
+import { learnVideoGenerateInputError, slugifyLearnTitle } from "@shared/learn";
 
 const PATHS = ["none", "1", "2", "3", "4", "5", "6"] as const;
 const toPath = (v: string) => (v === "none" ? null : Number(v) >= 1 && Number(v) <= 6 ? Number(v) : null);
@@ -160,6 +160,8 @@ export default function LearnDesk() {
 
   if (selected) {
     const canPublish = selected.status === "approved" && selected.compliance === "cleared" && Boolean(selected.videoUrl);
+    const generateBlocked = learnVideoGenerateInputError(selected);
+    const notes = selected.notes || [];
     return (
       <div className="p-6 space-y-4 max-w-7xl mx-auto">
         <div className="flex flex-wrap items-center gap-2">
@@ -168,7 +170,7 @@ export default function LearnDesk() {
           <Badge variant="secondary">{selected.compliance}</Badge>
           <div className="flex-1" />
           <Button variant="outline" onClick={() => act("scan")}>Scan</Button>
-          <Button variant="outline" onClick={() => act("generate", undefined, "Draft written")}>Generate</Button>
+          <Button variant="outline" disabled={Boolean(generateBlocked)} title={generateBlocked || undefined} onClick={() => act("generate", undefined, "Draft written")}>Generate</Button>
           <Button variant="outline" onClick={() => act("approve", undefined, "Approved")}>Approve</Button>
           <Button variant="outline" onClick={() => act("reject", undefined, "Rejected")}>Reject</Button>
           <Button variant="outline" onClick={() => act("compliance", { action: "cleared" }, "Compliance cleared")}>
@@ -205,6 +207,18 @@ export default function LearnDesk() {
           </Field>
         </div>
         <Input readOnly value={selected.videoUrl || ""} placeholder="videoUrl after upload" />
+        <h3 className="text-sm font-semibold">Casey notes{notes.length ? ` (${notes.length})` : ""}</h3>
+        {notes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No notes yet. Scan this topic first.</p>
+        ) : notes.map((note) => (
+          <Card key={note.url}>
+            <CardContent className="p-3 space-y-1">
+              <p className="text-sm font-medium">{note.title}</p>
+              <p className="text-[11px] text-muted-foreground break-all">{note.url}</p>
+              <p className="text-xs">{note.snippet}</p>
+            </CardContent>
+          </Card>
+        ))}
         <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
           <DialogContent>
             <DialogHeader>
