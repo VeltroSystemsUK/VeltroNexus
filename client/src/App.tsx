@@ -7,6 +7,7 @@ import { Toaster as SonnerToaster } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import MobileNav from "@/components/MobileNav";
 import { lazy, Suspense } from "react";
+import { isLearnBrowserHost } from "@/lib/learnHost";
 
 // Lazy load all page components for better performance
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -53,6 +54,7 @@ const EmailTemplates = lazy(() => import("@/pages/EmailTemplates"));
 const EmailCampaigns = lazy(() => import("@/pages/EmailCampaigns"));
 const Editorial = lazy(() => import("@/pages/Editorial"));
 const LearnDesk = lazy(() => import("@/pages/LearnDesk"));
+const LearnApp = lazy(() => import("@/pages/learn/LearnApp"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const Craft = lazy(() => import("@/pages/Craft"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
@@ -80,6 +82,18 @@ const PageLoader = () => (
 
 
 function Router() {
+  if (isLearnBrowserHost()) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LearnApp />
+      </Suspense>
+    );
+  }
+
+  return <NexusRouter />;
+}
+
+function NexusRouter() {
   const { isAuthenticated, role, isLoading: isAuthLoading } = useAuth();
 
   if (isAuthLoading) {
@@ -274,6 +288,18 @@ function Router() {
 import { OnboardingProvider, WelcomeModal, CelebrationModal } from "@/components/onboarding";
 
 function AppContent() {
+  if (isLearnBrowserHost()) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LearnApp />
+      </Suspense>
+    );
+  }
+
+  return <NexusAppContent />;
+}
+
+function NexusAppContent() {
   const [location] = useLocation();
   const { isAuthenticated, isLoading, user, role } = useAuth();
   const isCustomerPack = location.startsWith("/pack/");
@@ -329,9 +355,17 @@ function App() {
           <LayoutProvider>
             <Toaster />
             <SonnerToaster position="top-right" />
-            <AppContent />
-            <ThemeManager />
-            <CookieConsent />
+            {isLearnBrowserHost() ? (
+              <Suspense fallback={<PageLoader />}>
+                <LearnApp />
+              </Suspense>
+            ) : (
+              <>
+                <AppContent />
+                <ThemeManager />
+                <CookieConsent />
+              </>
+            )}
           </LayoutProvider>
         </TooltipProvider>
       </QueryClientProvider>

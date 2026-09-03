@@ -43,6 +43,7 @@ export type LearnPieceLike = {
 };
 
 export type LearnPiecePublic = {
+  id?: number;
   slug: string;
   kind: "article" | "video";
   title: string;
@@ -171,6 +172,7 @@ export function canPublishLearn(input: CanPublishLearnInput): { ok: boolean; err
 
 export function toLearnPublic(piece: LearnPieceLike): LearnPiecePublic {
   return {
+    id: piece.id,
     slug: piece.slug,
     kind: piece.kind,
     title: piece.title,
