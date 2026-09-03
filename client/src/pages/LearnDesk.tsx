@@ -34,6 +34,7 @@ function PathSelect({ value, onChange }: { value: string; onChange: (v: string) 
 function invalidateDesk() {
   queryClient.invalidateQueries({ queryKey: ["/api/learn-desk/videos"] });
   queryClient.invalidateQueries({ queryKey: ["/api/learn-desk/pieces"] });
+  queryClient.invalidateQueries({ queryKey: ["/api/learn-desk/news-comments"] });
 }
 
 async function postJson(path: string, data?: unknown) {
@@ -68,6 +69,17 @@ export default function LearnDesk() {
   const { data: videos = [], isLoading: videosLoading } = useQuery<LearnVideo[]>({ queryKey: ["/api/learn-desk/videos"] });
   const { data: pieces = [], isLoading: piecesLoading } = useQuery<LearnPiece[]>({ queryKey: ["/api/learn-desk/pieces"] });
   const { data: botLogs = [] } = useQuery<LearnBotLog[]>({ queryKey: ["/api/learn-desk/bot-logs"] });
+  const { data: newsComments = [] } = useQuery<
+    Array<{
+      id: number;
+      pieceId: number;
+      name: string;
+      body: string;
+      marketingOptIn: boolean;
+      live: boolean;
+      createdAt: string;
+    }>
+  >({ queryKey: ["/api/learn-desk/news-comments"] });
   const selected = videos.find((v) => v.id === selectedId) ?? null;
   const q = search.toLowerCase();
   const filteredVideos = videos.filter((v) => !q || v.title.toLowerCase().includes(q) || v.topic.toLowerCase().includes(q));
@@ -159,7 +171,7 @@ export default function LearnDesk() {
   }
 
   if (selected) {
-    const canPublish = selected.status === "approved" && selected.compliance === "cleared" && Boolean(selected.videoUrl);
+    const canPublish = selected.status === "approved" && Boolean(selected.videoUrl);
     const generateBlocked = learnVideoGenerateInputError(selected);
     const notes = selected.notes || [];
     return (
@@ -173,7 +185,12 @@ export default function LearnDesk() {
           <Button variant="outline" disabled={Boolean(generateBlocked)} title={generateBlocked || undefined} onClick={() => act("generate", undefined, "Draft written")}>Generate</Button>
           <Button variant="outline" onClick={() => act("approve", undefined, "Approved")}>Approve</Button>
           <Button variant="outline" onClick={() => act("reject", undefined, "Rejected")}>Reject</Button>
-          <Button variant="outline" onClick={() => act("compliance", { action: "cleared" }, "Compliance cleared")}>
+          <Button
+            variant="outline"
+            onClick={() =>
+              act("compliance", { action: "cleared", overrideCompliance: true }, "Compliance cleared (director override)")
+            }
+          >
             <ShieldCheck className="h-4 w-4 mr-1" /> Compliance
           </Button>
           <Button variant="ghost" onClick={() => act("compliance", { action: "blocked" }, "Compliance blocked")}>Block</Button>
@@ -229,6 +246,11 @@ export default function LearnDesk() {
               <Field label="Slug"><Input value={publishSlug} onChange={(e) => setPublishSlug(e.target.value)} /></Field>
               <Field label="Excerpt"><Textarea value={publishExcerpt} onChange={(e) => setPublishExcerpt(e.target.value)} /></Field>
               <Field label="Path position"><PathSelect value={publishPath} onChange={setPublishPath} /></Field>
+              {selected.compliance !== "cleared" && (
+                <p className="text-xs text-muted-foreground">
+                  Compliance is {selected.compliance}. This publish is a director override.
+                </p>
+              )}
               <Button
                 className="w-full"
                 onClick={() =>
@@ -236,6 +258,7 @@ export default function LearnDesk() {
                     slug: publishSlug,
                     excerpt: publishExcerpt,
                     pathPosition: toPath(publishPath),
+                    overrideCompliance: true,
                   }).then(() => { setPublishOpen(false); toast.success("Published to Learn"); }).catch((err: Error) => toast.error(err.message))
                 }
               >
@@ -314,14 +337,18 @@ export default function LearnDesk() {
                   <TableCell className="font-mono text-xs">{row.slug}</TableCell>
                   <TableCell><Badge variant={row.live ? "default" : "secondary"}>{row.live ? "Live" : "Off"}</Badge></TableCell>
                   <TableCell>
-                    <PathSelect
-                      value={fromPath(row.pathPosition)}
-                      onChange={(v) =>
-                        apiRequest(`/api/learn-desk/pieces/${row.id}/path`, "PATCH", { pathPosition: toPath(v) })
-                          .then(() => invalidateDesk())
-                          .catch((err: Error) => toast.error(err.message))
-                      }
-                    />
+                    {row.kind === "news" ? (
+                      "—"
+                    ) : (
+                      <PathSelect
+                        value={fromPath(row.pathPosition)}
+                        onChange={(v) =>
+                          apiRequest(`/api/learn-desk/pieces/${row.id}/path`, "PATCH", { pathPosition: toPath(v) })
+                            .then(() => invalidateDesk())
+                            .catch((err: Error) => toast.error(err.message))
+                        }
+                      />
+                    )}
                   </TableCell>
                   <TableCell>
                     {row.live && (
@@ -336,6 +363,60 @@ export default function LearnDesk() {
           </Table>
         </Card>
       )}
+
+      <h2 className="text-sm font-semibold">News comments</h2>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>When</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Comment</TableHead>
+              <TableHead>Magnet</TableHead>
+              <TableHead>Live</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {newsComments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  No comments
+                </TableCell>
+              </TableRow>
+            ) : (
+              newsComments.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}
+                  </TableCell>
+                  <TableCell>{row.name}</TableCell>
+                  <TableCell className="max-w-md text-sm">{row.body}</TableCell>
+                  <TableCell>{row.marketingOptIn ? "yes" : "no"}</TableCell>
+                  <TableCell>
+                    <Badge variant={row.live ? "default" : "secondary"}>{row.live ? "Live" : "Hidden"}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {row.live && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          postJson(`/api/learn-desk/news-comments/${row.id}/hide`)
+                            .then(() => toast.message("Hidden"))
+                            .catch((err: Error) => toast.error(err.message))
+                        }
+                      >
+                        Hide
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
       <h2 className="text-sm font-semibold">Bot logs</h2>
       <Card>

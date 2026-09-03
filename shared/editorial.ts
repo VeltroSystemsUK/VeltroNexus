@@ -8,7 +8,7 @@ import {
 import { formatCaseyNotes, type CaseyNote } from "./craftScout";
 import { stripSlop } from "./craftYaffle";
 
-export type EditorialType = "blog" | "press_release";
+export type EditorialType = "blog" | "press_release" | "news";
 export type EditorialStatus = "draft" | "approved" | "rejected" | "exported";
 export type EditorialCompliance = "pending" | "cleared" | "blocked";
 export type EditorialEngine = { provider: "anthropic" | "xai"; model: string };
@@ -125,17 +125,22 @@ export function editorialReadiness(piece: EditorialPieceLike): EditorialReadines
   return { percent, label, tone };
 }
 
-export function signOffEditorialCompliance(piece: EditorialPieceLike): EditorialPieceLike {
+export function signOffEditorialCompliance(
+  piece: EditorialPieceLike,
+  overrideCompliance = false,
+): EditorialPieceLike {
   if (piece.status !== "approved") {
     throw new Error("Marketing must approve the copy before compliance can sign off.");
   }
-  const review = reviewEditorialCopy(piece);
-  if (!review.ok) {
-    const msg = review.findings
-      .filter((item) => item.level === "block")
-      .map((item) => item.message)
-      .join(" ");
-    throw new Error(msg || "Copy failed compliance review.");
+  if (!overrideCompliance) {
+    const review = reviewEditorialCopy(piece);
+    if (!review.ok) {
+      const msg = review.findings
+        .filter((item) => item.level === "block")
+        .map((item) => item.message)
+        .join(" ");
+      throw new Error(msg || "Copy failed compliance review.");
+    }
   }
   return { ...piece, autoPublish: false, compliance: "cleared" };
 }

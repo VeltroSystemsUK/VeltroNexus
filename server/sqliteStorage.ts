@@ -11,7 +11,7 @@ import {
   BrokerScrapedLead, InsertBrokerScrapedLead, BrokerCampaign, InsertBrokerCampaign,
   Invoice, InsertInvoice, Expense, InsertExpense, EmailCampaign, InsertEmailCampaign,
   CampaignRecipient, InsertCampaignRecipient, EditorialPiece, InsertEditorialPiece,
-  LearnVideo, LearnPiece, LearnBotLog,
+  LearnVideo, LearnPiece, LearnBotLog, LearnNewsComment,
   TimeEntry, InsertTimeEntry,
   ProspectDocument, InsertProspectDocument, Channel, InsertChannel, ChannelMember,
   InsertChannelMember, Message, InsertMessage, CommunicationIntegration,
@@ -40,6 +40,7 @@ import {
   unpublishLearnPiece as unpublishLearnPieceSnapshot,
   type LearnVideoLike,
 } from "@shared/learn";
+import { hideLearnNewsComment } from "@shared/learnNews";
 import { remapSavedPipelineStages, STAGE_ID_ALIASES } from "@shared/pipelineStages";
 import session from "express-session";
 import createBetterSqlite3Store from "better-sqlite3-session-store";
@@ -1660,7 +1661,7 @@ export class SQLiteStorage implements IStorage {
   }
 
   async getLiveLearnPieceBySlug(
-    kind: "article" | "video",
+    kind: "article" | "video" | "news",
     slug: string,
   ): Promise<LearnPiece | undefined> {
     return (getCollection("learn_pieces") as LearnPiece[]).find(
@@ -1749,5 +1750,41 @@ export class SQLiteStorage implements IStorage {
       handoff: row.handoff,
       retrievedIds: Array.isArray(row.retrievedIds) ? row.retrievedIds : [],
     }) as LearnBotLog;
+  }
+
+  async listLiveNewsComments(pieceId: number): Promise<LearnNewsComment[]> {
+    return (getCollection("learn_news_comments") as LearnNewsComment[])
+      .filter((row) => row.pieceId === pieceId && row.live === true)
+      .sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")));
+  }
+
+  async listNewsComments(): Promise<LearnNewsComment[]> {
+    return (getCollection("learn_news_comments") as LearnNewsComment[]).sort((a, b) =>
+      String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")),
+    );
+  }
+
+  async insertNewsComment(row: {
+    pieceId: number;
+    name: string;
+    emailHash: string;
+    body: string;
+    marketingOptIn: boolean;
+  }): Promise<LearnNewsComment> {
+    return insertItem("learn_news_comments", {
+      pieceId: row.pieceId,
+      name: row.name,
+      emailHash: row.emailHash,
+      body: row.body,
+      marketingOptIn: row.marketingOptIn,
+      live: true,
+    }) as LearnNewsComment;
+  }
+
+  async hideNewsComment(id: number): Promise<LearnNewsComment | undefined> {
+    const existing = (getCollection("learn_news_comments") as LearnNewsComment[]).find((row) => row.id === id);
+    if (!existing) return undefined;
+    const next = hideLearnNewsComment(existing);
+    return updateItem("learn_news_comments", id, { live: next.live }) as LearnNewsComment;
   }
 }

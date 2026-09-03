@@ -45,6 +45,7 @@ const publishLearnSchema = z.object({
   slug: z.string().optional(),
   excerpt: z.string().optional(),
   pathPosition: z.number().int().min(1).max(6).nullable().optional(),
+  overrideCompliance: z.boolean().optional(),
 });
 
 async function loadPiece(req: AuthenticatedRequest, res: Response) {
@@ -186,7 +187,7 @@ router.post("/editorial/:id/compliance", isAuthenticated, async (req: Authentica
     }
     if (action !== "cleared") return res.status(400).json({ error: "action must be cleared or blocked" });
     try {
-      const next = signOffEditorialCompliance(existing);
+      const next = signOffEditorialCompliance(existing, req.body?.overrideCompliance === true);
       const piece = await storage.updateEditorialPiece(existing.id!, req.user.id, { compliance: next.compliance });
       return res.json(piece);
     } catch (err: any) {
@@ -258,26 +259,28 @@ router.post("/editorial/:id/publish-learn", isAuthenticated, async (req: Authent
     if (!existing) return;
     const parsed = publishLearnSchema.safeParse(req.body ?? {});
     if (!parsed.success) return res.status(400).json({ error: fromZodError(parsed.error).message });
-    if (existing.type !== "blog") {
-      return res.status(400).json({ error: "Only blog articles publish to Learn." });
+    if (existing.type !== "blog" && existing.type !== "news") {
+      return res.status(400).json({ error: "Only blog articles and news posts publish to Learn." });
     }
+    const kind = existing.type === "news" ? "news" : "article";
     const slug = slugifyLearnTitle(parsed.data.slug || existing.title);
     if (!slug) return res.status(400).json({ error: "Slug is required." });
     const excerpt = parsed.data.excerpt ?? "";
-    const pathPosition = parsed.data.pathPosition === undefined ? null : parsed.data.pathPosition;
+    const pathPosition = kind === "news" ? null : parsed.data.pathPosition === undefined ? null : parsed.data.pathPosition;
     const gate = canPublishLearn({
       status: existing.status,
       compliance: existing.compliance,
       autoPublish: existing.autoPublish !== false,
-      kind: "article",
+      kind,
       type: existing.type,
       title: existing.title,
       excerpt,
       body: existing.body,
+      overrideCompliance: parsed.data.overrideCompliance === true,
     });
     if (!gate.ok) return res.status(400).json({ error: gate.error });
     const snapshot = snapshotLearnPiece({
-      kind: "article",
+      kind,
       slug,
       title: existing.title,
       excerpt,

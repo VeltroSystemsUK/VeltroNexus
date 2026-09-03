@@ -104,6 +104,7 @@ import {
   LearnVideo,
   LearnPiece,
   LearnBotLog,
+  LearnNewsComment,
   ReportTask,
   InsertReportTask,
   ReportLog,
@@ -599,7 +600,7 @@ export interface IStorage {
   listEditorialPieces(userId: string): Promise<EditorialPiece[]>;
   getEditorialPiece(id: number, userId: string): Promise<EditorialPiece | undefined>;
   createEditorialPiece(
-    piece: { type: "blog" | "press_release"; title: string; topic: string },
+    piece: { type: "blog" | "press_release" | "news"; title: string; topic: string },
     userId: string,
   ): Promise<EditorialPiece>;
   updateEditorialPiece(id: number, userId: string, updates: Partial<EditorialPiece>): Promise<EditorialPiece | undefined>;
@@ -615,7 +616,7 @@ export interface IStorage {
   // Learn pieces
   listLearnPieces(userId: string): Promise<LearnPiece[]>;
   listLiveLearnPieces(): Promise<LearnPiece[]>;
-  getLiveLearnPieceBySlug(kind: "article" | "video", slug: string): Promise<LearnPiece | undefined>;
+  getLiveLearnPieceBySlug(kind: "article" | "video" | "news", slug: string): Promise<LearnPiece | undefined>;
   getLearnPiece(id: number): Promise<LearnPiece | undefined>;
   upsertLiveLearnPiece(snapshot: LearnPiece): Promise<LearnPiece>;
   unpublishLearnPiece(id: number): Promise<LearnPiece | undefined>;
@@ -625,6 +626,17 @@ export interface IStorage {
   // Learn bot logs
   listLearnBotLogs(): Promise<LearnBotLog[]>;
   insertLearnBotLog(row: { slug: string | null; question: string; handoff: boolean; retrievedIds: number[] }): Promise<LearnBotLog>;
+
+  listLiveNewsComments(pieceId: number): Promise<LearnNewsComment[]>;
+  listNewsComments(): Promise<LearnNewsComment[]>;
+  insertNewsComment(row: {
+    pieceId: number;
+    name: string;
+    emailHash: string;
+    body: string;
+    marketingOptIn: boolean;
+  }): Promise<LearnNewsComment>;
+  hideNewsComment(id: number): Promise<LearnNewsComment | undefined>;
 }
 
 export type UnderwritingSummary = any;

@@ -1,16 +1,29 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { isAllowedVideoSource, LEARN_VIDEO_PUBLIC_PREFIX, type LearnPiecePublic } from "@shared/learn";
+import {
+  handbookPieces,
+  isAllowedVideoSource,
+  isHandbookSlug,
+  LEARN_VIDEO_PUBLIC_PREFIX,
+  type LearnPiecePublic,
+} from "@shared/learn";
+import { LearnDeskPrompts } from "./LearnDeskPrompts";
 
 export const EXPLORE_URL = "https://explore.stratanexus.co.uk";
 export const REVIEW_MAILTO =
   "mailto:enquiries@stratafinance.co.uk?subject=Learn%20review%20request";
 export const LEARN_MAIL = "learn@stratanexus.co.uk";
 
-export type LearnHomePayload = { path: LearnPiecePublic[]; library: LearnPiecePublic[] };
+export type LearnHomePayload = {
+  path: LearnPiecePublic[];
+  library: LearnPiecePublic[];
+  handbook?: LearnPiecePublic[];
+  news?: LearnPiecePublic[];
+};
 
 export function pieceHref(kind: string, slug: string): string {
+  if (kind === "news") return `/news/${encodeURIComponent(slug)}`;
   return kind === "article" ? `/read/${encodeURIComponent(slug)}` : `/watch/${encodeURIComponent(slug)}`;
 }
 
@@ -149,7 +162,7 @@ export function LearnPieceCard({
   featured?: boolean;
 }) {
   const href = pieceHref(piece.kind, piece.slug);
-  const action = piece.kind === "article" ? "Read" : "Watch";
+  const action = piece.kind === "news" ? "News" : piece.kind === "article" ? "Read" : "Watch";
   return (
     <Link
       href={href}
@@ -183,7 +196,7 @@ export function LearnPieceCard({
 }
 
 const HOME_DESCRIPTION =
-  "Training for UK directors dealing with stacked short-term finance and HMRC commitments. Strata packages; it does not lend.";
+  "Training and a director's handbook for UK companies in trouble: warehouse brokers, hidden commissions, HMRC Time to Pay, terms to refuse, and where real help sits. Strata packages; it does not lend.";
 
 export default function LearnHome() {
   const { data, isLoading, isError } = useQuery<LearnHomePayload>({ queryKey: ["/api/learn/home"] });
@@ -203,7 +216,9 @@ export default function LearnHome() {
   const path = data?.path ?? [];
   const library = data?.library ?? [];
   const hero = library.find(isPromoHero);
-  const libraryRest = library.filter((piece) => piece !== hero);
+  const handbook = data?.handbook?.length ? data.handbook : handbookPieces(library);
+  const news = data?.news ?? [];
+  const libraryRest = library.filter((piece) => piece !== hero && !isHandbookSlug(piece.slug));
   const empty = path.length === 0 && library.length === 0;
 
   if (empty) {
@@ -226,6 +241,7 @@ export default function LearnHome() {
         </h1>
         <p className="text-lg text-zinc-300 max-w-2xl">
           Training for UK directors dealing with stacked short-term finance and HMRC commitments.
+          The handbook is a reference if the company is already in trouble.
         </p>
         <PackagerLine />
       </section>
@@ -248,6 +264,56 @@ export default function LearnHome() {
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {news.length > 0 && (
+        <section className="space-y-6">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="font-['Unbounded'] text-2xl tracking-tight">News</h2>
+            <Link href="/news" className="text-sm text-emerald-400 hover:underline">
+              All posts
+            </Link>
+          </div>
+          <p className="text-sm text-zinc-400 max-w-2xl">Notes from the desk. Comments and likes on this lane only.</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {news.slice(0, 4).map((piece) => (
+              <LearnPieceCard key={piece.slug} piece={piece} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="font-['Unbounded'] text-2xl tracking-tight">Ask the desk</h2>
+          <Link href="/ask" className="text-sm text-emerald-400 hover:underline">
+            Open the desk
+          </Link>
+        </div>
+        <p className="text-sm text-zinc-400 max-w-2xl">
+          Questions the handbook can actually answer. Not your turnover, not eligibility, not a rate.
+        </p>
+        <LearnDeskPrompts />
+      </section>
+
+      {handbook.length > 0 && (
+        <section id="handbook" className="space-y-6">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="font-['Unbounded'] text-2xl tracking-tight">Director's handbook</h2>
+            <Link href="/library#handbook" className="text-sm text-emerald-400 hover:underline">
+              All nine
+            </Link>
+          </div>
+          <p className="text-sm text-zinc-400 max-w-2xl">
+            Brokers, hidden commissions, HMRC Time to Pay, terms to refuse, products that finish companies,
+            what the courts expect of a director, and help that is actually there.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {handbook.map((piece) => (
+              <LearnPieceCard key={piece.slug} piece={piece} />
+            ))}
+          </div>
         </section>
       )}
 

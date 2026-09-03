@@ -7,7 +7,10 @@ import LearnHome, {
   PackagerLine,
   setLearnMeta,
 } from "./LearnHome";
+import LearnAsk from "./LearnAsk";
 import LearnLibrary from "./LearnLibrary";
+import LearnNews from "./LearnNews";
+import LearnNewsPost from "./LearnNewsPost";
 import LearnPiece from "./LearnPiece";
 
 function LearnShell({ children }: { children: ReactNode }) {
@@ -15,7 +18,7 @@ function LearnShell({ children }: { children: ReactNode }) {
     document.documentElement.classList.add("dark");
     setLearnMeta(
       "Strata Learn",
-      "Training for UK directors dealing with stacked short-term finance and HMRC commitments. Strata packages; it does not lend.",
+      "Training and a director's handbook for UK companies in trouble. Strata packages; it does not lend.",
     );
   }, []);
 
@@ -30,8 +33,17 @@ function LearnShell({ children }: { children: ReactNode }) {
             <Link href="/" className="hover:text-emerald-400">
               Start here
             </Link>
+            <Link href="/library#handbook" className="hover:text-emerald-400">
+              Handbook
+            </Link>
             <Link href="/library" className="hover:text-emerald-400">
               Library
+            </Link>
+            <Link href="/news" className="hover:text-emerald-400">
+              News
+            </Link>
+            <Link href="/ask" className="hover:text-emerald-400">
+              Ask
             </Link>
             <a href={EXPLORE_URL} className="hover:text-emerald-400">
               Explore
@@ -73,6 +85,9 @@ export default function LearnApp() {
       <Switch>
         <Route path="/" component={LearnHome} />
         <Route path="/library" component={LearnLibrary} />
+        <Route path="/news/:slug" component={LearnNewsPost} />
+        <Route path="/news" component={LearnNews} />
+        <Route path="/ask" component={LearnAsk} />
         <Route path="/watch/:slug" component={WatchPiece} />
         <Route path="/read/:slug" component={ReadPiece} />
         <Route>

@@ -20,10 +20,12 @@ const VIMEO_SOURCE = /^https?:\/\/(?:www\.)?vimeo\.com\/\d+/i;
 
 export type LearnPieceSource = { desk: "editorial" | "learn-video"; id: number };
 
+export type LearnPieceKind = "article" | "video" | "news";
+
 export type LearnPieceLike = {
   id?: number;
   slug: string;
-  kind: "article" | "video";
+  kind: LearnPieceKind;
   title: string;
   excerpt: string;
   heroImageUrl: string | null;
@@ -45,7 +47,7 @@ export type LearnPieceLike = {
 export type LearnPiecePublic = {
   id?: number;
   slug: string;
-  kind: "article" | "video";
+  kind: LearnPieceKind;
   title: string;
   excerpt: string;
   heroImageUrl: string | null;
@@ -62,7 +64,7 @@ export type CanPublishLearnInput = {
   status: string;
   compliance: string;
   autoPublish: boolean;
-  kind: "article" | "video";
+  kind: LearnPieceKind;
   type?: string;
   videoUrl?: string;
   title: string;
@@ -70,10 +72,11 @@ export type CanPublishLearnInput = {
   body?: string;
   description?: string;
   transcript?: string;
+  overrideCompliance?: boolean;
 };
 
 export type SnapshotLearnInput = {
-  kind: "article" | "video";
+  kind: LearnPieceKind;
   slug: string;
   title: string;
   excerpt: string;
@@ -153,20 +156,25 @@ export function reviewLearnCopy(text: string): ComplianceReview {
 
 export function canPublishLearn(input: CanPublishLearnInput): { ok: boolean; error?: string } {
   if (input.status !== "approved") return { ok: false, error: "Marketing must approve before publish." };
-  if (input.compliance !== "cleared") return { ok: false, error: "Compliance must clear before publish." };
   if (input.autoPublish !== false) return { ok: false, error: "Auto-publish is not allowed." };
+  const override = input.overrideCompliance === true;
+  if (!override && input.compliance !== "cleared") {
+    return { ok: false, error: "Compliance must clear before publish." };
+  }
+
+  if (input.kind === "news") {
+    if (input.type !== "news") return { ok: false, error: "Only news posts publish to the News lane." };
+    return { ok: true };
+  }
 
   if (input.kind === "article") {
     if (input.type !== "blog") return { ok: false, error: "Only blog articles publish to Learn." };
-    if (!reviewLearnCopy(input.body || "").ok) return { ok: false, error: "Article copy failed Learn review." };
     return { ok: true };
   }
 
   if (!isAllowedVideoSource(input.videoUrl || "")) {
     return { ok: false, error: "Video source must be a stored Learn mp4 or YouTube/Vimeo URL." };
   }
-  const copy = [input.title, input.excerpt, input.description || "", input.transcript || ""].join(" ");
-  if (!reviewLearnCopy(copy).ok) return { ok: false, error: "Video copy failed Learn review." };
   return { ok: true };
 }
 
@@ -188,20 +196,55 @@ export function toLearnPublic(piece: LearnPieceLike): LearnPiecePublic {
   };
 }
 
+export const DIRECTORS_HANDBOOK_SLUGS = [
+  "if-the-business-is-in-trouble",
+  "warehouse-brokers",
+  "hidden-commissions",
+  "hmrc-time-to-pay",
+  "terms-that-should-stop-the-pen",
+  "products-that-finish-companies",
+  "directors-in-the-danger-zone",
+  "help-that-is-actually-there",
+  "stacked-debt",
+] as const;
+
+export function isHandbookSlug(slug: string): boolean {
+  return (DIRECTORS_HANDBOOK_SLUGS as readonly string[]).includes(slug);
+}
+
+export function handbookPieces(library: LearnPiecePublic[]): LearnPiecePublic[] {
+  const order = new Map((DIRECTORS_HANDBOOK_SLUGS as readonly string[]).map((slug, index) => [slug, index]));
+  return library
+    .filter((piece) => order.has(piece.slug))
+    .sort((a, b) => (order.get(a.slug) ?? 99) - (order.get(b.slug) ?? 99));
+}
+
 export function buildLearnHome(live: LearnPieceLike[]): {
   path: LearnPiecePublic[];
   library: LearnPiecePublic[];
+  handbook: LearnPiecePublic[];
+  news: LearnPiecePublic[];
 } {
   const rows = live.filter((piece) => piece.live === true);
   const path = rows
-    .filter((piece) => typeof piece.pathPosition === "number" && piece.pathPosition >= 1 && piece.pathPosition <= 6)
+    .filter(
+      (piece) =>
+        piece.kind !== "news" &&
+        typeof piece.pathPosition === "number" &&
+        piece.pathPosition >= 1 &&
+        piece.pathPosition <= 6,
+    )
     .sort((a, b) => (a.pathPosition as number) - (b.pathPosition as number))
     .map(toLearnPublic);
   const library = rows
-    .filter((piece) => piece.pathPosition == null)
+    .filter((piece) => piece.kind !== "news" && piece.pathPosition == null)
     .sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)))
     .map(toLearnPublic);
-  return { path, library };
+  const news = rows
+    .filter((piece) => piece.kind === "news")
+    .sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)))
+    .map(toLearnPublic);
+  return { path, library, handbook: handbookPieces(library), news };
 }
 
 export function parseHelpedCookie(header: string | undefined): number[] {
@@ -224,13 +267,14 @@ export function helpedCookieValue(ids: number[]): string {
 export function snapshotLearnPiece(input: SnapshotLearnInput): LearnPieceLike {
   const now = new Date().toISOString();
   const isArticle = input.kind === "article";
+  const hasBody = input.kind === "article" || input.kind === "news";
   return {
     slug: input.slug,
     kind: input.kind,
     title: input.title,
     excerpt: input.excerpt,
     heroImageUrl: input.heroImageUrl ?? null,
-    body: isArticle ? input.body || "" : "",
+    body: hasBody ? input.body || "" : "",
     videoUrl: isArticle ? "" : input.videoUrl || "",
     transcript: input.transcript || "",
     pathPosition: input.pathPosition ?? null,
@@ -296,17 +340,19 @@ export function learnVideoCopy(video: Pick<LearnVideoLike, "title" | "topic" | "
   return [video.title, video.topic, video.description || "", video.transcript || ""].join(" ");
 }
 
-export function signOffLearnVideoCompliance(video: LearnVideoLike): LearnVideoLike {
+export function signOffLearnVideoCompliance(video: LearnVideoLike, overrideCompliance = false): LearnVideoLike {
   if (video.status !== "approved") {
     throw new Error("Marketing must approve the copy before compliance can sign off.");
   }
-  const review = reviewLearnCopy(learnVideoCopy(video));
-  if (!review.ok) {
-    const msg = review.findings
-      .filter((item) => item.level === "block")
-      .map((item) => item.message)
-      .join(" ");
-    throw new Error(msg || "Copy failed compliance review.");
+  if (!overrideCompliance) {
+    const review = reviewLearnCopy(learnVideoCopy(video));
+    if (!review.ok) {
+      const msg = review.findings
+        .filter((item) => item.level === "block")
+        .map((item) => item.message)
+        .join(" ");
+      throw new Error(msg || "Copy failed compliance review.");
+    }
   }
   return { ...video, autoPublish: false, compliance: "cleared" };
 }

@@ -93,6 +93,14 @@ describe("export gates", () => {
     expect(next.autoPublish).toBe(false);
   });
 
+  it("lets a Director override skip payday copy review", () => {
+    const dirty = piece({ status: "approved", body: "Payday loans for directors." });
+    expect(signOffEditorialCompliance(dirty, true).compliance).toBe("cleared");
+    expect(() => signOffEditorialCompliance(piece({ status: "draft", body: "Payday loans." }), true)).toThrow(
+      /approve/i,
+    );
+  });
+
   it("markEditorialExported throws until gates pass, then sets exported", () => {
     expect(() => markEditorialExported(piece())).toThrow(/blocked/i);
     const exported = markEditorialExported(piece({ status: "approved", compliance: "cleared" }));
@@ -206,6 +214,7 @@ describe("editorial schema", () => {
   it("requires type, title, and topic on create", () => {
     expect(createEditorialPieceSchema.safeParse({}).success).toBe(false);
     expect(createEditorialPieceSchema.safeParse({ type: "blog", title: "A", topic: "B" }).success).toBe(true);
+    expect(createEditorialPieceSchema.safeParse({ type: "news", title: "A", topic: "B" }).success).toBe(true);
     expect(createEditorialPieceSchema.safeParse({ type: "tweet", title: "A", topic: "B" }).success).toBe(false);
   });
 

@@ -17,6 +17,8 @@ vi.mock("../../storage", () => ({
     upsertLiveLearnPiece: vi.fn(),
     unpublishLearnPiece: vi.fn(),
     listLearnBotLogs: vi.fn(),
+    listNewsComments: vi.fn(),
+    hideNewsComment: vi.fn(),
   },
 }));
 
@@ -148,6 +150,19 @@ describe("learn desk publish API", () => {
     expect(mocked.upsertLiveLearnPiece).not.toHaveBeenCalled();
   });
 
+  it("publishes a blocked video when overrideCompliance is true", async () => {
+    mocked.getLearnVideo.mockResolvedValue({
+      ...draftVideo,
+      status: "approved",
+      compliance: "blocked",
+    });
+    const denied = await request("POST", "/api/learn-desk/videos/9/publish", {});
+    expect(denied.status).toBe(400);
+    const res = await request("POST", "/api/learn-desk/videos/9/publish", { overrideCompliance: true });
+    expect(res.status).toBe(200);
+    expect(mocked.upsertLiveLearnPiece).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses press release publish-learn with 400", async () => {
     mocked.getEditorialPiece.mockResolvedValue({ ...clearedBlog, type: "press_release" });
     const res = await request("POST", "/api/editorial/1/publish-learn", { excerpt: "PR" });
@@ -195,6 +210,32 @@ describe("learn desk publish API", () => {
     expect(res.body.live).toBe(false);
   });
 
+  it("publishes a blocked blog when overrideCompliance is true", async () => {
+    mocked.getEditorialPiece.mockResolvedValue({ ...clearedBlog, compliance: "blocked" });
+    const denied = await request("POST", "/api/editorial/1/publish-learn", { excerpt: "TTP" });
+    expect(denied.status).toBe(400);
+    const res = await request("POST", "/api/editorial/1/publish-learn", {
+      excerpt: "TTP",
+      overrideCompliance: true,
+    });
+    expect(res.status).toBe(200);
+    expect(mocked.upsertLiveLearnPiece).toHaveBeenCalled();
+  });
+
+  it("publishes a cleared news post to the news lane", async () => {
+    mocked.getEditorialPiece.mockResolvedValue({ ...clearedBlog, type: "news", title: "HMRC is writing again" });
+    const res = await request("POST", "/api/editorial/1/publish-learn", {
+      slug: "hmrc-is-writing-again",
+      excerpt: "A note from the desk.",
+      pathPosition: 2,
+    });
+    expect(res.status).toBe(200);
+    const snap = mocked.upsertLiveLearnPiece.mock.calls[0][0];
+    expect(snap.kind).toBe("news");
+    expect(snap.pathPosition).toBeNull();
+    expect(snap.slug).toBe("hmrc-is-writing-again");
+  });
+
   it("publishes a cleared blog via editorial publish-learn", async () => {
     const res = await request("POST", "/api/editorial/1/publish-learn", {
       slug: "time-to-pay",
@@ -215,5 +256,27 @@ describe("learn desk publish API", () => {
     const res = await request("POST", "/api/learn-desk/videos/9/generate", {});
     expect(res.status).toBe(400);
     expect(String(res.body.error || res.body)).toMatch(/scan/i);
+  });
+
+  it("clears blocked copy on compliance when overrideCompliance is true", async () => {
+    mocked.getLearnVideo.mockResolvedValue({
+      ...draftVideo,
+      status: "approved",
+      description: "Commercial payday-style facilities are a trap.",
+      transcript: "",
+    });
+    mocked.updateLearnVideo.mockImplementation(async (_id: number, _userId: string, updates: object) => ({
+      ...draftVideo,
+      status: "approved",
+      ...updates,
+    }));
+    const denied = await request("POST", "/api/learn-desk/videos/9/compliance", { action: "cleared" });
+    expect(denied.status).toBe(400);
+    const res = await request("POST", "/api/learn-desk/videos/9/compliance", {
+      action: "cleared",
+      overrideCompliance: true,
+    });
+    expect(res.status).toBe(200);
+    expect(mocked.updateLearnVideo).toHaveBeenCalledWith(9, "u1", { compliance: "cleared" });
   });
 });

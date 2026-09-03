@@ -172,7 +172,7 @@ export default function Editorial() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [draftType, setDraftType] = useState<"blog" | "press_release">("blog");
+  const [draftType, setDraftType] = useState<"blog" | "press_release" | "news">("blog");
   const [draftTitle, setDraftTitle] = useState("");
   const [draftTopic, setDraftTopic] = useState("");
   const [title, setTitle] = useState("");
@@ -372,8 +372,11 @@ export default function Editorial() {
           <Button
             variant="outline"
             onClick={() =>
-              postAction(`/api/editorial/${selected.id}/compliance`, { action: "cleared" })
-                .then(() => toast.success("Compliance cleared"))
+              postAction(`/api/editorial/${selected.id}/compliance`, {
+                action: "cleared",
+                overrideCompliance: true,
+              })
+                .then(() => toast.success("Compliance cleared (director override)"))
                 .catch((err: Error) => toast.error(err.message))
             }
           >
@@ -400,9 +403,9 @@ export default function Editorial() {
           >
             <Download className="h-4 w-4 mr-1" /> Export
           </Button>
-          {selected.type === "blog" && (
+          {(selected.type === "blog" || selected.type === "news") && (
             <Button
-              disabled={!exportOk}
+              disabled={selected.status !== "approved" && selected.status !== "exported"}
               variant="outline"
               onClick={() => {
                 setLearnSlug(slugifyLearnTitle(title));
@@ -633,18 +636,25 @@ export default function Editorial() {
                 <Label>Excerpt</Label>
                 <Textarea value={learnExcerpt} onChange={(e) => setLearnExcerpt(e.target.value)} />
               </div>
-              <div className="space-y-1">
-                <Label>Path position</Label>
-                <Select value={learnPath} onValueChange={setLearnPath}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {[1, 2, 3, 4, 5, 6].map((n) => (
-                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {selected.type !== "news" && (
+                <div className="space-y-1">
+                  <Label>Path position</Label>
+                  <Select value={learnPath} onValueChange={setLearnPath}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {[1, 2, 3, 4, 5, 6].map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {selected.compliance !== "cleared" && (
+                <p className="text-xs text-muted-foreground">
+                  Compliance is {selected.compliance}. This publish is a director override.
+                </p>
+              )}
               <Button
                 className="w-full"
                 onClick={() =>
@@ -652,6 +662,7 @@ export default function Editorial() {
                     slug: learnSlug,
                     excerpt: learnExcerpt,
                     pathPosition: learnPath === "none" ? null : parseInt(learnPath, 10),
+                    overrideCompliance: true,
                   })
                     .then(() => {
                       queryClient.invalidateQueries({ queryKey: ["/api/learn-desk/pieces"] });
@@ -711,6 +722,7 @@ export default function Editorial() {
             <TabsTrigger value="all" className="text-xs">All types</TabsTrigger>
             <TabsTrigger value="blog" className="text-xs">Blog</TabsTrigger>
             <TabsTrigger value="press_release" className="text-xs">Press release</TabsTrigger>
+            <TabsTrigger value="news" className="text-xs">News</TabsTrigger>
           </TabsList>
         </Tabs>
         <Button onClick={() => setWizardOpen(true)} className="gap-1.5">
@@ -750,7 +762,7 @@ export default function Editorial() {
               {filtered.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id!)}>
                   <TableCell className="font-medium">{row.title}</TableCell>
-                  <TableCell>{row.type === "blog" ? "Blog" : "Press release"}</TableCell>
+                  <TableCell>{row.type === "blog" ? "Blog" : row.type === "news" ? "News" : "Press release"}</TableCell>
                   <TableCell>{row.status}</TableCell>
                   <TableCell>{row.compliance}</TableCell>
                   <TableCell>{row.engine ? `${row.engine.provider}` : "—"}</TableCell>
@@ -768,15 +780,16 @@ export default function Editorial() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New piece</DialogTitle>
-            <DialogDescription>Blog or press release. Casey will scan the topic next.</DialogDescription>
+            <DialogDescription>Blog, news, or press release. Casey will scan the topic next.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
               <Label>Type</Label>
-              <Select value={draftType} onValueChange={(v) => setDraftType(v as "blog" | "press_release")}>
+              <Select value={draftType} onValueChange={(v) => setDraftType(v as "blog" | "press_release" | "news")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="blog">Blog</SelectItem>
+                  <SelectItem value="news">News</SelectItem>
                   <SelectItem value="press_release">Press release</SelectItem>
                 </SelectContent>
               </Select>

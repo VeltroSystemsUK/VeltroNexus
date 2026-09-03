@@ -53,6 +53,7 @@ const publishSchema = z.object({
   slug: z.string().optional(),
   excerpt: z.string().optional(),
   pathPosition: z.number().int().min(1).max(6).nullable().optional(),
+  overrideCompliance: z.boolean().optional(),
 });
 
 const pathSchema = z.object({
@@ -275,7 +276,7 @@ router.post("/learn-desk/videos/:id/compliance", isAuthenticated, async (req: Au
     }
     if (action !== "cleared") return res.status(400).json({ error: "action must be cleared or blocked" });
     try {
-      const next = signOffLearnVideoCompliance(existing);
+      const next = signOffLearnVideoCompliance(existing, req.body?.overrideCompliance === true);
       const video = await storage.updateLearnVideo(existing.id!, req.user.id, { compliance: next.compliance });
       return res.json(video);
     } catch (err: any) {
@@ -329,6 +330,7 @@ router.post("/learn-desk/videos/:id/publish", isAuthenticated, async (req: Authe
       videoUrl: existing.videoUrl,
       description: existing.description,
       transcript: existing.transcript,
+      overrideCompliance: parsed.data.overrideCompliance === true,
     });
     if (!gate.ok) return res.status(400).json({ error: gate.error });
     const snapshot = snapshotLearnPiece({
@@ -404,6 +406,36 @@ router.get("/learn-desk/bot-logs", isAuthenticated, async (req: AuthenticatedReq
     res.json(await storage.listLearnBotLogs());
   } catch (err: any) {
     handleApiError(res, err, "list-learn-bot-logs");
+  }
+});
+
+router.get("/learn-desk/news-comments", isAuthenticated, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rows = await storage.listNewsComments();
+    res.json(
+      rows.map((row) => ({
+        id: row.id,
+        pieceId: row.pieceId,
+        name: row.name,
+        body: row.body,
+        marketingOptIn: row.marketingOptIn,
+        live: row.live,
+        createdAt: row.createdAt,
+      })),
+    );
+  } catch (err: any) {
+    handleApiError(res, err, "list-news-comments");
+  }
+});
+
+router.post("/learn-desk/news-comments/:id/hide", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    const row = await storage.hideNewsComment(id);
+    if (!row) return res.status(404).json({ error: "Comment not found" });
+    res.json({ id: row.id, live: row.live });
+  } catch (err: any) {
+    handleApiError(res, err, "hide-news-comment");
   }
 });
 

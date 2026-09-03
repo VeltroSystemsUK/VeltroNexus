@@ -9,6 +9,11 @@ vi.mock("../../storage", () => ({
     getLearnPiece: vi.fn(),
     incrementLearnHelped: vi.fn(),
     insertLearnBotLog: vi.fn(),
+    listLiveNewsComments: vi.fn(),
+    listNewsComments: vi.fn(),
+    insertNewsComment: vi.fn(),
+    getMarketingContactByEmail: vi.fn(),
+    createOrUpdateMarketingContact: vi.fn(),
   },
 }));
 
@@ -21,6 +26,11 @@ const mocked = storage as unknown as {
   getLearnPiece: ReturnType<typeof vi.fn>;
   incrementLearnHelped: ReturnType<typeof vi.fn>;
   insertLearnBotLog: ReturnType<typeof vi.fn>;
+  listLiveNewsComments: ReturnType<typeof vi.fn>;
+  listNewsComments: ReturnType<typeof vi.fn>;
+  insertNewsComment: ReturnType<typeof vi.fn>;
+  getMarketingContactByEmail: ReturnType<typeof vi.fn>;
+  createOrUpdateMarketingContact: ReturnType<typeof vi.fn>;
 };
 
 const piece = {
@@ -116,6 +126,8 @@ describe("learn public API host split", () => {
     mocked.getLearnPiece.mockResolvedValue(piece);
     mocked.incrementLearnHelped.mockResolvedValue({ ...piece, thisHelped: 5 });
     mocked.insertLearnBotLog.mockResolvedValue({ id: 1 });
+    mocked.listLiveNewsComments.mockResolvedValue([]);
+    mocked.listNewsComments.mockResolvedValue([]);
   });
 
   it("404s home on leads host and returns path on learn host", async () => {
@@ -160,5 +172,16 @@ describe("learn public API host split", () => {
       handoff: true,
       retrievedIds: [],
     });
+  });
+
+  it("rejects a news comment that contains a URL", async () => {
+    mocked.getLearnPiece.mockResolvedValue({ ...piece, kind: "news", live: true });
+    const res = await post("/api/learn/news/1/comments", "learn.stratanexus.co.uk", "", {
+      name: "Jordan Hale",
+      email: "jordan@joinery.co.uk",
+      body: "See https://claims.example for a refund on the facility.",
+    });
+    expect(res.status).toBe(400);
+    expect(mocked.insertNewsComment).not.toHaveBeenCalled();
   });
 });

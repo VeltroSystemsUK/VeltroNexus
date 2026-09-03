@@ -1325,7 +1325,7 @@ export const EMAIL_TEMPLATE_CATEGORIES = [
   { value: "custom", label: "Custom" },
 ] as const;
 
-export const editorialTypeEnum = z.enum(["blog", "press_release"]);
+export const editorialTypeEnum = z.enum(["blog", "press_release", "news"]);
 export const editorialStatusEnum = z.enum(["draft", "approved", "rejected", "exported"]);
 export const editorialComplianceEnum = z.enum(["pending", "cleared", "blocked"]);
 
@@ -1414,7 +1414,7 @@ export const learnPieceSchema = z.object({
   id: z.number().optional(),
   userId: z.string(),
   slug: z.string().min(1),
-  kind: z.enum(["article", "video"]),
+  kind: z.enum(["article", "video", "news"]),
   title: z.string().min(1),
   excerpt: z.string().default(""),
   heroImageUrl: z.string().nullable().optional().default(null),
@@ -1442,6 +1442,19 @@ export const learnBotLogSchema = z.object({
   retrievedIds: z.array(z.number()).default([]),
 });
 export type LearnBotLog = z.infer<typeof learnBotLogSchema>;
+
+export const learnNewsCommentSchema = z.object({
+  id: z.number().optional(),
+  pieceId: z.number(),
+  name: z.string().min(2).max(80),
+  emailHash: z.string().min(1),
+  body: z.string().min(20).max(800),
+  marketingOptIn: z.boolean().default(false),
+  live: z.boolean().default(true),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type LearnNewsComment = z.infer<typeof learnNewsCommentSchema>;
 
 // --- Scraped Leads (Auto-Qualified) ---
 export const scrapedLeadSchema = z.object({

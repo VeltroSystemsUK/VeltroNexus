@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { editorialMarkdownToHtml } from "@shared/editorial";
 import { parseHelpedCookie, type LearnPiecePublic } from "@shared/learn";
 import LearnLibrarian from "./LearnLibrarian";
+import LearnLesson from "./LearnLesson";
 import {
   LearnCta,
   LearnNotFound,
@@ -33,13 +33,15 @@ export default function LearnPiece({ kind }: { kind: "video" | "article" }) {
   const { data: home } = useQuery<LearnHomePayload>({ queryKey: ["/api/learn/home"] });
   const [helped, setHelped] = useState(false);
   const [count, setCount] = useState(0);
+  const [lessonDone, setLessonDone] = useState(kind === "video");
 
   useEffect(() => {
     if (!piece) return;
     setLearnMeta(`${piece.title} — Strata Learn`, piece.excerpt || piece.title);
     setCount(piece.thisHelped || 0);
     setHelped(typeof piece.id === "number" && helpedIds().includes(piece.id));
-  }, [piece]);
+    setLessonDone(kind === "video");
+  }, [piece, kind]);
 
   const mutation = useMutation({
     mutationFn: async (id: number) => {
@@ -66,6 +68,7 @@ export default function LearnPiece({ kind }: { kind: "video" | "article" }) {
   const prev = onPath && index > 0 ? path[index - 1] : null;
   const next = onPath && index < path.length - 1 ? path[index + 1] : null;
   const canHelp = typeof piece.id === "number" && !helped && !mutation.isPending;
+  const showClose = kind === "video" || lessonDone;
 
   return (
     <article className="space-y-10">
@@ -91,10 +94,7 @@ export default function LearnPiece({ kind }: { kind: "video" | "article" }) {
           {piece.heroImageUrl && (
             <img src={piece.heroImageUrl} alt="" className="w-full rounded-xl max-h-[420px] object-cover" />
           )}
-          <div
-            className="prose prose-invert max-w-2xl prose-headings:font-['Unbounded'] prose-p:font-['Plus_Jakarta_Sans']"
-            dangerouslySetInnerHTML={{ __html: editorialMarkdownToHtml(piece.body, piece.title) }}
-          />
+          <LearnLesson title={piece.title} markdown={piece.body} onFinishedChange={setLessonDone} />
         </div>
       )}
 
@@ -105,7 +105,7 @@ export default function LearnPiece({ kind }: { kind: "video" | "article" }) {
         </details>
       )}
 
-      {onPath && (
+      {showClose && onPath && (
         <nav className="flex justify-between gap-4 text-sm">
           {prev ? (
             <Link href={pieceHref(prev.kind, prev.slug)} className="text-emerald-400 hover:underline">
@@ -124,23 +124,27 @@ export default function LearnPiece({ kind }: { kind: "video" | "article" }) {
         </nav>
       )}
 
-      <div className="space-y-3">
-        <button
-          type="button"
-          disabled={!canHelp}
-          onClick={() => typeof piece.id === "number" && mutation.mutate(piece.id)}
-          className="rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 disabled:opacity-50 hover:border-emerald-400/50"
-        >
-          This helped{count ? ` · ${count}` : ""}
-        </button>
-      </div>
+      {showClose && (
+        <>
+          <div className="space-y-3">
+            <button
+              type="button"
+              disabled={!canHelp}
+              onClick={() => typeof piece.id === "number" && mutation.mutate(piece.id)}
+              className="rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 disabled:opacity-50 hover:border-emerald-400/50"
+            >
+              This helped{count ? ` · ${count}` : ""}
+            </button>
+          </div>
 
-      <section className="space-y-4 rounded-xl border border-white/10 p-6">
-        <h2 className="font-['Unbounded'] text-xl tracking-tight">Next step</h2>
-        <LearnCta />
-      </section>
+          <section className="space-y-4 rounded-xl border border-white/10 p-6">
+            <h2 className="font-['Unbounded'] text-xl tracking-tight">Next step</h2>
+            <LearnCta />
+          </section>
 
-      <LearnLibrarian slug={piece.slug} />
+          <LearnLibrarian slug={piece.slug} />
+        </>
+      )}
     </article>
   );
 }

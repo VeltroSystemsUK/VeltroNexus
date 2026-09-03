@@ -11,11 +11,13 @@ import {
   parseHelpedCookie,
   pathPositionTaken,
   reviewLearnCopy,
+  signOffLearnVideoCompliance,
   slugifyLearnTitle,
   snapshotLearnPiece,
   toLearnPublic,
   unpublishLearnPiece,
   type LearnPieceLike,
+  type LearnVideoLike,
 } from "@shared/learn";
 import { createLearnVideoSchema, learnPieceSchema } from "@shared/schema";
 
@@ -120,6 +122,67 @@ describe("canPublishLearn", () => {
         videoUrl: "https://assets.grok.com/users/x/generated/y/a.mp4",
       }).ok,
     ).toBe(false);
+  });
+
+  it("lets a Director override skip compliance and copy review, not approve or grok CDN", () => {
+    const base = {
+      status: "approved" as const,
+      compliance: "blocked" as const,
+      autoPublish: false as const,
+      kind: "video" as const,
+      title: "Payday",
+      excerpt: "Trap",
+      videoUrl: "/uploads/learn/videos/StrataFinance_PaydayLenders.mp4",
+      description: "Commercial payday-style facilities are a trap.",
+    };
+    expect(canPublishLearn(base).ok).toBe(false);
+    expect(canPublishLearn({ ...base, overrideCompliance: true }).ok).toBe(true);
+    expect(canPublishLearn({ ...base, status: "draft", overrideCompliance: true }).ok).toBe(false);
+    expect(
+      canPublishLearn({
+        ...base,
+        overrideCompliance: true,
+        videoUrl: "https://assets.grok.com/users/x/generated/y/a.mp4",
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("does not re-run copy review after Director has cleared compliance", () => {
+    const base = {
+      status: "approved" as const,
+      compliance: "cleared" as const,
+      autoPublish: false as const,
+      kind: "video" as const,
+      title: "Payday",
+      excerpt: "Trap",
+      videoUrl: "/uploads/learn/videos/StrataFinance_PaydayLenders.mp4",
+      description: "Commercial payday-style facilities are a trap.",
+    };
+    expect(canPublishLearn(base).ok).toBe(true);
+  });
+});
+
+describe("signOffLearnVideoCompliance", () => {
+  function video(over: Partial<LearnVideoLike> = {}): LearnVideoLike {
+    return normalizeLearnVideo({
+      id: 9,
+      userId: "u1",
+      title: "Payday",
+      topic: "stacked debt",
+      description: "Commercial payday-style facilities are a trap.",
+      transcript: "",
+      videoUrl: "/uploads/learn/videos/StrataFinance_PaydayLenders.mp4",
+      status: "approved",
+      compliance: "pending",
+      autoPublish: false,
+      ...over,
+    });
+  }
+
+  it("throws on failing copy unless Director overrides", () => {
+    expect(() => signOffLearnVideoCompliance(video())).toThrow(/lend|packager|failed/i);
+    expect(signOffLearnVideoCompliance(video(), true).compliance).toBe("cleared");
+    expect(() => signOffLearnVideoCompliance(video({ status: "draft" }), true)).toThrow(/approve/i);
   });
 });
 
