@@ -186,6 +186,9 @@ describe("Security Integration Tests", () => {
       expect(RATE_LIMIT_CONFIG.AI_LIMIT).toBeGreaterThan(0);
       expect(RATE_LIMIT_CONFIG.AUTH_LIMIT).toBeGreaterThan(0);
       expect(RATE_LIMIT_CONFIG.UPLOAD_LIMIT).toBeGreaterThan(0);
+      expect(RATE_LIMIT_CONFIG.LEARN_ASK_LIMIT).toBeGreaterThan(0);
+      expect(RATE_LIMIT_CONFIG.LEARN_ASK_LIMIT).toBeLessThan(RATE_LIMIT_CONFIG.AI_LIMIT);
+      expect(RATE_LIMIT_CONFIG.LEARN_HELPED_LIMIT).toBeGreaterThan(0);
     });
 
     it("should have valid window configurations", () => {
@@ -194,6 +197,8 @@ describe("Security Integration Tests", () => {
       expect(RATE_LIMIT_CONFIG.AI_WINDOW_MS).toBeGreaterThanOrEqual(1000);
       expect(RATE_LIMIT_CONFIG.AUTH_WINDOW_MS).toBeGreaterThanOrEqual(1000);
       expect(RATE_LIMIT_CONFIG.UPLOAD_WINDOW_MS).toBeGreaterThanOrEqual(1000);
+      expect(RATE_LIMIT_CONFIG.LEARN_ASK_WINDOW_MS).toBeGreaterThanOrEqual(1000);
+      expect(RATE_LIMIT_CONFIG.LEARN_HELPED_WINDOW_MS).toBeGreaterThanOrEqual(1000);
     });
 
     it("should export rate limit middleware function", () => {
@@ -220,6 +225,20 @@ describe("Security Integration Tests", () => {
       const authRule = RATE_LIMIT_RULES.find((r) => r.pattern.test("/api/login"));
       expect(authRule).toBeDefined();
       expect(authRule?.keyType).toBe("ip");
+
+      const askRule = RATE_LIMIT_RULES.find((r) => r.pattern.test("/api/learn/ask"));
+      expect(askRule).toBeDefined();
+      expect(askRule?.keyType).toBe("ip");
+      expect(askRule?.limit).toBe(RATE_LIMIT_CONFIG.LEARN_ASK_LIMIT);
+      expect(askRule?.limit).toBeLessThan(RATE_LIMIT_CONFIG.AI_LIMIT);
+      expect(askRule?.pattern.test("/api/learn/home")).toBe(false);
+
+      const helpedRule = RATE_LIMIT_RULES.find((r) => r.pattern.test("/api/learn/piece/1/helped"));
+      expect(helpedRule).toBeDefined();
+      expect(helpedRule?.keyType).toBe("ip");
+      expect(helpedRule?.limit).toBe(RATE_LIMIT_CONFIG.LEARN_HELPED_LIMIT);
+      expect(helpedRule?.pattern.test("/api/learn/piece/video/payday-lenders")).toBe(false);
+      expect(helpedRule?.pattern.test("/api/learn/ask")).toBe(false);
     });
 
     it("should provide rate limit status function", async () => {

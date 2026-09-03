@@ -94,6 +94,18 @@ export function LearnPlayer({
   );
 }
 
+export function LearnCatalogFailed() {
+  return (
+    <div className="py-20 space-y-4 text-center">
+      <p className="font-['Unbounded'] text-2xl text-zinc-100">Could not load lessons.</p>
+      <PackagerLine />
+      <div className="flex justify-center">
+        <LearnCta />
+      </div>
+    </div>
+  );
+}
+
 export function LearnCta() {
   return (
     <div className="flex flex-col sm:flex-row gap-3">
@@ -174,7 +186,7 @@ const HOME_DESCRIPTION =
   "Training for UK directors dealing with stacked short-term finance and HMRC commitments. Strata packages; it does not lend.";
 
 export default function LearnHome() {
-  const { data, isLoading } = useQuery<LearnHomePayload>({ queryKey: ["/api/learn/home"] });
+  const { data, isLoading, isError } = useQuery<LearnHomePayload>({ queryKey: ["/api/learn/home"] });
 
   useEffect(() => {
     setLearnMeta("Strata Learn", HOME_DESCRIPTION);
@@ -182,6 +194,10 @@ export default function LearnHome() {
 
   if (isLoading) {
     return <p className="text-zinc-500">Loading lessons…</p>;
+  }
+
+  if (isError) {
+    return <LearnCatalogFailed />;
   }
 
   const path = data?.path ?? [];

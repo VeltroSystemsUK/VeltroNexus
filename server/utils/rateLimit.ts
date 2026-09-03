@@ -36,6 +36,14 @@ export const RATE_LIMIT_CONFIG = {
   // Upload endpoints: requests per minute per user
   UPLOAD_LIMIT: parseInt(process.env.RATE_LIMIT_UPLOAD || "30"),
   UPLOAD_WINDOW_MS: parseInt(process.env.RATE_LIMIT_UPLOAD_WINDOW_MS || "60000"),
+
+  // Public Learn librarian: requests per minute per IP (under user-keyed AI_LIMIT)
+  LEARN_ASK_LIMIT: parseInt(process.env.RATE_LIMIT_LEARN_ASK || "10"),
+  LEARN_ASK_WINDOW_MS: parseInt(process.env.RATE_LIMIT_LEARN_ASK_WINDOW_MS || "60000"),
+
+  // Public Learn "this helped": requests per minute per IP
+  LEARN_HELPED_LIMIT: parseInt(process.env.RATE_LIMIT_LEARN_HELPED || "30"),
+  LEARN_HELPED_WINDOW_MS: parseInt(process.env.RATE_LIMIT_LEARN_HELPED_WINDOW_MS || "60000"),
 };
 
 // Redis client singleton
@@ -292,6 +300,20 @@ export const RATE_LIMIT_RULES: RateLimitRule[] = [
     pattern: /^\/api\/pack\//,
     limit: RATE_LIMIT_CONFIG.UPLOAD_LIMIT,
     windowMs: RATE_LIMIT_CONFIG.UPLOAD_WINDOW_MS,
+    keyType: "ip",
+  },
+  // Public Learn librarian: by IP (anonymous; tighter than user-keyed AI)
+  {
+    pattern: /^\/api\/learn\/ask\/?$/,
+    limit: RATE_LIMIT_CONFIG.LEARN_ASK_LIMIT,
+    windowMs: RATE_LIMIT_CONFIG.LEARN_ASK_WINDOW_MS,
+    keyType: "ip",
+  },
+  // Public Learn "this helped": by IP
+  {
+    pattern: /^\/api\/learn\/piece\/[^/]+\/helped\/?$/,
+    limit: RATE_LIMIT_CONFIG.LEARN_HELPED_LIMIT,
+    windowMs: RATE_LIMIT_CONFIG.LEARN_HELPED_WINDOW_MS,
     keyType: "ip",
   },
 ];
