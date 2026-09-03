@@ -6,7 +6,9 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   define: {
-    process: JSON.stringify({ env: {} }),
+    process: JSON.stringify({
+      env: { LEARN_HOST: process.env.LEARN_HOST || "" },
+    }),
   },
   resolve: {
     alias: {

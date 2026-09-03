@@ -43,7 +43,9 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
     plugins: [pluginReact()],
     define: {
-      process: "({ env: {} })",
+      process: JSON.stringify({
+        env: { LEARN_HOST: process.env.LEARN_HOST || "" },
+      }),
     },
     resolve: {
       alias: {
