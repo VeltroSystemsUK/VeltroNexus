@@ -61,9 +61,9 @@ router.get("/api/agentic/outreach-templates", isAuthenticated, async (_req, res)
       return {
         id: touchId,
         stream,
-        day: step?.day ?? 0,
+        day: touchId === "sme_followup" ? 2 : step?.day ?? 0,
         channel: step?.channel ?? "email",
-        job: step?.job ?? "",
+        job: step?.job || builtIn.purpose,
         defaultTemplate: { subject: editablePreview(builtIn.subject), body: editablePreview(editableOutreachBody(builtIn, mailbox)), purpose: builtIn.purpose },
         override: override || null,
         effective: { subject: effective.subject, body: effective.text, purpose: effective.purpose },

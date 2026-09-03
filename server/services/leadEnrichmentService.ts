@@ -217,6 +217,10 @@ export async function enrichLeadsInBackground(
             const currentJob = await agentJobTracker.getJob(jobId);
             if (!currentJob || currentJob.status !== "running") {
                 console.log(`[Agent B] Job ${jobId} is no longer running (Status: ${currentJob?.status}). Stopping enrichment.`);
+                await agentJobTracker.completeJob(jobId, {
+                    message: `Stopped after enriching ${completedCount} leads.`,
+                    processed: completedCount,
+                });
                 return;
             }
         }

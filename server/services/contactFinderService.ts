@@ -367,6 +367,10 @@ export async function findContactsBulk(leadIds: number[], userId: string): Promi
     const currentJob = await agentJobTracker.getJob(jobId);
     if (!currentJob || currentJob.status !== "running") {
       console.log(`[ContactFinder] Job ${jobId} cancelled. Stopping.`);
+      await agentJobTracker.completeJob(jobId, {
+        message: `Stopped after finding contacts for ${completedCount} leads.`,
+        processed: completedCount,
+      });
       return;
     }
 

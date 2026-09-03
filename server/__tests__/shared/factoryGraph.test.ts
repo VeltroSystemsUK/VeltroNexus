@@ -64,6 +64,46 @@ describe("factory graph", () => {
     ).not.toMatch(/^mkt-/);
   });
 
+  it("plots sme_open and sme_followup off Cadence email", () => {
+    const ids = new Set(FACTORY_NODES.map((node) => node.id));
+    expect(ids.has("sme-open")).toBe(true);
+    expect(ids.has("explore-gate")).toBe(true);
+    expect(ids.has("sme-followup")).toBe(true);
+    expect(FACTORY_NODES.find((node) => node.id === "sme-open")?.desk).toBe("James");
+    expect(FACTORY_NODES.find((node) => node.id === "sme-followup")?.desk).toBe("James");
+    expect(FACTORY_EDGES.some((edge) => edge.source === "email" && edge.target === "sme-open")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "sme-open" && edge.target === "explore-gate")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "explore-gate" && edge.target === "sme-followup")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "explore-gate" && edge.target === "inbound")).toBe(true);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    expect(
+      nodeForDeal({
+        stage: "outreach",
+        status: "waiting_timer",
+        source: "distress_scan",
+        smeOpenFollowUpSentAt: oneHourAgo,
+      })
+    ).toBe("sme-open");
+    expect(
+      nodeForDeal({
+        stage: "outreach",
+        status: "waiting_timer",
+        source: "distress_scan",
+        smeOpenFollowUpSentAt: twoDaysAgo,
+      })
+    ).toBe("sme-followup");
+    expect(
+      nodeForDeal({
+        stage: "outreach",
+        status: "waiting_timer",
+        source: "distress_scan",
+        smeOpenFollowUpSentAt: twoDaysAgo,
+        smeFollowupSentAt: oneHourAgo,
+      })
+    ).toBe("email");
+  });
+
   it("puts live deals on the node that owns that stage", () => {
     const counts = countDealsOnNodes([
       { stage: "outreach", status: "waiting_timer", source: "distress_scan" },

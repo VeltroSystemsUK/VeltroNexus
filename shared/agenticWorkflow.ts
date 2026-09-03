@@ -88,6 +88,8 @@ export interface AgenticDealFile {
   outreachBody?: string;
   outreachTouch?: number;
   outreachTouchId?: string;
+  smeOpenFollowUpSentAt?: string;
+  smeFollowupSentAt?: string;
   socialPlaybook?: { network: "linkedin"; action: string; message: string };
   callPlaybook?: import("./strataOutreach").CallPlaybook;
   bbbEligibility?: import("./bbbEligibility").BbbAssessment;

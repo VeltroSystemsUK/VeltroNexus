@@ -53,6 +53,10 @@ export class DatabaseBuilderService {
                 const currentJob = await agentJobTracker.getJob(jobId);
                 if (!currentJob || currentJob.status !== "running") {
                     console.log(`[Database Builder] Job ${jobId} is no longer running. Stopping discovery.`);
+                    await agentJobTracker.completeJob(jobId, {
+                        newLeadsCount: newLeadIds.length,
+                        locationsSearched: completedTargets,
+                    });
                     return newLeadIds;
                 }
             }

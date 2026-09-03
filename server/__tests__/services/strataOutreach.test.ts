@@ -115,6 +115,22 @@ describe("strata outreach scripts", () => {
     expect(email.html).not.toMatch(/Upload your documents/);
   });
 
+  it("sme_followup points at Learn and does not re-pitch Explore", () => {
+    const email = renderOutreachEmail(huntDeal, "sme_followup", "outreach-sales");
+    expect(email.touchId).toBe("sme_followup");
+    expect(email.text).toMatch(/high-cost debt and HMRC commitments/i);
+    expect(email.text).toMatch(/videos, press coverage, and my notes/i);
+    expect(email.text).toContain("https://learn.stratanexus.co.uk");
+    expect(email.html).toMatch(/href="https:\/\/learn\.stratanexus\.co\.uk"/);
+    expect(email.html).toMatch(/Open Strata Learn/);
+    expect(email.html).toMatch(/target="_blank"/);
+    expect(email.text).not.toMatch(/explore\.stratanexus\.co\.uk/);
+    expect(email.html).not.toMatch(/explore\.stratanexus\.co\.uk/);
+    expect(email.text).toMatch(/reply stop/i);
+    expect(email.text).toMatch(/James Hale/);
+    expect(email.html).not.toMatch(/Upload your documents/);
+  });
+
   it("renders the Stream B partner email", () => {
     const email = renderOutreachEmail(
       { ...huntDeal, stream: "introducer" },

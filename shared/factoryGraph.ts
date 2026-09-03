@@ -1,4 +1,5 @@
 import type { AgenticDealFile } from "./agenticWorkflow";
+import { SME_FOLLOWUP_DELAY_MS } from "./smeOpenFollowUp";
 
 export type FactoryNodeKind = "trigger" | "auto" | "human" | "gate" | "output" | "fail";
 
@@ -32,6 +33,9 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "contact", label: "Complete contact", desk: "Elena", kind: "auto", detail: "Places / scrape / officers", x: 840, y: 180 },
   { id: "pecr", label: "PECR check", desk: "James", kind: "gate", detail: "No personal mailboxes", x: 1120, y: 80 },
   { id: "email", label: "Cadence email", desk: "James", kind: "auto", detail: "SMTP must deliver", x: 1400, y: 80 },
+  { id: "sme-open", label: "sme_open", desk: "James", kind: "auto", detail: "On open → Explore quiz", x: 1540, y: 160 },
+  { id: "explore-gate", label: "Explore enquiry?", desk: "James", kind: "gate", detail: "Matching inbound skip", x: 1820, y: 160 },
+  { id: "sme-followup", label: "sme_followup", desk: "James", kind: "auto", detail: "+2 days → Learn", x: 2100, y: 160 },
   { id: "linkedin", label: "LinkedIn copy", desk: "You", kind: "human", detail: "You post, then continue", x: 1680, y: 0 },
   { id: "smtp-hold", label: "Mail not delivered", desk: "You", kind: "fail", detail: "Mock or SMTP fail", x: 1680, y: 200 },
   { id: "pack", label: "Pack portal", desk: "Customer", kind: "auto", detail: "Required Sterling list", x: 1400, y: 280 },
@@ -72,6 +76,10 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-contact-pecr", source: "contact", target: "pecr" },
   { id: "e-pecr-email", source: "pecr", target: "email", label: "corporate" },
   { id: "e-pecr-hold", source: "pecr", target: "smtp-hold", label: "personal" },
+  { id: "e-email-sme-open", source: "email", target: "sme-open", label: "on open" },
+  { id: "e-sme-open-gate", source: "sme-open", target: "explore-gate", label: "after 2 days" },
+  { id: "e-explore-followup", source: "explore-gate", target: "sme-followup", label: "no enquiry" },
+  { id: "e-explore-inbound", source: "explore-gate", target: "inbound", label: "enquired" },
   { id: "e-email-li", source: "email", target: "linkedin", label: "day 4 / 5" },
   { id: "e-email-smtp", source: "email", target: "smtp-hold", label: "not sent" },
   { id: "e-in-pack", source: "inbound", target: "pack", label: "ack + link" },
@@ -103,9 +111,19 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-mkt-ed-export-post", source: "mkt-editorial-export", target: "mkt-post", label: "you publish" },
 ];
 
+function smeSideTouchNode(
+  deal: Partial<Pick<AgenticDealFile, "smeOpenFollowUpSentAt" | "smeFollowupSentAt">>
+): "sme-open" | "sme-followup" | null {
+  if (deal.smeFollowupSentAt) return null;
+  const sentAt = Date.parse(String(deal.smeOpenFollowUpSentAt || ""));
+  if (!Number.isFinite(sentAt)) return null;
+  if (Date.now() - sentAt >= SME_FOLLOWUP_DELAY_MS) return "sme-followup";
+  return "sme-open";
+}
+
 export function nodeForDeal(
   deal: Pick<AgenticDealFile, "stage" | "status" | "source" | "humanReason" | "sfp" | "stream"> &
-    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId">>
+    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId" | "smeOpenFollowUpSentAt" | "smeFollowupSentAt">>
 ): string {
   const reason = deal.humanReason || "";
   if (deal.status === "failed") {
@@ -132,10 +150,11 @@ export function nodeForDeal(
     case "pipeline":
       return deal.source === "strata_inbound" ? "pack" : "contact";
     case "outreach":
-      return "email";
+      return smeSideTouchNode(deal) || "email";
     case "fulfilment":
       if (deal.sfp?.status === "PARTIAL") return "partial";
-      return deal.source === "strata_inbound" ? "pack" : "fulfil";
+      if (deal.source === "strata_inbound") return "pack";
+      return smeSideTouchNode(deal) || "fulfil";
     case "human_call":
       return "call";
     case "processing":

@@ -10,7 +10,7 @@ import {
   type SalesStream,
 } from "./salesOs";
 
-export type OutreachTouchId = CadenceTouchId | "cold_1" | "cold_2" | "cold_3" | "sme_open";
+export type OutreachTouchId = CadenceTouchId | "cold_1" | "cold_2" | "cold_3" | "sme_open" | "sme_followup";
 
 export interface RenderedEmail {
   touchId: OutreachTouchId;
@@ -31,6 +31,7 @@ export const EDITABLE_OUTREACH_TOUCHES: OutreachTouchId[] = [
   "inbound_chase",
   "sme_1",
   "sme_open",
+  "sme_followup",
   "sme_2",
   "sme_close",
   "intro_1",
@@ -80,7 +81,7 @@ function escapeHtml(value: string): string {
 function linkify(escaped: string): string {
   return escaped.replace(
     /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" style="color:#2E5096;word-break:break-all;">$1</a>'
+    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#2E5096;word-break:break-all;">$1</a>'
   );
 }
 
@@ -101,20 +102,28 @@ export function packUploadUrl(token?: string | null): string | undefined {
 function uploadButtonHtml(url: string): string {
   return `
 <p style="margin:24px 0 10px 0;">
-  <a href="${escapeHtml(url)}" style="display:inline-block;background:#2E5096;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:14px;">Upload your documents</a>
+  <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2E5096;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:14px;">Upload your documents</a>
 </p>
-<p style="margin:0 0 16px 0;font-size:13px;line-height:1.45;color:#374151;font-family:Arial,Helvetica,sans-serif;">If the button does not work, use this link:<br/><a href="${escapeHtml(url)}" style="color:#2E5096;word-break:break-all;">${escapeHtml(url)}</a></p>`.trim();
+<p style="margin:0 0 16px 0;font-size:13px;line-height:1.45;color:#374151;font-family:Arial,Helvetica,sans-serif;">If the button does not work, use this link:<br/><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:#2E5096;word-break:break-all;">${escapeHtml(url)}</a></p>`.trim();
 }
 
 const SME_QUIZ_URL = "https://explore.stratanexus.co.uk";
 const SME_LEARN_URL = "https://learn.stratanexus.co.uk";
 
-function learnButtonHtml(url: string): string {
+function ctaButtonHtml(url: string, label: string): string {
   return `
 <p style="margin:24px 0 10px 0;">
-  <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2E5096;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:14px;">Start the training</a>
+  <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2E5096;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:14px;">${escapeHtml(label)}</a>
 </p>
 <p style="margin:0 0 16px 0;font-size:13px;line-height:1.45;color:#374151;font-family:Arial,Helvetica,sans-serif;">If the button does not work, use this link:<br/><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:#2E5096;word-break:break-all;">${escapeHtml(url)}</a></p>`.trim();
+}
+
+function quizButtonHtml(url: string): string {
+  return ctaButtonHtml(url, "Take the four-question assessment");
+}
+
+function learnButtonHtml(url: string): string {
+  return ctaButtonHtml(url, "Start the training");
 }
 
 const LOGO_URL =
@@ -196,7 +205,7 @@ function withSignature(
   };
 }
 
-function canonicalTouchId(touchId: OutreachTouchId): CadenceTouchId | "sme_open" {
+function canonicalTouchId(touchId: OutreachTouchId): CadenceTouchId | "sme_open" | "sme_followup" {
   if (touchId === "cold_1") return "sme_1";
   if (touchId === "cold_2") return "sme_2";
   if (touchId === "cold_3") return "sme_close";
@@ -347,6 +356,23 @@ export function renderOutreachEmail(
       html: signed.html,
       text: signed.text,
       purpose: "First open of sme_1 — thank them, point at Learn, and name the Explore assessment.",
+    };
+  }
+
+  if (touchId === "sme_followup") {
+    const lines = [
+      `Hi ${name},`,
+      `Following up on the note I sent about ${company}’s high-cost debt and HMRC commitments.`,
+      `If it's useful to see how we work before going further, Learn has short videos, press coverage, and my notes — no login.`,
+      SME_LEARN_URL,
+    ];
+    const signed = withSignature(lines, mailbox, [STOP_LINE], ctaButtonHtml(SME_LEARN_URL, "Open Strata Learn"));
+    return {
+      touchId: "sme_followup",
+      subject: `A bit more on how we work — ${company}`,
+      html: signed.html,
+      text: signed.text,
+      purpose: "Two days after sme_open — Learn hub if they have not enquired on Explore.",
     };
   }
 

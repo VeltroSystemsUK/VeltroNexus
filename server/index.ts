@@ -298,10 +298,14 @@ app.use((req: any, res, next) => {
           console.log("[Lead Finder] Autonomous scheduler started");
 
           const { agenticWorkflow } = await import("./services/agenticWorkflow");
+          const { backfillSmeOpenFollowUps, sendDueSmeFollowUps } = await import("./services/smeOpenFollowUp");
           let lastDistressScanDate: string | null = null;
           setInterval(() => {
             agenticWorkflow.tick().catch((error) => {
               console.error("[Agentic] Timer tick failed:", error);
+            });
+            sendDueSmeFollowUps().catch((error) => {
+              console.error("[AgentMail] sme_followup tick failed:", error);
             });
             const today = new Date().toISOString().slice(0, 10);
             if (lastDistressScanDate !== today && new Date().getHours() >= 8) {
@@ -324,6 +328,25 @@ app.use((req: any, res, next) => {
 
           const { startImapInboxPoll } = await import("./services/imapInbox");
           startImapInboxPoll();
+
+          void backfillSmeOpenFollowUps()
+            .then((result) => {
+              console.log(
+                `[AgentMail] sme_open backfill candidates=${result.candidates} sent=${result.sent} skipped=${result.skipped}`
+              );
+            })
+            .catch((error) => {
+              console.error("[AgentMail] sme_open backfill failed:", error);
+            });
+          void sendDueSmeFollowUps()
+            .then((result) => {
+              console.log(
+                `[AgentMail] sme_followup backfill candidates=${result.candidates} sent=${result.sent} skipped=${result.skipped}`
+              );
+            })
+            .catch((error) => {
+              console.error("[AgentMail] sme_followup backfill failed:", error);
+            });
 
         } catch (error) {
           console.error("[Startup] Failed to initialize agents/schedulers:", error);
