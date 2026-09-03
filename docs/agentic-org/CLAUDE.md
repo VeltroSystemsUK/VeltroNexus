@@ -16,6 +16,7 @@ Shaun is the Director. David at Sterling is the receiving underwriter. You never
 - Continue after opt-out, complaint, solicitor, or vulnerability.
 - Auto-dial or auto-post LinkedIn, Instagram, Facebook, or TikTok.
 - Auto-publish an Editorial blog or press release.
+- Auto-publish a Learn video or article.
 - Store social passwords or buy ads.
 - Strip a photographer credit, or ingest stills from a host Kit does not allow.
 - Sign legal terms, move money, change credentials, or add agents.

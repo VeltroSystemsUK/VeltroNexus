@@ -1,0 +1,45 @@
+{
+  "hero": {
+    "inboxFile": "StrataFinance_Promo.mp4",
+    "title": "Strata Finance — sustainable layers of finance",
+    "topic": "promo",
+    "slug": "promo",
+    "pathPosition": null,
+    "durationLabel": "40 sec",
+    "excerpt": "Stacked short-term debt, one structure built to last."
+  },
+  "videos": [
+    {
+      "inboxFile": "StrataFinance_PaydayLenders.mp4",
+      "title": "What a commercial payday lender actually is",
+      "topic": "stacked short-term high-cost credit",
+      "slug": "payday-lenders",
+      "pathPosition": 1,
+      "durationLabel": "1 min"
+    },
+    {
+      "inboxFile": "StrataFinance_Cashflow.mp4",
+      "title": "Poor cashflow will kill the business on its own",
+      "topic": "SME cashflow",
+      "slug": "cashflow",
+      "pathPosition": 2,
+      "durationLabel": "1 min"
+    },
+    {
+      "inboxFile": "StrataFinance_TimeToPay.mp4",
+      "title": "Time to Pay is not time to hide",
+      "topic": "HMRC Time to Pay",
+      "slug": "time-to-pay",
+      "pathPosition": 3,
+      "durationLabel": "1 min"
+    },
+    {
+      "inboxFile": "StrataFinance_BadBrokers.mp4",
+      "title": "How to avoid a warehouse broker",
+      "topic": "packager vs call-centre broker",
+      "slug": "bad-brokers",
+      "pathPosition": 4,
+      "durationLabel": "55 sec"
+    }
+  ]
+}

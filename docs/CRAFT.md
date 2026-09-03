@@ -9,7 +9,7 @@ CRAFT is a browser canvas design compositor built into NEXUS — a Photoshop/Can
 - **Social mode** (`/craft`, `Craft.tsx`) — the marketing desk's week-queue tool. Composes branded social posts (LinkedIn/Instagram/Facebook/TikTok crops) from AI-generated "Creative Ammo Briefs," lets a human edit copy/visuals on the canvas, gates export behind marketing-approve → compliance-sign-off, and exports PNG/pack/multi-format assets.
 - **Email mode** (`CraftEmailEditor.tsx`, embedded in `EmailCampaigns.tsx` / `EmailTemplates.tsx`) — the same canvas restricted to a single 600px "letter" artboard, offered as an alternative to the existing Unlayer email builder, with merge-tag chips and HTML table export for sending.
 
-Editorial (`/editorial`) is a **separate** long-form desk for blogs and press releases. It is not a Craft compositor mode. Casey topic-scans for the piece; Isla drafts Markdown; export is `.md` / `.html` after marketing approve and compliance. Shaun publishes elsewhere.
+Editorial (`/editorial`) is a **separate** long-form desk for blogs and press releases. It is not a Craft compositor mode. Casey topic-scans for the piece; Isla drafts Markdown; export is `.md` / `.html` after marketing approve and compliance. Shaun publishes elsewhere. Editorial blogs may Publish to Learn; press releases stay export-only.
 
 ## 2. Canvas / editor capabilities
 
