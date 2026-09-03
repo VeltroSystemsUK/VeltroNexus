@@ -10,7 +10,7 @@ import {
   type SalesStream,
 } from "./salesOs";
 
-export type OutreachTouchId = CadenceTouchId | "cold_1" | "cold_2" | "cold_3";
+export type OutreachTouchId = CadenceTouchId | "cold_1" | "cold_2" | "cold_3" | "sme_open";
 
 export interface RenderedEmail {
   touchId: OutreachTouchId;
@@ -30,6 +30,7 @@ export const EDITABLE_OUTREACH_TOUCHES: OutreachTouchId[] = [
   "inbound_ack",
   "inbound_chase",
   "sme_1",
+  "sme_open",
   "sme_2",
   "sme_close",
   "intro_1",
@@ -103,6 +104,17 @@ function uploadButtonHtml(url: string): string {
   <a href="${escapeHtml(url)}" style="display:inline-block;background:#2E5096;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:14px;">Upload your documents</a>
 </p>
 <p style="margin:0 0 16px 0;font-size:13px;line-height:1.45;color:#374151;font-family:Arial,Helvetica,sans-serif;">If the button does not work, use this link:<br/><a href="${escapeHtml(url)}" style="color:#2E5096;word-break:break-all;">${escapeHtml(url)}</a></p>`.trim();
+}
+
+const SME_QUIZ_URL = "https://explore.stratanexus.co.uk";
+const SME_LEARN_URL = "https://learn.stratanexus.co.uk";
+
+function learnButtonHtml(url: string): string {
+  return `
+<p style="margin:24px 0 10px 0;">
+  <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2E5096;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:14px;">Start the training</a>
+</p>
+<p style="margin:0 0 16px 0;font-size:13px;line-height:1.45;color:#374151;font-family:Arial,Helvetica,sans-serif;">If the button does not work, use this link:<br/><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:#2E5096;word-break:break-all;">${escapeHtml(url)}</a></p>`.trim();
 }
 
 const LOGO_URL =
@@ -184,7 +196,7 @@ function withSignature(
   };
 }
 
-function canonicalTouchId(touchId: OutreachTouchId): CadenceTouchId {
+function canonicalTouchId(touchId: OutreachTouchId): CadenceTouchId | "sme_open" {
   if (touchId === "cold_1") return "sme_1";
   if (touchId === "cold_2") return "sme_2";
   if (touchId === "cold_3") return "sme_close";
@@ -316,6 +328,25 @@ export function renderOutreachEmail(
       html: signed.html,
       text: signed.text,
       purpose: "Stream A day 1 — debt service reduction. Ask for a 10-minute review.",
+    };
+  }
+
+  if (touchId === "sme_open") {
+    const lines = [
+      `Hi ${name},`,
+      `Thanks for taking an interest in how we can help ${company} with high-cost debt and HMRC commitments.`,
+      `If it's useful, there is a short training path here that explains stacked debt, cashflow, HMRC Time to Pay, and how a packager works:`,
+      SME_LEARN_URL,
+      `When you are ready, the four-question assessment is still here: ${SME_QUIZ_URL}`,
+      `It takes about a minute.`,
+    ];
+    const signed = withSignature(lines, mailbox, [STOP_LINE], learnButtonHtml(SME_LEARN_URL));
+    return {
+      touchId: "sme_open",
+      subject: `A 60-second look at ${company}`,
+      html: signed.html,
+      text: signed.text,
+      purpose: "First open of sme_1 — thank them, point at Learn, and name the Explore assessment.",
     };
   }
 

@@ -99,6 +99,22 @@ describe("strata outreach scripts", () => {
     expect(nextColdTouch(3)).toBe("sme_close");
   });
 
+  it("sme_open thanks them and points at the Learn training hub", () => {
+    const email = renderOutreachEmail(huntDeal, "sme_open", "outreach-sales");
+    expect(email.touchId).toBe("sme_open");
+    expect(email.text).toMatch(/Thanks for taking an interest/i);
+    expect(email.text).toContain("https://learn.stratanexus.co.uk");
+    expect(email.text).toContain("https://explore.stratanexus.co.uk");
+    expect(email.html).toMatch(/href="https:\/\/learn\.stratanexus\.co\.uk"/);
+    expect(email.text).toMatch(/training path/i);
+    expect(email.text).toMatch(/four-question assessment/i);
+    expect(email.html).toMatch(/Start the training/);
+    expect(email.text).toMatch(/reply stop/i);
+    expect(email.text).toMatch(/James Hale/);
+    expect(email.text).not.toMatch(/I saw you opened/i);
+    expect(email.html).not.toMatch(/Upload your documents/);
+  });
+
   it("renders the Stream B partner email", () => {
     const email = renderOutreachEmail(
       { ...huntDeal, stream: "introducer" },
