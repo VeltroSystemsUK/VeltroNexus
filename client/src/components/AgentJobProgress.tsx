@@ -177,7 +177,9 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
     );
   }
 
-  if (!jobs || jobs.length === 0) {
+  const allJobs = jobs ?? [];
+  const pinnedRunning = runningJobs ?? [];
+  if (allJobs.length === 0 && pinnedRunning.length === 0) {
     return (
       <Card className="bg-slate-900 border-slate-800">
         <CardContent className="pt-10 pb-10">
@@ -191,10 +193,9 @@ export function AgentJobProgress({ userId, refreshInterval = 2000 }: AgentJobPro
     );
   }
 
-  const pinnedRunning = runningJobs ?? [];
   const recentJobs = [
     ...pinnedRunning,
-    ...jobs.filter((job) => !pinnedRunning.some((running) => running.id === job.id)),
+    ...allJobs.filter((job) => !pinnedRunning.some((running) => running.id === job.id)),
   ].slice(0, Math.max(5, pinnedRunning.length));
   const hasRunningJobs = pinnedRunning.length > 0;
 
