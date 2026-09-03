@@ -159,6 +159,7 @@ const publishLearnSchema = z.object({
   excerpt: z.string().optional(),
   category: z.enum(NEWS_CATEGORIES).nullable().optional(),
   overrideCompliance: z.boolean().optional(),
+  publishedAt: z.string().optional(),
 });
 
 function craftPostToLearnBody(post: CraftPost): string {
@@ -198,6 +199,7 @@ router.post("/craft/week/:id/publish-learn", isAuthenticated, (req: Authenticate
       body,
       pathPosition: null,
       category: parsed.data.category,
+      publishedAt: parsed.data.publishedAt,
       source: { desk: "craft", id: post.id },
       userId: req.user!.id,
     });

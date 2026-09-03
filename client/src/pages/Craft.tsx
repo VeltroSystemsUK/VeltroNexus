@@ -124,6 +124,7 @@ export default function Craft() {
   const [learnSlug, setLearnSlug] = useState("");
   const [learnExcerpt, setLearnExcerpt] = useState("");
   const [learnCategory, setLearnCategory] = useState<string>("uk_commercial_finance");
+  const [learnPublishedAt, setLearnPublishedAt] = useState<string>("");
 
   const { data: desk, isLoading } = useQuery<Desk>({
     queryKey: ["/api/craft/desk"],
@@ -225,7 +226,10 @@ export default function Craft() {
   });
 
   const publishLearn = useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; slug: string; excerpt: string; category: string }) => {
+    mutationFn: async ({
+      id,
+      ...body
+    }: { id: string; slug: string; excerpt: string; category: string; publishedAt?: string }) => {
       const res = await apiRequest(`/api/craft/week/${id}/publish-learn`, "POST", {
         ...body,
         overrideCompliance: true,
@@ -792,6 +796,7 @@ export default function Craft() {
                         setLearnSlug(slugifyLearnTitle(selected.title));
                         setLearnExcerpt(selected.hook || selected.body);
                         setLearnCategory("uk_commercial_finance");
+                        setLearnPublishedAt(new Date().toISOString().slice(0, 10));
                         setLearnOpen(true);
                       }}
                     >
@@ -914,6 +919,10 @@ export default function Craft() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <Label>Published date</Label>
+                <Input type="date" value={learnPublishedAt} onChange={(e) => setLearnPublishedAt(e.target.value)} />
+              </div>
               <Button
                 className="w-full"
                 disabled={publishLearn.isPending}
@@ -923,6 +932,7 @@ export default function Craft() {
                     slug: learnSlug,
                     excerpt: learnExcerpt,
                     category: learnCategory,
+                    publishedAt: learnPublishedAt || undefined,
                   })
                 }
               >

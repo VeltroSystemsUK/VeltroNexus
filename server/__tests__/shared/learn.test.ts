@@ -231,6 +231,34 @@ describe("snapshotLearnPiece", () => {
     expect(snap.videoUrl).toBe("");
     expect(snap.body).toMatch(/do not lend/);
   });
+
+  it("uses a given publishedAt, and falls back to now for a bad or missing one", () => {
+    const dated = snapshotLearnPiece({
+      kind: "news",
+      slug: "backdated",
+      title: "Backdated",
+      excerpt: "e",
+      body: "b",
+      category: "uk_economy",
+      publishedAt: "2026-01-15",
+      source: { desk: "editorial", id: 5 },
+      userId: "u1",
+    });
+    expect(dated.publishedAt).toBe("2026-01-15T00:00:00.000Z");
+
+    const undated = snapshotLearnPiece({
+      kind: "news",
+      slug: "undated",
+      title: "Undated",
+      excerpt: "e",
+      body: "b",
+      category: "uk_economy",
+      publishedAt: "not a date",
+      source: { desk: "editorial", id: 6 },
+      userId: "u1",
+    });
+    expect(Number.isNaN(Date.parse(undated.publishedAt))).toBe(false);
+  });
 });
 
 describe("learn video patch seal", () => {

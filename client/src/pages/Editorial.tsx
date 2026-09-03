@@ -53,6 +53,7 @@ import {
   ImageIcon,
   Hash,
   Copy,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { EditorialPiece } from "@shared/schema";
@@ -178,6 +179,7 @@ export default function Editorial() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [confirmGenerate, setConfirmGenerate] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [stillPrompt, setStillPrompt] = useState("");
   const [stillBusy, setStillBusy] = useState(false);
   const [heroUrl, setHeroUrl] = useState<string | null>(null);
@@ -188,6 +190,7 @@ export default function Editorial() {
   const [learnExcerpt, setLearnExcerpt] = useState("");
   const [learnPath, setLearnPath] = useState("none");
   const [learnCategory, setLearnCategory] = useState<string>("uk_commercial_finance");
+  const [learnPublishedAt, setLearnPublishedAt] = useState<string>("");
 
   const { data: pieces = [], isLoading } = useQuery<EditorialPiece[]>({
     queryKey: ["/api/editorial"],
@@ -256,6 +259,18 @@ export default function Editorial() {
       setDraftTopic("");
       setSelectedId(piece.id!);
       toast.success("Draft created");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest(`/api/editorial/${id}`, "DELETE");
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/editorial"] });
+      if (selectedId === id) setSelectedId(null);
+      toast.success("Deleted");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -417,12 +432,20 @@ export default function Editorial() {
                 setLearnExcerpt("");
                 setLearnPath("none");
                 setLearnCategory("uk_commercial_finance");
+                setLearnPublishedAt(new Date().toISOString().slice(0, 10));
                 setLearnOpen(true);
               }}
             >
               Publish to Learn
             </Button>
           )}
+          <Button
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setDeleteTargetId(selected.id!)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Delete
+          </Button>
         </div>
 
         <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -627,6 +650,29 @@ export default function Editorial() {
           </AlertDialogContent>
         </AlertDialog>
 
+        <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this piece?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This deletes the Editorial draft. It does not remove anything already published to Learn.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (deleteTargetId !== null) deleteMutation.mutate(deleteTargetId);
+                  setDeleteTargetId(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <Dialog open={learnOpen} onOpenChange={setLearnOpen}>
           <DialogContent>
             <DialogHeader>
@@ -669,6 +715,10 @@ export default function Editorial() {
                   </Select>
                 </div>
               )}
+              <div className="space-y-1">
+                <Label>Published date</Label>
+                <Input type="date" value={learnPublishedAt} onChange={(e) => setLearnPublishedAt(e.target.value)} />
+              </div>
               {selected.compliance !== "cleared" && (
                 <p className="text-xs text-muted-foreground">
                   Compliance is {selected.compliance}. This publish is a director override.
@@ -682,6 +732,7 @@ export default function Editorial() {
                     excerpt: learnExcerpt,
                     pathPosition: learnPath === "none" ? null : parseInt(learnPath, 10),
                     category: selected.type === "news" ? learnCategory : undefined,
+                    publishedAt: learnPublishedAt || undefined,
                     overrideCompliance: true,
                   })
                     .then(() => {
@@ -776,6 +827,7 @@ export default function Editorial() {
                 <TableHead>Compliance</TableHead>
                 <TableHead>Engine</TableHead>
                 <TableHead>Updated</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -788,6 +840,19 @@ export default function Editorial() {
                   <TableCell>{row.engine ? `${row.engine.provider}` : "—"}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTargetId(row.id!);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

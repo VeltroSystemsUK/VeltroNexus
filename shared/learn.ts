@@ -105,6 +105,7 @@ export type SnapshotLearnInput = {
   durationLabel?: string;
   pathPosition?: number | null;
   category?: NewsCategory | null;
+  publishedAt?: string;
   source: LearnPieceSource;
   userId: string;
 };
@@ -288,6 +289,8 @@ export function helpedCookieValue(ids: number[]): string {
 
 export function snapshotLearnPiece(input: SnapshotLearnInput): LearnPieceLike {
   const now = new Date().toISOString();
+  const publishedAt = input.publishedAt ? new Date(input.publishedAt) : null;
+  const publishedAtIso = publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt.toISOString() : now;
   const isArticle = input.kind === "article";
   const hasBody = input.kind === "article" || input.kind === "news";
   return {
@@ -306,7 +309,7 @@ export function snapshotLearnPiece(input: SnapshotLearnInput): LearnPieceLike {
     source: input.source,
     category: input.kind === "news" ? input.category ?? null : null,
     live: true,
-    publishedAt: now,
+    publishedAt: publishedAtIso,
     unpublishedAt: null,
     userId: input.userId,
     createdAt: now,

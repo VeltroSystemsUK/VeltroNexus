@@ -47,6 +47,7 @@ const publishLearnSchema = z.object({
   pathPosition: z.number().int().min(1).max(6).nullable().optional(),
   overrideCompliance: z.boolean().optional(),
   category: z.enum(NEWS_CATEGORIES).nullable().optional(),
+  publishedAt: z.string().optional(),
 });
 
 async function loadPiece(req: AuthenticatedRequest, res: Response) {
@@ -290,6 +291,7 @@ router.post("/editorial/:id/publish-learn", isAuthenticated, async (req: Authent
       heroImageUrl: existing.heroImageUrl,
       pathPosition,
       category: parsed.data.category,
+      publishedAt: parsed.data.publishedAt,
       source: { desk: "editorial", id: existing.id! },
       userId: req.user.id,
     });
