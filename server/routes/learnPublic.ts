@@ -9,6 +9,12 @@ import {
   toLearnPublic,
   type LearnPieceLike,
 } from "@shared/learn";
+import {
+  answerLearnQuestion,
+  retrieveLearnPieces,
+  shouldHandoffQuestion,
+} from "@shared/learnLibrarian";
+import { houseAskWithEngine } from "../services/caseyScout";
 
 const router = Router();
 
@@ -61,6 +67,34 @@ router.post("/learn/piece/:id/helped", async (req, res) => {
   }
   res.setHeader("Set-Cookie", `learn_helped=${helpedCookieValue(ids)}; Path=/; SameSite=Lax; Max-Age=31536000`);
   res.json({ thisHelped });
+});
+
+router.post("/learn/ask", async (req, res) => {
+  const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+  if (question.length < 1 || question.length > 500) {
+    return res.status(400).json({ error: "invalid question" });
+  }
+  const slug = typeof req.body?.slug === "string" && req.body.slug.trim() ? req.body.slug.trim() : undefined;
+  const live = (await storage.listLiveLearnPieces()) as LearnPieceLike[];
+  const result = await answerLearnQuestion({
+    question,
+    slug,
+    live,
+    ask: async (system, user) => {
+      const { text } = await houseAskWithEngine(user, undefined, system);
+      return text;
+    },
+  });
+  const retrieved = shouldHandoffQuestion(question) ? [] : retrieveLearnPieces(live, question, slug);
+  await storage.insertLearnBotLog({
+    slug: slug ?? null,
+    question,
+    handoff: result.kind === "handoff",
+    retrievedIds: retrieved
+      .map((piece) => piece.id)
+      .filter((id): id is number => typeof id === "number"),
+  });
+  res.json({ kind: result.kind, text: result.text, citations: result.citations });
 });
 
 export default router;

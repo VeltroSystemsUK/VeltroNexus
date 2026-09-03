@@ -8,6 +8,7 @@ vi.mock("../../storage", () => ({
     getLiveLearnPieceBySlug: vi.fn(),
     getLearnPiece: vi.fn(),
     incrementLearnHelped: vi.fn(),
+    insertLearnBotLog: vi.fn(),
   },
 }));
 
@@ -19,6 +20,7 @@ const mocked = storage as unknown as {
   getLiveLearnPieceBySlug: ReturnType<typeof vi.fn>;
   getLearnPiece: ReturnType<typeof vi.fn>;
   incrementLearnHelped: ReturnType<typeof vi.fn>;
+  insertLearnBotLog: ReturnType<typeof vi.fn>;
 };
 
 const piece = {
@@ -48,13 +50,13 @@ function app() {
   return e;
 }
 
-async function request(method: string, path: string, host: string, cookie = "") {
+async function request(method: string, path: string, host: string, cookie = "", payloadBody?: unknown) {
   const server = app();
   const s = http.createServer(server);
   await new Promise<void>((resolve) => s.listen(0, resolve));
   try {
     const port = (s.address() as { port: number }).port;
-    const payload = method === "POST" ? "{}" : "";
+    const payload = method === "POST" ? JSON.stringify(payloadBody ?? {}) : "";
     const headers: http.OutgoingHttpHeaders = { Host: host };
     if (cookie) headers.Cookie = cookie;
     if (payload) {
@@ -102,8 +104,8 @@ async function get(path: string, host: string, cookie = "") {
   return request("GET", path, host, cookie);
 }
 
-async function post(path: string, host: string, cookie = "") {
-  return request("POST", path, host, cookie);
+async function post(path: string, host: string, cookie = "", body?: unknown) {
+  return request("POST", path, host, cookie, body);
 }
 
 describe("learn public API host split", () => {
@@ -113,6 +115,7 @@ describe("learn public API host split", () => {
     mocked.getLiveLearnPieceBySlug.mockResolvedValue(piece);
     mocked.getLearnPiece.mockResolvedValue(piece);
     mocked.incrementLearnHelped.mockResolvedValue({ ...piece, thisHelped: 5 });
+    mocked.insertLearnBotLog.mockResolvedValue({ id: 1 });
   });
 
   it("404s home on leads host and returns path on learn host", async () => {
@@ -142,5 +145,20 @@ describe("learn public API host split", () => {
     expect(again.status).toBe(200);
     expect(again.body.thisHelped).toBe(4);
     expect(mocked.incrementLearnHelped).not.toHaveBeenCalled();
+  });
+
+  it("POST ask hands off eligibility without a model", async () => {
+    const res = await post("/api/learn/ask", "learn.stratanexus.co.uk", "", {
+      question: "Can you do my deal at 9%?",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ kind: "handoff" });
+    expect(mocked.listLiveLearnPieces).toHaveBeenCalled();
+    expect(mocked.insertLearnBotLog).toHaveBeenCalledWith({
+      slug: null,
+      question: "Can you do my deal at 9%?",
+      handoff: true,
+      retrievedIds: [],
+    });
   });
 });
