@@ -89,6 +89,7 @@ export async function sendEmail(
                 status: "mock",
                 dealId: credentials?.dealId,
                 prospectId: credentials?.prospectId,
+                touchId: credentials?.touchId,
             });
             return { success: false, mock: true };
         }
@@ -105,6 +106,8 @@ export async function sendEmail(
             text,
             html: trackedHtml,
             attachments,
+            inReplyTo: credentials?.inReplyTo,
+            references: credentials?.inReplyTo,
         });
         console.log(`Email sent from ${fromAddress} to ${to}: ${info.response}`);
         logAgentMail({
@@ -121,6 +124,7 @@ export async function sendEmail(
             messageId: info.messageId,
             dealId: credentials?.dealId,
             prospectId: credentials?.prospectId,
+            touchId: credentials?.touchId,
         });
         return { success: true, messageId: info.messageId };
     } catch (error: any) {
@@ -138,6 +142,7 @@ export async function sendEmail(
             status: "failed",
             dealId: credentials?.dealId,
             prospectId: credentials?.prospectId,
+            touchId: credentials?.touchId,
         });
         throw new Error(`Failed to send email: ${error.message}`);
     }

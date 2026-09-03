@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { listAgentMail, recordInbound, recordOpen, recordClick } from "../services/agentMailLog";
+import { maybeSendSmeOpenFollowUp } from "../services/smeOpenFollowUp";
 import { pollImapInbox } from "../services/imapInbox";
 import { mailboxList } from "@shared/agentMailboxes";
 import { shouldRecordMailTracking } from "@shared/mailTracking";
@@ -56,7 +57,12 @@ router.get("/api/agent-mail/track/:id.gif", (req, res) => {
   try {
     const staff = typeof req.isAuthenticated === "function" && req.isAuthenticated();
     if (shouldRecordMailTracking({ staffSession: staff, referer: req.get("referer") || req.get("referrer") })) {
-      recordOpen(req.params.id);
+      const item = recordOpen(req.params.id);
+      if (item) {
+        void maybeSendSmeOpenFollowUp(item).catch((error) => {
+          console.error("[AgentMail] sme_open follow-up error:", error);
+        });
+      }
     }
   } catch (error) {
     console.error("[AgentMail] Open tracking error:", error);

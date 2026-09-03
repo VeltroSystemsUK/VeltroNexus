@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { injectMailTracking } from "../../services/agentMailLog";
-import { isOpenedOutboundMail, lastMailOpenAt, shouldRecordMailTracking, stripMailTracking } from "@shared/mailTracking";
+import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, shouldRecordMailTracking, stripMailTracking } from "@shared/mailTracking";
 
 describe("stripMailTracking", () => {
   it("removes the open pixel and restores original links", () => {
@@ -16,6 +16,33 @@ describe("stripMailTracking", () => {
     expect(preview).not.toMatch(/\/api\/agent-mail\/click\//);
     expect(preview).toContain('href="https://stratafinance.co.uk/pack"');
     expect(preview).toContain("Hi");
+  });
+
+  it("leaves the diagnostic quiz URL as a direct href", () => {
+    const html = injectMailTracking(
+      `<p><a href="https://explore.stratanexus.co.uk" target="_blank">Take the four-question assessment</a></p>`,
+      "TEST-ID-123",
+    );
+    expect(html).toContain('href="https://explore.stratanexus.co.uk"');
+    expect(html).not.toMatch(/\/api\/agent-mail\/click\/TEST-ID-123\?url=.*explore/);
+  });
+});
+
+describe("ensureMailLinksOpenInNewTab", () => {
+  it("adds target=_blank so preview clicks leave the sandboxed iframe", () => {
+    const html = ensureMailLinksOpenInNewTab(
+      `<p><a href="https://explore.stratanexus.co.uk" style="color:#2E5096">https://explore.stratanexus.co.uk</a></p>`,
+    );
+    expect(html).toContain('href="https://explore.stratanexus.co.uk"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+
+  it("does not double-up an existing target", () => {
+    const html = ensureMailLinksOpenInNewTab(
+      `<a href="https://explore.stratanexus.co.uk" target="_blank" rel="noopener noreferrer">quiz</a>`,
+    );
+    expect(html.match(/target="_blank"/g)?.length).toBe(1);
   });
 });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FACTORY_JOB_USER,
   applyJobStop,
+  applyStoppedJobResults,
   harvestPassBlocked,
   jobVisibleToUser,
   type AgentJob,
@@ -60,6 +61,56 @@ describe("applyJobStop", () => {
     expect(applyJobStop(runningJob({ status: "completed" }), "pause", at)).toBeNull();
     expect(applyJobStop(runningJob({ status: "paused" }), "complete", at)).toBeNull();
     expect(applyJobStop(runningJob({ status: "failed" }), "pause", at)).toBeNull();
+  });
+
+  it("keeps work already done in results when paused", () => {
+    const next = applyJobStop(
+      runningJob({ results: { processed: 40, lastCompany: "Acme Ltd" } }),
+      "pause",
+      at
+    );
+    expect(next?.completedSteps).toBe(40);
+    expect(next?.results).toMatchObject({
+      processed: 40,
+      lastCompany: "Acme Ltd",
+      completed: 40,
+      total: 100,
+      paused: true,
+    });
+  });
+});
+
+describe("applyStoppedJobResults", () => {
+  const at = new Date("2026-09-03T09:00:00.000Z");
+
+  it("saves worker results onto a paused job without marking remaining steps done", () => {
+    const paused = applyJobStop(runningJob(), "pause", at)!;
+    const next = applyStoppedJobResults(paused, { processed: 41, message: "stopped after 41" });
+    expect(next?.status).toBe("paused");
+    expect(next?.completedSteps).toBe(40);
+    expect(next?.currentStep).toBe("Paused");
+    expect(next?.results).toMatchObject({
+      completed: 40,
+      total: 100,
+      paused: true,
+      processed: 41,
+      message: "stopped after 41",
+    });
+  });
+
+  it("saves worker results onto an early-completed job without filling remaining steps", () => {
+    const done = applyJobStop(runningJob(), "complete", at)!;
+    const next = applyStoppedJobResults(done, { processed: 41, files: 12 });
+    expect(next?.status).toBe("completed");
+    expect(next?.completedSteps).toBe(40);
+    expect(next?.completedSteps).toBeLessThan(next!.totalSteps);
+    expect(next?.results).toMatchObject({
+      completed: 40,
+      total: 100,
+      early: true,
+      processed: 41,
+      files: 12,
+    });
   });
 });
 

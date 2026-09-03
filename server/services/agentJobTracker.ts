@@ -46,6 +46,15 @@ export function harvestPassBlocked(jobs: Array<{ agentId: string; status: string
   return jobs.some((job) => job.agentId === "harvest" && job.status === "paused");
 }
 
+function workSnapshot(job: AgentJob, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...(job.results && typeof job.results === "object" ? job.results : {}),
+    ...extra,
+    completed: job.completedSteps,
+    total: job.totalSteps,
+  };
+}
+
 export function applyJobStop(job: AgentJob, action: JobStopAction, at: Date): AgentJob | null {
   if (job.status !== "running") return null;
 
@@ -55,14 +64,7 @@ export function applyJobStop(job: AgentJob, action: JobStopAction, at: Date): Ag
     status: paused ? "paused" : "completed",
     currentStep: paused ? "Paused" : "Completed early",
     completedAt: at,
-    results: paused
-      ? job.results
-      : {
-          ...(job.results && typeof job.results === "object" ? job.results : {}),
-          completed: job.completedSteps,
-          total: job.totalSteps,
-          early: true,
-        },
+    results: workSnapshot(job, paused ? { paused: true } : { early: true }),
     logs: [
       ...job.logs,
       {
@@ -71,6 +73,21 @@ export function applyJobStop(job: AgentJob, action: JobStopAction, at: Date): Ag
         type: paused ? "warning" : "success",
       },
     ],
+  };
+}
+
+export function applyStoppedJobResults(job: AgentJob, results: unknown): AgentJob | null {
+  if (job.status !== "paused" && job.status !== "completed") return null;
+  const extra = results && typeof results === "object" ? (results as Record<string, unknown>) : { value: results };
+  const prior = job.results && typeof job.results === "object" ? job.results : {};
+  return {
+    ...job,
+    results: {
+      ...prior,
+      ...extra,
+      completed: job.completedSteps,
+      total: job.totalSteps,
+    },
   };
 }
 
@@ -172,7 +189,16 @@ export class AgentJobTracker {
   async completeJob(jobId: string, results: any): Promise<void> {
     const jobs = readJobs();
     const job = jobs[jobId];
-    if (!job || job.status !== "running") return;
+    if (!job) return;
+
+    if (job.status !== "running") {
+      const next = applyStoppedJobResults(job, results);
+      if (!next) return;
+      jobs[jobId] = next;
+      writeJobs(jobs);
+      console.log(`[JobTracker] Job ${jobId} saved results after stop`);
+      return;
+    }
 
     job.status = "completed";
     job.completedSteps = job.totalSteps;

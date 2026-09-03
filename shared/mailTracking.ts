@@ -1,3 +1,10 @@
+export function ensureMailLinksOpenInNewTab(html: string): string {
+  return html.replace(/<a\b([^>]*)>/gi, (full, attrs: string) => {
+    if (/\btarget\s*=/i.test(attrs)) return full;
+    return `<a${attrs} target="_blank" rel="noopener noreferrer">`;
+  });
+}
+
 export function stripMailTracking(html: string): string {
   return html
     .replace(/<img\b[^>]*\/api\/agent-mail\/track\/[^>]*>/gi, "")

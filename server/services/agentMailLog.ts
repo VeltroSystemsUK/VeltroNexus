@@ -20,6 +20,7 @@ export type AgentMailItem = {
   messageId?: string;
   dealId?: number;
   prospectId?: number;
+  touchId?: string;
   createdAt: string;
   opens?: string[]; // ISO timestamp per tracking-pixel hit (noisy — see AgentMail.tsx tooltip)
   clicks?: Array<{ at: string; url: string }>;
@@ -111,9 +112,10 @@ function trackingBaseUrl(): string {
 // open-tracking pixel. Only worth doing for real HTML sends with a known id.
 export function injectMailTracking(html: string, id: string): string {
   const base = trackingBaseUrl();
-  const withClicks = html.replace(/href="(https?:\/\/[^"]+)"/gi, (_match, url) =>
-    `href="${base}/api/agent-mail/click/${id}?url=${encodeURIComponent(url)}"`
-  );
+  const withClicks = html.replace(/href="(https?:\/\/[^"]+)"/gi, (_match, url: string) => {
+    if (/^https:\/\/explore\.stratanexus\.co\.uk\/?$/i.test(url)) return `href="${url}"`;
+    return `href="${base}/api/agent-mail/click/${id}?url=${encodeURIComponent(url)}"`;
+  });
   const pixel = `<img src="${base}/api/agent-mail/track/${id}.gif" width="1" height="1" style="display:none" alt="" />`;
   return withClicks.includes("</body>") ? withClicks.replace("</body>", `${pixel}</body>`) : `${withClicks}${pixel}`;
 }

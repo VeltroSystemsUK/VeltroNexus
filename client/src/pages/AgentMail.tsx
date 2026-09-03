@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { usePageTitle, usePageActions } from "@/context/LayoutContext";
 import { cn } from "@/lib/utils";
-import { isOpenedOutboundMail, lastMailOpenAt, stripMailTracking } from "@shared/mailTracking";
+import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, stripMailTracking } from "@shared/mailTracking";
 
 type MailItem = {
   id: string;
@@ -51,7 +51,7 @@ function AgentMailBody({ html, text }: { html?: string; text: string }) {
     );
   }
 
-  const clean = DOMPurify.sanitize(stripMailTracking(html), {
+  const clean = DOMPurify.sanitize(ensureMailLinksOpenInNewTab(stripMailTracking(html)), {
     ADD_TAGS: ["style"],
     ADD_ATTR: ["target", "style", "class", "align", "valign", "bgcolor", "width", "height", "cellpadding", "cellspacing", "border", "colspan", "rowspan"],
     ALLOW_DATA_ATTR: false,
