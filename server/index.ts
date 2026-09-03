@@ -45,7 +45,7 @@ app.use((req, res, next) => {
   express.urlencoded({ extended: false, limit: "5mb" })(req, res, next);
 });
 // Never expose the uploads root: it also contains private customer documents,
-// local stores and job state. Only the two explicitly public media namespaces
+// local stores and job state. Only the explicitly public media namespaces
 // are served here; prospect documents must use authenticated download routes.
 const uploadsRoot = path.resolve(process.cwd(), "uploads");
 app.use("/uploads/media", express.static(path.join(uploadsRoot, "media"), {
@@ -54,6 +54,11 @@ app.use("/uploads/media", express.static(path.join(uploadsRoot, "media"), {
   redirect: false,
 }));
 app.use("/uploads/curator", express.static(path.join(uploadsRoot, "curator"), {
+  dotfiles: "deny",
+  index: false,
+  redirect: false,
+}));
+app.use("/uploads/learn/videos", express.static(path.join(uploadsRoot, "learn", "videos"), {
   dotfiles: "deny",
   index: false,
   redirect: false,

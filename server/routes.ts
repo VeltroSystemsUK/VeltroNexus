@@ -127,6 +127,7 @@ import mediaRouter from "./routes/media";
 import curatorRouter from "./routes/curator";
 import craftRouter from "./routes/craft";
 import editorialRouter from "./routes/editorial";
+import learnPublicRouter from "./routes/learnPublic";
 import { getObjectStorage } from "./utils/routerHelpers";
 
 export async function registerRoutes(app: Application): Promise<Server> {
@@ -570,6 +571,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api", curatorRouter);
   app.use("/api", craftRouter);
   app.use("/api", editorialRouter);
+  app.use("/api", learnPublicRouter);
 
   // NOTE: Agent Workforce routes are registered earlier in this file (before CSRF middleware)
   // to avoid duplication. See "--- AI WORKFORCE PLATFORM ROUTES ---" section above.
