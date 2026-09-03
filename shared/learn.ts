@@ -4,6 +4,8 @@ import {
   type ComplianceFinding,
   type ComplianceReview,
 } from "./craftQueue";
+import type { CaseyNote } from "./craftScout";
+import type { EditorialCompliance, EditorialEngine, EditorialStatus } from "./editorial";
 
 export const DEFAULT_LEARN_HOST = "learn.stratanexus.co.uk";
 export const LEARN_VIDEO_PUBLIC_PREFIX = "/uploads/learn/videos/";
@@ -239,5 +241,87 @@ export function snapshotLearnPiece(input: SnapshotLearnInput): LearnPieceLike {
     userId: input.userId,
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+export type LearnVideoLike = {
+  id?: number;
+  userId: string;
+  title: string;
+  topic: string;
+  description: string;
+  transcript: string;
+  videoUrl: string;
+  excerpt?: string;
+  heroImageUrl?: string | null;
+  durationLabel?: string;
+  pathPosition?: number | null;
+  notes?: CaseyNote[];
+  engine?: EditorialEngine | null;
+  status: EditorialStatus;
+  compliance: EditorialCompliance;
+  autoPublish: false;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+};
+
+export function normalizeLearnVideo(row: LearnVideoLike): LearnVideoLike {
+  return {
+    ...row,
+    title: typeof row.title === "string" ? row.title : "",
+    topic: typeof row.topic === "string" ? row.topic : "",
+    description: typeof row.description === "string" ? row.description : "",
+    transcript: typeof row.transcript === "string" ? row.transcript : "",
+    videoUrl: typeof row.videoUrl === "string" ? row.videoUrl : "",
+    excerpt: typeof row.excerpt === "string" ? row.excerpt : "",
+    heroImageUrl: typeof row.heroImageUrl === "string" && row.heroImageUrl ? row.heroImageUrl : null,
+    durationLabel: typeof row.durationLabel === "string" ? row.durationLabel : "",
+    pathPosition: typeof row.pathPosition === "number" ? row.pathPosition : null,
+    notes: Array.isArray(row.notes) ? row.notes : [],
+    engine: row.engine && typeof row.engine === "object" ? row.engine : null,
+    autoPublish: false,
+    status: row.status || "draft",
+    compliance: row.compliance || "pending",
+  };
+}
+
+export function applyLearnVideoPatch(
+  video: LearnVideoLike,
+  updates: Partial<Pick<LearnVideoLike, "title" | "topic" | "description" | "transcript" | "videoUrl">>,
+): LearnVideoLike {
+  const title = updates.title ?? video.title;
+  const topic = updates.topic ?? video.topic;
+  const description = updates.description ?? video.description;
+  const transcript = updates.transcript ?? video.transcript;
+  const videoUrl = updates.videoUrl ?? video.videoUrl;
+  const changed =
+    title !== video.title ||
+    topic !== video.topic ||
+    description !== video.description ||
+    transcript !== video.transcript ||
+    videoUrl !== video.videoUrl;
+  const needsReset =
+    changed &&
+    (video.status === "approved" || video.status === "exported" || video.compliance === "cleared");
+  return normalizeLearnVideo({
+    ...video,
+    title,
+    topic,
+    description,
+    transcript,
+    videoUrl,
+    autoPublish: false,
+    status: needsReset ? "draft" : video.status,
+    compliance: needsReset ? "pending" : video.compliance,
+  });
+}
+
+export function unpublishLearnPiece<T extends { live?: boolean }>(
+  piece: T,
+): T & { live: false; unpublishedAt: string } {
+  return {
+    ...piece,
+    live: false,
+    unpublishedAt: new Date().toISOString(),
   };
 }

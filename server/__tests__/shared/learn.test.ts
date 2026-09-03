@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyLearnVideoPatch,
   buildLearnHome,
   canPublishLearn,
   helpedCookieValue,
   isAllowedVideoSource,
   isLearnHost,
+  normalizeLearnVideo,
   parseHelpedCookie,
   pathPositionTaken,
   reviewLearnCopy,
   slugifyLearnTitle,
   snapshotLearnPiece,
   toLearnPublic,
+  unpublishLearnPiece,
   type LearnPieceLike,
 } from "@shared/learn";
+import { createLearnVideoSchema, learnPieceSchema } from "@shared/schema";
 
 function live(over: Partial<LearnPieceLike> = {}): LearnPieceLike {
   return {
@@ -162,5 +166,42 @@ describe("snapshotLearnPiece", () => {
     expect(snap.kind).toBe("article");
     expect(snap.videoUrl).toBe("");
     expect(snap.body).toMatch(/do not lend/);
+  });
+});
+
+describe("learn video patch seal", () => {
+  it("pins autoPublish false and resets gates on copy change", () => {
+    const video = normalizeLearnVideo({
+      id: 1,
+      userId: "u1",
+      title: "Payday",
+      topic: "stacked debt",
+      description: "Strata packages. We do not lend.",
+      transcript: "",
+      videoUrl: "/uploads/learn/videos/StrataFinance_PaydayLenders.mp4",
+      status: "approved",
+      compliance: "cleared",
+      autoPublish: true as unknown as false,
+    });
+    expect(video.autoPublish).toBe(false);
+    const next = applyLearnVideoPatch(video, { description: "Rewritten. We do not lend." });
+    expect(next.status).toBe("draft");
+    expect(next.compliance).toBe("pending");
+  });
+});
+
+describe("schema", () => {
+  it("create learn video needs title and topic", () => {
+    expect(createLearnVideoSchema.parse({ title: "Cashflow", topic: "cash" }).title).toBe("Cashflow");
+  });
+});
+
+describe("unpublishLearnPiece", () => {
+  it("sets live false and stamps unpublishedAt", () => {
+    const next = unpublishLearnPiece(live());
+    expect(next.live).toBe(false);
+    expect(typeof next.unpublishedAt).toBe("string");
+    expect(next.unpublishedAt).toBeTruthy();
+    expect(learnPieceSchema.parse({ ...next, unpublishedAt: next.unpublishedAt }).live).toBe(false);
   });
 });

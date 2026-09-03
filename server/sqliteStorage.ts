@@ -11,6 +11,7 @@ import {
   BrokerScrapedLead, InsertBrokerScrapedLead, BrokerCampaign, InsertBrokerCampaign,
   Invoice, InsertInvoice, Expense, InsertExpense, EmailCampaign, InsertEmailCampaign,
   CampaignRecipient, InsertCampaignRecipient, EditorialPiece, InsertEditorialPiece,
+  LearnVideo, LearnPiece, LearnBotLog,
   TimeEntry, InsertTimeEntry,
   ProspectDocument, InsertProspectDocument, Channel, InsertChannel, ChannelMember,
   InsertChannelMember, Message, InsertMessage, CommunicationIntegration,
@@ -32,6 +33,13 @@ import {
 } from "./db/schema";
 import { eq, inArray, and, desc } from "drizzle-orm";
 import { applyEditorialPatch } from "@shared/editorial";
+import {
+  applyLearnVideoPatch,
+  normalizeLearnVideo,
+  pathPositionTaken,
+  unpublishLearnPiece as unpublishLearnPieceSnapshot,
+  type LearnVideoLike,
+} from "@shared/learn";
 import { remapSavedPipelineStages, STAGE_ID_ALIASES } from "@shared/pipelineStages";
 import session from "express-session";
 import createBetterSqlite3Store from "better-sqlite3-session-store";
@@ -1527,6 +1535,13 @@ export class SQLiteStorage implements IStorage {
       next.status = content.status;
       next.compliance = content.compliance;
     }
+    if (
+      content.status === "draft" &&
+      content.compliance === "pending" &&
+      (existing.status === "approved" || existing.status === "exported" || existing.compliance === "cleared")
+    ) {
+      await this.unpublishLearnPieceBySource("editorial", id);
+    }
     return updateItem("editorial_pieces", id, next) as EditorialPiece;
   }
 
@@ -1534,5 +1549,205 @@ export class SQLiteStorage implements IStorage {
     const existing = await this.getEditorialPiece(id, userId);
     if (!existing) return;
     deleteItem("editorial_pieces", id);
+  }
+
+  async listLearnVideos(userId: string): Promise<LearnVideo[]> {
+    return (getCollection("learn_videos") as LearnVideo[])
+      .filter((row) => row.userId === userId)
+      .map((row) => normalizeLearnVideo(row as LearnVideoLike) as LearnVideo)
+      .sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")));
+  }
+
+  async getLearnVideo(id: number, userId: string): Promise<LearnVideo | undefined> {
+    const row = (getCollection("learn_videos") as LearnVideo[]).find(
+      (item) => item.id === id && item.userId === userId,
+    );
+    return row ? (normalizeLearnVideo(row as LearnVideoLike) as LearnVideo) : undefined;
+  }
+
+  async createLearnVideo(insert: { title: string; topic: string }, userId: string): Promise<LearnVideo> {
+    return insertItem("learn_videos", {
+      title: insert.title,
+      topic: insert.topic,
+      description: "",
+      transcript: "",
+      videoUrl: "",
+      excerpt: "",
+      heroImageUrl: null,
+      durationLabel: "",
+      pathPosition: null,
+      notes: [],
+      engine: null,
+      status: "draft",
+      compliance: "pending",
+      autoPublish: false,
+      userId,
+    }) as LearnVideo;
+  }
+
+  async updateLearnVideo(
+    id: number,
+    userId: string,
+    updates: Partial<LearnVideo>,
+  ): Promise<LearnVideo | undefined> {
+    const existing = await this.getLearnVideo(id, userId);
+    if (!existing) return undefined;
+    const hasCopyPatch =
+      updates.title !== undefined ||
+      updates.topic !== undefined ||
+      updates.description !== undefined ||
+      updates.transcript !== undefined ||
+      updates.videoUrl !== undefined;
+    const content = hasCopyPatch
+      ? applyLearnVideoPatch(existing as LearnVideoLike, {
+          title: updates.title,
+          topic: updates.topic,
+          description: updates.description,
+          transcript: updates.transcript,
+          videoUrl: updates.videoUrl,
+        })
+      : normalizeLearnVideo(existing as LearnVideoLike);
+    const next = {
+      ...content,
+      notes: updates.notes ?? content.notes,
+      engine: updates.engine === undefined ? content.engine : updates.engine,
+      status: updates.status ?? content.status,
+      compliance: updates.compliance ?? content.compliance,
+      excerpt: updates.excerpt === undefined ? content.excerpt ?? existing.excerpt ?? "" : updates.excerpt,
+      heroImageUrl:
+        updates.heroImageUrl === undefined
+          ? content.heroImageUrl ?? existing.heroImageUrl ?? null
+          : updates.heroImageUrl,
+      durationLabel:
+        updates.durationLabel === undefined
+          ? content.durationLabel ?? existing.durationLabel ?? ""
+          : updates.durationLabel,
+      pathPosition:
+        updates.pathPosition === undefined
+          ? content.pathPosition ?? existing.pathPosition ?? null
+          : updates.pathPosition,
+      autoPublish: false as const,
+    };
+    if (hasCopyPatch) {
+      next.status = content.status;
+      next.compliance = content.compliance;
+    }
+    if (
+      hasCopyPatch &&
+      content.status === "draft" &&
+      content.compliance === "pending" &&
+      (existing.status === "approved" || existing.status === "exported" || existing.compliance === "cleared")
+    ) {
+      await this.unpublishLearnPieceBySource("learn-video", id);
+    }
+    return updateItem("learn_videos", id, next) as LearnVideo;
+  }
+
+  async deleteLearnVideo(id: number, userId: string): Promise<void> {
+    const existing = await this.getLearnVideo(id, userId);
+    if (!existing) return;
+    deleteItem("learn_videos", id);
+  }
+
+  async listLearnPieces(userId: string): Promise<LearnPiece[]> {
+    return (getCollection("learn_pieces") as LearnPiece[])
+      .filter((row) => row.userId === userId)
+      .sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")));
+  }
+
+  async listLiveLearnPieces(): Promise<LearnPiece[]> {
+    return (getCollection("learn_pieces") as LearnPiece[]).filter((row) => row.live === true);
+  }
+
+  async getLiveLearnPieceBySlug(
+    kind: "article" | "video",
+    slug: string,
+  ): Promise<LearnPiece | undefined> {
+    return (getCollection("learn_pieces") as LearnPiece[]).find(
+      (row) => row.live === true && row.kind === kind && row.slug === slug,
+    );
+  }
+
+  async getLearnPiece(id: number): Promise<LearnPiece | undefined> {
+    return (getCollection("learn_pieces") as LearnPiece[]).find((row) => row.id === id);
+  }
+
+  async upsertLiveLearnPiece(snapshot: LearnPiece): Promise<LearnPiece> {
+    const all = getCollection("learn_pieces") as LearnPiece[];
+    const existing = all.find(
+      (row) => row.source?.desk === snapshot.source.desk && row.source?.id === snapshot.source.id,
+    );
+    const keepId = typeof existing?.id === "number" ? existing.id : undefined;
+    if (all.some((row) => row.live === true && row.slug === snapshot.slug && row.id !== keepId)) {
+      throw new Error("slug taken");
+    }
+    if (pathPositionTaken(all, snapshot.pathPosition ?? null, keepId)) {
+      throw new Error("path position taken");
+    }
+    const payload = {
+      ...snapshot,
+      id: keepId,
+      thisHelped: existing?.thisHelped ?? snapshot.thisHelped ?? 0,
+      live: snapshot.live ?? true,
+      createdAt: existing?.createdAt ?? snapshot.createdAt,
+    };
+    if (keepId !== undefined) {
+      return updateItem("learn_pieces", keepId, payload) as LearnPiece;
+    }
+    const { id: _omit, ...insert } = payload;
+    return insertItem("learn_pieces", insert) as LearnPiece;
+  }
+
+  async unpublishLearnPiece(id: number): Promise<LearnPiece | undefined> {
+    const existing = await this.getLearnPiece(id);
+    if (!existing) return undefined;
+    const next = unpublishLearnPieceSnapshot(existing);
+    return updateItem("learn_pieces", id, {
+      live: next.live,
+      unpublishedAt: next.unpublishedAt,
+    }) as LearnPiece;
+  }
+
+  async incrementLearnHelped(id: number): Promise<LearnPiece | undefined> {
+    const existing = await this.getLearnPiece(id);
+    if (!existing) return undefined;
+    const current = typeof existing.thisHelped === "number" ? existing.thisHelped : 0;
+    return updateItem("learn_pieces", id, { thisHelped: current + 1 }) as LearnPiece;
+  }
+
+  async unpublishLearnPieceBySource(
+    desk: "editorial" | "learn-video",
+    sourceId: number,
+  ): Promise<void> {
+    const matches = (getCollection("learn_pieces") as LearnPiece[]).filter(
+      (row) =>
+        row.source?.desk === desk &&
+        row.source?.id === sourceId &&
+        typeof row.id === "number" &&
+        row.live === true,
+    );
+    for (const row of matches) {
+      await this.unpublishLearnPiece(row.id as number);
+    }
+  }
+
+  async listLearnBotLogs(): Promise<LearnBotLog[]> {
+    return (getCollection("learn_bot_logs") as LearnBotLog[]).sort((a, b) =>
+      String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")),
+    );
+  }
+
+  async insertLearnBotLog(row: {
+    slug: string | null;
+    question: string;
+    handoff: boolean;
+    retrievedIds: number[];
+  }): Promise<LearnBotLog> {
+    return insertItem("learn_bot_logs", {
+      slug: row.slug ?? null,
+      question: row.question,
+      handoff: row.handoff,
+      retrievedIds: Array.isArray(row.retrievedIds) ? row.retrievedIds : [],
+    }) as LearnBotLog;
   }
 }

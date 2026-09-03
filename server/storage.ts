@@ -101,6 +101,9 @@ import {
   InsertWaitlistEntry,
   EditorialPiece,
   InsertEditorialPiece,
+  LearnVideo,
+  LearnPiece,
+  LearnBotLog,
   ReportTask,
   InsertReportTask,
   ReportLog,
@@ -601,6 +604,27 @@ export interface IStorage {
   ): Promise<EditorialPiece>;
   updateEditorialPiece(id: number, userId: string, updates: Partial<EditorialPiece>): Promise<EditorialPiece | undefined>;
   deleteEditorialPiece(id: number, userId: string): Promise<void>;
+
+  // Learn videos
+  listLearnVideos(userId: string): Promise<LearnVideo[]>;
+  getLearnVideo(id: number, userId: string): Promise<LearnVideo | undefined>;
+  createLearnVideo(insert: { title: string; topic: string }, userId: string): Promise<LearnVideo>;
+  updateLearnVideo(id: number, userId: string, updates: Partial<LearnVideo>): Promise<LearnVideo | undefined>;
+  deleteLearnVideo(id: number, userId: string): Promise<void>;
+
+  // Learn pieces
+  listLearnPieces(userId: string): Promise<LearnPiece[]>;
+  listLiveLearnPieces(): Promise<LearnPiece[]>;
+  getLiveLearnPieceBySlug(kind: "article" | "video", slug: string): Promise<LearnPiece | undefined>;
+  getLearnPiece(id: number): Promise<LearnPiece | undefined>;
+  upsertLiveLearnPiece(snapshot: LearnPiece): Promise<LearnPiece>;
+  unpublishLearnPiece(id: number): Promise<LearnPiece | undefined>;
+  incrementLearnHelped(id: number): Promise<LearnPiece | undefined>;
+  unpublishLearnPieceBySource(desk: "editorial" | "learn-video", sourceId: number): Promise<void>;
+
+  // Learn bot logs
+  listLearnBotLogs(): Promise<LearnBotLog[]>;
+  insertLearnBotLog(row: { slug: string | null; question: string; handoff: boolean; retrievedIds: number[] }): Promise<LearnBotLog>;
 }
 
 export type UnderwritingSummary = any;

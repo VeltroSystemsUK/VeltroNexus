@@ -1383,6 +1383,66 @@ export const createEditorialPieceSchema = editorialPieceSchema.pick({
   topic: true,
 });
 
+export const learnVideoSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  title: z.string().min(1),
+  topic: z.string().min(1),
+  description: z.string().default(""),
+  transcript: z.string().default(""),
+  videoUrl: z.string().default(""),
+  excerpt: z.string().default(""),
+  heroImageUrl: z.string().nullable().optional().default(null),
+  durationLabel: z.string().default(""),
+  pathPosition: z.number().int().min(1).max(6).nullable().optional().default(null),
+  notes: z.array(caseyNoteSchema).default([]),
+  engine: editorialEngineSchema.default(null),
+  status: editorialStatusEnum.default("draft"),
+  compliance: editorialComplianceEnum.default("pending"),
+  autoPublish: z.literal(false).default(false),
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type LearnVideo = z.infer<typeof learnVideoSchema>;
+export const createLearnVideoSchema = learnVideoSchema.pick({ title: true, topic: true });
+
+export const learnPieceSourceSchema = z.object({
+  desk: z.enum(["editorial", "learn-video"]),
+  id: z.number(),
+});
+export const learnPieceSchema = z.object({
+  id: z.number().optional(),
+  userId: z.string(),
+  slug: z.string().min(1),
+  kind: z.enum(["article", "video"]),
+  title: z.string().min(1),
+  excerpt: z.string().default(""),
+  heroImageUrl: z.string().nullable().optional().default(null),
+  body: z.string().default(""),
+  videoUrl: z.string().default(""),
+  transcript: z.string().default(""),
+  pathPosition: z.number().int().min(1).max(6).nullable().optional().default(null),
+  durationLabel: z.string().default(""),
+  thisHelped: z.number().int().nonnegative().default(0),
+  source: learnPieceSourceSchema,
+  live: z.boolean().default(false),
+  publishedAt: dateSchema,
+  unpublishedAt: dateSchema,
+  createdAt: dateSchema,
+  updatedAt: dateSchema,
+});
+export type LearnPiece = z.infer<typeof learnPieceSchema>;
+
+export const learnBotLogSchema = z.object({
+  id: z.number().optional(),
+  createdAt: dateSchema,
+  slug: z.string().nullable().optional().default(null),
+  question: z.string(),
+  handoff: z.boolean(),
+  retrievedIds: z.array(z.number()).default([]),
+});
+export type LearnBotLog = z.infer<typeof learnBotLogSchema>;
+
 // --- Scraped Leads (Auto-Qualified) ---
 export const scrapedLeadSchema = z.object({
   id: z.number().optional(),
