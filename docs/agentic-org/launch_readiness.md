@@ -15,7 +15,7 @@ The agent company does the administrative machine. Shaun spends time with custom
 | Stage | Agent owns | Shaun owns |
 |---|---|---|
 | Find customers | Hunt, score, open a deal file | Ambiguous Companies House match |
-| Reach out | Template email cadence with PECR stop line | Phone; any live reply that is not a pack upload |
+| Reach out | Template email cadence with PECR stop line; SAL-1 drafts live replies | Phone; approve/send inbound drafts; any live reply that is not a pack upload |
 | Collect information | Pack portal, chase emails, missing-doc list | Call when two chases fail |
 | Ingest | Parse files into a Standard Financial Profile | Unreadable scans / conflicting figures |
 | Run the numbers | Credit memo **recommendation** with workings | Approve or reject the memo |

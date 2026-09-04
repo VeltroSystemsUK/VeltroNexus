@@ -1,8 +1,8 @@
 ---
 document: corporate_structure.md
 business: Strata Finance (operated on Nexus)
-version: 1.2
-date: 2026-09-02
+version: 1.3
+date: 2026-09-04
 owner: Shaun
 ---
 
@@ -18,7 +18,7 @@ The honest review of what the app does today vs this directive is [launch_readin
 
 Strata Finance packages UK SME distress-refinance and CDFI facilities (£25k–£250k, turnover £250k–£5m) for Sterling Capital Reserve. Shaun is the sole human director above the loop. AI agents run origination, outreach, pack collection, ingest, numbering, and compilation. The only end product that counts is a **complete Sterling file** — funding proposal plus supporting documents with nothing required still missing — ready for Shaun to send to David.
 
-Agents do not replace Shaun with customers. They remove the admin so Shaun can take the calls, handle live replies, approve the credit memo, and press send.
+Agents do not replace Shaun with customers. They remove the admin so Shaun can take the calls, approve inbound drafts, approve the credit memo, and press send. SAL-1 drafts every live reply; Shaun sends.
 
 ---
 
@@ -28,7 +28,8 @@ Agents do not replace Shaun with customers. They remove the admin so Shaun can t
 |---|---|---|---|
 | ORC-1 | Orchestrator (`agenticWorkflow`) | 1 | Stage machine. Routes work. Enforces gates. Never chats as a person. |
 | RES-2 | Origination — Daniel Crowe / Maya Hart / Elena Ward / Harper Cole (`database-builder`, `inbound-intake`, `contact-finder`, `harvest`) | 2 | Find, match company, complete contact, harvest mailboxes, open deal file |
-| SAL-2 | Communications — James Hale / Sophie Reed / Rowan Vale (`outreach-sales`, `fulfilment-manager`, `mailbox-clerk`) | 2 | Template cadence, pack request, chase, inbox triage, LinkedIn *drafts*, queue Shaun’s calls |
+| SAL-1 | Inbound enquiries — James Hale (`inbound-enquiries`) | 2 | Draft replies to `enquiries@`. IMAP + Drafts only. Never send. Email-first pack collection. |
+| SAL-2 | Communications — James Hale / Sophie Reed / Rowan Vale (`outreach-sales`, `fulfilment-manager`, `mailbox-clerk`) | 2 | Template cadence, pack request, chase, STOP/bounce/spam, LinkedIn *drafts*, queue Shaun’s calls |
 | FIN-2 | File factory — Priya Shah (`deal-processing-underwriter`) | 2 | Ingest → SFP → credit memo recommendation → completeness → Sterling zip |
 | MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: Craft week + email templates + Editorial blogs/press releases from MKT-3 ammo and MKT-4 stills; never posts |
 | MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | Strata-desk only (stacked debt, HMRC TTP, CDFI) plus relevant public news; Creative Ammo Briefs and Editorial topic-scan notes for Isla; no tangents; never writes final ad copy |
@@ -54,8 +55,11 @@ Does not improvise. Does not call Gemini to “be a manager”.
 **RES-2 Origination**  
 Owns: hunt (Stream A SME / Stream B introducer), inbound Companies House match, contact enrichment, mailbox harvest on every real SME lead without an email, opening the pipeline lead marked Strata. Harper Cole (`harvest`) runs the domain+SMTP engine on gated, hunt-contact, quarantine, and empty-hopper files. Never invents `info@`. Never treats a registry page as the company website.
 
+**SAL-1 Inbound enquiries**  
+Owns: triage and drafted replies for every genuine inbound to `enquiries@stratafinance.co.uk`. Same James Hale persona as the cold mail. IMAP read and Drafts write only — no SMTP. Runtime pack: [strata-inbound/](./strata-inbound/). Shaun approves and sends. STOP still produces no draft.
+
 **SAL-2 Communications**  
-Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file. Rowan Vale (`mailbox-clerk`) owns the shared inbox: STOP/unsubscribe is a permanent suppression + deal delete; bounces get a reason; spam is deleted; a live customer reply is Shaun’s immediately.
+Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file. Rowan Vale (`mailbox-clerk`) owns STOP/unsubscribe (permanent suppression), bounces, and spam delete. A live customer reply is classified and drafted by SAL-1, not answered by Rowan and not auto-threaded by SAL-2.
 
 **FIN-2 File factory**  
 Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep, credit memo *recommendation*, completeness gate, compilation of the Sterling zip.
@@ -81,6 +85,8 @@ Owns: Media Gallery index. Hunts Unsplash, Pexels, Openverse, and Firecrawl imag
 | Missing email/phone | RES-2 (Elena desk inbound/introducer; Harper desk SME harvest) | Elena: one retry next day. Harper: domain-locked SMTP harvest on every real SME file without an email, including quarantine. Skip test companies. |
 | First template email (cold or inbound ack) | SAL-2 | Auto-send if SMTP live and PECR stop line present |
 | Cadence follow-up email | SAL-2 | Auto on timer |
+| Inbound reply to enquiries@ (not STOP) | SAL-1 | Draft only. Shaun sends. Spec: `agents/SAL-1.md` |
+| STOP / unsubscribe inbound | SAL-2 Rowan | No SAL-1 draft. Suppression. Confirm to Shaun |
 | LinkedIn | SAL-2 drafts, Shaun posts | Never auto-post |
 | Phone | SAL-2 queues script | Shaun dials |
 | Customer uploaded files | FIN-2 | Ingest immediately |
@@ -117,7 +123,7 @@ These require explicit Director approval before any agent proceeds:
 2. **Legal:** Any document that creates, modifies, or terminates a contractual obligation. Signed application forms and commission consent are Shaun’s to send/collect, not an agent’s to “agree”.
 3. **Credit / lending:** No agent may make a final credit or lending decision. Agents may produce recommendations with full supporting rationale. Director (or designated human underwriter) must sign off. David at Sterling then makes the lender recommendation.
 4. **Sterling send:** Completeness gate must pass, credit memo approved by Shaun, then Shaun sends.
-5. **Live customer comms after first reply:** Template pack-chase may continue. Anything else is drafted for Shaun.
+5. **Live customer comms after first reply:** Template pack-chase may continue (SAL-2). Every non-template inbound reply is drafted by SAL-1 for Shaun. SAL-1 never sends.
 6. **Distressed P0 (Gazette HMRC petition):** First template email may send; Shaun is notified immediately. Further bespoke comms wait for Shaun.
 7. **Credential changes:** Creating, revoking, or modifying access to any system — Shaun only.
 8. **Scope changes:** Adding agents, modifying this directive, or expanding permissions — Shaun + this file updated.
@@ -157,6 +163,7 @@ Agents must never, under any circumstances:
 - Strip the PECR stop line from cold email
 - Continue outreach after opt-out, complaint, or “do not contact”
 - Auto-dial or auto-post to LinkedIn
+- SMTP-send as SAL-1. Inbound replies are drafts in IONOS Drafts until Shaun sends
 - Sign or agree legal terms
 - Delete data or revoke access without Shaun
 - Share client files outside Nexus / Sterling / approved APIs

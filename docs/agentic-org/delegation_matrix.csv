@@ -10,7 +10,8 @@ inbound_ack_pack_request,SAL-2,no,Request full Sterling 14
 cadence_followup_email,SAL-2,no,OS timer
 linkedin_copy,SAL-2,yes,Draft only; Shaun posts
 phone_call,SAL-2,yes,Queue script; Shaun dials
-customer_reply_non_pack,SAL-2,yes,Stop auto-thread
+customer_reply_non_pack,SAL-1,yes,Draft only; Shaun sends; runtime docs/agentic-org/strata-inbound
+inbound_stop_unsubscribe,SAL-2,yes,Rowan suppresses; SAL-1 drafts nothing
 opt_out_complaint_vulnerability,ORC-1,yes,Hard stop
 pack_upload_received,FIN-2,no,Ingest immediately
 pack_chase_named_gaps,SAL-2,no,After 2 failures queue Shaun

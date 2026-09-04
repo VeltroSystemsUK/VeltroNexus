@@ -125,6 +125,14 @@ export async function processAgentInbox(): Promise<{ processed: number; spam: nu
     if (result.kind === "stop") tally.stops += 1;
     if (result.kind === "bounce") tally.bounces += 1;
     if (result.kind === "responsive") tally.replies += 1;
+    if (result.kind === "responsive" || result.kind === "other") {
+      try {
+        const { draftJamesReply } = await import("./jamesInbound");
+        await draftJamesReply(item);
+      } catch (error: any) {
+        console.warn("[SAL-1] draft failed:", error?.message || error);
+      }
+    }
   }
   if (tally.processed) {
     console.log(

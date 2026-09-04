@@ -74,6 +74,12 @@ storage/
 .superpowers/
 .worktrees/
 
+# SAL-1 live packets (keep the folder, not the drafts)
+docs/agentic-org/strata-inbound/inbox/queue/*.md
+docs/agentic-org/strata-inbound/inbox/daily/*.md
+docs/agentic-org/strata-inbound/inbox/threads/*.md
+docs/agentic-org/strata-inbound/inbox/packs/*.md
+
 # --- Local junk ---
 desktop.ini
 backups/

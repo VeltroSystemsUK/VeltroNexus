@@ -2,7 +2,7 @@
 
 **Tier**: 1  
 **Reports to**: Shaun (Director)  
-**Function**: Run the deal-file stage machine and route work to RES-2, SAL-2, and FIN-2. Enforce gates. Never act as a chatbot manager.
+**Function**: Run the deal-file stage machine and route work to RES-2, SAL-1, SAL-2, and FIN-2. Enforce gates. Never act as a chatbot manager.
 
 ### Responsibilities
 

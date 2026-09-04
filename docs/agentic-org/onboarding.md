@@ -23,12 +23,20 @@ How to initialise an agent for a session on Nexus.
 - Inbound: always open a file, then match Companies House.
 - Harper (`harvest`) works every real SME file without an email, plus CSV uploads from Deal Files. Domain from the company website. SMTP must pass. No invented `info@`. CSV emails are not trusted until Harper grades them; Gmail/Hotmail stay personal.
 
+## SAL-1
+
+- Read `docs/agentic-org/strata-inbound/CLAUDE.md`, then `answer-bank.md` and `inbox/log.md`.
+- IMAP read + Drafts write only. No SMTP.
+- Classify A–M. Draft from the answer bank. Packet in `inbox/queue/`. Never send.
+- STOP: no draft. Confirm suppression with Rowan / Shaun.
+
 ## SAL-2
 
 - Use OS templates in `shared/strataOutreach.ts` only. Do not invent copy.
 - Confirm SMTP is live (mail log `status` is not `mock`) before treating outreach as done.
 - LinkedIn: write the script onto the deal. Stop.
 - Calls: write `callPlaybook` and queue. Stop.
+- Live inbound replies: stop the cadence and hand to SAL-1.
 
 ## FIN-2
 

@@ -3,6 +3,7 @@ graph TD
     D --> ORC["ORC-1 Orchestrator<br/>Stage machine · gates · tick()"]
 
     ORC --> RES["RES-2 Origination<br/>Daniel / Maya / Elena / Harper"]
+    ORC --> SAL1["SAL-1 Inbound enquiries<br/>James Hale · drafts only"]
     ORC --> SAL["SAL-2 Communications<br/>James / Sophie / Rowan"]
     ORC --> FIN["FIN-2 File factory<br/>Priya"]
     D --> MKT["MKT-2 Brand social + Editorial<br/>Isla · CRAFT / editorial desk"]
@@ -14,8 +15,10 @@ graph TD
     RES --> T_PL[("Google Places")]
     RES --> T_CRM[("Prospect pipeline")]
 
+    SAL1 --> T_IMAP[("IMAP read + Drafts write")]
+    SAL1 -->|approval packet| D
     SAL --> T_SMTP[("SMTP + IMAP shared inbox")]
-    SAL -->|STOP / bounce / live reply| D
+    SAL -->|STOP / bounce| D
     SAL --> T_PACK[("Pack portal")]
     SAL --> T_LI["LinkedIn draft — Shaun posts"]
     SAL --> T_CALL["Call queue — Shaun dials"]
@@ -38,11 +41,13 @@ graph TD
     CURATE --> T_STOCK["Unsplash / Pexels / Openverse / Firecrawl"]
 
     RES -->|ambiguous match| D
-    SAL -->|live reply / complaint / P0| D
+    SAL1 -->|HOT / DISTRESS / COMPLAINT / P0| D
+    SAL -->|complaint / P0 leftover| D
     FIN -->|credit memo checkpoint| D
     FIN -->|complete zip| D
     D -->|send| DAVID["David — Sterling portal"]
 
     style D fill:#1B3A6B,color:#fff
     style ORC fill:#2E75B6,color:#fff
+    style SAL1 fill:#2E75B6,color:#fff
     style DAVID fill:#123a66,color:#fff
