@@ -171,10 +171,10 @@ describe("nurture send and promote", () => {
     });
     expect(failed.status).toBe("new");
     const sent = await runNurtureAction(created.id, "approve", {
-      send: async () => ({ success: true }),
+      send: async () => ({ success: true, id: "mail-logged-1" }),
     });
     expect(sent.status).toBe("nurturing");
-    expect(sent.nurture.touch1MailId).toBeTruthy();
+    expect(sent.nurture.touch1MailId).toBe("mail-logged-1");
   });
 
   it("promote creates once and jumps the second time", async () => {

@@ -452,7 +452,7 @@ export async function runNurtureAction(
     return saveOpener(failNurtureSend(opener));
   }
 
-  const mailId = crypto.randomUUID();
+  const mailId = result.id || crypto.randomUUID();
   return saveOpener(approveNurtureSend(opener, mailId, now));
 }
 

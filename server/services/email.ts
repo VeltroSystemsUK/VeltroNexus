@@ -91,7 +91,7 @@ export async function sendEmail(
                 prospectId: credentials?.prospectId,
                 touchId: credentials?.touchId,
             });
-            return { success: false, mock: true };
+            return { success: false, mock: true, id: mailLogId };
         }
 
         // Tracked HTML is what the customer actually receives, so it's also
@@ -126,7 +126,7 @@ export async function sendEmail(
             prospectId: credentials?.prospectId,
             touchId: credentials?.touchId,
         });
-        return { success: true, messageId: info.messageId };
+        return { success: true, messageId: info.messageId, id: mailLogId };
     } catch (error: any) {
         console.error("Error sending email:", error);
         logAgentMail({
