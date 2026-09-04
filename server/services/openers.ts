@@ -388,11 +388,10 @@ export function completeTouch2IfDue(
   channel: "whatsapp" | "call",
   now?: Date
 ): OpenerRecord {
-  if (isTouch2Due(opener, now) || opener.nurture.step === 1) {
-    return completeTouch2(opener, channel, now);
-  }
-  const stamp = (now ?? new Date()).toISOString();
-  return { ...opener, lastTouchAt: stamp, updatedAt: stamp };
+  const when = now ?? new Date();
+  const stamp = when.toISOString();
+  const next = isTouch2Due(opener, when) ? completeTouch2(opener, channel, when) : opener;
+  return { ...next, lastTouchAt: stamp, updatedAt: stamp };
 }
 
 export async function runNurtureAction(
@@ -544,7 +543,8 @@ export async function promoteOpener(
 export async function sendOpenerWhatsApp(
   id: string,
   message: string,
-  send?: (phone: string, body: string) => Promise<string>
+  send?: (phone: string, body: string) => Promise<string>,
+  now?: Date
 ): Promise<OpenerRecord> {
   const opener = requireOpener(id);
   if (!opener.phone) throw httpError("Phone required", 400);
@@ -555,11 +555,12 @@ export async function sendOpenerWhatsApp(
       return whatsappService.sendMessage(phone, body);
     });
   await sendFn(opener.phone, message);
-  return saveOpener(completeTouch2IfDue(opener, "whatsapp"));
+  return saveOpener(completeTouch2IfDue(opener, "whatsapp", now));
 }
 
 export async function logOpenerCall(id: string, note: string, now?: Date): Promise<OpenerRecord> {
   const opener = requireOpener(id);
+  if (!opener.phone) throw httpError("Phone required", 400);
   const stamp = (now ?? new Date()).toISOString();
   const line = `${stamp} ${note}`;
   const withNote: OpenerRecord = {

@@ -3,10 +3,13 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentMailItem } from "../../services/agentMailLog";
+import { OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
 import {
   attachCompanyNumber,
   enrichOpener,
   hydrateFromAgentMail,
+  logOpenerCall,
+  patchOpener,
   promoteOpener,
   runNurtureAction,
   sendOpenerWhatsApp,
@@ -224,5 +227,33 @@ describe("nurture send and promote", () => {
     tmpStore();
     const created = upsertOpenerFromMail(mail())!;
     await expect(sendOpenerWhatsApp(created.id, "hi", async () => "ok")).rejects.toMatchObject({ status: 400 });
+    await expect(logOpenerCall(created.id, "tried")).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("whatsapp and call before touch 2 is due only stamp lastTouchAt", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    patchOpener(created.id, { phone: "07123456789" });
+    await runNurtureAction(created.id, "start");
+    const sentAt = new Date("2026-09-04T10:00:00.000Z");
+    await runNurtureAction(created.id, "approve", {
+      now: sentAt,
+      send: async () => ({ success: true, id: "mail-logged-1" }),
+    });
+
+    const early = new Date("2026-09-05T10:00:00.000Z");
+    const wa = await sendOpenerWhatsApp(created.id, "hi", async () => "ok", early);
+    expect(wa.nurture.touch2Status).not.toBe("done");
+    expect(wa.lastTouchAt).toBe(early.toISOString());
+
+    const called = await logOpenerCall(created.id, "left voicemail", early);
+    expect(called.nurture.touch2Status).not.toBe("done");
+    expect(called.lastTouchAt).toBe(early.toISOString());
+
+    const dueAt = new Date(sentAt.getTime() + OPENER_TOUCH2_DELAY_MS);
+    const due = await sendOpenerWhatsApp(created.id, "follow up", async () => "ok", dueAt);
+    expect(due.nurture.touch2Status).toBe("done");
+    expect(due.nurture.stopReason).toBe("completed");
+    expect(due.lastTouchAt).toBe(dueAt.toISOString());
   });
 });
