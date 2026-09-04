@@ -58,7 +58,6 @@ export const DESTINATIONS: Destination[] = [
   { path: "/brokers", label: "Introducers", icon: Users, group: "Sales", roles: ["super_admin"], keywords: "brokers inbound review", description: "Review inbound introducer leads" },
   { path: "/lenders", label: "Lenders", icon: Building2, group: "Sales", roles: WITH_TRIAL, keywords: "lender data", description: "Lender network and market data" },
   { path: "/agent-mail", label: "Agent mail", icon: Mail, group: "Sales", roles: ["super_admin"], keywords: "email inbox agents monitor", description: "Monitor agent inbound and outbound email" },
-  { path: "/openers", label: "Openers", icon: MailOpen, group: "Sales", roles: ["super_admin"], keywords: "openers mail companies nurture pipeline", description: "Companies that opened Agent Mail" },
   { path: "/gmail", label: "Gmail", icon: Mail, group: "Sales", roles: ["super_admin"], keywords: "email inbox", description: "Email management" },
   { path: "/whatsapp", label: "WhatsApp", icon: MessageSquare, group: "Sales", roles: ["super_admin"], keywords: "messages notifications", description: "Send messages via WhatsApp" },
   { path: "/leads", label: "Leads", icon: Target, group: "Sales", roles: WITH_TRIAL, keywords: "lead generation find prospects", description: "Track and manage generated leads" },
@@ -66,6 +65,7 @@ export const DESTINATIONS: Destination[] = [
   // Marketing
   { path: "/email-templates", label: "Templates", icon: FileText, group: "Marketing", roles: FULL, keywords: "email html", description: "Reusable email templates" },
   { path: "/email-campaigns", label: "Campaigns", icon: Send, group: "Marketing", roles: FULL, keywords: "marketing email", description: "Send and track email campaigns" },
+  { path: "/openers", label: "Openers", icon: MailOpen, group: "Marketing", roles: ["super_admin"], keywords: "openers mail companies nurture pipeline", description: "Companies that opened Agent Mail" },
   { path: "/editorial", label: "Editorial", icon: Newspaper, group: "Marketing", roles: FULL, keywords: "blog press release article news casey isla", description: "Blogs and press releases — draft desk, never auto-publish" },
   { path: "/learn-desk", label: "Learn", icon: GraduationCap, group: "Marketing", roles: FULL, keywords: "learn video article publish training", description: "Publish training videos and articles to learn.stratanexus.co.uk" },
   { path: "/media", label: "Media", icon: ImageIcon, group: "Marketing", roles: FULL, keywords: "gallery images", description: "Media gallery for campaigns" },

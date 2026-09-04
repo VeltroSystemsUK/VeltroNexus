@@ -81,7 +81,6 @@ const navGroups: NavGroup[] = [
       { path: "/brokers", label: "Brokers", icon: Users, roles: ["super_admin"] },
       { path: "/lenders", label: "Lenders", icon: Building2, roles: WITH_TRIAL },
       { path: "/agent-mail", label: "Agent mail", icon: Mail, roles: ["super_admin"] },
-      { path: "/openers", label: "Openers", icon: MailOpen, roles: ["super_admin"] },
       { path: "/gmail", label: "Gmail", icon: Mail, roles: ["super_admin"] },
       { path: "/whatsapp", label: "WhatsApp", icon: MessageSquare, roles: ["super_admin"] },
     ],
@@ -92,6 +91,7 @@ const navGroups: NavGroup[] = [
     items: [
       { path: "/email-templates", label: "Templates", icon: FileText, roles: FULL },
       { path: "/email-campaigns", label: "Campaigns", icon: Send, roles: FULL },
+      { path: "/openers", label: "Openers", icon: MailOpen, roles: ["super_admin"] },
       { path: "/editorial", label: "Editorial", icon: Newspaper, roles: FULL },
       { path: "/learn-desk", label: "Learn", icon: GraduationCap, roles: FULL },
       { path: "/media", label: "Media", icon: ImageIcon, roles: FULL },

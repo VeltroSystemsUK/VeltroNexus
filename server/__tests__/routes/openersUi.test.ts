@@ -16,7 +16,7 @@ describe("Openers UI wiring", () => {
     expect(page).toMatch(/srcDoc/);
 
     const nav = fs.readFileSync(path.resolve("client/src/components/shell/navModel.ts"), "utf8");
-    expect(nav.indexOf("/openers")).toBeGreaterThan(nav.indexOf("/agent-mail"));
+    expect(nav).toMatch(/path: "\/openers".*group: "Marketing"/);
     expect(nav).toMatch(/label: "Openers"/);
 
     const app = fs.readFileSync(path.resolve("client/src/App.tsx"), "utf8");
