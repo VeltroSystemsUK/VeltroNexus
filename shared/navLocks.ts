@@ -19,6 +19,7 @@ export const PREVIEW_LOCKED_PATHS = [
   "/gmail",
   "/whatsapp",
   "/agent-mail",
+  "/openers",
 ] as const;
 
 export function isNavLocked(role: string | null | undefined, path: string): boolean {

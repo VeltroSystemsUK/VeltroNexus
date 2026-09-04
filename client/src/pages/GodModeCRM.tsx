@@ -82,8 +82,6 @@ import {
     UserSearch,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AgentJobProgress } from "@/components/AgentJobProgress";
-import { useAuth } from "@/hooks/useAuth";
 import { InternalLead, Commission, User } from "@shared/schema";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -106,7 +104,6 @@ export default function GodModeCRM() {
     const [sortConfig, setSortConfig] = useState<{ key: keyof InternalLead | "none", direction: "asc" | "desc" }>({ key: "none", direction: "desc" });
     const [currentPage, setCurrentPage] = useState(1);
 
-    const { user } = useAuth();
     const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState("leads");
 
@@ -578,9 +575,6 @@ export default function GodModeCRM() {
 
             <Card className="border-none shadow-none bg-transparent">
                 <div className="flex flex-col gap-6">
-                    {/* Agent Progress Section */}
-                    <AgentJobProgress userId={user?.id} />
-
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle>Discovered Leads</CardTitle>
