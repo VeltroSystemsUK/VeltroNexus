@@ -9,6 +9,7 @@ import {
   daysSitting,
   emptyNurture,
   failNurtureSend,
+  isNurtureInFlight,
   isTouch2Due,
   mergeOpeners,
   normalizeCompanyNumber,
@@ -16,6 +17,7 @@ import {
   normalizeOpener,
   openedMailEvents,
   openerNurtureDraft,
+  openerOnPipeline,
   skipNurtureStep,
   startNurture,
   stopNurture,
@@ -39,6 +41,16 @@ describe("identity", () => {
     expect(normalizeEmail("  Ops@NorthPeak.co.uk ")).toBe("ops@northpeak.co.uk");
     expect(normalizeCompanyNumber("8765432")).toBe("08765432");
     expect(normalizeCompanyNumber("SC123456")).toBe("SC123456");
+  });
+
+  it("unions primary email with input.emails uniquely", () => {
+    const row = normalizeOpener({
+      id: "op-1",
+      email: "  Ops@NorthPeak.co.uk ",
+      emails: ["james@northpeak.co.uk", "ops@northpeak.co.uk", "JAMES@northpeak.co.uk"],
+    });
+    expect(row.email).toBe("ops@northpeak.co.uk");
+    expect(row.emails.sort()).toEqual(["james@northpeak.co.uk", "ops@northpeak.co.uk"]);
   });
 });
 
@@ -155,12 +167,60 @@ describe("nurture", () => {
     expect(skipped.nurture.touch1Status).toBe("skipped");
     expect(isTouch2Due(skipped, new Date("2026-09-07T10:00:00.000Z"))).toBe(true);
   });
+
+  it("start after stop resets to the pending path", () => {
+    const sent = approveNurtureSend(startNurture(opener(), openerNurtureDraft(opener())), "mail-1");
+    const stopped = stopNurture(sent, "manual", new Date("2026-09-05T10:00:00.000Z"));
+    const restarted = startNurture(
+      stopped,
+      openerNurtureDraft(stopped),
+      new Date("2026-09-06T10:00:00.000Z")
+    );
+    expect(restarted.status).toBe("new");
+    expect(restarted.nurture.step).toBe(0);
+    expect(restarted.nurture.touch1Status).toBe("pending_approval");
+    expect(restarted.nurture.touch2Status).toBe("idle");
+    expect(restarted.nurture.stopReason).toBeUndefined();
+    expect(restarted.nurture.stoppedAt).toBeUndefined();
+    expect(restarted.nurture.touch1MailId).toBeUndefined();
+  });
+
+  it("second skip after touch-1 skip is a no-op until touch 2 is due", () => {
+    const t1At = new Date("2026-09-04T10:00:00.000Z");
+    const skippedT1 = skipNurtureStep(startNurture(opener(), openerNurtureDraft(opener()), t1At), t1At);
+    const early = skipNurtureStep(skippedT1, new Date("2026-09-05T10:00:00.000Z"));
+    expect(early.nurture.step).toBe(1);
+    expect(early.nurture.touch2Status).toBe("idle");
+    expect(early.nurture.stopReason).toBeUndefined();
+
+    const skippedT2 = skipNurtureStep(early, new Date("2026-09-07T10:00:00.000Z"));
+    expect(skippedT2.nurture.touch2Status).toBe("skipped");
+    expect(skippedT2.nurture.step).toBe(3);
+    expect(skippedT2.nurture.stopReason).toBe("manual");
+  });
+
+  it("inbound stop only applies while nurture is in flight", () => {
+    const fresh = opener();
+    expect(isNurtureInFlight(fresh)).toBe(false);
+    const pending = startNurture(fresh, openerNurtureDraft(fresh));
+    expect(isNurtureInFlight(pending)).toBe(false);
+    const sent = approveNurtureSend(pending, "mail-1");
+    expect(isNurtureInFlight(sent)).toBe(true);
+    expect(isNurtureInFlight(stopNurture(sent, "reply"))).toBe(false);
+  });
 });
 
 describe("gates", () => {
   it("promote requires a company number", () => {
     expect(canPromoteOpener(opener())).toBe(false);
     expect(canPromoteOpener(opener({ companyNumber: "08765432" }))).toBe(true);
+  });
+
+  it("onPipeline is true when prospectId is set or the company is on the Deck", () => {
+    expect(openerOnPipeline(opener())).toBe(false);
+    expect(openerOnPipeline(opener({ prospectId: 9 }))).toBe(true);
+    expect(openerOnPipeline(opener({ companyNumber: "8765432" }), ["08765432"])).toBe(true);
+    expect(openerOnPipeline(opener({ companyNumber: "08765432" }), ["SC123456"])).toBe(false);
   });
 
   it("drag rules match the spec", () => {

@@ -3,6 +3,7 @@ import {
   canDragOpenerTo,
   daysSitting,
   OPENER_STATUSES,
+  openerOnPipeline,
   withDerivedNurture,
   normalizeEmail,
   type OpenerRecord,
@@ -14,12 +15,15 @@ import { handleApiError } from "../utils/errorHandler";
 import { listAgentMail, type AgentMailItem } from "../services/agentMailLog";
 import {
   attachCompanyNumber,
+  currentOpenerPipelineCompanyNumbers,
   enrichOpener,
   getOpener,
   hydrateFromAgentMail,
+  listOpenerPipelineCompanyNumbers,
   logOpenerCall,
   patchOpener,
   promoteOpener,
+  refreshOpenerIdentitySnapshot,
   runNurtureAction,
   sendOpenerWhatsApp,
 } from "../services/openers";
@@ -65,22 +69,33 @@ function timelineFor(opener: OpenerRecord, mail: AgentMailItem[]) {
     }));
 }
 
-function presentOpener(opener: OpenerRecord, mail?: AgentMailItem[]) {
+function presentOpener(
+  opener: OpenerRecord,
+  mail?: AgentMailItem[],
+  pipelineCompanyNumbers?: Iterable<string>
+) {
   const derived = withDerivedNurture(opener);
   return {
     ...derived,
-    onPipeline: Boolean(opener.prospectId),
+    onPipeline: openerOnPipeline(
+      opener,
+      pipelineCompanyNumbers ?? currentOpenerPipelineCompanyNumbers()
+    ),
     daysSitting: daysSitting(opener),
     ...(mail ? { timeline: timelineFor(opener, mail) } : {}),
   };
 }
 
-router.get("/api/openers", isAuthenticated, requireSuperAdmin, async (_req, res) => {
+router.get("/api/openers", isAuthenticated, requireSuperAdmin, async (req, res) => {
   try {
     // Snapshot Agent Mail once for hydrate + timeline. Hydrate writes openers.json once.
+    await refreshOpenerIdentitySnapshot();
     const mail = listAgentMail(2000);
     const openers = hydrateFromAgentMail(mail);
-    res.json(openers.map((opener) => presentOpener(opener, mail)));
+    const pipelineCompanyNumbers = await listOpenerPipelineCompanyNumbers(
+      String((req.user as any)?.id || "")
+    );
+    res.json(openers.map((opener) => presentOpener(opener, mail, pipelineCompanyNumbers)));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }
@@ -90,7 +105,10 @@ router.get("/api/openers/:id", isAuthenticated, requireSuperAdmin, async (req, r
   try {
     const opener = getOpener(req.params.id);
     if (!opener) return res.status(404).json({ error: "Opener not found" });
-    res.json(presentOpener(opener, listAgentMail(2000)));
+    const pipelineCompanyNumbers = await listOpenerPipelineCompanyNumbers(
+      String((req.user as any)?.id || "")
+    );
+    res.json(presentOpener(opener, listAgentMail(2000), pipelineCompanyNumbers));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }

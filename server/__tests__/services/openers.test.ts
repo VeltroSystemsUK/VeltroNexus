@@ -7,15 +7,21 @@ import { OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
 import {
   attachCompanyNumber,
   enrichOpener,
+  flushOpenerIdentityFollowUps,
   hydrateFromAgentMail,
+  listOpenerPipelineCompanyNumbers,
   logOpenerCall,
   patchOpener,
   promoteOpener,
+  refreshOpenerIdentitySnapshot,
   runNurtureAction,
   sendOpenerWhatsApp,
+  setOpenerIdentityDepsForTests,
   setOpenersStorePathForTests,
+  stopOpenerNurtureByEmail,
   upsertOpenerFromMail,
   type OpenerChClient,
+  type OpenerIdentityDeps,
   type PromoteDeps,
 } from "../../services/openers";
 
@@ -38,7 +44,21 @@ afterEach(() => {
   }
   storeFiles.clear();
   setOpenersStorePathForTests(null);
+  setOpenerIdentityDepsForTests(null);
 });
+
+function identityDeps(over: Partial<OpenerIdentityDeps> = {}): OpenerIdentityDeps {
+  return {
+    async getAgenticDeal() { return undefined; },
+    async listAgenticDeals() { return []; },
+    async getProspectById() { return undefined; },
+    async listProspects() { return []; },
+    async listContacts() { return []; },
+    async listInternalLeads() { return []; },
+    async resolvePipelineOwnerUserId() { return "owner-1"; },
+    ...over,
+  };
+}
 
 function mail(over: Partial<AgentMailItem> = {}): AgentMailItem {
   return {
@@ -107,6 +127,136 @@ describe("hydrateFromAgentMail", () => {
       mail({ id: "mail-3", to: "other@hale.co.uk", opens: ["2026-09-02T10:00:00.000Z"] }),
     ]);
     expect(rows.length).toBe(2);
+  });
+
+  it("still applies identity when the mail id is already recorded, without bumping openCount", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail());
+    const first = hydrateFromAgentMail([])[0];
+    expect(first.openCount).toBe(1);
+    expect(first.companyNumber).toBeUndefined();
+
+    const resolve = () => ({
+      companyNumber: "08765432",
+      companyName: "Northpeak Joinery Ltd",
+      phone: "07111111111",
+      prospectId: 9,
+      dealId: 7,
+    });
+    const rows = hydrateFromAgentMail([mail()], resolve);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].openCount).toBe(1);
+    expect(rows[0].companyNumber).toBe("08765432");
+    expect(rows[0].phone).toBe("07111111111");
+    expect(rows[0].prospectId).toBe(9);
+    expect(rows[0].dealId).toBe(7);
+  });
+});
+
+describe("production identity resolver", () => {
+  it("attaches deal identity after a non-blocking follow-up and does not double-count the open", async () => {
+    tmpStore();
+    const deal = {
+      id: 7,
+      companyNumber: "08765432",
+      companyName: "Northpeak Joinery Ltd",
+      phone: "07111111111",
+      prospectId: 9,
+      email: "ops@northpeak.co.uk",
+    };
+    setOpenerIdentityDepsForTests(identityDeps({
+      async getAgenticDeal(id) { return id === 7 ? deal : undefined; },
+      async listAgenticDeals() { return [deal]; },
+    }));
+    const row = upsertOpenerFromMail(mail({ dealId: 7 }));
+    expect(row?.openCount).toBe(1);
+    await flushOpenerIdentityFollowUps();
+    const stored = hydrateFromAgentMail([])[0];
+    expect(stored.openCount).toBe(1);
+    expect(stored.companyNumber).toBe("08765432");
+    expect(stored.companyName).toBe("Northpeak Joinery Ltd");
+    expect(stored.phone).toBe("07111111111");
+    expect(stored.prospectId).toBe(9);
+    expect(stored.dealId).toBe(7);
+  });
+
+  it("attaches prospect identity from mail.prospectId", async () => {
+    tmpStore();
+    setOpenerIdentityDepsForTests(identityDeps({
+      async getProspectById(id) {
+        if (id !== 44) return undefined;
+        return { id: 44, companyId: 1, company: { companyNumber: "SC123456", companyName: "Hale Ltd" } };
+      },
+      async listContacts(prospectId) {
+        if (prospectId !== 44) return [];
+        return [{ email: "ops@northpeak.co.uk", phone: "07222", prospectId: 44 }];
+      },
+    }));
+    upsertOpenerFromMail(mail({ prospectId: 44 }));
+    await flushOpenerIdentityFollowUps();
+    const stored = hydrateFromAgentMail([])[0];
+    expect(stored.companyNumber).toBe("SC123456");
+    expect(stored.prospectId).toBe(44);
+    expect(stored.phone).toBe("07222");
+    expect(stored.openCount).toBe(1);
+  });
+
+  it("matches agentic deal, prospect contact, then internal lead by email", async () => {
+    tmpStore();
+    setOpenerIdentityDepsForTests(identityDeps({
+      async listAgenticDeals() {
+        return [{ id: 3, email: "ops@northpeak.co.uk", companyNumber: "08765432", companyName: "Northpeak Joinery Ltd", phone: "07000" }];
+      },
+    }));
+    upsertOpenerFromMail(mail());
+    await flushOpenerIdentityFollowUps();
+    expect(hydrateFromAgentMail([])[0].companyNumber).toBe("08765432");
+
+    tmpStore();
+    setOpenerIdentityDepsForTests(identityDeps({
+      async resolvePipelineOwnerUserId() { return "owner-1"; },
+      async listProspects(userId) {
+        if (userId !== "owner-1") return [];
+        return [{ id: 44, companyId: 1, company: { companyNumber: "SC123456", companyName: "Hale Ltd" } }];
+      },
+      async listContacts(prospectId) {
+        if (prospectId !== 44) return [];
+        return [{ email: "ops@northpeak.co.uk", phone: "07222", prospectId: 44 }];
+      },
+    }));
+    upsertOpenerFromMail(mail());
+    await flushOpenerIdentityFollowUps();
+    const fromContact = hydrateFromAgentMail([])[0];
+    expect(fromContact.companyNumber).toBe("SC123456");
+    expect(fromContact.prospectId).toBe(44);
+    expect(fromContact.phone).toBe("07222");
+
+    tmpStore();
+    setOpenerIdentityDepsForTests(identityDeps({
+      async listInternalLeads() {
+        return [{ email: "ops@northpeak.co.uk", companyNumber: "11111111", companyName: "Lead Co", phone: "07333" }];
+      },
+    }));
+    upsertOpenerFromMail(mail());
+    await flushOpenerIdentityFollowUps();
+    const fromLead = hydrateFromAgentMail([])[0];
+    expect(fromLead.companyNumber).toBe("11111111");
+    expect(fromLead.phone).toBe("07333");
+  });
+
+  it("onPipeline company numbers come from the pipeline owner, not only the request user", async () => {
+    setOpenerIdentityDepsForTests(identityDeps({
+      async resolvePipelineOwnerUserId() { return "owner-1"; },
+      async listProspects(userId) {
+        if (userId === "owner-1") {
+          return [{ id: 1, companyId: 10, company: { companyNumber: "08765432" } }];
+        }
+        return [];
+      },
+    }));
+    await refreshOpenerIdentitySnapshot();
+    const numbers = await listOpenerPipelineCompanyNumbers("req-user");
+    expect(numbers.has("08765432")).toBe(true);
   });
 });
 
@@ -209,6 +359,73 @@ describe("nurture send and promote", () => {
     expect(second.created).toBe(false);
     expect(second.prospectId).toBe(55);
     expect(prospects.length).toBe(1);
+  });
+
+  it("promote jumps a pipeline-owner prospect even when the request user has none", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await attachCompanyNumber(created.id, "08765432", fakeCh);
+    const deps: PromoteDeps = {
+      async getCompanyByNumber() { return { id: 1, companyNumber: "08765432" }; },
+      async createCompany() { return { id: 1 }; },
+      async resolvePipelineOwnerUserId() { return "owner-1"; },
+      async listProspects(userId) {
+        if (userId === "owner-1") return [{ id: 99, companyId: 1 }];
+        return [];
+      },
+      async createProspect() { throw new Error("should not create"); },
+      async createContact() { return {}; },
+    };
+    const result = await promoteOpener(created.id, "user-1", deps);
+    expect(result.created).toBe(false);
+    expect(result.prospectId).toBe(99);
+    expect(result.opener.status).toBe("promoted");
+    expect(result.opener.prospectId).toBe(99);
+  });
+
+  it("start nurture after stop, skip T2 only when due, and inbound stop only while in flight", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await runNurtureAction(created.id, "start");
+    const sentAt = new Date("2026-09-04T10:00:00.000Z");
+    await runNurtureAction(created.id, "approve", {
+      now: sentAt,
+      send: async () => ({ success: true, id: "mail-logged-1" }),
+    });
+    await runNurtureAction(created.id, "stop", { now: new Date("2026-09-05T10:00:00.000Z") });
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply")).toBeUndefined();
+
+    const restarted = await runNurtureAction(created.id, "start");
+    expect(restarted.nurture.step).toBe(0);
+    expect(restarted.nurture.touch1Status).toBe("pending_approval");
+    expect(restarted.nurture.stopReason).toBeUndefined();
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply")).toBeUndefined();
+
+    const skippedT1 = await runNurtureAction(created.id, "skip", { now: sentAt });
+    expect(skippedT1.nurture.touch1Status).toBe("skipped");
+    const earlySkip = await runNurtureAction(created.id, "skip", { now: new Date("2026-09-05T10:00:00.000Z") });
+    expect(earlySkip.nurture.step).toBe(1);
+    expect(earlySkip.nurture.stopReason).toBeUndefined();
+
+    const dueSkip = await runNurtureAction(created.id, "skip", {
+      now: new Date(sentAt.getTime() + OPENER_TOUCH2_DELAY_MS),
+    });
+    expect(dueSkip.nurture.touch2Status).toBe("skipped");
+    expect(dueSkip.nurture.stopReason).toBe("manual");
+  });
+
+  it("inbound reply stops nurture only after touch 1 is in flight", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply")).toBeUndefined();
+    await runNurtureAction(created.id, "start");
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply")).toBeUndefined();
+    await runNurtureAction(created.id, "approve", {
+      send: async () => ({ success: true, id: "mail-logged-1" }),
+    });
+    const stopped = stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply");
+    expect(stopped?.nurture.stopReason).toBe("reply");
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "opt_out")).toBeUndefined();
   });
 
   it("promote without a company number is 400", async () => {

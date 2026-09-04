@@ -113,7 +113,7 @@ export function normalizeOpener(
   return {
     id: input.id,
     email,
-    emails: (input.emails?.length ? input.emails : [email]).map(normalizeEmail).filter(Boolean),
+    emails: [...new Set([email, ...(input.emails || [])].map(normalizeEmail).filter(Boolean))],
     companyNumber: companyNumber || undefined,
     companyName: input.companyName,
     dealId: input.dealId,
@@ -244,11 +244,13 @@ export function startNurture(
   const stamp = nowIso(now);
   return {
     ...opener,
+    status: opener.status === "nurturing" ? "new" : opener.status,
     updatedAt: stamp,
     nurture: {
-      ...opener.nurture,
+      step: 0,
       touch1Status: "pending_approval",
       touch1Draft: { subject: draft.subject, html: draft.html },
+      touch2Status: "idle",
     },
   };
 }
@@ -297,7 +299,8 @@ export function skipNurtureStep(opener: OpenerRecord, now?: Date): OpenerRecord 
       },
     };
   }
-  if (opener.nurture.touch2Status === "idle" && opener.nurture.step >= 1 && !opener.nurture.stopReason) {
+  if (opener.nurture.stopReason) return opener;
+  if (opener.nurture.step >= 1 && isTouch2Due(opener, now)) {
     return {
       ...opener,
       updatedAt: stamp,
@@ -312,6 +315,23 @@ export function skipNurtureStep(opener: OpenerRecord, now?: Date): OpenerRecord 
     };
   }
   return opener;
+}
+
+export function isNurtureInFlight(opener: Pick<OpenerRecord, "nurture">): boolean {
+  return opener.nurture.step >= 1 && !opener.nurture.stopReason;
+}
+
+export function openerOnPipeline(
+  opener: Pick<OpenerRecord, "prospectId" | "companyNumber">,
+  pipelineCompanyNumbers?: Iterable<string>
+): boolean {
+  if (opener.prospectId) return true;
+  const number = normalizeCompanyNumber(opener.companyNumber);
+  if (!number || !pipelineCompanyNumbers) return false;
+  for (const value of pipelineCompanyNumbers) {
+    if (normalizeCompanyNumber(value) === number) return true;
+  }
+  return false;
 }
 
 export function stopNurture(

@@ -30,4 +30,11 @@ describe("openers routes", () => {
     const src = fs.readFileSync(path.resolve("server/routes.ts"), "utf8");
     expect(src).toMatch(/openersRouter/);
   });
+
+  it("board onPipeline uses pipeline-owner company numbers", () => {
+    const src = fs.readFileSync(path.resolve("server/routes/openers.ts"), "utf8");
+    expect(src).toMatch(/refreshOpenerIdentitySnapshot/);
+    expect(src).toMatch(/listOpenerPipelineCompanyNumbers/);
+    expect(src).toMatch(/openerOnPipeline/);
+  });
 });

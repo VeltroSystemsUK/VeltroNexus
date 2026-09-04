@@ -10,6 +10,7 @@ import {
   canPromoteOpener,
   completeTouch2,
   failNurtureSend,
+  isNurtureInFlight,
   isTouch2Due,
   mergeOpeners,
   normalizeCompanyNumber,
@@ -47,10 +48,76 @@ export type OpenerResolver = (
   mail: AgentMailItem
 ) => OpenerResolveHit | Promise<OpenerResolveHit>;
 
+export type OpenerIdentityDeal = {
+  id: number;
+  companyNumber?: string | null;
+  companyName?: string | null;
+  phone?: string | null;
+  prospectId?: number | null;
+  email?: string | null;
+};
+
+export type OpenerIdentityProspect = {
+  id: number;
+  companyId?: number;
+  company?: { companyNumber?: string | null; companyName?: string | null } | null;
+};
+
+export type OpenerIdentityContact = {
+  email?: string | null;
+  phone?: string | null;
+  prospectId?: number;
+};
+
+export type OpenerIdentityLead = {
+  email?: string | null;
+  phone?: string | null;
+  companyNumber?: string | null;
+  companyName?: string | null;
+};
+
+export type OpenerIdentityDeps = {
+  getAgenticDeal(id: number): Promise<OpenerIdentityDeal | undefined>;
+  listAgenticDeals(): Promise<OpenerIdentityDeal[]>;
+  getProspectById(id: number): Promise<OpenerIdentityProspect | undefined>;
+  listProspects(userId: string): Promise<OpenerIdentityProspect[]>;
+  listContacts(prospectId: number, userId: string): Promise<OpenerIdentityContact[]>;
+  listInternalLeads(): Promise<OpenerIdentityLead[]>;
+  resolvePipelineOwnerUserId(): Promise<string>;
+};
+
+type IdentitySnapshot = {
+  ownerUserId?: string;
+  dealsById: Map<number, OpenerIdentityDeal>;
+  dealsByEmail: Map<string, OpenerIdentityDeal>;
+  prospectsById: Map<number, OpenerIdentityProspect>;
+  contactsByEmail: Map<string, { prospectId: number; phone?: string; companyNumber?: string; companyName?: string }>;
+  leadsByEmail: Map<string, OpenerIdentityLead>;
+  pipelineCompanyNumbers: Set<string>;
+};
+
 let storePathForTests: string | null = null;
+let identityDepsForTests: OpenerIdentityDeps | null = null;
+let identitySnapshot: IdentitySnapshot | null = null;
+let identityFollowUp: Promise<void> = Promise.resolve();
+let chClientForTests: OpenerChClient | null = null;
 
 export function setOpenersStorePathForTests(filePath: string | null): void {
   storePathForTests = filePath;
+}
+
+export function setOpenerIdentityDepsForTests(deps: OpenerIdentityDeps | null): void {
+  identityDepsForTests = deps;
+  identitySnapshot = null;
+  identityFollowUp = Promise.resolve();
+}
+
+export function setOpenerChClientForTests(client: OpenerChClient | null): void {
+  chClientForTests = client;
+}
+
+export function flushOpenerIdentityFollowUps(): Promise<void> {
+  return identityFollowUp;
 }
 
 function storePath(): string {
@@ -97,6 +164,246 @@ export function patchOpener(id: string, updates: Partial<OpenerRecord>): OpenerR
   all[idx] = next;
   writeOpeners(all);
   return next;
+}
+
+function inVitest(): boolean {
+  return Boolean(process.env.VITEST);
+}
+
+async function productionIdentityDeps(): Promise<OpenerIdentityDeps> {
+  const { storage } = await import("../storage");
+  const { resolvePipelineOwnerUserId } = await import("./inboundPipeline");
+  return {
+    getAgenticDeal: (id) => storage.getAgenticDeal(id),
+    listAgenticDeals: () => storage.listAgenticDeals(),
+    getProspectById: (id) => storage.getProspectById(id),
+    listProspects: (userId) => storage.listProspects(userId),
+    listContacts: (prospectId, userId) => storage.listContacts(prospectId, userId),
+    listInternalLeads: () => storage.listInternalLeads(),
+    resolvePipelineOwnerUserId,
+  };
+}
+
+async function identityDeps(): Promise<OpenerIdentityDeps | null> {
+  if (identityDepsForTests) return identityDepsForTests;
+  if (inVitest()) return null;
+  return productionIdentityDeps();
+}
+
+function fillHit(hit: OpenerResolveHit, extra: OpenerResolveHit): OpenerResolveHit {
+  return {
+    companyNumber: hit.companyNumber || extra.companyNumber,
+    companyName: hit.companyName || extra.companyName,
+    dealId: hit.dealId ?? extra.dealId,
+    prospectId: hit.prospectId ?? extra.prospectId,
+    phone: hit.phone || extra.phone,
+  };
+}
+
+function hitFromDeal(deal: OpenerIdentityDeal): OpenerResolveHit {
+  return {
+    companyNumber: deal.companyNumber || undefined,
+    companyName: deal.companyName || undefined,
+    dealId: deal.id,
+    prospectId: deal.prospectId || undefined,
+    phone: deal.phone || undefined,
+  };
+}
+
+function hitFromProspect(prospect: OpenerIdentityProspect, phone?: string): OpenerResolveHit {
+  return {
+    companyNumber: prospect.company?.companyNumber || undefined,
+    companyName: prospect.company?.companyName || undefined,
+    prospectId: prospect.id,
+    phone,
+  };
+}
+
+function hitFromLead(lead: OpenerIdentityLead): OpenerResolveHit {
+  return {
+    companyNumber: lead.companyNumber || undefined,
+    companyName: lead.companyName || undefined,
+    phone: lead.phone || undefined,
+  };
+}
+
+function emptySnapshot(): IdentitySnapshot {
+  return {
+    dealsById: new Map(),
+    dealsByEmail: new Map(),
+    prospectsById: new Map(),
+    contactsByEmail: new Map(),
+    leadsByEmail: new Map(),
+    pipelineCompanyNumbers: new Set(),
+  };
+}
+
+async function loadIdentitySnapshot(deps: OpenerIdentityDeps): Promise<IdentitySnapshot> {
+  const snapshot = emptySnapshot();
+  const [deals, leads, ownerUserId] = await Promise.all([
+    deps.listAgenticDeals().catch(() => [] as OpenerIdentityDeal[]),
+    deps.listInternalLeads().catch(() => [] as OpenerIdentityLead[]),
+    deps.resolvePipelineOwnerUserId().catch(() => ""),
+  ]);
+  snapshot.ownerUserId = ownerUserId || undefined;
+
+  for (const deal of deals) {
+    snapshot.dealsById.set(deal.id, deal);
+    const email = normalizeEmail(deal.email);
+    if (email && !snapshot.dealsByEmail.has(email)) snapshot.dealsByEmail.set(email, deal);
+  }
+  for (const lead of leads) {
+    const email = normalizeEmail(lead.email);
+    if (email && !snapshot.leadsByEmail.has(email)) snapshot.leadsByEmail.set(email, lead);
+  }
+  if (!ownerUserId) return snapshot;
+
+  const prospects = await deps.listProspects(ownerUserId).catch(() => [] as OpenerIdentityProspect[]);
+  for (const prospect of prospects) {
+    snapshot.prospectsById.set(prospect.id, prospect);
+    const number = normalizeCompanyNumber(prospect.company?.companyNumber);
+    if (number) snapshot.pipelineCompanyNumbers.add(number);
+    const contacts = await deps.listContacts(prospect.id, ownerUserId).catch(() => [] as OpenerIdentityContact[]);
+    for (const contact of contacts) {
+      const email = normalizeEmail(contact.email);
+      if (!email || snapshot.contactsByEmail.has(email)) continue;
+      snapshot.contactsByEmail.set(email, {
+        prospectId: prospect.id,
+        phone: contact.phone || undefined,
+        companyNumber: number || undefined,
+        companyName: prospect.company?.companyName || undefined,
+      });
+    }
+  }
+  return snapshot;
+}
+
+export async function refreshOpenerIdentitySnapshot(): Promise<IdentitySnapshot | null> {
+  const deps = await identityDeps();
+  if (!deps) {
+    identitySnapshot = null;
+    return null;
+  }
+  identitySnapshot = await loadIdentitySnapshot(deps);
+  return identitySnapshot;
+}
+
+function resolveFromSnapshot(email: string, mail: AgentMailItem, snapshot: IdentitySnapshot): OpenerResolveHit {
+  let hit: OpenerResolveHit = {};
+  if (mail.dealId != null) {
+    const deal = snapshot.dealsById.get(mail.dealId);
+    if (deal) hit = fillHit(hit, hitFromDeal(deal));
+  }
+  if (mail.prospectId != null) {
+    const prospect = snapshot.prospectsById.get(mail.prospectId);
+    if (prospect) {
+      const contact = [...snapshot.contactsByEmail.values()].find((row) => row.prospectId === prospect.id);
+      hit = fillHit(hit, hitFromProspect(prospect, contact?.phone));
+    }
+  }
+  const dealByEmail = snapshot.dealsByEmail.get(email);
+  if (dealByEmail) hit = fillHit(hit, hitFromDeal(dealByEmail));
+  const contact = snapshot.contactsByEmail.get(email);
+  if (contact) {
+    hit = fillHit(hit, {
+      companyNumber: contact.companyNumber,
+      companyName: contact.companyName,
+      prospectId: contact.prospectId,
+      phone: contact.phone,
+    });
+  }
+  const lead = snapshot.leadsByEmail.get(email);
+  if (lead) hit = fillHit(hit, hitFromLead(lead));
+  return hit;
+}
+
+export function defaultOpenerResolver(email: string, mail: AgentMailItem): OpenerResolveHit {
+  if (!identitySnapshot) return {};
+  return resolveFromSnapshot(email, mail, identitySnapshot);
+}
+
+export async function resolveOpenerIdentity(email: string, mail: AgentMailItem): Promise<OpenerResolveHit> {
+  const deps = await identityDeps();
+  if (!deps) return identitySnapshot ? resolveFromSnapshot(email, mail, identitySnapshot) : {};
+
+  let hit: OpenerResolveHit = {};
+  if (mail.dealId != null) {
+    try {
+      const deal = await deps.getAgenticDeal(mail.dealId);
+      if (deal) hit = fillHit(hit, hitFromDeal(deal));
+    } catch {
+      // deal lookup is best-effort
+    }
+  }
+  if (mail.prospectId != null) {
+    try {
+      const prospect = await deps.getProspectById(mail.prospectId);
+      if (prospect) {
+        let phone: string | undefined;
+        try {
+          const ownerId = identitySnapshot?.ownerUserId || (await deps.resolvePipelineOwnerUserId().catch(() => ""));
+          const contacts = await deps.listContacts(mail.prospectId, ownerId);
+          phone = contacts.find((row) => row.phone)?.phone || undefined;
+        } catch {
+          // contacts are optional
+        }
+        hit = fillHit(hit, hitFromProspect(prospect, phone));
+      }
+    } catch {
+      // prospect lookup is best-effort
+    }
+  }
+  if (!identitySnapshot) {
+    identitySnapshot = await loadIdentitySnapshot(deps);
+  }
+  return fillHit(hit, resolveFromSnapshot(email, mail, identitySnapshot));
+}
+
+export function currentOpenerPipelineCompanyNumbers(): Set<string> {
+  return new Set(identitySnapshot?.pipelineCompanyNumbers || []);
+}
+
+export async function listOpenerPipelineCompanyNumbers(extraUserId?: string): Promise<Set<string>> {
+  if (!identitySnapshot) await refreshOpenerIdentitySnapshot();
+  const numbers = new Set<string>(identitySnapshot?.pipelineCompanyNumbers || []);
+  const extra = extraUserId?.trim();
+  if (!extra || extra === identitySnapshot?.ownerUserId) return numbers;
+  const deps = await identityDeps();
+  if (!deps) return numbers;
+  try {
+    const prospects = await deps.listProspects(extra);
+    for (const prospect of prospects) {
+      const number = normalizeCompanyNumber(prospect.company?.companyNumber);
+      if (number) numbers.add(number);
+    }
+  } catch {
+    // request-user lookup is best-effort
+  }
+  return numbers;
+}
+
+function enqueueIdentityFollowUp(work: () => Promise<void>): void {
+  identityFollowUp = identityFollowUp.then(work).catch((error: any) => {
+    console.warn("[Openers] identity follow-up failed:", error?.message || error);
+  });
+}
+
+function scheduleEnrichIfNew(hadNumber: boolean, opener?: OpenerRecord): void {
+  if (!opener || hadNumber) return;
+  if (!normalizeCompanyNumber(opener.companyNumber) || opener.enrichedAt) return;
+  if (inVitest() && !chClientForTests) return;
+  void enrichOpener(opener.id, chClientForTests ?? companiesHouseClient).catch((error: any) => {
+    console.warn("[Openers] enrich after identity attach failed:", error?.message || error);
+  });
+}
+
+function scheduleDefaultIdentityFollowUp(mail: AgentMailItem): void {
+  if (inVitest() && !identityDepsForTests) return;
+  const email = normalizeEmail(mail.to);
+  enqueueIdentityFollowUp(async () => {
+    const hit = await resolveOpenerIdentity(email, mail);
+    applyOpenedMail(mail, () => hit, 0, true);
+  });
 }
 
 function takeResolveHit(email: string, mail: AgentMailItem, resolve?: OpenerResolver): OpenerResolveHit {
@@ -153,6 +460,17 @@ function saveOpener(opener: OpenerRecord, dropId?: string): OpenerRecord {
   return opener;
 }
 
+function identityChanged(before: OpenerRecord, after: OpenerRecord): boolean {
+  return (
+    before.companyNumber !== after.companyNumber ||
+    before.phone !== after.phone ||
+    before.prospectId !== after.prospectId ||
+    before.dealId !== after.dealId ||
+    before.companyName !== after.companyName ||
+    before.emails.slice().sort().join("|") !== after.emails.slice().sort().join("|")
+  );
+}
+
 function applyOpenedMailTo(
   all: OpenerRecord[],
   mail: AgentMailItem,
@@ -166,47 +484,63 @@ function applyOpenedMailTo(
   const opens = mail.opens || [];
   const at = lastMailOpenAt(opens);
   if (!at) return { all };
-  if (skipIfSeen && all.some((row) => row.mailIds?.includes(mail.id))) return { all };
 
   const hit = takeResolveHit(email, mail, resolve);
-  const byEmail = findByEmail(all, email);
-  const byCompany = findByCompany(all, hit.companyNumber);
+  const seenRow = all.find((row) => row.mailIds?.includes(mail.id));
+  const identityOnly = Boolean(skipIfSeen && seenRow);
 
   let opener: OpenerRecord;
   let dropId: string | undefined;
 
-  if (byEmail && byCompany && byEmail.id !== byCompany.id) {
-    opener = mergeOpeners(byEmail, byCompany);
-    dropId = byCompany.id;
-  } else if (byEmail) {
-    opener = byEmail;
-  } else if (byCompany) {
-    opener = byCompany;
+  if (identityOnly) {
+    opener = seenRow!;
+    const companyRow = findByCompany(
+      all.filter((row) => row.id !== opener.id),
+      hit.companyNumber
+    );
+    if (companyRow) {
+      opener = mergeOpeners(opener, companyRow);
+      dropId = companyRow.id;
+    }
+    opener = applyIdentity(opener, email, mail, hit);
+    if (!dropId && !identityChanged(seenRow!, opener)) return { all };
   } else {
-    opener = normalizeOpener({
-      id: crypto.randomUUID(),
-      email,
-      firstOpenedAt: earliestOpenAt(opens, at),
-      lastOpenedAt: at,
-      openCount: 0,
-      companyNumber: hit.companyNumber,
-      companyName: hit.companyName,
-      dealId: hit.dealId ?? mail.dealId,
-      prospectId: hit.prospectId ?? mail.prospectId,
-      phone: hit.phone,
-    });
-  }
+    const byEmail = findByEmail(all, email);
+    const byCompany = findByCompany(all, hit.companyNumber);
 
-  opener = applyIdentity(opener, email, mail, hit);
-  opener = applyOpenEvent(opener, at, extraOpens);
-  const firstAt = earliestOpenAt(opens, at);
-  if (Date.parse(firstAt) < Date.parse(opener.firstOpenedAt)) {
-    opener = { ...opener, firstOpenedAt: firstAt };
+    if (byEmail && byCompany && byEmail.id !== byCompany.id) {
+      opener = mergeOpeners(byEmail, byCompany);
+      dropId = byCompany.id;
+    } else if (byEmail) {
+      opener = byEmail;
+    } else if (byCompany) {
+      opener = byCompany;
+    } else {
+      opener = normalizeOpener({
+        id: crypto.randomUUID(),
+        email,
+        firstOpenedAt: earliestOpenAt(opens, at),
+        lastOpenedAt: at,
+        openCount: 0,
+        companyNumber: hit.companyNumber,
+        companyName: hit.companyName,
+        dealId: hit.dealId ?? mail.dealId,
+        prospectId: hit.prospectId ?? mail.prospectId,
+        phone: hit.phone,
+      });
+    }
+
+    opener = applyIdentity(opener, email, mail, hit);
+    opener = applyOpenEvent(opener, at, extraOpens);
+    const firstAt = earliestOpenAt(opens, at);
+    if (Date.parse(firstAt) < Date.parse(opener.firstOpenedAt)) {
+      opener = { ...opener, firstOpenedAt: firstAt };
+    }
+    opener = {
+      ...opener,
+      mailIds: [...new Set([...(opener.mailIds || []), mail.id])],
+    };
   }
-  opener = {
-    ...opener,
-    mailIds: [...new Set([...(opener.mailIds || []), mail.id])],
-  };
 
   const next = all.filter((row) => row.id !== opener.id && row.id !== dropId);
   next.push(opener);
@@ -219,9 +553,14 @@ function applyOpenedMail(
   extraOpens: number,
   skipIfSeen: boolean
 ): OpenerRecord | undefined {
-  const result = applyOpenedMailTo(readOpeners(), mail, resolve, extraOpens, skipIfSeen);
+  const all = readOpeners();
+  const email = normalizeEmail(mail.to);
+  const existing = findByEmail(all, email) || findByCompany(all, takeResolveHit(email, mail, resolve).companyNumber);
+  const hadNumber = Boolean(normalizeCompanyNumber(existing?.companyNumber));
+  const result = applyOpenedMailTo(all, mail, resolve, extraOpens, skipIfSeen);
   if (!result.opener) return undefined;
   writeOpeners(result.all);
+  scheduleEnrichIfNew(hadNumber, result.opener);
   return result.opener;
 }
 
@@ -229,26 +568,49 @@ export function upsertOpenerFromMail(
   mail: AgentMailItem,
   resolve?: OpenerResolver
 ): OpenerRecord | undefined {
-  return applyOpenedMail(mail, resolve, 1, false);
+  const resolver = resolve ?? defaultOpenerResolver;
+  const opener = applyOpenedMail(mail, resolver, 1, false);
+  if (resolve) {
+    const email = normalizeEmail(mail.to);
+    const pending = resolve(email, mail);
+    if (pending && typeof (pending as Promise<OpenerResolveHit>).then === "function") {
+      enqueueIdentityFollowUp(async () => {
+        const hit = await pending;
+        applyOpenedMail(mail, () => hit, 0, true);
+      });
+    }
+  } else {
+    scheduleDefaultIdentityFollowUp(mail);
+  }
+  return opener;
 }
 
 export function hydrateFromAgentMail(
   items: AgentMailItem[],
   resolve?: OpenerResolver
 ): OpenerRecord[] {
+  const resolver = resolve ?? defaultOpenerResolver;
   let all = readOpeners();
   const byId = new Map(items.map((item) => [item.id, item]));
   let dirty = false;
+  const newlyNumbered: OpenerRecord[] = [];
   for (const event of openedMailEvents(items)) {
     const mail = byId.get(event.mailId);
     if (!mail) continue;
-    const result = applyOpenedMailTo(all, mail, resolve, event.openCount, true);
+    const email = normalizeEmail(mail.to);
+    const existing = findByEmail(all, email);
+    const hadNumber = Boolean(normalizeCompanyNumber(existing?.companyNumber));
+    const result = applyOpenedMailTo(all, mail, resolver, event.openCount, true);
     if (result.opener) {
       all = result.all;
       dirty = true;
+      if (!hadNumber && result.opener.companyNumber && !result.opener.enrichedAt) {
+        newlyNumbered.push(result.opener);
+      }
     }
   }
   if (dirty) writeOpeners(all);
+  for (const opener of newlyNumbered) scheduleEnrichIfNew(false, opener);
   return all;
 }
 
@@ -384,6 +746,7 @@ export type PromoteDeps = {
   listProspects(userId: string): Promise<Array<{ id: number; companyId: number }>>;
   createProspect(data: any, userId: string): Promise<{ id: number }>;
   createContact(data: any, userId: string): Promise<any>;
+  resolvePipelineOwnerUserId?(): Promise<string>;
 };
 
 type SendEmailFn = typeof import("./email").sendEmail;
@@ -394,13 +757,46 @@ function httpError(message: string, status: number): Error {
 
 async function defaultPromoteDeps(): Promise<PromoteDeps> {
   const { storage } = await import("../storage");
+  const { resolvePipelineOwnerUserId } = await import("./inboundPipeline");
   return {
     getCompanyByNumber: (n) => storage.getCompanyByNumber(n),
     createCompany: (data) => storage.createCompany(data),
     listProspects: (userId) => storage.listProspects(userId),
     createProspect: (data, userId) => storage.createProspect(data, userId),
     createContact: (data, userId) => storage.createContact(data, userId),
+    resolvePipelineOwnerUserId,
   };
+}
+
+async function findProspectForCompany(
+  d: PromoteDeps,
+  companyId: number,
+  userId: string
+): Promise<{ id: number; companyId: number } | undefined> {
+  const seen = new Set<string>();
+  const userIds: string[] = [];
+  if (d.resolvePipelineOwnerUserId) {
+    try {
+      userIds.push(await d.resolvePipelineOwnerUserId());
+    } catch {
+      // owner lookup is best-effort; still try the request user
+    }
+  } else if (!userId) {
+    try {
+      const { resolvePipelineOwnerUserId } = await import("./inboundPipeline");
+      userIds.push(await resolvePipelineOwnerUserId());
+    } catch {
+      // no owner available
+    }
+  }
+  if (userId) userIds.push(userId);
+  for (const id of userIds) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const hit = (await d.listProspects(id)).find((row) => row.companyId === companyId);
+    if (hit?.id) return hit;
+  }
+  return undefined;
 }
 
 export function completeTouch2IfDue(
@@ -508,7 +904,7 @@ export async function promoteOpener(
     };
   }
 
-  const existing = (await d.listProspects(resolvedUserId)).find((row) => row.companyId === company!.id);
+  const existing = await findProspectForCompany(d, company!.id, resolvedUserId);
   if (existing?.id) {
     const next = saveOpener({
       ...stopNurture(opener, "promoted"),
@@ -595,6 +991,6 @@ export function stopOpenerNurtureByEmail(
   reason: "reply" | "opt_out"
 ): OpenerRecord | undefined {
   const opener = findByEmail(readOpeners(), normalizeEmail(email));
-  if (!opener) return undefined;
+  if (!opener || !isNurtureInFlight(opener)) return undefined;
   return saveOpener(stopNurture(opener, reason));
 }
