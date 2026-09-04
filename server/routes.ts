@@ -97,6 +97,7 @@ import campaignsRouter from "./routes/campaigns";
 import inboundRouter from "./routes/inbound"; // Added inbound router
 import agenticWorkflowRouter from "./routes/agenticWorkflow";
 import agentMailRouter from "./routes/agentMail";
+import openersRouter from "./routes/openers";
 import gmailRouter from "./routes/gmail";
 import packUploadRouter from "./routes/packUpload";
 import telnyxVoiceRouter from "./routes/telnyxVoice";
@@ -557,6 +558,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use("/api", prospectsRouter);
   app.use(agenticWorkflowRouter);
   app.use(agentMailRouter);
+  app.use(openersRouter);
   app.use(gmailRouter);
   app.use(packUploadRouter);
   app.use(telnyxVoiceRouter);

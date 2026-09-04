@@ -153,21 +153,20 @@ function saveOpener(opener: OpenerRecord, dropId?: string): OpenerRecord {
   return opener;
 }
 
-function applyOpenedMail(
+function applyOpenedMailTo(
+  all: OpenerRecord[],
   mail: AgentMailItem,
   resolve: OpenerResolver | undefined,
   extraOpens: number,
   skipIfSeen: boolean
-): OpenerRecord | undefined {
-  if (!isOpenedOutboundMail(mail)) return undefined;
+): { all: OpenerRecord[]; opener?: OpenerRecord } {
+  if (!isOpenedOutboundMail(mail)) return { all };
   const email = normalizeEmail(mail.to);
-  if (!email) return undefined;
+  if (!email) return { all };
   const opens = mail.opens || [];
   const at = lastMailOpenAt(opens);
-  if (!at) return undefined;
-
-  const all = readOpeners();
-  if (skipIfSeen && all.some((row) => row.mailIds?.includes(mail.id))) return undefined;
+  if (!at) return { all };
+  if (skipIfSeen && all.some((row) => row.mailIds?.includes(mail.id))) return { all };
 
   const hit = takeResolveHit(email, mail, resolve);
   const byEmail = findByEmail(all, email);
@@ -209,7 +208,21 @@ function applyOpenedMail(
     mailIds: [...new Set([...(opener.mailIds || []), mail.id])],
   };
 
-  return saveOpener(opener, dropId);
+  const next = all.filter((row) => row.id !== opener.id && row.id !== dropId);
+  next.push(opener);
+  return { all: next, opener };
+}
+
+function applyOpenedMail(
+  mail: AgentMailItem,
+  resolve: OpenerResolver | undefined,
+  extraOpens: number,
+  skipIfSeen: boolean
+): OpenerRecord | undefined {
+  const result = applyOpenedMailTo(readOpeners(), mail, resolve, extraOpens, skipIfSeen);
+  if (!result.opener) return undefined;
+  writeOpeners(result.all);
+  return result.opener;
 }
 
 export function upsertOpenerFromMail(
@@ -223,13 +236,20 @@ export function hydrateFromAgentMail(
   items: AgentMailItem[],
   resolve?: OpenerResolver
 ): OpenerRecord[] {
+  let all = readOpeners();
   const byId = new Map(items.map((item) => [item.id, item]));
+  let dirty = false;
   for (const event of openedMailEvents(items)) {
     const mail = byId.get(event.mailId);
     if (!mail) continue;
-    applyOpenedMail(mail, resolve, event.openCount, true);
+    const result = applyOpenedMailTo(all, mail, resolve, event.openCount, true);
+    if (result.opener) {
+      all = result.all;
+      dirty = true;
+    }
   }
-  return listOpeners();
+  if (dirty) writeOpeners(all);
+  return all;
 }
 
 function asItems(payload: any): any[] {

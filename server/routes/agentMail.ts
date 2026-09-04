@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { listAgentMail, recordInbound, recordOpen, recordClick } from "../services/agentMailLog";
+import { stopOpenerNurtureByEmail } from "../services/openers";
 import { maybeSendSmeOpenFollowUp } from "../services/smeOpenFollowUp";
 import { pollImapInbox } from "../services/imapInbox";
 import { mailboxList } from "@shared/agentMailboxes";
@@ -44,6 +45,15 @@ router.post("/api/agent-mail/inbound", async (req, res) => {
       html: req.body?.html,
       messageId: req.body?.messageId,
     });
+    try {
+      const body = `${req.body?.subject || ""} ${req.body?.text || ""}`.toLowerCase();
+      const reason = /\b(stop|unsubscribe|do not contact|don't contact)\b/.test(body)
+        ? "opt_out"
+        : "reply";
+      stopOpenerNurtureByEmail(from, reason);
+    } catch {
+      // opener stop is best-effort; inbound already recorded
+    }
     res.json(item);
   } catch (error) {
     handleApiError(res, error, "api-error");
