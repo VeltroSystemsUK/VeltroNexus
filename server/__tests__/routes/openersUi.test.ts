@@ -12,6 +12,8 @@ describe("Openers UI wiring", () => {
     expect(page).toMatch(/data-testid="button-promote-opener"/);
     expect(page).toMatch(/SheetContent/);
     expect(page).toMatch(/DragDropContext/);
+    expect(page).toMatch(/touch1Draft\.html/);
+    expect(page).toMatch(/srcDoc/);
 
     const nav = fs.readFileSync(path.resolve("client/src/components/shell/navModel.ts"), "utf8");
     expect(nav.indexOf("/openers")).toBeGreaterThan(nav.indexOf("/agent-mail"));

@@ -1,6 +1,7 @@
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import DOMPurify from "dompurify";
+import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { useLocation } from "wouter";
 import {
   Building2,
@@ -116,6 +117,44 @@ function defaultWhatsAppMessage(opener: OpenerBoardItem) {
 
 function mutationError(error: unknown) {
   return error instanceof Error ? error.message : "Request failed";
+}
+
+const DRAFT_FRAME_CSS = `
+  html, body { margin: 0; padding: 12px 4px; background: #fff; color: #111; }
+  body { font: 14px/1.5 system-ui, Segoe UI, Helvetica, Arial, sans-serif; word-break: break-word; }
+  img { max-width: 100% !important; height: auto !important; }
+  p { margin: 0 0 0.75em; }
+`;
+
+function NurtureDraftPreview({ subject, html, status }: { subject: string; html: string; status: string }) {
+  const clean = DOMPurify.sanitize(html, {
+    ADD_TAGS: ["style"],
+    ADD_ATTR: ["target", "style", "class"],
+    ALLOW_DATA_ATTR: false,
+  });
+  const srcDoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>${DRAFT_FRAME_CSS}</style></head><body>${clean}</body></html>`;
+  const onLoad = useCallback((event: SyntheticEvent<HTMLIFrameElement>) => {
+    const frame = event.currentTarget;
+    const doc = frame.contentDocument;
+    if (!doc?.body) return;
+    frame.style.height = `${Math.max(160, doc.documentElement.scrollHeight + 8)}px`;
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">{subject}</p>
+      <p className="text-xs text-muted-foreground">{status}</p>
+      <div className="rounded-md border bg-white overflow-x-auto">
+        <iframe
+          title="Nurture draft"
+          sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+          className="w-full min-h-[160px] border-0 bg-white"
+          srcDoc={srcDoc}
+          onLoad={onLoad}
+        />
+      </div>
+    </div>
+  );
 }
 
 function OpenerCards({
@@ -639,9 +678,11 @@ export default function Openers() {
                       </Button>
                     </div>
                     {selected.nurture.touch1Draft && (
-                      <p className="text-xs text-muted-foreground">
-                        Draft: {selected.nurture.touch1Draft.subject} · {selected.nurture.touch1Status}
-                      </p>
+                      <NurtureDraftPreview
+                        subject={selected.nurture.touch1Draft.subject}
+                        html={selected.nurture.touch1Draft.html}
+                        status={selected.nurture.touch1Status}
+                      />
                     )}
                   </section>
 
