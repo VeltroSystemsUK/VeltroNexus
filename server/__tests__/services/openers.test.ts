@@ -7,9 +7,13 @@ import {
   attachCompanyNumber,
   enrichOpener,
   hydrateFromAgentMail,
+  promoteOpener,
+  runNurtureAction,
+  sendOpenerWhatsApp,
   setOpenersStorePathForTests,
   upsertOpenerFromMail,
   type OpenerChClient,
+  type PromoteDeps,
 } from "../../services/openers";
 
 const storeFiles = new Set<string>();
@@ -154,5 +158,71 @@ describe("Companies House identity", () => {
     });
     expect(row.email).toBe("ops@northpeak.co.uk");
     expect(row.enrichError).toMatch(/CH down/);
+  });
+});
+
+describe("nurture send and promote", () => {
+  it("approve send marks nurturing only when delivered", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await runNurtureAction(created.id, "start");
+    const failed = await runNurtureAction(created.id, "approve", {
+      send: async () => ({ success: false, mock: true }),
+    });
+    expect(failed.status).toBe("new");
+    const sent = await runNurtureAction(created.id, "approve", {
+      send: async () => ({ success: true }),
+    });
+    expect(sent.status).toBe("nurturing");
+    expect(sent.nurture.touch1MailId).toBeTruthy();
+  });
+
+  it("promote creates once and jumps the second time", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await attachCompanyNumber(created.id, "08765432", fakeCh);
+    const companies = new Map<string, { id: number; companyNumber: string }>();
+    const prospects: Array<{ id: number; companyId: number }> = [];
+    const deps: PromoteDeps = {
+      async getCompanyByNumber(n) { return companies.get(n); },
+      async createCompany(data) {
+        const row = { id: 1, companyNumber: data.companyNumber };
+        companies.set(data.companyNumber, row);
+        return row;
+      },
+      async listProspects() { return prospects; },
+      async createProspect() {
+        const row = { id: 55, companyId: 1 };
+        prospects.push(row);
+        return row;
+      },
+      async createContact() { return {}; },
+    };
+    const first = await promoteOpener(created.id, "user-1", deps);
+    expect(first.created).toBe(true);
+    expect(first.prospectId).toBe(55);
+    expect(first.opener.status).toBe("promoted");
+    const second = await promoteOpener(created.id, "user-1", deps);
+    expect(second.created).toBe(false);
+    expect(second.prospectId).toBe(55);
+    expect(prospects.length).toBe(1);
+  });
+
+  it("promote without a company number is 400", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await expect(promoteOpener(created.id, "user-1", {
+      async getCompanyByNumber() { return undefined; },
+      async createCompany() { return { id: 1 }; },
+      async listProspects() { return []; },
+      async createProspect() { return { id: 1 }; },
+      async createContact() { return {}; },
+    })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("whatsapp without phone is 400", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await expect(sendOpenerWhatsApp(created.id, "hi", async () => "ok")).rejects.toMatchObject({ status: 400 });
   });
 });

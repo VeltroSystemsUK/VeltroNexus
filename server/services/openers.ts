@@ -3,15 +3,26 @@ import fs from "fs";
 import path from "path";
 import { countLiveNonBankCharges, isLiveCharge } from "@shared/chargeClassifier";
 import { isOpenedOutboundMail, lastMailOpenAt } from "@shared/mailTracking";
+import { mailboxForAgent } from "@shared/agentMailboxes";
 import {
   applyOpenEvent,
+  approveNurtureSend,
+  canPromoteOpener,
+  completeTouch2,
+  failNurtureSend,
+  isTouch2Due,
   mergeOpeners,
   normalizeCompanyNumber,
   normalizeEmail,
   normalizeOpener,
   openedMailEvents,
+  openerNurtureDraft,
+  skipNurtureStep,
+  startNurture,
+  stopNurture,
   type OpenerRecord,
 } from "@shared/openers";
+import { wasEmailDelivered } from "@shared/outreachSend";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
 import type { AgentMailItem } from "./agentMailLog";
 
@@ -345,4 +356,224 @@ export async function attachCompanyNumber(
   }
   saveOpener(opener, dropId);
   return enrichOpener(opener.id, client);
+}
+
+export type PromoteDeps = {
+  getCompanyByNumber(n: string): Promise<{ id: number; companyNumber: string } | undefined>;
+  createCompany(data: any): Promise<{ id: number }>;
+  listProspects(userId: string): Promise<Array<{ id: number; companyId: number }>>;
+  createProspect(data: any, userId: string): Promise<{ id: number }>;
+  createContact(data: any, userId: string): Promise<any>;
+};
+
+type SendEmailFn = typeof import("./email").sendEmail;
+
+function httpError(message: string, status: number): Error {
+  return Object.assign(new Error(message), { status });
+}
+
+async function defaultPromoteDeps(): Promise<PromoteDeps> {
+  const { storage } = await import("../storage");
+  return {
+    getCompanyByNumber: (n) => storage.getCompanyByNumber(n),
+    createCompany: (data) => storage.createCompany(data),
+    listProspects: (userId) => storage.listProspects(userId),
+    createProspect: (data, userId) => storage.createProspect(data, userId),
+    createContact: (data, userId) => storage.createContact(data, userId),
+  };
+}
+
+export function completeTouch2IfDue(
+  opener: OpenerRecord,
+  channel: "whatsapp" | "call",
+  now?: Date
+): OpenerRecord {
+  if (isTouch2Due(opener, now) || opener.nurture.step === 1) {
+    return completeTouch2(opener, channel, now);
+  }
+  const stamp = (now ?? new Date()).toISOString();
+  return { ...opener, lastTouchAt: stamp, updatedAt: stamp };
+}
+
+export async function runNurtureAction(
+  id: string,
+  action: "start" | "approve" | "skip" | "stop" | "touch2",
+  opts?: { channel?: "whatsapp" | "call"; now?: Date; send?: SendEmailFn }
+): Promise<OpenerRecord> {
+  const opener = requireOpener(id);
+  const now = opts?.now;
+
+  if (action === "start") {
+    return saveOpener(startNurture(opener, openerNurtureDraft(opener), now));
+  }
+
+  if (action === "skip") {
+    return saveOpener(skipNurtureStep(opener, now));
+  }
+
+  if (action === "stop") {
+    return saveOpener(stopNurture(opener, "manual", now));
+  }
+
+  if (action === "touch2") {
+    const channel = opts?.channel;
+    if (channel !== "whatsapp" && channel !== "call") {
+      throw httpError("channel required", 400);
+    }
+    return saveOpener(completeTouch2(opener, channel, now));
+  }
+
+  if (opener.nurture.touch1MailId) return opener;
+
+  const draft = opener.nurture.touch1Draft || openerNurtureDraft(opener);
+  const send = opts?.send ?? (await import("./email")).sendEmail;
+  const mailbox = mailboxForAgent("outreach-sales");
+  let result: Awaited<ReturnType<SendEmailFn>>;
+  try {
+    result = await send(
+      {
+        agentId: "outreach-sales",
+        fromEmail: mailbox.address,
+        fromName: mailbox.fromName,
+        replyTo: mailbox.replyTo,
+        dealId: opener.dealId,
+        prospectId: opener.prospectId,
+        touchId: "opener_1",
+      },
+      opener.email,
+      draft.subject,
+      draft.html
+    );
+  } catch {
+    return saveOpener(failNurtureSend(opener));
+  }
+
+  if (!wasEmailDelivered(result)) {
+    return saveOpener(failNurtureSend(opener));
+  }
+
+  const mailId = crypto.randomUUID();
+  return saveOpener(approveNurtureSend(opener, mailId, now));
+}
+
+export async function promoteOpener(
+  id: string,
+  userId: string,
+  deps?: PromoteDeps
+): Promise<{ opener: OpenerRecord; prospectId: number; created: boolean }> {
+  const opener = requireOpener(id);
+  if (!canPromoteOpener(opener)) {
+    throw httpError("Company number required", 400);
+  }
+
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    const { resolvePipelineOwnerUserId } = await import("./inboundPipeline");
+    resolvedUserId = await resolvePipelineOwnerUserId();
+  }
+  const d = deps ?? (await defaultPromoteDeps());
+  const number = normalizeCompanyNumber(opener.companyNumber);
+  let company = await d.getCompanyByNumber(number);
+  if (!company) {
+    company = {
+      ...(await d.createCompany({
+        companyName: opener.companyName || opener.email,
+        companyNumber: number,
+        registeredAddress: opener.address || "",
+        companyType: "ltd",
+        sicCode: opener.sicCodes[0] || undefined,
+        incorporationDate: opener.dateOfCreation || undefined,
+        companyStatus: opener.companyStatus || "active",
+      })),
+      companyNumber: number,
+    };
+  }
+
+  const existing = (await d.listProspects(resolvedUserId)).find((row) => row.companyId === company!.id);
+  if (existing?.id) {
+    const next = saveOpener({
+      ...stopNurture(opener, "promoted"),
+      status: "promoted",
+      prospectId: existing.id,
+    });
+    return { opener: next, prospectId: existing.id, created: false };
+  }
+
+  const prospect = await d.createProspect(
+    {
+      companyId: company.id,
+      stage: "lead",
+      referralSource: "Openers",
+      notes: `Opened Agent Mail. Last open: ${opener.lastOpenedAt}. Email: ${opener.email}`,
+      directorsGuarantee: 0,
+      commercialProperty: 0,
+      homeEquity: 0,
+      propertyOther: 0,
+      debenture: 0,
+      parentCompanyGuarantee: 0,
+      collateral: 0,
+      crossCompanyGuarantee: 0,
+      queueOrder: 0,
+    },
+    resolvedUserId
+  );
+
+  const directorName = opener.directors[0]?.name;
+  if (opener.email || opener.phone || directorName) {
+    await d.createContact(
+      {
+        prospectId: prospect.id,
+        name: directorName || opener.companyName || opener.email,
+        email: opener.email || null,
+        phone: opener.phone || null,
+        role: "Director",
+        isPrimary: 1,
+      },
+      resolvedUserId
+    );
+  }
+
+  const next = saveOpener({
+    ...stopNurture(opener, "promoted"),
+    status: "promoted",
+    prospectId: prospect.id,
+  });
+  return { opener: next, prospectId: prospect.id, created: true };
+}
+
+export async function sendOpenerWhatsApp(
+  id: string,
+  message: string,
+  send?: (phone: string, body: string) => Promise<string>
+): Promise<OpenerRecord> {
+  const opener = requireOpener(id);
+  if (!opener.phone) throw httpError("Phone required", 400);
+  const sendFn =
+    send ??
+    (async (phone: string, body: string) => {
+      const { whatsappService } = await import("./whatsappService");
+      return whatsappService.sendMessage(phone, body);
+    });
+  await sendFn(opener.phone, message);
+  return saveOpener(completeTouch2IfDue(opener, "whatsapp"));
+}
+
+export async function logOpenerCall(id: string, note: string, now?: Date): Promise<OpenerRecord> {
+  const opener = requireOpener(id);
+  const stamp = (now ?? new Date()).toISOString();
+  const line = `${stamp} ${note}`;
+  const withNote: OpenerRecord = {
+    ...opener,
+    notes: opener.notes ? `${line}\n${opener.notes}` : line,
+  };
+  return saveOpener(completeTouch2IfDue(withNote, "call", now));
+}
+
+export function stopOpenerNurtureByEmail(
+  email: string,
+  reason: "reply" | "opt_out"
+): OpenerRecord | undefined {
+  const opener = findByEmail(readOpeners(), normalizeEmail(email));
+  if (!opener) return undefined;
+  return saveOpener(stopNurture(opener, reason));
 }
