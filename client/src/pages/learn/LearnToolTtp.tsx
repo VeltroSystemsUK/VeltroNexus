@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { calculateTtp, formatGBP } from "@shared/learnTools";
+import { calculateTtp, formatGBP, ttpMaxMonths } from "@shared/learnTools";
 import { LearnCta, PackagerLine, setLearnMeta } from "./LearnHome";
 import { EmailMeThis } from "./LearnTools";
 
@@ -16,6 +16,7 @@ export default function LearnToolTtp() {
     );
   }, []);
 
+  const maxMonths = ttpMaxMonths(arrears);
   const result = calculateTtp({ arrears, periodMonths, includeInterest, annualRatePercent });
 
   return (
@@ -45,15 +46,18 @@ export default function LearnToolTtp() {
             />
           </label>
           <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-zinc-400">
-            Repayment period (months, max 12)
+            Repayment period (months, max {maxMonths})
             <input
               type="number"
               min={1}
-              max={12}
+              max={maxMonths}
               value={periodMonths}
               onChange={(e) => setPeriodMonths(Number(e.target.value))}
               className="w-full rounded-md bg-white/5 border border-white/10 px-3 py-2 text-sm text-zinc-100"
             />
+            <span className="normal-case text-zinc-500">
+              Up to 60 months for arrears under £250,000; 12 months at or above that.
+            </span>
           </label>
           <label className="flex items-start gap-2 text-sm text-zinc-300">
             <input

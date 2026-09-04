@@ -17,9 +17,16 @@ export type TtpResult = {
   totalInterest: number;
 };
 
+const TTP_EXTENDED_TERM_THRESHOLD = 250000;
+
+export function ttpMaxMonths(arrears: number): number {
+  return Math.max(0, arrears || 0) < TTP_EXTENDED_TERM_THRESHOLD ? 60 : 12;
+}
+
 export function calculateTtp(input: TtpInput): TtpResult {
   const arrears = Math.max(0, input.arrears || 0);
-  const months = Math.min(12, Math.max(1, Math.round(input.periodMonths || 12)));
+  const maxMonths = ttpMaxMonths(arrears);
+  const months = Math.min(maxMonths, Math.max(1, Math.round(input.periodMonths || 12)));
   const rate = input.includeInterest ? Math.max(0, input.annualRatePercent || 0) / 100 : 0;
   const totalInterest = arrears * rate * (months / 12);
   const totalRepayable = arrears + totalInterest;

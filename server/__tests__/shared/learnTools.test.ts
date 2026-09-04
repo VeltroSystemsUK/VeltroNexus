@@ -4,6 +4,7 @@ import {
   calculateTtp,
   emptyOutgoings,
   monthlyFromFrequency,
+  ttpMaxMonths,
   validateToolEmailRequest,
 } from "@shared/learnTools";
 
@@ -22,15 +23,26 @@ describe("calculateTtp", () => {
     expect(result.monthlyInstalment).toBeCloseTo(10300 / 6, 5);
   });
 
-  it("clamps a bad period to the 1-12 month range", () => {
-    expect(calculateTtp({ arrears: 1000, periodMonths: 24, includeInterest: false, annualRatePercent: 0 }).monthlyInstalment).toBeCloseTo(
-      1000 / 12,
+  it("clamps period to 60 months under £250k, and to 12 months at or above it", () => {
+    expect(calculateTtp({ arrears: 1000, periodMonths: 84, includeInterest: false, annualRatePercent: 0 }).monthlyInstalment).toBeCloseTo(
+      1000 / 60,
       5,
     );
     expect(calculateTtp({ arrears: 1000, periodMonths: 0, includeInterest: false, annualRatePercent: 0 }).monthlyInstalment).toBeCloseTo(
       1000 / 12,
       5,
     );
+    expect(
+      calculateTtp({ arrears: 300000, periodMonths: 60, includeInterest: false, annualRatePercent: 0 }).monthlyInstalment,
+    ).toBeCloseTo(300000 / 12, 5);
+  });
+});
+
+describe("ttpMaxMonths", () => {
+  it("allows up to 60 months under £250k, and caps at 12 above it", () => {
+    expect(ttpMaxMonths(249999)).toBe(60);
+    expect(ttpMaxMonths(250000)).toBe(12);
+    expect(ttpMaxMonths(0)).toBe(60);
   });
 });
 
