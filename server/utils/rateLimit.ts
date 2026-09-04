@@ -44,6 +44,10 @@ export const RATE_LIMIT_CONFIG = {
   // Public Learn "this helped": requests per minute per IP
   LEARN_HELPED_LIMIT: parseInt(process.env.RATE_LIMIT_LEARN_HELPED || "30"),
   LEARN_HELPED_WINDOW_MS: parseInt(process.env.RATE_LIMIT_LEARN_HELPED_WINDOW_MS || "60000"),
+
+  // Public Learn Tools "email me this": requests per hour per IP (sends real email)
+  LEARN_TOOLS_EMAIL_LIMIT: parseInt(process.env.RATE_LIMIT_LEARN_TOOLS_EMAIL || "5"),
+  LEARN_TOOLS_EMAIL_WINDOW_MS: parseInt(process.env.RATE_LIMIT_LEARN_TOOLS_EMAIL_WINDOW_MS || "3600000"),
 };
 
 // Redis client singleton
@@ -314,6 +318,13 @@ export const RATE_LIMIT_RULES: RateLimitRule[] = [
     pattern: /^\/api\/learn\/piece\/[^/]+\/helped\/?$/,
     limit: RATE_LIMIT_CONFIG.LEARN_HELPED_LIMIT,
     windowMs: RATE_LIMIT_CONFIG.LEARN_HELPED_WINDOW_MS,
+    keyType: "ip",
+  },
+  // Public Learn Tools "email me this": by IP (sends real email)
+  {
+    pattern: /^\/api\/learn\/tools\/email-me\/?$/,
+    limit: RATE_LIMIT_CONFIG.LEARN_TOOLS_EMAIL_LIMIT,
+    windowMs: RATE_LIMIT_CONFIG.LEARN_TOOLS_EMAIL_WINDOW_MS,
     keyType: "ip",
   },
 ];

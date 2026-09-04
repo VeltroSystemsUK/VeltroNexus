@@ -12,6 +12,9 @@ import LearnLibrary from "./LearnLibrary";
 import LearnNews from "./LearnNews";
 import LearnNewsPost from "./LearnNewsPost";
 import LearnPiece from "./LearnPiece";
+import LearnTools from "./LearnTools";
+import LearnToolTtp from "./LearnToolTtp";
+import LearnToolDebtStress from "./LearnToolDebtStress";
 
 function LearnShell({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -44,6 +47,9 @@ function LearnShell({ children }: { children: ReactNode }) {
             </Link>
             <Link href="/ask" className="hover:text-emerald-400">
               Ask
+            </Link>
+            <Link href="/tools" className="hover:text-emerald-400">
+              Tools
             </Link>
             <a href={EXPLORE_URL} className="hover:text-emerald-400">
               Explore
@@ -88,6 +94,9 @@ export default function LearnApp() {
         <Route path="/news/:slug" component={LearnNewsPost} />
         <Route path="/news" component={LearnNews} />
         <Route path="/ask" component={LearnAsk} />
+        <Route path="/tools/time-to-pay-calculator" component={LearnToolTtp} />
+        <Route path="/tools/debt-stress-check" component={LearnToolDebtStress} />
+        <Route path="/tools" component={LearnTools} />
         <Route path="/watch/:slug" component={WatchPiece} />
         <Route path="/read/:slug" component={ReadPiece} />
         <Route>

@@ -23,6 +23,16 @@ import {
   shouldHandoffQuestion,
 } from "@shared/learnLibrarian";
 import { houseAskWithEngine } from "../services/caseyScout";
+import { sendEmail } from "../services/email";
+import {
+  calculateDebtStress,
+  calculateTtp,
+  debtStressEmailHtml,
+  emptyOutgoings,
+  ttpEmailHtml,
+  validateToolEmailRequest,
+  type DebtRow,
+} from "@shared/learnTools";
 
 const router = Router();
 
@@ -201,6 +211,95 @@ router.post("/learn/ask", async (req, res) => {
       .filter((id): id is number => typeof id === "number"),
   });
   res.json({ kind: result.kind, text: result.text, citations: result.citations });
+});
+
+async function resolveToolsOwnerUserId(): Promise<string | null> {
+  const users = await storage.getAllUsers();
+  const shaun = users.find((user) => (user.email || "").toLowerCase() === "shaun@veltro.co.uk");
+  if (shaun) return shaun.id;
+  const admin = users.find((user) => user.role === "super_admin");
+  if (admin) return admin.id;
+  return users[0]?.id ?? null;
+}
+
+router.post("/learn/tools/email-me", async (req, res) => {
+  const parsed = validateToolEmailRequest(req.body ?? {});
+  if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+
+  let subject: string;
+  let html: string;
+  if (parsed.tool === "ttp-calculator") {
+    const input = {
+      arrears: Number(req.body?.arrears) || 0,
+      periodMonths: Number(req.body?.periodMonths) || 12,
+      includeInterest: req.body?.includeInterest === true,
+      annualRatePercent: Number(req.body?.annualRatePercent) || 0,
+    };
+    const result = calculateTtp(input);
+    subject = "Your Time to Pay estimate — Strata Learn";
+    html = ttpEmailHtml(parsed.name, input, result);
+  } else {
+    const rawOutgoings = req.body?.outgoings ?? {};
+    const outgoings = {
+      ...emptyOutgoings(),
+      payroll: Number(rawOutgoings.payroll) || 0,
+      rent: Number(rawOutgoings.rent) || 0,
+      hmrcVat: Number(rawOutgoings.hmrcVat) || 0,
+      suppliers: Number(rawOutgoings.suppliers) || 0,
+      other: Number(rawOutgoings.other) || 0,
+    };
+    const debts: DebtRow[] = Array.isArray(req.body?.debts)
+      ? req.body.debts.slice(0, 20).map((row: any, i: number) => ({
+          id: String(row?.id || i),
+          label: String(row?.label || "Facility"),
+          balance: Number(row?.balance) || 0,
+          repaymentAmount: Number(row?.repaymentAmount) || 0,
+          frequency: row?.frequency === "daily" || row?.frequency === "weekly" ? row.frequency : "monthly",
+        }))
+      : [];
+    const result = calculateDebtStress({
+      monthlyIncome: Number(req.body?.monthlyIncome) || 0,
+      outgoings,
+      debts,
+      cashOnHand: Number(req.body?.cashOnHand) || 0,
+    });
+    subject = "Your Debt Stress Check — Strata Learn";
+    html = debtStressEmailHtml(parsed.name, result);
+  }
+
+  try {
+    await sendEmail({}, parsed.email, subject, html);
+  } catch (err) {
+    console.error("[Learn Tools] email-me failed:", err);
+    return res.status(502).json({ error: "Could not send that email. Try again shortly." });
+  }
+
+  if (parsed.marketingOptIn) {
+    try {
+      const userId = await resolveToolsOwnerUserId();
+      if (userId) {
+        const existing = await storage.getMarketingContactByEmail(parsed.email, userId);
+        if (!existing?.unsubscribed) {
+          const tags = Array.from(new Set([...(existing?.tags || []), `learn_tools_${parsed.tool}`]));
+          const nameParts = parsed.name.split(/\s+/);
+          await storage.createOrUpdateMarketingContact(
+            {
+              email: parsed.email,
+              firstName: nameParts[0] || parsed.name,
+              lastName: nameParts.slice(1).join(" ") || existing?.lastName,
+              tags,
+              unsubscribed: false,
+            },
+            userId,
+          );
+        }
+      }
+    } catch {
+      // The email already went out; the magnet write failing shouldn't fail the request.
+    }
+  }
+
+  res.json({ ok: true });
 });
 
 export default router;
