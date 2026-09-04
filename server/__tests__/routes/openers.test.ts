@@ -22,7 +22,7 @@ describe("openers routes", () => {
   });
 
   it("inbound mail stops opener nurture", () => {
-    const src = fs.readFileSync(path.resolve("server/routes/agentMail.ts"), "utf8");
+    const src = fs.readFileSync(path.resolve("server/services/agentMailLog.ts"), "utf8");
     expect(src).toMatch(/stopOpenerNurtureByEmail/);
   });
 

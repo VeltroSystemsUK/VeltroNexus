@@ -149,6 +149,8 @@ export async function recordInbound(payload: {
 }): Promise<AgentMailItem> {
   const mailbox = mailboxByAddress(payload.to) || mailboxByAddress(payload.from);
   const fromEmail = String(payload.from || "").trim().toLowerCase();
+  const body = `${payload.subject || ""} ${payload.text || ""}`.toLowerCase();
+  const isOptOut = /\b(stop|unsubscribe|do not contact|don't contact)\b/.test(body);
   let dealId: number | undefined;
   let prospectId: number | undefined;
   try {
@@ -157,8 +159,7 @@ export async function recordInbound(payload: {
     if (match) {
       dealId = match.id;
       prospectId = match.prospectId;
-      const body = `${payload.subject || ""} ${payload.text || ""}`.toLowerCase();
-      if (/\b(stop|unsubscribe|do not contact|don't contact)\b/.test(body)) {
+      if (isOptOut) {
         await storage.updateAgenticDeal(match.id, {
           stage: "failed",
           status: "failed",
@@ -188,6 +189,13 @@ export async function recordInbound(payload: {
     }
   } catch (error: any) {
     console.warn("[AgentMail] Could not attach inbound to a deal:", error?.message || error);
+  }
+
+  try {
+    const { stopOpenerNurtureByEmail } = await import("./openers");
+    stopOpenerNurtureByEmail(fromEmail, isOptOut ? "opt_out" : "reply");
+  } catch {
+    // opener stop is best-effort; inbound still logged
   }
 
   return logAgentMail({
