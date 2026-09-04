@@ -48,6 +48,9 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "sterling", label: "Sterling zip", desk: "ORC-1", kind: "output", detail: "Blocked if incomplete", x: 2800, y: 360 },
   { id: "david", label: "David", desk: "Sterling", kind: "output", detail: "Lender recommendation", x: 3080, y: 360 },
   { id: "parked", label: "Parked / stopped", desk: "ORC-1", kind: "fail", detail: "Opt-out, no pack, BBB fail", x: 2240, y: 520 },
+  { id: "brand-review", label: "Quarterly brand review", desk: "Isla", kind: "trigger", detail: "30-asset consistency audit against the gate · sets next quarter's brand decisions", x: 0, y: 560 },
+  { id: "brand-system", label: "Govern brand & visual identity", desk: "Isla", kind: "auto", detail: "Logo, colour, type, imagery, motion — the standard every asset, and Frankie's feed, works to", x: 280, y: 560 },
+  { id: "lead-magnet", label: "Design lead magnet", desk: "Isla", kind: "auto", detail: "Landing page, cover, 5-email sequence, conversion target", x: 560, y: 560 },
   { id: "mkt-scan", label: "Scan week", desk: "Casey", kind: "trigger", detail: "Strata desk only · stacked / HMRC TTP / CDFI · Firecrawl", x: 0, y: 700 },
   { id: "mkt-hunt", label: "Hunt stills", desk: "Kit", kind: "trigger", detail: "Unsplash · Pexels · Openverse · Firecrawl", x: 0, y: 880 },
   { id: "mkt-compose", label: "Compose week", desk: "Isla", kind: "auto", detail: "Craft queue · Unbounded hero · weekday look", x: 280, y: 700 },
@@ -62,6 +65,10 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "mkt-editorial-approve", label: "Marketing approve", desk: "You", kind: "human", detail: "Copy on /editorial", x: 560, y: 1060 },
   { id: "mkt-editorial-compliance", label: "Compliance sign-off", desk: "You", kind: "gate", detail: "Packager · no rates · no payday", x: 840, y: 1060 },
   { id: "mkt-editorial-export", label: "Export article", desk: "Isla", kind: "output", detail: "Markdown / HTML", x: 1120, y: 1060 },
+  { id: "news-scan", label: "News digest scan", desk: "Reporter", kind: "trigger", detail: "06:00 daily · UK Finance / Economy / Politics · source-grounded, drafts only", x: 0, y: 1240 },
+  { id: "social-scan", label: "Trend & inbox scan", desk: "Frankie", kind: "trigger", detail: "SOCIAL-1 · BrowserOS (read-only) + Firecrawl · sentiment, comments, DMs", x: 0, y: 1420 },
+  { id: "social-draft", label: "Draft posts & replies", desk: "Frankie", kind: "auto", detail: "5 pillars · reply doctrine · connection scoring — never posts, replies, or connects live", x: 280, y: 1420 },
+  { id: "social-post", label: "You post / reply / connect", desk: "You", kind: "human", detail: "Every LinkedIn / Reddit / Facebook / Instagram write action by hand", x: 560, y: 1420 },
 ];
 
 export const FACTORY_EDGES: FactoryEdgeDef[] = [
@@ -109,6 +116,13 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-mkt-ed-approve-comp", source: "mkt-editorial-approve", target: "mkt-editorial-compliance" },
   { id: "e-mkt-ed-comp-export", source: "mkt-editorial-compliance", target: "mkt-editorial-export" },
   { id: "e-mkt-ed-export-post", source: "mkt-editorial-export", target: "mkt-post", label: "you publish" },
+  { id: "e-news-scan-approve", source: "news-scan", target: "mkt-editorial-approve", label: "daily digest" },
+  { id: "e-social-scan-draft", source: "social-scan", target: "social-draft", label: "trend log" },
+  { id: "e-social-draft-post", source: "social-draft", target: "social-post", label: "sign-off" },
+  { id: "e-brand-review-system", source: "brand-review", target: "brand-system", label: "quarterly decisions" },
+  { id: "e-brand-system-compose", source: "brand-system", target: "mkt-compose", label: "visual / tonal standard" },
+  { id: "e-brand-system-social", source: "brand-system", target: "social-draft", label: "templates, hook style guide, OG sets" },
+  { id: "e-lead-magnet-approve", source: "lead-magnet", target: "mkt-approve", label: "landing page + sequence" },
 ];
 
 function smeSideTouchNode(

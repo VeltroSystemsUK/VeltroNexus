@@ -63,6 +63,11 @@ app.use("/uploads/learn/videos", express.static(path.join(uploadsRoot, "learn", 
   index: false,
   redirect: false,
 }));
+app.use("/brand/logo", express.static(path.resolve(process.cwd(), "brand", "logo"), {
+  dotfiles: "deny",
+  index: false,
+  redirect: false,
+}));
 
 // Security headers middleware
 const isProduction = process.env.NODE_ENV === "production";

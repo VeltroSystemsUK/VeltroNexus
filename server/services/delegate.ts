@@ -1,5 +1,4 @@
 import { getDelegateJob, isDealEligible, type DelegateJobId } from "@shared/delegate";
-import { HIBERNATED_DESKS } from "@shared/deskOps";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
 import { storage } from "../storage";
 import { agenticWorkflow } from "./agenticWorkflow";
@@ -17,6 +16,7 @@ export type DelegateRequest = {
   jobId: string;
   dealId?: number;
   note?: string;
+  userId?: string;
 };
 
 function lastMessage(deal: AgenticDealFile): string {
@@ -38,25 +38,8 @@ export async function runDelegate(input: DelegateRequest) {
   const agentId = String(input.agentId || "").trim();
   const job = getDelegateJob(agentId, String(input.jobId || "").trim());
   if (!job) throw new DelegateError("That desk cannot do that job");
-  if (HIBERNATED_DESKS.includes(agentId as (typeof HIBERNATED_DESKS)[number])) {
-    throw new DelegateError("That desk is hibernated");
-  }
 
   if (job.id === "hunt") {
-    if (agentId === "database-builder-se") {
-      return {
-        ok: true,
-        jobId: job.id,
-        agentId,
-        summary: "Introducer outreach is paused until further notice.",
-        hunt: {
-          opened: 0,
-          scanned: 0,
-          rejected: { "introducer outreach paused": 1 },
-          rejectedTotal: 1,
-        },
-      };
-    }
     const result = await agenticWorkflow.startSmeOutreachBatch();
     const rejectedTotal = Object.values(result.rejected).reduce((sum, count) => sum + count, 0);
     return {
@@ -95,6 +78,44 @@ export async function runDelegate(input: DelegateRequest) {
         ? `Rowan processed ${result.processed}: ${result.replies} replies, ${result.stops} stops, ${result.bounces} bounces, ${result.spam} spam.`
         : "Inbox already clean.",
       inbox: result,
+    };
+  }
+
+  if (job.id === "scan_week") {
+    if (!input.userId) throw new DelegateError("No signed-in director for this job");
+    const { runCraftScan } = await import("./craftDesk");
+    const desk = await runCraftScan(input.userId);
+    return {
+      ok: true,
+      jobId: job.id,
+      agentId,
+      summary: `Casey refreshed ${desk.briefs.length} Creative Ammo Briefs for the week.`,
+    };
+  }
+
+  if (job.id === "compose_week") {
+    if (!input.userId) throw new DelegateError("No signed-in director for this job");
+    const { runCraftComposeWeek } = await import("./craftDesk");
+    const desk = await runCraftComposeWeek(input.userId);
+    return {
+      ok: true,
+      jobId: job.id,
+      agentId,
+      summary: `Isla queued ${desk.week.length} posts for the week.`,
+    };
+  }
+
+  if (job.id === "news_digest") {
+    const { runDailyReporterDigest } = await import("./reporterAgent");
+    const result = await runDailyReporterDigest();
+    return {
+      ok: true,
+      jobId: job.id,
+      agentId,
+      summary:
+        result.drafted > 0
+          ? `Reporter drafted ${result.drafted} digest${result.drafted === 1 ? "" : "s"}${result.skipped ? `, skipped ${result.skipped} already done today` : ""}.`
+          : "All of today's digests are already drafted.",
     };
   }
 

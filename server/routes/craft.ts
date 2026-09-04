@@ -1,30 +1,21 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import fs from "fs";
-import path from "path";
 import { z } from "zod";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { handleApiError } from "../utils/errorHandler";
 import {
-  applyAmmoToWeek,
-  applyChannelHandles,
   applyCopyPatch,
   defaultChannels,
-  generateWeek,
-  mergeGeneratedWeek,
-  normalizePost,
   parseChannelPatch,
   parseCopyPatch,
   parseWeekGenerate,
-  type CraftChannel,
   type CraftPost,
 } from "@shared/craftQueue";
-import { normalizeAmmo, type CreativeAmmoBrief } from "@shared/craftScout";
 import { ammoForPost, parseYaffleImageRequest, yafflePromptFromAmmo } from "@shared/craftYaffle";
 import { canPublishLearn, slugifyLearnTitle, snapshotLearnPiece, NEWS_CATEGORIES } from "@shared/learn";
 import type { LearnPiece } from "@shared/schema";
-import { researchWeek } from "../services/caseyScout";
+import { deskFor, saveDesk, runCraftScan, runCraftComposeWeek } from "../services/craftDesk";
 import { grokFile, grokGenerateStill, grokJob } from "../services/grokImages";
 import { stillStatus, yaffleFileBuffer, yaffleJob } from "../services/yaffleSidecar";
 
@@ -32,48 +23,7 @@ interface AuthenticatedRequest extends Request {
   user?: any;
 }
 
-type Desk = {
-  week: CraftPost[];
-  channels: CraftChannel[];
-  weekStart: string | null;
-  briefs: CreativeAmmoBrief[];
-};
-
-const DESK_FILE = path.resolve(process.cwd(), "uploads", "craft_desk.json");
-
 const router = Router();
-
-function readAll(): Record<string, Desk> {
-  try {
-    if (!fs.existsSync(DESK_FILE)) return {};
-    return JSON.parse(fs.readFileSync(DESK_FILE, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeAll(data: Record<string, Desk>) {
-  const dir = path.dirname(DESK_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(DESK_FILE, JSON.stringify(data, null, 2));
-}
-
-function deskFor(userId: string): Desk {
-  const all = readAll();
-  const desk = all[userId] ?? { week: [], channels: defaultChannels(), weekStart: null, briefs: [] };
-  return {
-    ...desk,
-    week: (desk.week ?? []).map(normalizePost),
-    channels: desk.channels ?? defaultChannels(),
-    briefs: normalizeAmmo(desk.briefs),
-  };
-}
-
-function saveDesk(userId: string, desk: Desk) {
-  const all = readAll();
-  all[userId] = desk;
-  writeAll(all);
-}
 
 router.get("/craft/desk", isAuthenticated, (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -86,22 +36,8 @@ router.get("/craft/desk", isAuthenticated, (req: AuthenticatedRequest, res: Resp
 
 router.post("/craft/week", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const desk = deskFor(req.user!.id);
-    const { from, mode, selectedId, stamp } = parseWeekGenerate(req.body);
-    const channels = desk.channels.length ? desk.channels : defaultChannels();
-    const briefs =
-      mode === "selected" && desk.briefs.length === 7
-        ? desk.briefs
-        : await researchWeek(desk.briefs);
-    const generated = generateWeek(
-      from,
-      briefs,
-      mode === "replace" ? stamp || Date.now().toString(36) : undefined,
-    ).map((post) => applyChannelHandles(post, channels));
-    const week = mergeGeneratedWeek(desk.week, generated, mode, selectedId);
-    const next: Desk = { week, channels, weekStart: week[0]?.date ?? from, briefs };
-    saveDesk(req.user!.id, next);
-    res.json(next);
+    const params = parseWeekGenerate(req.body);
+    res.json(await runCraftComposeWeek(req.user!.id, params));
   } catch (err: any) {
     const msg = String(err?.message || "");
     if (/pick a post|post not found/i.test(msg)) {
@@ -113,17 +49,7 @@ router.post("/craft/week", isAuthenticated, async (req: AuthenticatedRequest, re
 
 router.post("/craft/scan", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const desk = deskFor(req.user!.id);
-    const briefs = await researchWeek(desk.briefs);
-    const channels = desk.channels.length ? desk.channels : defaultChannels();
-    const week = desk.week.length
-      ? applyAmmoToWeek(desk.week, briefs)
-      : generateWeek(desk.weekStart || new Date().toISOString().slice(0, 10), briefs).map((post) =>
-          applyChannelHandles(post, channels),
-        );
-    const next: Desk = { ...desk, channels, week, weekStart: week[0]?.date ?? desk.weekStart, briefs };
-    saveDesk(req.user!.id, next);
-    res.json(next);
+    res.json(await runCraftScan(req.user!.id));
   } catch (err) {
     handleApiError(res, err, "craft-scan");
   }

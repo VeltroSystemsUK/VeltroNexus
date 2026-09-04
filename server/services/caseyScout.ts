@@ -29,7 +29,11 @@ function caseyUserPrompt(exclude: string[], today: string, notes: CaseyNote[] = 
     : "No Firecrawl notes landed. Do not invent a live URL. Mark missing numbers as missing.";
   return `Today is ${today} (UK). ${STRATA_CASEY_SCOPE} Return EXACTLY 7 Creative Ammo Briefs as a JSON array. Alternate borrower and introducer. ${skip}
 
-Each object keys: id, track ("borrower"|"introducer"), headline, source, coreFact, smeImpact, trigger, freshAngle, dataBites (2-3 strings), socialAngle, emailAngle, stockId ("desk"|"paper"|"city"|"hands"|"studio"), imagePrompt.
+Each object keys: id, track ("borrower"|"introducer"), headline, source, coreFact, smeImpact, trigger, freshAngle, dataBites (2-3 strings), socialAngle, emailAngle, stockId, imagePrompt.
+
+socialAngle is a raw angle for Isla to craft, not the final board headline, but keep it short anyway — one sentence, under 70 characters, with a clear break near the middle (a colon, a dash, or two short clauses) so it can split cleanly into two short lines. A long unbroken sentence gets silently cut mid-word downstream, so write short in the first place: "If the facility costs more than the problem, look again." not a compound sentence stacking two ideas.
+
+stockId must be the one of these that actually matches the scene — do not default to "paper": "desk" (SME office desk), "paper" (document pack), "city" (UK high street dusk), "hands" (two people over a file), "studio" (abstract/identity statement), "boardroom-small" (SME directors meeting), "ledger" (handwritten accounts), "yard" (trade/haulage yard), "letterbox" (HMRC/enforcement letter), "site" (construction site), "kitchen" (hospitality/restaurant), "accountant" (introducer desk), "slabs" (structural/foundation metaphor).
 
 ${ground}
 

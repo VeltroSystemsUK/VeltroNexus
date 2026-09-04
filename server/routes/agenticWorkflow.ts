@@ -289,6 +289,7 @@ router.post("/api/agentic/delegate", isAuthenticated, async (req, res) => {
       jobId: req.body?.jobId,
       dealId: req.body?.dealId == null ? undefined : Number(req.body.dealId),
       note: req.body?.note,
+      userId: (req.user as any)?.id,
     });
     res.json(result);
   } catch (error) {

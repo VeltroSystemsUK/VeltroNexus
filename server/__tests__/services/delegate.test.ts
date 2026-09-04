@@ -35,9 +35,37 @@ describe("delegate jobs", () => {
     }
   });
 
-  it("rejects jobs that do not belong to the desk", () => {
-    expect(getDelegateJob("outreach-sales", "hunt")).toBeUndefined();
+  it("lets any live desk run any job, with its typical job sorted first", () => {
+    expect(getDelegateJob("outreach-sales", "hunt")?.label).toBe("Hunt opportunities");
     expect(getDelegateJob("database-builder", "hunt")?.label).toBe("Hunt opportunities");
+    expect(jobsForAgent("database-builder")[0].id).toBe("hunt");
+    expect(jobsForAgent("outreach-sales")[0].id).toBe("retry_send");
+  });
+
+  it("rejects jobs for hibernated desks", () => {
+    expect(getDelegateJob("accounts-monitor", "hunt")).toBeUndefined();
+    expect(getDelegateJob("capital-strategist", "process_pack")).toBeUndefined();
+    expect(jobsForAgent("database-builder-se")).toEqual([]);
+  });
+
+  it("lists Casey, Isla, and Reporter as delegable content desks with their real jobs", () => {
+    const ids = liveDelegateDesks().map((desk) => desk.agentId);
+    expect(ids).toContain("content-scout");
+    expect(ids).toContain("marketing-manager");
+    expect(ids).toContain("reporter");
+    expect(getDelegateJob("content-scout", "scan_week")?.label).toBe("Scan week for content");
+    expect(getDelegateJob("marketing-manager", "compose_week")?.label).toBe("Compose week");
+    expect(getDelegateJob("reporter", "news_digest")?.label).toBe("Run news digest");
+    expect(jobsForAgent("content-scout")[0].id).toBe("scan_week");
+    expect(jobsForAgent("marketing-manager")[0].id).toBe("compose_week");
+    expect(jobsForAgent("reporter")[0].id).toBe("news_digest");
+  });
+
+  it("content jobs never take a deal file", () => {
+    expect(isDealEligible("scan_week", deal())).toBe(false);
+    expect(isDealEligible("compose_week", deal())).toBe(false);
+    expect(isDealEligible("news_digest", deal())).toBe(false);
+    expect(eligibleDeals("scan_week", [deal()])).toEqual([]);
   });
 
   it("hunt does not take a deal file", () => {
@@ -49,7 +77,6 @@ describe("delegate jobs", () => {
     expect(getDelegateJob("harvest", "harvest_mailboxes")?.label).toBe("Harvest mailboxes");
     expect(isDealEligible("harvest_mailboxes", deal({ email: undefined }))).toBe(false);
     expect(eligibleDeals("harvest_mailboxes", [deal({ email: undefined })])).toEqual([]);
-    expect(getDelegateJob("contact-finder", "harvest_mailboxes")).toBeUndefined();
   });
 
   it("find-contact only on files missing email or phone", () => {
@@ -61,7 +88,6 @@ describe("delegate jobs", () => {
   it("lets Maya and Sophie retry a send that did not leave the box", () => {
     expect(getDelegateJob("inbound-intake", "retry_send")?.id).toBe("retry_send");
     expect(getDelegateJob("fulfilment-manager", "retry_send")?.id).toBe("retry_send");
-    expect(getDelegateJob("contact-finder", "retry_send")).toBeUndefined();
   });
 
   it("retry-send only when SMTP actually failed", () => {

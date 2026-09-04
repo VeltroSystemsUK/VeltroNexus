@@ -175,6 +175,8 @@ export default function Craft() {
             ? "Drafts refreshed. Approved posts kept."
             : "This post was rebuilt from ammo.",
       );
+      toast("Generating stills for the week…");
+      void useCraftStore.getState().generateStillsForWeek(next.week, next.briefs ?? []);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -191,6 +193,8 @@ export default function Craft() {
       const post = openId ? next.week.find((item) => item.id === openId) : undefined;
       if (post) useCraftStore.getState().syncFromPost(post);
       toast.success("Casey scanned the week. Copy is on the drafts and the board.");
+      toast("Generating stills for the week…");
+      void useCraftStore.getState().generateStillsForWeek(next.week, next.briefs ?? []);
     },
     onError: (err: Error) => toast.error(err.message),
   });

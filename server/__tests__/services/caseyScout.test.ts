@@ -38,7 +38,7 @@ describe("Casey researchWeek", () => {
     expect(seen).toMatch(/The MPC held Bank Rate/);
     expect(seen).toMatch(/Firecrawl/i);
     expect(seen).toMatch(/stratafinance\.co\.uk/i);
-    expect(seen).toMatch(/no tangent/i);
+    expect(seen).toMatch(/off the desk/i);
     expect(seen).toMatch(/HMRC|Time to Pay|stacked|CDFI/i);
   });
 

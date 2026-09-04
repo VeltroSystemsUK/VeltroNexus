@@ -59,17 +59,17 @@ export function applyCreativeDirection(doc: CraftDocument, post: CraftPost): Cra
 }
 
 export const STRATA_BRAND: CraftBrand = {
-  name: "Strata Finance",
+  name: "Strata",
   colors: {
-    primary: "#0f172a",
-    secondary: "#f8fafc",
-    accent: "#059669",
-    background: "#ffffff",
-    text: "#0f172a",
-    muted: "#64748b",
+    primary: "#1A1D21", // strata-slate-900 (ink)
+    secondary: "#2F5199", // strata-blue
+    accent: "#C69123", // strata-gold
+    background: "#F7F5F1", // strata-paper
+    text: "#1A1D21",
+    muted: "#6B727C",
   },
   headingFont: "Unbounded",
-  bodyFont: "Plus Jakarta Sans",
+  bodyFont: "Inter",
 };
 
 function templateFor(post: CraftPost): string {

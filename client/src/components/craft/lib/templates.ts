@@ -12,6 +12,7 @@ import {
   type CraftDocument,
   type CraftNode,
   type CraftPage,
+  type DropShadow,
   type FontRole,
   type ShapeVariant,
 } from "./types";
@@ -150,143 +151,256 @@ function pageOf(presetId: string, name: string, nodes: CraftNode[], background?:
 const fade: AnimationSpec = { type: "fadeIn", duration: 500, delay: 0 };
 const pop: AnimationSpec = { type: "pop", duration: 450, delay: 80 };
 
+/** Hard offset shadow only — no soft/glass shadows. Section 5.4. */
+const HARD_SHADOW: DropShadow = { color: "rgba(26,29,33,0.22)", blur: 0, x: 4, y: 4 };
+
+/** Data, labels, captions live in mono — Section 5.3. Built directly (not via text()) since
+ * FontRole only spans heading/body; this stays untouched by brand-remap on purpose. */
+function monoText(
+  name: string,
+  value: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  size: number,
+  role: ColorRole,
+  extras: Partial<Extract<CraftNode, { type: "text" }>> = {},
+): Extract<CraftNode, { type: "text" }> {
+  return {
+    id: uid("text"),
+    name,
+    type: "text",
+    text: value,
+    x,
+    y,
+    width,
+    height,
+    rotation: extras.rotation ?? 0,
+    opacity: extras.opacity ?? 1,
+    locked: false,
+    hidden: false,
+    constraints: extras.constraints ?? DEFAULT_CONSTRAINTS,
+    role,
+    fontWeight: extras.fontWeight ?? "600",
+    fontSize: size,
+    align: extras.align ?? "left",
+    letterSpacing: extras.letterSpacing ?? 3,
+    lineHeight: extras.lineHeight ?? 1.3,
+    color: DEFAULT_BRAND.colors[role],
+    fontFamily: "JetBrains Mono",
+    uppercase: extras.uppercase ?? true,
+    animation: extras.animation,
+    groupId: extras.groupId,
+    groupName: extras.groupName,
+  };
+}
+
+/**
+ * The strata signature: a stepped, tapering cluster of angled bands standing in for the mark
+ * at a glance — the brand's curved four-band geometry, adapted to this tool's straight-edge
+ * shapes as a deliberate cut rather than a smooth sweep. Section 5.1a.
+ */
+function strataMark(
+  x: number,
+  y: number,
+  w: number,
+  bandH: number,
+  roles: ColorRole[] = ["secondary", "muted", "accent", "primary"],
+): Extract<CraftNode, { type: "shape" }>[] {
+  const angles = [-6, 4, -3, 5, -2, 6];
+  return roles.map((role, i) =>
+    shape(
+      `Strata band ${i + 1}`,
+      "parallelogram",
+      x - i * 6,
+      y + i * (bandH * 0.72),
+      Math.max(24, w - i * 18),
+      bandH,
+      role,
+      { rotation: angles[i % angles.length], opacity: 0.94 },
+    ),
+  );
+}
+
+/**
+ * A considered slot for the real mark. isLogoSlot() in brand.ts matches on the name "Logo"
+ * and makeLogoNode() replaces this node wholesale, aspect-fitting the real logo asset inside
+ * this exact box — so placement here is placement in the finished board. Without an explicit
+ * slot, applyBrandLogo() falls back to a generic top-left pad-based box blind to the layout,
+ * which is what was colliding with text and sitting redundantly beside strataMark clusters.
+ */
+function logo(x: number, y: number, w: number, h: number): Extract<CraftNode, { type: "shape" }> {
+  return shape("Logo", "rect", x, y, w, h, "muted", { opacity: 1 });
+}
+
 function announcePost(): CraftPage {
-  return pageOf("post", "Announcement", [
-    shape("Accent bar", "rect", 0, 0, 1080, 18, "accent", { constraints: defaultConstraintsFor("bar") }),
-    text("Eyebrow", "NEW RELEASE", 80, 72, 920, 36, 18, "accent", { letterSpacing: 4, fontWeight: "700", fontRole: "body" }),
-    text("Headline", "Make the work look inevitable.", 80, 120, 920, 140, 48, "text", { fontRole: "heading", lineHeight: 1.08 }),
-    text("Support", "A single artboard. Your brand, not a blank canvas.", 80, 280, 920, 80, 22, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.3 }),
-    text("Hashtags", "#SMEFinance  #UKBusiness", 80, 372, 920, 32, 16, "muted", { fontRole: "body", fontWeight: "400", letterSpacing: 0.5 }),
-    text("Link", "stratafinance.co.uk", 80, 408, 920, 28, 16, "accent", { fontRole: "body", fontWeight: "400" }),
-    shape("Media frame", "rounded-rect", 80, 460, 920, 620, "secondary", { constraints: defaultConstraintsFor("image"), borderRadius: 28 }),
-    shape("CTA", "rounded-rect", 80, 1110, 320, 64, "accent", { borderRadius: 999, constraints: { horizontal: "start", vertical: "end" } }),
-    text("CTA label", "See it live", 80, 1126, 320, 36, 20, "secondary", { align: "center", fontRole: "body", constraints: { horizontal: "start", vertical: "end" } }),
+  return pageOf("post", "Introducer — pack ready", [
+    text("Eyebrow", "INTRODUCERS  ·  STRATA", 80, 64, 600, 30, 15, "muted", { letterSpacing: 3, fontWeight: "700", fontRole: "body" }),
+    logo(924, 52, 72, 64),
+    ...strataMark(900, 1132, 130, 10, ["secondary", "accent", "muted"]),
+    text("Hook 1", "You keep the relationship.", 80, 168, 640, 150, 52, "text", { fontRole: "heading", lineHeight: 1.06 }),
+    text("Hook 2", "We run the pack.", 80, 312, 640, 90, 44, "accent", { fontRole: "heading", lineHeight: 1.06 }),
+    text("Deck", "You bring the client. Thin files do not go to Sterling. We package. We do not lend.", 80, 430, 560, 100, 21, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.35 }),
+    shape("Band peek", "parallelogram", 540, 640, 200, 460, "secondary", { rotation: -4, opacity: 0.85 }),
+    shape("Media frame", "rect", 580, 660, 420, 500, "muted", { constraints: defaultConstraintsFor("image"), shadow: HARD_SHADOW }),
+    shape("CTA", "rect", 80, 1176, 300, 66, "accent", { borderRadius: 2, shadow: HARD_SHADOW }),
+    text("CTA label", "Talk to Strata", 80, 1196, 300, 30, 19, "text", { align: "center", fontRole: "body", fontWeight: "700" }),
+    monoText("Hashtags", "#COMMERCIALFINANCE #INTRODUCERS", 80, 1272, 600, 22, 12, "muted", { letterSpacing: 1 }),
+    monoText("Link", "STRATAFINANCE.CO.UK", 80, 1300, 500, 22, 12, "secondary", { letterSpacing: 1 }),
   ]);
 }
 
 function storyLaunch(): CraftPage {
   return pageOf(
     "story",
-    "Launch Story",
+    "Story — full bleed ink",
     [
-      shape("Wash", "rect", 0, 0, 1080, 1920, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-      shape("Accent slash", "rect", 80, 160, 140, 8, "accent", { constraints: defaultConstraintsFor("bar") }),
-      text("Wordmark", "QUIRES", 80, 200, 920, 50, 22, "muted", { letterSpacing: 8, fontRole: "body" }),
-      text("Title", "Ship the\nstory.", 80, 520, 920, 420, 96, "secondary", { fontRole: "heading", lineHeight: 0.98 }),
-      text("Deck", "One design. Story, post, banner — resized, not rebuilt.", 80, 980, 780, 140, 28, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.35 }),
-      shape("CTA", "rounded-rect", 80, 1680, 400, 80, "accent", { borderRadius: 999, constraints: { horizontal: "start", vertical: "end" } }),
-      text("CTA label", "Open CRAFT", 80, 1700, 400, 50, 24, "secondary", { align: "center", fontRole: "body", constraints: { horizontal: "start", vertical: "end" } }),
+      shape("Ground", "rect", 0, 0, 1080, 1920, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
+      logo(80, 56, 72, 64),
+      ...strataMark(720, 140, 260, 22, ["secondary", "muted", "accent", "background"]),
+      monoText("Eyebrow", "SME DIRECTORS  ·  STRATA", 80, 300, 700, 30, 16, "background", { letterSpacing: 3, opacity: 0.75 }),
+      text("Hook 1", "Declined is a decision", 80, 360, 940, 260, 76, "background", { fontRole: "heading", lineHeight: 1.02 }),
+      text("Hook 2", "by one lender.", 80, 600, 940, 180, 68, "accent", { fontRole: "heading", lineHeight: 1.02 }),
+      text("Deck", "It is not a verdict on the business. We package the file that moves.", 80, 840, 780, 140, 30, "background", { fontRole: "body", fontWeight: "400", lineHeight: 1.35, opacity: 0.72 }),
+      shape("Media frame", "rect", 80, 1040, 920, 620, "muted", { constraints: defaultConstraintsFor("image"), shadow: HARD_SHADOW }),
+      shape("CTA", "rect", 80, 1720, 420, 84, "accent", { borderRadius: 2, constraints: { horizontal: "start", vertical: "end" }, shadow: HARD_SHADOW }),
+      text("CTA label", "Talk to Strata", 80, 1744, 420, 40, 24, "text", { align: "center", fontRole: "body", fontWeight: "700", constraints: { horizontal: "start", vertical: "end" } }),
     ],
     { mode: "solid", color: DEFAULT_BRAND.colors.primary },
   );
 }
 
 function quoteSquare(): CraftPage {
-  return pageOf("square", "Quote Card", [
-    shape("Ground", "rect", 0, 0, 1080, 1080, "secondary", { constraints: { horizontal: "stretch", vertical: "stretch" }, role: "secondary" }),
-    text("Mark", "“", 70, 80, 240, 180, 180, "accent", { fontRole: "heading", fontWeight: "800" }),
-    text("Quote", "The file should survive a restart. The rest is decoration.", 100, 340, 880, 360, 48, "text", { fontRole: "heading", lineHeight: 1.2 }),
-    shape("Rule", "rect", 100, 760, 120, 6, "accent"),
-    text("Name", "CRAFT", 100, 800, 400, 40, 20, "muted", { letterSpacing: 4, fontRole: "body" }),
-    text("Role", "Design that ships.", 100, 850, 500, 40, 22, "text", { fontRole: "body", fontWeight: "400" }),
+  return pageOf("square", "Quote — split ground", [
+    shape("Ground", "rect", 0, 0, 1080, 1080, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
+    shape("Ink panel", "rect", 0, 0, 620, 1080, "primary", { constraints: { horizontal: "start", vertical: "stretch" } }),
+    logo(64, 56, 72, 64),
+    ...strataMark(560, 420, 200, 18, ["accent", "secondary", "muted"]),
+    text("Hook 1", "A personal guarantee", 72, 300, 500, 220, 44, "background", { fontRole: "heading", lineHeight: 1.08 }),
+    text("Hook 2", "is not a formality.", 72, 520, 500, 140, 44, "accent", { fontRole: "heading", lineHeight: 1.08 }),
+    text("Deck", "It is your house. Read what you are signing before you sign it.", 680, 640, 340, 160, 22, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.4 }),
+    monoText("Name", "READ THE SMALL PRINT", 680, 860, 340, 26, 13, "secondary", { letterSpacing: 2 }),
+    monoText("Role", "A STRATA SERIES", 680, 892, 340, 24, 12, "muted", { letterSpacing: 2, opacity: 0.8 }),
   ]);
 }
 
 function ogBanner(): CraftPage {
-  return pageOf("og", "Open Graph", [
-    shape("Panel", "rect", 0, 0, 680, 630, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Accent", "rect", 680, 0, 520, 630, "accent", { constraints: { horizontal: "end", vertical: "stretch" } }),
-    text("Eyebrow", "QUIRES  ·  CRAFT", 56, 120, 560, 28, 14, "muted", { letterSpacing: 3, fontRole: "body" }),
-    text("Headline", "Design once. Export everywhere.", 56, 160, 560, 130, 36, "secondary", { fontRole: "heading", lineHeight: 1.1 }),
-    text("Deck", "Social, web, and motion assets with a brand kit that actually applies.", 56, 300, 540, 80, 18, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.3 }),
-    shape("CTA", "rounded-rect", 56, 400, 220, 44, "accent", { borderRadius: 999 }),
-    text("CTA label", "Talk to Strata", 56, 410, 220, 28, 16, "secondary", { align: "center", fontRole: "body" }),
-    text("Hashtags", "#SMEFinance  #UKBusiness", 56, 464, 560, 28, 13, "muted", { fontRole: "body", fontWeight: "400" }),
-    text("Link", "stratafinance.co.uk", 56, 500, 560, 28, 13, "secondary", { fontRole: "body", fontWeight: "400" }),
+  return pageOf("og", "Open Graph — three-column cut", [
+    shape("Ground", "rect", 0, 0, 1200, 630, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
+    shape("Media frame", "rect", 0, 0, 480, 630, "muted", { constraints: defaultConstraintsFor("image") }),
+    shape("Rail", "rect", 860, 0, 340, 630, "secondary", { constraints: { horizontal: "end", vertical: "stretch" } }),
+    logo(908, 14, 96, 68),
+    ...strataMark(430, -10, 140, 14, ["accent", "muted", "secondary"]),
+    monoText("Eyebrow", "SME DIRECTORS  ·  STRATA", 520, 60, 320, 24, 13, "muted", { letterSpacing: 2 }),
+    text("Hook 1", "The bank took", 520, 100, 320, 130, 36, "text", { fontRole: "heading", lineHeight: 1.08 }),
+    text("Hook 2", "eight weeks to say no.", 520, 220, 320, 120, 34, "accent", { fontRole: "heading", lineHeight: 1.08 }),
+    text("Deck", "Here is what happened in week one, and what a complete file changes.", 520, 360, 320, 130, 16, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.35 }),
+    monoText("Rail label", "WE PACKAGE", 908, 90, 240, 24, 13, "background", { letterSpacing: 3, opacity: 0.85 }),
+    text("Rail word", "We do not lend.", 908, 130, 240, 130, 26, "background", { fontRole: "heading", lineHeight: 1.2 }),
+    shape("CTA", "rect", 908, 470, 220, 56, "accent", { borderRadius: 2, shadow: HARD_SHADOW }),
+    text("CTA label", "Talk to Strata", 908, 486, 220, 30, 17, "text", { align: "center", fontRole: "body", fontWeight: "700" }),
+    monoText("Link", "STRATAFINANCE.CO.UK", 908, 560, 240, 22, 11, "background", { letterSpacing: 1, opacity: 0.7 }),
   ]);
 }
 
 function linkedInBanner(): CraftPage {
-  // LinkedIn personal cover: profile photo covers ~240×160 bottom-left.
+  // LinkedIn personal cover: profile photo covers ~240×160 bottom-left. Keep that zone clear.
   return pageOf(
     "linkedin",
-    "LinkedIn Banner",
+    "LinkedIn cover — ink",
     [
       shape("Ground", "rect", 0, 0, 1584, 396, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-      shape("Accent bar", "rect", 0, 0, 1584, 8, "accent", { constraints: defaultConstraintsFor("bar") }),
-      text("Wordmark", "STRATA FINANCE", 360, 72, 860, 28, 14, "muted", { letterSpacing: 4, fontWeight: "700", fontRole: "body" }),
-      text("Title", "UK commercial finance, packaged.", 360, 110, 980, 90, 42, "secondary", { fontRole: "heading", lineHeight: 1.08 }),
-      text("Sub", "£25k–£250k facilities for SME directors. We do not lend.", 360, 214, 900, 44, 18, "muted", { fontRole: "body", fontWeight: "400" }),
-      text("Link", "stratafinance.co.uk", 360, 270, 420, 28, 16, "accent", { fontRole: "body", fontWeight: "400" }),
+      logo(620, 8, 64, 57),
+      ...strataMark(-30, 40, 220, 20, ["secondary", "muted", "accent", "background"]),
+      monoText("Wordmark", "STRATA FINANCE", 620, 78, 860, 26, 14, "background", { letterSpacing: 5, opacity: 0.85 }),
+      text("Hook 1", "We build the case.", 620, 118, 940, 90, 46, "background", { fontRole: "heading", lineHeight: 1.05 }),
+      text("Hook 2", "Layer by layer.", 620, 200, 940, 70, 40, "accent", { fontRole: "heading", lineHeight: 1.05 }),
+      monoText("Sub", "UK COMMERCIAL FINANCE, PACKAGED  ·  WE DO NOT LEND", 624, 300, 900, 24, 13, "background", { letterSpacing: 2, opacity: 0.7 }),
     ],
     { mode: "solid", color: DEFAULT_BRAND.colors.primary },
   );
 }
 
 function xPost(): CraftPage {
-  return pageOf("twitter", "X Post", [
+  return pageOf("twitter", "X — ledger cut", [
     shape("Ground", "rect", 0, 0, 1200, 675, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Bar", "rect", 0, 0, 12, 675, "accent", { constraints: { horizontal: "start", vertical: "stretch" } }),
-    text("Headline", "Stop rebuilding the same post six times.", 64, 140, 1070, 180, 56, "text", { fontRole: "heading", lineHeight: 1.05 }),
-    text("Body", "Resize the artboard. Keep the constraints. Export the pack.", 64, 380, 900, 80, 26, "muted", { fontRole: "body", fontWeight: "400" }),
-    text("Handle", "@quires", 64, 560, 300, 40, 20, "accent", { fontRole: "body", letterSpacing: 1 }),
+    shape("Ink corner", "rect", 0, 0, 420, 675, "primary", { constraints: { horizontal: "start", vertical: "stretch" } }),
+    logo(64, 56, 72, 64),
+    ...strataMark(360, 500, 180, 16, ["accent", "secondary", "muted"]),
+    monoText("Eyebrow", "HMRC, ACTUALLY", 460, 96, 660, 26, 14, "muted", { letterSpacing: 3 }),
+    text("Hook 1", "HMRC said Time to Pay", 460, 140, 700, 150, 42, "text", { fontRole: "heading", lineHeight: 1.06 }),
+    text("Hook 2", "wasn't available.", 460, 260, 700, 80, 42, "accent", { fontRole: "heading", lineHeight: 1.06 }),
+    text("Body", "HMRC was wrong. It is negotiable, and the terms depend on how the case is presented.", 460, 380, 660, 100, 21, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.35 }),
+    monoText("Handle", "@STRATAFINANCE", 460, 560, 400, 24, 13, "secondary", { letterSpacing: 1 }),
   ]);
 }
 
 function emailHeader(): CraftPage {
-  return pageOf("email", "Email Header", [
+  return pageOf("email", "Email mast — ink", [
     shape("Ground", "rect", 0, 0, 600, 200, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Dot", "ellipse", 36, 78, 44, 44, "accent"),
-    text("Title", "This week in the studio", 100, 72, 460, 60, 28, "secondary", { fontRole: "heading" }),
+    logo(40, 6, 48, 42),
+    ...strataMark(500, 24, 120, 10, ["accent", "secondary", "muted"]),
+    monoText("Kicker", "STRATA LAYER", 40, 56, 300, 22, 12, "background", { letterSpacing: 3, opacity: 0.75 }),
+    text("Title", "This month's numbers", 40, 88, 460, 60, 30, "background", { fontRole: "heading" }),
+    text("Title2", "in five lines.", 40, 138, 460, 46, 26, "accent", { fontRole: "heading" }),
   ]);
 }
 
 function emailLetter(): CraftPage {
-  return pageOf("email-letter", "Email", [
-    shape("Mast", "rect", 0, 0, 600, 88, "primary", { constraints: { horizontal: "stretch", vertical: "start" } }),
-    text("Brand", "STRATA FINANCE", 32, 28, 536, 36, 18, "secondary", { letterSpacing: 3, fontRole: "body", fontWeight: "700" }),
-    text("Greeting", "Hi {{firstName}},", 32, 120, 536, 40, 22, "text", { fontRole: "heading" }),
+  return pageOf("email-letter", "Email — Strata Layer", [
+    shape("Mast", "rect", 0, 0, 600, 96, "primary", { constraints: { horizontal: "stretch", vertical: "start" } }),
+    logo(508, 20, 56, 50),
+    monoText("Brand", "STRATA FINANCE", 32, 38, 400, 22, 13, "background", { letterSpacing: 3 }),
+    text("Greeting", "Hi {{firstName}},", 32, 130, 536, 40, 24, "text", { fontRole: "heading" }),
     text(
       "Body",
       "We package UK commercial finance for SME directors. We do not lend. If {{companyName}} needs a complete file, talk to us.",
       32,
-      176,
+      188,
       536,
-      120,
-      16,
+      130,
+      17,
       "muted",
-      { fontRole: "body", fontWeight: "400", lineHeight: 1.4 },
+      { fontRole: "body", fontWeight: "400", lineHeight: 1.45 },
     ),
-    text("Signoff", "{{senderName}}\n{{senderCompany}}", 32, 320, 536, 56, 16, "text", { fontRole: "body", fontWeight: "600", lineHeight: 1.35 }),
-    text("Unsub", "{{unsubscribeLink}}", 32, 820, 536, 28, 12, "muted", { fontRole: "body", fontWeight: "400" }),
+    shape("Rule", "rect", 32, 340, 90, 3, "accent"),
+    text("Signoff", "{{senderName}}\n{{senderCompany}}", 32, 364, 536, 60, 16, "text", { fontRole: "body", fontWeight: "600", lineHeight: 1.4 }),
+    monoText("Unsub", "{{unsubscribeLink}}", 32, 850, 536, 22, 11, "muted", { letterSpacing: 0.5, uppercase: false }),
   ]);
 }
 
 function promoSquare(): CraftPage {
-  return pageOf("square", "Promo", [
+  return pageOf("square", "Decline Autopsy promo", [
     shape("Ground", "rect", 0, 0, 1080, 1080, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Media", "rounded-rect", 80, 80, 920, 620, "secondary", { constraints: defaultConstraintsFor("image"), borderRadius: 32 }),
-    text("Kicker", "LIMITED", 80, 740, 300, 32, 18, "accent", { letterSpacing: 4, fontRole: "body" }),
-    text("Product", "The midnight drop.", 80, 790, 700, 90, 48, "text", { fontRole: "heading" }),
-    shape("CTA", "rounded-rect", 80, 920, 240, 72, "accent", { borderRadius: 999 }),
-    text("CTA label", "Shop now", 80, 938, 240, 48, 22, "secondary", { align: "center", fontRole: "body" }),
-    text("Price", "£48", 820, 930, 180, 56, 40, "text", { align: "right", fontRole: "heading" }),
+    shape("Media", "rect", 0, 0, 1080, 680, "muted", { constraints: defaultConstraintsFor("image"), shadow: HARD_SHADOW }),
+    logo(900, 730, 64, 57),
+    monoText("Kicker", "DECLINE AUTOPSY", 80, 760, 500, 28, 16, "accent", { letterSpacing: 3 }),
+    text("Product", "What the lender saw.", 80, 810, 900, 100, 46, "text", { fontRole: "heading" }),
+    shape("CTA", "rect", 80, 960, 260, 64, "accent", { borderRadius: 2, shadow: HARD_SHADOW }),
+    text("CTA label", "Read the case", 80, 978, 260, 30, 19, "text", { align: "center", fontRole: "body", fontWeight: "700" }),
+    monoText("Series", "A STRATA SERIES", 820, 984, 200, 24, 12, "muted", { align: "right", letterSpacing: 1 }),
   ]);
 }
 
 function eventStory(): CraftPage {
   return pageOf(
     "story",
-    "Event Story",
+    "The Monthly Numbers",
     [
       shape("Ground", "rect", 0, 0, 1080, 1920, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-      shape("Date block", "rounded-rect", 80, 160, 220, 220, "accent", { borderRadius: 28 }),
-      text("Day", "18", 80, 190, 220, 110, 72, "secondary", { align: "center", fontRole: "heading" }),
-      text("Month", "SEP", 80, 300, 220, 50, 22, "secondary", { align: "center", fontRole: "body", letterSpacing: 3 }),
-      text("Title", "Open studio\nnight.", 80, 460, 920, 320, 80, "text", { fontRole: "heading", lineHeight: 1.02 }),
-      text("Where", "Warehouse 4  ·  19:00  ·  Free", 80, 820, 800, 50, 24, "muted", { fontRole: "body" }),
-      shape("CTA", "rounded-rect", 80, 1700, 420, 80, "primary", { borderRadius: 999, constraints: { horizontal: "start", vertical: "end" } }),
-      text("CTA label", "Save the date", 80, 1720, 420, 50, 24, "secondary", { align: "center", fontRole: "body", constraints: { horizontal: "start", vertical: "end" } }),
+      shape("Date block", "rect", 80, 160, 240, 240, "accent", { borderRadius: 2, shadow: HARD_SHADOW }),
+      monoText("Day", "N=", 80, 210, 240, 60, 26, "text", { align: "center" }),
+      text("Stat", "—", 80, 250, 240, 120, 64, "text", { align: "center", fontRole: "heading" }),
+      monoText("Month", "INSOLVENCY SERVICE", 80, 380, 240, 44, 12, "text", { align: "center", letterSpacing: 1, lineHeight: 1.3 }),
+      logo(900, 56, 72, 64),
+      ...strataMark(760, 200, 200, 18, ["secondary", "muted", "accent"]),
+      monoText("Eyebrow", "THE MONTHLY NUMBERS", 80, 480, 900, 30, 16, "muted", { letterSpacing: 3 }),
+      text("Title", "What the data means", 80, 540, 920, 160, 56, "text", { fontRole: "heading", lineHeight: 1.05 }),
+      text("Title2", "for your business.", 80, 690, 920, 100, 56, "accent", { fontRole: "heading", lineHeight: 1.05 }),
+      text("Where", "Five lines. No jargon. Cited, not invented.", 80, 820, 800, 60, 24, "muted", { fontRole: "body", fontWeight: "400" }),
+      shape("CTA", "rect", 80, 1740, 460, 84, "primary", { borderRadius: 2, constraints: { horizontal: "start", vertical: "end" }, shadow: HARD_SHADOW }),
+      text("CTA label", "Read this month's numbers", 80, 1764, 460, 40, 21, "background", { align: "center", fontRole: "body", fontWeight: "700", constraints: { horizontal: "start", vertical: "end" } }),
     ],
   );
 }
@@ -294,122 +408,114 @@ function eventStory(): CraftPage {
 function gifCaption(): CraftPage {
   return pageOf(
     "gif-square",
-    "Caption GIF",
+    "Caption GIF — ledger",
     [
       shape("Ground", "rect", 0, 0, 800, 800, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-      shape("Top bar", "rect", 0, 0, 800, 120, "primary", {
-        constraints: defaultConstraintsFor("bar"),
-        opacity: 0.88,
-        animation: fade,
-      }),
-      text("Top", "WHEN THE FILE SAVES", 40, 38, 720, 70, 32, "secondary", {
-        align: "center",
-        fontRole: "body",
-        fontWeight: "800",
-        animation: fade,
-      }),
-      shape("Bottom bar", "rect", 0, 680, 800, 120, "primary", {
-        constraints: { horizontal: "stretch", vertical: "end" },
-        opacity: 0.88,
-        animation: pop,
-      }),
-      text("Bottom", "AND IT OPENS AGAIN", 40, 718, 720, 70, 32, "accent", {
-        align: "center",
-        fontRole: "body",
-        fontWeight: "800",
-        constraints: { horizontal: "stretch", vertical: "end" },
-        animation: pop,
-      }),
+      logo(368, 344, 64, 57),
+      shape("Top bar", "rect", 0, 0, 800, 110, "primary", { constraints: defaultConstraintsFor("bar"), opacity: 0.92, animation: fade }),
+      monoText("Top", "THE BANK SAID NO", 40, 40, 720, 40, 26, "background", { align: "center", letterSpacing: 3, animation: fade }),
+      shape("Bottom bar", "rect", 0, 690, 800, 110, "primary", { constraints: { horizontal: "stretch", vertical: "end" }, opacity: 0.92, animation: pop }),
+      monoText("Bottom", "THE MARKET SAID MAYBE", 40, 728, 720, 40, 26, "accent", { align: "center", letterSpacing: 3, constraints: { horizontal: "stretch", vertical: "end" }, animation: pop }),
     ],
     { mode: "solid", color: DEFAULT_BRAND.colors.primary },
   );
 }
 
 function youtubeThumb(): CraftPage {
-  return pageOf("youtube", "YouTube Thumb", [
+  return pageOf("youtube", "YouTube — ledger slab", [
     shape("Ground", "rect", 0, 0, 1280, 720, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Accent slab", "rect", 0, 0, 28, 720, "accent", { constraints: { horizontal: "start", vertical: "stretch" } }),
-    text("Eyebrow", "WATCH NEXT", 72, 80, 700, 40, 22, "accent", { letterSpacing: 4, fontRole: "body" }),
-    text("Title", "The file that\nsurvives a restart.", 72, 160, 820, 280, 64, "secondary", { fontRole: "heading", lineHeight: 1.02 }),
-    shape("Play", "ellipse", 980, 250, 180, 180, "accent", { constraints: { horizontal: "end", vertical: "center" } }),
-    shape("Play arrow", "triangle", 1044, 300, 80, 80, "secondary", { rotation: 90, constraints: { horizontal: "end", vertical: "center" } }),
+    shape("Accent slab", "parallelogram", 0, 0, 40, 720, "accent", { constraints: { horizontal: "start", vertical: "stretch" }, rotation: -1 }),
+    logo(96, 632, 72, 64),
+    monoText("Eyebrow", "STRATA EXPLAINS", 96, 88, 700, 30, 16, "background", { letterSpacing: 3, opacity: 0.75 }),
+    text("Title", "The file that", 96, 160, 900, 130, 62, "background", { fontRole: "heading", lineHeight: 1.02 }),
+    text("Title2", "moves the lender.", 96, 280, 900, 130, 62, "accent", { fontRole: "heading", lineHeight: 1.02 }),
+    shape("Play", "ellipse", 1000, 260, 180, 180, "accent", { constraints: { horizontal: "end", vertical: "center" }, shadow: HARD_SHADOW }),
+    shape("Play arrow", "triangle", 1064, 310, 80, 80, "primary", { rotation: 90, constraints: { horizontal: "end", vertical: "center" } }),
   ]);
 }
 
 function pinterestPin(): CraftPage {
-  return pageOf("pinterest", "Pinterest Pin", [
+  return pageOf("pinterest", "Pin — checklist", [
     shape("Ground", "rect", 0, 0, 1000, 1500, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Media", "rounded-rect", 64, 64, 872, 880, "secondary", { constraints: defaultConstraintsFor("image"), borderRadius: 36 }),
-    text("Kicker", "SAVE THIS", 64, 990, 400, 32, 18, "accent", { letterSpacing: 3, fontRole: "body" }),
-    text("Title", "One design.\nEvery channel.", 64, 1040, 872, 200, 52, "text", { fontRole: "heading", lineHeight: 1.05 }),
-    text("Hint", "Pin it. Resize it. Ship it.", 64, 1320, 700, 50, 24, "muted", { fontRole: "body", fontWeight: "400" }),
+    shape("Media", "rect", 0, 0, 1000, 820, "muted", { constraints: defaultConstraintsFor("image"), shadow: HARD_SHADOW }),
+    logo(872, 24, 64, 57),
+    ...strataMark(820, 860, 160, 14, ["accent", "secondary", "muted"]),
+    monoText("Kicker", "THE LENDER'S CHECKLIST", 64, 990, 500, 26, 14, "muted", { letterSpacing: 2 }),
+    text("Title", "22 things the", 64, 1030, 872, 100, 46, "text", { fontRole: "heading", lineHeight: 1.05 }),
+    text("Title2", "underwriter checks first.", 64, 1120, 872, 100, 46, "accent", { fontRole: "heading", lineHeight: 1.05 }),
+    monoText("Hint", "STRATAFINANCE.CO.UK/LEARN", 64, 1400, 700, 22, 12, "secondary", { letterSpacing: 1 }),
   ]);
 }
 
 function testimonialSquare(): CraftPage {
-  return pageOf("square", "Testimonial", [
+  return pageOf("square", "Introducer testimonial", [
     shape("Ground", "rect", 0, 0, 1080, 1080, "secondary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Avatar", "ellipse", 80, 80, 120, 120, "accent"),
-    text("Name", "Alex Rivera", 230, 100, 700, 48, 28, "text", { fontRole: "heading" }),
-    text("Role", "Studio lead", 230, 150, 500, 36, 18, "muted", { fontRole: "body" }),
-    text("Quote", "We stopped rebuilding the same post. The brand lives in the file now.", 80, 280, 920, 420, 44, "text", { fontRole: "heading", lineHeight: 1.2 }),
-    shape("Bar", "rect", 80, 920, 160, 8, "accent"),
-    text("Source", "SWARFE SWELL", 80, 960, 400, 40, 20, "muted", { fontRole: "body", letterSpacing: 2 }),
+    logo(900, 972, 72, 64),
+    ...strataMark(80, 80, 160, 14, ["accent", "background", "muted"]),
+    text("Quote", "The file arrived complete.", 80, 300, 920, 200, 46, "background", { fontRole: "heading", lineHeight: 1.15 }),
+    text("Quote2", "First time.", 80, 480, 920, 120, 46, "accent", { fontRole: "heading", lineHeight: 1.15 }),
+    shape("Bar", "rect", 80, 640, 90, 4, "accent"),
+    monoText("Name", "PARTNER, ICAEW PRACTICE", 80, 680, 500, 24, 13, "background", { letterSpacing: 2, opacity: 0.85 }),
+    monoText("Source", "AN INTRODUCER, NOT A CLIENT", 80, 716, 500, 22, 12, "background", { letterSpacing: 1, opacity: 0.55 }),
   ]);
 }
 
 function speakerCard(): CraftPage {
-  return pageOf("square", "Speaker", [
+  return pageOf("square", "Founder card", [
     shape("Ground", "rect", 0, 0, 1080, 1080, "primary", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    shape("Accent rail", "rect", 0, 0, 18, 1080, "accent", { constraints: { horizontal: "start", vertical: "stretch" } }),
-    shape("Portrait well", "rounded-rect", 80, 80, 440, 920, "secondary", { borderRadius: 36, constraints: defaultConstraintsFor("image") }),
-    text("Eyebrow", "TONIGHT", 580, 140, 420, 36, 18, "accent", { letterSpacing: 5, fontRole: "body" }),
-    text("Name", "Maya Chen", 580, 200, 420, 160, 56, "secondary", { fontRole: "heading", lineHeight: 1.02 }),
-    text("Role", "Creative director\nSWARFE studio", 580, 400, 420, 100, 24, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.35 }),
-    shape("Rule", "rect", 580, 540, 80, 6, "accent"),
-    text("Talk", "How a brand\nsurvives a restart.", 580, 580, 420, 200, 32, "secondary", { fontRole: "heading", lineHeight: 1.15 }),
-    text("Meta", "Doors 18:30  ·  40 min", 580, 900, 420, 40, 18, "muted", { fontRole: "body" }),
+    shape("Portrait well", "rect", 80, 80, 440, 920, "muted", { constraints: defaultConstraintsFor("image"), shadow: HARD_SHADOW }),
+    logo(900, 32, 72, 64),
+    ...strataMark(560, 120, 180, 16, ["accent", "secondary", "muted"]),
+    monoText("Eyebrow", "THIRTY YEARS LENDER-SIDE", 580, 220, 420, 26, 13, "background", { letterSpacing: 2, opacity: 0.8 }),
+    text("Name", "Shaun Tuhey", 580, 260, 420, 140, 48, "background", { fontRole: "heading", lineHeight: 1.05 }),
+    text("Role", "Director, Strata Finance", 580, 400, 420, 60, 22, "background", { fontRole: "body", fontWeight: "400", opacity: 0.65 }),
+    shape("Rule", "rect", 580, 480, 70, 3, "accent"),
+    text("Talk", "What the credit\ncommittee actually said.", 580, 520, 420, 220, 34, "background", { fontRole: "heading", lineHeight: 1.2 }),
+    monoText("Meta", "STRATA FINANCE  ·  STRENGTH, LAYER BY LAYER", 580, 940, 420, 22, 11, "background", { letterSpacing: 1, opacity: 0.55 }),
   ], { mode: "solid", color: DEFAULT_BRAND.colors.primary });
 }
 
 function priceList(): CraftPage {
-  return pageOf("post", "Menu", [
+  return pageOf("post", "Tools menu — Learn", [
     shape("Ground", "rect", 0, 0, 1080, 1350, "background", { constraints: { horizontal: "stretch", vertical: "stretch" } }),
-    text("Eyebrow", "THIS WEEK", 80, 80, 920, 36, 18, "accent", { letterSpacing: 4, fontRole: "body" }),
-    text("Title", "The studio menu.", 80, 130, 920, 90, 52, "text", { fontRole: "heading" }),
-    shape("Rule", "rect", 80, 250, 160, 6, "accent"),
-    text("Item 1", "Brand kit", 80, 310, 620, 48, 28, "text", { fontRole: "heading" }),
-    text("Price 1", "£180", 780, 310, 220, 48, 28, "accent", { align: "right", fontRole: "heading" }),
-    text("Note 1", "Colours, type, and a logo that actually applies.", 80, 360, 920, 40, 18, "muted", { fontRole: "body", fontWeight: "400" }),
-    text("Item 2", "Export pack", 80, 460, 620, 48, 28, "text", { fontRole: "heading" }),
-    text("Price 2", "£90", 780, 460, 220, 48, 28, "accent", { align: "right", fontRole: "heading" }),
-    text("Note 2", "Story, square, and Open Graph in one click.", 80, 510, 920, 40, 18, "muted", { fontRole: "body", fontWeight: "400" }),
-    text("Item 3", "Reskin", 80, 610, 620, 48, 28, "text", { fontRole: "heading" }),
-    text("Price 3", "£240", 780, 610, 220, 48, 28, "accent", { align: "right", fontRole: "heading" }),
-    text("Note 3", "Keep the layout. Change the brand. Ship tonight.", 80, 660, 920, 40, 18, "muted", { fontRole: "body", fontWeight: "400" }),
+    logo(900, 50, 72, 64),
+    ...strataMark(900, 1190, 140, 10, ["accent", "secondary", "muted"]),
+    monoText("Eyebrow", "STRATA LEARN  ·  TOOLS", 80, 90, 700, 28, 15, "muted", { letterSpacing: 3 }),
+    text("Title", "Run the numbers", 80, 140, 900, 90, 48, "text", { fontRole: "heading" }),
+    text("Title2", "before the call.", 80, 226, 900, 80, 48, "accent", { fontRole: "heading" }),
+    shape("Rule", "rect", 80, 330, 120, 4, "accent"),
+    text("Item 1", "Time to Pay Calculator", 80, 380, 700, 44, 26, "text", { fontRole: "heading" }),
+    monoText("Price 1", "FREE", 800, 384, 200, 36, 16, "accent", { align: "right" }),
+    text("Note 1", "Term, arrears, and the HMRC late-payment rate, worked through.", 80, 428, 900, 40, 17, "muted", { fontRole: "body", fontWeight: "400" }),
+    text("Item 2", "Debt Stress Check", 80, 520, 700, 44, 26, "text", { fontRole: "heading" }),
+    monoText("Price 2", "FREE", 800, 524, 200, 36, 16, "accent", { align: "right" }),
+    text("Note 2", "Where the pressure actually sits, in five questions.", 80, 568, 900, 40, 17, "muted", { fontRole: "body", fontWeight: "400" }),
+    text("Item 3", "Lender's Checklist", 80, 660, 700, 44, 26, "text", { fontRole: "heading" }),
+    monoText("Price 3", "FREE", 800, 664, 200, 36, 16, "accent", { align: "right" }),
+    text("Note 3", "22 things the underwriter checks before reading a word.", 80, 708, 900, 40, 17, "muted", { fontRole: "body", fontWeight: "400" }),
     shape("Footer", "rect", 0, 1180, 1080, 170, "primary", { constraints: { horizontal: "stretch", vertical: "end" } }),
-    text("Book", "Book a desk", 80, 1235, 400, 50, 24, "secondary", { fontRole: "heading", constraints: { horizontal: "start", vertical: "end" } }),
-    text("Handle", "@quires", 680, 1240, 320, 44, 20, "accent", { align: "right", fontRole: "body", constraints: { horizontal: "end", vertical: "end" } }),
+    text("Book", "learn.stratanexus.co.uk", 80, 1236, 500, 50, 24, "background", { fontRole: "heading", constraints: { horizontal: "start", vertical: "end" } }),
+    monoText("Handle", "@STRATAFINANCE", 700, 1244, 300, 30, 14, "accent", { align: "right", constraints: { horizontal: "end", vertical: "end" } }),
   ]);
 }
 
 export const DESIGN_TEMPLATES: DesignTemplate[] = [
-  { id: "linkedin-banner", name: "LinkedIn Banner", description: "1584 × 396 profile cover", category: "Social", presetId: "linkedin", build: linkedInBanner },
-  { id: "announce-post", name: "Announcement", description: "Post with media frame and CTA", category: "Social", presetId: "post", build: announcePost },
-  { id: "story-launch", name: "Launch Story", description: "Full-bleed launch frame", category: "Social", presetId: "story", build: storyLaunch },
-  { id: "quote-square", name: "Quote Card", description: "Pull-quote on a square", category: "Social", presetId: "square", build: quoteSquare },
-  { id: "promo-square", name: "Promo", description: "Product frame, price, CTA", category: "Social", presetId: "square", build: promoSquare },
-  { id: "event-story", name: "Event Story", description: "Date block and venue", category: "Social", presetId: "story", build: eventStory },
-  { id: "x-post", name: "X Post", description: "Headline and handle", category: "Social", presetId: "twitter", build: xPost },
-  { id: "og-banner", name: "Open Graph", description: "Link preview split", category: "Web", presetId: "og", build: ogBanner },
-  { id: "email-header", name: "Email Header", description: "Narrow newsletter mast", category: "Web", presetId: "email", build: emailHeader },
-  { id: "email-letter", name: "Email letter", description: "600px letter with merge tags", category: "Docs", presetId: "email-letter", build: emailLetter },
-  { id: "gif-caption", name: "Caption GIF", description: "Top and bottom motion bars", category: "Motion", presetId: "gif-square", build: gifCaption },
-  { id: "youtube-thumb", name: "YouTube Thumb", description: "Title plus play mark", category: "Social", presetId: "youtube", build: youtubeThumb },
-  { id: "pinterest-pin", name: "Pinterest Pin", description: "Tall save-this card", category: "Social", presetId: "pinterest", build: pinterestPin },
-  { id: "testimonial", name: "Testimonial", description: "Quote with attribution", category: "Social", presetId: "square", build: testimonialSquare },
-  { id: "speaker-card", name: "Speaker", description: "Portrait rail and talk title", category: "Social", presetId: "square", build: speakerCard },
-  { id: "price-list", name: "Menu", description: "Priced list with a footer", category: "Social", presetId: "post", build: priceList },
+  { id: "linkedin-banner", name: "LinkedIn Cover", description: "Ink ground, strata mark bleeding off the edge", category: "Social", presetId: "linkedin", build: linkedInBanner },
+  { id: "announce-post", name: "Introducer Post", description: "Asymmetric pack-ready post for the introducer track", category: "Social", presetId: "post", build: announcePost },
+  { id: "story-launch", name: "Full-Bleed Story", description: "Ink story with a cropped two-colour hook", category: "Social", presetId: "story", build: storyLaunch },
+  { id: "quote-square", name: "Read the Small Print", description: "Split ink/paper ground for a single clause", category: "Social", presetId: "square", build: quoteSquare },
+  { id: "promo-square", name: "Decline Autopsy", description: "Full-bleed case still with a strata mark cut", category: "Social", presetId: "square", build: promoSquare },
+  { id: "event-story", name: "The Monthly Numbers", description: "Data-release story with a mono stat block", category: "Social", presetId: "story", build: eventStory },
+  { id: "x-post", name: "HMRC, Actually", description: "Ink corner cut against a standing correction", category: "Social", presetId: "twitter", build: xPost },
+  { id: "og-banner", name: "Open Graph — Rail", description: "Structural blue rail, strata mark bleeding off the corner", category: "Web", presetId: "og", build: ogBanner },
+  { id: "email-header", name: "Email Mast", description: "Ink newsletter mast with a strata mark", category: "Web", presetId: "email", build: emailHeader },
+  { id: "email-letter", name: "Strata Layer Email", description: "600px letter with merge tags", category: "Docs", presetId: "email-letter", build: emailLetter },
+  { id: "gif-caption", name: "Caption GIF", description: "Mono top/bottom bars, band-in motion", category: "Motion", presetId: "gif-square", build: gifCaption },
+  { id: "youtube-thumb", name: "Strata Explains", description: "Angled accent slab, two-colour title", category: "Social", presetId: "youtube", build: youtubeThumb },
+  { id: "pinterest-pin", name: "The Lender's Checklist", description: "Full-bleed still over a mono kicker", category: "Social", presetId: "pinterest", build: pinterestPin },
+  { id: "testimonial", name: "Introducer Testimonial", description: "Blue ground, third-party proof, mono attribution", category: "Social", presetId: "square", build: testimonialSquare },
+  { id: "speaker-card", name: "Founder Card", description: "Ink ground, portrait rail, founder proof", category: "Social", presetId: "square", build: speakerCard },
+  { id: "price-list", name: "Learn Tools Menu", description: "Time to Pay Calculator, Debt Stress Check, Checklist", category: "Social", presetId: "post", build: priceList },
 ];
 
 export function documentFromBlank(presetId: string, brand: CraftBrand = DEFAULT_BRAND, title?: string): CraftDocument {

@@ -11,6 +11,9 @@ export const DELEGATE_JOB_IDS = [
   "retry_send",
   "chase_pack",
   "process_pack",
+  "scan_week",
+  "compose_week",
+  "news_digest",
 ] as const;
 
 export type DelegateJobId = (typeof DELEGATE_JOB_IDS)[number];
@@ -85,20 +88,59 @@ export const DELEGATE_JOBS: DelegateJob[] = [
     description: "Run the numbers and write a recommendation from sourced figures.",
     needsDeal: true,
   },
+  {
+    id: "scan_week",
+    agentIds: ["content-scout"],
+    label: "Scan week for content",
+    description: "Refresh this week's Creative Ammo Briefs from the Strata desk and news.",
+    needsDeal: false,
+  },
+  {
+    id: "compose_week",
+    agentIds: ["marketing-manager"],
+    label: "Compose week",
+    description: "Queue next week's Craft posts from the current briefs.",
+    needsDeal: false,
+  },
+  {
+    id: "news_digest",
+    agentIds: ["reporter"],
+    label: "Run news digest",
+    description: "Draft today's UK Finance / Economy / Politics digests into Editorial.",
+    needsDeal: false,
+  },
 ];
 
-export function liveDelegateDesks() {
-  return AGENT_DIRECTORY.filter(
-    (desk) => !HIBERNATED_DESKS.includes(desk.agentId as (typeof HIBERNATED_DESKS)[number])
-  );
+// Casey, Isla, and Reporter run their own zero-arg Craft / Editorial jobs, not the
+// deal-file pipeline, so they aren't in AGENT_DIRECTORY (the CRM mailbox roster).
+const CONTENT_DESKS: Array<{ agentId: string; displayName: string; role: string }> = [
+  { agentId: "content-scout", displayName: "Casey Wren", role: "Content Scout (MKT-3)" },
+  { agentId: "marketing-manager", displayName: "Isla Quinn", role: "Marketing Director (MKT-2)" },
+  { agentId: "reporter", displayName: "Reporter", role: "News Curator" },
+];
+
+function isHibernated(agentId: string): boolean {
+  return HIBERNATED_DESKS.includes(agentId as (typeof HIBERNATED_DESKS)[number]);
 }
 
+export function liveDelegateDesks() {
+  return [...AGENT_DIRECTORY.filter((desk) => !isHibernated(desk.agentId)), ...CONTENT_DESKS];
+}
+
+// Any live desk can run any job — agentIds on DELEGATE_JOBS is only a sort
+// hint so a desk's usual job appears first in the picker.
 export function jobsForAgent(agentId: string): DelegateJob[] {
-  return DELEGATE_JOBS.filter((job) => job.agentIds.includes(agentId));
+  if (isHibernated(agentId)) return [];
+  return [...DELEGATE_JOBS].sort((a, b) => {
+    const aTypical = a.agentIds.includes(agentId) ? 0 : 1;
+    const bTypical = b.agentIds.includes(agentId) ? 0 : 1;
+    return aTypical - bTypical;
+  });
 }
 
 export function getDelegateJob(agentId: string, jobId: string): DelegateJob | undefined {
-  return DELEGATE_JOBS.find((job) => job.id === jobId && job.agentIds.includes(agentId));
+  if (isHibernated(agentId)) return undefined;
+  return DELEGATE_JOBS.find((job) => job.id === jobId);
 }
 
 export function isDealEligible(jobId: DelegateJobId, deal: DelegateDeal): boolean {
@@ -123,6 +165,10 @@ export function isDealEligible(jobId: DelegateJobId, deal: DelegateDeal): boolea
         (deal.stage === "processing" || deal.stage === "underwriting") &&
         deal.status !== "waiting_human"
       );
+    case "scan_week":
+    case "compose_week":
+    case "news_digest":
+      return false;
   }
 }
 

@@ -284,16 +284,16 @@ export const DEFAULT_CONSTRAINTS: Constraints = { horizontal: "start", vertical:
 export const DEFAULT_ANIMATION: AnimationSpec = { type: "none", duration: 600, delay: 0 };
 
 export const DEFAULT_BRAND: CraftBrand = {
-  name: "Studio",
+  name: "Strata",
   colors: {
-    primary: "#111118",
-    secondary: "#f4f4f5",
-    accent: "#ff006e",
-    background: "#ffffff",
-    text: "#111118",
-    muted: "#6b7280",
+    primary: "#1A1D21", // strata-slate-900 (ink)
+    secondary: "#2F5199", // strata-blue (structure, borrower-track lean)
+    accent: "#C69123", // strata-gold (CTA, Hook 2, attention)
+    background: "#F7F5F1", // strata-paper (warm light ground)
+    text: "#1A1D21", // strata-slate-900
+    muted: "#6B727C", // strata-slate-500
   },
-  headingFont: "Playfair Display",
+  headingFont: "Unbounded",
   bodyFont: "Inter",
 };
 

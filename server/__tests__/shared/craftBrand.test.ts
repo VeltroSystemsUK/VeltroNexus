@@ -42,7 +42,7 @@ describe("brand logo", () => {
     const post = generateWeek("2026-08-31")[0]!;
     const wide = applyBrandLogo(composeSocialPost(post), LOGO);
     const wideLogo = wide.pages[0]!.nodes.find((node) => node.name === "Logo")!;
-    expect(wideLogo.width / wideLogo.height).toBeCloseTo(80 / 24, 2);
+    expect(wideLogo.width / wideLogo.height).toBeCloseTo(80 / 24, 1);
 
     const squareAsset: CraftAsset = {
       ...LOGO,

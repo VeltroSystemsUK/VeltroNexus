@@ -104,6 +104,31 @@ describe("factory graph", () => {
     ).toBe("email");
   });
 
+  it("plots Reporter's news digest into the Editorial approve step, and Frankie's SOCIAL-1 lane to a human write step", () => {
+    const ids = new Set(FACTORY_NODES.map((node) => node.id));
+    for (const id of ["news-scan", "social-scan", "social-draft", "social-post"]) {
+      expect(ids.has(id)).toBe(true);
+    }
+    expect(FACTORY_NODES.find((node) => node.id === "news-scan")?.desk).toBe("Reporter");
+    expect(FACTORY_NODES.find((node) => node.id === "social-scan")?.desk).toBe("Frankie");
+    expect(FACTORY_NODES.find((node) => node.id === "social-post")?.desk).toBe("You");
+    expect(FACTORY_EDGES.some((edge) => edge.source === "news-scan" && edge.target === "mkt-editorial-approve")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "social-scan" && edge.target === "social-draft")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "social-draft" && edge.target === "social-post")).toBe(true);
+  });
+
+  it("plots Isla's brand governance and lead-gen lane, handing standards to Frankie's feed", () => {
+    const ids = new Set(FACTORY_NODES.map((node) => node.id));
+    for (const id of ["brand-review", "brand-system", "lead-magnet"]) {
+      expect(ids.has(id)).toBe(true);
+      expect(FACTORY_NODES.find((node) => node.id === id)?.desk).toBe("Isla");
+    }
+    expect(FACTORY_EDGES.some((edge) => edge.source === "brand-review" && edge.target === "brand-system")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "brand-system" && edge.target === "mkt-compose")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "brand-system" && edge.target === "social-draft")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "lead-magnet" && edge.target === "mkt-approve")).toBe(true);
+  });
+
   it("puts live deals on the node that owns that stage", () => {
     const counts = countDealsOnNodes([
       { stage: "outreach", status: "waiting_timer", source: "distress_scan" },

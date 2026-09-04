@@ -21,15 +21,25 @@ export function saveBrandKit(brand: CraftBrand): void {
   localStorage.setItem(BRAND_KEY, JSON.stringify(cloneBrand(brand)));
 }
 
+/** The real Strata mark, served from brand/logo/. Falls in until someone saves an override. */
+const DEFAULT_LOGO: CraftAsset = {
+  id: "strata-mark-default",
+  name: "Strata mark",
+  mime: "image/svg+xml",
+  dataUrl: "/brand/logo/strata-mark.svg",
+  width: 70,
+  height: 62,
+};
+
 export function loadBrandLogo(): CraftAsset | null {
   try {
     const raw = localStorage.getItem(BRAND_LOGO_KEY);
-    if (!raw) return null;
+    if (!raw) return DEFAULT_LOGO;
     const asset = JSON.parse(raw) as CraftAsset;
-    if (!asset?.id || typeof asset.dataUrl !== "string") return null;
+    if (!asset?.id || typeof asset.dataUrl !== "string") return DEFAULT_LOGO;
     return asset;
   } catch {
-    return null;
+    return DEFAULT_LOGO;
   }
 }
 

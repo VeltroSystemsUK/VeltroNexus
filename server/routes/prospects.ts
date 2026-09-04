@@ -382,10 +382,14 @@ const router = Router();
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const userId = req.user!.id;
         const id = parseInt(req.params.id);
 
-        await storage.deleteProspect(id, userId);
+        const prospect = await getReadableProspect(req, id);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        await storage.deleteProspect(id, prospect.userId);
         res.status(204).send();
       } catch (error) {
         handleApiError(res, error, "api-error");

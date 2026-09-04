@@ -36,19 +36,20 @@ function sampleBrief(over: Partial<CreativeAmmoBrief> & Pick<CreativeAmmoBrief, 
 
 describe("Content Scout", () => {
   it("is a researcher, not a copywriter, and hands Isla a Creative Ammo Brief", () => {
-    expect(MARKET_RESEARCHER_PROMPT).toMatch(/CommercialFinance_MarketResearcher_v1/);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/CommercialFinance_MarketIntelligence_v2/);
     expect(MARKET_RESEARCHER_PROMPT).toMatch(/Creative Ammo Brief/i);
-    expect(MARKET_RESEARCHER_PROMPT).toMatch(/do not write final ad copy/i);
-    expect(MARKET_RESEARCHER_PROMPT).toMatch(/CreativeDirector_MarketingExec_v1/);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/you never do/i);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/Isla Quinn/i);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/MKT-2/);
     expect(MARKET_RESEARCHER_PROMPT).toMatch(/do not lend/i);
     expect(MARKET_RESEARCHER_PROMPT).not.toMatch(/guaranteed funding/i);
     expect(MARKET_RESEARCHER_PROMPT).toMatch(/stratafinance\.co\.uk/i);
-    expect(MARKET_RESEARCHER_PROMPT).toMatch(/stacked/i);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/stack/i);
     expect(MARKET_RESEARCHER_PROMPT).toMatch(/HMRC|Time to Pay/i);
     expect(MARKET_RESEARCHER_PROMPT).toMatch(/CDFI/i);
-    expect(MARKET_RESEARCHER_PROMPT).toMatch(/no tangent/i);
-    expect(MARKET_RESEARCHER_PROMPT).toMatch(/Off the desk[\s\S]*Property Week/i);
-    expect(MARKET_RESEARCHER_PROMPT).toMatch(/Off the desk[\s\S]*development finance/i);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/off the desk/i);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/residential mortgage/i);
+    expect(MARKET_RESEARCHER_PROMPT).toMatch(/crypto/i);
     expect(MARKETING_DIRECTOR_PROMPT).toMatch(/Creative Ammo Brief/i);
   });
 
@@ -140,7 +141,7 @@ describe("Content Scout", () => {
   it("reads Firecrawl search notes from official UK hosts only", () => {
     expect(CASEY_FIRECRAWL_QUERIES.join(" ")).toMatch(/HMRC|Time to Pay/i);
     expect(CASEY_FIRECRAWL_QUERIES.join(" ")).toMatch(/CDFI|British Business Bank/i);
-    expect(CASEY_FIRECRAWL_QUERIES.join(" ")).toMatch(/stack|refinanc/i);
+    expect(CASEY_FIRECRAWL_QUERIES.join(" ")).toMatch(/lender|insolvency|broker/i);
     const notes = caseyNotesFromFirecrawlSearch({
       data: {
         web: [

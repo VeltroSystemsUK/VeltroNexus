@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { CraftPost } from "@shared/craftQueue";
+import { ammoForPost, yafflePromptFromAmmo } from "@shared/craftYaffle";
+import type { CreativeAmmoBrief } from "@shared/craftScout";
 import { adaptPage, spawnSizes } from "./lib/adapt";
 import { applyCreativeDirection, applyPostCopy, applyPostVisual, composeSocialPost, STRATA_BRAND } from "./lib/composePost";
 import { applyFrameShape, applyImageLook, applyNodeMotion, applyNodeOpacity, applyNodeShadow, nudgeNodeOrder, type FrameShapeId, type ImageLookId, type ImageMotionId, type ShadowPresetId } from "./lib/looks";
@@ -141,6 +143,7 @@ interface CraftState {
 
   newBlank: (opts?: { title?: string; presetId?: string }) => Promise<void>;
   openFromPost: (post: CraftPost) => Promise<void>;
+  generateStillsForWeek: (posts: CraftPost[], briefs: CreativeAmmoBrief[]) => Promise<void>;
   syncFromPost: (post: CraftPost) => void;
   openFromAsset: (asset: { id: string; name: string; mimeType: string }) => Promise<void>;
   openFromFile: (file: File) => Promise<void>;
@@ -736,6 +739,74 @@ export const useCraftStore = create<CraftState>((set, get) => {
       commit(next);
       void persistLocal(next, assetId);
     },
+
+    /**
+     * Runs Grok generation for every post in the week that doesn't already have a saved
+     * board, and persists the bespoke still into each post's own document — so opening any
+     * post later finds it already there instead of falling back to a generic stock photo.
+     */
+    generateStillsForWeek: async (posts, briefs) => {
+      const pullImage = async (jobId: string): Promise<string> => {
+        const file = await fetch(`/api/craft/yaffle/jobs/${jobId}/image`, { credentials: "include" });
+        if (!file.ok) throw new Error("Still missing");
+        const blob = await file.blob();
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(new Error("Could not read still"));
+          reader.readAsDataURL(blob);
+        });
+      };
+
+      const results = await Promise.allSettled(
+        posts.map(async (post) => {
+          const existing = await loadCraftForAsset(post.id);
+          if (existing) return;
+
+          const ammo = ammoForPost(briefs, post);
+          const prompt = ammo ? yafflePromptFromAmmo(ammo) : post.visual?.prompt || post.hook;
+          if (!prompt?.trim()) return;
+
+          const res = await fetch("/api/craft/yaffle/image", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ postId: post.id, prompt }),
+          });
+          if (!res.ok) throw new Error(`Still generation failed for ${post.id}`);
+          const job = (await res.json()) as { id: string; state?: string };
+
+          let dataUrl: string;
+          if (job.state === "ready") {
+            dataUrl = await pullImage(job.id);
+          } else {
+            dataUrl = await (async () => {
+              for (let i = 0; i < 90; i++) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                const statusRes = await fetch(`/api/craft/yaffle/jobs/${job.id}`, { credentials: "include" });
+                const status = (await statusRes.json()) as { state?: string; error?: string; message?: string };
+                if (status.state === "ready") return pullImage(job.id);
+                if (status.state === "error") throw new Error(status.error || status.message || "Images failed");
+              }
+              throw new Error("Images timed out.");
+            })();
+          }
+
+          const saved = loadBrandKit();
+          const brand = saved.name && saved.name !== "Studio" ? saved : STRATA_BRAND;
+          const logo = loadBrandLogo();
+          let doc = composeSocialPost(post, brand, logo);
+          doc = applyPostCopy(doc, post);
+          const asset: CraftAsset = { id: `visual_${post.id}`, name: "Generated still", mime: "image/png", dataUrl };
+          doc = applyCreativeDirection(applyPostVisual(doc, asset, "plain"), post);
+          await persistLocal(doc, post.id);
+        }),
+      );
+
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed) toast.error(`${failed} still${failed === 1 ? "" : "s"} could not be generated`);
+    },
+
     applyLook: (look) => {
       const { doc, pageId, selectedIds } = get();
       if (!doc || !selectedIds.length) return;

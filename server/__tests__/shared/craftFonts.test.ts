@@ -9,7 +9,7 @@ describe("Craft type and shape palettes", () => {
     expect(STRATA_SITE_FONTS).toEqual(["Unbounded", "Plus Jakarta Sans", "Space Mono"]);
     expect(SYSTEM_FONTS.slice(0, 3)).toEqual(STRATA_SITE_FONTS);
     expect(STRATA_BRAND.headingFont).toBe("Unbounded");
-    expect(STRATA_BRAND.bodyFont).toBe("Plus Jakarta Sans");
+    expect(STRATA_BRAND.bodyFont).toBe("Inter");
     expect(documentFonts(null)).toContain("Unbounded");
     expect(documentFonts(null)).toContain("Plus Jakarta Sans");
     expect(documentFonts(null)).toContain("Lexend");

@@ -19,7 +19,7 @@ describe("LinkedIn banner template", () => {
 
     const doc = documentFromTemplate("linkedin-banner");
     const page = doc.pages[0]!;
-    expect(doc.title).toBe("LinkedIn Banner");
+    expect(doc.title).toBe("LinkedIn Cover");
     expect(page.presetId).toBe("linkedin");
     expect(page.width).toBe(BANNER_W);
     expect(page.height).toBe(BANNER_H);
