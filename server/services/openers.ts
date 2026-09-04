@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { countLiveNonBankCharges, isLiveCharge } from "@shared/chargeClassifier";
 import { isOpenedOutboundMail, lastMailOpenAt } from "@shared/mailTracking";
 import {
   applyOpenEvent,
@@ -11,7 +12,14 @@ import {
   openedMailEvents,
   type OpenerRecord,
 } from "@shared/openers";
+import { companiesHouseClient } from "../utils/companiesHouseClient";
 import type { AgentMailItem } from "./agentMailLog";
+
+export type OpenerChClient = {
+  getCompanyProfile(n: string): Promise<any>;
+  getCompanyOfficers(n: string): Promise<any>;
+  getCompanyCharges(n: string): Promise<any>;
+};
 
 export const OPENERS_STORE = path.resolve(process.cwd(), "uploads", "openers.json");
 
@@ -211,4 +219,130 @@ export function hydrateFromAgentMail(
     applyOpenedMail(mail, resolve, event.openCount, true);
   }
   return listOpeners();
+}
+
+function asItems(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
+function addressSnippet(address: any): string | undefined {
+  if (!address || typeof address !== "object") return undefined;
+  const parts = [
+    address.premises,
+    address.address_line_1,
+    address.address_line_2,
+    address.locality,
+    address.region,
+    address.postal_code,
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : undefined;
+}
+
+export function snapshotFromCompaniesHouse(
+  profile: any,
+  officers: any,
+  charges: any
+): Partial<OpenerRecord> {
+  const officerItems = asItems(officers);
+  const chargeItems = asItems(charges);
+
+  const directors = officerItems
+    .filter((officer) => !officer?.resigned_on)
+    .map((officer) => ({
+      name: String(officer?.name || ""),
+      role: officer?.officer_role,
+    }))
+    .filter((officer) => officer.name);
+
+  const liveCharges = chargeItems
+    .filter((charge) => isLiveCharge(charge?.status))
+    .map((charge) => ({
+      chargee: charge?.persons_entitled?.[0]?.name,
+      status: charge?.status,
+      createdOn: charge?.delivered_on || charge?.created_on,
+    }));
+
+  const nonBankChargeCount = countLiveNonBankCharges(
+    chargeItems.map((charge) => ({
+      status: charge?.status,
+      personsEntitled: (charge?.persons_entitled || [])
+        .map((person: any) => person?.name)
+        .filter(Boolean),
+    }))
+  );
+
+  return {
+    companyName: profile?.company_name,
+    companyStatus: profile?.company_status,
+    sicCodes: Array.isArray(profile?.sic_codes) ? profile.sic_codes : [],
+    dateOfCreation: profile?.date_of_creation,
+    address: addressSnippet(profile?.registered_office_address),
+    directors,
+    liveCharges,
+    nonBankChargeCount,
+  };
+}
+
+function requireOpener(id: string): OpenerRecord {
+  const opener = getOpener(id);
+  if (!opener) throw new Error(`Opener not found: ${id}`);
+  return opener;
+}
+
+export async function enrichOpener(
+  id: string,
+  client: OpenerChClient = companiesHouseClient
+): Promise<OpenerRecord> {
+  const current = requireOpener(id);
+  if (!current.companyNumber) return current;
+
+  try {
+    const [profile, officers, charges] = await Promise.all([
+      client.getCompanyProfile(current.companyNumber),
+      client.getCompanyOfficers(current.companyNumber),
+      client.getCompanyCharges(current.companyNumber),
+    ]);
+    if (!profile) {
+      return patchOpener(id, { enrichError: "Companies House profile not found" }) ?? current;
+    }
+    const snapshot = snapshotFromCompaniesHouse(profile, officers, charges);
+    return (
+      patchOpener(id, {
+        ...snapshot,
+        enrichedAt: new Date().toISOString(),
+        enrichError: undefined,
+      }) ?? current
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return patchOpener(id, { enrichError: message }) ?? current;
+  }
+}
+
+export async function attachCompanyNumber(
+  id: string,
+  companyNumber: string,
+  client: OpenerChClient = companiesHouseClient
+): Promise<OpenerRecord> {
+  const current = requireOpener(id);
+  const number = normalizeCompanyNumber(companyNumber);
+  const duplicate = findByCompany(
+    readOpeners().filter((row) => row.id !== id),
+    number
+  );
+
+  let opener: OpenerRecord = normalizeOpener({
+    ...current,
+    companyNumber: number || undefined,
+    updatedAt: new Date().toISOString(),
+  });
+  let dropId: string | undefined;
+  if (duplicate) {
+    opener = mergeOpeners(opener, duplicate);
+    dropId = duplicate.id;
+  }
+  saveOpener(opener, dropId);
+  return enrichOpener(opener.id, client);
 }

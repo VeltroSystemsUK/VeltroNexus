@@ -4,9 +4,12 @@ import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentMailItem } from "../../services/agentMailLog";
 import {
+  attachCompanyNumber,
+  enrichOpener,
   hydrateFromAgentMail,
   setOpenersStorePathForTests,
   upsertOpenerFromMail,
+  type OpenerChClient,
 } from "../../services/openers";
 
 const storeFiles = new Set<string>();
@@ -97,5 +100,59 @@ describe("hydrateFromAgentMail", () => {
       mail({ id: "mail-3", to: "other@hale.co.uk", opens: ["2026-09-02T10:00:00.000Z"] }),
     ]);
     expect(rows.length).toBe(2);
+  });
+});
+
+const fakeCh: OpenerChClient = {
+  async getCompanyProfile() {
+    return {
+      company_name: "NORTHPEAK JOINERY LTD",
+      company_status: "active",
+      sic_codes: ["16230"],
+      date_of_creation: "2018-04-01",
+      registered_office_address: { address_line_1: "1 Mill Lane", locality: "Leeds", postal_code: "LS1 1AA" },
+    };
+  },
+  async getCompanyOfficers() {
+    return { items: [{ name: "PEAK, Nora", officer_role: "director" }, { name: "GONE, Ian", officer_role: "director", resigned_on: "2020-01-01" }] };
+  },
+  async getCompanyCharges() {
+    return {
+      items: [
+        { status: "outstanding", delivered_on: "2026-01-01", persons_entitled: [{ name: "HIVE INVOICE FINANCE LTD" }] },
+        { status: "satisfied", persons_entitled: [{ name: "HSBC UK BANK PLC" }] },
+      ],
+    };
+  },
+};
+
+describe("Companies House identity", () => {
+  it("enriches CH identity once a number is attached", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    const attached = await attachCompanyNumber(created.id, "8765432", fakeCh);
+    expect(attached.companyNumber).toBe("08765432");
+    expect(attached.companyName).toBe("NORTHPEAK JOINERY LTD");
+    expect(attached.directors.map((d) => d.name)).toEqual(["PEAK, Nora"]);
+    expect(attached.nonBankChargeCount).toBe(1);
+    expect(attached.enrichedAt).toBeTruthy();
+    expect(attached.enrichError).toBeUndefined();
+  });
+
+  it("stores enrichError when CH fails and keeps the card", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await attachCompanyNumber(created.id, "08765432", {
+      async getCompanyProfile() { throw new Error("CH down"); },
+      async getCompanyOfficers() { return { items: [] }; },
+      async getCompanyCharges() { return { items: [] }; },
+    });
+    const row = await enrichOpener(created.id, {
+      async getCompanyProfile() { throw new Error("CH down"); },
+      async getCompanyOfficers() { return { items: [] }; },
+      async getCompanyCharges() { return { items: [] }; },
+    });
+    expect(row.email).toBe("ops@northpeak.co.uk");
+    expect(row.enrichError).toMatch(/CH down/);
   });
 });
