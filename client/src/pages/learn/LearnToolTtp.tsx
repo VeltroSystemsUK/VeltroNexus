@@ -7,7 +7,7 @@ export default function LearnToolTtp() {
   const [arrears, setArrears] = useState(10000);
   const [periodMonths, setPeriodMonths] = useState(12);
   const [includeInterest, setIncludeInterest] = useState(false);
-  const [annualRatePercent, setAnnualRatePercent] = useState(7.75);
+  const [annualRatePercent, setAnnualRatePercent] = useState(7.5);
 
   useEffect(() => {
     setLearnMeta(
