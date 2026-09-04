@@ -76,6 +76,16 @@ describe("opens and merge", () => {
     expect(merged.prospectId).toBe(99);
     expect(merged.status).toBe("promoted");
   });
+
+  it("unions mail ids when merging cards", () => {
+    const a = opener({ mailIds: ["mail-1"] });
+    const b = opener({
+      id: "op-2",
+      email: "james@northpeak.co.uk",
+      mailIds: ["mail-2"],
+    });
+    expect(mergeOpeners(a, b).mailIds?.sort()).toEqual(["mail-1", "mail-2"]);
+  });
 });
 
 describe("nurture", () => {

@@ -42,6 +42,7 @@ export type OpenerRecord = {
   firstOpenedAt: string;
   lastOpenedAt: string;
   openCount: number;
+  mailIds?: string[];
   lastTouchAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -132,6 +133,7 @@ export function normalizeOpener(
     firstOpenedAt: input.firstOpenedAt ?? stamp,
     lastOpenedAt: input.lastOpenedAt ?? input.firstOpenedAt ?? stamp,
     openCount: input.openCount ?? 0,
+    mailIds: input.mailIds,
     lastTouchAt: input.lastTouchAt,
     createdAt: input.createdAt ?? stamp,
     updatedAt: input.updatedAt ?? stamp,
@@ -197,6 +199,7 @@ export function mergeOpeners(keeper: OpenerRecord, incoming: OpenerRecord): Open
     firstOpenedAt,
     lastOpenedAt,
     openCount: keeper.openCount + incoming.openCount,
+    mailIds: [...new Set([...(keeper.mailIds || []), ...(incoming.mailIds || [])])],
     lastTouchAt:
       keeper.lastTouchAt && incoming.lastTouchAt
         ? Date.parse(keeper.lastTouchAt) >= Date.parse(incoming.lastTouchAt)

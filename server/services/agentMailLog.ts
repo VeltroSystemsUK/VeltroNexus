@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import { storage } from "../storage";
+import { upsertOpenerFromMail } from "./openers";
 
 export type MailDirection = "outbound" | "inbound";
 
@@ -92,6 +93,11 @@ export function recordOpen(id: string): AgentMailItem | undefined {
   if (!item) return undefined;
   item.opens = [...(item.opens || []), new Date().toISOString()];
   writeAll(all);
+  try {
+    upsertOpenerFromMail(item);
+  } catch (error: any) {
+    console.warn("[Openers] upsert after open failed:", error?.message || error);
+  }
   return item;
 }
 
