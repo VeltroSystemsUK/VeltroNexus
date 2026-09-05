@@ -1,8 +1,18 @@
 import { Router } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
-import { isAuthenticated } from "../auth";
+import { hashPassword, isAuthenticated } from "../auth";
 import { User } from "@shared/schema";
 import { discoverNewLenders } from "../services/discoveryService";
+import { toPublicUser } from "../utils/publicUser";
+
+const adminUserPatchSchema = z.object({
+    role: z.enum(["broker", "underwriter", "sales_admin", "super_admin"]).optional(),
+    subscriptionTier: z.string().min(1).max(40).optional(),
+    suspended: z.boolean().optional(),
+    prospectLimit: z.number().int().min(0).max(1_000_000).optional(),
+    password: z.string().min(8).max(200).optional(),
+});
 
 const router = Router();
 
@@ -26,8 +36,7 @@ router.use(requireAdmin);
 router.get("/users", async (req, res) => {
     try {
         const users = await storage.getAllUsers();
-        // Filter sensitive data if needed, but for admins usually fine
-        res.json(users);
+        res.json(users.map((row) => toPublicUser(row as any)));
     } catch (error) {
         console.error("Admin: Failed to fetch users", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -39,7 +48,14 @@ router.patch("/users/:id", async (req, res) => {
     try {
         const userId = req.params.id;
         const currentUser = req.user as User;
-        const updates = req.body;
+        const parsed = adminUserPatchSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({ error: "Invalid user update" });
+        }
+        const updates: Record<string, unknown> = { ...parsed.data };
+        if (typeof updates.password === "string") {
+            updates.password = await hashPassword(updates.password);
+        }
 
         // Prevent self-lockout (cannot suspend/delete/demote self)
         if (userId === currentUser.id) {
@@ -60,8 +76,8 @@ router.patch("/users/:id", async (req, res) => {
             return res.status(403).json({ error: "Cannot modify Super Admin accounts" });
         }
 
-        const updatedUser = await storage.updateUser(userId, updates);
-        res.json(updatedUser);
+        const updatedUser = await storage.updateUser(userId, updates as any);
+        res.json(toPublicUser(updatedUser as any));
     } catch (error) {
         console.error("Admin: Failed to update user", error);
         res.status(500).json({ error: "Update failed" });

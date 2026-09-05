@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { CDFI, InsertCDFI, UpdateCDFI, cdfiSchema, insertCdfiSchema, updateCdfiSchema } from "../../shared/schema.js";
 import { isAuthenticated } from "../auth.js";
+import { requireOps } from "../utils/opsAuth.js";
 import { ukCdfis } from "../data/cdfis.js";
 import { CHECKLIST_SECTIONS } from "../../shared/checklistData.js";
 
@@ -16,7 +17,7 @@ const DEFAULT_APPLICATION_REQUIREMENTS = CHECKLIST_SECTIONS.flatMap((section) =>
 const router = Router();
 
 // Initialize database tables
-router.post("/init", async (req, res) => {
+router.post("/init", isAuthenticated, requireOps, async (req, res) => {
   try {
     // Create tables if they don't exist
     db.run(`
@@ -61,7 +62,7 @@ router.post("/init", async (req, res) => {
 });
 
 // Seed database with UK CDFIs (public endpoint for initialization)
-router.post("/seed", async (req, res) => {
+router.post("/seed", isAuthenticated, requireOps, async (req, res) => {
   try {
     const userId = req.body.userId || "system";
 

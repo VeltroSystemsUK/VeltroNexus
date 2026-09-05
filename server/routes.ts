@@ -23,7 +23,7 @@ import path from "path";
 import { storage, MOCK_DEV_ADMIN_ID } from "./storage";
 import { zeusService } from "./services/zeusService";
 import { generateText, DEFAULT_GEMINI_MODEL } from "./utils/geminiClient";
-import { setupAuth, isAuthenticated, csrfProtection } from "./auth";
+import { isAuthenticated } from "./auth";
 import { formatOfficerName } from "./utils/formatters";
 import { emailVerificationService } from "./services/emailVerification";
 import { agentService } from "./services/agentService";
@@ -61,7 +61,6 @@ import { generatePipelineExcel } from "./utils/excelExporter";
 import { getSicDescription } from "./utils/sicCodeLookup";
 import { createErrorResponse } from "./utils/errorResponse";
 import { handleApiError, logUnderwritingAudit } from "./utils/errorHandler";
-import { rateLimitMiddleware } from "./utils/rateLimit";
 import {
   wrapAiRequest,
   requirePremiumAndConsent,
@@ -349,7 +348,10 @@ export async function registerRoutes(app: Application): Promise<Server> {
     isAuthenticated,
     async (req: AuthenticatedRequest, res: Response) => {
       const { companyName } = req.body;
-      const EXA_API_KEY = process.env.EXA_API_KEY || "5f958428-21f8-417d-8692-a16223758362";
+      const EXA_API_KEY = process.env.EXA_API_KEY?.trim();
+      if (!EXA_API_KEY) {
+        return res.status(503).json({ error: "EXA_API_KEY is not configured" });
+      }
 
       if (!companyName) return res.status(400).json({ error: "Company name is required" });
 
@@ -527,15 +529,8 @@ export async function registerRoutes(app: Application): Promise<Server> {
     });
   });
 
-  // Workforce routes must be registered BEFORE CSRF (SSE streaming incompatible with CSRF tokens)
+  // Workforce SSE is GET (CSRF skipped). CSRF is mounted in index.ts after setupAuth.
   app.use("/api", workforceRouter);
-
-  // CSRF protection for all state-changing requests
-  app.use(csrfProtection);
-
-  // Rate limiting middleware (Redis-backed with memory fallback)
-  // Applied after auth so req.user is available for user-keyed limits
-  app.use(rateLimitMiddleware());
 
   // God Mode Routes (Must be after Auth)
   app.use("/api/god/crm", crmRouter);
@@ -1208,6 +1203,10 @@ export async function registerRoutes(app: Application): Promise<Server> {
 
   app.post("/api/lead-finder/run", isAuthenticated, async (req, res) => {
     try {
+      const { isOpsUser } = await import("./utils/opsAuth");
+      if (!isOpsUser(req.user as any)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       const { instruction } = req.body;
       if (!instruction) return res.status(400).json({ error: "Instruction required" });
 

@@ -5,6 +5,7 @@ import busboy from "busboy";
 import { z } from "zod";
 import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
+import { toPublicUser } from "../utils/publicUser";
 import { handleApiError } from "../utils/errorHandler";
 import { createErrorResponse } from "../utils/errorResponse";
 import { fromZodError } from "zod-validation-error";
@@ -19,7 +20,7 @@ router.get("/auth/user", isAuthenticated, async (req: Request, res: Response) =>
       const user = await storage.getUser(userId);
       // Add no-store cache header for sensitive auth data
       res.setHeader("Cache-Control", "no-store");
-      res.json(user);
+      res.json(toPublicUser(user as any));
     } catch (error) {
       console.error("Error fetching user:", error);
       res
@@ -108,7 +109,7 @@ router.patch(
           return res.status(404).json(createErrorResponse("User not found", 404, (req as any).requestId));
         }
 
-        res.json(updatedUser);
+        res.json(toPublicUser(updatedUser as any));
       } catch (error: any) {
         console.error("Error updating user settings:", error);
         res
@@ -575,7 +576,7 @@ router.get("/admin/users", isAuthenticated, async (req: Request, res: Response) 
       }
 
       const users = await storage.getAllUsers();
-      res.json(users);
+      res.json(users.map((row) => toPublicUser(row as any)));
     } catch (error) {
       handleApiError(res, error, "api-error");
     }
@@ -759,7 +760,7 @@ router.get("/users", isAuthenticated, async (req: Request, res: Response) => {
       }
 
       const users = await storage.getAllUsers();
-      res.json(users);
+      res.json(users.map((row) => toPublicUser(row as any)));
     } catch (error) {
       handleApiError(res, error, "api-error");
     }

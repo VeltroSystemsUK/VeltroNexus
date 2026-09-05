@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { isAuthenticated } from "../auth";
+import { requireOps } from "../utils/opsAuth";
 import { handleApiError } from "../utils/errorHandler";
 import { storage } from "../storage";
 import { agenticWorkflow } from "../services/agenticWorkflow";
@@ -75,7 +76,7 @@ router.get("/api/agentic/outreach-templates", isAuthenticated, async (_req, res)
   }
 });
 
-router.put("/api/agentic/outreach-templates/:id", isAuthenticated, async (req, res) => {
+router.put("/api/agentic/outreach-templates/:id", isAuthenticated, requireOps, async (req, res) => {
   try {
     const id = req.params.id;
     if (!EDITABLE_OUTREACH_TOUCHES.includes(id as any)) return res.status(404).json({ error: "Unknown outreach template" });
@@ -106,7 +107,7 @@ router.put("/api/agentic/outreach-templates/:id", isAuthenticated, async (req, r
   }
 });
 
-router.delete("/api/agentic/outreach-templates/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/agentic/outreach-templates/:id", isAuthenticated, requireOps, async (req, res) => {
   try {
     const id = req.params.id;
     if (!EDITABLE_OUTREACH_TOUCHES.includes(id as any)) return res.status(404).json({ error: "Unknown outreach template" });
@@ -144,7 +145,7 @@ router.delete("/api/agentic/quarantine/:id", isAuthenticated, async (req, res) =
   }
 });
 
-router.post("/api/agentic/quarantine/purge", isAuthenticated, async (_req, res) => {
+router.post("/api/agentic/quarantine/purge", isAuthenticated, requireOps, async (_req, res) => {
   try {
     res.json(await agenticWorkflow.purgeQuarantine());
   } catch (error) {
@@ -187,7 +188,7 @@ router.post("/api/agentic/scan", isAuthenticated, async (_req, res) => {
   }
 });
 
-router.post("/api/agentic/outreach/approve-queue", isAuthenticated, async (_req, res) => {
+router.post("/api/agentic/outreach/approve-queue", isAuthenticated, requireOps, async (_req, res) => {
   try {
     res.json(await agenticWorkflow.approveSmeQueue());
   } catch (error) {
@@ -232,7 +233,7 @@ router.put("/api/agentic/factory-graph-overrides", isAuthenticated, async (req, 
   }
 });
 
-router.delete("/api/agentic/deals/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/agentic/deals/:id", isAuthenticated, requireOps, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const deal = await storage.getAgenticDeal(id);

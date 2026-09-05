@@ -7,6 +7,8 @@ import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 import { rateLimitMiddleware } from "./utils/rateLimit";
+import { toPublicUser } from "./utils/publicUser";
+import { buildRegistrationUser } from "./utils/registrationFields";
 
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -155,34 +157,13 @@ export async function setupAuth(app: Express) {
             }
 
             const hashedPassword = await hashPassword(req.body.password);
-
-            // Handle trial setup based on selected plan
-            const trialTier = req.body.trialTier;
-            let subscriptionTier = "free";
-            let prospectLimit = 10;
-            let trialEndsAt = null;
-
-            if (trialTier === "broker" || trialTier === "team") {
-                trialEndsAt = new Date();
-                trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-                subscriptionTier = trialTier;
-                prospectLimit = trialTier === "broker" ? 50 : 250;
-            }
-
-            const user = await storage.createUser({
-                ...req.body,
-                email: normalizedEmail,
-                password: hashedPassword,
-                role: 'broker',
-                subscriptionTier,
-                prospectLimit,
-                trialTier: trialTier || null,
-                trialEndsAt,
-            });
+            const user = await storage.createUser(
+                buildRegistrationUser({ ...req.body, email: normalizedEmail }, hashedPassword)
+            );
 
             req.login(user, (err) => {
                 if (err) return next(err);
-                res.status(201).json(user);
+                res.status(201).json(toPublicUser(user as any));
             });
         } catch (error) {
             next(error);
@@ -211,7 +192,7 @@ export async function setupAuth(app: Express) {
                     if ((user as SelectUser).id === DEV_USER_ID) {
                         return req.session.save((saveErr) => {
                             if (saveErr) return next(saveErr);
-                            res.json(user);
+                            res.json(toPublicUser(user as any));
                         });
                     }
 
@@ -226,7 +207,7 @@ export async function setupAuth(app: Express) {
                     // completes before the client receives the user object and redirects
                     req.session.save((saveErr) => {
                         if (saveErr) return next(saveErr);
-                        res.json(user);
+                        res.json(toPublicUser(user as any));
                     });
                 });
             });
@@ -271,7 +252,7 @@ export async function setupAuth(app: Express) {
 
     app.get("/api/user", (req, res) => {
         if (req.isAuthenticated()) {
-            res.json(req.user);
+            res.json(toPublicUser(req.user as any));
         } else {
             res.sendStatus(401);
         }
@@ -285,7 +266,7 @@ export async function setupAuth(app: Express) {
                 const fullUser = await storage.getUser(user.id);
                 res.setHeader("Cache-Control", "no-store");
                 res.json({
-                    user,
+                    user: toPublicUser(user as any),
                     role: fullUser?.role || "broker",
                     isAuthenticated: true
                 });
@@ -317,9 +298,18 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
     res.status(401).send("Not authenticated");
 }
 
+function isCsrfExemptPath(requestPath: string): boolean {
+    const path = requestPath.split("?")[0] || "";
+    if (path === "/api/agent-mail/inbound" || path.startsWith("/api/agent-mail/inbound/")) return true;
+    return ["/api/webhooks", "/api/pack", "/api/inbound", "/api/telnyx"].some(
+        (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+    );
+}
+
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
     // Safe methods carry no state changes — skip check
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    if (isCsrfExemptPath(req.path || req.originalUrl || "")) return next();
 
     // In production, enforce Origin-header verification.
     // Same-origin requests from the SPA always include an Origin matching the Host.

@@ -30,6 +30,10 @@ describe("Security Integration Tests", () => {
       app.delete("/api/test", (req, res) => res.json({ success: true }));
 
       app.post("/api/webhooks/test", (req, res) => res.json({ success: true }));
+      app.post("/api/pack/token/files", (req, res) => res.json({ success: true }));
+      app.post("/api/inbound/refinance", (req, res) => res.json({ success: true }));
+      app.post("/api/telnyx/voice", (req, res) => res.json({ success: true }));
+      app.post("/api/agent-mail/inbound", (req, res) => res.json({ success: true }));
     });
 
     afterAll(() => {
@@ -90,10 +94,23 @@ describe("Security Integration Tests", () => {
       expect(response.body.error).toContain("CSRF");
     });
 
-    it("should block POST without Origin (fail closed, including webhook paths)", async () => {
-      const response = await request(app).post("/api/webhooks/test").send({ data: "test" });
+    it("should block POST without Origin on session APIs", async () => {
+      const response = await request(app).post("/api/test").send({ data: "test" });
       expect(response.status).toBe(403);
       expect(response.body.error).toContain("missing origin");
+    });
+
+    it("should exempt signature-checked webhook and pack paths from Origin CSRF", async () => {
+      const webhook = await request(app).post("/api/webhooks/test").send({ data: "test" });
+      expect(webhook.status).toBe(200);
+      const pack = await request(app).post("/api/pack/token/files").send({});
+      expect(pack.status).toBe(200);
+      const inbound = await request(app).post("/api/inbound/refinance").send({});
+      expect(inbound.status).toBe(200);
+      const telnyx = await request(app).post("/api/telnyx/voice").send({});
+      expect(telnyx.status).toBe(200);
+      const mail = await request(app).post("/api/agent-mail/inbound").send({});
+      expect(mail.status).toBe(200);
     });
 
     it("should handle invalid Origin URL gracefully", async () => {

@@ -1,32 +1,31 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { leadScoring } from "./leadScoringService";
 import { storage } from "../storage";
 import { Campaign } from "@shared/schema";
-import * as path from 'path';
+import * as path from "path";
+import { isSafeCampaignArg } from "../utils/shellArgs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export class ScraperService {
     async runCampaign(campaign: Campaign) {
         console.log(`🚀 [ScraperService] Starting Campaign: ${campaign.name} (ID: ${campaign.id})`);
 
         try {
-            // 1. Construct Command
-            let args = `--json`;
-            if (campaign.type === 'region') {
-                args += ` --location "${campaign.value}"`;
-            } else if (campaign.type === 'sector') {
-                args += ` --sic_codes "${campaign.value}"`;
+            if (campaign.value && !isSafeCampaignArg(campaign.value)) {
+                throw new Error("Invalid campaign value");
             }
-
-            // Execute Python Scraper
-            // Use --env-file=.env if running via tsx, but here we are inside node execution from index.ts 
-            // which should have env vars loaded (except index.ts uses dotenv flow?). 
-            // exec inherits process.env by default.
-            const { stdout, stderr } = await execAsync(`python scripts/debt_marker_scraper.py ${args}`, {
-                maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                env: process.env
+            const scriptPath = path.resolve(process.cwd(), "scripts", "debt_marker_scraper.py");
+            const args = ["--json"];
+            if (campaign.type === "region") {
+                args.push("--location", campaign.value);
+            } else if (campaign.type === "sector") {
+                args.push("--sic_codes", campaign.value);
+            }
+            const { stdout, stderr } = await execFileAsync("python", [scriptPath, ...args], {
+                maxBuffer: 1024 * 1024 * 10,
+                env: process.env,
             });
 
             if (stderr) console.log("[Scraper Logs]:", stderr);

@@ -6,11 +6,13 @@ import { resolve } from "path";
 const BROKER_DB_PATH = process.env['BROKER_DATABASE_PATH'] ?? resolve("./broker_finder.db");
 import { storage } from "../storage";
 import { insertBrokerLeadSchema } from "@shared/schema";
+import { isAuthenticated } from "../auth";
 
 const router = Router();
 
 // Ensure DB is initialized (its own file, isolated from lead_finder.db by path alone)
 initDb(BROKER_DB_PATH);
+router.use(isAuthenticated);
 
 // GET /results - Fetch all broker prospects
 router.get("/results", (req, res) => {

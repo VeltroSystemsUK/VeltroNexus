@@ -3,6 +3,7 @@ import { LeadFinderAgent } from "../Lead Agent/src/agent";
 import { getRunStats, deleteBusiness, clearAllBusinesses, getBusinessesForExport, getBusinessByPlaceId, initDb, updateBusinessContact, markBusinessAsMigrated } from "../Lead Agent/src/database/db";
 import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
+import { requireOps } from "../utils/opsAuth";
 import automationRouter from "./leadFinderAutomation.js";
 
 const router = Router();
@@ -46,7 +47,7 @@ router.get("/status", (req, res) => {
 });
 
 // POST /run - Trigger the agent
-router.post("/run", async (req, res) => {
+router.post("/run", requireOps, async (req, res) => {
     try {
         const { instruction } = req.body;
         if (!instruction) return res.status(400).json({ error: "Instruction required" });
@@ -77,7 +78,7 @@ router.post("/run", async (req, res) => {
 
 
 // DELETE /all - Wipe all leads
-router.delete("/all", (req, res) => {
+router.delete("/all", requireOps, (req, res) => {
     try {
         clearAllBusinesses();
         res.json({ success: true });

@@ -2,6 +2,9 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import { createRequire } from "module";
+import { leadFinderSpawnSpec } from "../utils/shellArgs";
+
+const TSX_CLI = path.join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
 
 const require = createRequire(import.meta.url);
 
@@ -47,9 +50,14 @@ export const leadFinderService = {
 
             // Spawn tsx process
             // Assuming 'npx' is in path.
-            const pythonProcess = spawn("npx", ["tsx", CLI_PATH, "agent", instruction], {
+            const spec = leadFinderSpawnSpec(instruction, {
+                execPath: process.execPath,
+                tsxCli: TSX_CLI,
+                cliPath: CLI_PATH,
+            });
+            const pythonProcess = spawn(spec.command, spec.args, {
                 cwd: AGENT_DIR,
-                shell: true, // Use shell to ensure npx is found on Windows
+                shell: spec.shell,
                 env: { ...process.env, PYTHONIOENCODING: 'utf-8', TERM: 'dumb', FORCE_COLOR: '0', PYTHONUNBUFFERED: '1' }
             });
 
@@ -91,9 +99,9 @@ export const leadFinderService = {
      */
     async getStatus(): Promise<LeadFinderStatus> {
         return new Promise((resolve, reject) => {
-            const pythonProcess = spawn("npx", ["tsx", CLI_PATH, "status"], {
+            const pythonProcess = spawn(process.execPath, [TSX_CLI, CLI_PATH, "status"], {
                 cwd: AGENT_DIR,
-                shell: true,
+                shell: false,
                 env: process.env
             });
 

@@ -1,11 +1,11 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { DeltaOutput } from "../data/deltaCalculator";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Refinancing Workflow Service
@@ -44,9 +44,10 @@ export class RefinancingWorkflowService {
             // Write JSON to temp file to avoid command line escaping issues
             await fs.writeFile(tempFile, JSON.stringify(reportData));
 
-            const { stdout, stderr } = await execAsync(
-                `python scripts/generate_recovery_report.py "${tempFile}"`
-            );
+            const { stdout, stderr } = await execFileAsync("python", [
+                path.resolve(process.cwd(), "scripts", "generate_recovery_report.py"),
+                tempFile,
+            ]);
 
             if (stderr) {
                 console.error("[Workflow] Report generation stderr:", stderr);

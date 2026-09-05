@@ -12,8 +12,7 @@ import {
 import crypto from "crypto";
 
 // import { getStripeSync } from "./stripeClient"; // REMOVED
-import { WebhookHandlers } from "./webhookHandlers";
-import { setupAuth } from "./auth";
+import { csrfProtection, setupAuth } from "./auth";
 import { agentService } from "./services/agentService";
 import { validateEnv } from "./config";
 import { isStrataEmbedPath, mountStrataEmbed } from "./strataEmbed";
@@ -207,6 +206,9 @@ app.use((req: any, res, next) => {
 
     // Setup authentication - MUST be before registerRoutes
     await setupAuth(app as any);
+    // CSRF after session/passport so later routers are covered; auth routes
+    // registered inside setupAuth stay as they were. Exempt paths are in csrfProtection.
+    app.use(csrfProtection);
 
     const server = await registerRoutes(app);
     mountStrataEmbed(app);

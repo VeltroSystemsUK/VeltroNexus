@@ -348,7 +348,8 @@ export function rateLimitMiddleware() {
             : "none";
           key = `apikey:${keyHash}:${path.split("/").slice(0, 4).join("/")}`;
         } else if (rule.keyType === "user") {
-          const userId = req.user?.claims?.sub;
+          const authed = req.user as { id?: string; claims?: { sub?: string } } | undefined;
+          const userId = authed?.id || authed?.claims?.sub;
           if (!userId) {
             // Fall back to IP if not authenticated
             key = `ip:${req.ip || "unknown"}:${path.split("/").slice(0, 4).join("/")}`;

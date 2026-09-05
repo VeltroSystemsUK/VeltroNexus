@@ -54,6 +54,12 @@ cypress/screenshots/
 # --- Logs ---
 logs/
 *.log
+logs.json
+logs_*.json
+
+# --- Debug / local secrets that must never be committed ---
+cookies.txt
+leads.csv
 
 # --- Runtime / Uploads / Temp ---
 docker/firecrawl-src/

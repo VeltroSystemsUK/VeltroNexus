@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { requireGodMode } from "../utils/godModeAuth";
 import { User } from "@shared/schema";
+import { toPublicUser } from "../utils/publicUser";
 
 const router = Router();
 
@@ -13,7 +14,7 @@ router.get("/users", async (req, res) => {
     console.log("[API] /api/god/users hit");
     try {
         const users = await storage.getAllUsers();
-        res.json(users);
+        res.json(users.map((row) => toPublicUser(row as any)));
     } catch (error) {
         console.error("God Mode: Failed to fetch users", error);
         res.status(500).json({ error: "Internal Server Error" });

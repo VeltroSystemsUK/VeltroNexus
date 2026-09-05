@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import { storage } from "../storage";
 import { upsertOpenerFromMail } from "./openers";
+import { withJsonFileLock } from "../utils/jsonFileLock";
 
 export type MailDirection = "outbound" | "inbound";
 
@@ -159,12 +160,14 @@ function writeAll(items: AgentMailItem[]) {
   const file = storePath();
   const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  try {
-    snapshotLiveStore(items);
-  } catch (error: any) {
-    console.warn("[AgentMail] backup failed:", error?.message || error);
-  }
-  fs.writeFileSync(file, JSON.stringify(items, null, 2));
+  withJsonFileLock(file, () => {
+    try {
+      snapshotLiveStore(items);
+    } catch (error: any) {
+      console.warn("[AgentMail] backup failed:", error?.message || error);
+    }
+    fs.writeFileSync(file, JSON.stringify(items, null, 2));
+  });
 }
 
 export function listAgentMail(limit = 200): AgentMailItem[] {

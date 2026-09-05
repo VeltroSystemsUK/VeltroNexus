@@ -1,8 +1,9 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import path from "path";
+import { isSafeCompanyNumber } from "../utils/shellArgs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface FinancialHealth {
     netAssets: number | null;
@@ -19,13 +20,13 @@ export interface FinancialHealth {
 export class IxbrlService {
     async auditCompany(companyNumber: string): Promise<FinancialHealth> {
         try {
+            if (!isSafeCompanyNumber(companyNumber)) {
+                return this.getEmptyMetrics();
+            }
             const scriptPath = path.resolve(process.cwd(), "scripts", "ixbrl_parser.py");
-
-            // Execute python script
-            // Pass env vars explicitly, ensuring API key is present
-            const { stdout, stderr } = await execAsync(`python "${scriptPath}" "${companyNumber}"`, {
-                maxBuffer: 1024 * 1024 * 5, // 5MB
-                env: process.env // Inherit all env vars (including API Key from .env loaded by app)
+            const { stdout, stderr } = await execFileAsync("python", [scriptPath, companyNumber.trim()], {
+                maxBuffer: 1024 * 1024 * 5,
+                env: process.env,
             });
 
             if (stderr) {

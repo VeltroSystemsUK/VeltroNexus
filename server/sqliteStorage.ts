@@ -48,6 +48,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { withJsonFileLock } from "./utils/jsonFileLock";
 
 const SqliteStore = createBetterSqlite3Store(session);
 const sessionDb = new Database("sessions.db");
@@ -70,7 +71,9 @@ function getStoreData(filePath = COLLECTIONS_STORE_PATH): Record<string, any[]> 
 }
 
 function writeStoreData(data: Record<string, any[]>, filePath = COLLECTIONS_STORE_PATH) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  withJsonFileLock(filePath, () => {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  });
 }
 
 function getCollection(name: string, filePath = COLLECTIONS_STORE_PATH): any[] {
@@ -85,33 +88,44 @@ function setCollection(name: string, list: any[], filePath = COLLECTIONS_STORE_P
 }
 
 function insertItem(collectionName: string, item: any, filePath = COLLECTIONS_STORE_PATH): any {
-  const list = getCollection(collectionName, filePath);
-  const newItem = {
-    ...item,
-    id: item.id || (list.length > 0 ? Math.max(...list.map(i => typeof i.id === 'number' ? i.id : 0)) + 1 : 1),
-    createdAt: item.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  list.push(newItem);
-  setCollection(collectionName, list, filePath);
+  let newItem: any;
+  withJsonFileLock(filePath, () => {
+    const list = getCollection(collectionName, filePath);
+    newItem = {
+      ...item,
+      id: item.id || (list.length > 0 ? Math.max(...list.map(i => typeof i.id === 'number' ? i.id : 0)) + 1 : 1),
+      createdAt: item.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    list.push(newItem);
+    setCollection(collectionName, list, filePath);
+  });
   return newItem;
 }
 
 function updateItem(collectionName: string, id: any, updates: any, filePath = COLLECTIONS_STORE_PATH): any {
-  const list = getCollection(collectionName, filePath);
-  const idx = list.findIndex(i => i.id === id || String(i.id) === String(id));
-  if (idx === -1) return undefined;
-  list[idx] = { ...list[idx], ...updates, updatedAt: new Date().toISOString() };
-  setCollection(collectionName, list, filePath);
-  return list[idx];
+  let updated: any;
+  withJsonFileLock(filePath, () => {
+    const list = getCollection(collectionName, filePath);
+    const idx = list.findIndex(i => i.id === id || String(i.id) === String(id));
+    if (idx === -1) return;
+    list[idx] = { ...list[idx], ...updates, updatedAt: new Date().toISOString() };
+    setCollection(collectionName, list, filePath);
+    updated = list[idx];
+  });
+  return updated;
 }
 
 function deleteItem(collectionName: string, id: any, filePath = COLLECTIONS_STORE_PATH): boolean {
-  const list = getCollection(collectionName, filePath);
-  const filtered = list.filter(i => i.id !== id && String(i.id) !== String(id));
-  if (filtered.length === list.length) return false;
-  setCollection(collectionName, filtered, filePath);
-  return true;
+  let removed = false;
+  withJsonFileLock(filePath, () => {
+    const list = getCollection(collectionName, filePath);
+    const filtered = list.filter(i => i.id !== id && String(i.id) !== String(id));
+    if (filtered.length === list.length) return;
+    setCollection(collectionName, filtered, filePath);
+    removed = true;
+  });
+  return removed;
 }
 
 function parseJsonField(val: any): any {

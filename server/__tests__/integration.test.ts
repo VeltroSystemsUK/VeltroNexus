@@ -132,12 +132,12 @@ describe("API Integration Tests", () => {
       expect(res.body).toHaveProperty("success", true);
     });
 
-    it("should block POST without origin (fail closed, including webhook paths)", async () => {
+    it("should exempt webhook paths from Origin CSRF", async () => {
       const res = await request(app)
         .post("/api/webhooks/test")
         .send({ data: "webhook payload" })
-        .expect(403);
-      expect(res.body.error).toContain("missing origin");
+        .expect(200);
+      expect(res.body).toHaveProperty("webhookReceived", true);
     });
   });
 

@@ -109,8 +109,17 @@ const router = Router();
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
       const prospectId = parseInt(req.params.id);
+      if (isNaN(prospectId)) {
+        try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+        return res.status(400).json({ error: "Invalid prospect ID" });
+      }
+      const prospect = await getReadableProspect(req, prospectId);
+      if (!prospect) {
+        try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+        return res.status(404).json({ error: "Prospect not found" });
+      }
       const category = req.body.category || "general";
-      const userId = req.user!.id; // Assuming user is populated
+      const userId = req.user!.id;
 
       // 1. Upload to Google Drive (if user has connected Google)
       let storagePath = req.file.path;

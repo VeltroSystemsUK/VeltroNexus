@@ -104,7 +104,10 @@ router.post(
   isAuthenticated,
   async (req: AuthenticatedRequest, res: Response) => {
     const { companyName } = req.body;
-    const EXA_API_KEY = process.env.EXA_API_KEY || "5f958428-21f8-417d-8692-a16223758362";
+    const EXA_API_KEY = process.env.EXA_API_KEY?.trim();
+    if (!EXA_API_KEY) {
+      return res.status(503).json({ error: "EXA_API_KEY is not configured" });
+    }
 
     if (!companyName) return res.status(400).json({ error: "Company name is required" });
 
