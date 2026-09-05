@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imapConfigFromEnv, inboundAlreadyLogged, parseAddressList } from "@shared/imapInbox";
+import { imapConfigFromEnv, inboundAlreadyLogged, parseAddressList, pickMailboxPath } from "@shared/imapInbox";
 
 describe("imapConfigFromEnv", () => {
   it("uses the SMTP mailbox login against IONOS IMAP", () => {
@@ -32,6 +32,28 @@ describe("inboundAlreadyLogged", () => {
     ).toBe(true);
     expect(inboundAlreadyLogged([{ messageId: "<abc@mail>", direction: "inbound" }], "<other@mail>")).toBe(false);
     expect(inboundAlreadyLogged([], "<abc@mail>")).toBe(false);
+  });
+});
+
+describe("pickMailboxPath", () => {
+  it("prefers SPECIAL-USE then common Sent names", () => {
+    expect(
+      pickMailboxPath(
+        [
+          { path: "INBOX", specialUse: "\\Inbox" },
+          { path: "Sent Items", name: "Sent Items", specialUse: "\\Sent" },
+        ],
+        "\\Sent",
+        ["Sent", "Sent Items", "INBOX.Sent"],
+      ),
+    ).toBe("Sent Items");
+    expect(
+      pickMailboxPath(
+        [{ path: "INBOX.Sent", name: "Sent" }],
+        "\\Sent",
+        ["Sent", "Sent Items", "INBOX.Sent"],
+      ),
+    ).toBe("INBOX.Sent");
   });
 });
 

@@ -36,6 +36,22 @@ export function inboundAlreadyLogged(
   return existing.some((item) => item.direction === "inbound" && String(item.messageId || "").trim() === id);
 }
 
+export function pickMailboxPath(
+  boxes: Array<{ path: string; name?: string; specialUse?: string }>,
+  specialUse: string,
+  fallbacks: string[],
+): string | null {
+  const bySpecial = boxes.find((box) => String(box.specialUse || "") === specialUse);
+  if (bySpecial) return bySpecial.path;
+  const names = fallbacks.map((name) => name.toLowerCase());
+  const byName = boxes.find((box) => {
+    const path = box.path.toLowerCase();
+    const leaf = String(box.name || path.split(/[./]/).pop() || "").toLowerCase();
+    return names.includes(path) || names.includes(leaf);
+  });
+  return byName?.path || null;
+}
+
 export function parseAddressList(value?: string | null): string {
   const raw = String(value || "").trim();
   const angle = raw.match(/<([^>]+)>/);

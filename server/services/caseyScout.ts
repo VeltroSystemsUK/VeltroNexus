@@ -183,7 +183,12 @@ export async function tavilyTopicScan(query: string): Promise<CaseyNote[]> {
 }
 
 export async function editorialWebScan(query: string): Promise<CaseyNote[]> {
-  const fire = await caseyFirecrawlTopicScan(query);
+  let fire: CaseyNote[] = [];
+  try {
+    fire = await caseyFirecrawlTopicScan(query);
+  } catch (error) {
+    console.warn("[Casey] Firecrawl topic scan failed, falling back to Tavily", error);
+  }
   let extra: CaseyNote[] = [];
   try {
     extra = await tavilyTopicScan(query);

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ImapFlow } from "imapflow";
-import { imapConfigFromEnv } from "@shared/imapInbox";
+import { imapConfigFromEnv, pickMailboxPath } from "@shared/imapInbox";
 import { mailboxForAgent } from "@shared/agentMailboxes";
 import { parseAddressList } from "@shared/imapInbox";
 import {
@@ -58,14 +58,8 @@ async function defaultAppendDraft(raw: string): Promise<void> {
   });
   await client.connect();
   try {
-    let draftsPath = "Drafts";
-    for await (const box of client.list()) {
-      const special = String((box as { specialUse?: string }).specialUse || "");
-      if (special === "\\Drafts" || /draft/i.test(box.path)) {
-        draftsPath = box.path;
-        break;
-      }
-    }
+    const boxes = await client.list();
+    const draftsPath = pickMailboxPath(boxes, "\\Drafts", ["Drafts", "INBOX.Drafts"]) || "Drafts";
     await client.append(draftsPath, Buffer.from(raw, "utf8"), ["\\Draft"]);
   } finally {
     try {

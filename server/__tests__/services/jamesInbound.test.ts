@@ -1,8 +1,8 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
-import { logAgentMail, clearAgentMail } from "../../services/agentMailLog";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { logAgentMail, clearAgentMail, setAgentMailStorePathForTests } from "../../services/agentMailLog";
 import {
   draftJamesReply,
   setJamesDraftAppenderForTests,
@@ -15,10 +15,16 @@ function tmpQueue(): string {
   return dir;
 }
 
+beforeEach(() => {
+  const file = path.join(os.tmpdir(), `agent-mail-${process.pid}-${Date.now()}.json`);
+  setAgentMailStorePathForTests(file);
+});
+
 afterEach(() => {
   setJamesQueueDirForTests(null);
   setJamesDraftAppenderForTests(null);
   clearAgentMail();
+  setAgentMailStorePathForTests(null);
 });
 
 describe("draftJamesReply", () => {
