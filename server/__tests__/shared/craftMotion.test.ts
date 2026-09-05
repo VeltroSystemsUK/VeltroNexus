@@ -32,6 +32,16 @@ import {
   type MotionNode,
 } from "@/components/craft/lib/types";
 import { generateWeek } from "@shared/craftQueue";
+import {
+  earliest,
+  noteTyping,
+  oneShot,
+  pulseMotion,
+  resetMotionSignals,
+  setMotionBusy,
+  setMotionFocus,
+  snapshotMotionSignals,
+} from "@/components/craft/lib/motionSignals";
 
 const STILL: CraftAsset = {
   id: "visual_motion",
@@ -86,7 +96,7 @@ describe("MotionNode schema", () => {
     expect(getMotionSessionWarning(loaded.id)).toMatch(/extra keys|illegal/i);
   });
 
-  it("accepts the 15 locked categories and requires ThreeJS for CustomShaderDistortion", () => {
+  it("accepts the locked categories and requires ThreeJS for CustomShaderDistortion", () => {
     expect(MOTION_CATEGORIES).toEqual([
       "ParticleSystem",
       "FlowField",
@@ -103,6 +113,57 @@ describe("MotionNode schema", () => {
       "MetaballGoo",
       "DataTicker",
       "VoronoiShatter",
+      "VaporDrift",
+      "StaticShiver",
+      "VignetteBreath",
+      "HorizonShift",
+      "CarbonWeave",
+      "HeatHaze",
+      "LedgerFracture",
+      "ScanlineSweep",
+      "MarginGlow",
+      "ResinGloss",
+      "HoloFoil",
+      "VellumCrease",
+      "ElasticSpring",
+      "KineticSqueeze",
+      "CrosshairGrid",
+      "TypewriterCursor",
+      "LedgerStitch",
+      "InkSplash",
+      "GlitchBurst",
+      "InkRipple",
+      "FocusPull",
+      "MagneticRipple",
+      "StrobePulse",
+      "MomentumGlide",
+      "PrismaticFringe",
+      "QuartzFluid",
+      "AnodeDecay",
+      "WaveformPulse",
+      "EdgeSnap",
+      "HeatBloom",
+      "FocalVignette",
+      "StencilPunch",
+      "VellumHysteresis",
+      "PhosphorBurn",
+      "EntanglePulse",
+      "ResonanceBlur",
+      "GravityWarp",
+      "GuillocheWave",
+      "TopoContour",
+      "OrigamiUnfold",
+      "ElasticThread",
+      "IsoExtrude",
+      "Escapement",
+      "VoronoiPulse",
+      "ViralHook",
+      "LiquidGlass",
+      "HookSlam",
+      "TextMaskShift",
+      "PillPulse",
+      "OdometerRoll",
+      "RedactHighlight",
     ]);
     const warp = validateMotionSchema({
       ...LEDGER_CURRENT,
@@ -333,28 +394,104 @@ describe("GIF encode", () => {
 });
 
 describe("MotionNode presets", () => {
-  it("ships 15 grouped presets with vibe strings", () => {
+  it("ships grouped house presets with vibe strings", () => {
     expect(MOTION_PRESETS.map((p) => p.id)).toEqual([
       "ledger-current",
       "paper-sparks",
       "grain-breath",
       "after-hours-warp",
+      "vapor-drift",
+      "static-shiver",
+      "vignette-breathing",
+      "horizon-shift",
+      "carbon-weave",
+      "parchment-heat",
+      "liquid-quartz",
+      "liquid-glass-shift",
+      "thermal-heat-bloom",
+      "dynamic-focal-vignette",
+      "vellum-hysteresis",
+      "gravitational-field",
       "stamp-pulse",
       "redact-sweep",
       "ink-bleed",
       "light-leak",
+      "ledger-fracture",
+      "cybernetic-scanline",
+      "ledger-margin-glow",
+      "resin-gloss-sweep",
+      "holographic-foil",
+      "vellum-crease",
+      "prismatic-focal-shift",
+      "magnetic-edge-snap",
+      "kinetic-stencil-punch",
+      "guilloche-wave",
+      "origami-unfold",
+      "isometric-extrusion",
+      "mechanical-escapement",
+      "glowing-pill-pulse",
+      "redact-highlight",
       "corporate-ribbon",
       "perspective-grid",
       "network-map",
       "hook-turn",
       "ledger-ticker",
+      "elastic-spring",
+      "kinetic-squeeze",
+      "crosshair-grid-track",
+      "typewriter-cursor",
+      "ledger-stitch",
+      "kinetic-momentum-glide",
+      "acoustic-waveform-pulse",
+      "resonance-blur",
+      "topographic-contour",
+      "elastic-threading",
+      "voronoi-partition",
+      "liquid-text-mask",
+      "odometer-roll",
       "goo-merge",
       "shatter-plate",
+      "ink-splash-bloom",
+      "quantum-glitch",
+      "ink-ripple",
+      "focus-pull",
+      "magnetic-ripple",
+      "kinetic-strobe-pulse",
+      "anode-flicker-decay",
+      "phosphor-burn-in",
+      "quantum-entanglement",
+      "viral-hook-drop",
+      "cinematic-hook-slam",
     ]);
     expect(MOTION_PRESETS.every((p) => p.schema.meta?.vibe && p.schema.domTarget.tag === "canvas")).toBe(true);
     expect(presetById("grain-breath").schema.category).toBe("GrainField");
     expect(presetById("after-hours-warp").schema.engine.library).toBe("ThreeJS");
     expect(presetById("ledger-ticker").schema.visual.palette.join(" ")).not.toMatch(/#C69123/i);
+    expect(presetById("resin-gloss-sweep").schema.category).toBe("ResinGloss");
+    expect(presetById("carbon-weave").schema.interactionRules.triggerType).toBe("mousemove");
+    expect(presetById("holographic-foil").schema.interactionRules.triggerType).toBe("hover");
+    expect(presetById("magnetic-ripple").schema.interactionRules.triggerType).toBe("click");
+    expect(presetById("parchment-heat").schema.engine.library).toBe("VanillaCanvas2D");
+    expect(presetById("liquid-quartz").schema.interactionRules.triggerType).toBe("hover");
+    expect(presetById("prismatic-focal-shift").schema.interactionRules.triggerType).toBe("click");
+    expect(presetById("kinetic-strobe-pulse").schema.category).toBe("StrobePulse");
+    expect(presetById("acoustic-waveform-pulse").schema.category).toBe("WaveformPulse");
+    expect(presetById("magnetic-edge-snap").schema.interactionRules.triggerType).toBe("click");
+    expect(presetById("dynamic-focal-vignette").schema.category).toBe("FocalVignette");
+    expect(presetById("vellum-hysteresis").schema.interactionRules.triggerType).toBe("mousemove");
+    expect(presetById("gravitational-field").schema.interactionRules.triggerType).toBe("mousemove");
+    expect(presetById("phosphor-burn-in").schema.category).toBe("PhosphorBurn");
+    expect(presetById("quantum-entanglement").schema.category).toBe("EntanglePulse");
+    expect(presetById("guilloche-wave").schema.category).toBe("GuillocheWave");
+    expect(presetById("origami-unfold").schema.category).toBe("OrigamiUnfold");
+    expect(presetById("mechanical-escapement").schema.category).toBe("Escapement");
+    expect(presetById("voronoi-partition").schema.category).toBe("VoronoiPulse");
+    expect(presetById("viral-hook-drop").schema.category).toBe("ViralHook");
+    expect(presetById("liquid-glass-shift").schema.category).toBe("LiquidGlass");
+    expect(presetById("viral-hook-drop").schema.meta?.vibe).not.toMatch(/apr|rate|loan|approved|%/i);
+    expect(presetById("cinematic-hook-slam").schema.category).toBe("HookSlam");
+    expect(presetById("odometer-roll").schema.category).toBe("OdometerRoll");
+    expect(presetById("redact-highlight").schema.category).toBe("RedactHighlight");
   });
 
   it("maps vibe language onto locked preset ids", () => {
@@ -362,10 +499,45 @@ describe("MotionNode presets", () => {
     expect(matchMotionPreset("glass warp")).toBe("after-hours-warp");
     expect(matchMotionPreset("moody starry sparks")).toBe("paper-sparks");
     expect(matchMotionPreset("clean wave ribbon")).toBe("corporate-ribbon");
+    expect(matchMotionPreset("resin gloss")).toBe("resin-gloss-sweep");
+    expect(matchMotionPreset("carbon weave parallax")).toBe("carbon-weave");
+    expect(matchMotionPreset("holographic foil")).toBe("holographic-foil");
+    expect(matchMotionPreset("ledger stitch")).toBe("ledger-stitch");
+    expect(matchMotionPreset("magnetic ripple")).toBe("magnetic-ripple");
+    expect(matchMotionPreset("liquid quartz")).toBe("liquid-quartz");
+    expect(matchMotionPreset("strobe flicker")).toBe("kinetic-strobe-pulse");
+    expect(matchMotionPreset("momentum glide")).toBe("kinetic-momentum-glide");
+    expect(matchMotionPreset("prismatic fringe")).toBe("prismatic-focal-shift");
+    expect(matchMotionPreset("anode decay")).toBe("anode-flicker-decay");
+    expect(matchMotionPreset("acoustic waveform")).toBe("acoustic-waveform-pulse");
+    expect(matchMotionPreset("edge snap dock")).toBe("magnetic-edge-snap");
+    expect(matchMotionPreset("thermal bloom")).toBe("thermal-heat-bloom");
+    expect(matchMotionPreset("writing vignette")).toBe("dynamic-focal-vignette");
+    expect(matchMotionPreset("stencil punch")).toBe("kinetic-stencil-punch");
+    expect(matchMotionPreset("hysteresis lag")).toBe("vellum-hysteresis");
+    expect(matchMotionPreset("phosphor ghost")).toBe("phosphor-burn-in");
+    expect(matchMotionPreset("entanglement pulse")).toBe("quantum-entanglement");
+    expect(matchMotionPreset("resonance typing")).toBe("resonance-blur");
+    expect(matchMotionPreset("gravitational warp")).toBe("gravitational-field");
+    expect(matchMotionPreset("guilloche security")).toBe("guilloche-wave");
+    expect(matchMotionPreset("topographic contour")).toBe("topographic-contour");
+    expect(matchMotionPreset("origami unfold")).toBe("origami-unfold");
+    expect(matchMotionPreset("bezier threading")).toBe("elastic-threading");
+    expect(matchMotionPreset("isometric blueprint")).toBe("isometric-extrusion");
+    expect(matchMotionPreset("escapement gear")).toBe("mechanical-escapement");
+    expect(matchMotionPreset("voronoi partition")).toBe("voronoi-partition");
+    expect(matchMotionPreset("cinematic slam")).toBe("cinematic-hook-slam");
+    expect(matchMotionPreset("text mask matte")).toBe("liquid-text-mask");
+    expect(matchMotionPreset("pill badge")).toBe("glowing-pill-pulse");
+    expect(matchMotionPreset("odometer digits")).toBe("odometer-roll");
+    expect(matchMotionPreset("highlight wipe")).toBe("redact-highlight");
+    expect(matchMotionPreset("viral overshoot")).toBe("viral-hook-drop");
+    expect(matchMotionPreset("chrome shift")).toBe("liquid-glass-shift");
   });
 
   it("TypeKinetic reads hook copy and DataTicker never emits rate claims", () => {
     expect(presetById("ledger-ticker").schema.meta?.vibe).not.toMatch(/apr|rate|loan|approved|%/i);
+    expect(presetById("holographic-foil").schema.meta?.vibe).not.toMatch(/apr|rate|loan|approved|%/i);
     expect(presetById("hook-turn").schema.category).toBe("TypeKinetic");
     expect(presetById("redact-sweep").schema.category).toBe("RedactSweep");
   });
@@ -383,6 +555,57 @@ describe("MotionNode presets", () => {
       "DataTicker",
       "MetaballGoo",
       "VoronoiShatter",
+      "VaporDrift",
+      "StaticShiver",
+      "VignetteBreath",
+      "HorizonShift",
+      "CarbonWeave",
+      "HeatHaze",
+      "LedgerFracture",
+      "ScanlineSweep",
+      "MarginGlow",
+      "ResinGloss",
+      "HoloFoil",
+      "VellumCrease",
+      "ElasticSpring",
+      "KineticSqueeze",
+      "CrosshairGrid",
+      "TypewriterCursor",
+      "LedgerStitch",
+      "InkSplash",
+      "GlitchBurst",
+      "InkRipple",
+      "FocusPull",
+      "MagneticRipple",
+      "StrobePulse",
+      "MomentumGlide",
+      "PrismaticFringe",
+      "QuartzFluid",
+      "AnodeDecay",
+      "WaveformPulse",
+      "EdgeSnap",
+      "HeatBloom",
+      "FocalVignette",
+      "StencilPunch",
+      "VellumHysteresis",
+      "PhosphorBurn",
+      "EntanglePulse",
+      "ResonanceBlur",
+      "GravityWarp",
+      "GuillocheWave",
+      "TopoContour",
+      "OrigamiUnfold",
+      "ElasticThread",
+      "IsoExtrude",
+      "Escapement",
+      "VoronoiPulse",
+      "ViralHook",
+      "LiquidGlass",
+      "HookSlam",
+      "TextMaskShift",
+      "PillPulse",
+      "OdometerRoll",
+      "RedactHighlight",
     ] as const;
     for (const category of remaining) {
       const node = makeMotionNode({ schema: { ...LEDGER_CURRENT, category } });
@@ -421,6 +644,57 @@ describe("MotionNode presets", () => {
       "DataTicker",
       "MetaballGoo",
       "VoronoiShatter",
+      "VaporDrift",
+      "StaticShiver",
+      "VignetteBreath",
+      "HorizonShift",
+      "CarbonWeave",
+      "HeatHaze",
+      "LedgerFracture",
+      "ScanlineSweep",
+      "MarginGlow",
+      "ResinGloss",
+      "HoloFoil",
+      "VellumCrease",
+      "ElasticSpring",
+      "KineticSqueeze",
+      "CrosshairGrid",
+      "TypewriterCursor",
+      "LedgerStitch",
+      "InkSplash",
+      "GlitchBurst",
+      "InkRipple",
+      "FocusPull",
+      "MagneticRipple",
+      "StrobePulse",
+      "MomentumGlide",
+      "PrismaticFringe",
+      "QuartzFluid",
+      "AnodeDecay",
+      "WaveformPulse",
+      "EdgeSnap",
+      "HeatBloom",
+      "FocalVignette",
+      "StencilPunch",
+      "VellumHysteresis",
+      "PhosphorBurn",
+      "EntanglePulse",
+      "ResonanceBlur",
+      "GravityWarp",
+      "GuillocheWave",
+      "TopoContour",
+      "OrigamiUnfold",
+      "ElasticThread",
+      "IsoExtrude",
+      "Escapement",
+      "VoronoiPulse",
+      "ViralHook",
+      "LiquidGlass",
+      "HookSlam",
+      "TextMaskShift",
+      "PillPulse",
+      "OdometerRoll",
+      "RedactHighlight",
     ]) {
       expect(runtime).toContain(`case "${category}"`);
     }
@@ -432,11 +706,66 @@ describe("MotionNode presets", () => {
     expect(runtime).toContain("FILE 04");
     expect(runtime).toContain("#C91B25");
     expect(runtime).not.toMatch(/updateNode/);
+    expect(runtime).not.toMatch(/function loopAge/);
+    expect(runtime).toContain("oneShot");
+    expect(runtime).toContain("snapshotMotionSignals");
     const renderer = readFileSync("client/src/components/craft/lib/renderer.ts", "utf8");
     expect(renderer).toContain('n.name === "Hook 1"');
     expect(renderer).toContain('n.name === "Hook 2"');
     expect(renderer).toMatch(/hooks:/);
     expect(renderer).not.toMatch(/updateNode/);
+  });
+});
+
+describe("Craft motion editor signals", () => {
+  it("oneShot stays idle after the event window", () => {
+    expect(oneShot(0.1, 0.4)).toBe(0.1);
+    expect(oneShot(0.4, 0.4)).toBe(Number.POSITIVE_INFINITY);
+    expect(oneShot(Number.POSITIVE_INFINITY, 0.4)).toBe(Number.POSITIVE_INFINITY);
+    expect(earliest(0.9, 0.2, 1.4)).toBe(0.2);
+  });
+
+  it("pulses save, pane, typing and busy into a snapshot", () => {
+    resetMotionSignals();
+    pulseMotion("save", 1000);
+    pulseMotion("pane", 1500);
+    pulseMotion("dock", 1800);
+    pulseMotion("dialog", 2000);
+    pulseMotion("close", 2500);
+    pulseMotion("link", 1200);
+    noteTyping(1600);
+    noteTyping(1680);
+    setMotionBusy(true);
+    setMotionFocus(true, 1400);
+    const snap = snapshotMotionSignals(2000, { wordCount: 12, selected: true });
+    expect(snap.busy).toBe(true);
+    expect(snap.focusMode).toBe(true);
+    expect(snap.selected).toBe(true);
+    expect(snap.wordCount).toBe(12);
+    expect(snap.saveAge).toBeCloseTo(1, 5);
+    expect(snap.paneAge).toBeCloseTo(0.5, 5);
+    expect(snap.dockAge).toBeCloseTo(0.2, 5);
+    expect(snap.dialogAge).toBe(0);
+    expect(snap.closeAge).toBe(Number.POSITIVE_INFINITY);
+    expect(snap.linkAge).toBeCloseTo(0.8, 5);
+    expect(snap.typeVel).toBeGreaterThan(0);
+    resetMotionSignals();
+    setMotionBusy(false);
+    expect(snapshotMotionSignals(3000).busy).toBe(false);
+  });
+
+  it("Craft canvas and desk fire real editor pulses", () => {
+    const view = readFileSync("client/src/components/craft/CraftView.tsx", "utf8");
+    expect(view).toContain("pulseMotion");
+    expect(view).toContain("noteTyping");
+    expect(view).toContain("setMotionFocus");
+    expect(view).toContain("setMotionBusy");
+    expect(view).toContain("onPointerLeave");
+    const desk = readFileSync("client/src/pages/Craft.tsx", "utf8");
+    expect(desk).toContain("pulseMotion");
+    expect(desk).toContain("setMotionBusy");
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    expect(store).toContain('pulseMotion("save"');
   });
 });
 

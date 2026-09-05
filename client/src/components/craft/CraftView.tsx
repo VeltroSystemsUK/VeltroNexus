@@ -33,6 +33,7 @@ import { ShapeGlyph } from "./shell/glyphs";
 import { ColorPicker, InspectorHint, InspectorRail, InspectorSection, InspectorSlider } from "./shell/Inspector";
 import { LiveStatusBar } from "./shell/LiveStatusBar";
 import { isTypingTarget, useAutosave } from "./hooks/useAutosave";
+import { noteTyping, pulseMotion, setMotionBusy, setMotionFocus, snapshotMotionSignals } from "./lib/motionSignals";
 import { COLOR_ROLES } from './lib/brand';
 import { hitHandle, nodesInMarquee, pointInNode, type Rect } from './lib/geometry';
 import { liveMotionIds } from "./lib/motion";
@@ -124,6 +125,7 @@ export function CraftView({
   const releaseUnlocked = useCraftStore((state) => state.releaseUnlocked);
   const assetId = useCraftStore((state) => state.assetId);
   const pageId = useCraftStore((state) => state.pageId);
+  const editingTextId = useCraftStore((state) => state.editingTextId);
   const weekPage = doc ? (doc.pages.find((item) => item.id === (pageId ?? doc.activePageId)) ?? doc.pages[0]) : null;
   const weekReasons = doc?.week && weekPage ? reviewWeekPage(weekPage).findings.map((item) => item.message) : [];
   const exportLocked =
@@ -133,6 +135,27 @@ export function CraftView({
   const imageInput = useRef<HTMLInputElement>(null);
   useAutosave(dirty, () => useCraftStore.getState().save({ silent: true }));
 
+  useEffect(() => {
+    pulseMotion("pane");
+  }, [pageId]);
+
+  useEffect(() => {
+    setMotionFocus(Boolean(editingTextId));
+  }, [editingTextId]);
+
+  useEffect(() => {
+    setMotionBusy(Boolean(yaffle?.generating));
+    return () => setMotionBusy(false);
+  }, [yaffle?.generating]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) noteTyping();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const { getInputProps, getRootProps, open } = useDropzone({
     noClick: true,
     noKeyboard: true,
@@ -141,7 +164,10 @@ export function CraftView({
       'image/*': [],
     },
     onDrop: (files) => {
-      if (files[0]) void useCraftStore.getState().openFromFile(files[0]);
+      if (files[0]) {
+        pulseMotion("dock");
+        void useCraftStore.getState().openFromFile(files[0]);
+      }
     },
   });
 
@@ -622,6 +648,7 @@ function CraftCanvas({
           pointer: pointerPage.current,
           click: clickPage.current,
           reduced,
+          signals: snapshotMotionSignals(),
         },
       });
       clickPage.current = null;
@@ -664,6 +691,7 @@ function CraftCanvas({
     const pt = toPage(event.clientX, event.clientY);
     pointerPage.current = pt;
     clickPage.current = pt;
+    pulseMotion("link");
     const state = useCraftStore.getState();
     const page = pageOf(state);
     if (!page) return;
@@ -808,6 +836,7 @@ function CraftCanvas({
     if (current?.moved && state.doc) {
       const next = { ...state.doc, updatedAt: new Date().toISOString() };
       useCraftStore.setState({ doc: next, dirty: true });
+      pulseMotion("dock");
     }
     drag.current = null;
     setMarquee(null);
@@ -907,6 +936,9 @@ function CraftCanvas({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onPointerLeave={() => {
+        pointerPage.current = null;
+      }}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
     >
@@ -984,7 +1016,10 @@ function TextEditOverlay({
       aria-label="Edit text"
       value={value}
       maxLength={maxLength}
-      onChange={(event) => setValue(event.target.value)}
+      onChange={(event) => {
+        noteTyping();
+        setValue(event.target.value);
+      }}
       onPointerDown={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
       onBlur={() => onCommit(value)}

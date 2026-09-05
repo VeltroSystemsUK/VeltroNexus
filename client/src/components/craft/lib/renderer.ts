@@ -1,4 +1,5 @@
 import { drawMotionNode } from "./motion";
+import { snapshotMotionSignals } from "./motionSignals";
 import { ALL_SHAPE_VARIANTS, type AnimationSpec, type CraftAsset, type CraftNode, type CraftPage, type Handle, type ImageNode, type ShapeVariant } from "./types";
 import { containDest, handleWorldPoint, type Guide, type Rect } from "./geometry";
 import { displayText, fitFontSize, wrapText } from "./text";
@@ -452,6 +453,7 @@ function drawNode(
         hook1: hook1?.type === "text" ? hook1.text : undefined,
         hook2: hook2?.type === "text" ? hook2.text : undefined,
       },
+      signals: motionOpts?.signals,
     });
     ctx.restore();
     if ((node.strokeWidth ?? 0) > 0 && node.stroke && node.stroke !== "transparent") {
@@ -513,6 +515,7 @@ export interface DrawOptions {
     click?: { x: number; y: number } | null;
     reduced?: boolean;
     hooks?: { hook1?: string; hook2?: string };
+    signals?: import("./motionSignals").MotionSignalsSnap;
   };
 }
 
@@ -541,6 +544,13 @@ export function drawFrame(ctx: CanvasRenderingContext2D, page: CraftPage, assets
   }
   const hook1 = page.nodes.find((n) => n.type === "text" && n.name === "Hook 1");
   const hook2 = page.nodes.find((n) => n.type === "text" && n.name === "Hook 2");
+  let wordCount = 0;
+  for (const node of page.nodes) {
+    if (node.type !== "text") continue;
+    const parts = node.text.trim().split(/\s+/).filter(Boolean);
+    wordCount += parts.length;
+  }
+  const baseSignals = options.motion?.signals ?? snapshotMotionSignals(undefined, { wordCount });
   const motion: DrawOptions["motion"] = {
     liveIds: options.motion?.liveIds ?? new Set(),
     pointer: options.motion?.pointer,
@@ -550,10 +560,12 @@ export function drawFrame(ctx: CanvasRenderingContext2D, page: CraftPage, assets
       hook1: hook1?.type === "text" ? hook1.text : undefined,
       hook2: hook2?.type === "text" ? hook2.text : undefined,
     },
+    signals: { ...baseSignals, wordCount: baseSignals.wordCount || wordCount },
   };
   for (const node of page.nodes) {
     if (options.hideIds?.includes(node.id)) continue;
-    drawNode(ctx, node, assets, atMs, options.onImage, motion, page);
+    const selected = Boolean(options.selectedIds?.includes(node.id));
+    drawNode(ctx, node, assets, atMs, options.onImage, { ...motion, signals: { ...motion.signals!, selected } }, page);
   }
 
   const cropNode = options.croppingId ? page.nodes.find((node) => node.id === options.croppingId) : undefined;

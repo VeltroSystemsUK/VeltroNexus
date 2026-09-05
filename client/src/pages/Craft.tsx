@@ -49,6 +49,9 @@ import { ammoForPost, yafflePromptFromAmmo } from "@shared/craftYaffle";
 import { slugifyLearnTitle, NEWS_CATEGORIES, NEWS_CATEGORY_LABELS } from "@shared/learn";
 
 import { isoWeekId, type WeekRoute } from "@/components/craft/lib/weekGrammar";
+import { pulseMotion, setMotionBusy } from "@/components/craft/lib/motionSignals";
+
+let paneLayoutTimer = 0;
 
 type Desk = {
   week: CraftPost[];
@@ -57,6 +60,7 @@ type Desk = {
   briefs?: CreativeAmmoBrief[];
   weekId?: string | null;
   route?: string | null;
+  researchWarning?: string | null;
 };
 
 type CopyDraft = {
@@ -153,6 +157,7 @@ export default function Craft() {
   const boardOpen = Boolean(selected);
 
   const closeBoard = () => {
+    pulseMotion("close");
     setSelectedId(null);
     useCraftStore.getState().close();
   };
@@ -161,6 +166,10 @@ export default function Craft() {
     if (selected) setCopy(copyFrom(selected));
     else setCopy(null);
   }, [selected?.id, selected?.title, selected?.eyebrow, selected?.hook, selected?.hook2, selected?.body, selected?.cta, selected?.links?.join("\n"), selected?.hashtags?.join(" ")]);
+
+  useEffect(() => {
+    if (selectedId) pulseMotion("pane");
+  }, [selectedId]);
 
   const newWeek = useMutation({
     mutationFn: async (route: WeekRoute) => {
@@ -216,6 +225,9 @@ export default function Craft() {
             ? "Drafts refreshed on the house week. Approved posts kept."
             : "This post was rebuilt on the house week.",
       );
+      if (next.researchWarning) toast.warning(next.researchWarning);
+      toast("Generating stills for the week…");
+      void useCraftStore.getState().generateStillsForWeek(next.week, next.briefs ?? []);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -232,6 +244,7 @@ export default function Craft() {
       const post = openId ? next.week.find((item) => item.id === openId) : undefined;
       if (post) useCraftStore.getState().syncFromPost(post);
       toast.success("Casey scanned the week. Copy is on the drafts and the board.");
+      if (next.researchWarning) toast.warning(next.researchWarning);
       toast("Generating stills for the week…");
       void useCraftStore.getState().generateStillsForWeek(next.week, next.briefs ?? []);
     },
@@ -388,6 +401,12 @@ export default function Craft() {
     },
   });
 
+  useEffect(() => {
+    const busy = generate.isPending || scanAmmo.isPending || yaffleGenerate.isPending || newWeek.isPending;
+    setMotionBusy(busy);
+    return () => setMotionBusy(false);
+  }, [generate.isPending, scanAmmo.isPending, yaffleGenerate.isPending, newWeek.isPending]);
+
   const openInCanvas = (post: CraftPost) => setSelectedId(post.id);
 
   useEffect(() => {
@@ -527,6 +546,10 @@ export default function Craft() {
           direction="vertical"
           autoSaveId="craft-desk-nav"
           className="flex-1 min-h-0"
+          onLayout={() => {
+            window.clearTimeout(paneLayoutTimer);
+            paneLayoutTimer = window.setTimeout(() => pulseMotion("pane"), 90);
+          }}
         >
         {contentAidOpen && (
           <>
@@ -938,7 +961,13 @@ export default function Craft() {
         </div>
       </div>
 
-      <Dialog open={weekOpen} onOpenChange={setWeekOpen}>
+      <Dialog
+        open={weekOpen}
+        onOpenChange={(open) => {
+          setWeekOpen(open);
+          pulseMotion(open ? "dialog" : "close");
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New week</DialogTitle>
@@ -973,7 +1002,13 @@ export default function Craft() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={learnOpen} onOpenChange={setLearnOpen}>
+      <Dialog
+        open={learnOpen}
+        onOpenChange={(open) => {
+          setLearnOpen(open);
+          pulseMotion(open ? "dialog" : "close");
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Publish to Learn</DialogTitle>

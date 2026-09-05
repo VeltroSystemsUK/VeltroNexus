@@ -11,6 +11,7 @@ import { fetchImageDataUrl, stockById } from "./lib/stock";
 import { applyBrand, applyBrandLogo, cloneBrand, extractPaletteFromImage, isLogoSlot } from './lib/brand';
 import { exportGif as writeGif, exportPack as exportFormatPack, exportRaster, rasterBlob, recordNodeGif } from "./lib/export";
 import { MOTION_PRESETS, captureMotionFrame, disposeAll, disposeNode, makeMotionNode } from "./lib/motion";
+import { pulseMotion } from "./lib/motionSignals";
 import { matchMotionPreset, presetById as motionPresetById } from "./lib/motionPresets";
 import { clearMotionSessionWarning, hashMotionSchema } from "./lib/motionSchema";
 import {
@@ -481,6 +482,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
       const next = { ...doc, updatedAt: new Date().toISOString() };
       const id = await persistLocal(next, assetId);
       set({ dirty: false, doc: next, assetId: id });
+      pulseMotion("save");
       if (!opts?.silent) toast.success("Saved");
     },
 
@@ -525,6 +527,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
       if (preset.id === "hook-turn") node = applyNodeMotion(node, "hook-turn") as typeof node;
       commit(withPage(doc, page.id, (current) => ({ ...current, nodes: [...current.nodes, node] })));
       set({ selectedIds: [node.id], tool: "select" });
+      pulseMotion("dock");
     },
 
     applyMotionPreset: (id) => {
