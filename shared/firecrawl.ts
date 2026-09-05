@@ -10,8 +10,8 @@ export function firecrawlScrapeUrl(env: Env = process.env): string {
   return `${firecrawlApiBase(env)}/v2/scrape`;
 }
 
-export function firecrawlSearchUrl(_env: Env = process.env): string {
-  return `${FIRECRAWL_CLOUD}/v2/search`;
+export function firecrawlSearchUrl(env: Env = process.env): string {
+  return `${firecrawlApiBase(env)}/v2/search`;
 }
 
 export function canFirecrawlScrape(env: Env = process.env): boolean {

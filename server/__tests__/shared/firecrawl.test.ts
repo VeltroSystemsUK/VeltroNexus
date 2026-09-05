@@ -20,9 +20,13 @@ describe("firecrawl endpoints", () => {
     expect(firecrawlScrapeUrl(env)).toBe("http://127.0.0.1:3002/v2/scrape");
   });
 
-  it("keeps search on the cloud API even when scrape is local", () => {
+  it("defaults search to the cloud API", () => {
+    expect(firecrawlSearchUrl({})).toBe("https://api.firecrawl.dev/v2/search");
+  });
+
+  it("points search at a self-hosted API when FIRECRAWL_API_URL is set, same as scrape", () => {
     expect(firecrawlSearchUrl({ FIRECRAWL_API_URL: "http://127.0.0.1:3002" })).toBe(
-      "https://api.firecrawl.dev/v2/search"
+      "http://127.0.0.1:3002/v2/search"
     );
   });
 

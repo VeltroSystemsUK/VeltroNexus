@@ -1,0 +1,16 @@
+# Adds a local SearXNG instance so Firecrawl's /v2/search can run entirely
+# on this machine (via SEARXNG_ENDPOINT in .env) instead of falling through
+# to Firecrawl Cloud. Not part of the upstream repo — kept here so a re-clone
+# of firecrawl-src doesn't wipe it; see docker/firecrawl/README.md.
+services:
+  searxng:
+    image: searxng/searxng:latest
+    networks:
+      - backend
+    volumes:
+      - ../firecrawl/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    ports:
+      - "127.0.0.1:8081:8080"
+    restart: unless-stopped

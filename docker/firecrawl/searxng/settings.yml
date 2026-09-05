@@ -1,0 +1,17 @@
+# Minimal override for the default SearXNG settings — this instance is only
+# ever reached by Firecrawl over the internal Docker network, never exposed
+# to the internet, so JSON output is safe to enable here.
+use_default_settings: true
+
+general:
+  instance_name: "Strata local search"
+
+server:
+  secret_key: "1a0401bdbf2b00f16aa81fdec5f57ca5"
+  limiter: false
+  image_proxy: false
+
+search:
+  formats:
+    - html
+    - json
