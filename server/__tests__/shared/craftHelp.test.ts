@@ -103,4 +103,19 @@ describe("Craft studio chrome", () => {
     expect(view).toContain("isTypingTarget");
     expect(view).toContain("setHelpOpen");
   });
+
+  it("Escape closes help before the no-document return and CraftHelp mounts once", () => {
+    const view = readFileSync("client/src/components/craft/CraftView.tsx", "utf8");
+    const start = view.indexOf("if (isTypingTarget(event.target)) return;");
+    const handler = view.slice(start, view.indexOf("window.addEventListener('keydown', onKey)"));
+    const endText = handler.indexOf("endTextEdit");
+    const helpClose = handler.indexOf("setHelpOpen(false)");
+    const noDoc = handler.indexOf("if (!state.doc) return;");
+    expect(endText).toBeGreaterThan(-1);
+    expect(helpClose).toBeGreaterThan(-1);
+    expect(noDoc).toBeGreaterThan(-1);
+    expect(endText).toBeLessThan(helpClose);
+    expect(helpClose).toBeLessThan(noDoc);
+    expect(view.match(/<CraftHelp /g)).toHaveLength(1);
+  });
 });

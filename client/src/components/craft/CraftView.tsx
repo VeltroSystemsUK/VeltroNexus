@@ -183,6 +183,21 @@ export function CraftView({
         setHelpOpen(true);
         return;
       }
+      if (event.key === "Escape") {
+        if (state.editingTextId) {
+          state.endTextEdit();
+          return;
+        }
+        if (helpOpen) {
+          event.preventDefault();
+          setHelpOpen(false);
+          return;
+        }
+        if (!state.doc) return;
+        state.select([]);
+        state.setTool("select");
+        return;
+      }
       if (!state.doc) return;
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key.toLowerCase() === 'z') {
@@ -198,20 +213,6 @@ export function CraftView({
       if (mod && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         state.duplicateSelected();
-        return;
-      }
-      if (event.key === "Escape") {
-        if (state.editingTextId) {
-          state.endTextEdit();
-          return;
-        }
-        if (helpOpen) {
-          event.preventDefault();
-          setHelpOpen(false);
-          return;
-        }
-        state.select([]);
-        state.setTool("select");
         return;
       }
       if (event.key === 'Enter' && !mod) {
@@ -244,43 +245,40 @@ export function CraftView({
     return () => window.removeEventListener('keydown', onKey);
   }, [helpOpen]);
 
-  if (!doc) {
-    return (
-      <div
-        {...getRootProps({ className: "flex h-full min-h-0 flex-col overflow-hidden" })}
-      >
-        <input {...getInputProps()} />
-        <div className="min-h-0 flex-1">
-          <EmptyState
-            title="New design"
-            body="Start from a LinkedIn banner (1584×396), a 1080×1080 square, or pick a template. Brand once, resize to story / square / OG, and export."
-            actions={(
-              <>
-                <Button onClick={() => useCraftStore.getState().applyTemplate("linkedin-banner")}>
-                  LinkedIn banner
-                </Button>
-                <Button variant="outline" onClick={() => void useCraftStore.getState().newBlank()}>
-                  <FilePlus />
-                  New design
-                </Button>
-                <Button variant="outline" onClick={open}>Open file</Button>
-                <Button variant="outline" onClick={() => setHelpOpen(true)} aria-label="Studio help">
-                  <CircleHelp />
-                  Help
-                </Button>
-              </>
-            )}
-          />
-        </div>
-        <TemplateStrip empty />
-        <CraftHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
-      </div>
-    );
-  }
-
-  const page = pageOf(useCraftStore.getState());
+  const page = doc ? pageOf(useCraftStore.getState()) : null;
 
   return (
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {!doc ? (
+        <div
+          {...getRootProps({ className: "flex h-full min-h-0 flex-col overflow-hidden" })}
+        >
+          <input {...getInputProps()} />
+          <div className="min-h-0 flex-1">
+            <EmptyState
+              title="New design"
+              body="Start from a LinkedIn banner (1584×396), a 1080×1080 square, or pick a template. Brand once, resize to story / square / OG, and export."
+              actions={(
+                <>
+                  <Button onClick={() => useCraftStore.getState().applyTemplate("linkedin-banner")}>
+                    LinkedIn banner
+                  </Button>
+                  <Button variant="outline" onClick={() => void useCraftStore.getState().newBlank()}>
+                    <FilePlus />
+                    New design
+                  </Button>
+                  <Button variant="outline" onClick={open}>Open file</Button>
+                  <Button variant="outline" onClick={() => setHelpOpen(true)} aria-label="Studio help">
+                    <CircleHelp />
+                    Help
+                  </Button>
+                </>
+              )}
+            />
+          </div>
+          <TemplateStrip empty />
+        </div>
+      ) : (
     <div
       {...getRootProps({ className: "flex h-full min-h-0 flex-1 flex-col overflow-hidden" })}
     >
@@ -395,6 +393,8 @@ export function CraftView({
         </div>
         <CraftInspector onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} yaffle={yaffle} mode={mode} />
       </div>
+    </div>
+      )}
       <CraftHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
