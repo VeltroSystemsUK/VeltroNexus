@@ -1,4 +1,4 @@
-import { splitHookLines } from "./craftQueue";
+import { PACKAGER_IDENTITY, splitHookLines } from "./craftQueue";
 import type { CreativeAmmoBrief } from "./craftScout";
 export { MARKETING_DIRECTOR_PROMPT } from "./islaQuinn";
 
@@ -130,6 +130,22 @@ function clipLine(text: string, max: number): string {
   return (sp > 24 ? cut.slice(0, sp) : cut).trim();
 }
 
+// Job first, disclosure second, never the reverse — see shared/islaQuinn.ts section 4.3.
+// Rotated (not a single fixed clause) so a week of seven cards doesn't stamp the same
+// negation on every one of them.
+const IDENTITY_LINES = [
+  "We build the file. We do not lend it.",
+  "We package the case. We do not lend.",
+  "One structure, built properly. We do not lend on it.",
+  "We are the packager. The lender decides, not us.",
+];
+
+function identityLineFor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return IDENTITY_LINES[hash % IDENTITY_LINES.length]!;
+}
+
 export function copyFromAmmo(brief: CreativeAmmoBrief): {
   track: CreativeAmmoBrief["track"];
   title: string;
@@ -140,9 +156,9 @@ export function copyFromAmmo(brief: CreativeAmmoBrief): {
   hashtags: string[];
   stockId: string;
 } {
-  const identity = "We do not lend.";
+  const identity = identityLineFor(brief.headline || brief.coreFact || brief.track);
   const impact = brief.smeImpact.trim();
-  const body = /do not lend/i.test(impact) ? impact : `${impact} ${identity}`;
+  const body = PACKAGER_IDENTITY.test(impact) ? impact : `${impact} ${identity}`;
   const hero = splitHookLines(brief.socialAngle);
   return {
     track: brief.track,

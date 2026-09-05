@@ -23,6 +23,8 @@ export type Desk = {
   briefs: CreativeAmmoBrief[];
   weekId?: string | null;
   route?: string | null;
+  /** Set when the last scan/compose fell back to the seed library instead of live research. */
+  researchWarning?: string | null;
 };
 
 const DESK_FILE = path.resolve(process.cwd(), "uploads", "craft_desk.json");
@@ -110,10 +112,18 @@ function asGrammarWeek(week: CraftPost[], from: string, route: WeekRoute): Craft
   }));
 }
 
+/** craftBrief() returns the same object reference, unchanged, whenever Isla's LLM pass fails. */
+function islaFallbackWarning(before: CreativeAmmoBrief[], after: CreativeAmmoBrief[]): string | null {
+  const fellBack = before.filter((brief, i) => after[i] === brief).length;
+  if (!fellBack) return null;
+  return `Isla's writing pass failed for ${fellBack} of ${before.length} briefs — using Casey's raw angle for those.`;
+}
+
 /** Casey's "scan the week" job — refreshes Creative Ammo Briefs and re-applies them to the queue. */
 export async function runCraftScan(userId: string): Promise<Desk> {
   const desk = deskFor(userId);
-  const briefs = await craftWeek(await researchWeek(desk.briefs));
+  const research = await researchWeek(desk.briefs);
+  const briefs = await craftWeek(research.briefs);
   const channels = desk.channels.length ? desk.channels : defaultChannels();
   const route = deskRoute(desk);
   const from = desk.weekStart || new Date().toISOString().slice(0, 10);
@@ -128,6 +138,7 @@ export async function runCraftScan(userId: string): Promise<Desk> {
     briefs,
     weekId: week[0]?.weekId ?? isoWeekId(from),
     route,
+    researchWarning: research.warning ?? islaFallbackWarning(research.briefs, briefs),
   };
   saveDesk(userId, next);
   return next;
@@ -141,10 +152,16 @@ export async function runCraftComposeWeek(
   const desk = deskFor(userId);
   const channels = desk.channels.length ? desk.channels : defaultChannels();
   const route = deskRoute(desk);
+  let researchWarning: string | null = null;
   const briefs =
     params.mode === "selected" && desk.briefs.length === 7
       ? desk.briefs
-      : await craftWeek(await researchWeek(desk.briefs));
+      : await (async () => {
+          const research = await researchWeek(desk.briefs);
+          const crafted = await craftWeek(research.briefs);
+          researchWarning = research.warning ?? islaFallbackWarning(research.briefs, crafted);
+          return crafted;
+        })();
   const generated = applyAmmoToWeek(seedGrammarWeek(params.from, route), briefs).map((post) =>
     applyChannelHandles(post, channels),
   );
@@ -160,6 +177,7 @@ export async function runCraftComposeWeek(
     briefs,
     weekId: week[0]?.weekId ?? isoWeekId(params.from),
     route,
+    researchWarning,
   };
   saveDesk(userId, next);
   return next;

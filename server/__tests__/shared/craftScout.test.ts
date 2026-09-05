@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COPY_LIMITS, generateWeek, weekCopyIsClean } from "@shared/craftQueue";
+import { COPY_LIMITS, generateWeek, PACKAGER_IDENTITY, weekCopyIsClean } from "@shared/craftQueue";
 import { copyFromAmmo, MARKETING_DIRECTOR_PROMPT } from "@shared/craftDirector";
 import {
   CASEY_FIRECRAWL_QUERIES,
@@ -265,7 +265,7 @@ describe("Content Scout", () => {
       expect(copy.hook2.length).toBeLessThanOrEqual(COPY_LIMITS.hook2);
       expect(copy.body.length).toBeLessThanOrEqual(COPY_LIMITS.body);
       expect(copy.cta.length).toBeLessThanOrEqual(COPY_LIMITS.cta);
-      expect(copy.body).toMatch(/do not lend/i);
+      expect(copy.body).toMatch(PACKAGER_IDENTITY);
     }
     const week = generateWeek("2026-08-31");
     expect(week).toHaveLength(7);

@@ -252,7 +252,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Expensive short-term facilities",
     source: "House policy + UK Finance / NACFB trade commentary — no invented base rate.",
     coreFact: "Short-term SME facilities often cost more than the problem they were meant to cover. High-street DSCR appetite tightens when serviceability looks thin.",
-    smeImpact: "Directors keep rolling expensive lines instead of packaging a refinance file. We package. We do not lend.",
+    smeImpact: "Directors keep rolling expensive lines instead of packaging a refinance file. We build the file. We do not lend it.",
     trigger: "Frustration with slow high-street banks; fear of cash-flow squeeze.",
     freshAngle: "The expensive facility is not a badge of being 'funded'. It is often the problem.",
     dataBites: [
@@ -260,7 +260,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Complete file beats a dear revolving line.",
     ],
     socialAngle: "If the facility costs more than the problem, look again.",
-    emailAngle: "A refinance pack is a process: accounts, bank, ID, use of funds. We package. We do not lend.",
+    emailAngle: "A refinance pack is a process: accounts, bank, ID, use of funds. One structure, built properly. We do not lend on it.",
     stockId: "desk",
     imagePrompt:
       "Late-afternoon UK limited-company office, oak desk, leaning stack of manila files, coffee ring on blotting paper, empty chair, dirty sash window, 35mm available light, no people",
@@ -271,7 +271,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Sterling-ready files",
     source: "Strata packager mandate. Sterling receives complete files only.",
     coreFact: "Incomplete introducer files stall. The file that moves is the complete one.",
-    smeImpact: "You bring the client. Thin files do not go to Sterling. We package. We do not lend.",
+    smeImpact: "You bring the client. Thin files do not go to Sterling. We package the case. We do not lend.",
     trigger: "Ambition to look professional; frustration with bounced cases.",
     freshAngle: "Speed is completeness, not a louder email.",
     dataBites: [
@@ -279,7 +279,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Missing items stay listed. Never guessed.",
     ],
     socialAngle: "The complete file is the one that moves.",
-    emailAngle: "Send a willing director and a company number. We package for Sterling. We do not lend.",
+    emailAngle: "Send a willing director and a company number. We are the packager for Sterling. The lender decides, not us.",
     stockId: "paper",
     imagePrompt:
       "Overhead of a clipped SME document pack on grey board, printed accounts, bank statements, passport face-down, steel paperclip, hard overhead, no people",
@@ -290,7 +290,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "What a complete pack looks like",
     source: "Sterling pack list. House completeness gate.",
     coreFact: "No pack, no funding conversation. A conversation without documents is theatre.",
-    smeImpact: "Accounts, bank, ID, use of funds. Missing stays listed. We package. We do not lend.",
+    smeImpact: "Accounts, bank, ID, use of funds. Missing stays listed. One structure, built properly. We do not lend on it.",
     trigger: "Confusion around terms; relief at a clear list.",
     freshAngle: "The pack is the product. The meeting is not.",
     dataBites: [
@@ -298,7 +298,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Never invent a figure to fill a gap.",
     ],
     socialAngle: "No pack. No funding conversation.",
-    emailAngle: "Here is the list. Send it once. We package. We do not lend.",
+    emailAngle: "Here is the list. Send it once. We build the file. We do not lend it.",
     stockId: "paper",
     imagePrompt:
       "Overhead of a clipped SME document pack on grey board, printed accounts, bank statements, passport face-down, steel paperclip, hard overhead, no people",
@@ -309,7 +309,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Why package with Strata",
     source: "Strata introducer track. Packager identity.",
     coreFact: "Introducers keep the client relationship. Strata runs the pack. Credit sits with Shaun and then David.",
-    smeImpact: "You keep the relationship. Thin files do not go to Sterling. We do not lend.",
+    smeImpact: "You keep the relationship. Thin files do not go to Sterling. We are the packager. The lender decides, not us.",
     trigger: "Status as the trusted adviser; fear of losing the client to a lender brand.",
     freshAngle: "The packager should be invisible to the relationship and ruthless about the file.",
     dataBites: [
@@ -317,7 +317,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Strata does not decide credit.",
     ],
     socialAngle: "You keep the relationship. We run the pack.",
-    emailAngle: "Bring the client. We package. We do not lend.",
+    emailAngle: "Bring the client. We package the case. We do not lend.",
     stockId: "hands",
     imagePrompt:
       "Two pairs of working hands over an open commercial-finance file on a scuffed meeting table, UK, documentary, shallow depth, no handshake",
@@ -328,7 +328,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Distress refinance is a process",
     source: "Strata Stream A mandate. ONS / Gazette as scan sources — no invented insolvency counts.",
     coreFact: "Cash-flow pressure is a file, not a slogan. Distress-refinance is packaging, not a consumer-credit pitch.",
-    smeImpact: "We package UK SME distress-refinance for Sterling. We do not lend.",
+    smeImpact: "We build the case for UK SME distress-refinance and hand it to Sterling. We do not lend it.",
     trigger: "Fear of losing assets; need for a calm process.",
     freshAngle: "The honest move is a complete file, not a louder promise.",
     dataBites: [
@@ -336,7 +336,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Facility band £25k–£250k. Turnover £250k–£5m.",
     ],
     socialAngle: "Cash-flow pressure is a file, not a slogan.",
-    emailAngle: "Distress-refinance is a pack. We package. We do not lend.",
+    emailAngle: "Distress-refinance is a pack, built properly. We do not lend on it.",
     stockId: "city",
     imagePrompt:
       "Dusk on a wet UK high street, independent shop lights in puddles, closed shutters, empty pavement, 50mm, cool grade, no people",
@@ -347,7 +347,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "What we need from you",
     source: "Introducer intake. Companies House identity.",
     coreFact: "A case starts with a name, a company number, and a willing director. Everything else is packaging.",
-    smeImpact: "Send that. We package the rest. We do not lend.",
+    smeImpact: "Send that. We package the case that follows. We do not lend.",
     trigger: "Relief at a short ask; impatience with long onboarding forms.",
     freshAngle: "The first email should be three facts, not a brochure.",
     dataBites: [
@@ -355,7 +355,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "No contact, no file that counts.",
     ],
     socialAngle: "Name, company number, willing director.",
-    emailAngle: "Three facts. We package. We do not lend.",
+    emailAngle: "Three facts. We are the packager. The lender decides, not us.",
     stockId: "accountant",
     imagePrompt:
       "Overhead of a clipped SME document pack on grey board, printed accounts, bank statements, passport face-down, steel paperclip, hard overhead, no people",
@@ -363,18 +363,18 @@ const AMMO: CreativeAmmoBrief[] = [
   {
     id: "ammo-say-it-plainly",
     track: "borrower",
-    headline: "We package. We do not lend.",
+    headline: "Say what we actually do",
     source: "House policy. Packager identity.",
     coreFact: "The market is noisy with lender-shaped language. Strata is a UK commercial finance packager.",
-    smeImpact: "Strata is a UK commercial finance packager. We do not lend.",
+    smeImpact: "Strata builds the case a lender can say yes to. We do not lend on it.",
     trigger: "Trust; irritation at disguised lenders.",
-    freshAngle: "Saying we do not lend is the most commercial sentence on the page.",
+    freshAngle: "The commercial sentence is what we build, not what we refuse to do.",
     dataBites: [
       "No rates. No guarantees. No consumer-credit ads.",
       "Shaun posts. Agents never auto-publish.",
     ],
-    socialAngle: "Say it plainly. The market is noisy.",
-    emailAngle: "We package UK SME finance. We do not lend.",
+    socialAngle: "The file gets built properly. That is the whole pitch.",
+    emailAngle: "We build the file for UK SME finance. We do not lend it.",
     stockId: "studio",
     imagePrompt:
       "Empty pack box and a black notebook on a paper sweep, single hard key from camera left, quiet studio, clean digital colour, no people",
@@ -385,7 +385,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "HMRC time to pay is a pack",
     source: "HMRC Time to Pay guidance — no invented arrears figure.",
     coreFact: "Tax arrears sit in front of refinance. A Time to Pay file is packaging, not a slogan.",
-    smeImpact: "Directors wait for a lender smile. We package the arrears file first. We do not lend.",
+    smeImpact: "Directors wait for a lender smile. We build the arrears file first. We are the packager, not the lender.",
     trigger: "Fear of the brown envelope.",
     freshAngle: "Clear the tax file before you ask for a facility.",
     dataBites: [
@@ -393,7 +393,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Arrears stay listed until evidenced.",
     ],
     socialAngle: "Tax arrears first. Then the refinance pack.",
-    emailAngle: "A Time to Pay file is a pack. We package. We do not lend.",
+    emailAngle: "A Time to Pay file is a pack. We package the case. We do not lend.",
     stockId: "letterbox",
     imagePrompt:
       "UK accounts desk, brown envelope face down beside clipped statements, hard overhead, no people",
@@ -404,7 +404,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "CDFI is a fit, not a last resort",
     source: "British Business Bank / CDFI panel commentary — no invented scheme rates.",
     coreFact: "Community lenders underwrite a complete file. They are not a consolation prize after a high-street no.",
-    smeImpact: "A declined bank letter is not the end of the pack. We package for the right panel. We do not lend.",
+    smeImpact: "A declined bank letter is not the end of the file. We build it for the right panel. We do not lend it.",
     trigger: "Shame after a bank decline; relief that another door exists.",
     freshAngle: "The specialist panel wants the file the high street would not sit with.",
     dataBites: [
@@ -412,7 +412,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Facility band £25k–£250k. Turnover £250k–£5m.",
     ],
     socialAngle: "A bank no is a file, not a funeral.",
-    emailAngle: "We package for CDFIs when the high street will not. We do not lend.",
+    emailAngle: "We build the case for CDFIs when the high street will not. We do not lend on it.",
     stockId: "city",
     imagePrompt:
       "Wet UK high street at dusk, independent shop lights in puddles, empty pavement, 50mm, no people",
@@ -423,7 +423,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "A debenture is a conversation",
     source: "Sterling security language. House packager mandate.",
     coreFact: "Security is explained, not sprung. The introducer keeps the relationship while the pack lists the charge.",
-    smeImpact: "You stay in the room. We write the pack. We do not lend.",
+    smeImpact: "You stay in the room. We package the case. We do not lend.",
     trigger: "Fear of looking like the person who hid the small print.",
     freshAngle: "The trusted adviser names the charge before the lender does.",
     dataBites: [
@@ -431,7 +431,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Never surprise a director with a floating charge in week six.",
     ],
     socialAngle: "Name the charge. Keep the client.",
-    emailAngle: "You keep the relationship. We package the security conversation. We do not lend.",
+    emailAngle: "You keep the relationship. We are the packager for the security conversation. The lender decides, not us.",
     stockId: "hands",
     imagePrompt:
       "Two pairs of working hands over an open commercial-finance file, scuffed meeting table, UK, no handshake",
@@ -442,7 +442,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Invoice finance is not another stack",
     source: "UK Finance / FLA trade commentary — no invented advance rates.",
     coreFact: "Receivables funding is a structure, not a third short-term loan on top of two already hurting.",
-    smeImpact: "Stacking another line to service the last one is the trap. We package. We do not lend.",
+    smeImpact: "Stacking another line to service the last one is the trap. One structure, built properly. We do not lend on it.",
     trigger: "Exhaustion from juggling facilities.",
     freshAngle: "The honest move is one structure that matches the debtor book, not a louder broker.",
     dataBites: [
@@ -450,7 +450,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "No consumer-credit language. No payday pitch.",
     ],
     socialAngle: "Stop stacking. Package the book.",
-    emailAngle: "Invoice finance is a pack against invoices, not another short-term line. We do not lend.",
+    emailAngle: "Invoice finance is a pack against invoices, not another short-term line. We build it. We do not lend it.",
     stockId: "desk",
     imagePrompt:
       "Oak SME desk, stacked invoices under a steel clip, late window light, empty chair, no people",
@@ -461,7 +461,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Do not send the lender a teaser",
     source: "Sterling completeness gate. House policy.",
     coreFact: "A name and a hope is not a file. Incomplete teasers stall on the first read.",
-    smeImpact: "Send a company number and a willing director. We package the rest. We do not lend.",
+    smeImpact: "Send a company number and a willing director. We are the packager for the rest. The lender decides, not us.",
     trigger: "Impatience with bounced cases; pride in looking professional.",
     freshAngle: "Speed is the complete pack, not the first email.",
     dataBites: [
@@ -469,7 +469,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "SFP PARTIAL blocks send.",
     ],
     socialAngle: "A teaser is not a file.",
-    emailAngle: "Company number, director, documents. We package. We do not lend.",
+    emailAngle: "Company number, director, documents. We package the case. We do not lend.",
     stockId: "boardroom-small",
     imagePrompt:
       "Overhead clipped SME pack, printed accounts, bank statements, steel paperclip, hard overhead, no people",
@@ -480,7 +480,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Companies House is identity",
     source: "Companies House public record. House intake.",
     coreFact: "A company number is how the file starts. It is not a credit score and not a promise.",
-    smeImpact: "We identify the company, then we package. We do not lend.",
+    smeImpact: "We identify the company, then we build the file. We do not lend it.",
     trigger: "Confusion between a filing and a facility.",
     freshAngle: "The number gets us into the record. The pack gets us into a conversation.",
     dataBites: [
@@ -488,7 +488,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Never treat a Gazette hit as a slogan.",
     ],
     socialAngle: "The company number opens the file. The pack opens the conversation.",
-    emailAngle: "Send the number. We package. We do not lend.",
+    emailAngle: "Send the number. One structure, built properly. We do not lend on it.",
     stockId: "studio",
     imagePrompt:
       "Quiet studio, black notebook and a printed Companies House extract, single hard key, no people",
@@ -499,7 +499,7 @@ const AMMO: CreativeAmmoBrief[] = [
     headline: "Working capital is not payday",
     source: "House policy. Packager identity.",
     coreFact: "Working-capital packaging is for UK limited companies with a file. It is not a consumer loan and not a payday product.",
-    smeImpact: "We package working capital for SME directors. We do not lend.",
+    smeImpact: "We package the case for working capital. We do not lend.",
     trigger: "Irritation at consumer-credit language in a B2B market.",
     freshAngle: "If the copy could sit on a payday site, it does not sit on this desk.",
     dataBites: [
@@ -507,7 +507,7 @@ const AMMO: CreativeAmmoBrief[] = [
       "Turnover band £250k–£5m. Facility band £25k–£250k.",
     ],
     socialAngle: "Working capital is a pack. Not a payday pitch.",
-    emailAngle: "UK limited-company working capital. We package. We do not lend.",
+    emailAngle: "UK limited-company working capital. We are the packager. The lender decides, not us.",
     stockId: "ledger",
     imagePrompt:
       "UK limited-company office at dusk, cashbook and a closed laptop, oak desk, no people",
