@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type P
 import { useDropzone } from 'react-dropzone';
 import {
   ArrowLeft,
+  CircleHelp,
   Download,
   FilePlus,
   Image as ImageIcon,
@@ -28,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { panFromWheel, zoomToward } from "./canvas/viewport";
 import { EmptyState } from "./shell/EmptyState";
+import { CraftHelp } from "./shell/CraftHelp";
 import { CraftContextMenu } from "./shell/CraftContextMenu";
 import { ShapeGlyph } from "./shell/glyphs";
 import { ColorPicker, InspectorHint, InspectorRail, InspectorSection, InspectorSlider } from "./shell/Inspector";
@@ -133,6 +135,7 @@ export function CraftView({
     Boolean(doc?.week && weekPage && !reviewWeekPage(weekPage).ok);
   const exportReason = weekReasons.join(" ") || (exportLocked ? "Marketing approve, then compliance sign-off, then export." : undefined);
   const imageInput = useRef<HTMLInputElement>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   useAutosave(dirty, () => useCraftStore.getState().save({ silent: true }));
 
   useEffect(() => {
@@ -175,6 +178,11 @@ export function CraftView({
     const onKey = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
       const state = useCraftStore.getState();
+      if (event.key === "?" || (event.key === "/" && event.shiftKey)) {
+        event.preventDefault();
+        setHelpOpen(true);
+        return;
+      }
       if (!state.doc) return;
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key.toLowerCase() === 'z') {
@@ -192,13 +200,18 @@ export function CraftView({
         state.duplicateSelected();
         return;
       }
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         if (state.editingTextId) {
           state.endTextEdit();
           return;
         }
+        if (helpOpen) {
+          event.preventDefault();
+          setHelpOpen(false);
+          return;
+        }
         state.select([]);
-        state.setTool('select');
+        state.setTool("select");
         return;
       }
       if (event.key === 'Enter' && !mod) {
@@ -229,7 +242,7 @@ export function CraftView({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [helpOpen]);
 
   if (!doc) {
     return (
@@ -251,11 +264,16 @@ export function CraftView({
                   New design
                 </Button>
                 <Button variant="outline" onClick={open}>Open file</Button>
+                <Button variant="outline" onClick={() => setHelpOpen(true)} aria-label="Studio help">
+                  <CircleHelp />
+                  Help
+                </Button>
               </>
             )}
           />
         </div>
         <TemplateStrip empty />
+        <CraftHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
     );
   }
@@ -284,6 +302,10 @@ export function CraftView({
               Queue
             </Button>
           )}
+          <Button size="sm" variant="ghost" aria-label="Studio help" onClick={() => setHelpOpen(true)}>
+            <CircleHelp />
+            Help
+          </Button>
           <Button size="icon" variant="ghost" aria-label="Undo" onClick={() => useCraftStore.getState().undo()}>
             <Undo2 />
           </Button>
@@ -373,6 +395,7 @@ export function CraftView({
         </div>
         <CraftInspector onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} yaffle={yaffle} mode={mode} />
       </div>
+      <CraftHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

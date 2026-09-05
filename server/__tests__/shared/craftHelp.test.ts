@@ -81,3 +81,26 @@ describe("Craft studio runner wiring", () => {
     expect(runner).not.toContain('get().applyTemplate("email-letter")');
   });
 });
+
+describe("Craft studio chrome", () => {
+  it("CraftHelp sheet lists recipes and run controls", () => {
+    const help = readFileSync("client/src/components/craft/shell/CraftHelp.tsx", "utf8");
+    expect(help).toContain("SWELL studio");
+    expect(help).toContain("Idea, then board. Export is a decision, not a default.");
+    expect(help).toContain("Run this step");
+    expect(help).toContain("Run all remaining");
+    expect(help).toContain("Reset ticks");
+    expect(help).toContain("runCraftHelpStep");
+    expect(help).toContain("CRAFT_HELP_DESK");
+    expect(help).toContain("CRAFT_HELP_RULES");
+  });
+
+  it("CraftView opens help from the bar and question mark", () => {
+    const view = readFileSync("client/src/components/craft/CraftView.tsx", "utf8");
+    expect(view).toContain("CraftHelp");
+    expect(view).toContain('aria-label="Studio help"');
+    expect(view).toMatch(/event\.key === "\?"/);
+    expect(view).toContain("isTypingTarget");
+    expect(view).toContain("setHelpOpen");
+  });
+});
