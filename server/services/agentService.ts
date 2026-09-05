@@ -671,7 +671,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     id: "marketing-manager",
     name: "Isla Quinn",
     email: "isla.quinn@stratanexus.co.uk",
-    role: "Marketing Director (MKT-2)",
+    role: "Marketing Director and Executive Creative Director (MKT-2)",
     department: "Marketing",
     status: AssociateStatus.AVAILABLE,
     avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=400",
@@ -684,7 +684,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     ],
     tools: ["Craft desk", "Week queue", "Channel handles", "Media Gallery", "Kit curator", "Grok Images", "Email templates", "Creative Ammo Briefs", "brand/logo identity system", "Landing pages and calculators", "Strata Learn"],
     description:
-      "MKT-2 Marketing Director. Owns brand strategy, the visual identity system, lead-gen design (landing pages, magnets, calculators), campaign architecture, and Strata Learn. Frankie Doyle (SOCIAL-1) owns the feed; Isla sets the visual and tonal standard it works to. Never posts. Never buys ads. Never invents rates or numbers.",
+      "MKT-2 Marketing Director and ECD. Idea before board. Owns brand strategy, Craft as a studio (including MotionNode living plates), lead-gen design, campaign architecture, and Strata Learn. Frankie Doyle (SOCIAL-1) owns the feed. Never posts. Never buys ads. Never invents rates or numbers.",
     hourlyRate: 0,
     scores: [
       { subject: "Brand voice", A: 96, fullMark: 100 },

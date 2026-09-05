@@ -1,3 +1,4 @@
+import { remapMotionSchema } from "./motion";
 import {
   DEFAULT_BRAND,
   uid,
@@ -56,7 +57,11 @@ export function applyBrand(doc: CraftDocument, brand: CraftBrand): CraftDocument
           ? remapColor(page.background.gradientEnd, doc.brand, brand)
           : page.background.gradientEnd,
       },
-      nodes: page.nodes.map((node) => applyBrandToNode(node, brand)),
+      nodes: page.nodes.map((node) => {
+        const branded = applyBrandToNode(node, brand);
+        if (branded.type !== "motion") return branded;
+        return { ...branded, schema: remapMotionSchema(branded.schema, doc.brand.colors, brand.colors) };
+      }),
     })),
     updatedAt: new Date().toISOString(),
   };

@@ -1,6 +1,7 @@
 import { EMAIL_MERGE_TAGS } from "@shared/schema";
+import { captureMotionFrame } from "./motion";
 import { displayText } from "./text";
-import { normalizeDocument, type CraftDocument, type CraftNode, type TextNode } from "./types";
+import { normalizeDocument, type CraftDocument, type CraftNode, type MotionNode, type TextNode } from "./types";
 
 export const CRAFT_EMAIL_MARK = "craft.email.v1";
 
@@ -53,6 +54,13 @@ function emailText(node: TextNode): string {
   return escapeHtml(raw).replace(/\n/g, "<br/>");
 }
 
+function motionEmailSrc(node: MotionNode, assets: CraftDocument["assets"]): string | null {
+  const captured = assets.find((item) => item.id === node.capturedAssetId)?.dataUrl;
+  if (captured) return captured;
+  const frame = captureMotionFrame(node, assets);
+  return frame.dataUrl || null;
+}
+
 function nodeRow(node: CraftNode, assets: CraftDocument["assets"]): string {
   if (node.hidden) return "";
   const pad = "8px 32px";
@@ -60,11 +68,13 @@ function nodeRow(node: CraftNode, assets: CraftDocument["assets"]): string {
     const align = node.align === "center" ? "center" : node.align === "right" ? "right" : "left";
     return `<tr><td style="padding:${pad};font-family:'${escapeHtml(node.fontFamily)}',Arial,sans-serif;font-size:${Math.round(node.fontSize)}px;font-weight:${node.fontWeight};color:${escapeHtml(node.color)};text-align:${align};line-height:${node.lineHeight};letter-spacing:${node.letterSpacing}px;opacity:${node.opacity};">${emailText(node)}</td></tr>`;
   }
-  if (node.type === "image") {
-    const asset = assets.find((item) => item.id === node.assetId);
-    if (!asset?.dataUrl) return "";
+  if (node.type === "image" || node.type === "motion") {
+    const src = node.type === "image"
+      ? assets.find((item) => item.id === node.assetId)?.dataUrl
+      : motionEmailSrc(node, assets);
+    if (!src) return "";
     const width = Math.min(536, Math.round(node.width));
-    return `<tr><td style="padding:${pad};text-align:center;"><img src="${escapeHtml(asset.dataUrl)}" width="${width}" alt="" style="max-width:100%;height:auto;display:block;margin:0 auto;border:0;opacity:${node.opacity};"/></td></tr>`;
+    return `<tr><td style="padding:${pad};text-align:center;"><img src="${escapeHtml(src)}" width="${width}" alt="" style="max-width:100%;height:auto;display:block;margin:0 auto;border:0;opacity:${node.opacity};"/></td></tr>`;
   }
   if (node.type === "shape") {
     const height = Math.max(4, Math.round(Math.min(node.height, 48)));

@@ -32,7 +32,7 @@ describe("Marketing Director visual curation", () => {
     const doc = applyPostVisual(composeSocialPost(post), ASSET);
     expect(doc.assets.some((asset) => asset.id === ASSET.id)).toBe(true);
     const visuals = doc.pages.flatMap((page) =>
-      page.nodes.filter((node) => node.type === "image" && node.name === "Visual")
+      page.nodes.filter((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"))
     );
     expect(visuals.length).toBeGreaterThan(0);
     expect(visuals[0]).toMatchObject({ assetId: ASSET.id, objectFit: "cover" });
@@ -42,7 +42,7 @@ describe("Marketing Director visual curation", () => {
     const post = generateWeek("2026-08-31")[0]!;
     const yaffle = { ...ASSET, id: "yaffle_x", name: "Yaffle" };
     const doc = applyPostVisual(composeSocialPost(post), yaffle, "plain");
-    const visual = doc.pages[0]!.nodes.find((node) => node.type === "image" && node.name === "Visual");
+    const visual = doc.pages[0]!.nodes.find((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"));
     expect(visual?.type === "image" ? visual.strokeWidth ?? 0 : -1).toBe(0);
     expect(visual?.type === "image" ? visual.tintOpacity ?? 0 : -1).toBe(0);
     expect(visual?.type === "image" ? visual.brightness : 0).toBe(1);

@@ -4,7 +4,6 @@ import {
   applyAmmoToWeek,
   applyChannelHandles,
   defaultChannels,
-  generateWeek,
   mergeGeneratedWeek,
   normalizePost,
   parseWeekGenerate,
@@ -12,6 +11,7 @@ import {
   type CraftPost,
   type WeekGenerateMode,
 } from "@shared/craftQueue";
+import { DAY_SLOTS, isoWeekId, seedGrammarWeek, type WeekRoute } from "@/components/craft/lib/weekGrammar";
 import { normalizeAmmo, type CreativeAmmoBrief } from "@shared/craftScout";
 import { researchWeek } from "./caseyScout";
 import { craftWeek } from "./islaDirector";
@@ -21,6 +21,8 @@ export type Desk = {
   channels: CraftChannel[];
   weekStart: string | null;
   briefs: CreativeAmmoBrief[];
+  weekId?: string | null;
+  route?: string | null;
 };
 
 const DESK_FILE = path.resolve(process.cwd(), "uploads", "craft_desk.json");
@@ -43,12 +45,46 @@ function writeAll(data: Record<string, Desk>) {
 export function deskFor(userId: string): Desk {
   const all = readAll();
   const desk = all[userId] ?? { week: [], channels: defaultChannels(), weekStart: null, briefs: [] };
+  const route: WeekRoute =
+    desk.route === "safe-distinctive" || desk.route === "beautiful-insane" ? desk.route : "sharp-cultural";
+  const rawWeek = (desk.week ?? []).map(normalizePost);
+  const from = desk.weekStart || rawWeek[0]?.date || new Date().toISOString().slice(0, 10);
+  const week = rawWeek.length ? asGrammarWeek(rawWeek, from, route) : rawWeek;
   return {
     ...desk,
-    week: (desk.week ?? []).map(normalizePost),
+    week,
     channels: desk.channels ?? defaultChannels(),
     briefs: normalizeAmmo(desk.briefs),
+    weekId: week[0]?.weekId ?? (typeof desk.weekId === "string" ? desk.weekId : null),
+    route,
   };
+}
+
+export function parseWeekGrammar(input: unknown): { from: string; route: WeekRoute } {
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const from = typeof raw.from === "string" && raw.from ? raw.from : new Date().toISOString().slice(0, 10);
+  const route: WeekRoute =
+    raw.route === "safe-distinctive" || raw.route === "beautiful-insane" ? raw.route : "sharp-cultural";
+  return { from, route };
+}
+
+export function runCraftNewWeek(
+  userId: string,
+  params: { from: string; route: WeekRoute } = parseWeekGrammar({}),
+): Desk {
+  const desk = deskFor(userId);
+  const channels = desk.channels.length ? desk.channels : defaultChannels();
+  const week = seedGrammarWeek(params.from, params.route);
+  const next: Desk = {
+    ...desk,
+    week,
+    channels,
+    weekStart: week[0]?.date ?? params.from,
+    weekId: week[0]?.weekId ?? isoWeekId(params.from),
+    route: params.route,
+  };
+  saveDesk(userId, next);
+  return next;
 }
 
 export function saveDesk(userId: string, desk: Desk) {
@@ -57,17 +93,42 @@ export function saveDesk(userId: string, desk: Desk) {
   writeAll(all);
 }
 
+function deskRoute(desk: Desk): WeekRoute {
+  return desk.route === "safe-distinctive" || desk.route === "beautiful-insane" ? desk.route : "sharp-cultural";
+}
+
+function asGrammarWeek(week: CraftPost[], from: string, route: WeekRoute): CraftPost[] {
+  const weekId = week[0]?.weekId || isoWeekId(from);
+  return week.map((post, i) => ({
+    ...post,
+    weekId: post.weekId || weekId,
+    route: post.route === "safe-distinctive" || post.route === "beautiful-insane" || post.route === "sharp-cultural"
+      ? post.route
+      : route,
+    daySlot: post.daySlot || DAY_SLOTS[i],
+    presetId: "li-landscape",
+  }));
+}
+
 /** Casey's "scan the week" job — refreshes Creative Ammo Briefs and re-applies them to the queue. */
 export async function runCraftScan(userId: string): Promise<Desk> {
   const desk = deskFor(userId);
   const briefs = await craftWeek(await researchWeek(desk.briefs));
   const channels = desk.channels.length ? desk.channels : defaultChannels();
+  const route = deskRoute(desk);
+  const from = desk.weekStart || new Date().toISOString().slice(0, 10);
   const week = desk.week.length
-    ? applyAmmoToWeek(desk.week, briefs)
-    : generateWeek(desk.weekStart || new Date().toISOString().slice(0, 10), briefs).map((post) =>
-        applyChannelHandles(post, channels),
-      );
-  const next: Desk = { ...desk, channels, week, weekStart: week[0]?.date ?? desk.weekStart, briefs };
+    ? applyAmmoToWeek(asGrammarWeek(desk.week, from, route), briefs)
+    : applyAmmoToWeek(seedGrammarWeek(from, route), briefs).map((post) => applyChannelHandles(post, channels));
+  const next: Desk = {
+    ...desk,
+    channels,
+    week,
+    weekStart: week[0]?.date ?? desk.weekStart,
+    briefs,
+    weekId: week[0]?.weekId ?? isoWeekId(from),
+    route,
+  };
   saveDesk(userId, next);
   return next;
 }
@@ -79,17 +140,27 @@ export async function runCraftComposeWeek(
 ): Promise<Desk> {
   const desk = deskFor(userId);
   const channels = desk.channels.length ? desk.channels : defaultChannels();
+  const route = deskRoute(desk);
   const briefs =
     params.mode === "selected" && desk.briefs.length === 7
       ? desk.briefs
       : await craftWeek(await researchWeek(desk.briefs));
-  const generated = generateWeek(
+  const generated = applyAmmoToWeek(seedGrammarWeek(params.from, route), briefs).map((post) =>
+    applyChannelHandles(post, channels),
+  );
+  const week = asGrammarWeek(
+    mergeGeneratedWeek(desk.week, generated, params.mode, params.selectedId),
     params.from,
+    route,
+  );
+  const next: Desk = {
+    week,
+    channels,
+    weekStart: week[0]?.date ?? params.from,
     briefs,
-    params.mode === "replace" ? params.stamp || Date.now().toString(36) : undefined,
-  ).map((post) => applyChannelHandles(post, channels));
-  const week = mergeGeneratedWeek(desk.week, generated, params.mode, params.selectedId);
-  const next: Desk = { week, channels, weekStart: week[0]?.date ?? params.from, briefs };
+    weekId: week[0]?.weekId ?? isoWeekId(params.from),
+    route,
+  };
   saveDesk(userId, next);
   return next;
 }

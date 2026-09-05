@@ -1,4 +1,4 @@
-import type { CraftNode, ImageNode } from "./types";
+import type { CraftNode, ImageNode, MotionNode } from "./types";
 
 export const IMAGE_LOOKS = [
   { id: "plain", label: "Plain" },
@@ -56,7 +56,7 @@ const SHADOWS: Record<Exclude<ShadowPresetId, "none">, NonNullable<ImageNode["sh
   hard: { color: "rgba(0,0,0,0.4)", blur: 8, x: 4, y: 6 },
 };
 
-export function applyFrameShape(node: ImageNode, id: FrameShapeId): ImageNode {
+export function applyFrameShape(node: ImageNode | MotionNode, id: FrameShapeId): ImageNode | MotionNode {
   const spec = FRAME_SHAPES.find((item) => item.id === id);
   if (!spec || id === "plain") {
     return { ...node, mask: undefined, stroke: id === "plain" ? undefined : node.stroke, strokeWidth: id === "plain" ? 0 : node.strokeWidth };
@@ -78,6 +78,8 @@ export const IMAGE_MOTIONS = [
   { id: "slideIn", label: "Slide in" },
   { id: "pop", label: "Pop" },
   { id: "pulse", label: "Pulse" },
+  { id: "hook-turn", label: "Hook turn" },
+  { id: "stamp-down", label: "Stamp down" },
 ] as const;
 
 export type ImageMotionId = (typeof IMAGE_MOTIONS)[number]["id"];
@@ -217,6 +219,8 @@ const MOTION_MS: Record<Exclude<ImageMotionId, "none">, number> = {
   slideIn: 720,
   pop: 460,
   pulse: 1400,
+  "hook-turn": 900,
+  "stamp-down": 420,
 };
 
 export function applyNodeMotion(node: CraftNode, motion: ImageMotionId): CraftNode {
@@ -225,7 +229,11 @@ export function applyNodeMotion(node: CraftNode, motion: ImageMotionId): CraftNo
 }
 
 export function pageHasMotion(nodes: CraftNode[]): boolean {
-  return nodes.some((node) => node.animation && node.animation.type !== "none");
+  return nodes.some(
+    (node) =>
+      (node.animation && node.animation.type !== "none") ||
+      (node.type === "motion" && node.preview === "live"),
+  );
 }
 
 export function nudgeNodeOrder(nodes: CraftNode[], id: string, direction: 1 | -1): CraftNode[] {

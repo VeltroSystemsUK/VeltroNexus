@@ -8,6 +8,7 @@ import {
   FRAME_SHAPES,
   pageHasMotion,
 } from "@/components/craft/lib/looks";
+import { evaluateAnimation } from "@/components/craft/lib/renderer";
 import type { CraftNode, ImageNode } from "@/components/craft/lib/types";
 
 const BASE: ImageNode = {
@@ -100,5 +101,23 @@ describe("applyImageLook", () => {
     expect(applyNodeMotion(faded, "none").animation).toBeUndefined();
     expect(pageHasMotion([faded])).toBe(true);
     expect(pageHasMotion([applyNodeMotion(BASE, "none") as CraftNode])).toBe(false);
+  });
+
+  it("keeps the original six motion types and adds hook-turn and stamp-down", () => {
+    const fade = evaluateAnimation({ type: "fadeIn", duration: 700, delay: 0 }, 0);
+    expect(fade.opacity).toBe(0);
+    const done = evaluateAnimation({ type: "fadeIn", duration: 700, delay: 0 }, 800);
+    expect(done.opacity).toBe(1);
+
+    const turn0 = evaluateAnimation({ type: "hook-turn", duration: 900, delay: 0 }, 0);
+    expect(turn0.opacity).toBeLessThan(1);
+    const turn1 = evaluateAnimation({ type: "hook-turn", duration: 900, delay: 0 }, 900);
+    expect(turn1.opacity).toBe(1);
+
+    const slam0 = evaluateAnimation({ type: "stamp-down", duration: 420, delay: 0 }, 0);
+    expect(slam0.scaleX).toBeGreaterThan(1);
+    const slam1 = evaluateAnimation({ type: "stamp-down", duration: 420, delay: 0 }, 500);
+    expect(slam1.scaleX).toBe(1);
+    expect(slam1.scaleY).toBe(1);
   });
 });

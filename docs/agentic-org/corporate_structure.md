@@ -31,7 +31,7 @@ Agents do not replace Shaun with customers. They remove the admin so Shaun can t
 | SAL-1 | Inbound enquiries — James Hale (`inbound-enquiries`) | 2 | Draft replies to `enquiries@`. IMAP + Drafts only. Never send. Email-first pack collection. |
 | SAL-2 | Communications — James Hale / Sophie Reed / Rowan Vale (`outreach-sales`, `fulfilment-manager`, `mailbox-clerk`) | 2 | Template cadence, pack request, chase, STOP/bounce/spam, LinkedIn *drafts*, queue Shaun’s calls |
 | FIN-2 | File factory — Priya Shah (`deal-processing-underwriter`) | 2 | Ingest → SFP → credit memo recommendation → completeness → Sterling zip |
-| MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director: Craft week + email templates + Editorial blogs/press releases from MKT-3 ammo and MKT-4 stills; never posts |
+| MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director and ECD: Craft week (including MotionNode living plates) + email templates + Editorial from MKT-3 ammo and MKT-4 stills; never posts |
 | MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | Strata-desk only (stacked debt, HMRC TTP, CDFI) plus relevant public news; Creative Ammo Briefs and Editorial topic-scan notes for Isla; no tangents; never writes final ad copy |
 | MKT-4 | Media Curator — Kit Lang (`media-curator`) | 2 | Hunt, hash, tag, index stills (Unsplash, Pexels, Openverse, Firecrawl); never posts |
 

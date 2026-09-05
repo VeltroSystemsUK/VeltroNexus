@@ -35,12 +35,25 @@ import { LiveStatusBar } from "./shell/LiveStatusBar";
 import { isTypingTarget, useAutosave } from "./hooks/useAutosave";
 import { COLOR_ROLES } from './lib/brand';
 import { hitHandle, nodesInMarquee, pointInNode, type Rect } from './lib/geometry';
+import { liveMotionIds } from "./lib/motion";
+import { disposeAll, retainMotionNodes, setDensityScale, syncMotionLiveSet } from "./lib/motionRuntime";
+import { MOTION_PRESETS, MOTION_PRESET_GROUPS } from "./lib/motionPresets";
+import {
+  clearMotionSessionWarning,
+  getMotionSessionWarning,
+  validateMotionSchema,
+  type MotionBlending,
+  type MotionFps,
+  type MotionTrigger,
+} from "./lib/motionSchema";
 import { drawFrame } from './lib/renderer';
 import {
   DEFAULT_BRAND,
   type ColorRole,
   type CraftNode,
   type Handle,
+  type MotionNode,
+  type MotionPreview,
   type TextAlign,
   type TextNode,
 } from './lib/types';
@@ -52,6 +65,9 @@ import { canvasCopyLimit, copyPatchFromNode } from "./lib/composePost";
 import { textOverlayBox } from "./lib/text";
 import { pageOf, useCraftStore, type CraftTool } from "./store";
 import { type CraftCopyPatch } from "@shared/craftQueue";
+import { reviewWeekPage, weekContractReminder } from "./lib/weekGrammar";
+import type { AssetSource, WeekRoute } from "./lib/types";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const TOOLS: { id: CraftTool; label: string; shortcut: string; icon: typeof Type }[] = [
   { id: 'select', label: 'Select', shortcut: 'V', icon: MousePointer2 },
@@ -66,6 +82,22 @@ const KEYS: Record<string, CraftTool> = {
   s: 'shape',
   i: 'image',
 };
+
+const LOCKED_EXPORT = "opacity-40 grayscale bg-muted text-muted-foreground border-muted shadow-none";
+
+const ROUTES: { id: WeekRoute; label: string }[] = [
+  { id: "sharp-cultural", label: "Sharp cultural" },
+  { id: "safe-distinctive", label: "Safe distinctive" },
+  { id: "beautiful-insane", label: "Beautiful insane" },
+];
+
+const MEDIA_SOURCES: { id: AssetSource | "all"; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "analog-capture", label: "Analog" },
+  { id: "motion-capture", label: "Motion" },
+  { id: "generated", label: "Generated" },
+  { id: "upload", label: "Upload" },
+];
 
 export type CraftYaffleProps = {
   ok?: boolean;
@@ -91,7 +123,13 @@ export function CraftView({
   const dirty = useCraftStore((state) => state.dirty);
   const releaseUnlocked = useCraftStore((state) => state.releaseUnlocked);
   const assetId = useCraftStore((state) => state.assetId);
-  const exportLocked = Boolean(assetId?.startsWith("mkt-") && !releaseUnlocked);
+  const pageId = useCraftStore((state) => state.pageId);
+  const weekPage = doc ? (doc.pages.find((item) => item.id === (pageId ?? doc.activePageId)) ?? doc.pages[0]) : null;
+  const weekReasons = doc?.week && weekPage ? reviewWeekPage(weekPage).findings.map((item) => item.message) : [];
+  const exportLocked =
+    Boolean(assetId?.startsWith("mkt-") && !releaseUnlocked) ||
+    Boolean(doc?.week && weekPage && !reviewWeekPage(weekPage).ok);
+  const exportReason = weekReasons.join(" ") || (exportLocked ? "Marketing approve, then compliance sign-off, then export." : undefined);
   const imageInput = useRef<HTMLInputElement>(null);
   useAutosave(dirty, () => useCraftStore.getState().save({ silent: true }));
 
@@ -232,11 +270,27 @@ export function CraftView({
                 <Save />
                 Save
               </Button>
-              <Button size="sm" variant="outline" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPng()}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={exportLocked}
+                aria-disabled={exportLocked}
+                title={exportReason}
+                className={exportLocked ? LOCKED_EXPORT : undefined}
+                onClick={() => void useCraftStore.getState().exportPng()}
+              >
                 <Download />
                 PNG
               </Button>
-              <Button size="sm" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPack()}>
+              <Button
+                size="sm"
+                variant={exportLocked ? "outline" : "default"}
+                disabled={exportLocked}
+                aria-disabled={exportLocked}
+                title={exportReason}
+                className={exportLocked ? LOCKED_EXPORT : undefined}
+                onClick={() => void useCraftStore.getState().exportPack()}
+              >
                 Export pack
               </Button>
               <Button
@@ -274,6 +328,7 @@ export function CraftView({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <CraftTools onPickImage={() => imageInput.current?.click()} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {doc.week && <WeekRail />}
           <CraftCanvas onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} />
           <LiveStatusBar
             getZoom={() => useCraftStore.getState().zoom}
@@ -292,6 +347,102 @@ export function CraftView({
         </div>
         <CraftInspector onPickImage={() => imageInput.current?.click()} onCopyChange={onCopyChange} yaffle={yaffle} mode={mode} />
       </div>
+    </div>
+  );
+}
+
+function WeekRail() {
+  const doc = useCraftStore((state) => state.doc);
+  const pageId = useCraftStore((state) => state.pageId);
+  if (!doc?.week) return null;
+  const active = doc.pages.find((page) => page.id === (pageId ?? doc.activePageId));
+  return (
+    <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] px-3 py-1.5">
+      {doc.pages.filter((page) => page.daySlot).map((page) => (
+        <Button
+          key={page.id}
+          size="sm"
+          variant={page.id === active?.id ? "secondary" : "ghost"}
+          onClick={() => useCraftStore.getState().setPage(page.id)}
+        >
+          {page.name}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function ComplianceBadges({ zoom, panX, panY }: { zoom: number; panX: number; panY: number }) {
+  const doc = useCraftStore((state) => state.doc);
+  const pageId = useCraftStore((state) => state.pageId);
+  if (!doc?.week) return null;
+  const page = doc.pages.find((item) => item.id === (pageId ?? doc.activePageId)) ?? doc.pages[0];
+  if (!page) return null;
+  return (
+    <>
+      {reviewWeekPage(page).findings.filter((item) => item.nodeId).map((item) => {
+        const node = page.nodes.find((entry) => entry.id === item.nodeId);
+        if (!node) return null;
+        return (
+          <div
+            key={`${item.nodeId}-${item.code}`}
+            className="pointer-events-none absolute z-10 max-w-[14rem] rounded-sm bg-red-600 px-1.5 py-0.5 text-[9px] leading-tight text-white"
+            style={{ left: panX + node.x * zoom, top: panY + node.y * zoom - 16 }}
+          >
+            {item.message}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function MediaTray({ onPickImage }: { onPickImage: () => void }) {
+  const doc = useCraftStore((state) => state.doc);
+  const mediaSource = useCraftStore((state) => state.mediaSource);
+  if (!doc) return null;
+  const assets = doc.assets.filter((asset) => {
+    if (mediaSource === "all") return true;
+    if (!asset.source) return mediaSource === "upload";
+    return asset.source === mediaSource;
+  });
+  const analogEmpty = !doc.assets.some((asset) => asset.source === "analog-capture");
+  return (
+    <div className="space-y-2">
+      <p className="font-[family-name:var(--font-ui)] text-[10px] font-bold tracking-[0.14em] text-[var(--suite-accent)] uppercase">
+        Media tray
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {MEDIA_SOURCES.map((item) => (
+          <Button
+            key={item.id}
+            size="sm"
+            variant={mediaSource === item.id ? "secondary" : "ghost"}
+            onClick={() => useCraftStore.getState().setMediaSource(item.id)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      {analogEmpty && <InspectorHint>no analog still — shoot or scan</InspectorHint>}
+      {assets.length > 0 && (
+        <div className="grid grid-cols-3 gap-1">
+          {assets.map((asset) => (
+            <button
+              key={asset.id}
+              type="button"
+              title={asset.name}
+              className="overflow-hidden rounded-sm border border-input bg-white"
+              onClick={() => useCraftStore.getState().hangAsset(asset.id)}
+            >
+              <img src={asset.dataUrl} alt={asset.name} className="h-14 w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+      <Button size="sm" variant="outline" className="w-full" onClick={onPickImage}>
+        Add still
+      </Button>
     </div>
   );
 }
@@ -340,7 +491,11 @@ function CraftCanvas({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pointerPage = useRef<{ x: number; y: number } | null>(null);
+  const clickPage = useRef<{ x: number; y: number } | null>(null);
   const spaceHeld = useRef(false);
+  const altHeld = useRef(false);
+  const fpsSample = useRef({ last: 0, frames: 0, fps: 0 });
   const drag = useRef<{
     mode: 'pan' | 'move' | 'resize' | 'rotate' | 'marquee';
     startX: number;
@@ -355,6 +510,7 @@ function CraftCanvas({
   const [marquee, setMarquee] = useState<Rect | null>(null);
   const [needsPaint, setNeedsPaint] = useState(0);
   const [menu, setMenu] = useState<{ x: number; y: number; nodeId: string | null } | null>(null);
+  const [hud, setHud] = useState<{ fps: number; live: number } | null>(null);
 
   const doc = useCraftStore((state) => state.doc);
   const pageId = useCraftStore((state) => state.pageId);
@@ -368,9 +524,21 @@ function CraftCanvas({
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (event.code === 'Space') spaceHeld.current = true;
+      if (event.key === 'Alt') {
+        altHeld.current = true;
+        setNeedsPaint((n) => n + 1);
+      }
     };
     const up = (event: KeyboardEvent) => {
       if (event.code === 'Space') spaceHeld.current = false;
+      if (event.key === 'Alt') {
+        altHeld.current = false;
+        const pinned = typeof localStorage !== 'undefined' && localStorage.craftMotionHud === '1';
+        if (!pinned) {
+          setDensityScale(1);
+          setHud(null);
+        }
+      }
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -412,6 +580,35 @@ function CraftCanvas({
       ctx.fillRect(0, 0, page.width, page.height);
       ctx.shadowColor = 'transparent';
       const motion = pageHasMotion(page.nodes);
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const liveIds = liveMotionIds(page.nodes, state.selectedIds, 2, {
+        panX: state.panX,
+        panY: state.panY,
+        zoom: state.zoom,
+        hostW: w,
+        hostH: h,
+      });
+      retainMotionNodes(page.nodes.filter((node) => node.type === "motion").map((node) => node.id));
+      syncMotionLiveSet(liveIds);
+      const now = performance.now();
+      const sample = fpsSample.current;
+      if (!sample.last) sample.last = now;
+      sample.frames += 1;
+      if (now - sample.last >= 500) {
+        sample.fps = Math.round((sample.frames * 1000) / Math.max(1, now - sample.last));
+        sample.frames = 0;
+        sample.last = now;
+      }
+      const hudOn =
+        altHeld.current || (typeof localStorage !== 'undefined' && localStorage.craftMotionHud === '1');
+      if (hudOn) {
+        setDensityScale(sample.fps > 0 && sample.fps < 24 ? 0.8 : 1);
+        const next = { fps: sample.fps, live: liveIds.size };
+        setHud((prev) => (prev && prev.fps === next.fps && prev.live === next.live ? prev : next));
+      } else {
+        setDensityScale(1);
+        setHud((prev) => (prev ? null : prev));
+      }
       drawFrame(ctx, page, state.doc.assets, {
         selectedIds: state.selectedIds,
         zoom: state.zoom,
@@ -420,9 +617,16 @@ function CraftCanvas({
         hideIds: state.editingTextId ? [state.editingTextId] : undefined,
         atMs: motion ? performance.now() - state.animOriginMs : Infinity,
         onImage: () => setNeedsPaint((n) => n + 1),
+        motion: {
+          liveIds,
+          pointer: pointerPage.current,
+          click: clickPage.current,
+          reduced,
+        },
       });
+      clickPage.current = null;
       ctx.restore();
-      if (motion && live) raf = requestAnimationFrame(paint);
+      if (motion && live && !reduced) raf = requestAnimationFrame(paint);
     };
     paint();
     const unsub = useCraftStore.subscribe(() => {
@@ -440,6 +644,11 @@ function CraftCanvas({
     };
   }, [doc, pageId, selectedIds, zoom, panX, panY, marquee, needsPaint]);
 
+  useEffect(() => {
+    return () => {
+      disposeAll();
+    };
+  }, [doc?.id, pageId]);
   const toPage = (clientX: number, clientY: number) => {
     const rect = hostRef.current!.getBoundingClientRect();
     const { zoom: z, panX: x, panY: y } = useCraftStore.getState();
@@ -453,6 +662,8 @@ function CraftCanvas({
     if (event.button !== 0 && event.button !== 1) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const pt = toPage(event.clientX, event.clientY);
+    pointerPage.current = pt;
+    clickPage.current = pt;
     const state = useCraftStore.getState();
     const page = pageOf(state);
     if (!page) return;
@@ -547,6 +758,7 @@ function CraftCanvas({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointerPage.current = toPage(event.clientX, event.clientY);
     const current = drag.current;
     if (!current) return;
     const state = useCraftStore.getState();
@@ -699,6 +911,15 @@ function CraftCanvas({
       onContextMenu={onContextMenu}
     >
       <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+      <ComplianceBadges zoom={zoom} panX={panX} panY={panY} />
+      {hud && (
+        <div
+          className="pointer-events-none absolute top-2 left-2 z-20 rounded bg-black/70 px-2 py-1 font-mono text-[11px] text-zinc-100"
+          aria-hidden
+        >
+          {hud.fps} fps · {hud.live} live
+        </div>
+      )}
       <TypeBar />
       {menu && (
         <CraftContextMenu
@@ -800,6 +1021,39 @@ function TextEditOverlay({
   );
 }
 
+function DescribeCurrentField() {
+  const [phrase, setPhrase] = useState("");
+  return (
+    <div className="space-y-1.5">
+      <label className="grid gap-1 text-[10px] tracking-[0.1em] text-muted-foreground uppercase">
+        Describe a current
+        <Input
+          value={phrase}
+          aria-label="Describe a current"
+          placeholder="liquid glass wave sparks"
+          className="text-xs normal-case tracking-normal"
+          onChange={(event) => setPhrase(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && phrase.trim()) {
+              event.preventDefault();
+              useCraftStore.getState().applyCurrentDescription(phrase.trim());
+            }
+          }}
+        />
+      </label>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        disabled={!phrase.trim()}
+        onClick={() => useCraftStore.getState().applyCurrentDescription(phrase.trim())}
+      >
+        Apply current
+      </Button>
+    </div>
+  );
+}
+
 function YafflePanel({ yaffle }: { yaffle: CraftYaffleProps }) {
   const [prompt, setPrompt] = useState(yaffle.prompt);
   useEffect(() => {
@@ -843,19 +1097,28 @@ function CraftInspector({
   const selectedIds = useCraftStore((state) => state.selectedIds);
   const releaseUnlocked = useCraftStore((state) => state.releaseUnlocked);
   const assetId = useCraftStore((state) => state.assetId);
-  const exportLocked = Boolean(assetId?.startsWith("mkt-") && !releaseUnlocked);
   const history = useCraftStore((state) => state.history);
   const historyIndex = useCraftStore((state) => state.historyIndex);
   const shapeVariant = useCraftStore((state) => state.shapeVariant);
+  const gifProgress = useCraftStore((state) => state.gifProgress);
+  const firstFrameSettled = useCraftStore((state) => state.firstFrameSettled);
   const page = doc ? (doc.pages.find((item) => item.id === (pageId ?? doc.activePageId)) ?? doc.pages[0]) : null;
   if (!doc || !page) return null;
   const selected = page.nodes.filter((item) => selectedIds.includes(item.id));
   const node = selected[0];
-
   const textNode = node?.type === "text" ? node : null;
+  const weekReasons = doc.week ? reviewWeekPage(page).findings.map((item) => item.message) : [];
+  const exportLocked =
+    Boolean(assetId?.startsWith("mkt-") && !releaseUnlocked) ||
+    Boolean(doc.week && !reviewWeekPage(page).ok);
+  const exportReason = weekReasons.join(" ") || (exportLocked ? "Marketing approve, then compliance sign-off, then export." : undefined);
 
   return (
-    <InspectorRail title={mode === "email" ? "TEMPLATE" : "SWELL"} className="font-[family-name:var(--font-sans)]">
+    <InspectorRail
+      title={mode === "email" ? "TEMPLATE" : "SWELL"}
+      className="font-[family-name:var(--font-sans)]"
+      lead={mode !== "email" ? <MediaTray onPickImage={onPickImage} /> : undefined}
+    >
       <InspectorSection title="Type">
         {textNode ? (
           <TextTypeFields node={textNode} onCopyChange={onCopyChange} />
@@ -884,6 +1147,25 @@ function CraftInspector({
             background: { ...page.background, color },
           })}
         />
+        {doc.week && page.daySlot && (
+          <div className="space-y-2">
+            <InspectorHint>{weekContractReminder(page.daySlot)}</InspectorHint>
+            <p className="text-[10px] tracking-[0.12em] text-muted-foreground uppercase">Route</p>
+            <div className="grid gap-1">
+              {ROUTES.map((route) => (
+                <Button
+                  key={route.id}
+                  size="sm"
+                  variant={doc.week?.route === route.id ? "secondary" : "ghost"}
+                  className="justify-start"
+                  onClick={() => useCraftStore.getState().setWeekRoute(route.id)}
+                >
+                  {route.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
       </InspectorSection>
 
       {mode === "email" && (
@@ -905,11 +1187,10 @@ function CraftInspector({
         </InspectorSection>
       )}
 
-      {yaffle && (
-        <InspectorSection title="Images">
-          <YafflePanel yaffle={yaffle} />
-        </InspectorSection>
-      )}
+      <InspectorSection title="Images">
+        {yaffle && <YafflePanel yaffle={yaffle} />}
+        <DescribeCurrentField />
+      </InspectorSection>
 
       <InspectorSection title="Brand">
         <Input
@@ -992,7 +1273,7 @@ function CraftInspector({
         </div>
       </InspectorSection>
 
-      <InspectorSection title="Size">
+      {!doc.week && <InspectorSection title="Size">
         <div className="grid grid-cols-2 gap-1">
           {SIZE_PRESETS.map((preset) => (
             <Button
@@ -1009,9 +1290,9 @@ function CraftInspector({
         <Button size="sm" variant="outline" className="w-full" onClick={() => useCraftStore.getState().spawnPackPages()}>
           Spawn story / square / OG
         </Button>
-      </InspectorSection>
+      </InspectorSection>}
 
-      <InspectorSection title="Templates">
+      {!doc.week && <InspectorSection title="Templates">
         <div className="grid grid-cols-1 gap-1">
           {DESIGN_TEMPLATES.map((template) => (
             <Button
@@ -1028,7 +1309,7 @@ function CraftInspector({
             </Button>
           ))}
         </div>
-      </InspectorSection>
+      </InspectorSection>}
 
       <InspectorSection title="Shapes">
         {SHAPE_GROUPS.map((group) => (
@@ -1065,6 +1346,38 @@ function CraftInspector({
         <InspectorHint>Pick a glyph, then click the board. Right-click a panel to swap shape.</InspectorHint>
       </InspectorSection>
 
+      <InspectorSection title="Motion">
+        {MOTION_PRESET_GROUPS.map((group) => (
+          <div key={group} className="space-y-1">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{MOTION_GROUP_LABELS[group]}</p>
+            <div className="grid grid-cols-1 gap-1">
+              {MOTION_PRESETS.filter((preset) => preset.group === group).map((preset) => (
+                <Button
+                  key={preset.id}
+                  size="sm"
+                  variant={
+                    node?.type === "motion" && node.schema.meta?.title === preset.schema.meta?.title
+                      ? "secondary"
+                      : "ghost"
+                  }
+                  className="h-auto w-full justify-start py-1.5 text-left"
+                  onClick={() => useCraftStore.getState().applyMotionPreset(preset.id)}
+                >
+                  <span>
+                    <span className="block">{preset.name}</span>
+                    <span className="block text-[10px] font-normal text-muted-foreground">{preset.schema.meta?.vibe}</span>
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {gifProgress != null && (
+          <p className="text-[11px] text-muted-foreground">Recording GIF…</p>
+        )}
+        <InspectorHint>Living plate inside the node. Default week boards stay photo unless you insert this.</InspectorHint>
+      </InspectorSection>
+
       <InspectorSection title="Selection">
         {!node && (
           <InspectorHint>Click a line to change its font. Double-click to edit the words. V select · T text · S shape · I image.</InspectorHint>
@@ -1091,15 +1404,66 @@ function CraftInspector({
 
       {mode !== "email" && <InspectorSection title="Export">
         {exportLocked && (
-          <InspectorHint>Marketing approve, then compliance sign-off, then export.</InspectorHint>
+          <ul className="space-y-1">
+            {(weekReasons.length ? weekReasons : [exportReason]).filter(Boolean).map((reason) => (
+              <li key={reason} className="text-[11px] leading-relaxed text-red-500">
+                {reason}
+              </li>
+            ))}
+          </ul>
         )}
-        <Button size="sm" className="w-full" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPng()}>
+        {doc.week && !exportLocked && (
+          <InspectorHint>Board is clear to export.</InspectorHint>
+        )}
+        <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Checkbox
+            checked={firstFrameSettled}
+            onCheckedChange={(value) => useCraftStore.getState().setFirstFrameSettled(value !== false)}
+          />
+          First frame settled
+        </label>
+        <Button
+          size="sm"
+          className={cn("w-full", exportLocked && LOCKED_EXPORT)}
+          variant={exportLocked ? "outline" : "default"}
+          disabled={exportLocked}
+          aria-disabled={exportLocked}
+          title={exportReason}
+          onClick={() => void useCraftStore.getState().exportPng()}
+        >
           Export PNG
         </Button>
-        <Button size="sm" variant="outline" className="w-full" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportPack()}>
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn("w-full", exportLocked && LOCKED_EXPORT)}
+          disabled={exportLocked}
+          aria-disabled={exportLocked}
+          title={exportReason}
+          onClick={() => void useCraftStore.getState().exportGif()}
+        >
+          Export GIF
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn("w-full", exportLocked && LOCKED_EXPORT)}
+          disabled={exportLocked}
+          aria-disabled={exportLocked}
+          title={exportReason}
+          onClick={() => void useCraftStore.getState().exportPack()}
+        >
           Export pack (story / square / OG)
         </Button>
-        <Button size="sm" variant="ghost" className="w-full" disabled={exportLocked} onClick={() => void useCraftStore.getState().exportFormats()}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn("w-full", exportLocked && LOCKED_EXPORT)}
+          disabled={exportLocked}
+          aria-disabled={exportLocked}
+          title={exportReason}
+          onClick={() => void useCraftStore.getState().exportFormats()}
+        >
           PNG · JPEG · WebP · SVG
         </Button>
       </InspectorSection>}
@@ -1123,6 +1487,266 @@ function CraftInspector({
         </div>
       </InspectorSection>
     </InspectorRail>
+  );
+}
+
+const MOTION_TRIGGERS: MotionTrigger[] = ["none", "mousemove", "click", "scroll", "touch", "hover"];
+const MOTION_BLENDS: MotionBlending[] = ["source-over", "screen", "multiply", "overlay"];
+const MOTION_FPS: MotionFps[] = [24, 30, 60];
+const MOTION_GROUP_LABELS = {
+  Atmosphere: "Atmosphere",
+  "Graphic devices": "Graphic devices",
+  Structure: "Structure",
+  Occasional: "Occasional",
+} as const;
+
+function MotionNodeFields({ node }: { node: MotionNode }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [jsonText, setJsonText] = useState(() => JSON.stringify(node.schema, null, 2));
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setJsonText(JSON.stringify(node.schema, null, 2));
+    setJsonError(null);
+  }, [node.id, node.schema]);
+
+  const update = (updates: Partial<MotionNode>) => useCraftStore.getState().updateNode(node.id, updates);
+  const sessionWarning = getMotionSessionWarning(node.id);
+
+  const commitSchema = (schema: MotionNode["schema"]) => {
+    const result = validateMotionSchema(schema);
+    if (result.ok) update({ schema: result.schema });
+  };
+
+  const setPaletteSlot = (index: number, hex: string) => {
+    const palette = node.schema.visual.palette.slice();
+    while (palette.length <= index) palette.push(hex);
+    palette[index] = hex;
+    commitSchema({ ...node.schema, visual: { ...node.schema.visual, palette } });
+  };
+
+  const applyJson = (text: string) => {
+    try {
+      const parsed = JSON.parse(text);
+      const result = validateMotionSchema(parsed);
+      if (!result.ok) {
+        setJsonError(result.error ?? "illegal motion schema");
+        return;
+      }
+      setJsonError(null);
+      clearMotionSessionWarning(node.id);
+      if (JSON.stringify(result.schema) === JSON.stringify(node.schema)) return;
+      update({ schema: result.schema });
+    } catch (error) {
+      setJsonError(error instanceof Error ? error.message : "invalid JSON");
+    }
+  };
+
+  const palette = node.schema.visual.palette;
+  const physics = node.schema.physicsAndMath;
+  const interaction = node.schema.interactionRules;
+
+  return (
+    <>
+      {sessionWarning && <InspectorHint>{sessionWarning}</InspectorHint>}
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Frame</p>
+      <div className="flex flex-wrap gap-1">
+        {FRAME_SHAPES.map((shape) => (
+          <Button
+            key={shape.id}
+            size="sm"
+            variant={node.mask === shape.mask || (!node.mask && shape.id === "plain") ? "secondary" : "ghost"}
+            onClick={() => useCraftStore.getState().applyFrameShape(shape.id)}
+          >
+            {shape.label}
+          </Button>
+        ))}
+      </div>
+      <ColorPicker
+        compact
+        label="Ground"
+        value={node.schema.visual.background}
+        onChange={(background) => commitSchema({ ...node.schema, visual: { ...node.schema.visual, background } })}
+      />
+      <ColorPicker compact label="Filament 1" value={palette[0] ?? "#1A1D21"} onChange={(hex) => setPaletteSlot(0, hex)} />
+      <ColorPicker compact label="Filament 2" value={palette[1] ?? "#2F5199"} onChange={(hex) => setPaletteSlot(1, hex)} />
+      <ColorPicker compact label="Accent" value={palette[2] ?? "#C69123"} onChange={(hex) => setPaletteSlot(2, hex)} />
+      <InspectorSlider
+        label="Density"
+        value={physics.densityCount}
+        min={8}
+        max={4000}
+        onChange={(densityCount) => commitSchema({ ...node.schema, physicsAndMath: { ...physics, densityCount } })}
+      />
+      <InspectorSlider
+        label="Speed"
+        value={Math.round(physics.speed * 100)}
+        min={0}
+        max={400}
+        onChange={(value) => commitSchema({ ...node.schema, physicsAndMath: { ...physics, speed: value / 100 } })}
+        format={(value) => (value / 100).toFixed(2)}
+      />
+      <InspectorSlider
+        label="Friction"
+        value={Math.round(physics.friction * 100)}
+        min={0}
+        max={100}
+        onChange={(value) => commitSchema({ ...node.schema, physicsAndMath: { ...physics, friction: value / 100 } })}
+        format={(value) => `${value}%`}
+      />
+      <InspectorSlider
+        label="Amplitude"
+        value={physics.amplitude}
+        min={0}
+        max={200}
+        onChange={(amplitude) => commitSchema({ ...node.schema, physicsAndMath: { ...physics, amplitude } })}
+      />
+      <InspectorSlider
+        label="Frequency"
+        value={Math.round(physics.frequency * 10)}
+        min={0}
+        max={80}
+        onChange={(value) => commitSchema({ ...node.schema, physicsAndMath: { ...physics, frequency: value / 10 } })}
+        format={(value) => (value / 10).toFixed(1)}
+      />
+      <InspectorSlider
+        label="Grain"
+        value={Math.round(node.schema.visual.grain * 100)}
+        min={0}
+        max={40}
+        onChange={(value) => commitSchema({ ...node.schema, visual: { ...node.schema.visual, grain: value / 100 } })}
+        format={(value) => `${value}%`}
+      />
+      <InspectorSlider
+        label="Field opacity"
+        value={Math.round(node.schema.visual.opacity * 100)}
+        min={0}
+        max={100}
+        onChange={(value) => commitSchema({ ...node.schema, visual: { ...node.schema.visual, opacity: value / 100 } })}
+        format={(value) => `${value}%`}
+      />
+      <InspectorSlider
+        label="Influence radius"
+        value={interaction.influenceRadius}
+        min={0}
+        max={800}
+        onChange={(influenceRadius) =>
+          commitSchema({ ...node.schema, interactionRules: { ...interaction, influenceRadius } })
+        }
+      />
+      <InspectorSlider
+        label="Pull strength"
+        value={Math.round(interaction.strength * 100)}
+        min={0}
+        max={400}
+        onChange={(value) =>
+          commitSchema({ ...node.schema, interactionRules: { ...interaction, strength: value / 100 } })
+        }
+        format={(value) => (value / 100).toFixed(2)}
+      />
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Blend</p>
+      <div className="flex flex-wrap gap-1">
+        {MOTION_BLENDS.map((blend) => (
+          <Button
+            key={blend}
+            size="sm"
+            variant={node.schema.visual.blending === blend ? "secondary" : "ghost"}
+            onClick={() => commitSchema({ ...node.schema, visual: { ...node.schema.visual, blending: blend } })}
+          >
+            {blend}
+          </Button>
+        ))}
+      </div>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Trigger</p>
+      <div className="flex flex-wrap gap-1">
+        {MOTION_TRIGGERS.map((trigger) => (
+          <Button
+            key={trigger}
+            size="sm"
+            variant={interaction.triggerType === trigger ? "secondary" : "ghost"}
+            onClick={() => commitSchema({ ...node.schema, interactionRules: { ...interaction, triggerType: trigger } })}
+          >
+            {trigger}
+          </Button>
+        ))}
+      </div>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">FPS cap</p>
+      <div className="flex flex-wrap gap-1">
+        {MOTION_FPS.map((fps) => (
+          <Button
+            key={fps}
+            size="sm"
+            variant={node.schema.performance.fpsCap === fps ? "secondary" : "ghost"}
+            onClick={() => commitSchema({ ...node.schema, performance: { ...node.schema.performance, fpsCap: fps } })}
+          >
+            {fps}
+          </Button>
+        ))}
+      </div>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Preview</p>
+      <div className="flex flex-wrap gap-1">
+        {(["live", "still", "reduced"] as MotionPreview[]).map((preview) => (
+          <Button
+            key={preview}
+            size="sm"
+            variant={node.preview === preview ? "secondary" : "ghost"}
+            onClick={() => update({ preview })}
+          >
+            {preview}
+          </Button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        <Button size="sm" variant="outline" onClick={() => useCraftStore.getState().captureMotionStill(node.id)}>
+          Capture still
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => void useCraftStore.getState().recordMotionGif(node.id)}>
+          Record GIF
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => update({ seed: Date.now() })}>
+          Reset seed
+        </Button>
+      </div>
+      {!advancedOpen ? (
+        <>
+          <p className="text-[11px] text-muted-foreground">Category {node.schema.category}</p>
+          <p className="text-[11px] text-muted-foreground">Library {node.schema.engine.library}</p>
+          <Button size="sm" variant="ghost" onClick={() => setAdvancedOpen(true)}>
+            Advanced JSON
+          </Button>
+        </>
+      ) : (
+        <>
+          <Textarea
+            value={jsonText}
+            rows={10}
+            aria-label="Advanced JSON"
+            className="min-h-[8rem] font-mono text-[11px]"
+            onChange={(event) => {
+              const text = event.target.value;
+              setJsonText(text);
+              try {
+                const parsed = JSON.parse(text);
+                const result = validateMotionSchema(parsed);
+                setJsonError(result.ok ? null : (result.error ?? "illegal motion schema"));
+              } catch (error) {
+                setJsonError(error instanceof Error ? error.message : "invalid JSON");
+              }
+            }}
+            onBlur={() => applyJson(jsonText)}
+          />
+          <div className="flex flex-wrap gap-1">
+            <Button size="sm" variant="outline" onClick={() => applyJson(jsonText)}>
+              Apply
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setAdvancedOpen(false)}>
+              Close
+            </Button>
+          </div>
+          {jsonError && <InspectorHint>{jsonError}</InspectorHint>}
+        </>
+      )}
+    </>
   );
 }
 
@@ -1187,6 +1811,9 @@ function NodeFields({
       )}
       {node.type === 'shape' && (
         <ColorPicker label="Fill" value={node.fill} onChange={(fill) => update({ fill })} />
+      )}
+      {node.type === "motion" && (
+        <MotionNodeFields node={node} />
       )}
       {node.type === 'image' && (
         <>
@@ -1534,6 +2161,13 @@ function TemplateStrip({ empty }: { empty?: boolean }) {
             {template.name}
           </Button>
         ))}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => useCraftStore.getState().addMotion("ledger-current")}
+        >
+          Ledger Current
+        </Button>
       </div>
     </div>
   );

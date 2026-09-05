@@ -15,7 +15,7 @@ import {
 import { ammoForPost, parseYaffleImageRequest, yafflePromptFromAmmo } from "@shared/craftYaffle";
 import { canPublishLearn, slugifyLearnTitle, snapshotLearnPiece, NEWS_CATEGORIES } from "@shared/learn";
 import type { LearnPiece } from "@shared/schema";
-import { deskFor, saveDesk, runCraftScan, runCraftComposeWeek } from "../services/craftDesk";
+import { deskFor, saveDesk, runCraftScan, runCraftComposeWeek, parseWeekGrammar, runCraftNewWeek } from "../services/craftDesk";
 import { grokFile, grokGenerateStill, grokJob } from "../services/grokImages";
 import { stillStatus, yaffleFileBuffer, yaffleJob } from "../services/yaffleSidecar";
 
@@ -47,6 +47,14 @@ router.post("/craft/week", isAuthenticated, async (req: AuthenticatedRequest, re
   }
 });
 
+router.post("/craft/week/grammar", isAuthenticated, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    res.json(runCraftNewWeek(req.user!.id, parseWeekGrammar(req.body)));
+  } catch (err) {
+    handleApiError(res, err, "craft-week-grammar");
+  }
+});
+
 router.post("/craft/scan", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
   try {
     res.json(await runCraftScan(req.user!.id));
@@ -73,7 +81,7 @@ router.patch("/craft/week/:id", isAuthenticated, (req: AuthenticatedRequest, res
     res.json(next);
   } catch (err: any) {
     const msg = String(err?.message || "");
-    if (/invalid status|invalid compliance|house policy|invalid patch|marketing must approve|packager|do not lend|compliance must sign off|http\(s\)|valid http|characters or fewer|at most/i.test(msg)) {
+    if (/invalid status|invalid compliance|house policy|invalid patch|marketing must approve|packager|do not lend|compliance must sign off|http\(s\)|valid http|characters or fewer|at most|friday/i.test(msg)) {
       return res.status(400).json({ error: msg });
     }
     handleApiError(res, err, "craft-week-patch");

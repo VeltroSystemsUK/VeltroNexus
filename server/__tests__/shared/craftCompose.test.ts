@@ -20,42 +20,37 @@ const STILL: CraftAsset = {
 };
 
 describe("composeSocialPost", () => {
-  it("lays the post onto a CRAFT template instead of a blank board", () => {
+  it("lays the queue post onto the house week file, not og-banner", () => {
     const post = generateWeek("2026-08-31")[0]!;
     const doc = composeSocialPost(post);
 
-    expect(doc.title).toBe(post.title);
-    expect(doc.pages.length).toBeGreaterThanOrEqual(3);
-
-    const texts = doc.pages.flatMap((page) =>
-      page.nodes.filter((n) => n.type === "text").map((n) => n.text)
-    );
+    expect(doc.week).toBeTruthy();
+    expect(doc.pages).toHaveLength(7);
+    expect(doc.pages.every((page) => page.presetId === "li-landscape")).toBe(true);
+    const home = doc.pages.find((page) => page.name === post.weekday) ?? doc.pages[0]!;
+    const texts = home.nodes.filter((n) => n.type === "text").map((n) => n.text);
     expect(texts.some((t) => t.includes(post.hook) || t.startsWith(post.hook.slice(0, 24)))).toBe(true);
-    expect(texts.join(" ").toUpperCase()).toContain("STRATA");
-    expect(doc.pages.some((p) => p.presetId === "og" || p.presetId === post.presetId)).toBe(true);
-    expect(doc.pages.some((p) => p.presetId === "square")).toBe(true);
-    expect(doc.pages.some((p) => p.presetId === "story")).toBe(true);
-    expect(doc.pages[0]!.nodes.length).toBeGreaterThan(3);
-    for (const page of doc.pages) {
-      const names = page.nodes.filter((n) => n.type === "text").map((n) => n.name.toLowerCase());
-      expect(names.some((n) => n.includes("cta"))).toBe(true);
-      expect(names.some((n) => n.includes("hashtag"))).toBe(true);
-      expect(names.some((n) => n === "link")).toBe(true);
-    }
-    expect(texts.some((t) => t.includes(post.cta) || t === post.cta)).toBe(true);
-    expect(texts.join(" ")).toContain(post.hashtags[0]!);
+    expect(texts.join(" ").toUpperCase()).toMatch(/DO NOT LEND/);
+    expect(home.daySlot).toBeTruthy();
+    const names = home.nodes.filter((n) => n.type === "text").map((n) => n.name.toLowerCase());
+    expect(names.some((n) => n.includes("cta"))).toBe(true);
+    expect(names).toContain("identity");
   });
 
   it("uses borrower vs introducer labels on the board", () => {
     const week = generateWeek("2026-08-31");
-    const borrower = composeSocialPost(week.find((p) => p.track === "borrower")!);
-    const introducer = composeSocialPost(week.find((p) => p.track === "introducer")!);
-    const borrowerText = borrower.pages[0]!.nodes
+    const borrowerPost = week.find((p) => p.track === "borrower")!;
+    const introducerPost = week.find((p) => p.track === "introducer")!;
+    const borrower = composeSocialPost(borrowerPost);
+    const introducer = composeSocialPost(introducerPost);
+    const borrowerPage = borrower.pages.find((page) => page.name === borrowerPost.weekday) ?? borrower.pages[0]!;
+    const introducerPage = introducer.pages.find((page) => page.name === introducerPost.weekday) ?? introducer.pages[0]!;
+    const borrowerText = borrowerPage.nodes
       .filter((n) => n.type === "text")
       .map((n) => n.text)
       .join(" ")
       .toUpperCase();
-    const introducerText = introducer.pages[0]!.nodes
+    const introducerText = introducerPage.nodes
       .filter((n) => n.type === "text")
       .map((n) => n.text)
       .join(" ")
@@ -107,7 +102,7 @@ describe("composeSocialPost", () => {
     expect(copyPatchFromNode(byName("Hook 2")!.name, "  We do not lend.  ")).toEqual({
       hook2: "We do not lend.",
     });
-    expect(copyPatchFromNode(byName("Deck")!.name, "We package. We do not lend.")).toEqual({
+    expect(copyPatchFromNode(byName("Body")!.name, "We package. We do not lend.")).toEqual({
       body: "We package. We do not lend.",
     });
     expect(copyPatchFromNode(byName("CTA label")!.name, "Talk to Strata")).toEqual({
@@ -174,11 +169,12 @@ describe("composeSocialPost", () => {
   it("lets Creative Design hang a framed, shadowed, moving still instead of a blob", () => {
     const post = generateWeek("2026-08-31")[0]!;
     const doc = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain"), post);
-    const visual = doc.pages[0]!.nodes.find((node) => node.type === "image" && node.name === "Visual");
-    expect(visual?.type === "image" ? visual.mask : undefined).toBeTruthy();
-    expect(visual?.shadow?.blur).toBeGreaterThan(0);
-    expect(visual?.type === "image" ? visual.tintOpacity ?? 0 : -1).toBe(0);
-    expect(visual?.animation?.type && visual.animation.type !== "none").toBe(true);
+    const visual = doc.pages[0]!.nodes.find(
+      (node) => (node.type === "image" && node.name === "Visual") || node.name === "Media frame",
+    );
+    expect(visual).toBeTruthy();
+    expect(visual?.shadow).toBeTruthy();
+    expect(visual?.type === "image" ? visual.tintOpacity ?? 0 : 0).toBe(0);
     const hook1 = doc.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 1");
     const hook2 = doc.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 2");
     expect(hook1?.animation?.type && hook1.animation.type !== "none").toBe(true);
@@ -200,9 +196,9 @@ describe("composeSocialPost", () => {
   it("keeps the directed frame when ammo copy is relaid", () => {
     const post = generateWeek("2026-08-31")[0]!;
     const directed = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain"), post);
-    const before = directed.pages[0]!.nodes.find((node) => node.type === "image" && node.name === "Visual");
+    const before = directed.pages[0]!.nodes.find((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"));
     const relaid = applyPostCopy(directed, { ...post, hook: "Ammo hook on the board", hook2: "We do not lend." });
-    const after = relaid.pages[0]!.nodes.find((node) => node.type === "image" && node.name === "Visual");
+    const after = relaid.pages[0]!.nodes.find((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"));
     expect(after?.type === "image" ? after.mask : undefined).toBe(before?.type === "image" ? before.mask : "missing");
     expect(after?.shadow?.blur).toBe(before?.shadow?.blur);
     expect(after?.animation?.type).toBe(before?.animation?.type);

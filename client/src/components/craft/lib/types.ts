@@ -1,3 +1,5 @@
+import { setMotionSessionWarning, validateMotionSchema } from "./motionSchema";
+
 export const CRAFT_SCHEMA = "quires.craft.v1";
 export const CRAFT_APP = "QUIRES CRAFT";
 export const CRAFT_VERSION = "0.1.0";
@@ -46,7 +48,29 @@ export const ALL_SHAPE_VARIANTS: ShapeVariant[] = [
 export type TextAlign = "left" | "center" | "right";
 export type FillMode = "solid" | "gradient";
 export type BgMode = "solid" | "gradient";
-export type AnimationType = "none" | "fadeIn" | "slideIn" | "pop" | "pulse" | "bounce" | "spin";
+export type AnimationType =
+  | "none"
+  | "fadeIn"
+  | "slideIn"
+  | "pop"
+  | "pulse"
+  | "bounce"
+  | "spin"
+  | "hook-turn"
+  | "stamp-down";
+
+const ANIMATION_TYPES: AnimationType[] = [
+  "none",
+  "fadeIn",
+  "slideIn",
+  "pop",
+  "pulse",
+  "bounce",
+  "spin",
+  "hook-turn",
+  "stamp-down",
+];
+
 export type ColorRole = "primary" | "secondary" | "accent" | "background" | "text" | "muted";
 export type FontRole = "heading" | "body";
 export type TextFit = "none" | "shrink";
@@ -95,6 +119,7 @@ export interface NodeBase {
   role?: ColorRole;
   animation?: AnimationSpec;
   shadow?: DropShadow;
+  copyExempt?: boolean;
 }
 
 export interface TextNode extends NodeBase {
@@ -201,7 +226,41 @@ export interface PathNode extends NodeBase {
   strokeWidth: number;
 }
 
-export type CraftNode = TextNode | ShapeNode | ImageNode | PathNode;
+export type MotionPreview = "live" | "still" | "reduced";
+export type WeekRoute = "safe-distinctive" | "sharp-cultural" | "beautiful-insane";
+export type DaySlot =
+  | "monday-two-beat"
+  | "tuesday-stamp"
+  | "wednesday-voice"
+  | "thursday-redact"
+  | "friday-number"
+  | "saturday-object"
+  | "sunday-silence";
+export type AssetSource = "analog-capture" | "motion-capture" | "generated" | "upload";
+export type AnalogKind = "stamp" | "file" | "letter" | "sheet" | "other";
+
+export type WeekMaster = {
+  weekId: string;
+  route: WeekRoute;
+  type: { display: "Unbounded"; body: "Inter"; mono: "JetBrains Mono" };
+  finish: { shadow: "hard-offset"; radiusImage: 0; radiusChip: 2 };
+  goldMaxArea: 0.1;
+  identity: "We do not lend.";
+  platformLine: string;
+};
+
+export interface MotionNode extends NodeBase {
+  type: "motion";
+  schema: import("./motionSchema").MotionSchema;
+  preview: MotionPreview;
+  capturedAssetId?: string;
+  seed?: number;
+  mask?: Exclude<MaskShape, "none">;
+  stroke?: string;
+  strokeWidth?: number;
+}
+
+export type CraftNode = TextNode | ShapeNode | ImageNode | PathNode | MotionNode;
 
 export interface AutoLayout {
   direction: "row" | "column";
@@ -220,6 +279,10 @@ export interface CraftAsset {
   dataUrl: string;
   width?: number;
   height?: number;
+  source?: AssetSource;
+  analogKind?: AnalogKind;
+  shotAt?: string;
+  metadata?: { schemaHash?: string };
 }
 
 export interface CraftFont {
@@ -254,6 +317,7 @@ export interface CraftPage {
   };
   nodes: CraftNode[];
   layouts?: Record<string, AutoLayout>;
+  daySlot?: DaySlot;
 }
 
 export interface CraftVersion {
@@ -276,6 +340,7 @@ export interface CraftDocument {
   fonts?: CraftFont[];
   deck?: CraftDeck;
   versions?: CraftVersion[];
+  week?: WeekMaster;
   createdAt: string;
   updatedAt: string;
 }
@@ -413,12 +478,21 @@ function asConstraint(value: unknown, fallback: Constraint): Constraint {
     : fallback;
 }
 
+function asAnimationType(value: unknown): AnimationType {
+  const raw = asString(value, "none");
+  return ANIMATION_TYPES.includes(raw as AnimationType) ? (raw as AnimationType) : "none";
+}
+
 function normalizeNode(raw: unknown, index: number): CraftNode {
   const node = asRecord(raw) ?? {};
-  const type = node.type === "text" || node.type === "image" || node.type === "path" ? node.type : "shape";
+  const type =
+    node.type === "text" || node.type === "image" || node.type === "path" || node.type === "motion" ? node.type : "shape";
   const base: NodeBase = {
     id: asString(node.id, uid("n")),
-    name: asString(node.name, type === "text" ? "Text" : type === "image" ? "Image" : type === "path" ? "Path" : "Shape"),
+    name: asString(
+      node.name,
+      type === "text" ? "Text" : type === "image" ? "Image" : type === "path" ? "Path" : type === "motion" ? "Media frame" : "Shape",
+    ),
     x: asNumber(node.x, 40 + index * 8),
     y: asNumber(node.y, 40 + index * 8),
     width: asNumber(node.width, 200),
@@ -446,7 +520,7 @@ function normalizeNode(raw: unknown, index: number): CraftNode {
         : undefined,
     animation: asRecord(node.animation)
       ? {
-          type: (asString(asRecord(node.animation)?.type, "none") as AnimationType) || "none",
+          type: asAnimationType(asRecord(node.animation)?.type),
           duration: asNumber(asRecord(node.animation)?.duration, 600),
           delay: asNumber(asRecord(node.animation)?.delay, 0),
         }
@@ -459,6 +533,7 @@ function normalizeNode(raw: unknown, index: number): CraftNode {
           y: asNumber(asRecord(node.shadow)?.y, 8),
         }
       : undefined,
+    copyExempt: node.copyExempt === true ? true : undefined,
   };
 
   if (type === "text") {
@@ -535,6 +610,25 @@ function normalizeNode(raw: unknown, index: number): CraftNode {
     };
   }
 
+  if (type === "motion") {
+    const preview = node.preview === "still" || node.preview === "reduced" ? node.preview : "live";
+    const validated = validateMotionSchema(node.schema);
+    if (!validated.ok) {
+      setMotionSessionWarning(base.id, validated.error ?? "Illegal motion schema. Using Ledger Current.");
+    }
+    return {
+      ...base,
+      type: "motion",
+      schema: validated.schema,
+      preview,
+      capturedAssetId: typeof node.capturedAssetId === "string" ? node.capturedAssetId : undefined,
+      seed: typeof node.seed === "number" ? node.seed : 1,
+      mask: MASK_VALUES.includes(node.mask as MaskShape) ? (node.mask as Exclude<MaskShape, "none">) : undefined,
+      stroke: typeof node.stroke === "string" ? node.stroke : undefined,
+      strokeWidth: node.strokeWidth !== undefined ? asNumber(node.strokeWidth, 0) : undefined,
+    };
+  }
+
   const variant = ALL_SHAPE_VARIANTS.includes(node.variant as ShapeVariant)
     ? (node.variant as ShapeVariant)
     : "rect";
@@ -571,10 +665,37 @@ function normalizeBrand(raw: unknown): CraftBrand {
   };
 }
 
+const DAY_SLOTS: DaySlot[] = [
+  "monday-two-beat",
+  "tuesday-stamp",
+  "wednesday-voice",
+  "thursday-redact",
+  "friday-number",
+  "saturday-object",
+  "sunday-silence",
+];
+
+function normalizeWeek(raw: unknown): WeekMaster | undefined {
+  const week = asRecord(raw);
+  if (!week) return undefined;
+  const route: WeekRoute =
+    week.route === "safe-distinctive" || week.route === "beautiful-insane" ? week.route : "sharp-cultural";
+  return {
+    weekId: asString(week.weekId, ""),
+    route,
+    type: { display: "Unbounded", body: "Inter", mono: "JetBrains Mono" },
+    finish: { shadow: "hard-offset", radiusImage: 0, radiusChip: 2 },
+    goldMaxArea: 0.1,
+    identity: "We do not lend.",
+    platformLine: asString(week.platformLine, ""),
+  };
+}
+
 function normalizePage(raw: unknown, index: number): CraftPage {
   const page = asRecord(raw) ?? {};
   const background = asRecord(page.background) ?? {};
   const nodes = Array.isArray(page.nodes) ? page.nodes.map(normalizeNode) : [];
+  const daySlot = DAY_SLOTS.includes(page.daySlot as DaySlot) ? (page.daySlot as DaySlot) : undefined;
   return {
     id: asString(page.id, uid("page")),
     name: asString(page.name, `Artboard ${index + 1}`),
@@ -588,6 +709,7 @@ function normalizePage(raw: unknown, index: number): CraftPage {
       angle: asNumber(background.angle, 135),
     },
     nodes,
+    ...(daySlot ? { daySlot } : {}),
     layouts: asRecord(page.layouts)
       ? Object.fromEntries(
           Object.entries(asRecord(page.layouts) ?? {}).map(([id, value]) => {
@@ -618,11 +740,27 @@ export function normalizeDocument(raw: unknown): CraftDocument {
   const activePageId = pages.some((page) => page.id === doc.activePageId) ? asString(doc.activePageId, pages[0].id) : pages[0].id;
   const assets = Array.isArray(doc.assets)
     ? doc.assets
-        .map((item) => {
+        .map((item): CraftAsset | null => {
           const asset = asRecord(item);
           if (!asset) return null;
           const width = asNumber(asset.width, 0);
           const height = asNumber(asset.height, 0);
+          const source =
+            asset.source === "analog-capture" ||
+            asset.source === "motion-capture" ||
+            asset.source === "generated" ||
+            asset.source === "upload"
+              ? asset.source
+              : undefined;
+          const analogKind =
+            asset.analogKind === "stamp" ||
+            asset.analogKind === "file" ||
+            asset.analogKind === "letter" ||
+            asset.analogKind === "sheet" ||
+            asset.analogKind === "other"
+              ? asset.analogKind
+              : undefined;
+          const schemaHash = asRecord(asset.metadata)?.schemaHash;
           return {
             id: asString(asset.id, uid("asset")),
             name: asString(asset.name, "Image"),
@@ -630,6 +768,10 @@ export function normalizeDocument(raw: unknown): CraftDocument {
             dataUrl: asString(asset.dataUrl, ""),
             ...(width > 0 ? { width } : {}),
             ...(height > 0 ? { height } : {}),
+            ...(source ? { source } : {}),
+            ...(analogKind ? { analogKind } : {}),
+            ...(typeof asset.shotAt === "string" ? { shotAt: asset.shotAt } : {}),
+            ...(typeof schemaHash === "string" ? { metadata: { schemaHash } } : {}),
           } satisfies CraftAsset;
         })
         .filter((asset): asset is CraftAsset => Boolean(asset?.dataUrl))
@@ -666,6 +808,7 @@ export function normalizeDocument(raw: unknown): CraftDocument {
     fonts,
     deck,
     versions: Array.isArray(doc.versions) ? (doc.versions as CraftVersion[]) : [],
+    week: normalizeWeek(doc.week),
     createdAt: asString(doc.createdAt, now),
     updatedAt: asString(doc.updatedAt, now),
   };

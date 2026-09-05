@@ -53,6 +53,9 @@ export type CraftPost = {
     query: string;
     prompt: string;
   };
+  weekId?: string;
+  route?: string;
+  daySlot?: string;
 };
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -285,7 +288,7 @@ export function generateWeek(fromIso: string, ammo: CreativeAmmoBrief[] = scanWe
       autoPublish: false,
       primaryChannel: "linkedin",
       channels: [...CRAFT_CHANNELS],
-      presetId: PRESETS.linkedin,
+      presetId: "li-landscape",
       extraPresets: { instagram: PRESETS.instagram, facebook: PRESETS.facebook, tiktok: PRESETS.tiktok },
       title: copy.title,
       eyebrow: defaultEyebrow(copy.track),
@@ -426,6 +429,9 @@ export function normalizePost(post: CraftPost): CraftPost {
     hook: split.hook,
     hook2: split.hook2,
     links: Array.isArray(post.links) ? post.links : [],
+    weekId: typeof post.weekId === "string" ? post.weekId : undefined,
+    route: typeof post.route === "string" ? post.route : undefined,
+    daySlot: typeof post.daySlot === "string" ? post.daySlot : undefined,
   };
 }
 
@@ -532,6 +538,9 @@ export function applyCopyPatch(post: CraftPost, patch: CraftCopyPatch): CraftPos
 
   if (!weekCopyIsClean(next)) {
     throw new Error("Copy fails house policy — no rates, guarantees, or consumer-credit claims.");
+  }
+  if (next.daySlot === "friday-number" && /%|\bAPR\b|\bfrom\b|\d+(\.\d+)?%/i.test(`${next.body} ${next.hook} ${next.hook2} ${next.cta}`)) {
+    throw new Error("Friday — ticker and body reject %, APR, and from-rates.");
   }
   return next;
 }

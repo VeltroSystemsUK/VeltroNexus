@@ -48,7 +48,16 @@ import type { CreativeAmmoBrief } from "@shared/craftScout";
 import { ammoForPost, yafflePromptFromAmmo } from "@shared/craftYaffle";
 import { slugifyLearnTitle, NEWS_CATEGORIES, NEWS_CATEGORY_LABELS } from "@shared/learn";
 
-type Desk = { week: CraftPost[]; channels: CraftChannel[]; weekStart: string | null; briefs?: CreativeAmmoBrief[] };
+import { isoWeekId, type WeekRoute } from "@/components/craft/lib/weekGrammar";
+
+type Desk = {
+  week: CraftPost[];
+  channels: CraftChannel[];
+  weekStart: string | null;
+  briefs?: CreativeAmmoBrief[];
+  weekId?: string | null;
+  route?: string | null;
+};
 
 type CopyDraft = {
   title: string;
@@ -120,6 +129,8 @@ export default function Craft() {
   const [contentAidOpen, setContentAidOpen] = useState(false);
   const [yaffleProgress, setYaffleProgress] = useState("");
   const [copy, setCopy] = useState<CopyDraft | null>(null);
+  const [weekOpen, setWeekOpen] = useState(false);
+  const [weekRoute, setWeekRoute] = useState<WeekRoute>("sharp-cultural");
   const [learnOpen, setLearnOpen] = useState(false);
   const [learnSlug, setLearnSlug] = useState("");
   const [learnExcerpt, setLearnExcerpt] = useState("");
@@ -151,12 +162,34 @@ export default function Craft() {
     else setCopy(null);
   }, [selected?.id, selected?.title, selected?.eyebrow, selected?.hook, selected?.hook2, selected?.body, selected?.cta, selected?.links?.join("\n"), selected?.hashtags?.join(" ")]);
 
+  const newWeek = useMutation({
+    mutationFn: async (route: WeekRoute) => {
+      const from = new Date().toISOString().slice(0, 10);
+      const res = await apiRequest("/api/craft/week/grammar", "POST", { from, route });
+      return res.json() as Promise<Desk>;
+    },
+    onSuccess: async (next) => {
+      queryClient.setQueryData(["/api/craft/desk"], next);
+      setWeekOpen(false);
+      const weekId = next.weekId || next.week[0]?.weekId || isoWeekId();
+      const route = (next.route === "safe-distinctive" || next.route === "beautiful-insane" || next.route === "sharp-cultural"
+        ? next.route
+        : weekRoute) as WeekRoute;
+      await useCraftStore.getState().createWeek({ weekId, route });
+      const first = next.week[0];
+      if (first) setSelectedId(first.id);
+      toast.success("Week is on the desk. Isla writes one day at a time.");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const generate = useMutation({
     mutationFn: async (mode: WeekGenerateMode) => {
       const wipe = weekDesignWipeIds(week, mode, selectedId ?? undefined);
+      const weekFile = week[0]?.weekId ? [`week:${week[0].weekId}`] : [];
       useCraftStore.getState().close();
       setSelectedId(null);
-      await Promise.all(wipe.map((id) => deleteCraftForAsset(id)));
+      await Promise.all([...wipe, ...weekFile].map((id) => deleteCraftForAsset(id)));
       const res = await apiRequest("/api/craft/week", "POST", {
         mode,
         selectedId: mode === "selected" ? selectedId : undefined,
@@ -166,17 +199,23 @@ export default function Craft() {
     },
     onSuccess: async ({ desk: next, wipe, mode }) => {
       await Promise.all(wipe.map((id) => deleteCraftForAsset(id)));
+      const weekId = next.weekId || next.week[0]?.weekId;
+      if (weekId) await deleteCraftForAsset(`week:${weekId}`);
       queryClient.setQueryData(["/api/craft/desk"], next);
       setSelectedId(null);
+      if (weekId) {
+        const route = (next.route === "safe-distinctive" || next.route === "beautiful-insane" || next.route === "sharp-cultural"
+          ? next.route
+          : weekRoute) as WeekRoute;
+        await useCraftStore.getState().createWeek({ weekId, route });
+      }
       toast.success(
         mode === "replace"
-          ? "Week replaced. Old copy and designs cleared."
+          ? "Week replaced on the house boards. Old templates cleared."
           : mode === "keep_approved"
-            ? "Drafts refreshed. Approved posts kept."
-            : "This post was rebuilt from ammo.",
+            ? "Drafts refreshed on the house week. Approved posts kept."
+            : "This post was rebuilt on the house week.",
       );
-      toast("Generating stills for the week…");
-      void useCraftStore.getState().generateStillsForWeek(next.week, next.briefs ?? []);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -397,6 +436,9 @@ export default function Craft() {
           </div>
         </div>
         <div className="p-3 flex gap-2 border-b border-white/10">
+          <Button size="sm" variant="secondary" onClick={() => setWeekOpen(true)} disabled={newWeek.isPending}>
+            New week
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" className="flex-1" disabled={generate.isPending}>
@@ -584,7 +626,7 @@ export default function Craft() {
           {isLoading && <p className="text-xs text-white/40 px-2 py-6 text-center">Loading desk…</p>}
           {!isLoading && week.length === 0 && (
             <p className="text-xs text-white/45 px-2 py-6 text-center leading-relaxed">
-              No week queued — generate next week’s posts.
+              No week queued — New week opens seven house boards. Generate week writes Isla's copy onto them.
             </p>
           )}
           {week.map((post) => {
@@ -896,6 +938,41 @@ export default function Craft() {
         </div>
       </div>
 
+      <Dialog open={weekOpen} onOpenChange={setWeekOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New week</DialogTitle>
+            <DialogDescription>
+              One route for the seven boards. Isla writes one day at a time. Sharp cultural is the default.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {(
+              [
+                { id: "sharp-cultural", label: "Sharp cultural", hint: "Two-beat corrections, redact, named voice. Recommended." },
+                { id: "safe-distinctive", label: "Safe distinctive", hint: "Stamp, paper, identity as object." },
+                { id: "beautiful-insane", label: "Beautiful insane", hint: "One still slightly wrong. Copy stays deadpan." },
+              ] as { id: WeekRoute; label: string; hint: string }[]
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setWeekRoute(item.id)}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-left",
+                  weekRoute === item.id ? "border-primary bg-primary/10" : "border-white/10",
+                )}
+              >
+                <span className="block text-sm text-white/90">{item.label}</span>
+                <span className="block text-[11px] text-white/45">{item.hint}</span>
+              </button>
+            ))}
+            <Button disabled={newWeek.isPending} onClick={() => newWeek.mutate(weekRoute)}>
+              {newWeek.isPending ? "Opening…" : "Open this week"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={learnOpen} onOpenChange={setLearnOpen}>
         <DialogContent>
           <DialogHeader>

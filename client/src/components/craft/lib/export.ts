@@ -1,6 +1,15 @@
-import { drawFrame, getImageEl } from "./renderer";
+import { encodeGif } from "./gifEncode";
+import { captureMotionFrame, drawMotionNode, liveMotionIds } from "./motion";
+import { drawFrame } from "./renderer";
 import { displayText, fitFontSize, wrapText } from "./text";
-import type { CraftAsset, CraftDocument, CraftNode, CraftPage } from "./types";
+import type { CraftAsset, CraftDocument, CraftNode, CraftPage, MotionNode } from "./types";
+
+function motionStillHref(node: MotionNode, assets: CraftAsset[]): string | null {
+  const captured = assets.find((item) => item.id === node.capturedAssetId)?.dataUrl;
+  if (captured) return captured;
+  const frame = captureMotionFrame(node, assets);
+  return frame.dataUrl || null;
+}
 
 export type RasterFormat = "png" | "jpeg" | "webp";
 
@@ -23,7 +32,12 @@ export function renderPageToCanvas(page: CraftPage, assets: CraftAsset[], transp
   canvas.height = page.height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Could not create an export canvas.");
-  drawFrame(ctx, page, assets, { atMs: Infinity, showHandles: false, transparent });
+  drawFrame(ctx, page, assets, {
+    atMs: Infinity,
+    showHandles: false,
+    transparent,
+    motion: { liveIds: new Set(), reduced: false },
+  });
   return canvas;
 }
 
@@ -118,11 +132,13 @@ export function pageToSvg(page: CraftPage, assets: CraftAsset[], measure?: Canva
       );
       continue;
     }
-    if (node.type === "image") {
-      const asset = assets.find((item) => item.id === node.assetId);
-      if (asset) {
+    if (node.type === "image" || node.type === "motion") {
+      const href = node.type === "image"
+        ? assets.find((item) => item.id === node.assetId)?.dataUrl
+        : motionStillHref(node, assets);
+      if (href) {
         parts.push(
-          `<image href="${asset.dataUrl}" x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" opacity="${node.opacity}" preserveAspectRatio="${node.objectFit === "contain" ? "xMidYMid meet" : "xMidYMid slice"}" ${nodeTransform(node)}/>`,
+          `<image href="${href}" x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" opacity="${node.opacity}" preserveAspectRatio="${node.type === "image" && node.objectFit === "contain" ? "xMidYMid meet" : "xMidYMid slice"}" ${nodeTransform(node)}/>`,
         );
       }
       continue;
@@ -154,14 +170,100 @@ export function exportSvg(page: CraftPage, assets: CraftAsset[], title: string, 
   downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${slug(title)}.svg`);
 }
 
+export function gifFrameAtMs(index: number, fps: number, firstFrameSettled = true): number {
+  if (index === 0 && firstFrameSettled) return Number.POSITIVE_INFINITY;
+  return (index / fps) * 1000;
+}
+
+export async function recordGifFrames(
+  width: number,
+  height: number,
+  durationMs: number,
+  fps: number,
+  paint: (ctx: CanvasRenderingContext2D, atMs: number, frameIndex: number) => void,
+  onProgress?: (progress: number) => void,
+  firstFrameSettled = true,
+): Promise<Uint8Array[]> {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not create a GIF canvas.");
+  const rate = Math.min(fps, 12);
+  const frames = Math.max(2, Math.round((Math.min(durationMs, 4000) / 1000) * rate));
+  const buffers: Uint8Array[] = [];
+  for (let i = 0; i < frames; i++) {
+    const atMs = gifFrameAtMs(i, rate, firstFrameSettled);
+    paint(ctx, atMs, i);
+    buffers.push(new Uint8Array(ctx.getImageData(0, 0, width, height).data));
+    onProgress?.((i + 1) / frames);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return buffers;
+}
+
 export async function exportGif(
   page: CraftPage,
   assets: CraftAsset[],
   title: string,
-  _durationMs = 1500,
-  _fps = 20,
+  durationMs = 4000,
+  fps = 12,
+  firstFrameSettled = true,
 ): Promise<void> {
-  await exportRaster(page, assets, title, "png");
+  const scale = Math.min(1, 640 / Math.max(page.width, 1));
+  const width = Math.max(1, Math.round(page.width * scale));
+  const height = Math.max(1, Math.round(page.height * scale));
+  const source = document.createElement("canvas");
+  source.width = page.width;
+  source.height = page.height;
+  const src = source.getContext("2d");
+  if (!src) throw new Error("Could not create a GIF canvas.");
+  const liveIds = liveMotionIds(page.nodes, [], 2);
+  const buffers = await recordGifFrames(
+    width,
+    height,
+    durationMs,
+    fps,
+    (ctx, atMs) => {
+      drawFrame(src, page, assets, {
+        atMs,
+        showHandles: false,
+        motion: { liveIds, reduced: false },
+      });
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(source, 0, 0, width, height);
+    },
+    undefined,
+    firstFrameSettled,
+  );
+  const gif = encodeGif(buffers, width, height, Math.min(fps, 12));
+  downloadBlob(new Blob([gif], { type: "image/gif" }), `${slug(title)}.gif`);
+}
+
+export async function recordNodeGif(
+  node: MotionNode,
+  assets: CraftAsset[],
+  title: string,
+  durationMs = 4000,
+  fps = 12,
+  onProgress?: (progress: number) => void,
+): Promise<void> {
+  const width = Math.max(1, Math.round(node.width));
+  const height = Math.max(1, Math.round(node.height));
+  const local = { ...node, x: 0, y: 0 };
+  const buffers = await recordGifFrames(
+    width,
+    height,
+    durationMs,
+    fps,
+    (ctx, atMs) => {
+      ctx.clearRect(0, 0, width, height);
+      drawMotionNode(ctx, local, assets, { live: true, reduced: false, atMs });
+    },
+    onProgress,
+  );
+  const gif = encodeGif(buffers, width, height, Math.min(fps, 12));
+  downloadBlob(new Blob([gif], { type: "image/gif" }), `${slug(title)}.gif`);
 }
 
 export async function exportPack(doc: CraftDocument, page: CraftPage, measure?: CanvasRenderingContext2D): Promise<void> {

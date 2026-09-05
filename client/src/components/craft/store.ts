@@ -5,10 +5,14 @@ import { ammoForPost, yafflePromptFromAmmo } from "@shared/craftYaffle";
 import type { CreativeAmmoBrief } from "@shared/craftScout";
 import { adaptPage, spawnSizes } from "./lib/adapt";
 import { applyCreativeDirection, applyPostCopy, applyPostVisual, composeSocialPost, STRATA_BRAND } from "./lib/composePost";
-import { applyFrameShape, applyImageLook, applyNodeMotion, applyNodeOpacity, applyNodeShadow, nudgeNodeOrder, type FrameShapeId, type ImageLookId, type ImageMotionId, type ShadowPresetId } from "./lib/looks";
+import { applyWeekRoute, canExportWeekPage, isHouseWeekDoc, isoWeekId, materialiseWeek, reviewWeekPage, type WeekRoute } from "./lib/weekGrammar";
+import { applyFrameShape, applyImageLook, applyNodeMotion, applyNodeOpacity, applyNodeShadow, nudgeNodeOrder, pageHasMotion, type FrameShapeId, type ImageLookId, type ImageMotionId, type ShadowPresetId } from "./lib/looks";
 import { fetchImageDataUrl, stockById } from "./lib/stock";
 import { applyBrand, applyBrandLogo, cloneBrand, extractPaletteFromImage, isLogoSlot } from './lib/brand';
-import { exportPack as exportFormatPack, exportRaster, rasterBlob } from "./lib/export";
+import { exportGif as writeGif, exportPack as exportFormatPack, exportRaster, rasterBlob, recordNodeGif } from "./lib/export";
+import { MOTION_PRESETS, captureMotionFrame, disposeAll, disposeNode, makeMotionNode } from "./lib/motion";
+import { matchMotionPreset, presetById as motionPresetById } from "./lib/motionPresets";
+import { clearMotionSessionWarning, hashMotionSchema } from "./lib/motionSchema";
 import {
   alignNodes,
   hitTest,
@@ -37,12 +41,14 @@ import {
   type CraftBrand,
   type CraftDocument,
   type CraftNode,
+  type AssetSource,
   type CraftPage,
   type Handle,
   type ShapeVariant,
 } from './lib/types';
 import {
   craftFileName,
+  deleteCraftForAsset,
   loadBrandKit,
   loadBrandLogo,
   loadCraftForAsset,
@@ -82,9 +88,10 @@ async function fileToDataUrl(file: File): Promise<string> {
 }
 
 async function attachPostVisual(doc: CraftDocument, post: CraftPost): Promise<CraftDocument> {
+  if (post.weekId || post.daySlot || doc.week) return doc;
   const stockId = post.visual?.stockId;
   if (!stockId) return doc;
-  if (doc.pages.some((page) => page.nodes.some((node) => node.type === "image" && node.name === "Visual"))) {
+  if (doc.pages.some((page) => page.nodes.some((node) => (node.type === "image" || node.type === "motion") && (node.name === "Visual" || node.name === "Media frame")))) {
     return doc;
   }
   const photo = stockById(stockId);
@@ -125,8 +132,15 @@ interface CraftState {
   history: CraftDocument[];
   historyIndex: number;
   animOriginMs: number;
+  gifProgress: number | null;
+  firstFrameSettled: boolean;
+  mediaSource: AssetSource | "all";
 
   setReleaseLock: (unlocked: boolean) => void;
+  setFirstFrameSettled: (value: boolean) => void;
+  setMediaSource: (source: AssetSource | "all") => void;
+  createWeek: (opts?: { weekId?: string; route?: WeekRoute }) => Promise<void>;
+  setWeekRoute: (route: WeekRoute) => void;
   setTool: (tool: CraftTool) => void;
   setShapeVariant: (variant: ShapeVariant) => void;
   setZoom: (zoom: number) => void;
@@ -141,7 +155,7 @@ interface CraftState {
   insertMergeTag: (tag: string) => void;
   openEmailTemplate: (id: string, doc?: CraftDocument | null, title?: string) => void;
 
-  newBlank: (opts?: { title?: string; presetId?: string }) => Promise<void>;
+  newBlank: (opts?: { title?: string; presetId?: string; silent?: boolean }) => Promise<void>;
   openFromPost: (post: CraftPost) => Promise<void>;
   generateStillsForWeek: (posts: CraftPost[], briefs: CreativeAmmoBrief[]) => Promise<void>;
   syncFromPost: (post: CraftPost) => void;
@@ -151,6 +165,11 @@ interface CraftState {
 
   addText: (x?: number, y?: number, style?: TextStyleId) => void;
   addShape: (variant?: ShapeVariant, x?: number, y?: number) => void;
+  addMotion: (presetId?: string, x?: number, y?: number) => void;
+  applyMotionPreset: (id: string) => void;
+  applyCurrentDescription: (phrase: string) => void;
+  captureMotionStill: (id?: string) => void;
+  recordMotionGif: (id?: string) => Promise<void>;
   addImageFromFile: (file: File, x?: number, y?: number) => Promise<void>;
   applyTemplate: (templateId: string) => void;
   applyPreset: (presetId: string) => void;
@@ -174,11 +193,13 @@ interface CraftState {
   applyShadow: (id: ShadowPresetId) => void;
   applyMotion: (motion: ImageMotionId) => void;
   applyYaffleVisual: (dataUrl: string) => void;
+  hangAsset: (assetId: string) => void;
   setOpacity: (opacity: number) => void;
   nudgeZ: (direction: 1 | -1) => void;
   alignSelected: (dir: 'left' | 'centerH' | 'right' | 'top' | 'centerV' | 'bottom') => void;
   spawnPackPages: () => void;
   exportPng: () => Promise<void>;
+  exportGif: () => Promise<void>;
   exportPack: () => Promise<void>;
   exportFormats: () => Promise<void>;
 
@@ -236,8 +257,33 @@ export const useCraftStore = create<CraftState>((set, get) => {
     history: [],
     historyIndex: 0,
     animOriginMs: 0,
+    gifProgress: null,
+    firstFrameSettled: true,
+    mediaSource: "all",
 
     setReleaseLock: (releaseUnlocked) => set({ releaseUnlocked }),
+    setFirstFrameSettled: (firstFrameSettled) => set({ firstFrameSettled }),
+    setMediaSource: (mediaSource) => set({ mediaSource }),
+    createWeek: async ({ weekId, route } = {}) => {
+      try {
+        if (get().dirty) {
+          try { await get().save({ silent: true }); } catch { /* continue */ }
+        }
+        const id = weekId || isoWeekId();
+        const doc = materialiseWeek({ weekId: id, route: route ?? "sharp-cultural" });
+        const saved = await persistLocal(doc, doc.id);
+        loadDocument(doc, saved);
+        toast.success(`${id} is on the desk`);
+      } catch (error) {
+        console.error(error);
+        toast.error("Could not open the week");
+      }
+    },
+    setWeekRoute: (route) => {
+      const { doc } = get();
+      if (!doc?.week) return;
+      commit(applyWeekRoute(doc, route));
+    },
     setTool: (tool) => set({ tool }),
     setShapeVariant: (shapeVariant) => set({ shapeVariant, tool: 'shape' }),
     setZoom: (zoom) => set({ zoom: Math.min(8, Math.max(0.08, zoom)) }),
@@ -251,6 +297,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
     setPage: (pageId) => {
       const { doc } = get();
       if (!doc || !doc.pages.some((page) => page.id === pageId)) return;
+      disposeAll();
       set({
         pageId,
         selectedIds: [],
@@ -288,16 +335,19 @@ export const useCraftStore = create<CraftState>((set, get) => {
       const pushed = pushHistory(history, historyIndex, doc);
       set({ history: pushed.stack, historyIndex: pushed.index });
     },
-    close: () => set({
-      doc: null,
-      assetId: null,
-      selectedIds: [],
-      editingTextId: null,
-      pageId: null,
-      dirty: false,
-      history: [],
-      historyIndex: 0,
-    }),
+    close: () => {
+      disposeAll();
+      set({
+        doc: null,
+        assetId: null,
+        selectedIds: [],
+        editingTextId: null,
+        pageId: null,
+        dirty: false,
+        history: [],
+        historyIndex: 0,
+      });
+    },
 
     insertMergeTag: (tag) => {
       const { doc, pageId, selectedIds, editingTextId } = get();
@@ -323,7 +373,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
       loadDocument(title ? { ...base, title } : base, id);
     },
 
-    newBlank: async ({ title, presetId } = {}) => {
+    newBlank: async ({ title, presetId, silent } = {}) => {
       try {
         if (get().dirty) {
           try { await get().save({ silent: true }); } catch { /* continue */ }
@@ -331,7 +381,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
         const doc = documentFromBlank(presetId ?? "square", loadBrandKit(), title ?? "Untitled design");
         const id = await persistLocal(doc, doc.id);
         loadDocument(doc, id);
-        toast.success("New design created");
+        if (!silent) toast.success("New design created");
       } catch (error) {
         console.error(error);
         toast.error("Could not create design");
@@ -339,7 +389,12 @@ export const useCraftStore = create<CraftState>((set, get) => {
     },
 
     openFromPost: async (post) => {
-      if (get().assetId === post.id && get().doc) {
+      const weekId = post.weekId || isoWeekId(post.date);
+      const weekAsset = `week:${weekId}`;
+      const open = get().doc;
+      if (get().assetId === weekAsset && open && isHouseWeekDoc(open)) {
+        const page = open.pages.find((item) => item.name === post.weekday || item.daySlot === post.daySlot);
+        if (page) get().setPage(page.id);
         get().syncFromPost(post);
         return;
       }
@@ -347,16 +402,17 @@ export const useCraftStore = create<CraftState>((set, get) => {
         if (get().dirty) {
           try { await get().save({ silent: true }); } catch { /* continue */ }
         }
-        const existing = await loadCraftForAsset(post.id);
-        const saved = loadBrandKit();
-        const brand = saved.name && saved.name !== "Studio" ? saved : STRATA_BRAND;
-        const logo = loadBrandLogo();
-        let doc = existing ?? composeSocialPost(post, brand, logo);
-        if (existing && logo) doc = applyBrandLogo(doc, logo);
+        const existing = await loadCraftForAsset(weekAsset);
+        const route = post.route === "safe-distinctive" || post.route === "beautiful-insane" || post.route === "sharp-cultural"
+          ? post.route
+          : "sharp-cultural";
+        let doc = existing && isHouseWeekDoc(existing) ? existing : materialiseWeek({ weekId, route });
         doc = applyPostCopy(doc, post);
-        doc = await attachPostVisual(doc, post);
-        const id = await persistLocal(doc, post.id);
+        const id = await persistLocal(doc, weekAsset);
         loadDocument(doc, id);
+        const page = doc.pages.find((item) => item.name === post.weekday || item.daySlot === post.daySlot);
+        if (page) get().setPage(page.id);
+        if (post.id !== weekAsset) await deleteCraftForAsset(post.id);
       } catch (error) {
         console.error(error);
         toast.error("Could not compose that post");
@@ -365,7 +421,8 @@ export const useCraftStore = create<CraftState>((set, get) => {
 
     syncFromPost: (post) => {
       const { doc, assetId, history, historyIndex } = get();
-      if (!doc || assetId !== post.id) return;
+      const weekAsset = `week:${post.weekId || isoWeekId(post.date)}`;
+      if (!doc || assetId !== weekAsset) return;
       const next = applyPostCopy(doc, post);
       const pushed = pushHistory(history, historyIndex, next);
       set({
@@ -375,7 +432,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
         history: pushed.stack,
         historyIndex: pushed.index,
       });
-      void persistLocal(next, post.id);
+      void persistLocal(next, assetId);
     },
 
     openFromAsset: async (asset) => {
@@ -445,16 +502,137 @@ export const useCraftStore = create<CraftState>((set, get) => {
       set({ selectedIds: [node.id], tool: 'select' });
     },
 
+    addMotion: (presetId, x, y) => {
+      const { doc, pageId } = get();
+      if (!doc) {
+        void get().newBlank({ silent: true }).then(() => {
+          if (get().doc) get().addMotion(presetId, x, y);
+        });
+        return;
+      }
+      const page = currentPage(doc, pageId);
+      const preset = MOTION_PRESETS.find((item) => item.id === presetId) ?? MOTION_PRESETS[0]!;
+      const width = page.width * 0.56;
+      const height = page.height * 0.42;
+      let node = makeMotionNode({
+        name: "Motion",
+        schema: preset.schema,
+        x: x ?? (page.width - width) / 2,
+        y: y ?? (page.height - height) / 2,
+        width,
+        height,
+      });
+      if (preset.id === "hook-turn") node = applyNodeMotion(node, "hook-turn") as typeof node;
+      commit(withPage(doc, page.id, (current) => ({ ...current, nodes: [...current.nodes, node] })));
+      set({ selectedIds: [node.id], tool: "select" });
+    },
+
+    applyMotionPreset: (id) => {
+      const { doc, pageId, selectedIds } = get();
+      const preset = MOTION_PRESETS.find((item) => item.id === id) ?? MOTION_PRESETS[0]!;
+      if (!doc) {
+        get().addMotion(preset.id);
+        return;
+      }
+      const page = currentPage(doc, pageId);
+      const selected = selectedIds[0] ? page.nodes.find((item) => item.id === selectedIds[0]) : undefined;
+      if (selected?.type === "motion") {
+        clearMotionSessionWarning(selected.id);
+        const patch: Partial<typeof selected> = { schema: preset.schema, seed: Date.now() };
+        if (preset.id === "hook-turn") {
+          patch.animation = applyNodeMotion(selected, "hook-turn").animation;
+        }
+        get().updateNode(selected.id, patch);
+        return;
+      }
+      get().addMotion(preset.id);
+    },
+
+    applyCurrentDescription: (phrase) => {
+      const matchId = matchMotionPreset(phrase);
+      const preset = motionPresetById(matchId);
+      const { doc, pageId, selectedIds } = get();
+      if (!doc) {
+        get().addMotion(matchId);
+        return;
+      }
+      const page = currentPage(doc, pageId);
+      const selected = selectedIds[0] ? page.nodes.find((item) => item.id === selectedIds[0]) : undefined;
+      if (selected?.type === "motion") {
+        get().updateNode(selected.id, { schema: preset.schema, seed: Date.now() });
+        return;
+      }
+      get().addMotion(matchId);
+    },
+
+    captureMotionStill: (id) => {
+      const { doc, pageId, selectedIds } = get();
+      if (!doc) return;
+      const page = currentPage(doc, pageId);
+      const nodeId = id ?? selectedIds[0];
+      const node = page.nodes.find((item) => item.id === nodeId);
+      if (!node || node.type !== "motion") return;
+      const frame = captureMotionFrame(node, doc.assets);
+      if (!frame.dataUrl) return;
+      const asset: CraftAsset = {
+        id: `motion_${Date.now().toString(36)}`,
+        name: "Motion still",
+        mime: "image/png",
+        dataUrl: frame.dataUrl,
+        width: frame.width,
+        height: frame.height,
+        source: "motion-capture",
+        metadata: { schemaHash: hashMotionSchema(node.schema) },
+      };
+      commit({
+        ...withPage(doc, page.id, (current) => ({
+          ...current,
+          nodes: current.nodes.map((item) =>
+            item.id === node.id && item.type === "motion" ? { ...item, capturedAssetId: asset.id } : item,
+          ),
+        })),
+        assets: [...doc.assets, asset],
+      });
+    },
+
+    recordMotionGif: async (id) => {
+      const { doc, pageId, selectedIds, releaseUnlocked, assetId } = get();
+      if (!doc) return;
+      if (assetId?.startsWith("mkt-") && !releaseUnlocked) {
+        toast.error("Compliance must sign off before export.");
+        return;
+      }
+      const page = currentPage(doc, pageId);
+      const nodeId = id ?? selectedIds[0];
+      const node = page.nodes.find((item) => item.id === nodeId);
+      if (!node || node.type !== "motion") return;
+      if (typeof document === "undefined") return;
+      set({ gifProgress: 0 });
+      try {
+        await recordNodeGif(node, doc.assets, `${doc.title}-${node.name}`, 4000, 12, (progress) => {
+          set({ gifProgress: progress });
+        });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "GIF export failed.");
+      } finally {
+        set({ gifProgress: null });
+      }
+    },
+
     addImageFromFile: async (file, x, y) => {
       const { doc, pageId } = get();
       if (!doc) return;
       try {
         const dataUrl = await fileToDataUrl(file);
+        const filter = get().mediaSource;
+        const source: AssetSource = filter === "all" ? "upload" : filter;
         const asset: CraftAsset = {
           id: `asset_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
           name: file.name,
           mime: file.type || 'image/png',
           dataUrl,
+          source,
+          ...(source === "analog-capture" ? { analogKind: "other" as const } : {}),
         };
         const page = currentPage(doc, pageId);
         const node = makeImageNode(page, asset.id);
@@ -474,6 +652,10 @@ export const useCraftStore = create<CraftState>((set, get) => {
     },
 
     applyTemplate: (templateId) => {
+      if (get().doc?.week) {
+        toast.message("Week boards stay on the house file. Mutate this page instead of swapping a template.");
+        return;
+      }
       const built = documentFromTemplate(templateId, get().doc?.brand ?? loadBrandKit());
       if (!DESIGN_TEMPLATES.some((item) => item.id === templateId) && !presetById(templateId)) {
         toast.message('Unknown template');
@@ -506,6 +688,10 @@ export const useCraftStore = create<CraftState>((set, get) => {
 
     applyPreset: (presetId) => {
       const { doc, pageId } = get();
+      if (doc?.week) {
+        toast.message("Week boards stay 1200×627. Mutate this page instead of swapping a size.");
+        return;
+      }
       if (!doc) {
         void get().newBlank({ presetId });
         return;
@@ -702,6 +888,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
       if (!doc || selectedIds.length === 0) return;
       const page = currentPage(doc, pageId);
       const ids = new Set(selectedIds);
+      for (const id of ids) disposeNode(id);
       commit(withPage(doc, page.id, (current) => ({
         ...current,
         nodes: current.nodes.filter((node) => !ids.has(node.id)),
@@ -726,6 +913,14 @@ export const useCraftStore = create<CraftState>((set, get) => {
       set({ selectedIds: copies.map((node) => node.id) });
     },
 
+    hangAsset: (assetId) => {
+      const { doc } = get();
+      if (!doc) return;
+      const asset = doc.assets.find((item) => item.id === assetId);
+      if (!asset) return;
+      commit(applyPostVisual(doc, asset, "plain"));
+    },
+
     applyYaffleVisual: (dataUrl) => {
       const { doc, assetId } = get();
       if (!doc || !dataUrl.startsWith("data:image/")) return;
@@ -734,6 +929,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
         name: "Image",
         mime: dataUrl.includes("jpeg") ? "image/jpeg" : "image/png",
         dataUrl,
+        source: "generated",
       };
       const next = applyPostVisual(doc, asset, "plain");
       commit(next);
@@ -760,6 +956,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
 
       const results = await Promise.allSettled(
         posts.map(async (post) => {
+          if (post.weekId || post.daySlot) return;
           const existing = await loadCraftForAsset(post.id);
           if (existing) return;
 
@@ -826,7 +1023,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
       commit(withPage(doc, page.id, (current) => ({
         ...current,
         nodes: current.nodes.map((node) => {
-          if (!selectedIds.includes(node.id) || node.type !== "image") return node;
+          if (!selectedIds.includes(node.id) || (node.type !== "image" && node.type !== "motion")) return node;
           return applyFrameShape(node, id);
         }),
       })));
@@ -887,6 +1084,10 @@ export const useCraftStore = create<CraftState>((set, get) => {
 
     spawnPackPages: () => {
       const { doc, pageId } = get();
+      if (doc?.week) {
+        toast.message("Week boards stay on the house file. Do not spawn story / square / OG onto a week.");
+        return;
+      }
       if (!doc) return;
       const page = currentPage(doc, pageId);
       const next = spawnSizes(doc, page.id, [...PACK_IDS]);
@@ -906,17 +1107,52 @@ export const useCraftStore = create<CraftState>((set, get) => {
         return;
       }
       const page = currentPage(doc, pageId);
+      if (doc.week && !canExportWeekPage(page)) {
+        toast.error(reviewWeekPage(page).findings.map((item) => item.message).join(" "));
+        return;
+      }
       await exportRaster(page, doc.assets, doc.title, 'png');
     },
 
-    exportPack: async () => {
-      const { doc, pageId, releaseUnlocked, assetId } = get();
+    exportGif: async () => {
+      const { doc, pageId, releaseUnlocked, assetId, firstFrameSettled } = get();
       if (!doc) return;
       if (assetId?.startsWith("mkt-") && !releaseUnlocked) {
         toast.error("Compliance must sign off before export.");
         return;
       }
       const page = currentPage(doc, pageId);
+      if (doc.week && !canExportWeekPage(page)) {
+        toast.error(reviewWeekPage(page).findings.map((item) => item.message).join(" "));
+        return;
+      }
+      await writeGif(page, doc.assets, doc.title, 4000, 12, firstFrameSettled);
+    },
+
+    exportPack: async () => {
+      const { doc, pageId, releaseUnlocked, assetId, firstFrameSettled } = get();
+      if (!doc) return;
+      if (assetId?.startsWith("mkt-") && !releaseUnlocked) {
+        toast.error("Compliance must sign off before export.");
+        return;
+      }
+      const page = currentPage(doc, pageId);
+      if (doc.week) {
+        const days = doc.pages.filter((item) => item.daySlot);
+        const blocked = days.filter((item) => !canExportWeekPage(item));
+        if (blocked.length) {
+          toast.error(blocked.map((item) => `${item.name}: ${reviewWeekPage(item).findings.map((finding) => finding.message).join(" ")}`).join(" "));
+          return;
+        }
+        for (const day of days) {
+          await exportRaster(day, doc.assets, `${doc.title}-${day.name}`, "png");
+          if (pageHasMotion(day.nodes)) {
+            await writeGif(day, doc.assets, `${doc.title}-${day.name}`, 4000, 12, firstFrameSettled);
+          }
+        }
+        toast.success("Exported seven boards");
+        return;
+      }
       for (const id of PACK_IDS) {
         const preset = presetById(id);
         if (!preset) continue;
@@ -940,6 +1176,10 @@ export const useCraftStore = create<CraftState>((set, get) => {
         return;
       }
       const page = currentPage(doc, pageId);
+      if (doc.week && !canExportWeekPage(page)) {
+        toast.error(reviewWeekPage(page).findings.map((item) => item.message).join(" "));
+        return;
+      }
       await exportFormatPack(doc, page);
     },
 

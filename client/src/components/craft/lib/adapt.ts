@@ -46,6 +46,15 @@ function adaptNode(node: CraftNode, oldW: number, oldH: number, newW: number, ne
     const sy = y.size / Math.max(node.height, 1);
     next.points = node.points.map((point) => ({ x: point.x * sx, y: point.y * sy }));
   }
+  if (next.type === "motion" && node.type === "motion" && newH / Math.max(newW, 1) >= 1.5) {
+    next.schema = {
+      ...next.schema,
+      physicsAndMath: {
+        ...next.schema.physicsAndMath,
+        densityCount: Math.max(8, Math.round(node.schema.physicsAndMath.densityCount * 0.65)),
+      },
+    };
+  }
   return next;
 }
 

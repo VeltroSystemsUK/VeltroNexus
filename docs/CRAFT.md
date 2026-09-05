@@ -21,6 +21,7 @@ All nodes share `NodeBase`: x/y/width/height/rotation/opacity, locked/hidden, fl
 | **text** | text, fontFamily, fontWeight (400/600/700/800), fontSize, align, letterSpacing, lineHeight, color, fontRole (heading/body), optional outline (stroke color+width), uppercase toggle, textFit (`none\|shrink`), overflow (`visible\|clip`) |
 | **shape** | 18 variants: rect, ellipse, rounded-rect, triangle, diamond, star, arrow, line, hexagon, pentagon, octagon, chevron, heart, speech, cloud, banner, cross, parallelogram. Fill (solid/gradient), stroke/strokeWidth, borderRadius |
 | **image** | assetId, objectFit (cover/contain/fill), brightness, contrast, grayscale, tint+tintOpacity, stroke/strokeWidth, crop rect, mask (14 shapes + `arch`/`ticket` custom paths) |
+| **motion** | `schema` (WebAnimationIntegrationSchema v1), `preview` live/still/reduced, optional `capturedAssetId` / `seed` / mask / stroke. Sim blits an offscreen bitmap. 15 house presets (default Ledger Current). |
 | **path** | freeform point array, closed flag, fill/stroke/strokeWidth — typed and rendered, but **no tool in the UI currently creates one** |
 
 ### Tools & interaction
@@ -39,7 +40,8 @@ Edit text (label adapts to field, e.g. "Edit hook 1"), shape-variant swap grid (
 ### Inspector rail (`Inspector.tsx` + `CraftView.tsx`)
 - **Page** — page switcher, dimensions readout, background colour.
 - **Merge** (email mode only) — clickable merge-tag chips.
-- **Images** (when an AI-image panel is supplied) — prompt textarea + "Generate still."
+- **Images** (when an AI-image panel is supplied) — prompt textarea + "Generate still." Optional "Describe a current" vibe input patches the selected MotionNode (or inserts Ledger Current first).
+- **Motion** — 15 house presets in grouped strips (Atmosphere / Graphic devices / Structure / Occasional); empty TemplateStrip also offers Ledger Current.
 - **Brand** — name, logo upload/replace/remove (auto palette extraction from the logo), 6 colour-role swatches, heading/body font pickers, Apply / Save kit / Use kit (persists to local storage, reusable across designs).
 - **Size** — 17 presets in 4 categories + one-click "spawn story/square/OG" pack generation.
 - **Templates** — 16 built-in templates, one-click apply.
@@ -48,7 +50,7 @@ Edit text (label adapts to field, e.g. "Edit hook 1"), shape-variant swap grid (
 - **Export** (social mode only) — Export PNG, Export pack, Export formats; disabled with a hint while export-locked.
 - **History** — checkpoint list, click to jump.
 
-**Per-node fields:** name, opacity, shadow preset, motion preset. Text: body textarea (commits on blur, syncs back to structured copy), 6 type-style presets (Eyebrow/Heading/Subhead/Body/Caption/Stat), font size, align, font family (system + doc-embedded custom fonts), weight, letter-spacing, uppercase, colour. Shape: fill colour. Image: object-fit, 14 frame-shape buttons, 16 "look" presets, brightness/contrast, tint/wash colour, replace-image. All: X/Y/W/H.
+**Per-node fields:** name, opacity, shadow preset, motion preset (CSS tween on any node — Still/Fade/Slide/Pop/Pulse). Text: body textarea (commits on blur, syncs back to structured copy), 6 type-style presets (Eyebrow/Heading/Subhead/Body/Caption/Stat), font size, align, font family (system + doc-embedded custom fonts), weight, letter-spacing, uppercase, colour. Shape: fill colour. Image: object-fit, 14 frame-shape buttons, 16 "look" presets, brightness/contrast, tint/wash colour, replace-image. **MotionNode** (selected Motion section): physics sliders, capture still, Record GIF, Advanced JSON schema editor, preview live/still/reduced. All: X/Y/W/H.
 
 ## 3. Templates & Looks
 
@@ -56,7 +58,7 @@ Edit text (label adapts to field, e.g. "Edit hook 1"), shape-variant swap grid (
 
 **Design templates (16)** — Announcement, Launch Story, Quote Card, Promo, Event Story, X Post, Open Graph, LinkedIn Banner, Email Header, Email letter (pre-wired with `{{firstName}}` / `{{companyName}}` / `{{senderName}}` / `{{senderCompany}}` / `{{unsubscribeLink}}`), Caption GIF, YouTube Thumb, Pinterest Pin, Testimonial, Speaker card, Menu/price-list. Every template's nodes are re-branded to the active kit at instantiation.
 
-**Insertable components (19, defined but not currently wired to any visible button):** caption bars, CTA pill, badge, quote stack, price tag, handle bar, live pill, story-progress segments, follow chip, heading stack, stat block, numbered step, phone device frame, avatar, image frame, logo mark, divider, content card, feature row, countdown card, burst, loop badge.
+**Insertable components (19, defined but not currently wired to any visible button):** caption bars, CTA pill, badge, quote stack, price tag, handle bar, live pill, story-progress segments, follow chip, heading stack, stat block, numbered step, phone device frame, avatar, image frame, logo mark, divider, content card, feature row, countdown card, burst, loop badge. `INSERT_COMPONENTS` countdown/burst/loop stay CSS-animation components; they are not MotionNodes.
 
 **Image looks (17)** — Plain, Editorial, White frame, Gallery frame, Ink frame, Gold frame, Round, Arch, Diamond, Hex, Polaroid, Ticket, Drop shadow, Dim, Colour wash, Mono, Punch.
 
@@ -89,7 +91,7 @@ Edit text (label adapts to field, e.g. "Edit hook 1"), shape-variant swap grid (
 - `CraftEmailEditor.tsx` mounts `CraftView` in `mode="email"` (hides Save/PNG/Export/New/Open/close; inspector limited to Page/Merge/Brand/Size/Templates/Shapes/Selection/History). Loads an existing Craft design, a normalizable doc, or falls back to the `email-letter` template. Exposes `exportHtml()` returning `{ design, html }`.
 - **Storage format** (`lib/emailHtml.ts`): `CraftEmailDesign = { engine: "craft.email.v1", doc: CraftDocument }`. Type guards let `EmailCampaigns.tsx`/`EmailTemplates.tsx` tell a Craft design apart from a legacy Unlayer design and route to the right editor — Craft is a **parallel, opt-in** email engine, not a replacement for Unlayer.
 - **Merge tags** — clickable chips insert `{{tag}}` with smart spacing. Defaults: `{{firstName}}`, `{{companyName}}`, `{{senderName}}`, `{{senderCompany}}`, `{{unsubscribeLink}}`.
-- **HTML export** — nodes sorted top-to-bottom/left-to-right into a single-column `<table>` (email-safe pattern): text → styled `<td>` with inline styles, image → centred `<img>` capped at 536px, shape → a solid-colour spacer row capped at 48px height. All text HTML-escaped except `{{tag}}` syntax, left raw for the send pipeline to substitute. Confirmed to flow through the same `prepareCampaignSend` personalization path as Unlayer emails.
+- **HTML export** — nodes sorted top-to-bottom/left-to-right into a single-column `<table>` (email-safe pattern): text → styled `<td>` with inline styles, image → centred `<img>` capped at 536px, shape → a solid-colour spacer row capped at 48px height, MotionNode → captured still `<img>` (never a live canvas). All text HTML-escaped except `{{tag}}` syntax, left raw for the send pipeline to substitute. Confirmed to flow through the same `prepareCampaignSend` personalization path as Unlayer emails.
 - **Not implemented:** responsive/mobile breakpoints, multi-column layout, client-specific font fallbacks, dark-mode styling, preheader text field.
 
 ## 6. AI agents / automation

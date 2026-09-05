@@ -1,7 +1,5 @@
 import { COPY_LIMITS, defaultEyebrow, type CraftCopyPatch, type CraftPost } from "@shared/craftQueue";
-import { spawnSizes } from "./adapt";
 import { applyBrand, applyBrandLogo, cloneBrand } from "./brand";
-import { documentFromTemplate } from "./templates";
 import {
   applyFrameShape,
   applyImageLook,
@@ -13,6 +11,7 @@ import {
   type ShadowPresetId,
 } from "./looks";
 import { uid, type CraftAsset, type CraftBrand, type CraftDocument, type CraftNode, type CraftPage, type ImageNode, type TextNode } from "./types";
+import { applyDayContract, isoWeekId, materialiseWeek, pageMatchesPost, pickWeekVisual, WEEK_IDENTITY } from "./weekGrammar";
 
 export type CreativeDirection = {
   frame: FrameShapeId;
@@ -35,25 +34,31 @@ export function creativeDirectionFor(weekday: string): CreativeDirection {
   return WEEK_LOOKS[weekday] ?? WEEK_LOOKS.Mon!;
 }
 
-export function applyCreativeDirection(doc: CraftDocument, post: CraftPost): CraftDocument {
-  const look = creativeDirectionFor(post.weekday);
+export function applyCreativeDirection(doc: CraftDocument, post?: CraftPost): CraftDocument {
   return {
     ...doc,
-    pages: doc.pages.map((page) => ({
-      ...page,
-      nodes: page.nodes.map((node) => {
-        if (node.type === "image" && node.name === "Visual") {
-          return applyNodeMotion(
-            applyNodeShadow(applyFrameShape(node, look.frame), look.shadow),
-            look.visualMotion,
-          ) as ImageNode;
-        }
-        if (node.type === "text" && (node.name === "Hook 1" || node.name === "Hook 2")) {
-          return applyNodeMotion(node, look.hookMotion);
-        }
-        return node;
-      }),
-    })),
+    pages: doc.pages.map((page) => {
+      if (page.daySlot) {
+        return applyDayContract(page, page.daySlot, doc.week?.route ?? "sharp-cultural");
+      }
+      if (!post) return page;
+      const look = creativeDirectionFor(post.weekday);
+      return {
+        ...page,
+        nodes: page.nodes.map((node) => {
+          if ((node.type === "image" || node.type === "motion") && (node.name === "Visual" || node.name === "Media frame")) {
+            return applyNodeMotion(
+              applyNodeShadow(applyFrameShape(node, look.frame), look.shadow),
+              look.visualMotion,
+            ) as typeof node;
+          }
+          if (node.type === "text" && (node.name === "Hook 1" || node.name === "Hook 2")) {
+            return applyNodeMotion(node, look.hookMotion);
+          }
+          return node;
+        }),
+      };
+    }),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -71,13 +76,6 @@ export const STRATA_BRAND: CraftBrand = {
   headingFont: "Unbounded",
   bodyFont: "Inter",
 };
-
-function templateFor(post: CraftPost): string {
-  if (post.presetId === "square") return "quote-square";
-  if (post.presetId === "story") return "story-launch";
-  if (post.track === "introducer") return "announce-post";
-  return "og-banner";
-}
 
 function clip(text: string, max: number): string {
   const t = text.trim();
@@ -102,20 +100,25 @@ type Fills = {
   handle: string;
   brand: string;
   role: string;
+  identity: string;
+  ticker: string;
 };
 
 function fillsFor(post: CraftPost): Fills {
+  const body = clip(post.body, COPY_LIMITS.body).replace(/…$/, "");
   return {
     eyebrow: clip(post.eyebrow || defaultEyebrow(post.track), COPY_LIMITS.eyebrow).replace(/…$/, ""),
     hook: clip(post.hook, COPY_LIMITS.hook).replace(/…$/, ""),
     hook2: clip(post.hook2 ?? "", COPY_LIMITS.hook2).replace(/…$/, ""),
-    deck: clip(post.body, COPY_LIMITS.body).replace(/…$/, ""),
+    deck: body,
     cta: ctaLabel(post),
     hashtags: (post.hashtags ?? []).slice(0, COPY_LIMITS.hashtags).join("  "),
     link: (post.links ?? [])[0] ?? "",
     handle: "@stratafinance",
     brand: "STRATA",
     role: post.track === "introducer" ? "Introducer desk" : "SME directors",
+    identity: WEEK_IDENTITY,
+    ticker: body,
   };
 }
 
@@ -159,8 +162,12 @@ export function copyPatchFromNode(name: string, text: string): CraftCopyPatch | 
 }
 
 function fillNode(node: CraftNode, fills: Fills, brand: CraftBrand): CraftNode {
+  if (node.copyExempt) return node;
   if (node.type !== "text") return node;
   const n = node.name.toLowerCase();
+  if (n === "identity") return { ...node, text: fills.identity, locked: true, fontFamily: "JetBrains Mono" };
+  if (n === "dataticker" || n === "ticker") return { ...node, text: fills.ticker };
+  if (n === "silence" && fills.hook) return { ...node, text: fills.hook };
   if (/wordmark/.test(n)) return { ...node, text: fills.brand };
   const field = copyFieldForNodeName(node.name);
   if (field === "eyebrow") return { ...node, text: fills.eyebrow };
@@ -259,6 +266,9 @@ function ensureHeroSplit(page: CraftPage): CraftPage {
 }
 
 function fillPage(page: CraftPage, fills: Fills, brand: CraftBrand): CraftPage {
+  if (page.daySlot === "sunday-silence") {
+    return { ...page, nodes: page.nodes.map((node) => fillNode(node, fills, brand)) };
+  }
   const withSlots = ensureHeroSplit(ensureCopySlots(page));
   return { ...withSlots, nodes: withSlots.nodes.map((node) => fillNode(node, fills, brand)) };
 }
@@ -267,8 +277,11 @@ export function applyPostCopy(doc: CraftDocument, post: CraftPost): CraftDocumen
   const fills = fillsFor(post);
   return {
     ...doc,
-    title: post.title,
-    pages: doc.pages.map((page) => fillPage(page, fills, doc.brand)),
+    title: doc.week ? doc.title : post.title,
+    pages: doc.pages.map((page) => {
+      if (doc.week && !pageMatchesPost(page, post)) return page;
+      return fillPage(page, fills, doc.brand);
+    }),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -284,36 +297,56 @@ export function applyPostVisual(
   doc: CraftDocument,
   asset: CraftAsset,
   look: ImageLookId = "plain",
+  opts?: { weekFill?: boolean },
 ): CraftDocument {
   const assets = [...doc.assets.filter((item) => item.id !== asset.id), asset];
   const pages = doc.pages.map((page) => {
-    const slot = [...page.nodes].reverse().find(isVisualSlot);
-    if (!slot) return page;
-    const visual: ImageNode = applyImageLook({
-      id: slot.id,
-      name: "Visual",
-      type: "image",
-      x: slot.x,
-      y: slot.y,
-      width: slot.width,
-      height: slot.height,
-      rotation: slot.rotation,
-      opacity: 1,
-      locked: false,
-      hidden: false,
-      constraints: slot.constraints,
-      assetId: asset.id,
-      objectFit: "cover",
-      brightness: 1,
-      contrast: 1,
-      mask: slot.type === "shape" && slot.variant === "rounded-rect" ? "rounded-rect" : undefined,
-    }, look);
-    return {
-      ...page,
-      nodes: page.nodes.map((node) => (node.id === slot.id ? visual : node)),
-    };
+    if (opts?.weekFill && page.daySlot) {
+      const picked = pickWeekVisual(assets, page.daySlot);
+      if ("empty" in picked) return page;
+      return hangVisual(page, picked.asset, look);
+    }
+    return hangVisual(page, asset, look);
   });
   return { ...doc, assets, pages, updatedAt: new Date().toISOString() };
+}
+
+function hangVisual(page: CraftPage, asset: CraftAsset, look: ImageLookId): CraftPage {
+  const slot = [...page.nodes].reverse().find(isVisualSlot);
+  if (!slot) return page;
+  if (slot.type === "motion") {
+    return {
+      ...page,
+      nodes: page.nodes.map((node) =>
+        node.id === slot.id && node.type === "motion" ? { ...node, capturedAssetId: asset.id } : node,
+      ),
+    };
+  }
+  let visual: ImageNode = applyImageLook({
+    id: slot.id,
+    name: slot.name === "Media frame" ? "Media frame" : "Visual",
+    type: "image",
+    x: slot.x,
+    y: slot.y,
+    width: slot.width,
+    height: slot.height,
+    rotation: slot.rotation,
+    opacity: 1,
+    locked: false,
+    hidden: false,
+    constraints: slot.constraints,
+    assetId: asset.id,
+    objectFit: "cover",
+    brightness: 1,
+    contrast: 1,
+    shadow: slot.shadow,
+    mask: slot.type === "shape" && slot.variant === "rounded-rect" ? "rounded-rect" : undefined,
+  }, look);
+  if (slot.shadow) visual = { ...visual, shadow: slot.shadow };
+  return {
+    ...page,
+    nodes: page.nodes.map((node) => (node.id === slot.id ? visual : node)),
+  };
 }
 
 export function composeSocialPost(
@@ -322,20 +355,13 @@ export function composeSocialPost(
   logo: CraftAsset | null = null,
 ): CraftDocument {
   const kit = cloneBrand(brand);
-  let doc = documentFromTemplate(templateFor(post), kit);
-  doc = applyBrand(doc, kit);
-  doc = {
-    ...doc,
-    id: post.id,
-    title: post.title,
-    updatedAt: new Date().toISOString(),
-  };
-  const home = doc.pages[0];
-  if (home) {
-    doc = spawnSizes(doc, home.id, ["square", "story"]);
-    doc = { ...doc, activePageId: home.id };
-  }
-  doc = applyPostCopy(doc, post);
-  if (logo) doc = applyBrandLogo(doc, logo);
-  return applyCreativeDirection(doc, post);
+  const route =
+    post.route === "safe-distinctive" || post.route === "beautiful-insane" || post.route === "sharp-cultural"
+      ? post.route
+      : "sharp-cultural";
+  let weekDoc = materialiseWeek({ weekId: post.weekId || isoWeekId(post.date), route });
+  weekDoc = applyBrand(weekDoc, kit);
+  weekDoc = applyPostCopy(weekDoc, post);
+  if (logo) weekDoc = applyBrandLogo(weekDoc, logo);
+  return applyCreativeDirection(weekDoc, post);
 }

@@ -42,6 +42,7 @@ export const SIZE_PRESETS: SizePreset[] = [
   { id: "twitter", name: "X / Twitter", description: "1200 × 675", category: "Social", width: 1200, height: 675 },
   { id: "linkedin", name: "LinkedIn Banner", description: "1584 × 396", category: "Social", width: 1584, height: 396 },
   { id: "og", name: "Open Graph", description: "1200 × 630", category: "Web", width: 1200, height: 630 },
+  { id: "li-landscape", name: "LinkedIn landscape", description: "1200 × 627", category: "Social", width: 1200, height: 627 },
   { id: "banner", name: "Web Banner", description: "1200 × 628", category: "Web", width: 1200, height: 628 },
   { id: "hero", name: "Hero", description: "1920 × 600", category: "Web", width: 1920, height: 600 },
   { id: "email", name: "Email Header", description: "600 × 200", category: "Web", width: 600, height: 200 },
@@ -80,10 +81,11 @@ function shape(
     height,
     rotation: extras.rotation ?? 0,
     opacity: extras.opacity ?? 1,
-    locked: false,
-    hidden: false,
+    locked: extras.locked ?? false,
+    hidden: extras.hidden ?? false,
     constraints: extras.constraints ?? DEFAULT_CONSTRAINTS,
     role,
+    copyExempt: extras.copyExempt,
     fill: DEFAULT_BRAND.colors[role],
     fillMode: extras.fillMode ?? "solid",
     gradientEnd: extras.gradientEnd,
@@ -120,8 +122,8 @@ function text(
     height,
     rotation: 0,
     opacity: extras.opacity ?? 1,
-    locked: false,
-    hidden: false,
+    locked: extras.locked ?? false,
+    hidden: extras.hidden ?? false,
     constraints: extras.constraints ?? defaultConstraintsFor(size >= 40 ? "title" : "body"),
     role,
     fontRole,
@@ -178,8 +180,8 @@ function monoText(
     height,
     rotation: extras.rotation ?? 0,
     opacity: extras.opacity ?? 1,
-    locked: false,
-    hidden: false,
+    locked: extras.locked ?? false,
+    hidden: extras.hidden ?? false,
     constraints: extras.constraints ?? DEFAULT_CONSTRAINTS,
     role,
     fontWeight: extras.fontWeight ?? "600",
@@ -282,6 +284,34 @@ function quoteSquare(): CraftPage {
     text("Deck", "It is your house. Read what you are signing before you sign it.", 680, 640, 340, 160, 22, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.4 }),
     monoText("Name", "READ THE SMALL PRINT", 680, 860, 340, 26, 13, "secondary", { letterSpacing: 2 }),
     monoText("Role", "A STRATA SERIES", 680, 892, 340, 24, 12, "muted", { letterSpacing: 2, opacity: 0.8 }),
+  ]);
+}
+
+function liLandscape(): CraftPage {
+  return pageOf("li-landscape", "LinkedIn landscape", [
+    shape("Ground", "rect", 0, 0, 1200, 627, "background", {
+      constraints: { horizontal: "stretch", vertical: "stretch" },
+    }),
+    shape("Media frame", "rect", 0, 0, 460, 627, "muted", {
+      constraints: defaultConstraintsFor("image"),
+      shadow: HARD_SHADOW,
+    }),
+    shape("LightLeak", "rect", 0, 0, 12, 627, "accent", { hidden: true }),
+    shape("RedactSweep", "rect", 40, 220, 380, 56, "primary", { hidden: true, opacity: 0.92, copyExempt: true }),
+    monoText("Eyebrow", "", 500, 40, 640, 24, 13, "muted", { letterSpacing: 2 }),
+    text("Hook 1", "", 500, 80, 640, 110, 36, "text", { fontRole: "heading", lineHeight: 1.08 }),
+    text("Hook 2", "", 500, 196, 640, 90, 32, "accent", { fontRole: "heading", lineHeight: 1.08 }),
+    text("Body", "", 500, 300, 640, 110, 16, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.35 }),
+    text("Voice", "", 500, 300, 640, 80, 18, "muted", { hidden: true, fontRole: "body", fontWeight: "400" }),
+    monoText("DataTicker", "00", 80, 500, 300, 72, 56, "text", { hidden: true, letterSpacing: 1, uppercase: false }),
+    text("Silence", "", 80, 240, 1040, 90, 28, "text", { hidden: true, fontRole: "heading" }),
+    shape("CTA", "rect", 500, 470, 220, 52, "accent", { borderRadius: 2, shadow: HARD_SHADOW }),
+    text("CTA label", "", 500, 484, 220, 28, 16, "text", { align: "center", fontRole: "body", fontWeight: "700" }),
+    monoText("Identity", "We do not lend.", 500, 548, 640, 24, 13, "text", {
+      letterSpacing: 2,
+      uppercase: false,
+      locked: true,
+    }),
   ]);
 }
 
@@ -508,6 +538,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   { id: "event-story", name: "The Monthly Numbers", description: "Data-release story with a mono stat block", category: "Social", presetId: "story", build: eventStory },
   { id: "x-post", name: "HMRC, Actually", description: "Ink corner cut against a standing correction", category: "Social", presetId: "twitter", build: xPost },
   { id: "og-banner", name: "Open Graph — Rail", description: "Structural blue rail, strata mark bleeding off the corner", category: "Web", presetId: "og", build: ogBanner },
+  { id: "li-landscape", name: "LinkedIn landscape", description: "Week board. Paper, identity, two-beat hook.", category: "Social", presetId: "li-landscape", build: liLandscape },
   { id: "email-header", name: "Email Mast", description: "Ink newsletter mast with a strata mark", category: "Web", presetId: "email", build: emailHeader },
   { id: "email-letter", name: "Strata Layer Email", description: "600px letter with merge tags", category: "Docs", presetId: "email-letter", build: emailLetter },
   { id: "gif-caption", name: "Caption GIF", description: "Mono top/bottom bars, band-in motion", category: "Motion", presetId: "gif-square", build: gifCaption },

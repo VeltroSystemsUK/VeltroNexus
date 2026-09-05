@@ -1,3 +1,4 @@
+import { drawMotionNode } from "./motion";
 import { ALL_SHAPE_VARIANTS, type AnimationSpec, type CraftAsset, type CraftNode, type CraftPage, type Handle, type ImageNode, type ShapeVariant } from "./types";
 import { containDest, handleWorldPoint, type Guide, type Rect } from "./geometry";
 import { displayText, fitFontSize, wrapText } from "./text";
@@ -47,6 +48,8 @@ export function evaluateAnimation(spec: AnimationSpec | undefined, atMs: number)
     if (spec.type === "fadeIn") return { ...IDENTITY, opacity: 0 };
     if (spec.type === "slideIn") return { ...IDENTITY, dx: -60 };
     if (spec.type === "pop") return { ...IDENTITY, scaleX: 0.01, scaleY: 0.01 };
+    if (spec.type === "hook-turn") return { ...IDENTITY, opacity: 0, dx: -24 };
+    if (spec.type === "stamp-down") return { ...IDENTITY, scaleX: 1.18, scaleY: 1.18 };
     return IDENTITY;
   }
   if (local >= spec.duration) return IDENTITY;
@@ -55,6 +58,11 @@ export function evaluateAnimation(spec: AnimationSpec | undefined, atMs: number)
   if (spec.type === "slideIn") return { ...IDENTITY, dx: -60 * (1 - eased) };
   if (spec.type === "pop") {
     const scale = 0.01 + 0.99 * eased;
+    return { ...IDENTITY, scaleX: scale, scaleY: scale };
+  }
+  if (spec.type === "hook-turn") return { ...IDENTITY, opacity: eased, dx: -24 * (1 - eased) };
+  if (spec.type === "stamp-down") {
+    const scale = 1.18 - 0.18 * eased;
     return { ...IDENTITY, scaleX: scale, scaleY: scale };
   }
   return IDENTITY;
@@ -235,7 +243,7 @@ function drawShapePath(ctx: CanvasRenderingContext2D, variant: ShapeVariant, x: 
   ctx.closePath();
 }
 
-function imageMaskPath(ctx: CanvasRenderingContext2D, node: ImageNode) {
+function imageMaskPath(ctx: CanvasRenderingContext2D, node: Pick<ImageNode, "x" | "y" | "width" | "height" | "mask">) {
   const { x, y, width: w, height: h } = node;
   const radius = Math.min(w, h) * 0.18;
   const shapeMask = node.mask === "ellipse" ? "ellipse" : node.mask;
@@ -322,7 +330,15 @@ function paintBackground(ctx: CanvasRenderingContext2D, page: CraftPage) {
   ctx.fillRect(0, 0, w, h);
 }
 
-function drawNode(ctx: CanvasRenderingContext2D, node: CraftNode, assets: CraftAsset[], atMs: number, onImage?: () => void) {
+function drawNode(
+  ctx: CanvasRenderingContext2D,
+  node: CraftNode,
+  assets: CraftAsset[],
+  atMs: number,
+  onImage?: () => void,
+  motionOpts?: DrawOptions["motion"],
+  page?: CraftPage,
+) {
   if (node.hidden) return;
   const anim = evaluateAnimation(node.animation, atMs);
   ctx.save();
@@ -418,6 +434,33 @@ function drawNode(ctx: CanvasRenderingContext2D, node: CraftNode, assets: CraftA
       ctx.lineJoin = "round";
       ctx.stroke();
     }
+  } else if (node.type === "motion") {
+    const live = Boolean(motionOpts?.liveIds.has(node.id));
+    const hook1 = page?.nodes.find((n) => n.type === "text" && n.name === "Hook 1");
+    const hook2 = page?.nodes.find((n) => n.type === "text" && n.name === "Hook 2");
+    ctx.save();
+    imageMaskPath(ctx, node);
+    ctx.clip();
+    drawMotionNode(ctx, node, assets, {
+      live,
+      reduced: Boolean(motionOpts?.reduced),
+      pointer: motionOpts?.pointer,
+      click: motionOpts?.click,
+      atMs,
+      onImage,
+      hooks: motionOpts?.hooks ?? {
+        hook1: hook1?.type === "text" ? hook1.text : undefined,
+        hook2: hook2?.type === "text" ? hook2.text : undefined,
+      },
+    });
+    ctx.restore();
+    if ((node.strokeWidth ?? 0) > 0 && node.stroke && node.stroke !== "transparent") {
+      imageMaskPath(ctx, node);
+      ctx.strokeStyle = node.stroke;
+      ctx.lineWidth = node.strokeWidth ?? 0;
+      ctx.lineJoin = "round";
+      ctx.stroke();
+    }
   } else if (node.type === "text") {
     const sample = displayText(node);
     const size = node.textFit === "shrink" ? fitFontSize(ctx, node) : node.fontSize;
@@ -464,6 +507,13 @@ export interface DrawOptions {
   croppingId?: string | null;
   hideIds?: string[];
   onImage?: () => void;
+  motion?: {
+    liveIds: Set<string>;
+    pointer?: { x: number; y: number } | null;
+    click?: { x: number; y: number } | null;
+    reduced?: boolean;
+    hooks?: { hook1?: string; hook2?: string };
+  };
 }
 
 export function drawFrame(ctx: CanvasRenderingContext2D, page: CraftPage, assets: CraftAsset[], options: DrawOptions = {}) {
@@ -489,9 +539,21 @@ export function drawFrame(ctx: CanvasRenderingContext2D, page: CraftPage, assets
     }
     ctx.restore();
   }
+  const hook1 = page.nodes.find((n) => n.type === "text" && n.name === "Hook 1");
+  const hook2 = page.nodes.find((n) => n.type === "text" && n.name === "Hook 2");
+  const motion: DrawOptions["motion"] = {
+    liveIds: options.motion?.liveIds ?? new Set(),
+    pointer: options.motion?.pointer,
+    click: options.motion?.click,
+    reduced: options.motion?.reduced,
+    hooks: options.motion?.hooks ?? {
+      hook1: hook1?.type === "text" ? hook1.text : undefined,
+      hook2: hook2?.type === "text" ? hook2.text : undefined,
+    },
+  };
   for (const node of page.nodes) {
     if (options.hideIds?.includes(node.id)) continue;
-    drawNode(ctx, node, assets, atMs, options.onImage);
+    drawNode(ctx, node, assets, atMs, options.onImage, motion, page);
   }
 
   const cropNode = options.croppingId ? page.nodes.find((node) => node.id === options.croppingId) : undefined;

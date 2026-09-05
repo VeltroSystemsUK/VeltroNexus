@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
 import { CRAFT_SWATCHES, toColorInput } from '../lib/looks';
 
@@ -6,10 +7,16 @@ export function InspectorRail({
   title,
   children,
   className,
+  value,
+  onValueChange,
+  lead,
 }: {
   title: string;
   children: ReactNode;
   className?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  lead?: ReactNode;
 }) {
   return (
     <aside
@@ -23,7 +30,16 @@ export function InspectorRail({
           {title}
         </h2>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      {lead ? <div className="shrink-0 border-b border-[var(--border-subtle)] px-3 py-3 space-y-2">{lead}</div> : null}
+      <Accordion
+        type="single"
+        collapsible
+        value={value}
+        onValueChange={onValueChange}
+        className="min-h-0 flex-1 overflow-y-auto [direction:rtl] [scrollbar-width:thin] [&>*]:[direction:ltr]"
+      >
+        {children}
+      </Accordion>
     </aside>
   );
 }
@@ -38,15 +54,17 @@ export function InspectorSection({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-2 border-b border-[var(--border-subtle)] px-3 py-3 last:border-b-0">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="font-[family-name:var(--font-ui)] text-[10px] font-bold tracking-[0.14em] text-[var(--suite-accent)] uppercase">
+    <AccordionItem value={title} className="border-[var(--border-subtle)]">
+      <AccordionTrigger
+        className="px-3 py-2.5 font-[family-name:var(--font-ui)] text-[10px] font-bold tracking-[0.14em] text-[var(--suite-accent)] uppercase hover:no-underline [&>svg]:size-3"
+      >
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-2 pr-2">
           {title}
-        </h3>
-        {action}
-      </div>
-      {children}
-    </section>
+          {action}
+        </span>
+      </AccordionTrigger>
+      <AccordionContent className="space-y-2 px-3 pb-3">{children}</AccordionContent>
+    </AccordionItem>
   );
 }
 
