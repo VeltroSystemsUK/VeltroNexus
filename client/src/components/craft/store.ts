@@ -562,7 +562,9 @@ export const useCraftStore = create<CraftState>((set, get) => {
         if (action.type === "ensureDoc") {
           if (get().doc) return { ok: true };
           if (action.mode === "email-letter") {
-            get().applyTemplate("email-letter");
+            const built = documentFromTemplate("email-letter", loadBrandKit());
+            const id = await persistLocal(built, built.id);
+            loadDocument(built, id);
           } else {
             await get().newBlank({ silent: true });
           }

@@ -70,4 +70,14 @@ describe("Craft studio runner wiring", () => {
     expect(store).toContain('error: "unknown step"');
     expect(store).toContain('toast.error("Select a motion plate first")');
   });
+
+  it("ensureDoc email-letter awaits persist before the no-document guard", () => {
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    const start = store.indexOf("runCraftHelpStep: async");
+    const runner = store.slice(start, store.indexOf("applyCurrentDescription:", start));
+    expect(runner).toContain('documentFromTemplate("email-letter"');
+    expect(runner).toContain("await persistLocal(");
+    expect(runner).toContain("loadDocument(");
+    expect(runner).not.toContain('get().applyTemplate("email-letter")');
+  });
 });
