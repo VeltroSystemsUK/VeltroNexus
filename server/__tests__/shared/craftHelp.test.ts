@@ -62,3 +62,12 @@ describe("Craft studio recipes", () => {
     expect(recipe?.steps.at(-1)?.hint?.toLowerCase()).toMatch(/png|pack/);
   });
 });
+
+describe("Craft studio runner wiring", () => {
+  it("store exposes runCraftHelpStep", () => {
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    expect(store).toContain("runCraftHelpStep:");
+    expect(store).toContain('error: "unknown step"');
+    expect(store).toContain('toast.error("Select a motion plate first")');
+  });
+});

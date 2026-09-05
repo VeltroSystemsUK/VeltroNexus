@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
+import { craftHelpStep } from "@shared/craftHelp";
 import type { CraftPost } from "@shared/craftQueue";
 import { ammoForPost, yafflePromptFromAmmo } from "@shared/craftYaffle";
 import type { CreativeAmmoBrief } from "@shared/craftScout";
@@ -168,6 +169,7 @@ interface CraftState {
   addShape: (variant?: ShapeVariant, x?: number, y?: number) => void;
   addMotion: (presetId?: string, x?: number, y?: number) => void;
   applyMotionPreset: (id: string) => void;
+  runCraftHelpStep: (recipeId: string, stepIndex: number) => Promise<{ ok: boolean; error?: string }>;
   applyCurrentDescription: (phrase: string) => void;
   captureMotionStill: (id?: string) => void;
   recordMotionGif: (id?: string) => Promise<void>;
@@ -549,6 +551,72 @@ export const useCraftStore = create<CraftState>((set, get) => {
         return;
       }
       get().addMotion(preset.id);
+    },
+
+    runCraftHelpStep: async (recipeId, stepIndex) => {
+      const step = craftHelpStep(recipeId, stepIndex);
+      if (!step) return { ok: false, error: "unknown step" };
+      const action = step.action;
+      if (!action) return { ok: true };
+      try {
+        if (action.type === "ensureDoc") {
+          if (get().doc) return { ok: true };
+          if (action.mode === "email-letter") {
+            get().applyTemplate("email-letter");
+          } else {
+            await get().newBlank({ silent: true });
+          }
+          if (!get().doc) {
+            toast.error("Could not create design");
+            return { ok: false, error: "no document" };
+          }
+          return { ok: true };
+        }
+        if (action.type === "applyTemplate") {
+          get().applyTemplate(action.templateId);
+          return { ok: true };
+        }
+        if (action.type === "addMotion") {
+          get().addMotion(action.presetId);
+          return { ok: true };
+        }
+        if (action.type === "replaceMotionPreset") {
+          // replaceMotionPreset is not on this branch; add a layer instead.
+          get().addMotion(action.presetId);
+          return { ok: true };
+        }
+        if (action.type === "addText") {
+          get().addText(undefined, undefined, action.style ?? "heading");
+          if (action.text) {
+            const doc = get().doc;
+            const page = doc ? currentPage(doc, get().pageId) : null;
+            const created = page?.nodes.filter((node) => node.type === "text").at(-1);
+            if (created?.type === "text") get().updateNode(created.id, { text: action.text });
+          }
+          return { ok: true };
+        }
+        if (action.type === "captureMotionStill") {
+          const { doc, pageId, selectedIds } = get();
+          if (!doc) {
+            toast.error("Select a motion plate first");
+            return { ok: false, error: "no document" };
+          }
+          const page = currentPage(doc, pageId);
+          const node = page.nodes.find((item) => item.id === selectedIds[0]);
+          if (node?.type !== "motion") {
+            toast.error("Select a motion plate first");
+            return { ok: false, error: "no motion plate" };
+          }
+          get().captureMotionStill(node.id);
+          return { ok: true };
+        }
+        get().spawnPackPages();
+        return { ok: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "step failed";
+        toast.error(message);
+        return { ok: false, error: message };
+      }
     },
 
     applyCurrentDescription: (phrase) => {
