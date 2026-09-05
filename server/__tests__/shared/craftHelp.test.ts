@@ -119,3 +119,19 @@ describe("Craft studio chrome", () => {
     expect(view.match(/<CraftHelp /g)).toHaveLength(1);
   });
 });
+
+describe("Isla and CRAFT.md", () => {
+  it("MKT-2 points at the studio recipes file", () => {
+    const md = readFileSync("docs/agentic-org/agents/MKT-2.md", "utf8");
+    expect(md).toContain("shared/craftHelp.ts");
+    expect(md).toContain("hook-gif");
+    expect(md).toContain("week-post");
+    expect(md).not.toMatch(/v1 presets: Ledger Current \(FlowField\), Paper Sparks, Grain Breath, Corporate Ribbon/);
+  });
+
+  it("CRAFT.md documents studio help", () => {
+    const md = readFileSync("docs/CRAFT.md", "utf8");
+    expect(md).toMatch(/Studio help|SWELL studio/);
+    expect(md).toMatch(/Help/);
+  });
+});

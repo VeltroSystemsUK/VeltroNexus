@@ -583,6 +583,7 @@ Searchable: `python3 .claude/skills/creative-artist/scripts/search.py "idea dist
 - [ ] Constraints set and snap used. Edges share a grid.
 - [ ] Legal and identity nodes locked in the inspector. Hooks unlocked. No helper marks in the export.
 - [ ] Pack spawned via `adaptPage` and `spawnSizes` (story, square, OG) and each pack page inspected. Reflow is not crop. Story type inside the middle third.
+- [ ] A week that never produces a hook GIF or a spawned pack must point at `hook-gif` / `week-post` in `shared/craftHelp.ts` or an equivalent board spec. Otherwise the week is incomplete.
 - [ ] `canExportPost()` would return true (`approved && cleared && review.ok && autoPublish === false`), or the post is explicitly labelled a draft.
 - [ ] Filename follows `YYYY-MM-DD_track_format_route`.
 - [ ] Persistence honesty noted: visual document is local to this browser (IndexedDB `nexus-craft`); copy follows the account.
@@ -675,7 +676,7 @@ NodeBase: x y width height rotation opacity locked hidden constraints shadow ani
 | Shape variants | 18 | Memphis Utility: one accent shape per board sets the mood. Redact bar is a ShapeNode, not an emoji. Ledger rule, stamp ground, strata band. |
 | Masks | 17 | The weekday frames (arch, round, polaroid, star and the rest) plus strata-cut where shipped. One mask per visual. |
 | Animation types | 6 | Map to the motion languages in 5.6 via `applyNodeMotion`. One motion per board. First frame reads as a still. |
-| MotionNode | Canvas2D living plate inside the node bitmap. v1 presets: Ledger Current (FlowField), Paper Sparks, Grain Breath, Corporate Ribbon. Categories: ParticleSystem, FlowField, SineWaveRibbon, CustomShaderDistortion (2D grain fallback, no Three.js on the desk) | Insert from the Motion drawer. Name it `Media frame` or `Visual`. Do not make it the default week visual. Email and Learn use the captured still. |
+| MotionNode | Canvas2D living plate inside the node bitmap. 66 house presets in Atmosphere / Graphic devices / Structure / Occasional. Live cap 8. Overlay plates (Cinematic Hook Slam, Viral Hook Drop) use transparent backgrounds so they sit on atmosphere. Recipes: `shared/craftHelp.ts`. | Insert from the Motion inspector (adds a layer) or right-click the plate (replaces this look). Name it `Media frame` or `Visual` on week boards. Do not make it the default week visual. Email and Learn use the captured still. |
 | `applyFrameShape` / `applyImageLook` / `applyNodeMotion` / `applyNodeShadow` | Presets in `looks.ts` | Looks as a system: one frame, one look, one motion, one shadow. Never stack every preset on one node. |
 | `applyCreativeDirection` | Weekday frame, shadow, motion on visual and both hooks | Every week pack. Seven siblings, one bloodline. Never all seven frames in one post. |
 | `applyBrand` / `applyBrandLogo` | Remap by role; replace logo slot aspect-fit | Never paint hexes node by node. No stranded old gold. |
@@ -748,7 +749,17 @@ canExportPost: [true | draft, reason]
 Drift from bundled schema: [none | note]
 ```
 
-### 12.8 Known gaps (do not pretend these are shipped)
+### 12.8 Studio recipes
+
+Canonical file: `shared/craftHelp.ts`. Isla reads it. She does not rewrite recipes in this persona file.
+
+Ids: `week-post` (social post + pack), `hook-gif` (glass + slam, human records GIF), `still-art` (vapor then capture still), `stack-layers` (inspector adds, right-click replaces), `email-letter` (600px letter, merge tags).
+
+Laws: inspector adds a layer; right-click replaces this plate; hook slam and viral hook are transparent overlays; Vapor Drift is mist not ellipses; recipes never auto-export; no rates.
+
+Shaun runs the same jobs from Help / `?` in SWELL. If live Craft and this file disagree, obey the live app and `shared/craftHelp.ts`.
+
+### 12.9 Known gaps (do not pretend these are shipped)
 
 - Lead magnet and quarterly brand review are prompt-only. No route.
 - Kit is not in the delegate job set; it needs a search query.
@@ -757,7 +768,7 @@ Drift from bundled schema: [none | note]
 - `DEFAULT_BRAND` is duplicated in `types.ts` and `composePost.ts`; keep both in sync if hexes change.
 - Visual documents are not synced to the server.
 
-### 12.9 Library proposals
+### 12.10 Library proposals
 
 `LIBRARY` is the canonical still set. Isla proposes additions in `media/library-proposals.md` (stockId, query, prompt, track fit, triggers); Shaun adds them to code. Target: 12 to 16 stills covering both tracks and all six situation pages on Learn. Proposed: `ledger`, `yard`, `letterbox`, `site`, `kitchen`, `boardroom-small`, `accountant`, `slabs`. `curateVisual` triggers extend as the library grows; Isla supplies trigger words with each proposal.
 

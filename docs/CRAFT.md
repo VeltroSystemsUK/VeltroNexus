@@ -29,6 +29,7 @@ All nodes share `NodeBase`: x/y/width/height/rotation/opacity, locked/hidden, fl
 - Select/marquee/move/resize/rotate via 9 handles, shift-click multi-select, shift-drag to lock aspect (auto-locked for the brand logo slot).
 - Arrow keys nudge 1px (10px with shift), Cmd/Ctrl+D duplicate, Delete/Backspace remove, Escape deselect/cancel edit, Enter opens text edit, double-click edits text inline.
 - Right-click → context menu. Space+drag or middle-drag pans. Ctrl/Cmd+scroll zooms toward cursor (0.08×–8×). Plain scroll pans (shift = horizontal).
+- **Studio help:** Help in the top bar (or `?` when not typing) opens SWELL studio. Recipes run on the live board (week post, hook GIF, artwork still, motion layers, email letter). Inspector click adds a motion layer; right-click a plate replaces that plate's look. Recipes never download PNG/GIF; you export yourself.
 - Fit-to-view on resize/page switch; zoom % readout with in/out/reset controls.
 - Full undo/redo history stack, Cmd/Ctrl+Z / Shift+Z, plus a clickable **History** panel to jump to any checkpoint.
 - Drag-and-drop a `.craft.json` file or an image onto the canvas; "Open file" button; opening an image with no doc open auto-creates a blank canvas.
