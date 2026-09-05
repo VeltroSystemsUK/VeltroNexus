@@ -118,7 +118,7 @@ This idea governs every creative decision. If an asset does not express layering
 
 Creative-artist's `industry` domain names the enemy precisely. UK specialist lending and packaging defaults to: glass towers, keys in hands, happy family on a lawn, "from X% APR", confetti rates, dashboard screenshots as hero, purple orbs and glass cards borrowed from fintech.
 
-The smash move: lead with packager identity. Never pretend to be the lender. Craft the refusal. Show paper, ink, rooms, people who file things. Make "We do not lend" a badge, not a footnote.
+The smash move: lead with the repair, not the disclaimer. Show the structure taking shape, paper, ink, rooms, people who file things, then close on packager identity as a quiet, plain-English disclosure, not a badge. "We do not lend" earns its place in a footer or a "how we work" line; it should never be the thing a stranger reads first.
 
 ### 4.4 Brand personality
 
@@ -144,7 +144,7 @@ Two tracks. Every asset declares which one it serves. Nothing serves both. Do no
 | Pillar | Borrower | Introducer |
 |---|---|---|
 | Competence | "We know what the underwriter needs" | "The file arrives complete. First time." |
-| Honesty | "We do not lend. We tell you what is possible." | "No client poaching. Ever. In writing." |
+| Honesty | "We build the file. We do not lend it." | "No client poaching. Ever. In writing." |
 | Structure | "One case, built properly, not twenty applications" | "One pack format. Every lender recognises it." |
 | Outcome | "A decision you can plan around" | "Your client gets an answer. You get the credit." |
 
@@ -249,7 +249,7 @@ House trio in Craft: **Unbounded 700** (force), **Inter 400** (clarity), **JetBr
 | Strata House | Every Craft document unless a guest type is licensed | Hook in display, Deck in Inter, evidence in Mono |
 | Broadsheet Smash | Fame posters, carousel slide 1 | Unbounded at architecture scale, Inter tight measure, Mono small-caps facts. Never fake bold by stroke |
 | Caption Documentary | Photo-led posts | Inter 600 caption in the margin, never on the face |
-| Ledger Ticket | Identity lines, "We do not lend" lockups | Unbounded 700 over JetBrains Mono. Issued, stamped, filed |
+| Ledger Ticket | Footer identity lines, packager-status lockups | Unbounded 700 over JetBrains Mono. Issued, stamped, filed |
 | Quiet Endframe | Sunday boards, email headers, 15s cutdowns | Unbounded 700 small, tracking +20 on the line, then stop |
 
 Scale: 1.25 ratio from 16px. Never more than three sizes on one surface. Guest fonts via the Craft font picker only with a licence note on the node.
@@ -295,7 +295,7 @@ Two motion systems. They do not mix.
 | Hard Offset Settle | Brand-default social loop | Type 8px offset from rest | Type parked, shadow locked | cubic 0.2 0.8 0.2 1, 280ms |
 | Weekday Frame Tick | Desk variety across the seven | Frame at 96% | Frame at rest | ease-out 320ms |
 | Hook Turn | Two-part hooks | Hook 1 only | Hook 2 replaces or stacks | step or 160ms snap, hold 1.2s |
-| Stamp Down | "We do not lend" lockup, identity clause | Mark above board | Ink squash | anticipate then slam, one overshoot, one settle |
+| Stamp Down | Packager-identity clause, footer lockup | Mark above board | Ink squash | anticipate then slam, one overshoot, one settle |
 | Documentary Hold | Kit stills | Crop A | Crop A plus 2% | linear 6s loop (kenburns-min) |
 | Redact Draw | Myth-busting | Full banned phrase | Bar covers it, truth remains | linear 400ms, ShapeNode as bar |
 | None On Purpose | Print, email HTML, authority | Final | Final | none |
@@ -523,7 +523,7 @@ For long-form assets (landing pages, lead magnets, decks) the frame expands, but
 - Two-beat hooks. Hook 1 states a complete-feeling half-truth. Hook 2 is the packager correction, the human cost, or the dry joke. If Hook 2 could be deleted without pain, there is no turn.
 - Hooks are statements or uncomfortable questions. Never a question the reader can answer "no" to and move on.
 - Write to 39/34 with two characters of headroom under the 40/36 caps. `clipLine` never has to cut; a clipped hook is a failed hook and is logged.
-- Deck: sentence one is the mechanism, sentence two is the packager identity. "We do not lend. We build the case." is the default; vary it, never drop it. `copyFromAmmo` appends "We do not lend." if missing; do not rely on it.
+- Deck: sentence one is the mechanism, sentence two is the packager identity, in that order, lead with the repair, not the disclaimer. "We build the case. We do not lend." is the default; vary it, never drop it, never reverse the order. `copyFromAmmo` appends "We do not lend." after the mechanism if missing; do not rely on it.
 - CTA is a verb and a destination: "Read the checklist", "Run the numbers", "Package with Strata", "Talk to Strata". Never "Learn more", "Click here", "Get started".
 - Numbers only from Casey's verified refs. Cite in the Learn article, never on the picture.
 - Dry humour is allowed when it punctures industry nonsense, never when it touches the director's fear.
