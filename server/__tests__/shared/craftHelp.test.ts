@@ -80,6 +80,39 @@ describe("Craft studio runner wiring", () => {
     expect(runner).toContain("loadDocument(");
     expect(runner).not.toContain('get().applyTemplate("email-letter")');
   });
+
+  it("awaits a document before reporting success for template, motion, text, and pack", () => {
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    const start = store.indexOf("runCraftHelpStep: async");
+    const runner = store.slice(start, store.indexOf("applyCurrentDescription:", start));
+    expect(runner).toContain("switch (action.type)");
+    expect(runner).toContain('case "applyTemplate"');
+    expect(runner).toContain('case "addMotion"');
+    expect(runner).toContain('case "addText"');
+    expect(runner).toContain('case "spawnPackPages"');
+    expect(runner).toContain('await get().newBlank({ silent: true })');
+    expect(runner).not.toMatch(/get\(\)\.addMotion\([^)]+\);\s*return \{ ok: true \}/);
+    expect(runner).not.toMatch(/get\(\)\.applyTemplate\([^)]+\);\s*return \{ ok: true \}/);
+    expect(runner).not.toMatch(/get\(\)\.spawnPackPages\(\);\s*return \{ ok: true \}/);
+
+    const applyAt = runner.indexOf('case "applyTemplate"');
+    const motionAt = runner.indexOf('case "addMotion"');
+    const textAt = runner.indexOf('case "addText"');
+    const packAt = runner.indexOf('case "spawnPackPages"');
+    const applyCase = runner.slice(applyAt, motionAt);
+    expect(applyCase).toContain("documentFromTemplate(");
+    expect(applyCase).toContain("await persistLocal(");
+    expect(applyCase).toContain("loadDocument(");
+    const motionCase = runner.slice(motionAt, textAt);
+    expect(motionCase).toContain('await get().newBlank({ silent: true })');
+    expect(motionCase).toContain("get().addMotion(");
+    const textCase = runner.slice(textAt, packAt);
+    expect(textCase).toContain('await get().newBlank({ silent: true })');
+    expect(textCase).toContain("get().addText(");
+    const packCase = runner.slice(packAt);
+    expect(packCase).toContain('await get().newBlank({ silent: true })');
+    expect(packCase).toContain("get().spawnPackPages(");
+  });
 });
 
 describe("Craft studio chrome", () => {
@@ -127,6 +160,12 @@ describe("Isla and CRAFT.md", () => {
     expect(md).toContain("hook-gif");
     expect(md).toContain("week-post");
     expect(md).not.toMatch(/v1 presets: Ledger Current \(FlowField\), Paper Sparks, Grain Breath, Corporate Ribbon/);
+  });
+
+  it("in-app Isla prompt points at studio recipes and drops the four-preset inventory", () => {
+    const src = readFileSync("shared/islaQuinn.ts", "utf8");
+    expect(src).toContain("shared/craftHelp.ts");
+    expect(src).not.toMatch(/v1 presets: Ledger Current \(FlowField\), Paper Sparks, Grain Breath, Corporate Ribbon/);
   });
 
   it("CRAFT.md documents studio help", () => {

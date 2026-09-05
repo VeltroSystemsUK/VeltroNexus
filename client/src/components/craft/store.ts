@@ -558,61 +558,87 @@ export const useCraftStore = create<CraftState>((set, get) => {
       if (!step) return { ok: false, error: "unknown step" };
       const action = step.action;
       if (!action) return { ok: true };
+      const noDoc = (): { ok: false; error: string } => {
+        toast.error("Could not create design");
+        return { ok: false, error: "no document" };
+      };
       try {
-        if (action.type === "ensureDoc") {
-          if (get().doc) return { ok: true };
-          if (action.mode === "email-letter") {
-            const built = documentFromTemplate("email-letter", loadBrandKit());
-            const id = await persistLocal(built, built.id);
-            loadDocument(built, id);
-          } else {
-            await get().newBlank({ silent: true });
+        switch (action.type) {
+          case "ensureDoc": {
+            if (!get().doc) {
+              if (action.mode === "email-letter") {
+                const built = documentFromTemplate("email-letter", loadBrandKit());
+                const id = await persistLocal(built, built.id);
+                loadDocument(built, id);
+              } else {
+                await get().newBlank({ silent: true });
+              }
+            }
+            break;
           }
-          if (!get().doc) {
-            toast.error("Could not create design");
-            return { ok: false, error: "no document" };
+          case "applyTemplate": {
+            if (!get().doc) {
+              const built = documentFromTemplate(action.templateId, loadBrandKit());
+              const id = await persistLocal(built, built.id);
+              loadDocument(built, id);
+            } else {
+              get().applyTemplate(action.templateId);
+            }
+            break;
           }
-          return { ok: true };
-        }
-        if (action.type === "applyTemplate") {
-          get().applyTemplate(action.templateId);
-          return { ok: true };
-        }
-        if (action.type === "addMotion") {
-          get().addMotion(action.presetId);
-          return { ok: true };
-        }
-        if (action.type === "replaceMotionPreset") {
-          // replaceMotionPreset is not on this branch; add a layer instead.
-          get().addMotion(action.presetId);
-          return { ok: true };
-        }
-        if (action.type === "addText") {
-          get().addText(undefined, undefined, action.style ?? "heading");
-          if (action.text) {
-            const doc = get().doc;
-            const page = doc ? currentPage(doc, get().pageId) : null;
-            const created = page?.nodes.filter((node) => node.type === "text").at(-1);
-            if (created?.type === "text") get().updateNode(created.id, { text: action.text });
+          case "addMotion": {
+            if (!get().doc) await get().newBlank({ silent: true });
+            if (!get().doc) return noDoc();
+            get().addMotion(action.presetId);
+            break;
           }
-          return { ok: true };
-        }
-        if (action.type === "captureMotionStill") {
-          const { doc, pageId, selectedIds } = get();
-          if (!doc) {
-            toast.error("Select a motion plate first");
-            return { ok: false, error: "no document" };
+          case "replaceMotionPreset": {
+            // replaceMotionPreset is not on this branch; add a layer instead.
+            if (!get().doc) await get().newBlank({ silent: true });
+            if (!get().doc) return noDoc();
+            get().addMotion(action.presetId);
+            break;
           }
-          const page = currentPage(doc, pageId);
-          const node = page.nodes.find((item) => item.id === selectedIds[0]);
-          if (node?.type !== "motion") {
-            toast.error("Select a motion plate first");
-            return { ok: false, error: "no motion plate" };
+          case "addText": {
+            if (!get().doc) await get().newBlank({ silent: true });
+            if (!get().doc) return noDoc();
+            get().addText(undefined, undefined, action.style ?? "heading");
+            if (action.text) {
+              const doc = get().doc;
+              const page = doc ? currentPage(doc, get().pageId) : null;
+              const created = page?.nodes.filter((node) => node.type === "text").at(-1);
+              if (created?.type === "text") get().updateNode(created.id, { text: action.text });
+            }
+            break;
           }
-          get().captureMotionStill(node.id);
-          return { ok: true };
+          case "captureMotionStill": {
+            const { doc, pageId, selectedIds } = get();
+            if (!doc) {
+              toast.error("Select a motion plate first");
+              return { ok: false, error: "no document" };
+            }
+            const page = currentPage(doc, pageId);
+            const node = page.nodes.find((item) => item.id === selectedIds[0]);
+            if (node?.type !== "motion") {
+              toast.error("Select a motion plate first");
+              return { ok: false, error: "no motion plate" };
+            }
+            get().captureMotionStill(node.id);
+            break;
+          }
+          case "spawnPackPages": {
+            if (!get().doc) await get().newBlank({ silent: true });
+            if (!get().doc) return noDoc();
+            get().spawnPackPages();
+            break;
+          }
+          default: {
+            const _never: never = action;
+            void _never;
+            return { ok: false, error: "unknown step" };
+          }
         }
-        get().spawnPackPages();
+        if (!get().doc) return noDoc();
         return { ok: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : "step failed";
