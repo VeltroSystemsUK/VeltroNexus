@@ -51,6 +51,43 @@ describe("desk ops", () => {
     expect(maya?.notDelivered).toBe(1);
   });
 
+  it("counts mailed from Deal file send events when the mail log is empty or short", () => {
+    const rows = summariseDeskOps({
+      deals: [
+        {
+          id: 9,
+          source: "distress_scan",
+          stage: "outreach",
+          status: "waiting_timer",
+          companyName: "Works Ltd",
+          events: [
+            {
+              at: "2026-09-01T09:41:26.000Z",
+              stage: "outreach",
+              agent: "outreach-sales",
+              message: "Day 1 email to ops@works.co.uk: Debt service reduction — first email",
+            },
+            {
+              at: "2026-09-03T04:54:15.000Z",
+              stage: "fulfilment",
+              agent: "outreach-sales",
+              message: "sme_1 opened — quiz follow-up sent to ops@works.co.uk",
+            },
+            {
+              at: "2026-09-01T09:40:00.000Z",
+              stage: "outreach",
+              agent: "outreach-sales",
+              message: "Not emailed — fit 40/70",
+            },
+          ],
+        },
+      ],
+      mail: [],
+    });
+    const james = rows.find((row) => row.agentId === "outreach-sales");
+    expect(james?.mailed).toBe(2);
+  });
+
   it("puts hunt files on Daniel and introducer files on Tom, not Maya", () => {
     expect(
       deskForDeal({

@@ -35,8 +35,8 @@ export function DeskOpsPanel({ onDelegate }: { onDelegate?: (agentId: string) =>
         <Stat label="Not delivered" value={notDelivered} warn={notDelivered > 0} />
       </div>
       <p className="text-xs text-slate-500">
-        Counts come from Deal files and the mail log. Mock or failed SMTP is “not delivered”. Hibernated
-        desks (Oliver, Nathan, ARES) are not listed.
+        Emails delivered are counted from Deal file send events (and the mail log when it has more).
+        Mock or failed SMTP is “not delivered”. Hibernated desks (Oliver, Nathan, ARES) are not listed.
       </p>
       <div className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full text-sm">

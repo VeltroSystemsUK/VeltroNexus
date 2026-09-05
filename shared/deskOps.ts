@@ -9,6 +9,25 @@ export type DeskMail = {
   status?: string;
 };
 
+export function isDealSendEvent(message?: string): boolean {
+  const msg = String(message || "");
+  if (/\bnot emailed\b/i.test(msg)) return false;
+  return /^Day \d+ email to /i.test(msg) || /follow-up sent to /i.test(msg) || /^Day \d+ emailed\b/i.test(msg);
+}
+
+export function mailedFromDeals(
+  deals: Array<{ events?: Array<{ agent?: string; message?: string }> }>,
+  agentId: string,
+): number {
+  let count = 0;
+  for (const deal of deals) {
+    for (const event of deal.events || []) {
+      if (event.agent === agentId && isDealSendEvent(event.message)) count += 1;
+    }
+  }
+  return count;
+}
+
 export type DeskOpsRow = {
   agentId: string;
   name: string;
@@ -207,13 +226,14 @@ export function summariseDeskOps(input: {
       return bAt.localeCompare(aAt);
     })[0];
     const outbound = input.mail.filter((item) => item.agentId === desk.agentId && item.direction === "outbound");
+    const mailedFromLog = outbound.filter((item) => item.status === "sent").length;
     return {
       agentId: desk.agentId,
       name: desk.displayName,
       role: desk.role,
       open: openDeals.length,
       waitingYou: openDeals.filter((deal) => deal.status === "waiting_human").length,
-      mailed: outbound.filter((item) => item.status === "sent").length,
+      mailed: Math.max(mailedFromLog, mailedFromDeals(input.deals, desk.agentId)),
       notDelivered: outbound.filter((item) => item.status === "mock" || item.status === "failed").length,
       lastFile: last?.companyName,
       lastEvent: last?.events?.[last.events.length - 1]?.message,

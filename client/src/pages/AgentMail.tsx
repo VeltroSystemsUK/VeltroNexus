@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
-import { Inbox, Loader2, Mail, MailOpen, RefreshCw, Search, Send } from "lucide-react";
+import { Inbox, Loader2, Mail, MailOpen, Reply, RefreshCw, Search, Send } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle, usePageActions } from "@/context/LayoutContext";
 import { cn } from "@/lib/utils";
 import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, stripMailTracking } from "@shared/mailTracking";
@@ -134,6 +135,8 @@ export default function AgentMail() {
   const [agent, setAgent] = useState("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
   const [readingPane, setReadingPane] = useState(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem(READING_PANE_KEY) !== "off";
@@ -210,6 +213,37 @@ export default function AgentMail() {
   const inboundCount = (data?.messages || []).filter((item) => item.direction === "inbound").length;
   const sentCount = (data?.messages || []).filter((item) => item.direction === "outbound").length;
   const openedCount = (data?.messages || []).filter((item) => isOpenedOutboundMail(item)).length;
+
+  useEffect(() => {
+    setReplyOpen(false);
+    setReplyText("");
+  }, [selectedId]);
+
+  const sendReply = useMutation({
+    mutationFn: async () => {
+      if (!selected) throw new Error("Select a message first");
+      const res = await apiRequest(`/api/agent-mail/${selected.id}/reply`, "POST", { text: replyText });
+      return res.json() as Promise<{ success: boolean; mock?: boolean }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-mail"] });
+      setReplyText("");
+      setReplyOpen(false);
+      toast({
+        title: result.mock ? "Reply logged" : "Reply sent",
+        description: result.mock
+          ? "No SMTP credentials configured — logged instead of sent."
+          : `Sent to ${selected ? counterpart(selected) : ""}.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not send reply",
+        description: error.message || "The mailbox did not respond.",
+        variant: "destructive",
+      });
+    },
+  });
 
   function toggleReadingPane(on: boolean) {
     setReadingPane(on);
@@ -395,6 +429,16 @@ export default function AgentMail() {
                   <Badge variant="outline" className={statusTone(selected.status)}>
                     {selected.status}
                   </Badge>
+                  <Button
+                    size="sm"
+                    variant={replyOpen ? "secondary" : "outline"}
+                    className="h-8"
+                    onClick={() => setReplyOpen((open) => !open)}
+                    data-testid="button-reply"
+                  >
+                    <Reply className="h-3.5 w-3.5 mr-1.5" />
+                    Reply
+                  </Button>
                 </div>
               </div>
               <div className="text-sm text-muted-foreground space-y-0.5">
@@ -428,6 +472,39 @@ export default function AgentMail() {
             <ScrollArea className="flex-1">
               <AgentMailBody html={selected.html} text={selected.text} />
             </ScrollArea>
+            {replyOpen && (
+              <div className="border-t p-4 space-y-2 shrink-0">
+                <p className="text-xs text-muted-foreground">
+                  Reply to <span className="text-foreground/80">{counterpart(selected)}</span>
+                </p>
+                <Textarea
+                  value={replyText}
+                  onChange={(event) => setReplyText(event.target.value)}
+                  placeholder="Write your reply…"
+                  className="min-h-[140px] text-sm"
+                  data-testid="input-reply-text"
+                  autoFocus
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setReplyOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => sendReply.mutate()}
+                    disabled={sendReply.isPending || !replyText.trim()}
+                    data-testid="button-send-reply"
+                  >
+                    {sendReply.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {sendReply.isPending ? "Sending…" : "Send"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </section>

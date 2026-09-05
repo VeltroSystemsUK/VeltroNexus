@@ -1,0 +1,125 @@
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  clearAgentMail,
+  deleteAgentMail,
+  listAgentMail,
+  logAgentMail,
+  backupAgentMailNow,
+  maybeRunDailyMailBackup,
+  setAgentMailBackupDirForTests,
+  setAgentMailStorePathForTests,
+} from "../../services/agentMailLog";
+
+const LIVE = path.resolve(process.cwd(), "uploads", "agent_mail.json");
+
+afterEach(() => {
+  setAgentMailBackupDirForTests(null);
+  setAgentMailStorePathForTests(null);
+});
+
+function tmpPair() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agent-mail-bak-"));
+  const file = path.join(root, "agent_mail.json");
+  const backups = path.join(root, "backups");
+  setAgentMailStorePathForTests(file);
+  setAgentMailBackupDirForTests(backups);
+  return { root, file, backups };
+}
+
+describe("agentMailLog store isolation", () => {
+  it("refuses to clear the live store", () => {
+    expect(() => clearAgentMail()).toThrow(/refused/i);
+  });
+
+  it("writes and clears only the override path", () => {
+    const before = fs.existsSync(LIVE) ? fs.readFileSync(LIVE, "utf8") : "";
+    const file = path.join(os.tmpdir(), `agent-mail-iso-${process.pid}-${Date.now()}.json`);
+    setAgentMailStorePathForTests(file);
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "isolation",
+      text: "probe",
+      status: "sent",
+    });
+    expect(listAgentMail().length).toBe(1);
+    expect(fs.existsSync(file)).toBe(true);
+    clearAgentMail();
+    expect(listAgentMail()).toEqual([]);
+    setAgentMailStorePathForTests(null);
+    const after = fs.existsSync(LIVE) ? fs.readFileSync(LIVE, "utf8") : "";
+    expect(after).toBe(before);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  });
+});
+
+describe("agentMailLog local backups", () => {
+  it("does not copy to the backup folder on an ordinary write", () => {
+    const { backups } = tmpPair();
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "first",
+      text: "x",
+      status: "sent",
+    });
+    expect(fs.existsSync(backups) ? fs.readdirSync(backups) : []).toEqual([]);
+  });
+
+  it("copies the live file next to itself before a shrinking write", () => {
+    const { file } = tmpPair();
+    const first = logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "keep",
+      text: "x",
+      status: "sent",
+    });
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "drop",
+      text: "y",
+      status: "sent",
+    });
+    deleteAgentMail(first.id);
+    const prev = path.join(path.dirname(file), "agent_mail.prev.json");
+    expect(fs.existsSync(prev)).toBe(true);
+    const saved = JSON.parse(fs.readFileSync(prev, "utf8")) as Array<{ id: string }>;
+    expect(saved.some((row) => row.id === first.id)).toBe(true);
+  });
+
+  it("writes one London-dated copy at 03:00 and prunes files older than 14 days", () => {
+    const { backups } = tmpPair();
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "a",
+      text: "x",
+      status: "sent",
+    });
+    const beforeThree = new Date("2026-09-04T01:59:00.000Z");
+    const atThree = new Date("2026-09-04T02:00:00.000Z");
+    expect(maybeRunDailyMailBackup(beforeThree)).toBeNull();
+    const dest = maybeRunDailyMailBackup(atThree);
+    expect(dest).toMatch(/agent_mail-2026-09-04\.json$/);
+    expect(maybeRunDailyMailBackup(new Date("2026-09-04T02:04:00.000Z"))).toBeNull();
+    const stale = path.join(backups, "agent_mail-2000-01-01.json");
+    fs.writeFileSync(stale, "[]");
+    const old = new Date("2000-01-01T00:00:00Z");
+    fs.utimesSync(stale, old, old);
+    backupAgentMailNow(atThree);
+    expect(fs.existsSync(stale)).toBe(false);
+    expect(fs.readdirSync(backups).filter((name) => name.startsWith("agent_mail-"))).toEqual([
+      "agent_mail-2026-09-04.json",
+    ]);
+  });
+});

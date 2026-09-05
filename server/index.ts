@@ -337,6 +337,8 @@ app.use((req: any, res, next) => {
 
           const { startImapInboxPoll } = await import("./services/imapInbox");
           startImapInboxPoll();
+          const { startAgentMailDailyBackup } = await import("./services/agentMailLog");
+          startAgentMailDailyBackup();
 
           void backfillSmeOpenFollowUps()
             .then((result) => {

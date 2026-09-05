@@ -70,7 +70,7 @@ export function lenderLabel(deal: Pick<AgenticDealFile, "fitReasons" | "fitSumma
   return "a high-cost short-term facility";
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -85,7 +85,7 @@ function linkify(escaped: string): string {
   );
 }
 
-function htmlEmail(lines: string[]): string {
+export function htmlEmail(lines: string[]): string {
   return lines.map((line) => `<p>${linkify(escapeHtml(line))}</p>`).join("\n");
 }
 

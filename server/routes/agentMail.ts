@@ -28,7 +28,7 @@ const router = Router();
 
 router.get("/api/agent-mail", isAuthenticated, async (_req, res) => {
   try {
-    res.json({ mailboxes: mailboxList(), messages: listAgentMail(300) });
+    res.json({ mailboxes: mailboxList(), messages: listAgentMail(2000) });
   } catch (error) {
     handleApiError(res, error, "api-error");
   }
