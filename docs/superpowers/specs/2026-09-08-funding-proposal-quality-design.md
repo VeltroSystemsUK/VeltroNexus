@@ -28,7 +28,7 @@ Stop that class of failure. Every numbered fact has one value. Every fact has on
 
 ## Non-goals
 
-- Building the 24-month forecast / CFADS model (section 7 stays an empty state until that exists).
+- A full 24-month CFADS / cash-build model on A4. Section 7 is filled by the cashflow-forecast analysis spec (`2026-09-08-cashflow-forecast-analysis-design.md`): evidence vs claim, two columns, confirmed grid, findings rules. That spec amends this page map.
 - Replacing Zeus or the LLM `calculateRiskGrade` used elsewhere.
 - A confirmation screen that silently picks a winner among conflicting sources.
 - Visual PDF screenshot CI.
@@ -212,7 +212,7 @@ Keep the nine headings. Stop stuffing each into a fake A4 `.paper` with `n / 9`.
 | 4. Current financial situation | DSCR hero; cashflow kv **once**; monthly table; stacked-lenders table; `bankFindings` bullets; findings tables (DDs, bounces, loans, gambling, personal, anomalies) | `financialAnalysis.summary` essay; those same totals under Background |
 | 5. Historic | P&L / BS / chart **if extractable figures exist** | Model chatter about blank PDFs or an £8.5m inconsistency. Blank accounts → empty state |
 | 6. Deal summary | Security kv; Research Hub if completed | Use of funds again; loan calc again |
-| 7. Forecasts | Empty state until a model exists | Reprint of DSCR / Creditsafe tiles |
+| 7. Forecasts | Confirmed cashflow-forecast object (without vs with + findings). Empty state if not confirmed | Reprint of DSCR / Creditsafe tiles; unconfirmed extract; 24-month grid |
 | 8. Recommendation | Recommendation bullets; sign-off | A paragraph. Empty → existing “Awaiting recommendation” one-liner |
 | 9. Attachments | Checklist **derived at render from documents actually on the file** (`attachmentsFromDocuments` / `resolveAttachmentsChecklist`) | “0 of 13” while statements have already been analysed |
 
