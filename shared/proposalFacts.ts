@@ -462,3 +462,91 @@ export function deriveProposal(
     adverseConduct,
   };
 }
+
+export const SLOT_CAPS = {
+  background: { cap: 5, maxWords: 25 },
+  theBusiness: { cap: 6, maxWords: 25 },
+  campari: { cap: 6, maxWords: 20 },
+  swot: { cap: 5, maxWords: 20 },
+  bankFindings: { cap: 8, maxWords: 20 },
+  recommendation: { cap: 5, maxWords: 25 },
+} as const;
+
+export const BANNED_PHRASES = [
+  "the document provided",
+  "note on scope",
+  "cannot currently be assessed",
+  "this is not stated",
+  "the evaluation below",
+  "cannot currently be credit-assessed",
+] as const;
+
+export type SlotValidation =
+  | { ok: true; text: string }
+  | { ok: false; reason: string };
+
+const FORBIDDEN_PATTERNS: Array<{ reason: string; re: RegExp }> = [
+  { reason: "contains £", re: /£/ },
+  { reason: "contains DSCR", re: /\bDSCR\b/i },
+  { reason: "contains DSCR multiple", re: /\b\d+\.\d+x\b/i },
+  { reason: "contains grade-as-rating", re: /\b(risk\s+)?(grade|score)\s+(?:of\s+)?[A-E]\b/i },
+  {
+    reason: "contains grade-as-rating",
+    re: /\b[A-E]\s*\((very\s+)?(low|medium|high)\s+risk\)/i,
+  },
+  {
+    reason: "contains facility term",
+    re: /\b(loan|facility|term)\b[^.]{0,40}\b\d+\s*(months?|years?)\b/i,
+  },
+];
+
+export function validateBullet(text: string, maxWords: number): SlotValidation {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { ok: false, reason: "empty bullet" };
+  }
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length > maxWords) {
+    return { ok: false, reason: `exceeds ${maxWords} words` };
+  }
+
+  for (const { reason, re } of FORBIDDEN_PATTERNS) {
+    if (re.test(trimmed)) {
+      return { ok: false, reason };
+    }
+  }
+
+  const lower = trimmed.toLowerCase();
+  for (const phrase of BANNED_PHRASES) {
+    if (lower.includes(phrase)) {
+      return { ok: false, reason: `banned phrase: ${phrase}` };
+    }
+  }
+
+  return { ok: true, text: trimmed };
+}
+
+export function validateSlot(items: string[], cap: number, maxWords: number): string[] {
+  return items
+    .map((item) => validateBullet(item, maxWords))
+    .filter((result): result is { ok: true; text: string } => result.ok)
+    .map((result) => result.text)
+    .slice(0, cap);
+}
+
+function stripMarkdownBullet(line: string): string {
+  return line
+    .replace(/[#*]/g, "")
+    .replace(/^\s*-\s+/, "")
+    .trim();
+}
+
+export function hydrateBulletsFromMarkdown(
+  raw: string,
+  cap: number,
+  maxWords: number,
+): string[] {
+  const lines = raw.split("\n").map(stripMarkdownBullet).filter(Boolean);
+  return validateSlot(lines, cap, maxWords);
+}

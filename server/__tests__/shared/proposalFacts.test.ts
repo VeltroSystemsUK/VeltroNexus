@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { calculateLoan } from "../../../client/src/lib/calculators";
-import { deriveProposal, gradeFromDscr, reconcileFacts } from "@shared/proposalFacts";
+import {
+  deriveProposal,
+  gradeFromDscr,
+  hydrateBulletsFromMarkdown,
+  reconcileFacts,
+  SLOT_CAPS,
+  validateBullet,
+  validateSlot,
+} from "@shared/proposalFacts";
 
 describe("reconcileFacts", () => {
   it("collapses declared pence and pounds to one amount", () => {
@@ -129,5 +137,37 @@ describe("deriveProposal Home Crafters numbers", () => {
       overrides: { gradeNow: "A", gradeAfter: "A", by: null, at: null },
     });
     expect(derived.gradeNow).toBe("D");
+  });
+});
+
+describe("validateBullet", () => {
+  it("accepts a short fact with no numbers", () => {
+    expect(validateBullet("Omnichannel craft retailer in Yate and online.", 25).ok).toBe(true);
+  });
+
+  it("rejects pounds, DSCR, grades, terms, and working-notes", () => {
+    expect(validateBullet("Facility of £120,000 to refinance.", 25).ok).toBe(false);
+    expect(validateBullet("DSCR lifts from 0.87x to 1.62x.", 25).ok).toBe(false);
+    expect(validateBullet("Risk score of E on file.", 25).ok).toBe(false);
+    expect(validateBullet("A (Very Low Risk) borrower.", 25).ok).toBe(false);
+    expect(validateBullet("Loan over 60 months at a fixed rate.", 25).ok).toBe(false);
+    expect(validateBullet("Note on scope: the document provided is a schedule.", 25).ok).toBe(false);
+  });
+});
+
+describe("validateSlot", () => {
+  it("drops bullets past the cap", () => {
+    const items = Array.from({ length: 8 }, (_, i) => `Established trading point ${i}`);
+    expect(validateSlot(items, SLOT_CAPS.background.cap, SLOT_CAPS.background.maxWords)).toHaveLength(5);
+  });
+});
+
+describe("hydrateBulletsFromMarkdown", () => {
+  it("takes bullets from an essay and strips forbidden ones", () => {
+    const raw = `# CAMPARI Analysis: Character\n\n**Directors**\nSole director Kirsty Bevan.\nThe proposed £85,000 facility is for refinance.\nNote on scope: the document provided is incomplete.`;
+    const out = hydrateBulletsFromMarkdown(raw, 6, 20);
+    expect(out).toContain("Sole director Kirsty Bevan.");
+    expect(out.join(" ")).not.toMatch(/85,000/);
+    expect(out.join(" ").toLowerCase()).not.toContain("note on scope");
   });
 });
