@@ -1,3 +1,5 @@
+import { calculateLoan } from "../client/src/lib/calculators";
+
 export type Grade = "A" | "B" | "C" | "D" | "E";
 
 export type ProposalConflict = {
@@ -8,6 +10,35 @@ export type ProposalConflict = {
 export type ProposalMissing = { field: string; emptyState: string };
 
 export type UseOfFundsLine = { label: string; amountPounds: number };
+
+export type ProposalOverrides = {
+  gradeNow: Grade | null;
+  gradeAfter: Grade | null;
+  by: string | null;
+  at: string | null;
+};
+
+export type ProposalDerived = {
+  monthlyRepayment: number | null;
+  monthlySaving: number | null;
+  dscrNow: number | null;
+  dscrAfter: number | null;
+  headroomNow: number | null;
+  headroomAfter: number | null;
+  gradeNow: Grade | null;
+  gradeAfter: Grade | null;
+  gradeNowComputed: Grade | null;
+  gradeAfterComputed: Grade | null;
+  adverseConduct: boolean;
+};
+
+export const GRADE_DSCR = [
+  { min: 1.5, grade: "A" },
+  { min: 1.25, grade: "B" },
+  { min: 1.0, grade: "C" },
+  { min: 0.75, grade: "D" },
+  { min: 0, grade: "E" },
+] as const;
 
 export type ProposalFacts = {
   loanAmountPounds: number | null;
@@ -52,6 +83,9 @@ export type ProposalSourceFile = {
   };
   allocation?: UseOfFundsLine[];
   creditsafe?: { score?: string | null; limitPounds?: number | null };
+  findings?: { bounced?: boolean; gambling?: boolean; unarrangedOd?: boolean };
+  redFlags?: string[];
+  overrides?: ProposalOverrides;
 };
 
 type Candidate = { origin: string; value: number };
@@ -327,5 +361,104 @@ export function reconcileFacts(source: ProposalSourceFile): {
     },
     conflicts,
     missing,
+  };
+}
+
+const ADVERSE_NOTCH: Record<Grade, Grade> = {
+  A: "B",
+  B: "C",
+  C: "D",
+  D: "E",
+  E: "E",
+};
+
+const RED_FLAG_ADVERSE = /bounce|unpaid|unarranged|overdraft charge|gambling/i;
+
+export function gradeFromDscr(dscr: number | null, adverseConduct: boolean): Grade | null {
+  if (dscr == null || !Number.isFinite(dscr)) return null;
+  let grade: Grade | null = null;
+  for (const row of GRADE_DSCR) {
+    if (dscr >= row.min) {
+      grade = row.grade;
+      break;
+    }
+  }
+  if (grade == null) return null;
+  return adverseConduct ? ADVERSE_NOTCH[grade] : grade;
+}
+
+function detectAdverseConduct(
+  source: Pick<ProposalSourceFile, "findings" | "redFlags">,
+): boolean {
+  const findings = source.findings;
+  if (findings?.bounced || findings?.gambling || findings?.unarrangedOd) return true;
+  const flags = source.redFlags ?? [];
+  return flags.some((flag) => RED_FLAG_ADVERSE.test(flag));
+}
+
+export function deriveProposal(
+  facts: ProposalFacts,
+  source: Pick<ProposalSourceFile, "findings" | "redFlags"> & { overrides?: ProposalOverrides },
+): ProposalDerived {
+  const adverseConduct = detectAdverseConduct(source);
+
+  let monthlyRepayment: number | null = null;
+  const amount = facts.loanAmountPounds;
+  const rate = facts.interestRatePct;
+  const term = facts.termMonths;
+  if (
+    amount != null &&
+    rate != null &&
+    term != null &&
+    term > 0 &&
+    Number.isFinite(amount) &&
+    Number.isFinite(rate) &&
+    Number.isFinite(term)
+  ) {
+    monthlyRepayment = calculateLoan(amount, rate, term).monthlyPayment;
+  }
+
+  const stacked = facts.stackedMonthly;
+  const cash = facts.cashForDebt;
+
+  const dscrNow =
+    cash != null && stacked != null && cash > 0 && stacked > 0 ? cash / stacked : null;
+  const dscrAfter =
+    cash != null &&
+    monthlyRepayment != null &&
+    cash > 0 &&
+    monthlyRepayment > 0
+      ? cash / monthlyRepayment
+      : null;
+
+  const headroomNow =
+    facts.avgCredits != null && facts.avgDebits != null
+      ? facts.avgCredits - facts.avgDebits
+      : null;
+
+  const monthlySaving =
+    stacked != null && monthlyRepayment != null ? stacked - monthlyRepayment : null;
+
+  const headroomAfter =
+    headroomNow != null && monthlySaving != null ? headroomNow + monthlySaving : null;
+
+  const gradeNowComputed = gradeFromDscr(dscrNow, adverseConduct);
+  const gradeAfterComputed = gradeFromDscr(dscrAfter, adverseConduct);
+
+  const overrides = source.overrides;
+  const overrideActive = overrides?.by != null && String(overrides.by).trim() !== "";
+
+  return {
+    monthlyRepayment,
+    monthlySaving,
+    dscrNow,
+    dscrAfter,
+    headroomNow,
+    headroomAfter,
+    gradeNow: overrideActive ? overrides!.gradeNow : gradeNowComputed,
+    gradeAfter: overrideActive ? overrides!.gradeAfter : gradeAfterComputed,
+    gradeNowComputed,
+    gradeAfterComputed,
+    adverseConduct,
   };
 }
