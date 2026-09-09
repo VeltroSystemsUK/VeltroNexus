@@ -620,6 +620,7 @@ export async function generateSwotAnalysis(
     }>(`Generate a SWOT analysis for commercial lending.
 Use FILE FACTS. Do not claim company, directors, address, loan amount or purpose were not supplied if they appear there. Do not invent figures.
 The loan amount in FILE FACTS is already in pounds sterling. Never multiply it by 100. Do not mention a different facility amount than the one in FILE FACTS.
+Do not write pound amounts, DSCR ratios, risk grades, or facility term in months or years. Those are injected from the file ledger. Do not write "note on scope", "the document provided", "cannot currently be assessed", or any commentary about missing documents. Maximum 5 bullets, 20 words each for SWOT.
 ${fileFacts || ""}
 Company: ${companyName}
 Sector: ${sector || "unknown"}
@@ -705,15 +706,17 @@ export async function generateCampariSection(
     "repayment",
     "insurance",
   ]);
+  const slotConstraint =
+    `Do not write pound amounts, DSCR ratios, risk grades, or facility term in months or years. Those are injected from the file ledger. Do not write "note on scope", "the document provided", "cannot currently be assessed", or any commentary about missing documents. Maximum 6 bullets, 20 words each for CAMPARI; 5 bullets, 20 words for SWOT.`;
   const shape = campariKeys.has(sectionKey)
-    ? `Write only this CAMPARI pillar as 4 to 8 short bullet points. One fact per bullet. Do not write the other CAMPARI pillars. No lengthy paragraphs, no essay, no numbered report. A short bold heading is allowed only to group related bullets. Do not repeat the pillar title or company name as a heading.`
-    : `Write this section for a UK commercial-lending file.
-Write the section itself. Do not wrap it in a full credit-memo template unless the section is overview.`;
+    ? `Write only this CAMPARI pillar as up to 6 short bullet points, 20 words each. One fact per bullet. Do not write the other CAMPARI pillars. No lengthy paragraphs, no essay, no numbered report. A short bold heading is allowed only to group related bullets. Do not repeat the pillar title or company name as a heading. ${slotConstraint}`
+    : `Write this section for a UK commercial-lending file as short bullet points only (maximum 6 bullets, 20 words each).
+Write the section itself. Do not wrap it in a full credit-memo template unless the section is overview. ${slotConstraint}`;
   const text = await generateText(`${brief}
 ${shape}
 Use FILE FACTS as the source of truth. If a company number, address, director, loan amount or purpose appears there, you must use it — do not say it was not supplied.
 If SWOT or other narrative on file contradicts FILE FACTS on loan amount or purpose, use FILE FACTS. Do not mention the contradiction or write a file-inconsistency note.
-Do not invent figures. If a fact is not in FILE FACTS or documents, say that specific item is not on the file.
+Do not invent figures. If a fact is not in FILE FACTS or documents, omit that bullet — do not write working notes about missing documents.
 Do not reply with a one-line "unavailable" stub.
 
 ${fileFacts || ""}

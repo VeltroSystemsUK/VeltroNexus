@@ -4,7 +4,13 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
-import { ProposalNotReadyError } from "@shared/proposalFacts";
+import {
+  ProposalNotReadyError,
+  SLOT_CAPS,
+  emptySlots,
+  hydrateBulletsFromMarkdown,
+  validateSlot,
+} from "@shared/proposalFacts";
 import {
     insertProspectSchema,
     insertContactSchema,
@@ -25,7 +31,6 @@ import { formatOfficerName } from "../utils/formatters";
 import { getReadableProspect } from "../utils/prospectAccess";
 import {
   buildCreditFileContext,
-  isStubAiSection,
   loanAmountPounds,
 } from "../utils/creditFileContext";
 import multer from "multer";
@@ -1366,17 +1371,41 @@ const router = Router();
         // Save to due diligence
         const existing = await storage.getDueDiligence(prospectId, ownerId);
         const existingData = (existing?.data || {}) as Record<string, any>;
+        const swotResult = result.result as {
+          strengths: string[];
+          weaknesses: string[];
+          opportunities: string[];
+          threats: string[];
+          summary: string;
+        };
+        const proposal = { ...(existingData.proposal || {}) };
+        const existingSlots = (proposal.slots || {}) as Record<string, any>;
+        proposal.slots = {
+          ...emptySlots(),
+          ...existingSlots,
+          campari: {
+            ...emptySlots().campari,
+            ...(existingSlots.campari || {}),
+          },
+          swot: {
+            strengths: validateSlot(swotResult.strengths || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+            weaknesses: validateSlot(swotResult.weaknesses || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+            opportunities: validateSlot(swotResult.opportunities || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+            threats: validateSlot(swotResult.threats || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+          },
+        };
         const mergedData = {
           ...existingData,
+          proposal,
           underwriting: {
             ...(existingData.underwriting || {}),
-            swotAnalysis: result.result,
+            swotAnalysis: swotResult,
             swotAnalyzedAt: new Date().toISOString(),
           },
         };
         await storage.upsertDueDiligence(prospectId, ownerId, mergedData as any);
 
-        res.json(result.result);
+        res.json(swotResult);
       } catch (error: any) {
         console.error("SWOT analysis error:", error);
         handleApiError(res, error, "api-error");
@@ -1494,6 +1523,23 @@ const router = Router();
 
         const { generateCampariSection } = await import("../utils/geminiClient");
 
+        const campariKeys = new Set([
+          "character",
+          "ability",
+          "means",
+          "purpose",
+          "amount",
+          "repayment",
+          "insurance",
+        ]);
+        const slotCapForSection = (key: string) => {
+          if (key === "overview") return SLOT_CAPS.theBusiness;
+          if (key === "background") return SLOT_CAPS.background;
+          if (key === "bank") return SLOT_CAPS.bankFindings;
+          if (key === "recommendation") return SLOT_CAPS.recommendation;
+          return SLOT_CAPS.campari;
+        };
+
         const result = await wrapAiRequest(
           {
             userId,
@@ -1517,10 +1563,12 @@ const router = Router();
               documentSummaries.length > 0 ? documentSummaries : undefined,
               fileFacts
             );
-            if (isStubAiSection(content)) {
-              throw new Error("Auto Write returned no usable content for this section");
+            const { cap, maxWords } = slotCapForSection(sectionKey);
+            const bullets = hydrateBulletsFromMarkdown(content, cap, maxWords);
+            if (bullets.length === 0) {
+              throw new Error("Auto Write returned no usable content");
             }
-            return content;
+            return { content: bullets.join("\n"), bullets };
           },
           { skipRedaction: true }
         );
@@ -1532,25 +1580,56 @@ const router = Router();
           });
         }
 
+        const { content, bullets } = result.result as { content: string; bullets: string[] };
+
         // Save to due diligence
         const existing = await storage.getDueDiligence(prospectId, ownerId);
         const existingData = (existing?.data || {}) as Record<string, any>;
+        const proposal = { ...(existingData.proposal || {}) };
+        const existingSlots = (proposal.slots || {}) as Record<string, any>;
+        const slots = {
+          ...emptySlots(),
+          ...existingSlots,
+          campari: {
+            ...emptySlots().campari,
+            ...(existingSlots.campari || {}),
+          },
+          swot: {
+            ...emptySlots().swot,
+            ...(existingSlots.swot || {}),
+          },
+        };
+
+        if (sectionKey === "overview") {
+          slots.theBusiness = bullets;
+        } else if (sectionKey === "background") {
+          slots.background = bullets;
+        } else if (sectionKey === "bank") {
+          slots.bankFindings = bullets;
+        } else if (sectionKey === "recommendation") {
+          slots.recommendation = bullets;
+        } else if (campariKeys.has(sectionKey)) {
+          slots.campari[sectionKey as keyof typeof slots.campari] = bullets;
+        }
+
+        proposal.slots = slots;
         const mergedData = {
           ...existingData,
+          proposal,
           underwriting: {
             ...(existingData.underwriting || {}),
             adviserSummary: {
               ...(existingData.underwriting?.adviserSummary || {}),
               sections: {
                 ...((existingData.underwriting?.adviserSummary?.sections as any) || {}),
-                [sectionKey]: result.result,
+                [sectionKey]: content,
               },
             },
           },
         };
         await storage.upsertDueDiligence(prospectId, ownerId, mergedData as any);
 
-        res.json({ sectionKey, content: result.result });
+        res.json({ sectionKey, content, bullets });
       } catch (error: any) {
         console.error("CAMPARI section generation error:", error);
         handleApiError(res, error, "api-error");
