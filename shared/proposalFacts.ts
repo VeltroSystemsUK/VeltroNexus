@@ -770,6 +770,37 @@ export function buildProposal(
   };
 }
 
+function conflictMessage(built: BuiltProposal): string {
+  const detail = built.conflicts
+    .map((c) => `${c.field} (${c.values.map((v) => v.value).join(" vs ")})`)
+    .join(", ");
+  return `Proposal facts conflict: ${detail}`;
+}
+
+export class ProposalNotReadyError extends Error {
+  status: 409 = 409;
+  conflicts: ProposalConflict[];
+  missing: ProposalMissing[];
+
+  constructor(built: BuiltProposal) {
+    super(conflictMessage(built));
+    this.name = "ProposalNotReadyError";
+    this.conflicts = built.conflicts;
+    this.missing = built.missing;
+  }
+}
+
+export function assertProposalReady(built: BuiltProposal): void {
+  if (!built.ready) throw new ProposalNotReadyError(built);
+}
+
+export function proposalPackStatus(
+  built: BuiltProposal,
+): { ok: true } | { ok: false; status: 400; message: string } {
+  if (built.ready) return { ok: true };
+  return { ok: false, status: 400, message: conflictMessage(built) };
+}
+
 export function proposalSourceFromFile(input: {
   prospect: {
     loanAmount?: number | null;

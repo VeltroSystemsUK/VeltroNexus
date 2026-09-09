@@ -1,10 +1,27 @@
 import type { Response as ExpressResponse } from "express";
+import {
+  assertProposalReady,
+  buildProposal,
+  proposalSourceFromFile,
+} from "@shared/proposalFacts";
 import { storage } from "../storage";
 import { chFetch } from "./companiesHouseClient";
 import type { ProspectWithCompany } from "@shared/schema";
 import type { ProspectReportData } from "./pdfGenerator";
 import { renderFundingProposalPdf } from "./fundingProposal";
 import { encodeContentDisposition } from "./security";
+
+/** Throws ProposalNotReadyError when facts conflict — before Chrome/PDF. */
+function assertReportProposalReady(data: ProspectReportData): void {
+  assertProposalReady(
+    buildProposal(
+      proposalSourceFromFile({
+        prospect: data.prospect,
+        dueDiligence: data.dueDiligence,
+      }),
+    ),
+  );
+}
 
 function jsonIfOk(res: globalThis.Response | null): Promise<any | null> {
   if (!res || !res.ok) return Promise.resolve(null);
@@ -82,6 +99,7 @@ export function reportFilename(companyName: string): string {
 }
 
 export async function renderProspectReportToBuffer(data: ProspectReportData): Promise<Buffer> {
+  assertReportProposalReady(data);
   return renderFundingProposalPdf(data);
 }
 
@@ -90,6 +108,7 @@ export async function streamProspectReport(
   data: ProspectReportData,
   filename: string
 ): Promise<void> {
+  assertReportProposalReady(data);
   const pdf = await renderFundingProposalPdf(data);
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", encodeContentDisposition(filename));

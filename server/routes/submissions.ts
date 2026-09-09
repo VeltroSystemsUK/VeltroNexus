@@ -19,6 +19,7 @@ import { sendEmail } from "../services/email";
 import busboy from "busboy";
 import { getObjectStorage } from "../utils/routerHelpers";
 import { getReadableProspect } from "../utils/prospectAccess";
+import { ProposalNotReadyError } from "@shared/proposalFacts";
 import {
     buildProspectReportData,
     reportFilename,
@@ -71,6 +72,13 @@ const router = Router();
         const reportData = await buildProspectReportData(prospect, { layoutUserId: req.user!.id });
         await streamProspectReport(res, reportData, reportFilename(prospect.company.companyName));
       } catch (error) {
+        if (error instanceof ProposalNotReadyError) {
+          return res.status(409).json({
+            message: error.message,
+            conflicts: error.conflicts,
+            missing: error.missing,
+          });
+        }
         console.error("Error generating report:", error);
         handleApiError(res, error, "api-error");
       }

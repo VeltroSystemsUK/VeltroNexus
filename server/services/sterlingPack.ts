@@ -2,6 +2,12 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
+import {
+  assertProposalReady,
+  buildProposal,
+  ProposalNotReadyError,
+  proposalSourceFromFile,
+} from "@shared/proposalFacts";
 import { storage } from "../storage";
 import { getObjectStorage } from "../utils/routerHelpers";
 import { buildProspectReportData } from "../utils/prospectReport";
@@ -109,6 +115,22 @@ export async function buildSterlingPackZip(opts: {
       new Error(`File is not complete for Sterling: ${gate.missing.map((item) => item.label).join("; ")}`),
       { status: 400 }
     );
+  }
+
+  try {
+    assertProposalReady(
+      buildProposal(
+        proposalSourceFromFile({
+          prospect: ctx.prospect,
+          dueDiligence: { data: ctx.diligence },
+        }),
+      ),
+    );
+  } catch (error) {
+    if (error instanceof ProposalNotReadyError) {
+      throw Object.assign(new Error(error.message), { status: 400 });
+    }
+    throw error;
   }
 
   const reportData = await buildProspectReportData(ctx.prospect, { layoutUserId: ctx.prospect.userId });

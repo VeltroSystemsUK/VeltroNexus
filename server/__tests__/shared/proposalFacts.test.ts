@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { calculateLoan } from "../../../client/src/lib/calculators";
 import {
+  ProposalNotReadyError,
+  assertProposalReady,
   buildProposal,
   deriveProposal,
   gradeFromDscr,
   hydrateBulletsFromMarkdown,
+  proposalPackStatus,
   proposalSourceFromFile,
   reconcileFacts,
   SLOT_CAPS,
@@ -240,5 +243,31 @@ describe("buildProposal", () => {
     ]);
     const built = buildProposal(source);
     expect(built.derived.adverseConduct).toBe(true);
+  });
+});
+
+describe("assertProposalReady", () => {
+  it("assertProposalReady throws 409 on conflict and passes when only gaps", () => {
+    expect(() => assertProposalReady(buildProposal({}))).not.toThrow();
+    try {
+      assertProposalReady(buildProposal({
+        requirement: { loanAmountPounds: 120000 },
+        loanDetails: { amountPounds: 85000 },
+      }));
+      throw new Error("expected throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProposalNotReadyError);
+      expect((error as ProposalNotReadyError).status).toBe(409);
+      expect((error as ProposalNotReadyError).conflicts[0].field).toBe("loanAmountPounds");
+    }
+  });
+
+  it("pack maps the same failure to status 400", () => {
+    const status = proposalPackStatus(buildProposal({
+      requirement: { loanAmountPounds: 120000 },
+      loanDetails: { amountPounds: 85000 },
+    }));
+    expect(status.ok).toBe(false);
+    if (!status.ok) expect(status.status).toBe(400);
   });
 });
