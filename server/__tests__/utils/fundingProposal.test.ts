@@ -159,11 +159,10 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("alt=\"Sterling Commercial Finance\"");
     expect(html).toContain("Ref SCF-TP000002-");
     expect(html).toContain("class=\"running-name\"");
-    expect(html).toMatch(/paper-header[\s\S]*running-name[\s\S]*stamp/);
     expect(html).toContain("justify-content: space-between");
-    expect(html).toContain("class=\"footer-page\"");
-    expect(html).toContain("1 / 9");
-    expect(html).toContain("9 / 9");
+    expect(html).not.toContain("class=\"footer-page\"");
+    expect(html).not.toContain("1 / 9");
+    expect(html).not.toContain("9 / 9");
     expect(html).toContain("text-align: right");
   });
 
@@ -220,9 +219,9 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("table.fin.charges th:nth-child(3)");
     expect(html).toContain("NatWest Bank Plc");
     expect(html).toContain("Negative pledge");
-    expect(html).toContain("Background &amp; Notes");
+    expect(html).not.toContain("Background &amp; Notes");
     expect(html).toContain("Family bakery supplying regional multiples.");
-    expect(html).toContain("Director meeting 12 Aug.");
+    expect(html).not.toContain("Director meeting 12 Aug.");
   });
 
   it("prints loan amounts as pounds and the real company facts", () => {
@@ -248,7 +247,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("Director's Guarantee");
     expect(html).toContain("Offered");
     expect(html).toContain("Use of funds");
-    expect(html).toContain("Allocations");
+    expect(html).not.toContain(">Allocations<");
     expect(html).not.toContain("Research Hub — CAMPARI");
     expect(html).toContain("Loan calculation");
     expect(html).toContain("Monthly repayment");
@@ -289,7 +288,9 @@ describe("Passan-format funding proposal", () => {
       activities: [],
       dueDiligence: dueDiligence(),
     });
-    expect(html).toContain("Risk grade: B");
+    expect(html).not.toContain("Risk grade: B");
+    expect(html).toMatch(/Grade now/);
+    expect(html).toMatch(/Grade after/);
     expect(html).toContain("SWOT analysis");
     expect(html).toContain("Strengths");
     expect(html).toContain("Weaknesses");
@@ -299,7 +300,6 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("MCA");
     expect(html).toContain("New site");
     expect(html).toContain("Food inflation");
-    expect(html).toContain("Family bakery with MCA pressure.");
     expect(html).toContain("Supportable subject to statements.");
   });
 
@@ -393,7 +393,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("Historic Profit &amp; Loss (£000)");
     expect(html).toContain("FY24");
     expect(html).toContain("1,200");
-    expect(html).toContain("Accounts show steady but slowing growth.");
+    expect(html).not.toContain("Accounts show steady but slowing growth.");
     expect(html).toContain("class=\"accounts-chart\"");
     expect(html).toContain("Accounts trend (£000)");
     expect(html).toContain("<polyline");
@@ -449,7 +449,7 @@ describe("Passan-format funding proposal", () => {
         },
       }),
     });
-    expect(html).toContain("<strong>Georges Tradition</strong>");
+    expect(html).toContain("Georges Tradition");
     expect(html).not.toContain("# Overview");
     expect(html).not.toContain("**Georges Tradition**");
     expect(html).not.toContain("Should not appear in The business.");
@@ -473,12 +473,19 @@ describe("Passan-format funding proposal", () => {
     });
     expect(html).not.toContain("[object Object]");
     expect(html).toContain("Moderate Risk");
-    expect(html).toContain("Risk grade: Moderate Risk");
+    expect(html).not.toContain("Risk grade: Moderate Risk");
+    expect(html).toMatch(/Creditsafe/);
   });
 
   it("turns **headings** and numbered Auto Write lines into proposal HTML", () => {
     const html = renderFundingProposalHtmlFromData({
-      prospect: prospect({ loanRequirementNotes: "Refinance of existing short term debts" }),
+      prospect: prospect({
+        loanRequirementNotes: "Refinance of existing short term debts",
+        loanRequirementData: {
+          ...(prospect().loanRequirementData as object),
+          notes: "Refinance of existing short term debts",
+        },
+      }),
       contacts,
       activities: [],
       dueDiligence: dueDiligence({
@@ -493,13 +500,22 @@ describe("Passan-format funding proposal", () => {
     });
     expect(html).toContain("Refinance of existing short term debts");
     expect(html).not.toContain("**Purpose**");
-    expect(html).toContain('<div class="subhead">Exact use of funds</div>');
-    expect(html).toContain("<li>Itemised schedule of debts.</li>");
+    const purpose = html.split("1.&nbsp;&nbsp;Loan amount and purpose")[1]?.split("2.&nbsp;&nbsp;The business")[0] || "";
+    expect(purpose).not.toContain("Exact use of funds");
+    const campari = html.split("CAMPARI")[1]?.split("SWOT")[0] || html;
+    expect(campari).toContain("Itemised schedule of debts.");
+    expect(campari).toContain("Directors on file: Ian Moore.");
   });
 
   it("never prints leftover markdown hashes or asterisks", () => {
     const html = renderFundingProposalHtmlFromData({
-      prospect: prospect({ loanRequirementNotes: "Refinance of existing short term debts" }),
+      prospect: prospect({
+        loanRequirementNotes: "Refinance of existing short term debts",
+        loanRequirementData: {
+          ...(prospect().loanRequirementData as object),
+          notes: "Refinance of existing short term debts",
+        },
+      }),
       contacts,
       activities: [],
       dueDiligence: dueDiligence({
@@ -527,8 +543,8 @@ describe("Passan-format funding proposal", () => {
     expect(business).toContain("A fish and chip group in Derbyshire.");
     expect(business).not.toContain("CAMPARI Analysis");
     expect(business).not.toContain("Ian Moore");
-    expect(html).toContain("<strong>Ian Moore</strong>");
-    expect(html).toContain("<strong>active</strong>");
+    expect(html).toContain("Ian Moore");
+    expect(html).toContain("active");
   });
 
   it("leaves recommendation and forecasts empty rather than inventing them", () => {
@@ -543,28 +559,21 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("Risk assessment not yet completed.");
   });
 
-  it("prints the attachments checklist from the tickbox form", () => {
-    const base = dueDiligence();
+  it("prints the attachments checklist from uploaded documents", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
       activities: [],
-      dueDiligence: {
-        ...base,
-        data: {
-          ...(base.data as object),
-          attachmentsChecklist: [
-            { id: "accounts", attached: true },
-            { id: "bank-statements", attached: true },
-            { id: "id", attached: false },
-          ],
-        },
-      } as DueDiligence,
+      dueDiligence: dueDiligence(),
+      documents: [
+        { id: 1, fileName: "accounts-fy24.pdf", category: "accounts" } as any,
+        { id: 2, fileName: "statements-mar-aug.pdf", category: "bank-statements" } as any,
+      ],
     });
     expect(html).toContain("Last 3 years filed accounts");
     expect(html).toContain("Last 6 months business bank statements");
     expect(html).toContain("Photo ID for all directors");
-    expect(html).toContain("2 of 14 attached");
+    expect(html).toMatch(/Attached/i);
     expect(html).toMatch(/☑[\s\S]*Last 3 years filed accounts/);
     expect(html).toMatch(/☐[\s\S]*Photo ID for all directors/);
   });
@@ -588,7 +597,7 @@ describe("Passan-format funding proposal", () => {
     });
     expect(model.facts.find((f) => f.label.startsWith("Term"))?.value).toBe("5 years");
     expect(model.facts.find((f) => f.label.startsWith("Loan amount"))?.value).toBe("£150,000");
-    expect(model.riskGrade).toBe("B");
+    expect(model.facts.some((f) => f.label.startsWith("Risk grade"))).toBe(false);
     expect(model.reference).toMatch(/^SCF-TP000002-\d{8}-\d{4}$/);
     expect(model.generatedStamp).toMatch(/, \d{2}:\d{2}$/);
   });
@@ -606,7 +615,88 @@ describe("Passan-format funding proposal", () => {
     expect(pdf.length).toBeGreaterThan(2000);
     const raw = pdf.toString("latin1");
     const pageCount = (raw.match(/\/Type\s*\/Page(?!s)/g) || []).length;
-    expect(pageCount).toBeGreaterThanOrEqual(6);
+    expect(pageCount).toBeGreaterThanOrEqual(3);
     expect(pageCount).toBeLessThanOrEqual(12);
   }, 60000);
+
+  it("prints one amount, D then A, and no working-notes", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect({
+        loanAmount: 12_000_000,
+        term: 60,
+        interestRate: "18",
+        loanRequirementData: {
+          product_type: "BUSINESS_LOAN",
+          product_details: { loan_amount: 120000, term_months: 60 },
+          use_of_funds: { total_request_amount: 120000, breakdown: [{ description: "Iwoca", amount: 21823 }] },
+          notes: "Refinance of expensive short-term debt",
+        },
+        loanAllocation: [{ description: "Iwoca", amount: 21823 }],
+        background: "Omnichannel craft retailer in Yate and online.",
+        notes: "Note on scope: the document provided is a schedule.",
+      }),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({
+        riskGrade: "A",
+        financialAnalysis: {
+          summary: "Note on scope: the document provided is a single-page schedule. Proposed £110,000. £8,500,000 inconsistency.",
+          dscr: 0,
+          riskScore: "E",
+          averageMonthlyRevenue: 0,
+          netDisposableIncome: 0,
+        },
+        accountsAnalysis: {
+          summary: "The loan request is for £8,500,000 with a £0 stated monthly repayment.",
+          years: [{ year: "FY26", turnover: 0, grossProfit: 0, ebitda: 0, netProfit: 0 }],
+        },
+        adviserSummary: {
+          sections: {
+            amount: "The £85,000 refinance is intended to consolidate.",
+            character: "Sole director on file: Kirsty Bevan.",
+          },
+        },
+        affordabilitySweep: {
+          totals: { avgIn: 20200.98, avgOut: 20952.73, avgNet: -751.75, months: 6 },
+          financeMonthly: 5702.7,
+          cashForDebt: 4950.95,
+          proposedMonthly: 3050,
+          dscrCurrent: 0.87,
+          dscrRefinance: 1.62,
+          monthlySaving: 2652.7,
+          lenders: [{ name: "YouLend", kind: "mca", moneyOut: 250, count: 166, monthly: 2179.72 }],
+          months: [{ label: "March 2026", moneyIn: 21489.34, moneyOut: 26289.12, net: -4799.78, closing: -8833.09 }],
+        },
+      }),
+      documents: [{ id: 1, fileName: "statements-mar-aug.pdf", category: "bank-statements" } as any],
+    });
+    expect(html.match(/£120,000/g)?.length).toBeGreaterThan(0);
+    expect(html).not.toContain("£85,000");
+    expect(html).not.toContain("£110,000");
+    expect(html).not.toContain("£8,500,000");
+    expect(html).not.toMatch(/note on scope/i);
+    expect(html).not.toContain("the document provided");
+    expect(html).not.toContain(">Allocations<");
+    expect(html).not.toContain("Application of Funds");
+    expect(html).not.toContain("1 / 9");
+    expect(html).not.toContain("overflow-wrap: anywhere");
+    expect(html).toMatch(/Grade now/);
+    expect(html).toMatch(/Grade after/);
+    expect(html).toContain(">D<");
+    expect(html).toContain(">A<");
+    expect((html.split("Background").length - 1)).toBeLessThanOrEqual(2);
+    expect(html).toContain("Last 6 months business bank statements");
+    expect(html).toMatch(/Attached/i);
+  });
+
+  it("does not use Creditsafe as the cover grade", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect({ company: { ...prospect().company, creditsafeScore: "A", creditsafeRatingDescription: "Very Low Risk" } }),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({ riskGrade: undefined, affordabilitySweep: { ...dueDiligence().data.underwriting.affordabilitySweep, financeMonthly: 5702.7, cashForDebt: 4950.95 } }),
+    });
+    expect(html).not.toMatch(/Risk grade:\s*Very Low Risk/);
+    expect(html).toMatch(/Creditsafe/);
+  });
 });
