@@ -86,7 +86,61 @@ export type ProposalSourceFile = {
   findings?: { bounced?: boolean; gambling?: boolean; unarrangedOd?: boolean };
   redFlags?: string[];
   overrides?: ProposalOverrides;
+  slots?: Partial<ProposalSlots> | ProposalSlots;
+  legacy?: {
+    background?: string;
+    theBusiness?: string;
+    campari?: Partial<ProposalSlots["campari"]>;
+    swot?: Partial<ProposalSlots["swot"]>;
+    recommendation?: string;
+  };
 };
+
+export type ProposalSlots = {
+  background: string[];
+  theBusiness: string[];
+  campari: Record<
+    "character" | "ability" | "means" | "purpose" | "amount" | "repayment" | "insurance",
+    string[]
+  >;
+  swot: Record<"strengths" | "weaknesses" | "opportunities" | "threats", string[]>;
+  bankFindings: string[];
+  recommendation: string[];
+};
+
+export type BuiltProposal = {
+  facts: ProposalFacts;
+  derived: ProposalDerived;
+  slots: ProposalSlots;
+  overrides: ProposalOverrides;
+  conflicts: ProposalConflict[];
+  missing: ProposalMissing[];
+  ready: boolean;
+};
+
+export function emptySlots(): ProposalSlots {
+  return {
+    background: [],
+    theBusiness: [],
+    campari: {
+      character: [],
+      ability: [],
+      means: [],
+      purpose: [],
+      amount: [],
+      repayment: [],
+      insurance: [],
+    },
+    swot: {
+      strengths: [],
+      weaknesses: [],
+      opportunities: [],
+      threats: [],
+    },
+    bankFindings: [],
+    recommendation: [],
+  };
+}
 
 type Candidate = { origin: string; value: number };
 
@@ -549,4 +603,310 @@ export function hydrateBulletsFromMarkdown(
 ): string[] {
   const lines = raw.split("\n").map(stripMarkdownBullet).filter(Boolean);
   return validateSlot(lines, cap, maxWords);
+}
+
+const CAMPARI_KEYS = [
+  "character",
+  "ability",
+  "means",
+  "purpose",
+  "amount",
+  "repayment",
+  "insurance",
+] as const;
+
+const SWOT_KEYS = ["strengths", "weaknesses", "opportunities", "threats"] as const;
+
+function emptyOverrides(): ProposalOverrides {
+  return { gradeNow: null, gradeAfter: null, by: null, at: null };
+}
+
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function mapUseOfFundsLines(raw: unknown): UseOfFundsLine[] {
+  if (!Array.isArray(raw)) return [];
+  const lines: UseOfFundsLine[] = [];
+  for (const item of raw) {
+    const rec = asRecord(item);
+    const label = String(rec.description ?? rec.label ?? "").trim();
+    const amountPounds = asFiniteNumber(rec.amount ?? rec.amountPounds);
+    if (!label && amountPounds == null) continue;
+    if (amountPounds == null) continue;
+    lines.push({ label: label || "Use of funds", amountPounds });
+  }
+  return lines;
+}
+
+function findingsFromPreliminary(raw: unknown): ProposalSourceFile["findings"] {
+  const findings = asRecord(raw);
+  const hasItems = (key: string) => Array.isArray(findings[key]) && findings[key].length > 0;
+  return {
+    bounced: hasItems("bouncedPayments"),
+    gambling: hasItems("gambling"),
+    unarrangedOd: hasItems("unarrangedOd") || hasItems("unarrangedOverdraft"),
+  };
+}
+
+function hydrateMarkdownSlot(
+  raw: string | string[] | undefined,
+  cap: number,
+  maxWords: number,
+): string[] {
+  if (raw == null) return [];
+  const text = Array.isArray(raw) ? raw.join("\n") : raw;
+  if (!String(text).trim()) return [];
+  return hydrateBulletsFromMarkdown(String(text), cap, maxWords);
+}
+
+function resolveSlotBullets(
+  provided: string[] | undefined,
+  legacyMarkdown: string | string[] | undefined,
+  cap: number,
+  maxWords: number,
+): string[] {
+  const validated = validateSlot(Array.isArray(provided) ? provided : [], cap, maxWords);
+  if (validated.length > 0) return validated;
+  return hydrateMarkdownSlot(legacyMarkdown, cap, maxWords);
+}
+
+export function buildProposal(
+  source: ProposalSourceFile & {
+    slots?: Partial<ProposalSlots> | ProposalSlots;
+    legacy?: ProposalSourceFile["legacy"];
+  },
+): BuiltProposal {
+  const { facts, conflicts, missing } = reconcileFacts(source);
+  const overrides: ProposalOverrides = source.overrides
+    ? {
+        gradeNow: source.overrides.gradeNow ?? null,
+        gradeAfter: source.overrides.gradeAfter ?? null,
+        by: source.overrides.by ?? null,
+        at: source.overrides.at ?? null,
+      }
+    : emptyOverrides();
+  const derived = deriveProposal(facts, {
+    findings: source.findings,
+    redFlags: source.redFlags,
+    overrides,
+  });
+
+  const provided = source.slots ?? {};
+  const legacy = source.legacy ?? {};
+  const slots = emptySlots();
+
+  slots.background = resolveSlotBullets(
+    provided.background,
+    legacy.background,
+    SLOT_CAPS.background.cap,
+    SLOT_CAPS.background.maxWords,
+  );
+  slots.theBusiness = resolveSlotBullets(
+    provided.theBusiness,
+    legacy.theBusiness,
+    SLOT_CAPS.theBusiness.cap,
+    SLOT_CAPS.theBusiness.maxWords,
+  );
+  slots.bankFindings = validateSlot(
+    Array.isArray(provided.bankFindings) ? provided.bankFindings : [],
+    SLOT_CAPS.bankFindings.cap,
+    SLOT_CAPS.bankFindings.maxWords,
+  );
+  slots.recommendation = resolveSlotBullets(
+    provided.recommendation,
+    legacy.recommendation,
+    SLOT_CAPS.recommendation.cap,
+    SLOT_CAPS.recommendation.maxWords,
+  );
+
+  for (const key of CAMPARI_KEYS) {
+    slots.campari[key] = resolveSlotBullets(
+      provided.campari?.[key],
+      legacy.campari?.[key],
+      SLOT_CAPS.campari.cap,
+      SLOT_CAPS.campari.maxWords,
+    );
+  }
+
+  for (const key of SWOT_KEYS) {
+    const providedQuadrant = provided.swot?.[key];
+    const validated = validateSlot(
+      Array.isArray(providedQuadrant) ? providedQuadrant : [],
+      SLOT_CAPS.swot.cap,
+      SLOT_CAPS.swot.maxWords,
+    );
+    if (validated.length > 0) {
+      slots.swot[key] = validated;
+      continue;
+    }
+    const legacyQuadrant = legacy.swot?.[key];
+    slots.swot[key] = validateSlot(
+      Array.isArray(legacyQuadrant) ? legacyQuadrant : [],
+      SLOT_CAPS.swot.cap,
+      SLOT_CAPS.swot.maxWords,
+    );
+  }
+
+  return {
+    facts,
+    derived,
+    slots,
+    overrides,
+    conflicts,
+    missing,
+    ready: conflicts.length === 0,
+  };
+}
+
+export function proposalSourceFromFile(input: {
+  prospect: {
+    loanAmount?: number | null;
+    term?: number | null;
+    interestRate?: string | number | null;
+    loanRequirementNotes?: string | null;
+    loanRequirementData?: unknown;
+    loanAllocation?: unknown;
+    background?: string | null;
+    notes?: string | null;
+    company?: {
+      creditsafeScore?: string | number | null;
+      creditsafeRatingDescription?: string | null;
+      creditsafeCreditLimit?: number | null;
+    };
+  };
+  dueDiligence?: { data?: any } | null;
+}): ProposalSourceFile {
+  const prospect = input.prospect ?? ({} as typeof input.prospect);
+  const data = asRecord(input.dueDiligence?.data);
+  const underwriting = asRecord(data.underwriting);
+  const req = asRecord(prospect.loanRequirementData);
+  const product = asRecord(req.product_details);
+  const useOfFunds = asRecord(req.use_of_funds);
+  const loanDetailsRaw = asRecord(underwriting.loanDetails);
+  const calculatorRaw = asRecord(data.loanCalculator);
+  const sweepRaw = asRecord(underwriting.affordabilitySweep);
+  const sweepTotals = asRecord(sweepRaw.totals);
+  const financialAnalysis = asRecord(underwriting.financialAnalysis);
+  const proposal = asRecord(data.proposal);
+  const adviserSummary = asRecord(underwriting.adviserSummary);
+  const sections = asRecord(adviserSummary.sections);
+  const swotAnalysis = asRecord(underwriting.swotAnalysis);
+  const company = asRecord(prospect.company);
+
+  const purpose =
+    (typeof req.notes === "string" && req.notes.trim()) ||
+    (typeof prospect.loanRequirementNotes === "string" && prospect.loanRequirementNotes.trim()) ||
+    null;
+
+  const creditsafeLimitPence = asFiniteNumber(company.creditsafeCreditLimit);
+  // company.creditsafeCreditLimit is pence — convert once to pounds for the ledger.
+  const creditsafeLimitPounds =
+    creditsafeLimitPence != null ? creditsafeLimitPence / 100 : null;
+
+  const campariLegacy: Partial<ProposalSlots["campari"]> = {};
+  for (const key of CAMPARI_KEYS) {
+    const value = sections[key];
+    if (typeof value === "string" && value.trim()) {
+      campariLegacy[key] = [value];
+    }
+  }
+
+  const swotLegacy: Partial<ProposalSlots["swot"]> = {};
+  for (const key of SWOT_KEYS) {
+    if (Array.isArray(swotAnalysis[key]) && swotAnalysis[key].length > 0) {
+      swotLegacy[key] = swotAnalysis[key].filter((item: unknown) => typeof item === "string");
+    }
+  }
+
+  const theBusinessLegacy =
+    (typeof sections.overview === "string" && sections.overview.trim()
+      ? sections.overview
+      : null) ||
+    (typeof sections.background === "string" && sections.background.trim()
+      ? sections.background
+      : null) ||
+    undefined;
+
+  const recommendationLegacy =
+    typeof sections.recommendation === "string" && sections.recommendation.trim()
+      ? sections.recommendation
+      : undefined;
+
+  const redFlags = Array.isArray(financialAnalysis.redFlags)
+    ? financialAnalysis.redFlags.filter((flag: unknown): flag is string => typeof flag === "string")
+    : undefined;
+
+  const overridesRaw = asRecord(proposal.overrides);
+  const hasOverrides = Object.keys(overridesRaw).length > 0;
+  const overrides: ProposalOverrides | undefined = hasOverrides
+    ? {
+        gradeNow: (overridesRaw.gradeNow as ProposalOverrides["gradeNow"]) ?? null,
+        gradeAfter: (overridesRaw.gradeAfter as ProposalOverrides["gradeAfter"]) ?? null,
+        by: overridesRaw.by != null ? String(overridesRaw.by) : null,
+        at: overridesRaw.at != null ? String(overridesRaw.at) : null,
+      }
+    : undefined;
+
+  return {
+    loanAmountPence: asFiniteNumber(prospect.loanAmount),
+    termMonths: asFiniteNumber(prospect.term),
+    interestRatePct: prospect.interestRate ?? null,
+    requirement: {
+      loanAmountPounds: asFiniteNumber(product.loan_amount),
+      termMonths: asFiniteNumber(product.term_months),
+      totalRequestPounds: asFiniteNumber(useOfFunds.total_request_amount),
+      useOfFunds: mapUseOfFundsLines(useOfFunds.breakdown),
+      purpose,
+    },
+    loanDetails: {
+      amountPounds: asFiniteNumber(loanDetailsRaw.amount),
+      termMonths: asFiniteNumber(loanDetailsRaw.termMonths),
+      interestRatePct: asFiniteNumber(loanDetailsRaw.interestRate),
+    },
+    calculator: {
+      loanAmountPounds: asFiniteNumber(calculatorRaw.loanAmount),
+      termMonths: asFiniteNumber(calculatorRaw.term ?? calculatorRaw.termMonths),
+      interestRatePct: asFiniteNumber(calculatorRaw.interestRate),
+    },
+    sweep: {
+      financeMonthly: asFiniteNumber(sweepRaw.financeMonthly),
+      avgCredits: asFiniteNumber(sweepTotals.avgIn ?? sweepRaw.avgCredits),
+      avgDebits: asFiniteNumber(sweepTotals.avgOut ?? sweepRaw.avgDebits),
+      cashForDebt: asFiniteNumber(sweepRaw.cashForDebt),
+    },
+    allocation: mapUseOfFundsLines(prospect.loanAllocation),
+    creditsafe: {
+      score:
+        company.creditsafeScore != null && String(company.creditsafeScore).trim() !== ""
+          ? String(company.creditsafeScore).trim()
+          : null,
+      limitPounds: creditsafeLimitPounds,
+    },
+    findings: findingsFromPreliminary(financialAnalysis.preliminaryFindings),
+    redFlags,
+    overrides,
+    slots: proposal.slots,
+    legacy: {
+      background:
+        typeof prospect.background === "string" && prospect.background.trim()
+          ? prospect.background
+          : undefined,
+      theBusiness: theBusinessLegacy,
+      campari: Object.keys(campariLegacy).length ? campariLegacy : undefined,
+      swot: Object.keys(swotLegacy).length ? swotLegacy : undefined,
+      recommendation: recommendationLegacy,
+    },
+  };
 }

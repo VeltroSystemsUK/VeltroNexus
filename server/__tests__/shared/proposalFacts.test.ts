@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { calculateLoan } from "../../../client/src/lib/calculators";
 import {
+  buildProposal,
   deriveProposal,
   gradeFromDscr,
   hydrateBulletsFromMarkdown,
+  proposalSourceFromFile,
   reconcileFacts,
   SLOT_CAPS,
   validateBullet,
@@ -169,5 +171,47 @@ describe("hydrateBulletsFromMarkdown", () => {
     expect(out).toContain("Sole director Kirsty Bevan.");
     expect(out.join(" ")).not.toMatch(/85,000/);
     expect(out.join(" ").toLowerCase()).not.toContain("note on scope");
+  });
+});
+
+describe("buildProposal", () => {
+  it("ready is false only when conflicts exist", () => {
+    expect(
+      buildProposal({
+        requirement: { loanAmountPounds: 120000 },
+        loanDetails: { amountPounds: 85000 },
+      }).ready,
+    ).toBe(false);
+    expect(buildProposal({}).ready).toBe(true);
+  });
+
+  it("hydrates CAMPARI from old markdown but never from bank.summary", () => {
+    const built = buildProposal({
+      legacy: {
+        campari: { character: ["# Character\nSole director on file."] },
+      },
+    });
+    expect(built.slots.campari.character.some((line) => /Sole director/.test(line))).toBe(true);
+  });
+
+  it("proposalSourceFromFile uses pence only on prospect.loanAmount", () => {
+    const source = proposalSourceFromFile({
+      prospect: {
+        loanAmount: 12_000_000,
+        term: 60,
+        interestRate: "18",
+        loanRequirementData: { product_details: { loan_amount: 120000, term_months: 60 } },
+        company: { creditsafeScore: "A", creditsafeCreditLimit: 1_000_000 },
+      },
+      dueDiligence: {
+        data: {
+          underwriting: { loanDetails: { amount: 120000, termMonths: 60, interestRate: 18 } },
+        },
+      },
+    });
+    const built = buildProposal(source);
+    expect(built.facts.loanAmountPounds).toBe(120000);
+    expect(built.facts.creditsafeScore).toBe("A");
+    expect(built.ready).toBe(true);
   });
 });
