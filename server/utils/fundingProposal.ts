@@ -62,6 +62,7 @@ export type FundingProposalModel = {
   dscrNow: string;
   dscrAfter: string;
   loanPurpose: string;
+  purposeBullets: string[];
   theBusiness: string;
   backgroundBullets: string[];
   theBusinessBullets: string[];
@@ -1168,24 +1169,14 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
   };
   const recommendationKey = String(asRecord(underwriting.adviserSummary).recommendation || "");
   let recommendationOutcome = RECOMMENDATION_LABELS[recommendationKey] || "";
-  let recommendationBullets = proposal.slots.recommendation.length
-    ? proposal.slots.recommendation.slice(0, SLOT_CAPS.recommendation.cap)
-    : validateSlot(
-        [prospect.adviserRecommendation]
-          .filter((value): value is string => typeof value === "string" && value.trim() !== ""),
-        SLOT_CAPS.recommendation.cap,
-        SLOT_CAPS.recommendation.maxWords,
-      );
-  let brokerRemarks = recommendationBullets.length
-    ? ""
-    : text(recommendationOutcome ? "" : recommendationKey);
+  let recommendationBullets = proposal.slots.recommendation.slice(0, SLOT_CAPS.recommendation.cap);
+  const brokerRemarks = "";
   let signedBy =
     prospect.adviserRecommendationSignedBy ||
     [data.user?.firstName, data.user?.lastName].filter(Boolean).join(" ");
   if (data.hideAdviserRecommendation) {
     recommendationOutcome = "";
     recommendationBullets = [];
-    brokerRemarks = "";
     signedBy = "";
   }
   if (data.sterlingRecommendation?.trim()) {
@@ -1195,18 +1186,13 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
       SLOT_CAPS.recommendation.cap,
       SLOT_CAPS.recommendation.maxWords,
     );
-    brokerRemarks = recommendationBullets.length ? "" : data.sterlingRecommendation.trim();
     signedBy = data.sterlingSignedBy?.trim() || signedBy;
   }
   const signedAt = prospect.adviserRecommendationSignedAt ? formatDate(prospect.adviserRecommendationSignedAt) : "";
 
-  const loanPurpose =
-    purposeShort(ledger.purposeShort || "") !== "—"
-      ? purposeShort(ledger.purposeShort || "")
-      : firstPlain(
-          prospect.loanRequirementNotes,
-          asRecord(prospect.loanRequirementData).notes
-        ) || "Loan purpose has not been written up on this file yet.";
+  const purposeValue = purposeShort(ledger.purposeShort || "");
+  const purposeBullets = purposeValue && purposeValue !== "—" ? [purposeValue] : [];
+  const loanPurpose = purposeBullets.join("\n");
   const overview = text(asRecord(asRecord(underwriting.adviserSummary).sections).overview);
   const authoredBusiness = Array.isArray(asRecord(asRecord(diligence.proposal).slots).theBusiness)
     && asRecord(asRecord(diligence.proposal).slots).theBusiness.length > 0;
@@ -1236,38 +1222,18 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
       : Array.isArray(sweep.months)
         ? sweep.months
         : [];
-  const latestMonth = months.length ? asRecord(months[months.length - 1]) : {};
   const flagItems = (Array.isArray(bank.redFlags) ? bank.redFlags : []).map(flagText).filter(Boolean);
   const classified = classifyFlags(flagItems);
   const accountConcerns = (Array.isArray(accounts.concerns) ? accounts.concerns : [])
     .map((item: unknown) => (typeof item === "string" ? item.trim() : String(asRecord(item).label || asRecord(item).text || "").trim()))
     .filter(Boolean);
   const cashflowRows: Kv[] = [];
-  const avgCredits = ledger.avgCredits ?? numberish(bank.averageMonthlyRevenue);
-  const avgDebits = ledger.avgDebits ?? numberish(bank.averageMonthlyExpenses);
-  if (avgCredits != null) cashflowRows.push({ label: "Average monthly credits", value: money(avgCredits) });
-  if (avgDebits != null) cashflowRows.push({ label: "Average monthly debits", value: money(avgDebits) });
+  if (ledger.avgCredits != null) cashflowRows.push({ label: "Average monthly credits", value: money(ledger.avgCredits) });
+  if (ledger.avgDebits != null) cashflowRows.push({ label: "Average monthly debits", value: money(ledger.avgDebits) });
   if (ledger.cashForDebt != null) cashflowRows.push({ label: "Cash available for debt", value: money(ledger.cashForDebt) });
-  else if (numberish(bank.netDisposableIncome)) cashflowRows.push({ label: "Net disposable income", value: money(bank.netDisposableIncome) });
   if (ledger.stackedMonthly != null) cashflowRows.push({ label: "Stacked monthly", value: money(ledger.stackedMonthly) });
   if (derived.monthlyRepayment != null) cashflowRows.push({ label: "Proposed monthly", value: money(derived.monthlyRepayment) });
   if (derived.monthlySaving != null) cashflowRows.push({ label: "Monthly saving", value: money(derived.monthlySaving) });
-  const latestClose = latestMonth.closingBalance ?? latestMonth.balance ?? latestMonth.closing;
-  const latestLabel = latestMonth.month || latestMonth.label || latestMonth.period;
-  if (numberish(latestClose)) {
-    cashflowRows.push({
-      label: `Latest closing balance${latestLabel ? ` (${latestLabel})` : ""}`,
-      value: money(latestClose),
-    });
-  }
-  if (numberish(latestMonth.net)) cashflowRows.push({ label: "Latest month net", value: money(latestMonth.net) });
-  if (numberish(bank.transactionCount)) cashflowRows.push({ label: "Transactions analysed", value: String(bank.transactionCount) });
-  if (numberish(bank.excludedTransferCount)) {
-    cashflowRows.push({
-      label: "Excluded transfers",
-      value: `${bank.excludedTransferCount} totalling ${money(bank.excludedTransferValue)}`,
-    });
-  }
 
   return {
     borrower,
@@ -1292,6 +1258,7 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
     dscrNow: fmtDscr(derived.dscrNow),
     dscrAfter: fmtDscr(derived.dscrAfter),
     loanPurpose,
+    purposeBullets,
     theBusiness,
     backgroundBullets,
     theBusinessBullets,
@@ -1309,14 +1276,10 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
       derived.gradeNow || derived.gradeAfter ? "" : "Risk assessment not yet completed.",
     campariBlocks: CAMPARI_SECTIONS.map((section) => {
       const key = section.key as keyof typeof proposal.slots.campari;
-      const raw = displayString(asRecord(asRecord(underwriting.adviserSummary).sections)[section.key]);
-      const sliced = extractPillarSlice(raw, section.key);
-      const extracted = Boolean(raw) && sliced.trim() !== "" && sliced.trim() !== raw.trim();
-      const slotText = (proposal.slots.campari[key] || []).join("\n");
       return {
         key: section.key,
         title: section.title,
-        body: extracted ? sliced : slotText,
+        body: (proposal.slots.campari[key] || []).join("\n"),
         facts: campariFactsLine(section.key, ledger, derived),
       };
     }).filter((block) => block.body || block.facts),
@@ -1717,6 +1680,7 @@ const PROPOSAL_CSS = `
   .campari-block .subhead { margin: 8px 0 4px; font-size: 10.5pt; }
   ul.campari-points { margin: 0 0 6px; padding-left: 16px; }
   ul.campari-points li { font-size: 10.5pt; line-height: 1.35; margin-bottom: 2px; }
+  .campari-facts { font-size: 10pt; font-weight: 600; margin: 0 0 4px; color: var(--ink); }
   .muted { color: var(--muted); font-size: 9pt; }
   table.attach-list { width: 100%; border-collapse: collapse; margin-top: 8px; }
   table.attach-list td { border-bottom: 1px solid var(--border-light); padding: 7px 8px; font-size: 10pt; vertical-align: top; }
@@ -1765,7 +1729,6 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
     ? [
         dscrHero,
         model.cashflowRows.length ? kvTableHtml("Immediate cash flow", model.cashflowRows) : "",
-        model.cashTrend ? `<p class="body-text"><strong>Trend:</strong> ${esc(model.cashTrend)}</p>` : "",
         model.monthlyActivity ? finTableHtml(model.monthlyActivity) : "",
         model.stackedFacilities ? finTableHtml(model.stackedFacilities) : "",
         model.bankFindingBullets.length
@@ -1853,15 +1816,10 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
   const forecastBody = `<div class="empty-state"><div class="t">Forecasts not yet modelled</div><div class="d">A 24-month cash flow / CFADS model will sit here once it has been built on this file. Figures are not projected automatically.</div></div>`;
 
   const remarksCopy =
-    model.recommendationOutcome || model.recommendationBullets.length || model.brokerRemarks
+    model.recommendationOutcome || model.recommendationBullets.length
       ? [
-          model.recommendationOutcome
-            ? `<p class="body-text"><strong>Recommendation:</strong> ${esc(model.recommendationOutcome)}</p>`
-            : "",
+          model.recommendationOutcome ? `<div class="subhead">${esc(model.recommendationOutcome)}</div>` : "",
           model.recommendationBullets.length ? bullets(model.recommendationBullets, "strengths") : "",
-          !model.recommendationBullets.length && model.brokerRemarks
-            ? markdownToProposalHtml(model.brokerRemarks)
-            : "",
         ].join("")
       : `<div class="empty-state"><div class="t">Awaiting recommendation</div><div class="d">David writes the recommendation in the Sterling portal. It is not stored in Credit Studio.</div></div>`;
   const signName = model.brokerSigned ? esc(model.brokerSigned.split(" — ")[0] || model.brokerSigned) : "";
@@ -1877,8 +1835,8 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
        </div>
      </div>`;
 
-  const purposeHtml = model.loanPurpose
-    ? `<p class="body-text">${esc(model.loanPurpose)}</p>`
+  const purposeHtml = model.purposeBullets.length
+    ? bullets(model.purposeBullets, "strengths")
     : `<p class="muted">Loan purpose has not been written up on this file yet.</p>`;
   const businessHtml = model.theBusinessBullets.length
     ? bullets(model.theBusinessBullets, "strengths")
@@ -1925,8 +1883,11 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
     ${kvTableHtml("Risk indicators", model.riskIndicatorRows)}
     ${model.chargesTable ? finTableHtml(model.chargesTable) : `<p class="fin-basis">No charges registered.</p>`}
     <div class="navy-band">3.&nbsp;&nbsp;Risk assessment</div>
-    ${riskEmpty ? `<p class="body-text">${esc(model.riskSummary || "Risk assessment not yet completed.")}</p>` : riskTiles}
-    ${!riskEmpty && model.riskSummary ? `<p class="body-text">${esc(model.riskSummary)}</p>` : ""}
+    ${
+      riskEmpty
+        ? `<div class="empty-state"><div class="t">${esc(model.riskSummary || "Risk assessment not yet completed.")}</div></div>`
+        : riskTiles
+    }
     ${
       model.campariBlocks.length
         ? `<div class="subhead">CAMPARI</div>${(() => {
@@ -1935,7 +1896,7 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
               .map(
                 (block) =>
                   `<div class="campari-block"><div class="subhead">${esc(block.title)}</div>${
-                    block.facts ? `<p class="body-text">${esc(block.facts)}</p>` : ""
+                    block.facts ? `<div class="campari-facts">${esc(block.facts)}</div>` : ""
                   }${campariToProposalHtml(block.body, block.key, seen)}</div>`
               )
               .join("");

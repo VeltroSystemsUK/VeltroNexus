@@ -261,11 +261,8 @@ describe("Passan-format funding proposal", () => {
       dueDiligence: dueDiligence(),
     });
     expect(html).toContain("4.&nbsp;&nbsp;Current financial situation");
-    expect(html).toContain("Immediate cash flow");
-    expect(html).toContain("Average monthly credits");
     expect(html).toContain("Bank statement activity");
     expect(html).toContain("Jan 25");
-    expect(html).toContain("Credits rising");
     expect(html).toContain("Regular direct debits");
     expect(html).toContain("Sage payroll");
     expect(html).toContain("Suspected loan / MCA repayments");
@@ -300,7 +297,6 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("MCA");
     expect(html).toContain("New site");
     expect(html).toContain("Food inflation");
-    expect(html).toContain("Supportable subject to statements.");
   });
 
   it("copies CAMPARI onto the risk assessment page", () => {
@@ -356,8 +352,7 @@ describe("Passan-format funding proposal", () => {
             overview:
               "# Overview\n\nA fish and chip group in Derbyshire.\n\n## Key Facts a Credit Officer Needs Before CAMPARI\n\nShould not appear in The business.",
             character: "Directors have a clean credit history.",
-            means:
-              "# CAMPARI Analysis\n\n## Character\nDirectors have a clean credit history.\n\n## Ability\nManagement has run the business for 6 years.\n\n## Means\nWorking capital is tight after the MCA.",
+            means: "Working capital is tight after the MCA.",
             repayment: "# Repayment\n\n**Facility terms:** £150,000 over 60 months. This must not appear in forecasts.",
           },
         },
@@ -556,7 +551,7 @@ describe("Passan-format funding proposal", () => {
     });
     expect(html).toContain("Awaiting recommendation");
     expect(html).toContain("Forecasts not yet modelled");
-    expect(html).toContain("Risk assessment not yet completed.");
+    expect(html).not.toContain("Supportable subject to statements.");
   });
 
   it("prints the attachments checklist from uploaded documents", () => {
@@ -687,6 +682,55 @@ describe("Passan-format funding proposal", () => {
     expect((html.split("Background").length - 1)).toBeLessThanOrEqual(2);
     expect(html).toContain("Last 6 months business bank statements");
     expect(html).toMatch(/Attached/i);
+  });
+
+  it("prints CAMPARI from slots and drops mixed-heading pound essays", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({
+        adviserSummary: {
+          sections: {
+            amount:
+              "# CAMPARI Analysis\n\n## Amount\nThe £85,000 refinance is intended to consolidate.",
+            character: "Sole director on file: Kirsty Bevan.",
+          },
+        },
+      }),
+    });
+    expect(html).not.toContain("£85,000");
+    const campari = html.split("CAMPARI")[1]?.split("SWOT")[0] || "";
+    expect(campari).toContain('ul class="campari-points"');
+    expect(campari).toContain("<li>Sole director on file: Kirsty Bevan.</li>");
+    expect(campari).not.toContain("The £85,000 refinance is intended to consolidate.");
+  });
+
+  it("prints purpose as a ul, not a body paragraph", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+    });
+    const purpose = html.split("1.&nbsp;&nbsp;Loan amount and purpose")[1]?.split("2.&nbsp;&nbsp;The business")[0] || "";
+    expect(purpose).toMatch(/<ul[^>]*>[\s\S]*<li>/);
+    expect(purpose).not.toContain('p class="body-text"');
+    expect(purpose).toContain("Working capital to refinance a daily MCA");
+  });
+
+  it("does not backfill cashflow kv from financialAnalysis when sweep is missing", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+    });
+    const cash = html.split("4.&nbsp;&nbsp;Current financial situation")[1]?.split("5.&nbsp;&nbsp;Historic financial information")[0] || "";
+    expect(cash).not.toContain("Average monthly credits");
+    expect(cash).not.toContain("Net disposable income");
+    expect(cash).not.toContain("£42,000");
+    expect(cash).not.toContain("£6,000");
   });
 
   it("does not use Creditsafe as the cover grade", () => {
