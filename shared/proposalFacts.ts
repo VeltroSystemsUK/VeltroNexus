@@ -845,7 +845,14 @@ export function proposalSourceFromFile(input: {
       : undefined;
 
   const redFlags = Array.isArray(financialAnalysis.redFlags)
-    ? financialAnalysis.redFlags.filter((flag: unknown): flag is string => typeof flag === "string")
+    ? financialAnalysis.redFlags
+        .map((flag: unknown) => {
+          if (typeof flag === "string") return flag.trim();
+          const rec = asRecord(flag);
+          if (rec.isActive === false) return "";
+          return String(rec.label || rec.text || rec.message || "").trim();
+        })
+        .filter(Boolean)
     : undefined;
 
   const overridesRaw = asRecord(proposal.overrides);

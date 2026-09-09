@@ -214,4 +214,31 @@ describe("buildProposal", () => {
     expect(built.facts.creditsafeScore).toBe("A");
     expect(built.ready).toBe(true);
   });
+
+  it("maps active redFlag objects to strings and skips inactive ones", () => {
+    const source = proposalSourceFromFile({
+      prospect: {},
+      dueDiligence: {
+        data: {
+          underwriting: {
+            financialAnalysis: {
+              redFlags: [
+                { label: "Unarranged overdraft charge", isActive: true },
+                { label: "Stale gambling note", isActive: false },
+                "bounced payment on file",
+                { text: "unpaid direct debit", isActive: true },
+              ],
+            },
+          },
+        },
+      },
+    });
+    expect(source.redFlags).toEqual([
+      "Unarranged overdraft charge",
+      "bounced payment on file",
+      "unpaid direct debit",
+    ]);
+    const built = buildProposal(source);
+    expect(built.derived.adverseConduct).toBe(true);
+  });
 });
