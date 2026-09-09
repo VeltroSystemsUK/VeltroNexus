@@ -657,27 +657,27 @@ Return JSON only:
 
 const SECTION_GUIDANCE: Record<string, string> = {
   overview:
-    "Credit memo Overview: what the business does and the lending proposition in one paragraph. Key facts a credit officer needs before CAMPARI.",
+    "Credit memo Overview: short bullets on what the business does and the lending proposition. Qualitative facts a credit officer needs before CAMPARI. No amounts, grades, or facility terms.",
   background:
-    "Background: history, ownership, trading sites, and recent events (refinance, distress, expansion) that explain this application.",
+    "Background: short bullets on history, ownership, trading sites, and recent events (refinance, distress, expansion) that explain this application. No amounts or grades.",
   bank:
-    "Bank Statement Summary: inflows, outgoings, missed payments, returned items, MCA sweeps, HMRC time-to-pay.",
+    "Bank Statement Summary: short bullets on inflows, outgoings, missed payments, returned items, MCA sweeps, HMRC time-to-pay. No pound figures or ratios.",
   recommendation:
-    "Adviser Recommendation: should the file proceed, on what conditions, and what residual risk the credit officer must accept.",
+    "Adviser Recommendation: short bullets on whether the file should proceed, conditions, and residual risk the credit officer must accept. No amounts, grades, or terms.",
   character:
-    "CAMPARI Character: owners/directors, track record, CCJs/defaults/late filings, bank conduct, credit reports, statutory obligations.",
+    "CAMPARI Character: short bullets on owners/directors, track record, CCJs/defaults/late filings, bank conduct, credit reports, statutory obligations.",
   ability:
-    "CAMPARI Ability: management skills, industry experience, delivery history, contracts/pipeline, operational gaps.",
+    "CAMPARI Ability: short bullets on management skills, industry experience, delivery history, contracts/pipeline, operational gaps.",
   means:
-    "CAMPARI Means: financial position, profitability trend, working capital, gearing, related-party balances, over-leverage.",
+    "CAMPARI Means: short bullets on financial position, profitability trend, working capital, gearing, related-party balances, over-leverage. No pound amounts or ratios.",
   purpose:
-    "CAMPARI Purpose: exact use of funds, policy fit, evidence (invoices/quotes/statements), refinance detail, private-benefit check.",
+    "CAMPARI Purpose: short bullets on exact use of funds, policy fit, evidence (invoices/quotes/statements), refinance detail, private-benefit check. No pound amounts.",
   amount:
-    "CAMPARI Amount: how the figure was calculated, evidence reconciliation, contribution, proportionality to turnover.",
+    "CAMPARI Amount: short bullets on how the ask was evidenced, contribution, and proportionality to turnover. Do not state the facility figure, term, or rate.",
   repayment:
-    "CAMPARI Repayment: historic cashflow, monthly repayment, free cashflow, DSCR, tax obligations, downside resilience.",
+    "CAMPARI Repayment: short bullets on historic cashflow quality, free cash after obligations, tax conduct, and downside resilience. Do not state ratios or monthly figures.",
   insurance:
-    "CAMPARI Insurance: policies in force, security (debenture/PG/charge), licences and regulatory requirements.",
+    "CAMPARI Insurance: short bullets on policies in force, security (debenture/PG/charge), licences and regulatory requirements.",
 };
 
 export async function generateCampariSection(
