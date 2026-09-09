@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
+import { ProposalNotReadyError } from "@shared/proposalFacts";
 import {
     insertProspectSchema,
     insertContactSchema,
@@ -422,6 +423,13 @@ const router = Router();
         const reportData = await buildProspectReportData(prospect, { layoutUserId: req.user!.id });
         await streamProspectReport(res, reportData, reportFilename(prospect.company.companyName));
       } catch (error) {
+        if (error instanceof ProposalNotReadyError) {
+          return res.status(409).json({
+            message: error.message,
+            conflicts: error.conflicts,
+            missing: error.missing,
+          });
+        }
         console.error("[PDF Report] Route error:", error);
         handleApiError(res, error, "api-error");
       }

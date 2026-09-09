@@ -14,4 +14,10 @@ describe("funding proposal report gate", () => {
     expect(src).toMatch(/ProposalNotReadyError/);
     expect(src).toMatch(/status\(409\)/);
   });
+
+  it("live prospect report route returns JSON 409", () => {
+    const src = fs.readFileSync(path.resolve("server/routes/prospects.ts"), "utf8");
+    expect(src).toMatch(/ProposalNotReadyError/);
+    expect(src).toMatch(/status\(409\)/);
+  });
 });
