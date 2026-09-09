@@ -37,7 +37,7 @@ export const GRADE_DSCR = [
   { min: 1.25, grade: "B" },
   { min: 1.0, grade: "C" },
   { min: 0.75, grade: "D" },
-  { min: 0, grade: "E" },
+  { min: -Infinity, grade: "E" },
 ] as const;
 
 export type ProposalFacts = {
@@ -150,6 +150,15 @@ function isPresentNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+/** Money and term treat 0 as an empty UI default, not a live source. Rate 0% may stay. */
+function isPresentMoney(value: unknown): value is number {
+  return isPresentNumber(value) && value !== 0;
+}
+
+function isPresentTerm(value: unknown): value is number {
+  return isPresentNumber(value) && value !== 0;
+}
+
 function parseRate(value: number | string | null | undefined): number | null {
   if (value == null || value === "") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -207,12 +216,24 @@ function reconcileNumeric(opts: {
   };
 }
 
+function useOfFundsLineKey(line: UseOfFundsLine): string {
+  return `${line.label}\0${moneyKey(line.amountPounds)}`;
+}
+
 function useOfFundsEqual(a: UseOfFundsLine[], b: UseOfFundsLine[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every(
-    (line, i) =>
-      line.label === b[i].label && moneyKey(line.amountPounds) === moneyKey(b[i].amountPounds),
-  );
+  const counts = new Map<string, number>();
+  for (const line of a) {
+    const key = useOfFundsLineKey(line);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  for (const line of b) {
+    const key = useOfFundsLineKey(line);
+    const remaining = counts.get(key) || 0;
+    if (remaining === 0) return false;
+    counts.set(key, remaining - 1);
+  }
+  return true;
 }
 
 function purposeShortFrom(purpose: string | null | undefined): string | null {
@@ -242,31 +263,31 @@ export function reconcileFacts(source: ProposalSourceFile): {
   const missing: ProposalMissing[] = [];
 
   const loanCandidates: Candidate[] = [];
-  if (isPresentNumber(source.requirement?.loanAmountPounds)) {
+  if (isPresentMoney(source.requirement?.loanAmountPounds)) {
     loanCandidates.push({
       origin: "requirement.loan_amount",
       value: source.requirement.loanAmountPounds,
     });
   }
-  if (isPresentNumber(source.requirement?.totalRequestPounds)) {
+  if (isPresentMoney(source.requirement?.totalRequestPounds)) {
     loanCandidates.push({
       origin: "requirement.total_request",
       value: source.requirement.totalRequestPounds,
     });
   }
-  if (isPresentNumber(source.loanDetails?.amountPounds)) {
+  if (isPresentMoney(source.loanDetails?.amountPounds)) {
     loanCandidates.push({
       origin: "loanDetails.amount",
       value: source.loanDetails.amountPounds,
     });
   }
-  if (isPresentNumber(source.calculator?.loanAmountPounds)) {
+  if (isPresentMoney(source.calculator?.loanAmountPounds)) {
     loanCandidates.push({
       origin: "calculator.loanAmount",
       value: source.calculator.loanAmountPounds,
     });
   }
-  if (isPresentNumber(source.loanAmountPence)) {
+  if (isPresentMoney(source.loanAmountPence)) {
     loanCandidates.push({
       origin: "prospect.loanAmount",
       value: source.loanAmountPence / 100,
@@ -283,25 +304,25 @@ export function reconcileFacts(source: ProposalSourceFile): {
   if (loan.missing) missing.push(loan.missing);
 
   const termCandidates: Candidate[] = [];
-  if (isPresentNumber(source.requirement?.termMonths)) {
+  if (isPresentTerm(source.requirement?.termMonths)) {
     termCandidates.push({
       origin: "requirement.term_months",
       value: source.requirement.termMonths,
     });
   }
-  if (isPresentNumber(source.loanDetails?.termMonths)) {
+  if (isPresentTerm(source.loanDetails?.termMonths)) {
     termCandidates.push({
       origin: "loanDetails.termMonths",
       value: source.loanDetails.termMonths,
     });
   }
-  if (isPresentNumber(source.calculator?.termMonths)) {
+  if (isPresentTerm(source.calculator?.termMonths)) {
     termCandidates.push({
       origin: "calculator.termMonths",
       value: source.calculator.termMonths,
     });
   }
-  if (isPresentNumber(source.termMonths)) {
+  if (isPresentTerm(source.termMonths)) {
     termCandidates.push({
       origin: "prospect.term",
       value: source.termMonths,
@@ -430,14 +451,13 @@ const RED_FLAG_ADVERSE = /bounce|unpaid|unarranged|overdraft charge|gambling/i;
 
 export function gradeFromDscr(dscr: number | null, adverseConduct: boolean): Grade | null {
   if (dscr == null || !Number.isFinite(dscr)) return null;
-  let grade: Grade | null = null;
+  let grade: Grade = "E";
   for (const row of GRADE_DSCR) {
     if (dscr >= row.min) {
       grade = row.grade;
       break;
     }
   }
-  if (grade == null) return null;
   return adverseConduct ? ADVERSE_NOTCH[grade] : grade;
 }
 
@@ -476,12 +496,14 @@ export function deriveProposal(
   const cash = facts.cashForDebt;
 
   const dscrNow =
-    cash != null && stacked != null && cash > 0 && stacked > 0 ? cash / stacked : null;
+    cash != null && stacked != null && stacked > 0 && Number.isFinite(cash) && Number.isFinite(stacked)
+      ? cash / stacked
+      : null;
   const dscrAfter =
     cash != null &&
     monthlyRepayment != null &&
-    cash > 0 &&
-    monthlyRepayment > 0
+    monthlyRepayment > 0 &&
+    Number.isFinite(cash)
       ? cash / monthlyRepayment
       : null;
 
@@ -541,6 +563,8 @@ export type SlotValidation =
 
 const FORBIDDEN_PATTERNS: Array<{ reason: string; re: RegExp }> = [
   { reason: "contains £", re: /£/ },
+  { reason: "contains amount", re: /\b\d{1,3}(?:,\d{3})+\b/ },
+  { reason: "contains amount", re: /\b\d{5,}\b/ },
   { reason: "contains DSCR", re: /\bDSCR\b/i },
   { reason: "contains DSCR multiple", re: /\b\d+\.\d+x\b/i },
   { reason: "contains grade-as-rating", re: /\b(risk\s+)?(grade|score)\s+(?:of\s+)?[A-E]\b/i },

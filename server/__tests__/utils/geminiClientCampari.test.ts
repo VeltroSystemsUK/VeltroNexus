@@ -7,6 +7,7 @@ describe("Auto Write slot constraints", () => {
     const src = fs.readFileSync(path.resolve("server/utils/geminiClient.ts"), "utf8");
     expect(src).toMatch(/Do not write pound amounts/);
     expect(src).toMatch(/note on scope/);
+    expect(src).not.toMatch(/Loan amount: £\$\{/);
   });
 
   it("SECTION_GUIDANCE is bullet-only without ledger facts", () => {
@@ -23,5 +24,11 @@ describe("Auto Write slot constraints", () => {
     const src = fs.readFileSync(path.resolve("server/routes/prospects.ts"), "utf8");
     expect(src).toMatch(/proposal\.slots/);
     expect(src).toMatch(/hydrateBulletsFromMarkdown/);
+  });
+
+  it("does not persist SWOT when every quadrant is empty after validation", () => {
+    const src = fs.readFileSync(path.resolve("server/routes/prospects.ts"), "utf8");
+    expect(src).toMatch(/swotHasContent/);
+    expect(src).toMatch(/SWOT analysis returned no usable content/);
   });
 });

@@ -1380,6 +1380,20 @@ const router = Router();
         };
         const proposal = { ...(existingData.proposal || {}) };
         const existingSlots = (proposal.slots || {}) as Record<string, any>;
+        const swot = {
+          strengths: validateSlot(swotResult.strengths || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+          weaknesses: validateSlot(swotResult.weaknesses || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+          opportunities: validateSlot(swotResult.opportunities || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+          threats: validateSlot(swotResult.threats || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
+        };
+        const swotHasContent =
+          swot.strengths.length > 0 ||
+          swot.weaknesses.length > 0 ||
+          swot.opportunities.length > 0 ||
+          swot.threats.length > 0;
+        if (!swotHasContent) {
+          return res.status(400).json({ error: "SWOT analysis returned no usable content" });
+        }
         proposal.slots = {
           ...emptySlots(),
           ...existingSlots,
@@ -1387,12 +1401,7 @@ const router = Router();
             ...emptySlots().campari,
             ...(existingSlots.campari || {}),
           },
-          swot: {
-            strengths: validateSlot(swotResult.strengths || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
-            weaknesses: validateSlot(swotResult.weaknesses || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
-            opportunities: validateSlot(swotResult.opportunities || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
-            threats: validateSlot(swotResult.threats || [], SLOT_CAPS.swot.cap, SLOT_CAPS.swot.maxWords),
-          },
+          swot,
         };
         const mergedData = {
           ...existingData,

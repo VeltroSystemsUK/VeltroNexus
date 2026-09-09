@@ -169,5 +169,13 @@ export async function buildSterlingPackZip(opts: {
 }
 
 export function sterlingReportHtml(reportData: Parameters<typeof renderFundingProposalHtmlFromData>[0]) {
+  assertProposalReady(
+    buildProposal(
+      proposalSourceFromFile({
+        prospect: reportData.prospect,
+        dueDiligence: reportData.dueDiligence,
+      }),
+    ),
+  );
   return renderFundingProposalHtmlFromData({ ...reportData, hideAdviserRecommendation: true });
 }

@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
+import { ProposalNotReadyError } from "@shared/proposalFacts";
 import type { UnderwritingAttachment } from "@shared/schema";
 import {
   STERLING_LENDERS,
@@ -140,6 +141,13 @@ router.get("/api/broker-portal/handoffs/:id/report.html", isAuthenticated, canUs
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(sterlingReportHtml(reportData));
   } catch (error) {
+    if (error instanceof ProposalNotReadyError) {
+      return res.status(error.status).json({
+        message: error.message,
+        conflicts: error.conflicts,
+        missing: error.missing,
+      });
+    }
     handleApiError(res, error, "api-error");
   }
 });
@@ -154,6 +162,13 @@ router.get("/api/broker-portal/handoffs/:id/report.pdf", isAuthenticated, canUse
     const reportData = await buildProspectReportData(prospect, { layoutUserId: prospect.userId });
     await streamProspectReport(res, { ...reportData, hideAdviserRecommendation: true } as any, reportFilename(prospect.company.companyName));
   } catch (error) {
+    if (error instanceof ProposalNotReadyError) {
+      return res.status(error.status).json({
+        message: error.message,
+        conflicts: error.conflicts,
+        missing: error.missing,
+      });
+    }
     handleApiError(res, error, "api-error");
   }
 });

@@ -78,6 +78,52 @@ describe("reconcileFacts", () => {
     expect(bad.conflicts.some((row) => row.field === "useOfFunds")).toBe(true);
     expect(bad.facts.useOfFunds).toEqual([]);
   });
+
+  it("skips numeric 0 for money and term so UI defaults do not conflict", () => {
+    const result = reconcileFacts({
+      requirement: { loanAmountPounds: 0, totalRequestPounds: 0, termMonths: 0 },
+      loanDetails: { amountPounds: 120_000, termMonths: 60 },
+    });
+    expect(result.facts.loanAmountPounds).toBe(120000);
+    expect(result.facts.termMonths).toBe(60);
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it("treats zero-only money and term as missing, not £0 or 0 years", () => {
+    const result = reconcileFacts({
+      requirement: { loanAmountPounds: 0, totalRequestPounds: 0, termMonths: 0 },
+    });
+    expect(result.facts.loanAmountPounds).toBeNull();
+    expect(result.facts.termMonths).toBeNull();
+    expect(result.missing.map((row) => row.field)).toEqual(
+      expect.arrayContaining(["loanAmountPounds", "termMonths"]),
+    );
+  });
+
+  it("still accepts a 0% interest rate", () => {
+    const result = reconcileFacts({
+      loanDetails: { interestRatePct: 0 },
+    });
+    expect(result.facts.interestRatePct).toBe(0);
+    expect(result.missing.map((row) => row.field)).not.toContain("interestRatePct");
+  });
+
+  it("treats use-of-funds as a multiset and ignores order", () => {
+    const allocation = [
+      { label: "Iwoca", amountPounds: 21823 },
+      { label: "Stock", amountPounds: 60000 },
+    ];
+    const requirement = [
+      { label: "Stock", amountPounds: 60000 },
+      { label: "Iwoca", amountPounds: 21823 },
+    ];
+    const ok = reconcileFacts({
+      allocation,
+      requirement: { useOfFunds: requirement },
+    });
+    expect(ok.conflicts.find((row) => row.field === "useOfFunds")).toBeUndefined();
+    expect(ok.facts.useOfFunds).toEqual(allocation);
+  });
 });
 
 describe("gradeFromDscr", () => {
@@ -94,6 +140,13 @@ describe("gradeFromDscr", () => {
     expect(gradeFromDscr(1.62, true)).toBe("B");
     expect(gradeFromDscr(0.87, true)).toBe("E");
     expect(gradeFromDscr(0.5, true)).toBe("E");
+  });
+
+  it("grades non-null finite DSCR below 0.75 as E, including negatives", () => {
+    expect(gradeFromDscr(0.749, false)).toBe("E");
+    expect(gradeFromDscr(0, false)).toBe("E");
+    expect(gradeFromDscr(-0.2, false)).toBe("E");
+    expect(gradeFromDscr(-1.5, true)).toBe("E");
   });
 });
 
@@ -128,6 +181,15 @@ describe("deriveProposal Home Crafters numbers", () => {
     expect(derived.gradeAfter).toBeNull();
   });
 
+  it("computes negative DSCR from negative cash and grades E", () => {
+    const facts = reconcileFacts({
+      sweep: { financeMonthly: 1000, cashForDebt: -500, avgCredits: 1, avgDebits: 1 },
+    }).facts;
+    const derived = deriveProposal(facts, {});
+    expect(derived.dscrNow).toBeCloseTo(-0.5, 2);
+    expect(derived.gradeNow).toBe("E");
+  });
+
   it("prints override as override and keeps the computed pair", () => {
     const derived = deriveProposal(facts, {
       overrides: { gradeNow: "B", gradeAfter: "A", by: "David", at: "2026-09-08" },
@@ -157,6 +219,11 @@ describe("validateBullet", () => {
     expect(validateBullet("A (Very Low Risk) borrower.", 25).ok).toBe(false);
     expect(validateBullet("Loan over 60 months at a fixed rate.", 25).ok).toBe(false);
     expect(validateBullet("Note on scope: the document provided is a schedule.", 25).ok).toBe(false);
+  });
+
+  it("rejects a GBP amount even without a £ sign", () => {
+    expect(validateBullet("85000 refinance", 25).ok).toBe(false);
+    expect(validateBullet("Facility of 85,000 to refinance.", 25).ok).toBe(false);
   });
 });
 

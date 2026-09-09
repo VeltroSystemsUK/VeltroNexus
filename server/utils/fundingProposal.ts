@@ -895,20 +895,21 @@ function loanCalcRowsFromLedger(
   const details = asRecord(req.product_details);
   const mergedCalc = {
     ...calc,
-    loanAmount: facts.loanAmountPounds ?? calc.loanAmount,
-    interestRate: facts.interestRatePct ?? calc.interestRate,
-    term: facts.termMonths ?? calc.term,
+    loanAmount: facts.loanAmountPounds,
+    interestRate: facts.interestRatePct,
+    term: facts.termMonths,
   };
   const mergedReq = {
     ...req,
     product_details: {
       ...details,
-      loan_amount: facts.loanAmountPounds ?? details.loan_amount,
-      term_months: facts.termMonths ?? details.term_months,
-      target_interest_rate_percent: facts.interestRatePct ?? details.target_interest_rate_percent,
+      loan_amount: facts.loanAmountPounds,
+      term_months: facts.termMonths,
+      target_interest_rate_percent: facts.interestRatePct,
     },
   };
-  const rows = loanCalcRows(mergedCalc, prospect, mergedReq);
+  const ledgerOnlyProspect = { ...prospect, loanAmount: null, term: null, interestRate: null };
+  const rows = loanCalcRows(mergedCalc, ledgerOnlyProspect, mergedReq);
   if (derived.monthlyRepayment != null) {
     const monthly = { label: "Monthly repayment", value: money(derived.monthlyRepayment) };
     const idx = rows.findIndex((row) => row.label === "Monthly repayment");
@@ -978,10 +979,10 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
 
   const facts: Kv[] = [
     { label: "Loan amount required:", value: ledger.loanAmountPounds != null ? gbp(ledger.loanAmountPounds) : "—" },
-    { label: "Purpose of loan:", value: purposeShort(ledger.purposeShort || String(loan.purpose || "")) },
+    { label: "Purpose of loan:", value: purposeShort(ledger.purposeShort || "") },
     { label: "Prepared for:", value: borrower },
     { label: "Date:", value: generated },
-    { label: "Term requested:", value: termLabel(ledger.termMonths || loan.term_months || prospect.term) },
+    { label: "Term requested:", value: termLabel(ledger.termMonths) },
     { label: "Repayment type:", value: String(loan.repayment_type || "Capital & interest") },
   ];
 

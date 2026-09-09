@@ -597,6 +597,34 @@ describe("Passan-format funding proposal", () => {
     expect(model.generatedStamp).toMatch(/, \d{2}:\d{2}$/);
   });
 
+  it("prints em dash when a ledger field is null instead of falling back to live sources", () => {
+    const dd = dueDiligence({
+      loanDetails: { amount: 85000, termMonths: 36, interestRate: 18 },
+    });
+    (dd.data as any).loanCalculator = { loanAmount: 120000, term: 60, interestRate: 18 };
+    const model = buildFundingProposal({
+      prospect: prospect({
+        loanAmount: 12_000_000,
+        term: 60,
+        loanRequirementNotes: "",
+        loanRequirementData: {
+          product_type: "BUSINESS_LOAN",
+          product_details: { loan_amount: 120000, term_months: 60 },
+          notes: "",
+          use_of_funds: { total_request_amount: 120000, breakdown: [] },
+        },
+      }),
+      contacts,
+      activities: [],
+      dueDiligence: dd,
+    });
+    expect(model.facts.find((f) => f.label.startsWith("Loan amount"))?.value).toBe("—");
+    expect(model.facts.find((f) => f.label.startsWith("Term"))?.value).toBe("—");
+    expect(model.facts.find((f) => f.label.startsWith("Purpose"))?.value).toBe("—");
+    const calcAmount = model.loanCalcRows.find((row) => row.label === "Loan amount")?.value || "";
+    expect(calcAmount).not.toMatch(/120,000|85,000/);
+  });
+
   it("prints to a compact PDF without a stack of empty pages", async () => {
     const chrome = findChromium();
     if (!chrome) return;

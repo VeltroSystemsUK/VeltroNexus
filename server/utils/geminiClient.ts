@@ -624,7 +624,6 @@ Do not write pound amounts, DSCR ratios, risk grades, or facility term in months
 ${fileFacts || ""}
 Company: ${companyName}
 Sector: ${sector || "unknown"}
-Loan amount: £${Number(loanAmount || 0).toLocaleString()}
 Purpose: ${loanPurpose || "unspecified"}
 Financial summary: ${financialSummary || "n/a"}
 Companies House: ${companiesHouseData || "n/a"}
@@ -724,7 +723,6 @@ ${fileFacts || ""}
 Additional notes from the request:
 Company: ${companyName || "unknown"}
 Sector: ${sector || "unknown"}
-Loan amount: £${Number(loanAmount || 0).toLocaleString()}
 Purpose: ${loanPurpose || "unspecified"}
 Financial summary: ${financialSummary || "n/a"}
 Companies House: ${companiesHouseData || "n/a"}

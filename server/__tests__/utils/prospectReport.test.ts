@@ -20,4 +20,19 @@ describe("funding proposal report gate", () => {
     expect(src).toMatch(/ProposalNotReadyError/);
     expect(src).toMatch(/status\(409\)/);
   });
+
+  it("maps ProposalNotReadyError on lender send instead of 500", () => {
+    const src = fs.readFileSync(path.resolve("server/routes/submissions.ts"), "utf8");
+    const postBlock = src.slice(src.indexOf('"/api/submissions"'));
+    expect(postBlock).toMatch(/ProposalNotReadyError/);
+    expect(postBlock).toMatch(/pdfError\.status|error\.status/);
+    const sendBlock = src.slice(src.indexOf("send-to-broker"));
+    expect(sendBlock).toMatch(/ProposalNotReadyError/);
+  });
+
+  it("handleApiError maps ProposalNotReadyError to 409/400", () => {
+    const src = fs.readFileSync(path.resolve("server/utils/errorHandler.ts"), "utf8");
+    expect(src).toMatch(/ProposalNotReadyError/);
+    expect(src).toMatch(/status === 400 \|\| status === 409/);
+  });
 });

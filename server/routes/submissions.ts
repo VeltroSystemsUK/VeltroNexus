@@ -129,6 +129,13 @@ const router = Router();
           const reportData = await buildProspectReportData(prospect, { layoutUserId: userId });
           pdfBuffer = await renderProspectReportToBuffer(reportData);
         } catch (pdfError: any) {
+          if (pdfError instanceof ProposalNotReadyError) {
+            return res.status(pdfError.status).json({
+              message: pdfError.message,
+              conflicts: pdfError.conflicts,
+              missing: pdfError.missing,
+            });
+          }
           const errMessage = (pdfError as Error)?.message || "Unknown error";
           console.error("PDF generation error");
           return res.status(500).json({ message: `Failed to generate PDF report: ${errMessage}` });
@@ -588,6 +595,13 @@ const router = Router();
 
         res.json({ submission: updated, handoff });
       } catch (error) {
+        if (error instanceof ProposalNotReadyError) {
+          return res.status(error.status).json({
+            message: error.message,
+            conflicts: error.conflicts,
+            missing: error.missing,
+          });
+        }
         handleApiError(res, error, "api-error");
       }
     }
