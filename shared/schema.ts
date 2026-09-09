@@ -582,6 +582,29 @@ export const underwritingDataSchema = z.object({
   accountingSoftware: accountingSoftwareSchema.optional(),
 });
 
+export const proposalGradeSchema = z.enum(["A", "B", "C", "D", "E"]);
+export const proposalOverridesSchema = z.object({
+  gradeNow: proposalGradeSchema.nullable().optional(),
+  gradeAfter: proposalGradeSchema.nullable().optional(),
+  by: z.string().nullable().optional(),
+  at: z.string().optional().nullable(),
+});
+export const proposalSlotsSchema = z.object({
+  background: z.array(z.string()).optional(),
+  theBusiness: z.array(z.string()).optional(),
+  campari: z.record(z.string(), z.array(z.string())).optional(),
+  swot: z
+    .object({
+      strengths: z.array(z.string()).optional(),
+      weaknesses: z.array(z.string()).optional(),
+      opportunities: z.array(z.string()).optional(),
+      threats: z.array(z.string()).optional(),
+    })
+    .optional(),
+  bankFindings: z.array(z.string()).optional(),
+  recommendation: z.array(z.string()).optional(),
+});
+
 export const dueDiligenceDataSchema = z.object({
   checklist: z.array(checklistItemSchema).default([]),
   attachmentsChecklist: z
@@ -604,6 +627,12 @@ export const dueDiligenceDataSchema = z.object({
   hmrcTimeToPay: z.enum(["none", "active", "historic"]).optional(),
   // Link to the standalone Strata lender-pack app (not a copy of that product).
   strataPackaging: z.any().optional(),
+  proposal: z
+    .object({
+      overrides: proposalOverridesSchema.optional(),
+      slots: proposalSlotsSchema.optional(),
+    })
+    .optional(),
 });
 
 export const dueDiligenceSchema = z.object({

@@ -620,10 +620,10 @@ export async function generateSwotAnalysis(
     }>(`Generate a SWOT analysis for commercial lending.
 Use FILE FACTS. Do not claim company, directors, address, loan amount or purpose were not supplied if they appear there. Do not invent figures.
 The loan amount in FILE FACTS is already in pounds sterling. Never multiply it by 100. Do not mention a different facility amount than the one in FILE FACTS.
+Do not write pound amounts, DSCR ratios, risk grades, or facility term in months or years. Those are injected from the file ledger. Do not write "note on scope", "the document provided", "cannot currently be assessed", or any commentary about missing documents. Maximum 5 bullets, 20 words each for SWOT.
 ${fileFacts || ""}
 Company: ${companyName}
 Sector: ${sector || "unknown"}
-Loan amount: £${Number(loanAmount || 0).toLocaleString()}
 Purpose: ${loanPurpose || "unspecified"}
 Financial summary: ${financialSummary || "n/a"}
 Companies House: ${companiesHouseData || "n/a"}
@@ -656,27 +656,27 @@ Return JSON only:
 
 const SECTION_GUIDANCE: Record<string, string> = {
   overview:
-    "Credit memo Overview: what the business does and the lending proposition in one paragraph. Key facts a credit officer needs before CAMPARI.",
+    "Credit memo Overview: short bullets on what the business does and the lending proposition. Qualitative facts a credit officer needs before CAMPARI. No amounts, grades, or facility terms.",
   background:
-    "Background: history, ownership, trading sites, and recent events (refinance, distress, expansion) that explain this application.",
+    "Background: short bullets on history, ownership, trading sites, and recent events (refinance, distress, expansion) that explain this application. No amounts or grades.",
   bank:
-    "Bank Statement Summary: inflows, outgoings, missed payments, returned items, MCA sweeps, HMRC time-to-pay.",
+    "Bank Statement Summary: short bullets on inflows, outgoings, missed payments, returned items, MCA sweeps, HMRC time-to-pay. No pound figures or ratios.",
   recommendation:
-    "Adviser Recommendation: should the file proceed, on what conditions, and what residual risk the credit officer must accept.",
+    "Adviser Recommendation: short bullets on whether the file should proceed, conditions, and residual risk the credit officer must accept. No amounts, grades, or terms.",
   character:
-    "CAMPARI Character: owners/directors, track record, CCJs/defaults/late filings, bank conduct, credit reports, statutory obligations.",
+    "CAMPARI Character: short bullets on owners/directors, track record, CCJs/defaults/late filings, bank conduct, credit reports, statutory obligations.",
   ability:
-    "CAMPARI Ability: management skills, industry experience, delivery history, contracts/pipeline, operational gaps.",
+    "CAMPARI Ability: short bullets on management skills, industry experience, delivery history, contracts/pipeline, operational gaps.",
   means:
-    "CAMPARI Means: financial position, profitability trend, working capital, gearing, related-party balances, over-leverage.",
+    "CAMPARI Means: short bullets on financial position, profitability trend, working capital, gearing, related-party balances, over-leverage. No pound amounts or ratios.",
   purpose:
-    "CAMPARI Purpose: exact use of funds, policy fit, evidence (invoices/quotes/statements), refinance detail, private-benefit check.",
+    "CAMPARI Purpose: short bullets on exact use of funds, policy fit, evidence (invoices/quotes/statements), refinance detail, private-benefit check. No pound amounts.",
   amount:
-    "CAMPARI Amount: how the figure was calculated, evidence reconciliation, contribution, proportionality to turnover.",
+    "CAMPARI Amount: short bullets on how the ask was evidenced, contribution, and proportionality to turnover. Do not state the facility figure, term, or rate.",
   repayment:
-    "CAMPARI Repayment: historic cashflow, monthly repayment, free cashflow, DSCR, tax obligations, downside resilience.",
+    "CAMPARI Repayment: short bullets on historic cashflow quality, free cash after obligations, tax conduct, and downside resilience. Do not state ratios or monthly figures.",
   insurance:
-    "CAMPARI Insurance: policies in force, security (debenture/PG/charge), licences and regulatory requirements.",
+    "CAMPARI Insurance: short bullets on policies in force, security (debenture/PG/charge), licences and regulatory requirements.",
 };
 
 export async function generateCampariSection(
@@ -705,15 +705,17 @@ export async function generateCampariSection(
     "repayment",
     "insurance",
   ]);
+  const slotConstraint =
+    `Do not write pound amounts, DSCR ratios, risk grades, or facility term in months or years. Those are injected from the file ledger. Do not write "note on scope", "the document provided", "cannot currently be assessed", or any commentary about missing documents. Maximum 6 bullets, 20 words each for CAMPARI; 5 bullets, 20 words for SWOT.`;
   const shape = campariKeys.has(sectionKey)
-    ? `Write only this CAMPARI pillar as 4 to 8 short bullet points. One fact per bullet. Do not write the other CAMPARI pillars. No lengthy paragraphs, no essay, no numbered report. A short bold heading is allowed only to group related bullets. Do not repeat the pillar title or company name as a heading.`
-    : `Write this section for a UK commercial-lending file.
-Write the section itself. Do not wrap it in a full credit-memo template unless the section is overview.`;
+    ? `Write only this CAMPARI pillar as up to 6 short bullet points, 20 words each. One fact per bullet. Do not write the other CAMPARI pillars. No lengthy paragraphs, no essay, no numbered report. A short bold heading is allowed only to group related bullets. Do not repeat the pillar title or company name as a heading. ${slotConstraint}`
+    : `Write this section for a UK commercial-lending file as short bullet points only (maximum 6 bullets, 20 words each).
+Write the section itself. Do not wrap it in a full credit-memo template unless the section is overview. ${slotConstraint}`;
   const text = await generateText(`${brief}
 ${shape}
 Use FILE FACTS as the source of truth. If a company number, address, director, loan amount or purpose appears there, you must use it — do not say it was not supplied.
 If SWOT or other narrative on file contradicts FILE FACTS on loan amount or purpose, use FILE FACTS. Do not mention the contradiction or write a file-inconsistency note.
-Do not invent figures. If a fact is not in FILE FACTS or documents, say that specific item is not on the file.
+Do not invent figures. If a fact is not in FILE FACTS or documents, omit that bullet — do not write working notes about missing documents.
 Do not reply with a one-line "unavailable" stub.
 
 ${fileFacts || ""}
@@ -721,7 +723,6 @@ ${fileFacts || ""}
 Additional notes from the request:
 Company: ${companyName || "unknown"}
 Sector: ${sector || "unknown"}
-Loan amount: £${Number(loanAmount || 0).toLocaleString()}
 Purpose: ${loanPurpose || "unspecified"}
 Financial summary: ${financialSummary || "n/a"}
 Companies House: ${companiesHouseData || "n/a"}

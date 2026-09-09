@@ -2,6 +2,12 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
+import {
+  assertProposalReady,
+  buildProposal,
+  ProposalNotReadyError,
+  proposalSourceFromFile,
+} from "@shared/proposalFacts";
 import { storage } from "../storage";
 import { getObjectStorage } from "../utils/routerHelpers";
 import { buildProspectReportData } from "../utils/prospectReport";
@@ -111,6 +117,22 @@ export async function buildSterlingPackZip(opts: {
     );
   }
 
+  try {
+    assertProposalReady(
+      buildProposal(
+        proposalSourceFromFile({
+          prospect: ctx.prospect,
+          dueDiligence: { data: ctx.diligence },
+        }),
+      ),
+    );
+  } catch (error) {
+    if (error instanceof ProposalNotReadyError) {
+      throw Object.assign(new Error(error.message), { status: 400 });
+    }
+    throw error;
+  }
+
   const reportData = await buildProspectReportData(ctx.prospect, { layoutUserId: ctx.prospect.userId });
   const pdf = await renderFundingProposalPdf({
     ...reportData,
@@ -147,5 +169,13 @@ export async function buildSterlingPackZip(opts: {
 }
 
 export function sterlingReportHtml(reportData: Parameters<typeof renderFundingProposalHtmlFromData>[0]) {
+  assertProposalReady(
+    buildProposal(
+      proposalSourceFromFile({
+        prospect: reportData.prospect,
+        dueDiligence: reportData.dueDiligence,
+      }),
+    ),
+  );
   return renderFundingProposalHtmlFromData({ ...reportData, hideAdviserRecommendation: true });
 }

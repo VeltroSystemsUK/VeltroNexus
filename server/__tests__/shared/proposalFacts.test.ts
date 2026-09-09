@@ -1,0 +1,340 @@
+import { describe, expect, it } from "vitest";
+import { calculateLoan } from "../../../client/src/lib/calculators";
+import {
+  ProposalNotReadyError,
+  assertProposalReady,
+  buildProposal,
+  deriveProposal,
+  gradeFromDscr,
+  hydrateBulletsFromMarkdown,
+  proposalPackStatus,
+  proposalSourceFromFile,
+  reconcileFacts,
+  SLOT_CAPS,
+  validateBullet,
+  validateSlot,
+} from "@shared/proposalFacts";
+
+describe("reconcileFacts", () => {
+  it("collapses declared pence and pounds to one amount", () => {
+    const result = reconcileFacts({
+      loanAmountPence: 12_000_000,
+      requirement: { loanAmountPounds: 120_000 },
+      loanDetails: { amountPounds: 120_000 },
+      calculator: { loanAmountPounds: 120_000 },
+    });
+    expect(result.facts.loanAmountPounds).toBe(120000);
+    expect(result.conflicts).toEqual([]);
+    expect(result.missing.find((row) => row.field === "loanAmountPounds")).toBeUndefined();
+  });
+
+  it("conflicts when requirement and loanDetails disagree", () => {
+    const result = reconcileFacts({
+      requirement: { loanAmountPounds: 120_000 },
+      loanDetails: { amountPounds: 85_000 },
+    });
+    expect(result.facts.loanAmountPounds).toBeNull();
+    expect(result.conflicts).toEqual([
+      {
+        field: "loanAmountPounds",
+        values: [
+          { origin: "requirement.loan_amount", value: "120000" },
+          { origin: "loanDetails.amount", value: "85000" },
+        ],
+      },
+    ]);
+  });
+
+  it("does not treat 120000 pence as pounds when prospect.loanAmount is the pence field", () => {
+    const result = reconcileFacts({
+      loanAmountPence: 120_000,
+      requirement: { loanAmountPounds: 120_000 },
+    });
+    expect(result.conflicts.some((row) => row.field === "loanAmountPounds")).toBe(true);
+  });
+
+  it("treats empty sources as missing, not a conflict, and not zero", () => {
+    const result = reconcileFacts({});
+    expect(result.facts.loanAmountPounds).toBeNull();
+    expect(result.conflicts).toEqual([]);
+    expect(result.missing.map((row) => row.field)).toContain("loanAmountPounds");
+    expect(result.facts.stackedMonthly).toBeNull();
+    expect(result.facts.cashForDebt).toBeNull();
+  });
+
+  it("uses one use-of-funds list when they match, and conflicts when they differ", () => {
+    const lines = [{ label: "Iwoca", amountPounds: 21823 }];
+    const ok = reconcileFacts({
+      allocation: lines,
+      requirement: { useOfFunds: lines },
+    });
+    expect(ok.facts.useOfFunds).toEqual(lines);
+    expect(ok.conflicts.find((row) => row.field === "useOfFunds")).toBeUndefined();
+
+    const bad = reconcileFacts({
+      allocation: lines,
+      requirement: { useOfFunds: [{ label: "Iwoca", amountPounds: 1 }] },
+    });
+    expect(bad.conflicts.some((row) => row.field === "useOfFunds")).toBe(true);
+    expect(bad.facts.useOfFunds).toEqual([]);
+  });
+
+  it("skips numeric 0 for money and term so UI defaults do not conflict", () => {
+    const result = reconcileFacts({
+      requirement: { loanAmountPounds: 0, totalRequestPounds: 0, termMonths: 0 },
+      loanDetails: { amountPounds: 120_000, termMonths: 60 },
+    });
+    expect(result.facts.loanAmountPounds).toBe(120000);
+    expect(result.facts.termMonths).toBe(60);
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it("treats zero-only money and term as missing, not £0 or 0 years", () => {
+    const result = reconcileFacts({
+      requirement: { loanAmountPounds: 0, totalRequestPounds: 0, termMonths: 0 },
+    });
+    expect(result.facts.loanAmountPounds).toBeNull();
+    expect(result.facts.termMonths).toBeNull();
+    expect(result.missing.map((row) => row.field)).toEqual(
+      expect.arrayContaining(["loanAmountPounds", "termMonths"]),
+    );
+  });
+
+  it("still accepts a 0% interest rate", () => {
+    const result = reconcileFacts({
+      loanDetails: { interestRatePct: 0 },
+    });
+    expect(result.facts.interestRatePct).toBe(0);
+    expect(result.missing.map((row) => row.field)).not.toContain("interestRatePct");
+  });
+
+  it("treats use-of-funds as a multiset and ignores order", () => {
+    const allocation = [
+      { label: "Iwoca", amountPounds: 21823 },
+      { label: "Stock", amountPounds: 60000 },
+    ];
+    const requirement = [
+      { label: "Stock", amountPounds: 60000 },
+      { label: "Iwoca", amountPounds: 21823 },
+    ];
+    const ok = reconcileFacts({
+      allocation,
+      requirement: { useOfFunds: requirement },
+    });
+    expect(ok.conflicts.find((row) => row.field === "useOfFunds")).toBeUndefined();
+    expect(ok.facts.useOfFunds).toEqual(allocation);
+  });
+});
+
+describe("gradeFromDscr", () => {
+  it("maps the spec table", () => {
+    expect(gradeFromDscr(1.62, false)).toBe("A");
+    expect(gradeFromDscr(1.25, false)).toBe("B");
+    expect(gradeFromDscr(1.0, false)).toBe("C");
+    expect(gradeFromDscr(0.87, false)).toBe("D");
+    expect(gradeFromDscr(0.5, false)).toBe("E");
+    expect(gradeFromDscr(null, false)).toBeNull();
+  });
+
+  it("notches both sides one grade for adverse conduct, floor E", () => {
+    expect(gradeFromDscr(1.62, true)).toBe("B");
+    expect(gradeFromDscr(0.87, true)).toBe("E");
+    expect(gradeFromDscr(0.5, true)).toBe("E");
+  });
+
+  it("grades non-null finite DSCR below 0.75 as E, including negatives", () => {
+    expect(gradeFromDscr(0.749, false)).toBe("E");
+    expect(gradeFromDscr(0, false)).toBe("E");
+    expect(gradeFromDscr(-0.2, false)).toBe("E");
+    expect(gradeFromDscr(-1.5, true)).toBe("E");
+  });
+});
+
+describe("deriveProposal Home Crafters numbers", () => {
+  const facts = reconcileFacts({
+    requirement: { loanAmountPounds: 120_000, termMonths: 60 },
+    loanDetails: { amountPounds: 120_000, termMonths: 60, interestRatePct: 18 },
+    calculator: { loanAmountPounds: 120_000, termMonths: 60, interestRatePct: 18 },
+    sweep: { financeMonthly: 5702.7, avgCredits: 20200.98, avgDebits: 20952.73, cashForDebt: 4950.95 },
+  }).facts;
+
+  it("uses calculateLoan monthly, not a stored LLM repayment", () => {
+    const derived = deriveProposal(facts, {});
+    const monthly = calculateLoan(120000, 18, 60).monthlyPayment;
+    expect(derived.monthlyRepayment).toBeCloseTo(monthly, 2);
+    expect(derived.dscrNow).toBeCloseTo(4950.95 / 5702.7, 2);
+    expect(derived.dscrAfter).toBeCloseTo(4950.95 / monthly, 2);
+    expect(derived.gradeNow).toBe("D");
+    expect(derived.gradeAfter).toBe("A");
+    expect(derived.headroomNow).toBeCloseTo(20200.98 - 20952.73, 2);
+    expect(derived.headroomAfter).toBeCloseTo(derived.headroomNow! + derived.monthlySaving!, 2);
+  });
+
+  it("does not invent grade E when statements are missing", () => {
+    const empty = reconcileFacts({
+      requirement: { loanAmountPounds: 120_000, termMonths: 60 },
+      loanDetails: { interestRatePct: 18 },
+    }).facts;
+    const derived = deriveProposal(empty, {});
+    expect(derived.dscrNow).toBeNull();
+    expect(derived.gradeNow).toBeNull();
+    expect(derived.gradeAfter).toBeNull();
+  });
+
+  it("computes negative DSCR from negative cash and grades E", () => {
+    const facts = reconcileFacts({
+      sweep: { financeMonthly: 1000, cashForDebt: -500, avgCredits: 1, avgDebits: 1 },
+    }).facts;
+    const derived = deriveProposal(facts, {});
+    expect(derived.dscrNow).toBeCloseTo(-0.5, 2);
+    expect(derived.gradeNow).toBe("E");
+  });
+
+  it("prints override as override and keeps the computed pair", () => {
+    const derived = deriveProposal(facts, {
+      overrides: { gradeNow: "B", gradeAfter: "A", by: "David", at: "2026-09-08" },
+    });
+    expect(derived.gradeNowComputed).toBe("D");
+    expect(derived.gradeNow).toBe("B");
+    expect(derived.gradeAfter).toBe("A");
+  });
+
+  it("ignores override when by is missing", () => {
+    const derived = deriveProposal(facts, {
+      overrides: { gradeNow: "A", gradeAfter: "A", by: null, at: null },
+    });
+    expect(derived.gradeNow).toBe("D");
+  });
+});
+
+describe("validateBullet", () => {
+  it("accepts a short fact with no numbers", () => {
+    expect(validateBullet("Omnichannel craft retailer in Yate and online.", 25).ok).toBe(true);
+  });
+
+  it("rejects pounds, DSCR, grades, terms, and working-notes", () => {
+    expect(validateBullet("Facility of £120,000 to refinance.", 25).ok).toBe(false);
+    expect(validateBullet("DSCR lifts from 0.87x to 1.62x.", 25).ok).toBe(false);
+    expect(validateBullet("Risk score of E on file.", 25).ok).toBe(false);
+    expect(validateBullet("A (Very Low Risk) borrower.", 25).ok).toBe(false);
+    expect(validateBullet("Loan over 60 months at a fixed rate.", 25).ok).toBe(false);
+    expect(validateBullet("Note on scope: the document provided is a schedule.", 25).ok).toBe(false);
+  });
+
+  it("rejects a GBP amount even without a £ sign", () => {
+    expect(validateBullet("85000 refinance", 25).ok).toBe(false);
+    expect(validateBullet("Facility of 85,000 to refinance.", 25).ok).toBe(false);
+  });
+});
+
+describe("validateSlot", () => {
+  it("drops bullets past the cap", () => {
+    const items = Array.from({ length: 8 }, (_, i) => `Established trading point ${i}`);
+    expect(validateSlot(items, SLOT_CAPS.background.cap, SLOT_CAPS.background.maxWords)).toHaveLength(5);
+  });
+});
+
+describe("hydrateBulletsFromMarkdown", () => {
+  it("takes bullets from an essay and strips forbidden ones", () => {
+    const raw = `# CAMPARI Analysis: Character\n\n**Directors**\nSole director Kirsty Bevan.\nThe proposed £85,000 facility is for refinance.\nNote on scope: the document provided is incomplete.`;
+    const out = hydrateBulletsFromMarkdown(raw, 6, 20);
+    expect(out).toContain("Sole director Kirsty Bevan.");
+    expect(out.join(" ")).not.toMatch(/85,000/);
+    expect(out.join(" ").toLowerCase()).not.toContain("note on scope");
+  });
+});
+
+describe("buildProposal", () => {
+  it("ready is false only when conflicts exist", () => {
+    expect(
+      buildProposal({
+        requirement: { loanAmountPounds: 120000 },
+        loanDetails: { amountPounds: 85000 },
+      }).ready,
+    ).toBe(false);
+    expect(buildProposal({}).ready).toBe(true);
+  });
+
+  it("hydrates CAMPARI from old markdown but never from bank.summary", () => {
+    const built = buildProposal({
+      legacy: {
+        campari: { character: ["# Character\nSole director on file."] },
+      },
+    });
+    expect(built.slots.campari.character.some((line) => /Sole director/.test(line))).toBe(true);
+  });
+
+  it("proposalSourceFromFile uses pence only on prospect.loanAmount", () => {
+    const source = proposalSourceFromFile({
+      prospect: {
+        loanAmount: 12_000_000,
+        term: 60,
+        interestRate: "18",
+        loanRequirementData: { product_details: { loan_amount: 120000, term_months: 60 } },
+        company: { creditsafeScore: "A", creditsafeCreditLimit: 1_000_000 },
+      },
+      dueDiligence: {
+        data: {
+          underwriting: { loanDetails: { amount: 120000, termMonths: 60, interestRate: 18 } },
+        },
+      },
+    });
+    const built = buildProposal(source);
+    expect(built.facts.loanAmountPounds).toBe(120000);
+    expect(built.facts.creditsafeScore).toBe("A");
+    expect(built.ready).toBe(true);
+  });
+
+  it("maps active redFlag objects to strings and skips inactive ones", () => {
+    const source = proposalSourceFromFile({
+      prospect: {},
+      dueDiligence: {
+        data: {
+          underwriting: {
+            financialAnalysis: {
+              redFlags: [
+                { label: "Unarranged overdraft charge", isActive: true },
+                { label: "Stale gambling note", isActive: false },
+                "bounced payment on file",
+                { text: "unpaid direct debit", isActive: true },
+              ],
+            },
+          },
+        },
+      },
+    });
+    expect(source.redFlags).toEqual([
+      "Unarranged overdraft charge",
+      "bounced payment on file",
+      "unpaid direct debit",
+    ]);
+    const built = buildProposal(source);
+    expect(built.derived.adverseConduct).toBe(true);
+  });
+});
+
+describe("assertProposalReady", () => {
+  it("assertProposalReady throws 409 on conflict and passes when only gaps", () => {
+    expect(() => assertProposalReady(buildProposal({}))).not.toThrow();
+    try {
+      assertProposalReady(buildProposal({
+        requirement: { loanAmountPounds: 120000 },
+        loanDetails: { amountPounds: 85000 },
+      }));
+      throw new Error("expected throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProposalNotReadyError);
+      expect((error as ProposalNotReadyError).status).toBe(409);
+      expect((error as ProposalNotReadyError).conflicts[0].field).toBe("loanAmountPounds");
+    }
+  });
+
+  it("pack maps the same failure to status 400", () => {
+    const status = proposalPackStatus(buildProposal({
+      requirement: { loanAmountPounds: 120000 },
+      loanDetails: { amountPounds: 85000 },
+    }));
+    expect(status.ok).toBe(false);
+    if (!status.ok) expect(status.status).toBe(400);
+  });
+});

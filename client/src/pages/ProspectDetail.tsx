@@ -128,6 +128,7 @@ import SubmitToUnderwritingDialog from "@/components/SubmitToUnderwritingDialog"
 import SubmitApplicationDialog from "@/components/SubmitApplicationDialog";
 import { AttachmentsChecklistForm } from "@/components/AttachmentsChecklistForm";
 import { unwrapDueDiligence } from "@shared/dueDiligence";
+import { buildProposal, proposalSourceFromFile } from "@shared/proposalFacts";
 import ReplyToQueryDialog from "@/components/ReplyToQueryDialog";
 import ConversationThread from "@/components/ConversationThread";
 import TimeTracking from "@/components/TimeTracking";
@@ -461,6 +462,9 @@ export default function ProspectDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showUnderwritingDialog, setShowUnderwritingDialog] = useState(false);
+  const [showLenderDialog, setShowLenderDialog] = useState(false);
+  const [showReplyDialog, setShowReplyDialog] = useState(false);
 
   const { hasAccess: hasUnderwritingAccess } = useUnderwritingAccess();
 
@@ -617,40 +621,6 @@ export default function ProspectDetail() {
     },
   });
 
-  const handleGenerateReport = async () => {
-    toast({
-      title: "Generating funding proposal...",
-      description: "Your Sterling Formatted Proposal download will start shortly.",
-    });
-    try {
-      const res = await fetch(`/api/prospects/${prospectId}/report`, { credentials: "include" });
-      if (!res.ok) {
-        throw new Error("Failed to generate report");
-      }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") || "";
-      const match = disposition.match(/filename="([^"]+)"/);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = match?.[1] || "Funding_Proposal.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      toast({
-        title: "Could not generate proposal",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const [showUnderwritingDialog, setShowUnderwritingDialog] = useState(false);
-  const [showLenderDialog, setShowLenderDialog] = useState(false);
-  const [showReplyDialog, setShowReplyDialog] = useState(false);
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -678,6 +648,45 @@ export default function ProspectDetail() {
       </div>
     );
   }
+
+  const proposal = buildProposal(
+    proposalSourceFromFile({ prospect, dueDiligence: { data: unwrapDueDiligence(dueDiligenceData) } }),
+  );
+
+  const handleGenerateReport = async () => {
+    if (!proposal.ready) return;
+    toast({
+      title: "Generating funding proposal...",
+      description: "Your Sterling Formatted Proposal download will start shortly.",
+    });
+    try {
+      const res = await fetch(`/api/prospects/${prospectId}/report`, { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 409) {
+          const body = await res.json();
+          throw new Error(body.message || "Proposal facts conflict");
+        }
+        throw new Error("Failed to generate report");
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = match?.[1] || "Funding_Proposal.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "Could not generate proposal",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -711,13 +720,52 @@ export default function ProspectDetail() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end gap-2">
+              {(proposal.conflicts.length > 0 || proposal.missing.length > 0) && (
+                <details className="max-w-sm text-left rounded-md border px-2 py-1 bg-card">
+                  <summary className="cursor-pointer select-none text-xs">
+                    {!proposal.ready ? (
+                      <span className="text-destructive font-medium">
+                        {proposal.conflicts.length} conflict{proposal.conflicts.length === 1 ? "" : "s"}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {proposal.missing.length} gap{proposal.missing.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </summary>
+                  {!proposal.ready && (
+                    <ul data-testid="proposal-conflicts" className="mt-1 space-y-0.5 text-xs text-destructive">
+                      {proposal.conflicts.map((conflict) => (
+                        <li key={conflict.field}>
+                          {conflict.field}: {conflict.values.map((v) => `${v.value} (${v.origin})`).join(" vs ")}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {proposal.missing.length > 0 && (
+                    <ul data-testid="proposal-gaps" className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                      {proposal.missing.map((gap) => (
+                        <li key={gap.field}>
+                          {gap.field}: {gap.emptyState}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </details>
+              )}
+              <div className="flex items-center gap-3">
               {/* Desktop Actions */}
               <div className="hidden md:flex items-center gap-3">
                 <Button variant="outline" onClick={() => navigate("/")} data-testid="link-view-directory">
                   View in Directory
                 </Button>
-                <Button variant="outline" onClick={handleGenerateReport} data-testid="button-generate-report">
+                <Button
+                  variant="outline"
+                  onClick={handleGenerateReport}
+                  disabled={!proposal.ready}
+                  data-testid="button-generate-report"
+                >
                   <FileDown className="h-4 w-4 mr-2" />
                   Generate Report
                 </Button>
@@ -772,7 +820,10 @@ export default function ProspectDetail() {
                     <DropdownMenuItem onClick={() => navigate("/")}>
                       View in Directory
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleGenerateReport}>
+                    <DropdownMenuItem
+                      onClick={proposal.ready ? handleGenerateReport : undefined}
+                      disabled={!proposal.ready}
+                    >
                       <FileDown className="h-4 w-4 mr-2" />
                       Generate Report
                     </DropdownMenuItem>
@@ -796,6 +847,7 @@ export default function ProspectDetail() {
               </div>
 
               <ThemeToggle />
+              </div>
             </div>
           </div>
         </div>

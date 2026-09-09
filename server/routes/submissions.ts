@@ -19,6 +19,7 @@ import { sendEmail } from "../services/email";
 import busboy from "busboy";
 import { getObjectStorage } from "../utils/routerHelpers";
 import { getReadableProspect } from "../utils/prospectAccess";
+import { ProposalNotReadyError } from "@shared/proposalFacts";
 import {
     buildProspectReportData,
     reportFilename,
@@ -71,6 +72,13 @@ const router = Router();
         const reportData = await buildProspectReportData(prospect, { layoutUserId: req.user!.id });
         await streamProspectReport(res, reportData, reportFilename(prospect.company.companyName));
       } catch (error) {
+        if (error instanceof ProposalNotReadyError) {
+          return res.status(409).json({
+            message: error.message,
+            conflicts: error.conflicts,
+            missing: error.missing,
+          });
+        }
         console.error("Error generating report:", error);
         handleApiError(res, error, "api-error");
       }
@@ -121,6 +129,13 @@ const router = Router();
           const reportData = await buildProspectReportData(prospect, { layoutUserId: userId });
           pdfBuffer = await renderProspectReportToBuffer(reportData);
         } catch (pdfError: any) {
+          if (pdfError instanceof ProposalNotReadyError) {
+            return res.status(pdfError.status).json({
+              message: pdfError.message,
+              conflicts: pdfError.conflicts,
+              missing: pdfError.missing,
+            });
+          }
           const errMessage = (pdfError as Error)?.message || "Unknown error";
           console.error("PDF generation error");
           return res.status(500).json({ message: `Failed to generate PDF report: ${errMessage}` });
@@ -580,6 +595,13 @@ const router = Router();
 
         res.json({ submission: updated, handoff });
       } catch (error) {
+        if (error instanceof ProposalNotReadyError) {
+          return res.status(error.status).json({
+            message: error.message,
+            conflicts: error.conflicts,
+            missing: error.missing,
+          });
+        }
         handleApiError(res, error, "api-error");
       }
     }

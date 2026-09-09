@@ -118,7 +118,9 @@ export default function SummaryPage() {
                 }
             );
             const payload = await response.json();
-            if (!payload?.sectionKey || !payload?.content || String(payload.content).trim().length < 80) {
+            const hasBullets = Array.isArray(payload?.bullets) && payload.bullets.length >= 1;
+            const hasContent = typeof payload?.content === "string" && payload.content.trim().length > 0;
+            if (!payload?.sectionKey || (!hasBullets && !hasContent)) {
               throw new Error("Auto Write returned no usable content");
             }
             return payload;
