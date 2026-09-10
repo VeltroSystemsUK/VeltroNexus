@@ -703,6 +703,53 @@ describe("SME attach waterfall", () => {
     expect(dealPatch.email).toBeUndefined();
   });
 
+  it("uses a legal-name domain with MX when Places and OSINT gave no website", async () => {
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "gated",
+        companyName: "Acme Joinery Limited",
+        companyNumber: "1",
+        directorNames: ["John Smith"],
+      } as any,
+      {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        osint: async () => ({ emails: [] }),
+        mxValid: async (email: string) => email.endsWith("@acmejoinery.co.uk") || email.endsWith("@acmejoinery.com") || email.endsWith("@acme-joinery.co.uk"),
+        mxHosts: async (domain: string) =>
+          domain === "acmejoinery.co.uk" ? ["aspmx.l.google.com"] : [],
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.website).toMatch(/acmejoinery\.co\.uk/);
+    expect(dealPatch.email).toBe("john.smith@acmejoinery.co.uk");
+    expect(dealPatch.contactSource).toBe("domain");
+  });
+
+  it("does not treat a registry host as the company domain", async () => {
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "gated",
+        companyName: "Acme Joinery Limited",
+        companyNumber: "1",
+        website: "https://find-and-update.company-information.service.gov.uk/company/1",
+        directorNames: ["John Smith"],
+      } as any,
+      {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+        mxHosts: async () => ["aspmx.l.google.com"],
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(String(dealPatch.email || "")).not.toMatch(/company-information\.service\.gov\.uk/);
+  });
+
   it("skips Places and Companies House when the file already has a website and directors", async () => {
     const places = vi.fn();
     const officers = vi.fn();
@@ -765,6 +812,7 @@ describe("SME attach waterfall", () => {
           hopper: "gated" as const,
           companyName: "Pet Shop Ltd",
           companyNumber: "1",
+          directorNames: [],
           ownerUserId: "u",
           stage: "ingest" as const,
           status: "waiting_timer" as const,
@@ -773,11 +821,18 @@ describe("SME attach waterfall", () => {
           updatedAt: "",
         },
       ] as any,
-      deps: { officers, places, firecrawl, mxValid: async () => true },
+      deps: {
+        officers,
+        places,
+        firecrawl,
+        mxValid: async () => true,
+        mxHosts: async () => [],
+      },
       budget: { ch: 10, places: 0, firecrawl: 0, smtp: 10 },
     });
-    expect(patches).toEqual([]);
-    expect(officers).not.toHaveBeenCalled();
+    expect(patches).toHaveLength(1);
+    expect(patches[0].patch.hopper).not.toBe("sendable");
+    expect(patches[0].patch.email).toBeUndefined();
     expect(places).not.toHaveBeenCalled();
     expect(firecrawl).not.toHaveBeenCalled();
   });

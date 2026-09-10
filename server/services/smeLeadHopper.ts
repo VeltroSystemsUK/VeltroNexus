@@ -13,11 +13,12 @@ import {
 } from "@shared/smeHopper";
 import { rejectBeforeCharges } from "./strataFit";
 import { suppressionSets } from "./mailSuppression";
-import { isBlockedOutreachHost, isPersonalMailbox, outreachHost } from "@shared/pecrSend";
+import { emailMatchesCompany, isBlockedOutreachHost, isPersonalMailbox, outreachHost } from "@shared/pecrSend";
 import { canFirecrawlScrape, firecrawlAuthHeaders, firecrawlScrapeUrl } from "@shared/firecrawl";
 import {
   companyDomainFromWebsite,
   contactMailboxGuesses,
+  domainCandidatesFromCompanyName,
   emailOnCompanyDomain,
   emailsFromScrapedText,
   inferMailboxPattern,
@@ -481,6 +482,20 @@ export async function attachOne(
     }
   }
 
+  if (!domain) {
+    for (const host of domainCandidatesFromCompanyName(deal.companyName)) {
+      if (!emailMatchesCompany(`mailbox@${host}`, deal.companyName)) continue;
+      let ok = false;
+      if (deps.mxHosts) ok = (await deps.mxHosts(host)).length > 0;
+      else ok = await deps.mxValid(`mailbox@${host}`);
+      if (!ok) continue;
+      domain = host;
+      website = `https://${host}`;
+      extra.website = website;
+      break;
+    }
+  }
+
   if (domain) {
     const onDomain = found.filter((item) => emailOnCompanyDomain(item.email, domain as string));
     found.length = 0;
@@ -711,7 +726,7 @@ function canAttachWithBudget(deal: AgenticDealFile, budget: AttachBudget): boole
 
   if (budget.places > 0) return true;
   if (deal.website && (budget.firecrawl > 0 || budget.smtp > 0)) return true;
-  if (!deal.website && hasNames) return true;
+  if (!deal.website && (hasNames || budget.ch > 0)) return true;
   return false;
 }
 
