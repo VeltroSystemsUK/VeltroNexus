@@ -16,8 +16,10 @@ import {
   completeTouch2,
   enrolConvertOpener,
   failNurtureSend,
+  OPENER_CONVERT_CLOSER_DELAY_MS,
   isConvertCloserDue,
   isConvertOpener,
+  keepConvertOpenerOnHardBounce,
   isDoNotContactOpener,
   recordConvertSend,
   writeCloserScript,
@@ -562,6 +564,10 @@ function openerForConvertDeal(deal: { email?: string; id?: number }): OpenerReco
   return undefined;
 }
 
+export function phoneForConvertDeal(deal: { email?: string; id?: number; phone?: string }): string {
+  return String(deal.phone || openerForConvertDeal(deal)?.phone || "").trim();
+}
+
 export function applyConvertSendToOpener(
   deal: { email?: string; id?: number; companyName?: string; contactName?: string },
   cadenceTouchId: "sme_n1" | "sme_n2" | "sme_n3",
@@ -593,17 +599,26 @@ export function applyConvertCloserScript(
 ): OpenerRecord | undefined {
   const opener = openerForConvertDeal(deal);
   if (!opener) return undefined;
-  return saveOpener(
-    writeCloserScript(
-      opener,
-      buildCloserScript({
-        company: deal.companyName || opener.companyName || "",
-        name: convertGreetingName(deal.contactName) || "",
-        lastSiteClickUrl,
-      }),
-      now
-    )
+  const when = now ?? new Date();
+  let next = writeCloserScript(
+    opener,
+    buildCloserScript({
+      company: deal.companyName || opener.companyName || "",
+      name: convertGreetingName(deal.contactName) || "",
+      lastSiteClickUrl,
+    }),
+    when
   );
+  if (!next.nurture.n3At) {
+    next = {
+      ...next,
+      nurture: {
+        ...next.nurture,
+        n3At: new Date(when.getTime() - OPENER_CONVERT_CLOSER_DELAY_MS).toISOString(),
+      },
+    };
+  }
+  return saveOpener(next);
 }
 
 export function applyConvertWakeEnrolToOpener(
@@ -1011,9 +1026,11 @@ function dropBounced(
 ): { all: OpenerRecord[]; dirty: boolean } {
   if (bounceEmails.size === 0) return { all, dirty: false };
   const next = all.filter((opener) => {
-    return ![opener.email, ...(opener.emails || [])].some((email) =>
+    const bounced = [opener.email, ...(opener.emails || [])].some((email) =>
       bounceEmails.has(normalizeEmail(email))
     );
+    if (!bounced) return true;
+    return keepConvertOpenerOnHardBounce(opener);
   });
   return { all: next, dirty: next.length !== all.length };
 }

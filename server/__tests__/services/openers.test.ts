@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentMailItem } from "../../services/agentMailLog";
-import { enrolConvertOpener, OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
+import { enrolConvertOpener, normalizeOpener, OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
 import {
   attachCompanyNumber,
   autoPromoteEligibleOpeners,
@@ -335,6 +335,43 @@ describe("hydrateFromAgentMail", () => {
       bounceEmails: ["ops@northpeak.co.uk"],
     });
     expect(rows).toEqual([]);
+  });
+
+  it("keeps a convert opener with a phone when C1 is still due after a hard bounce", () => {
+    tmpStore();
+    const now = new Date("2026-09-20T10:00:00.000Z");
+    const row = enrolConvertOpener(
+      normalizeOpener({
+        id: "op-1",
+        email: "ops@northpeak.co.uk",
+        phone: "07700900000",
+        status: "nurturing",
+      }),
+      now
+    );
+    writeOpeners([row]);
+    const kept = hydrateFromAgentMail([], undefined, {
+      bounceEmails: ["ops@northpeak.co.uk"],
+    });
+    expect(kept).toHaveLength(1);
+    expect(kept[0].email).toBe("ops@northpeak.co.uk");
+    expect(kept[0].phone).toBe("07700900000");
+  });
+
+  it("drops a convert opener with no phone after a hard bounce", () => {
+    tmpStore();
+    const row = enrolConvertOpener(
+      normalizeOpener({
+        id: "op-1",
+        email: "ops@northpeak.co.uk",
+        status: "nurturing",
+      })
+    );
+    writeOpeners([row]);
+    const dropped = hydrateFromAgentMail([], undefined, {
+      bounceEmails: ["ops@northpeak.co.uk"],
+    });
+    expect(dropped).toEqual([]);
   });
 
   it("keeps a clicker off Non Responsive even without an open pixel", () => {

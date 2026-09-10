@@ -80,6 +80,9 @@ export type ConvertEnrolPatch = {
   outreachTouchId: undefined;
   waitUntil: string;
   callPlaybook: undefined;
+  status: "waiting_timer";
+  stage: "outreach";
+  humanReason: undefined;
 };
 
 type ConvertRenderTouchId =
@@ -363,6 +366,7 @@ export function planConvertTick(input: {
   now?: Date;
   lastSiteClickUrl?: string | null;
   hasHmrcPetition?: boolean;
+  emailHardBounced?: boolean;
 }): ConvertTick {
   const deal = input.deal;
   const now = input.now ?? new Date();
@@ -378,6 +382,13 @@ export function planConvertTick(input: {
   }
 
   if (playbook !== "sme_nurture") return { action: "noop" };
+
+  const stop = String(deal.convertStopReason || "").toLowerCase();
+  if (stop === "opt_out") return { action: "stay_parked", reason: "opt_out" };
+  if (input.emailHardBounced) {
+    if (String(deal.phone || "").trim()) return { action: "queue_closer" };
+    return { action: "stay_parked", reason: "bounce_no_phone" };
+  }
 
   const touch = deal.outreachTouch ?? 0;
   if (touch === 0) {
@@ -535,5 +546,8 @@ export function enrolConvertDealPatch(
     outreachTouchId: undefined,
     waitUntil: waitUntil.toISOString(),
     callPlaybook: undefined,
+    status: "waiting_timer",
+    stage: "outreach",
+    humanReason: undefined,
   };
 }

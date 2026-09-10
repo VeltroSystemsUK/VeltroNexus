@@ -11,6 +11,7 @@ import {
   convertGreetingName,
   convertOverridesHopperHold,
   convertWakeAt,
+  enrolConvertDealPatch,
   isDualOpenConvertEligible,
   isStrataSiteUrl,
   lastSiteClickUrlFromMail,
@@ -25,6 +26,7 @@ import {
   sme2SentAtFromMail,
 } from "@shared/smeConvert";
 import { nextCadenceStep, nextCadenceStepForDeal, SME_NURTURE_CADENCE } from "@shared/salesOs";
+import { isHardBounceMailbox, isOptOutSuppressed } from "@shared/mailDesk";
 
 const sme1 = {
   touchId: "sme_1",
@@ -174,6 +176,45 @@ describe("90-day wake", () => {
         now: new Date("2026-12-20T09:00:00.000Z"),
       })
     ).toEqual({ action: "stay_parked", reason: "opt_out" });
+    expect(
+      planConvertTick({
+        deal: { ...completed, convertStopReason: "blocked", phone: "07700900000" },
+        now: new Date("2026-12-20T09:00:00.000Z"),
+      })
+    ).toEqual({ action: "wake_reenrol" });
+    expect(
+      planConvertTick({
+        deal: { ...completed, convertStopReason: "blocked" },
+        now: new Date("2026-12-20T09:00:00.000Z"),
+      })
+    ).toEqual({ action: "stay_parked", reason: "bounce_no_phone" });
+  });
+});
+
+describe("hard bounce convert tick", () => {
+  it("stops email on bounce, queues C1 when a phone exists, and does not treat bounce as opt_out", () => {
+    const enrolled = { ...deal, convertPlaybook: "sme_nurture" as const, outreachTouch: 1 };
+    expect(
+      planConvertTick({ deal: { ...enrolled, phone: "07700900000" }, emailHardBounced: true })
+    ).toEqual({ action: "queue_closer" });
+    expect(planConvertTick({ deal: enrolled, emailHardBounced: true })).toEqual({
+      action: "stay_parked",
+      reason: "bounce_no_phone",
+    });
+    expect(
+      planConvertTick({
+        deal: { ...enrolled, convertStopReason: "opt_out" },
+        emailHardBounced: true,
+        now: new Date("2026-09-09T09:00:00.000Z"),
+      })
+    ).toEqual({ action: "stay_parked", reason: "opt_out" });
+    const bounce = [{
+      email: "ops@acme.test",
+      reason: "hard bounce — address does not exist",
+      at: "2026-09-10T10:00:00.000Z",
+    }];
+    expect(isHardBounceMailbox("ops@acme.test", bounce)).toBe(true);
+    expect(isOptOutSuppressed({ email: "ops@acme.test" }, bounce)).toBe(false);
   });
 });
 
@@ -222,6 +263,30 @@ describe("convert enrolment", () => {
     expect(
       buildConvertEnrolment([sme1], deal, { id: "op-1" }, new Date("2026-09-09T09:00:00.000Z"))
     ).toBeNull();
+  });
+
+  it("returns waiting_human hunt-close deals to waiting_timer/outreach so N1 can tick", () => {
+    const closed = {
+      ...deal,
+      status: "waiting_human",
+      stage: "human_call",
+      humanReason: "SME close call",
+      outreachTouch: 3,
+    };
+    const patch = enrolConvertDealPatch(closed, { now: new Date("2026-09-09T09:00:00.000Z") });
+    expect(patch.status).toBe("waiting_timer");
+    expect(patch.stage).toBe("outreach");
+    expect(patch.humanReason).toBeUndefined();
+    expect(patch.convertPlaybook).toBe("sme_nurture");
+    expect(patch.outreachTouch).toBe(0);
+    const enrolled = { ...closed, ...patch };
+    expect(
+      planConvertTick({
+        deal: enrolled,
+        sme2SentAt: "2026-09-08T09:00:00.000Z",
+        now: new Date("2026-09-09T09:00:00.000Z"),
+      })
+    ).toMatchObject({ action: "send", cadenceTouchId: "sme_n1" });
   });
 
   it("returns null when inboundDeals has strata_inbound matching the email", () => {

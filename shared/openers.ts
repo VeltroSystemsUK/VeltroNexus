@@ -1,5 +1,6 @@
 import { isOpenedOutboundMail, lastMailOpenAt } from "./mailTracking";
 import { convertWakeAt } from "./smeConvert";
+import { SME_NURTURE_CADENCE } from "./salesOs";
 
 export const OPENER_BOARD_STATUSES = ["new", "nurturing", "not_now", "promoted"] as const;
 export type OpenerBoardStatus = (typeof OPENER_BOARD_STATUSES)[number];
@@ -497,22 +498,32 @@ export function isConvertCloserDue(opener: OpenerRecord, now?: Date): boolean {
   return end - start >= OPENER_CONVERT_CLOSER_DELAY_MS;
 }
 
-const CONVERT_STEP_GAP_MS = 4 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function convertGapMs(touchId: "sme_n2" | "sme_n3"): number {
+  const fallback = touchId === "sme_n2" ? 4 : 5;
+  const days = SME_NURTURE_CADENCE.find((step) => step.touchId === touchId)?.delayDaysFromPrevious ?? fallback;
+  return days * DAY_MS;
+}
 
 function daysUntil(fromIso: string | undefined, delayMs: number, now?: Date): number {
   const start = Date.parse(fromIso || "");
   if (!Number.isFinite(start)) return 0;
   const end = (now ?? new Date()).getTime();
-  return Math.max(0, Math.ceil((start + delayMs - end) / (24 * 60 * 60 * 1000)));
+  return Math.max(0, Math.ceil((start + delayMs - end) / DAY_MS));
+}
+
+function daysLabel(n: number): string {
+  return `${n} ${n === 1 ? "day" : "days"}`;
 }
 
 export function convertStepBadge(opener: OpenerRecord, now?: Date): string {
   if (isConvertCloserDue(opener, now)) return "C1 due";
   const { n1At, n2At, n3At } = opener.nurture;
   if (!n1At) return "N1 queued";
-  if (!n2At) return `N2 in ${daysUntil(n1At, CONVERT_STEP_GAP_MS, now)} days`;
-  if (!n3At) return `N3 in ${daysUntil(n2At, CONVERT_STEP_GAP_MS, now)} days`;
-  return "N3 in 0 days";
+  if (n3At) return `C1 in ${daysLabel(daysUntil(n3At, OPENER_CONVERT_CLOSER_DELAY_MS, now))}`;
+  if (!n2At) return `N2 in ${daysLabel(daysUntil(n1At, convertGapMs("sme_n2"), now))}`;
+  return `N3 in ${daysLabel(daysUntil(n2At, convertGapMs("sme_n3"), now))}`;
 }
 
 export function completeConvertCloser(
@@ -767,13 +778,23 @@ export function canDragOpenerTo(opener: OpenerRecord, column: OpenerStatus): boo
   if (opener.status === "non_responsive" || column === "non_responsive") return false;
   if (isDoNotContactOpener(opener)) return column === "not_now";
   if (column === "not_now") return true;
-  if (column === "new") return opener.nurture.step === 0;
+  if (column === "new") {
+    if (isConvertOpener(opener)) return !opener.nurture.n1At;
+    return opener.nurture.step === 0;
+  }
   if (column === "nurturing") {
     if (isConvertOpener(opener)) return opener.nurture.stopReason !== "promoted";
     return opener.nurture.step >= 1 && opener.nurture.stopReason !== "promoted";
   }
   if (column === "promoted") return canPromoteOpener(opener);
   return false;
+}
+
+export function keepConvertOpenerOnHardBounce(opener: OpenerRecord): boolean {
+  if (!isConvertOpener(opener)) return false;
+  if (!String(opener.phone || "").trim()) return false;
+  if (opener.nurture.closerStatus === "done" || opener.nurture.closerStatus === "skipped") return false;
+  return true;
 }
 
 export function openerBelongsToDesk(opener: Pick<OpenerRecord, "status">, desk: OpenerDesk): boolean {

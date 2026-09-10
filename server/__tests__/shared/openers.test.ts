@@ -16,6 +16,7 @@ import {
   completeConvertCloser,
   completeTouch2,
   convertStepBadge,
+  keepConvertOpenerOnHardBounce,
   daysSitting,
   emptyNurture,
   enrolConvertOpener,
@@ -584,6 +585,11 @@ describe("convert stream", () => {
       status: "sent",
     })))).toBe(false);
     expect(canDragOpenerTo(row, "nurturing")).toBe(true);
+    expect(canDragOpenerTo(row, "new")).toBe(true);
+    expect(keepConvertOpenerOnHardBounce({ ...row, phone: "07700900000" })).toBe(true);
+    expect(keepConvertOpenerOnHardBounce(row)).toBe(false);
+    row = recordConvertSend(row, "sme_n1", "mail-n1", now);
+    expect(canDragOpenerTo(row, "new")).toBe(false);
     row = recordConvertSend(row, "sme_n3", "mail-n3", now);
     expect(isConvertCloserDue(row, new Date(now.getTime() + OPENER_CONVERT_CLOSER_DELAY_MS))).toBe(true);
     const done = completeConvertCloser(row, "call", new Date(now.getTime() + OPENER_CONVERT_CLOSER_DELAY_MS));
@@ -652,7 +658,7 @@ describe("convert auto-promote", () => {
 });
 
 describe("convert step badge", () => {
-  it("labels N1 queued, N2/N3 in n days from +4d, and C1 due when closer due", () => {
+  it("labels N1 queued, N2/N3 in n days from cadence gaps, and C1 while waiting", () => {
     const now = new Date("2026-09-20T10:00:00.000Z");
     const enrolled = enrolConvertOpener(opener(), now);
     expect(convertStepBadge(enrolled, now)).toBe("N1 queued");
@@ -660,13 +666,16 @@ describe("convert step badge", () => {
     const afterN1 = recordConvertSend(enrolled, "sme_n1", "mail-n1", now);
     expect(convertStepBadge(afterN1, now)).toBe("N2 in 4 days");
     expect(convertStepBadge(afterN1, new Date("2026-09-22T10:00:00.000Z"))).toBe("N2 in 2 days");
-    expect(convertStepBadge(afterN1, new Date("2026-09-23T10:00:00.000Z"))).toBe("N2 in 1 days");
+    expect(convertStepBadge(afterN1, new Date("2026-09-23T10:00:00.000Z"))).toBe("N2 in 1 day");
 
     const afterN2 = recordConvertSend(afterN1, "sme_n2", "mail-n2", now);
-    expect(convertStepBadge(afterN2, now)).toBe("N3 in 4 days");
+    expect(convertStepBadge(afterN2, now)).toBe("N3 in 5 days");
+
+    const skipN2 = recordConvertSend(afterN1, "sme_n3", "mail-n3", now);
+    expect(convertStepBadge(skipN2, now)).toBe("C1 in 3 days");
 
     const afterN3 = recordConvertSend(afterN2, "sme_n3", "mail-n3", now);
-    expect(convertStepBadge(afterN3, now)).toBe("N3 in 0 days");
+    expect(convertStepBadge(afterN3, now)).toBe("C1 in 3 days");
     expect(convertStepBadge(afterN3, new Date(now.getTime() + OPENER_CONVERT_CLOSER_DELAY_MS))).toBe(
       "C1 due"
     );

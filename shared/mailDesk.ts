@@ -170,3 +170,29 @@ export function isSuppressed(
     return false;
   });
 }
+
+export function isHardBounceReason(reason?: string | null): boolean {
+  return /hard bounce/i.test(String(reason || ""));
+}
+
+export function isHardBounceMailbox(
+  email: string | null | undefined,
+  list: SuppressionRow[]
+): boolean {
+  const target = String(email || "").trim().toLowerCase();
+  if (!target) return false;
+  return list.some(
+    (row) =>
+      String(row.email || "").trim().toLowerCase() === target && isHardBounceReason(row.reason)
+  );
+}
+
+export function isOptOutSuppressed(
+  probe: { email?: string | null; companyNumber?: string | null },
+  list: SuppressionRow[]
+): boolean {
+  return isSuppressed(
+    probe,
+    list.filter((row) => !isHardBounceReason(row.reason))
+  );
+}

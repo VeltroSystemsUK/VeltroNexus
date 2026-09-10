@@ -21,6 +21,8 @@ vi.mock("../../services/email", () => ({
 
 vi.mock("../../services/mailDesk", () => ({
   mailIsSuppressed: vi.fn(() => false),
+  mailIsOptedOut: vi.fn(() => false),
+  mailIsHardBounced: vi.fn(() => false),
 }));
 
 const sme2CreatedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
@@ -107,7 +109,33 @@ async function loadTick() {
     ...patch,
   }));
   vi.mocked(storage.getSystemSetting).mockResolvedValue({});
+  const { mailIsHardBounced, mailIsOptedOut, mailIsSuppressed } = await import("../../services/mailDesk");
+  vi.mocked(mailIsSuppressed).mockReturnValue(false);
+  vi.mocked(mailIsOptedOut).mockReturnValue(false);
+  vi.mocked(mailIsHardBounced).mockReturnValue(false);
   vi.mocked(sendEmail).mockResolvedValue({ success: true, messageId: "mid-n1", id: "mail-n1" } as never);
+  vi.mocked(listAgentMail).mockReturnValue([
+    {
+      id: "mail-sme1",
+      touchId: "sme_1",
+      direction: "outbound",
+      status: "sent",
+      dealId: 9,
+      to: "david@acmejoinery.co.uk",
+      opens: ["2026-09-01T10:00:00.000Z"],
+      createdAt: "2026-09-01T09:00:00.000Z",
+    },
+    {
+      id: "mail-sme2",
+      touchId: "sme_2",
+      direction: "outbound",
+      status: "sent",
+      dealId: 9,
+      to: "david@acmejoinery.co.uk",
+      opens: ["2026-09-08T10:00:00.000Z"],
+      createdAt: sme2CreatedAt,
+    },
+  ] as never);
   return { storage, sendEmail, listAgentMail, agenticWorkflow, openers };
 }
 
@@ -254,5 +282,74 @@ describe("sendOutreach convert tick", () => {
     expect(sendEmail).not.toHaveBeenCalled();
     expect(updated.hopper).toBe("parked");
     expect(updated.outreachTouch).toBe(0);
+  });
+
+  it("ticks N1 after late dual-open enrol of a waiting_human sme_close deal", async () => {
+    const { sendEmail, agenticWorkflow } = await loadTick();
+    const { enrolConvertDealPatch } = await import("@shared/smeConvert");
+    const { shouldProcessAgenticTick } = await import("@shared/smeOutreach");
+    const huntClosed = convertDeal({
+      status: "waiting_human",
+      stage: "human_call",
+      humanReason: "SME close call",
+      convertPlaybook: undefined,
+      outreachTouch: 3,
+    });
+    expect(shouldProcessAgenticTick(huntClosed as never)).toBe(false);
+    const patch = enrolConvertDealPatch(huntClosed as never, { now: new Date() });
+    expect(patch).toMatchObject({
+      status: "waiting_timer",
+      stage: "outreach",
+      humanReason: undefined,
+      convertPlaybook: "sme_nurture",
+    });
+    const enrolled = { ...huntClosed, ...patch, waitUntil: new Date(Date.now() - 1000).toISOString() };
+    expect(shouldProcessAgenticTick(enrolled as never)).toBe(true);
+    const updated = await agenticWorkflow.sendOutreach(enrolled as never);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ touchId: "sme_n1", dealId: 9 }),
+      "david@acmejoinery.co.uk",
+      expect.any(String),
+      expect.any(String)
+    );
+    expect(updated.outreachTouch).toBe(1);
+  });
+
+  it("queues C1 on hard bounce when a phone exists and does not stamp opt_out", async () => {
+    const { storage, sendEmail, agenticWorkflow } = await loadTick();
+    const { mailIsHardBounced } = await import("../../services/mailDesk");
+    vi.mocked(mailIsHardBounced).mockReturnValue(true);
+    const updated = await agenticWorkflow.sendOutreach(
+      convertDeal({ phone: "07700900000", outreachTouch: 1 }) as never
+    );
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(storage.updateAgenticDeal).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        status: "waiting_human",
+        humanReason: "Convert closer due on Openers",
+      })
+    );
+    expect(storage.updateAgenticDeal).not.toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({ convertStopReason: "opt_out" })
+    );
+    expect(updated.convertStopReason).not.toBe("opt_out");
+  });
+
+  it("parks bounce with no phone as blocked, not opt_out", async () => {
+    const { storage, sendEmail, agenticWorkflow } = await loadTick();
+    const { mailIsHardBounced } = await import("../../services/mailDesk");
+    vi.mocked(mailIsHardBounced).mockReturnValue(true);
+    await agenticWorkflow.sendOutreach(convertDeal({ phone: undefined, outreachTouch: 1 }) as never);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(storage.updateAgenticDeal).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({ convertStopReason: "blocked" })
+    );
+    expect(storage.updateAgenticDeal).not.toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({ convertStopReason: "opt_out" })
+    );
   });
 });

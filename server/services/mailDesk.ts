@@ -1,4 +1,11 @@
-import { classifyInboundMail, isHardBounce, isSuppressed, type MailKind } from "@shared/mailDesk";
+import {
+  classifyInboundMail,
+  isHardBounce,
+  isHardBounceMailbox,
+  isOptOutSuppressed,
+  isSuppressed,
+  type MailKind,
+} from "@shared/mailDesk";
 import { storage } from "../storage";
 import { deleteAgentMail, listAgentMail, patchAgentMail, type AgentMailItem } from "./agentMailLog";
 import { addSuppression, loadSuppression } from "./mailSuppression";
@@ -144,4 +151,12 @@ export async function processAgentInbox(): Promise<{ processed: number; spam: nu
 
 export function mailIsSuppressed(email?: string | null, companyNumber?: string | null): boolean {
   return isSuppressed({ email, companyNumber }, loadSuppression());
+}
+
+export function mailIsOptedOut(email?: string | null, companyNumber?: string | null): boolean {
+  return isOptOutSuppressed({ email, companyNumber }, loadSuppression());
+}
+
+export function mailIsHardBounced(email?: string | null): boolean {
+  return isHardBounceMailbox(email, loadSuppression());
 }

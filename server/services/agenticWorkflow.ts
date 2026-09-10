@@ -57,8 +57,8 @@ import {
   sme2SentAtFromMail,
 } from "@shared/smeConvert";
 import { listAgentMail } from "./agentMailLog";
-import { applyConvertCloserScript, applyConvertSendToOpener, applyConvertWakeEnrolToOpener } from "./openers";
-import { mailIsSuppressed } from "./mailDesk";
+import { applyConvertCloserScript, applyConvertSendToOpener, applyConvertWakeEnrolToOpener, phoneForConvertDeal } from "./openers";
+import { mailIsHardBounced, mailIsOptedOut, mailIsSuppressed } from "./mailDesk";
 import { suppressionSets } from "./mailSuppression";
 import { isOpenedOutboundMail } from "@shared/mailTracking";
 import { assessBbbEligibility, bbbBlockMessage, type BbbAssessment } from "@shared/bbbEligibility";
@@ -2011,15 +2011,21 @@ export const agenticWorkflow = {
     const now = new Date();
     const mail = listAgentMail(10_000).filter((item) => item.dealId === deal.id);
     const lastSiteClickUrl = lastSiteClickUrlFromMail(mail);
-    const gatedDeal = mailIsSuppressed(deal.email, deal.companyNumber)
+    const optedOut = mailIsOptedOut(deal.email, deal.companyNumber);
+    const bounced = !optedOut && mailIsHardBounced(deal.email);
+    const phone = phoneForConvertDeal(deal);
+    const gatedDeal = optedOut
       ? { ...deal, convertStopReason: "opt_out" as const }
-      : deal;
+      : bounced && !phone
+        ? { ...deal, convertStopReason: "blocked" as const }
+        : { ...deal, ...(phone ? { phone } : {}) };
     const tick = planConvertTick({
       deal: gatedDeal,
       sme2SentAt: sme2SentAtFromMail(mail),
       now,
       lastSiteClickUrl,
       hasHmrcPetition: dealHasHmrcPetition(deal),
+      emailHardBounced: bounced,
     });
 
     if (tick.action === "stay_parked") {
@@ -2052,6 +2058,7 @@ export const agenticWorkflow = {
         ...patch,
         stage: "outreach",
         status: "waiting_timer",
+        humanReason: undefined,
         events: addEvent(deal, "outreach", "Convert wake re-enrol — N1 on next window", "outreach-sales"),
       }) as Promise<AgenticDealFile>;
     }

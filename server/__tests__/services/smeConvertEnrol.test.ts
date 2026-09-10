@@ -132,4 +132,25 @@ describe("enrolConvertFromMail", () => {
     await enrolConvertFromMail(sme2Item);
     expect(storage.updateAgenticDeal).not.toHaveBeenCalled();
   });
+
+  it("returns a waiting_human sme_close deal to waiting_timer/outreach", async () => {
+    const { storage, enrolConvertFromMail } = await loadEnrol();
+    vi.mocked(storage.getAgenticDeal).mockResolvedValue({
+      ...outreachDeal,
+      status: "waiting_human",
+      stage: "human_call",
+      humanReason: "SME close call",
+    } as never);
+    await enrolConvertFromMail(sme2Item);
+    expect(storage.updateAgenticDeal).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        convertPlaybook: "sme_nurture",
+        status: "waiting_timer",
+        stage: "outreach",
+        humanReason: undefined,
+        outreachTouch: 0,
+      })
+    );
+  });
 });
