@@ -24,12 +24,19 @@ describe("company domain mailbox engine", () => {
     ).toEqual(["sales@btscars.co.uk", "bob@mail.btscars.co.uk"]);
   });
 
-  it("guesses first.last and first on the company domain for a real person", () => {
-    expect(contactMailboxGuesses("petshop.co.uk", ["Adam Taylor"])).toEqual([
-      "adam.taylor@petshop.co.uk",
-      "ataylor@petshop.co.uk",
-      "adam@petshop.co.uk",
+  it("guesses six formats for the company's primary director only", () => {
+    expect(contactMailboxGuesses("acme.co.uk", ["John Smith", "Jane Doe"])).toEqual([
+      "john.smith@acme.co.uk",
+      "jsmith@acme.co.uk",
+      "john@acme.co.uk",
+      "johnsmith@acme.co.uk",
+      "j.smith@acme.co.uk",
+      "johns@acme.co.uk",
     ]);
+    expect(contactMailboxGuesses("ihsanpharma.co.uk", ["Jawad Moin MEHROOF"])[0]).toBe(
+      "jawad.mehroof@ihsanpharma.co.uk"
+    );
+    expect(contactMailboxGuesses("petshop.co.uk", ["Adam Taylor"])).not.toContain("info@petshop.co.uk");
     expect(contactMailboxGuesses("o-i.com", ["O-I EUROPE SARL"])).toEqual([]);
   });
 
@@ -37,6 +44,14 @@ describe("company domain mailbox engine", () => {
     expect(inferMailboxPattern(["jane.smith@petshop.co.uk", "info@petshop.co.uk"])).toBe("first.last");
     expect(inferMailboxPattern(["ataylor@petshop.co.uk"], ["Adam Taylor"])).toBe("flast");
     expect(inferMailboxPattern(["info@petshop.co.uk", "sales@petshop.co.uk"])).toBe(null);
+    expect(contactMailboxGuesses("petshop.co.uk", ["Adam Taylor"], "first.last")).toEqual([
+      "adam.taylor@petshop.co.uk",
+    ]);
+  });
+
+  it("locks a published first.last and still only uses the primary director", () => {
+    expect(inferMailboxPattern(["jane.smith@petshop.co.uk", "info@petshop.co.uk"])).toBe("first.last");
+    expect(inferMailboxPattern(["johns@petshop.co.uk"], ["John Smith"])).toBe("firstl");
     expect(contactMailboxGuesses("petshop.co.uk", ["Adam Taylor"], "first.last")).toEqual([
       "adam.taylor@petshop.co.uk",
     ]);

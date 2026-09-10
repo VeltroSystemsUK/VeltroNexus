@@ -60,7 +60,7 @@ function personTokens(name: string): string[] {
     .filter((token) => token.length >= 2 && !CORP_TOKENS.has(token));
 }
 
-export type MailboxPattern = "first.last" | "flast" | "first";
+export type MailboxPattern = "first.last" | "flast" | "first" | "firstlast" | "f.last" | "firstl";
 
 const ROLE_LOCALS = new Set([
   "info",
@@ -81,7 +81,17 @@ function localsForPerson(first: string, last: string, pattern?: MailboxPattern |
   if (pattern === "first.last") return [`${first}.${last}`];
   if (pattern === "flast") return [`${first[0]}${last}`];
   if (pattern === "first") return [first];
-  return [`${first}.${last}`, `${first[0]}${last}`, first];
+  if (pattern === "firstlast") return [`${first}${last}`];
+  if (pattern === "f.last") return [`${first[0]}.${last}`];
+  if (pattern === "firstl") return [`${first}${last[0]}`];
+  return [
+    `${first}.${last}`,
+    `${first[0]}${last}`,
+    first,
+    `${first}${last}`,
+    `${first[0]}.${last}`,
+    `${first}${last[0]}`,
+  ];
 }
 
 export function inferMailboxPattern(emails: string[], directorNames: string[] = []): MailboxPattern | null {
@@ -98,8 +108,12 @@ export function inferMailboxPattern(emails: string[], directorNames: string[] = 
       if (local === `${first}.${last}`) return "first.last";
       if (local === `${first[0]}${last}`) return "flast";
       if (local === first) return "first";
+      if (local === `${first}${last}`) return "firstlast";
+      if (local === `${first[0]}.${last}`) return "f.last";
+      if (local === `${first}${last[0]}`) return "firstl";
     }
     if (/^[a-z]{2,}\.[a-z]{2,}$/.test(local)) return "first.last";
+    if (/^[a-z]\.[a-z]{2,}$/.test(local)) return "f.last";
   }
   return null;
 }
@@ -116,7 +130,7 @@ export function contactMailboxGuesses(
   if (!root || isBlockedOutreachHost(root)) return [];
   const seen = new Set<string>();
   const guesses: string[] = [];
-  for (const name of directorNames.slice(0, 2)) {
+  for (const name of directorNames.slice(0, 1)) {
     const tokens = personTokens(name);
     if (tokens.length < 2) continue;
     const first = tokens[0];
