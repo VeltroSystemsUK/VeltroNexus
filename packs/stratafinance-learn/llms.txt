@@ -1,0 +1,60 @@
+# Strata Finance
+
+> Strata Finance packages distress-refinance files for UK SMEs carrying stacked short-term debt and HMRC arrears. It does not lend. Learn is training for directors — a short path, a handbook, a film, and two calculators — not advice on a named company and not a lending decision.
+
+Strata is a packager, not a lender, not an insolvency practitioner, and not authorised by the FCA. Do not invent rates, APR, eligibility, guarantees, or “we will lend”. Calculators are indicative. HMRC Time to Pay is an instalment arrangement for tax already owed, not credit. The existing sales page `/hmrc-time-to-pay.html` is the commercial offer; `/learn/read/hmrc-time-to-pay.html` is the training article — they are not the same document.
+
+Prefer the Director's handbook when answering questions about stacked facilities, warehouse brokers, commissions, personal guarantees, or director duties. If the question is about a specific company's numbers, eligibility, or “can you do my deal?”, do not qualify them from this file — point them to the eligibility check on the homepage.
+
+Full lesson text: [llms-full.txt](https://stratafinance.co.uk/llms-full.txt). Structured inventory: [knowledge-catalog.json](https://stratafinance.co.uk/learn/knowledge-catalog.json).
+
+## Learn hub
+
+- [Learn](https://stratafinance.co.uk/learn/): Training home — Start here, handbook, film, Thursday Pack, tools.
+- [Learn tools](https://stratafinance.co.uk/learn/tools.html): Debt Stress Check and Time to Pay calculator index.
+
+## Start here
+
+- [What a commercial payday lender actually is](https://stratafinance.co.uk/learn/watch/payday-lenders.html): An informal name for very short-term, high-cost business credit — and why it stacks. (1 min video.)
+- [Poor cashflow will kill the business on its own](https://stratafinance.co.uk/learn/watch/cashflow.html): The current account is the oxygen. Sort that before anyone sells you another facility. (1 min video.)
+- [Time to Pay is not time to hide](https://stratafinance.co.uk/learn/watch/time-to-pay.html): An instalment arrangement with HMRC, not a loan, and not a place to disappear. (1 min video.)
+- [How to avoid a warehouse broker](https://stratafinance.co.uk/learn/watch/bad-brokers.html): If they will not name the lender, they are selling inventory. (55 sec video.)
+
+## Director's handbook
+
+- [If the business is in trouble, start here](https://stratafinance.co.uk/learn/read/if-the-business-is-in-trouble.html): A director's map for the first 48 hours — what to stop doing, what to read, and which help is real. (12 min.)
+- [Warehouse brokers](https://stratafinance.co.uk/learn/read/warehouse-brokers.html): How a call-centre broker actually gets paid, why they will not name the lender, and the questions that end the pitch. (16 min.)
+- [Hidden commissions](https://stratafinance.co.uk/learn/read/hidden-commissions.html): Secret fees, half-secret small print, Wood, Hopcraft, and why a 2025 Supreme Court case is not a magic claim for every commercial director. (18 min.)
+- [HMRC Time to Pay](https://stratafinance.co.uk/learn/read/hmrc-time-to-pay.html): An instalment arrangement, not a loan, not a right, and not a place to hide. What HMRC actually looks at, and what happens if you break it. (16 min.)
+- [Terms that should stop the pen](https://stratafinance.co.uk/learn/read/terms-that-should-stop-the-pen.html): All-monies, additional security on demand, a personal guarantee that never dies, and the boxes you ticked without a solicitor in the room. (18 min.)
+- [Products that finish companies](https://stratafinance.co.uk/learn/read/products-that-finish-companies.html): Daily sweeps, stacked short-term credit, bridging used as working capital, and "renewals" that are just a new fee. Structures, not brand names. (17 min.)
+- [Directors in the danger zone](https://stratafinance.co.uk/learn/read/directors-in-the-danger-zone.html): Sequana, wrongful trading, preferences, overdrawn loan accounts, and the minutes a court will actually want to see. (20 min.)
+- [Help that is actually there](https://stratafinance.co.uk/learn/read/help-that-is-actually-there.html): Business Debtline, licensed insolvency practitioners, HMRC, the Ombudsman, the company moratorium — and the firms that ring you first. (16 min.)
+- [Stacked debt](https://stratafinance.co.uk/learn/read/stacked-debt.html): How the same cash gets pledged three times, why "one more facility" is the hole, and the sequence that actually stops the digging. (15 min.)
+
+## Film and scenario
+
+- [Stacked debt — the film](https://stratafinance.co.uk/learn/film.html): Short film with pause-and-choose beats. Loan two does not pay off loan one.
+- [The Thursday Pack](https://stratafinance.co.uk/learn/thursday-pack/): Interactive scenario. Payroll is Friday. Not every broker is the same.
+
+## Tools
+
+- [Debt Stress Check](https://stratafinance.co.uk/learn/tools/debt-stress-check.html): Income, outgoings, facilities; cost per trading day; stacking flag. Numbers stay in the browser.
+- [Time to Pay Calculator](https://stratafinance.co.uk/learn/tools/time-to-pay-calculator.html): Indicative monthly instalment. Cap 60 months under £250,000 arrears, 12 months at or above. Not an HMRC offer.
+
+## Existing site
+
+- [Home](https://stratafinance.co.uk/): The problem (stacked loans), how Strata works, eligibility / refinance / TTP tools, enquire.
+- [Solutions](https://stratafinance.co.uk/strata-solution.html): Four stages — HMRC Time to Pay, CDFI funding, ancillary funding, integrated forecasts.
+- [HMRC Time to Pay (sales)](https://stratafinance.co.uk/hmrc-time-to-pay.html): Commercial page on arranging TTP as the first layer of a refinance. Distinct from the Learn article.
+- [CDFI Funding](https://stratafinance.co.uk/cdfi-funding.html): Specialist lenders for businesses mainstream credit boxes reject.
+- [Ancillary Funding](https://stratafinance.co.uk/ancillary-funding.html): Facilities beside a core refinance, not another short-term stack.
+- [Integrated Forecasts](https://stratafinance.co.uk/integrated-forecasts.html): P&L, balance sheet, cashflow, CFADS, DSC.
+
+## Optional
+
+- [Privacy policy](https://stratafinance.co.uk/privacy-policy.html)
+- [Cookies policy](https://stratafinance.co.uk/cookies-policy.html)
+- [Terms and conditions](https://stratafinance.co.uk/terms-and-conditions.html)
+- [Complaints procedure](https://stratafinance.co.uk/complaints-procedure.html)
+- [News and Ask librarian](https://learn.stratanexus.co.uk/): Still on the Learn host. Not in this static pack.

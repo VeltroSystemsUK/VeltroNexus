@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>The Thursday Pack — Strata</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@500;600;700&family=Unbounded:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --ink:#e8ece6; --muted:#9aa394; --dim:#6f776c; --line:#ffffff1a;
+  --green:#3dff9a; --green-ink:#062014; --bad:#ff6b5a; --panel:#0c0f0cf2;
+  --stage:#080a09;
+  --hud-h:48px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;height:100dvh;overflow:hidden;background:#050605;color:var(--ink);font-family:"Plus Jakarta Sans",system-ui,sans-serif}
+body{display:grid;place-items:center}
+#stage{width:min(1120px,100vw);height:min(720px,100dvh,100%);max-height:100dvh;position:relative;overflow:hidden;background:var(--stage);box-shadow:0 24px 80px #000a}
+#bg{position:absolute;inset:0;background:#111 center/cover no-repeat}
+#bg:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0007 0%,#0002 42%,#000c 100%);pointer-events:none}
+#hud{position:absolute;top:0;left:0;right:0;z-index:20;display:none;align-items:center;gap:14px;padding:10px 14px;background:#050705e6;border-bottom:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+#hud.on{display:flex}
+#hud .brand{color:var(--muted);white-space:nowrap}
+#hud .brand b{color:var(--green);font-weight:600}
+#rail{display:flex;gap:6px;color:var(--dim);flex:1;min-width:0}
+#rail .now{color:var(--green)}
+#meters{display:flex;align-items:center;gap:12px;margin-left:auto}
+.stat{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.pip{width:56px;height:5px;background:#1b211b;border-radius:99px;overflow:hidden}
+.pip i{display:block;height:100%;background:var(--green);width:30%;transition:width .35s}
+.pip.bad i{background:var(--bad)}
+.cash{color:var(--green);font-size:12px}
+#board{position:absolute;left:16px;right:16px;bottom:16px;top:var(--hud-h);z-index:3;display:none;grid-template-columns:minmax(0,1.35fr) 280px;gap:12px}
+#board.on{display:grid}
+.hotspots{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;min-height:0}
+.spot{position:relative;border:1px solid var(--line);overflow:hidden;cursor:pointer;background:#111;color:#fff;padding:0;font:inherit;min-height:0}
+.spot img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.88) brightness(.82);transition:transform .25s,filter .25s}
+.spot:hover img{transform:scale(1.05);filter:brightness(1)}
+.spot .tag{position:absolute;left:8px;bottom:8px;background:#000c;padding:5px 8px;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.spot.pulse .tag{color:var(--green)}
+.spot.pulse{outline:1px solid #3dff9a66}
+.side{display:flex;flex-direction:column;justify-content:flex-end;gap:8px;min-width:0}
+.who-card{display:flex;gap:10px;background:var(--panel);border:1px solid var(--line);padding:10px}
+.who-card img{width:64px;height:84px;object-fit:cover;object-position:top;flex-shrink:0}
+.who-card h3{font-family:Unbounded,sans-serif;font-size:13px;margin-bottom:4px}
+.who-card p{font-size:12px;color:var(--muted);line-height:1.45}
+.inv{display:flex;gap:5px;flex-wrap:wrap}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);padding:4px 6px;color:var(--dim)}
+.chip.on{border-color:#3dff9a66;color:var(--green)}
+#modal{position:absolute;top:var(--hud-h);left:0;right:0;bottom:0;z-index:6;display:none;background:#000a;padding:16px;min-height:0}
+#modal.on{display:flex}
+#sheet{display:grid;grid-template-columns:minmax(240px,.95fr) minmax(280px,1.05fr);grid-template-rows:minmax(0,1fr);width:100%;height:100%;min-height:0;background:#0b0d0c;border:1px solid var(--line);overflow:hidden}
+#sheet img.hero{width:100%;height:100%;min-height:0;object-fit:cover}
+#sheet .body{padding:20px 20px 16px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#sheet .who{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);margin-bottom:8px;flex:0 0 auto}
+#sheet h2{font-family:Unbounded,sans-serif;font-size:clamp(18px,2.4vw,26px);line-height:1.15;margin-bottom:10px;flex:0 0 auto}
+#sheet .copy{font-size:14px;line-height:1.55;color:#cfd6cb;margin-bottom:16px;flex:1 1 auto;min-height:0;overflow:auto}
+.acts{display:grid;gap:8px;flex:0 0 auto}
+.act{cursor:pointer;text-align:left;background:#141814;border:1px solid #2a312a;color:var(--ink);padding:11px 12px;min-height:44px;font:600 14px/1.3 "Plus Jakarta Sans",sans-serif}
+.act:hover{border-color:var(--green);background:#163023}
+.act small{display:block;color:var(--dim);font-weight:500;margin-top:3px}
+#fx{position:absolute;top:var(--hud-h);left:0;right:0;bottom:0;pointer-events:none;z-index:8}
+.pop{position:absolute;font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;animation:rise 1.1s ease-out forwards}
+.pop.good{color:var(--green)}.pop.bad{color:var(--bad)}
+@keyframes rise{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-36px)}}
+#title{position:absolute;inset:0;z-index:7;display:flex;flex-direction:column;justify-content:flex-end;padding:40px;overflow:auto}
+#title.hide{display:none}
+#title h1{font-family:Unbounded,sans-serif;font-size:clamp(40px,6.4vw,72px);line-height:.9;letter-spacing:-.04em}
+#title h1 i{font-style:normal;color:var(--green)}
+#title p{max-width:420px;color:#c8d0c4;margin:14px 0 18px;font-size:15px;line-height:1.5}
+button.go,a.go{cursor:pointer;border:0;background:var(--green);color:var(--green-ink);font:800 13px Unbounded,sans-serif;padding:12px 16px;text-decoration:none;display:inline-block}
+#note{color:var(--dim);font-size:12px;margin-top:12px;max-width:460px;line-height:1.45}
+#end{position:absolute;top:var(--hud-h);left:0;right:0;bottom:0;z-index:9;display:none;align-items:flex-end;padding:20px;background:#0007;overflow:auto;min-height:0}
+#end.on{display:flex}
+#endcard{width:min(640px,100%);max-height:100%;overflow:auto;background:var(--panel);border:1px solid var(--line);padding:22px}
+#endcard h2{font-family:Unbounded,sans-serif;font-size:24px;margin-bottom:8px}
+#endcard .pics{display:flex;gap:8px;margin:12px 0}
+#endcard .pics img{width:32%;height:84px;object-fit:cover;border:1px solid var(--line)}
+#endcard .cta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+a.go.ghost,button.go.ghost{background:transparent;color:var(--ink);border:1px solid #ffffff33}
+@media(max-width:820px){
+  #board,#sheet{grid-template-columns:1fr}
+  #sheet{grid-template-rows:minmax(88px,28%) minmax(0,1fr)}
+  #hud{flex-wrap:wrap;row-gap:8px}
+  #rail{flex-basis:100%}
+  #meters{display:flex;flex-wrap:wrap;gap:8px 10px;margin-left:0}
+  .pip{width:40px}
+  #sheet img.hero{height:100%}
+  .hotspots{grid-template-rows:1fr 1fr;min-height:0}
+  .spot{height:auto;min-height:88px}
+  #title{padding:20px}
+  #title h1{font-size:clamp(28px,10vw,48px)}
+}
+@media(max-height:700px){
+  #title{padding:16px 20px}
+  #title h1{font-size:clamp(28px,9vh,52px)}
+  #modal{padding:10px}
+  #sheet .body{padding:14px 14px 12px}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"></div>
+  <header id="hud">
+    <div class="brand">NORTHLINE · <b id="clock">THU 16:40</b></div>
+    <div id="rail"></div>
+    <div id="meters">
+      <div class="stat">CASH <span class="cash" id="cash">£6,200</span></div>
+      <div class="stat">RUN <div class="pip" id="p-run"><i></i></div></div>
+      <div class="stat">STACK <div class="pip bad" id="p-stack"><i></i></div></div>
+      <div class="stat">CTRL <div class="pip" id="p-ctrl"><i></i></div></div>
+      <div class="stat">DUTY <div class="pip bad" id="p-duty"><i></i></div></div>
+    </div>
+  </header>
+  <div id="board">
+    <div class="hotspots" id="spots"></div>
+    <div class="side">
+      <div class="who-card">
+        <img id="leadface" alt=""/>
+        <div>
+          <h3 id="leadname">Thursday</h3>
+          <p id="leadcopy">Click a picture. That choice plays out.</p>
+        </div>
+      </div>
+      <div class="inv" id="inv"></div>
+    </div>
+  </div>
+  <div id="modal">
+    <div id="sheet">
+      <img class="hero" id="hero" alt=""/>
+      <div class="body">
+        <div class="who" id="mwho"></div>
+        <h2 id="mhead"></h2>
+        <div class="copy" id="mcopy"></div>
+        <div class="acts" id="acts"></div>
+      </div>
+    </div>
+  </div>
+  <div id="fx"></div>
+  <section id="title">
+    <h1>The<br>Thursday<br><i>Pack</i></h1>
+    <p>Payroll is Friday. A call-centre broker has an offer. HMRC has an envelope. A professional broker has a sequence: map, Time to Pay, one structure. They do not lend Friday.</p>
+    <button class="go" type="button" onclick="start()">Sit down</button>
+    <p id="note">Training only. HMRC sets Time to Pay. Funders set the structure. Strata packages the file.</p>
+  </section>
+  <section id="end"><div id="endcard"></div></section>
+</div>
+<script>
+const A="assets/";
+const IMG={
+  desk:A+"desk.jpg", you:A+"you.jpg", broker:A+"broker.jpg", pack:A+"pack.jpg",
+  june:A+"june.jpg", warehouse:A+"warehouse.jpg", morning:A+"morning.jpg",
+  hmrc:A+"hmrc.jpg", phone:A+"phone.jpg", itemPack:A+"item-pack.jpg",
+  env:A+"item-envelope.jpg", stamp:A+"item-stamp.jpg", laptop:A+"item-laptop.jpg",
+  mobile:A+"item-mobile.jpg", alan:A+"alan.jpg",
+  doormat:A+"doormat.jpg", bench:A+"bench.jpg", kitchen:A+"kitchen.jpg",
+  envelopes:A+"envelopes.jpg", home:A+"home.jpg"
+};
+let S, PHASE;
+
+function reset(){
+  S={cash:6200,run:18,stack:1,ctrl:78,duty:42,personal:12,flags:{},inv:[]};
+  PHASE="thu";
+}
+function clamp(n){return Math.max(0,Math.min(100,n))}
+function money(n){return "£"+Math.round(n).toLocaleString("en-GB")}
+function pinHud(){
+  const hud=document.getElementById("hud");
+  const h=hud.classList.contains("on")?Math.ceil(hud.getBoundingClientRect().height):0;
+  document.getElementById("stage").style.setProperty("--hud-h",(h||48)+"px");
+}
+function paint(){
+  document.getElementById("cash").textContent=money(S.cash);
+  document.querySelector("#p-run i").style.width=clamp(S.run/60*100)+"%";
+  document.querySelector("#p-stack i").style.width=clamp(S.stack/4*100)+"%";
+  document.querySelector("#p-ctrl i").style.width=S.ctrl+"%";
+  document.querySelector("#p-duty i").style.width=S.duty+"%";
+  document.getElementById("inv").innerHTML=(S.inv.length?S.inv:["empty desk"]).map(x=>`<span class="chip ${x!=="empty desk"?"on":""}">${x}</span>`).join("");
+  pinHud();
+}
+function fx(text,good){
+  const el=document.createElement("div");
+  el.className="pop "+(good?"good":"bad");
+  el.textContent=text;
+  el.style.left=(42+Math.random()*30)+"%";
+  el.style.top="56%";
+  document.getElementById("fx").appendChild(el);
+  setTimeout(()=>el.remove(),1100);
+}
+function apply(d){
+  if(!d) return;
+  if(d.cash){S.cash=Math.max(0,S.cash+d.cash);fx((d.cash>0?"+":"")+money(d.cash),d.cash>0)}
+  if(d.run){S.run=Math.max(0,S.run+d.run);fx((d.run>0?"+":"")+d.run+" runway",d.run>0)}
+  if(d.stack){S.stack=Math.max(0,S.stack+d.stack);fx((d.stack>0?"+":"")+d.stack+" stack",d.stack<0)}
+  if(d.ctrl){S.ctrl=clamp(S.ctrl+d.ctrl);fx((d.ctrl>0?"+":"")+d.ctrl+" control",d.ctrl>0)}
+  if(d.duty){S.duty=clamp(S.duty+d.duty);fx((d.duty>0?"+":"")+d.duty+" duty",d.duty<0)}
+  if(d.personal) S.personal=clamp(S.personal+d.personal);
+  if(d.flag) S.flags[d.flag]=true;
+  if(d.flag2) S.flags[d.flag2]=true;
+  if(d.item && !S.inv.includes(d.item)) S.inv.push(d.item);
+  paint();
+}
+function bg(src){document.getElementById("bg").style.backgroundImage="url('"+src+"')"}
+
+const SPOTS={
+  thu:[
+    {id:"pack", img:IMG.itemPack, tag:"The offer", pulse:true},
+    {id:"env", img:IMG.env, tag:"HMRC", pulse:true},
+    {id:"phone", img:IMG.mobile, tag:"Call-centre broker", pulse:true},
+    {id:"strata", img:IMG.morning, tag:"Professional broker", pulse:true}
+  ],
+  week2:[
+    {id:"page11", img:IMG.pack, tag:"Page 11", pulse:true},
+    {id:"laptop", img:IMG.laptop, tag:"The file", pulse:true},
+    {id:"stamp", img:IMG.stamp, tag:"Drawings", pulse:true},
+    {id:"thinOk", img:IMG.desk, tag:"Advance the week", pulse:false}
+  ],
+  week2s:[
+    {id:"strataMap", img:IMG.laptop, tag:"Cash flow", pulse:true},
+    {id:"laptop", img:IMG.alan, tag:"Duty", pulse:true},
+    {id:"strata5early", img:IMG.morning, tag:"Hold the sequence", pulse:true},
+    {id:"strataQuiet", img:IMG.morning, tag:"Continue the file", pulse:true}
+  ],
+  week5:[
+    {id:"broker2", img:IMG.broker, tag:"Another call-centre broker", pulse:true},
+    {id:"strata5", img:IMG.morning, tag:"Professional broker · ten minutes", pulse:true},
+    {id:"map", img:IMG.laptop, tag:"Map the stack", pulse:true},
+    {id:"debtline", img:IMG.phone, tag:"Debtline", pulse:false}
+  ],
+  week8:[
+    {id:"open", img:IMG.morning, tag:"Write the page", pulse:true},
+    {id:"strata8", img:IMG.morning, tag:"Professional broker · the page", pulse:true},
+    {id:"shut", img:IMG.envelopes, tag:"No paper", pulse:true},
+    {id:"home", img:IMG.home, tag:"Home", pulse:false}
+  ]
+};
+
+const EVENTS={
+  pack:{
+    img:IMG.itemPack, who:"Call-centre offer", head:"£50,000 on the cover. Sign tonight.",
+    copy:"About £41,200 will actually land. The rest is fees. Page 7 is a personal guarantee on the house. Page 11 lets them claim everything you ever owe them — this loan and the next. This is a call-centre broker: found online, or who rang when you were desperate. Not a Guild member. Not a referral from someone you trust.",
+    acts:[
+      {l:"Sign it.", h:"£41,200 hits the account. They start taking money from the till. The house is in the document.", next:"landed", d:{cash:41200,run:22,stack:1,ctrl:-18,duty:8,personal:28,flag:"warehouse",item:"signed offer"}},
+      {l:"Ask how the broker is paid.", next:"askpay", d:{flag:"askedPay",item:"commission question"}},
+      {l:"Refuse the offer.", next:"night", d:{ctrl:4,item:"unsigned offer"}}
+    ]
+  },
+  env:{
+    img:IMG.env, who:"HMRC", head:"£48,400 already due.",
+    copy:"VAT and PAYE. Time to Pay exists. It is not a loan. It does not shrink the tax. HMRC sets the terms. Leave this until Monday and enforcement is closer, not further away.",
+    acts:[
+      {l:"Call Payment Support yourself.", next:"hmrc", d:{run:6,duty:-6,flag:"ttp",item:"TTP call"}},
+      {l:"Leave it till Monday.", next:"night", d:{duty:4}}
+    ]
+  },
+  phone:{
+    img:IMG.broker, who:"Call-centre broker", head:"Fifty with you before the weekend.",
+    copy:"He googled you, or you googled him. He is not in the Guild of Business Finance Professionals. He was not sent by your accountant or a partner you trust. Other directors in your position don’t wait on HMRC, he says. Wet signature tonight.",
+    acts:[
+      {l:"Take the call and sign.", h:"The guarantee is on the house the moment you sign.", next:"landed", d:{cash:41200,run:22,stack:1,ctrl:-18,duty:8,personal:28,flag:"warehouse",item:"signed offer"}},
+      {l:"Ask how he is paid.", next:"askpay", d:{flag:"askedPay"}},
+      {l:"Hang up.", next:"night"}
+    ]
+  },
+  june:{
+    img:IMG.june, who:"June", head:"If wages bounce I lose two lads by dinner.",
+    copy:"I can hold two suppliers a week. I cannot hold HMRC. Don’t tell me you’re waiting on that invoice.",
+    acts:[
+      {l:"Tell her the truth.", next:"night", d:{duty:-4,flag:"toldJune",item:"June knows"}},
+      {l:"Tell her it will clear.", next:"wait", d:{duty:8,flag:"hidJune"}}
+    ]
+  },
+  askpay:{
+    img:IMG.broker, who:"Call-centre broker", head:"That’s the market, mate.",
+    copy:"The arrangement fee is on the invoice. What the lender pays him, he will not put in writing. A professional broker — Guild of Business Finance Professionals, or someone a trusted partner sent you — will name the lender and the pounds. He will not.",
+    acts:[
+      {l:"Sign anyway.", h:"You still have not been told what he earns from this.", next:"landed", d:{cash:41200,run:22,stack:1,ctrl:-18,duty:10,personal:28,flag:"warehouse",flag2:"askedPay",item:"signed offer"}},
+      {l:"No offer tonight.", next:"night", d:{ctrl:4,item:"unsigned offer"}}
+    ]
+  },
+  night:{
+    img:IMG.desk, who:"THU 17:12", head:"Payroll is still Friday.",
+    copy:"Putting the offer down does not move the clock. You still need a move before morning. Waiting is a choice. It has a cost.",
+    acts:[
+      {l:"Sign the call-centre offer.", h:"Guarantee on the house. They collect from the till.", next:"landed", d:{cash:41200,run:22,stack:1,ctrl:-18,duty:8,personal:28,flag:"warehouse",item:"signed offer"}},
+      {l:"Call HMRC yourself.", next:"hmrc", d:{run:6,duty:-6,flag:"ttp",item:"TTP call"}},
+      {l:"Send the file to a professional broker.", next:"strataPack", d:{flag:"strata",duty:-6,ctrl:4,item:"professional broker from 17:12"}},
+      {l:"Wait on the invoice.", h:"If it does not land, a supplier stops you.", next:"wait", d:{duty:8,flag:"waited"}}
+    ]
+  },
+  landed:{
+    img:IMG.laptop, who:"FRI 09:04 · Bank", head:"£41,200. Wages go.",
+    copy:"Gross fifty. Fees first. They start taking money from the till. Page 11 is still unread. The personal guarantee is already on the house.",
+    acts:[{l:"Continue → Week 2", next:"week2", d:{item:"money landed"}}]
+  },
+  hmrc:{
+    img:IMG.hmrc, who:"Asha · Payment Support", head:"This is not a loan.",
+    copy:"I need what you can actually pay, and whether next quarter can be met on time. Offer a number the cash cannot carry and I would rather you didn’t.",
+    acts:[
+      {l:"Send a 13-week cash flow.", next:"week2", d:{flag:"honestTTP",duty:-10,ctrl:6,run:4,item:"honest TTP"}},
+      {l:"Promise £4,000 a month.", next:"week2", d:{flag:"optimisticTTP",duty:8,run:-2,item:"thin TTP"}}
+    ]
+  },
+  wait:{
+    img:IMG.warehouse, who:"MON 16:22", head:"The invoice did not land.",
+    copy:"One supplier has stopped you. HMRC is still there. Hope is not a facility. Sign in a panic now and you get the same offer, with less time to read it.",
+    acts:[
+      {l:"Call HMRC now.", next:"hmrc", d:{flag:"correctedWait",duty:-8}},
+      {l:"Sign the offer in a hurry.", h:"Worse terms. Same guarantee on the house.", next:"landed", d:{cash:41200,run:16,stack:1,ctrl:-22,duty:12,personal:30,flag:"warehouse",flag2:"distressedSign",item:"distressed offer"}}
+    ]
+  },
+  page11:{
+    img:IMG.pack, who:"Page 11", head:"All monies.",
+    copy:"Not this facility. Everything you owe that lender now, and later. Stamp it and a cleaner funder who might have refinanced you will see the assets are already promised. They will walk.",
+    acts:[
+      {l:"Refuse the clause.", next:"dutyQ", d:{flag:"refusedAllMonies",ctrl:14,item:"clause refused"}},
+      {l:"Stamp it.", h:"The next funder can see the furniture is already claimed.", next:"dutyQ", d:{flag:"signedAllMonies",ctrl:-24,duty:8,personal:8,item:"all-monies"}}
+    ]
+  },
+  laptop:{
+    img:IMG.alan, who:"Alan · accountant", head:"Ought to know is the test.",
+    copy:"Sequana: the duty to give creditors weight engages when you know, or ought to know, the company is insolvent or bordering on it. A real risk is not enough. This file might be.",
+    acts:[
+      {l:"Ask him, in writing, about s.123.", next:"dutyQ", d:{flag:"askedS123",duty:-12,item:"s.123 email"}},
+      {l:"Skip the email. Face the duty anyway.", next:"dutyQ"}
+    ]
+  },
+  stamp:{
+    img:IMG.stamp, who:"Drawings", head:"You funded payroll. Are you owed?",
+    copy:"Paying yourself because you feel owed is how later files get ugly. The duty is owed to the company, not your nerves.",
+    acts:[
+      {l:"No drawings.", next:"week4", d:{flag:"dutySeen",duty:-16,ctrl:6,item:"duty live"}},
+      {l:"Take £4,000.", next:"week4", d:{cash:-4000,run:-6,duty:18,personal:10,flag:"drew",item:"drawing"}}
+    ]
+  },
+  dutyQ:{
+    img:IMG.you, who:"Week 3", head:"Has the duty switched on?",
+    copy:"HMRC arrears. Stretched suppliers. Short-term money. That is the present tense. Pretend it is not, and a liquidator will still ask when you knew.",
+    acts:[
+      {l:"Treat creditors as live.", next:"week4", d:{flag:"dutySeen",duty:-16,ctrl:6,item:"duty live"}},
+      {l:"Take a drawing.", next:"week4", d:{cash:-4000,run:-6,duty:18,personal:10,flag:"drew",item:"drawing"}}
+    ]
+  },
+  broker2:{
+    img:IMG.broker, who:"Another call-centre broker", head:"Stacking a little. Everyone does it.",
+    copy:"£25,000 against invoices you have already sort of promised the first lender. One receipt asked to do two jobs. Take it and both lenders can call default on the same paper.",
+    acts:[
+      {l:"Take it.", h:"Two lenders. One set of invoices. Default language in both contracts.", next:"week6", d:{cash:21000,stack:1,ctrl:-16,duty:16,run:4,flag:"stacked",item:"second facility"}},
+      {l:"Refuse.", next:"week6", d:{flag:"mapped",ctrl:8,duty:-6,item:"stack refused"}}
+    ]
+  },
+  debtline:{
+    img:IMG.phone, who:"Business Debtline", head:"0800 197 6026",
+    copy:"Help that is actually there. Not a refinance. Not a product.",
+    acts:[{l:"Call.", next:"week6", d:{flag:"calledHelp",duty:-10,item:"Debtline"}}]
+  },
+  map:{
+    img:IMG.laptop, who:"Stress check", head:"Every facility on one page.",
+    copy:"Income, outgoings, every repayment. Cost per trading day. This is the map.",
+    acts:[{l:"Build the map. No second stack.", next:"week6", d:{flag:"mapped",ctrl:8,duty:-6,item:"map"}}]
+  },
+  strata:{
+    img:IMG.morning, who:"Professional broker · Strata", head:"We package. We do not lend.",
+    copy:"Strata is a professional broker: Guild of Business Finance Professionals, or the kind a trusted business partner sends you — not a Google ad. Three jobs. Map every facility. Get Time to Pay on a number the cash can actually carry. Then one structure, not another short offer tonight.",
+    acts:[
+      {l:"Start the 60-second assessment.", h:"Figures only. No facility tonight.", next:"strataPack", d:{flag:"strata",flag2:"assessed",duty:-8,ctrl:6,item:"60-second assessment"}},
+      {l:"Not now. Take the call-centre broker’s forty-eight hours.", next:"night"}
+    ]
+  },
+  strataPack:{
+    img:IMG.laptop, who:"Professional broker · Strata", head:"HMRC first. Then one structure.",
+    copy:"Arrears in the file is an automatic no. Get Time to Pay first. Prove the monthly number on one page. Then submit to funders who still work distress. Not speed. Sequence.",
+    acts:[{l:"Package Time to Pay. Continue →", next:"strataWeek", d:{flag:"strataTTP",run:8,duty:-10,item:"TTP packaged"}}]
+  },
+  strataWeek:{
+    img:IMG.desk, who:"After Strata", head:"Wages are still Friday. The file is no longer the call-centre broker’s.",
+    copy:"Strata did not clear HMRC or print payroll. They built the file HMRC and a longer funder will actually read.",
+    acts:[{l:"Continue → Week 2", next:"week2", d:{item:"professional file open"}}]
+  },
+  strata5:{
+    img:IMG.morning, who:"Professional broker · ten minutes", head:"One page. Every facility.",
+    copy:"Sweeps, personal guarantee, all-monies, HMRC. If a call-centre broker wants to stack the same invoices, this is how you refuse him with a number.",
+    acts:[
+      {l:"Do the ten-minute review.", h:"Map. Do not stack.", next:"week6", d:{flag:"strata",flag2:"mapped",ctrl:10,duty:-8,item:"10-minute review"}},
+      {l:"Take the second facility instead.", h:"Two lenders on the same invoices.", next:"week6", d:{cash:21000,stack:1,ctrl:-16,duty:16,run:4,flag:"stacked",item:"second facility"}}
+    ]
+  },
+  strataMap:{
+    img:IMG.laptop, who:"Professional broker · week 2", head:"This is the page HMRC will read.",
+    copy:"Thirteen weeks. What comes in. What HMRC gets. What is left for wages. If this number cannot carry Time to Pay, Strata will not dress it.",
+    acts:[
+      {l:"Send the honest cash flow.", next:"week4", d:{flag:"honestTTP",flag2:"strataTTP",duty:-8,ctrl:6,item:"honest cash flow"}},
+      {l:"Inflate month three.", h:"Time to Pay cancelled if you miss. Penalties sit as if you never arranged it.", next:"week4", d:{flag:"optimisticTTP",duty:8,item:"thin cash flow"}}
+    ]
+  },
+  strata5early:{
+    img:IMG.morning, who:"Professional broker", head:"Sequence holds or it does not.",
+    copy:"Map. Package Time to Pay. One structure. A call-centre offer now would put all-monies on the assets you need for a refinance.",
+    acts:[
+      {l:"Hold the sequence.", next:"week4", d:{ctrl:6,item:"sequence held"}},
+      {l:"Sign the call-centre offer anyway.", h:"Guarantee on the house. They collect from the till.", next:"landed", d:{cash:41200,run:22,stack:1,ctrl:-18,duty:8,personal:28,flag:"warehouse",item:"signed offer"}}
+    ]
+  },
+  strataQuiet:{
+    img:IMG.morning, who:"WEEK 4 · professional broker", head:"Nothing exploded. That is the point.",
+    copy:"No call-centre sweep. No second stack. The cheap money is about to call. The review exists so you do not answer it.",
+    acts:[{l:"Continue → ten minutes", next:"after4"}]
+  },
+  strataHold:{
+    img:IMG.morning, who:"WEEK 7 · professional broker", head:"Refinance is a conversation. Not a promise.",
+    copy:"The file has HMRC, the cash flow, and no double-pledged invoices. A longer funder can now say yes or no. Last job: write the page before a stranger does.",
+    acts:[{l:"Go to the page.", next:"week8"}]
+  },
+  strata8:{
+    img:IMG.morning, who:"Professional broker", head:"They cannot un-sign a guarantee.",
+    copy:"If refinance is dead, Strata says so and the next adult is an insolvency practitioner. If it is not, the same three jobs still apply. Keep the file closed and someone else writes the first honest page — a statutory demand.",
+    acts:[
+      {l:"Open the position with Strata.", next:"END", d:{flag:"openFile",flag2:"strataLate",duty:-6,ctrl:4,item:"professional file"}},
+      {l:"Keep it closed.", h:"A statutory demand arrives in someone else’s typeface.", next:"demand", d:{flag:"closedFile",duty:14}}
+    ]
+  },
+  home:{
+    img:IMG.home, who:"At the door", head:"She already knows it is not a supplier letter.",
+    copy:"You can keep the company file closed. You cannot keep the house out of it if you signed a guarantee.",
+    acts:[{l:"Stand there.", next:"END", d:{flag:"homeSeen",item:"she knows"}}]
+  },
+  open:{
+    img:IMG.morning, who:"The room", head:"One page.",
+    copy:"Accountant. HMRC. Any other director. The file will exist whether you write it or a liquidator does.",
+    acts:[{l:"Open the file.", next:"END", d:{flag:"openFile",duty:-8,ctrl:6,item:"open file"}}]
+  },
+  shut:{
+    img:IMG.warehouse, who:"The room", head:"Keep it tight.",
+    copy:"Staff morale. The buyer. No paper trail. No paper trail is still a trail. It just is not yours.",
+    acts:[{l:"Close the file.", next:"demand", d:{flag:"closedFile",duty:14,item:"closed file"}}]
+  },
+  sweep:{
+    img:IMG.laptop, who:"WEEK 4 · the sweep", head:"The money you signed for is collecting itself.",
+    copy:"Card take is £38,000. The first facility takes its slice. The call-centre lender takes its slice. What hits wages is not what the sales board says. This is the collection you signed for.",
+    acts:[{l:"Keep trading on what is left.", next:"after4", d:{cash:-14000,run:-8,ctrl:-6,item:"sweep"}}]
+  },
+  ttpBreak:{
+    img:IMG.envelopes, who:"WEEK 4 · HMRC", head:"The arrangement is cancelled.",
+    copy:"You missed an instalment you promised. Time to Pay is not a product you keep after a default. Penalties can sit as if the arrangement never existed.",
+    acts:[{l:"Open the pile.", next:"after4", d:{duty:16,run:-10,flag:"ttpBroken",item:"TTP cancelled"}}]
+  },
+  emptyBench:{
+    img:IMG.bench, who:"WEEK 4 · the floor", head:"Two lads did not clock in.",
+    copy:"June left a high-vis on the hook. Supplier stop plus late wages is not a rumour. It is an empty bench.",
+    acts:[{l:"Walk the floor.", next:"after4", d:{ctrl:-10,run:-6,duty:8,flag:"lostStaff",item:"empty bench"}}]
+  },
+  thinOk:{
+    img:IMG.desk, who:"WEEK 4", head:"Still ugly. Still moving.",
+    copy:"No one has died. HMRC has a number. The floor still has a roster. That is not victory. It is the absence of a worse week.",
+    acts:[{l:"Continue → Week 5", next:"week5"}]
+  },
+  doublePledge:{
+    img:IMG.broker, who:"WEEK 7 · first funder", head:"Those invoices were already in our schedule.",
+    copy:"The second facility sat on the same invoices. Both contracts can now call default. Two lenders. One set of paper.",
+    acts:[{l:"Take the call.", h:"Default. Both facilities. Same invoices.", next:"week8", d:{ctrl:-20,duty:14,run:-12,flag:"defaulted",item:"double pledge"}}]
+  },
+  funderWalks:{
+    img:IMG.pack, who:"WEEK 7 · a cleaner file", head:"They saw the all-monies charge and left.",
+    copy:"Someone might have refinanced you. Then they pulled the register. Eleven minutes. All-monies on page 11 just cost you the exit.",
+    acts:[{l:"Close that file.", next:"week8", d:{ctrl:-12,flag:"noRefinance",item:"refi walked"}}]
+  },
+  pgHome:{
+    img:IMG.doormat, who:"WEEK 7 · home", head:"The offer has a second address.",
+    copy:"Page 7 was not theatre. A personal guarantee lives at the house. The letter on the mat is not for the company.",
+    acts:[{l:"Pick it up.", next:"kitchenHit", d:{personal:20,duty:8,item:"PG at home"}}]
+  },
+  kitchenHit:{
+    img:IMG.kitchen, who:"The kitchen", head:"The company hole sat down at your table.",
+    copy:"Schoolbag on the chair. Two mugs. Limited company does not always mean limited life.",
+    acts:[{l:"Go back in on Monday.", next:"week8", d:{flag:"homeHit",item:"kitchen table"}}]
+  },
+  drawingNote:{
+    img:IMG.alan, who:"WEEK 7 · Alan", head:"That drawing will be in the file.",
+    copy:"If this ends in a formal insolvency, a liquidator will ask when you knew. A drawing after the duty was live is not a wage. It is a paragraph.",
+    acts:[{l:"Leave it in the thread.", next:"week8", d:{duty:10,flag:"drawingOnFile",item:"drawing on file"}}]
+  },
+  demand:{
+    img:IMG.envelopes, who:"WEEK 8 · statutory demand", head:"Someone else wrote the first honest page.",
+    copy:"You kept it tight. The demand does not care. Now the file starts as a statutory demand, in someone else’s typeface.",
+    acts:[{l:"See the end.", next:"END", d:{flag:"demand",duty:12,item:"statutory demand"}}]
+  }
+};
+
+function rail(){
+  const steps=["THU","WK2","WK4","WK5","WK8"];
+  const map={thu:0,week2:1,week2s:1,week4:2,week5:3,week6:4,week8:4};
+  const i=map[PHASE]||0;
+  document.getElementById("rail").innerHTML=steps.map((t,n)=>`<span class="${n===i?"now":""}">${t}</span>`).join("<span> · </span>");
+}
+function setPhase(p,clock,face,name,copy,scene){
+  PHASE=p;
+  document.getElementById("clock").textContent=clock;
+  document.getElementById("leadface").src=face;
+  document.getElementById("leadname").textContent=name;
+  document.getElementById("leadcopy").textContent=copy;
+  bg(scene||IMG.desk);
+  rail();
+  renderSpots();
+  closeModal();
+}
+function renderSpots(){
+  const box=document.getElementById("spots");
+  box.innerHTML="";
+  (SPOTS[PHASE]||[]).forEach(sp=>{
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="spot"+(sp.pulse?" pulse":"");
+    b.onclick=()=>openEvent(sp.id);
+    b.innerHTML=`<img src="${sp.img}" alt=""/><span class="tag">${sp.tag}</span>`;
+    box.appendChild(b);
+  });
+}
+function openEvent(id){
+  const e=EVENTS[id];
+  if(!e){ console.warn("no event",id); return; }
+  document.getElementById("hero").src=e.img;
+  document.getElementById("mwho").textContent=e.who;
+  document.getElementById("mhead").textContent=e.head;
+  document.getElementById("mcopy").textContent=e.copy;
+  const acts=document.getElementById("acts");
+  acts.innerHTML="";
+  e.acts.forEach(a=>{
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.className="act";
+    btn.innerHTML=a.l+(a.h?`<small>${a.h}</small>`:"");
+    btn.onclick=()=>{ apply(a.d); go(a.next); };
+    acts.appendChild(btn);
+  });
+  document.getElementById("modal").classList.add("on");
+}
+function closeModal(){ document.getElementById("modal").classList.remove("on"); }
+function afterThu(){
+  const f=S.flags;
+  if(f.optimisticTTP && !f.honestTTP) return "ttpBreak";
+  if(f.warehouse) return "sweep";
+  if(f.hidJune || f.waited) return "emptyBench";
+  if(f.strata) return "strataQuiet";
+  return "thinOk";
+}
+function afterStack(){
+  const f=S.flags;
+  if(f.stacked) return "doublePledge";
+  if(f.signedAllMonies) return "funderWalks";
+  if(f.warehouse) return "pgHome";
+  if(f.drew) return "drawingNote";
+  if(f.strata) return "strataHold";
+  return null;
+}
+function go(next){
+  if(next==="week2"){
+    if(S.flags.strata && !S.flags.warehouse){
+      setPhase("week2s","WEEK 2",IMG.you,"The professional file is open","Cash flow. Duty. Hold the sequence.",IMG.desk);
+    } else {
+      setPhase("week2","WEEK 2",IMG.you,"The first consequence is quiet","Page 11 is all-monies. The house is already in the offer.",IMG.desk);
+    }
+    return;
+  }
+  if(next==="week4"){ openEvent(afterThu()); return; }
+  if(next==="after4" || next==="week5"){
+    setPhase("week5","WEEK 5",IMG.morning,"The cheap money calls again","Ten minutes with a professional broker, or a second call-centre offer.",IMG.desk);
+    return;
+  }
+  if(next==="week6"){
+    const hit=afterStack();
+    if(hit) openEvent(hit);
+    else setPhase("week8","WEEK 8",IMG.june,"What goes on the page","Write it, send it to a professional broker, or close it and wait for a statutory demand.",IMG.desk);
+    return;
+  }
+  if(next==="week8"){
+    setPhase("week8","WEEK 8",IMG.june,"What goes on the page","Write it, send it to a professional broker, or close it and wait for a statutory demand.",IMG.desk);
+    return;
+  }
+  if(next==="END"){ ending(); return; }
+  if(!EVENTS[next]){
+    setPhase("week8","WEEK 8",IMG.june,"What goes on the page","Write the page, or a statutory demand writes it for you.",IMG.desk);
+    return;
+  }
+  openEvent(next);
+}
+function ending(){
+  const f=S.flags;
+  let title,lead,pic;
+  if(f.strata && !f.stacked && !f.defaulted && !f.ttpBroken){
+    title="Still ugly. Now it is a file someone can work.";
+    lead="A professional broker’s help is a sequence, not a loan. Map the stack. Package Time to Pay. Take one structure to funders who still work distress. HMRC still says yes or no. A funder still says yes or no.";
+    pic=IMG.morning;
+  } else if(f.defaulted){
+    title="Two facilities. One set of invoices.";
+    lead="The first funder called the schedule. The second facility had already been paid from the same invoices. Both can default you. That is the cost of stacking.";
+    pic=IMG.warehouse;
+  } else if(f.ttpBroken){
+    title="Time to Pay, cancelled.";
+    lead="A number you could not carry was worse than no arrangement. Penalties sit as if the conversation never happened.";
+    pic=IMG.envelopes;
+  } else if(f.homeHit || (f.warehouse && f.closedFile)){
+    title="The letter was not for Northline.";
+    lead="Limited company. Unlimited Friday night. The personal guarantee travels home even when the call-centre lender is still collecting from the till.";
+    pic=IMG.doormat;
+  } else if(f.lostStaff && f.closedFile){
+    title="The bench was the first honest page.";
+    lead="Staff left before a liquidator arrived. Companies House will not mention the high-vis on the hook.";
+    pic=IMG.bench;
+  } else if(f.warehouse && f.signedAllMonies && f.stacked){
+    title="Still trading. Not in control.";
+    lead="Receipts work for the facilities. All-monies sits over assets you might have used to refinance. The cleaner funder already walked.";
+    pic=IMG.warehouse;
+  } else {
+    title="A mixed file.";
+    lead="Some of the right calls. Enough of the old ones that week ten can still be told two ways.";
+    pic=IMG.desk;
+  }
+  bg(pic); closeModal();
+  document.getElementById("board").classList.remove("on");
+  const beats=[
+    f.strata?"Professional broker file":null,
+    f.warehouse?"Call-centre offer signed":null,
+    f.askedPay?"Asked how the broker was paid":null,
+    f.ttp||f.strataTTP?"Time to Pay in play":null,
+    f.ttpBroken?"TTP cancelled":null,
+    f.signedAllMonies?"All-monies accepted":null,
+    f.dutySeen||f.askedS123?"Duty treated as live":null,
+    f.drew?"Director drawing":null,
+    f.stacked?"Second facility":null,
+    f.defaulted?"Double-pledge default":null,
+    f.openFile?"Opened the file":null,
+    f.closedFile?"Kept the file closed":null,
+    f.homeHit?"Guarantee came home":null
+  ].filter(Boolean).map(x=>`<span class="chip on">${x}</span>`).join("");
+  document.getElementById("endcard").innerHTML=
+    `<h2>${title}</h2>
+     <div class="pics"><img src="${pic}" alt=""/><img src="${IMG.itemPack}" alt=""/><img src="${f.homeHit?IMG.doormat:IMG.stamp}" alt=""/></div>
+     <p>${lead}</p>
+     <div class="inv" style="margin:12px 0">${beats}</div>
+     <p id="note">${money(S.cash)} · stack ${S.stack} · duty ${S.duty}</p>
+     <div class="cta">
+       <a class="go" href="/tools/debt-stress-check">Debt stress check</a>
+       <a class="go ghost" href="/tools/time-to-pay-calculator">Time to Pay calculator</a>
+       <a class="go ghost" href="/">Back to Learn</a>
+       <button class="go ghost" type="button" onclick="start()">Play again</button>
+     </div>
+     <p id="note">Strata packages. It does not lend. HMRC sets Time to Pay. Funders set the structure.</p>`;
+  document.getElementById("end").classList.add("on");
+}
+function start(){
+  reset(); paint();
+  document.getElementById("title").classList.add("hide");
+  document.getElementById("end").classList.remove("on");
+  document.getElementById("hud").classList.add("on");
+  document.getElementById("board").classList.add("on");
+  pinHud();
+  setPhase("thu","THU 16:41",IMG.you,"You · sole director","Four pictures. The call-centre broker is speed. A professional broker is sequence. Click.",IMG.desk);
+}
+window.start=start;
+window.addEventListener("resize",pinHud);
+bg(IMG.desk);
+reset(); paint();
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+STRATA LEARN — DEVELOPER PACK
+For stratafinance.co.uk
+
+This folder is a drop-in Learn section in the look of the live site
+(Unbounded / Plus Jakarta Sans / Space Mono, logo band, light/dark toggle).
+
+Open learn/index.html from this folder to preview. styles.css and images/
+are a snapshot of the live site so the preview works offline.
+
+
+INSTALL
+1. Copy the learn/ folder to the website root, so URLs become
+   https://stratafinance.co.uk/learn/
+2. learn.css and learn.js already sit inside learn/ — they come across
+   with the folder. Do not put them at the site root unless you change
+   the <link>/<script> hrefs.
+3. Copy images/logo-light.png and images/logo-dark.png only if the live
+   site does not already have them (it does).
+4. Copy llms.txt to the website root. Copy llms-full.txt next to it.
+   knowledge-catalog.json is already inside learn/.
+5. Add Learn to the header nav, after Solutions:
+
+     <a href="learn/index.html">Learn</a>
+
+   On inner pages that currently use #problems / #tools, keep those
+   pointing at index.html#problems and index.html#tools.
+6. Add the same Learn link to the first footer column.
+7. Do not replace hmrc-time-to-pay.html. The Learn article is a
+   different URL: learn/read/hmrc-time-to-pay.html
+8. Host the MP4s already in learn/videos/. If you strip videos from the
+   zip to email it, put them back before go-live.
+
+
+NAV
+Before: The Problem · How It Works · Solutions · Free Tools
+After:  The Problem · How It Works · Solutions · Learn · Free Tools
+
+CTAs on Learn pages: Check Eligibility and Enquire → index.html#tools.
+
+
+WHAT IS IN LEARN/
+  index.html                         Hub
+  watch/*.html                       Start-here videos (4)
+  read/*.html                        Director's handbook (9)
+  film.html                          Stacked-debt film + pause-and-choose
+  tools.html                         Tools index
+  tools/debt-stress-check.html       New calculator
+  tools/time-to-pay-calculator.html  Learn TTP calculator
+  thursday-pack/                     Existing scenario (own stage UI)
+  videos/                            MP4s + film poster
+  llms.txt                           Learn-tree map for agents
+
+
+KNOWLEDGE FILES (send these even if HTML is iterated later)
+  USE.txt                   This file
+  knowledge-catalog.md      Human inventory, house rules, collisions
+  knowledge-catalog.json    Machine inventory including quiz answer keys
+  llms.txt                  Site-root /llms.txt (marketing + Learn)
+  llms-full.txt             Full handbook bodies, no quiz keys
+  learn/llms.txt            /learn/llms.txt
+
+llms.txt follows https://llmstxt.org/ — H1, blockquote summary, H2
+sections of annotated links. Optional section at the end for legal pages.
+
+
+NOT IN THIS PACK
+News, Ask librarian, This helped, Email me this.
+Those stay on learn.stratanexus.co.uk.
+
+
+REGENERATE FROM NEXUS
+  npx tsx scripts/build_learn_site_pack.ts
+
+Source of handbook copy: scripts/learn_courses/*.md
+Source of video metadata: this script (PATH_VIDEOS)
+Source of film beats: shared/learnScenario.ts
+
+
+HOUSE RULES FOR ANY COPY YOU ADD
+Strata packages; it does not lend.
+No rates, APR, guarantees, or “you are eligible”.
+Time to Pay is not a loan.
+Training only.

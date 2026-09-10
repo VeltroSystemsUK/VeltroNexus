@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Stacked debt — the film — Strata Learn</title>
+<meta name="description" content="Play the film. At each beat, choose. Loan two does not pay off loan one. Strata packages; it does not lend."/>
+<link rel="stylesheet" href="../styles.css"/>
+<link rel="stylesheet" href="learn.css"/>
+<script>
+  (function(){
+    var stored = localStorage.getItem('strata-theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+</head>
+<body class="page page--learn-film">
+<header>
+  <div class="wrap header-row">
+    <a href="../index.html#top" class="brand">
+      <img class="logo-for-light" src="../images/logo-light.png" alt="Strata Finance"/>
+      <img class="logo-for-dark" src="../images/logo-dark.png" alt="Strata Finance"/>
+    </a>
+    <nav class="main-nav">
+      <a href="../index.html#problems">The Problem</a>
+      <a href="../index.html#process">How It Works</a>
+      <a href="../strata-solution.html">Solutions</a>
+      <a href="index.html" class="is-current">Learn</a>
+      <a href="../index.html#tools">Free Tools</a>
+    </nav>
+    <div class="header-cta">
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"></circle><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"></path></svg>
+      </button>
+      <a href="../index.html#tools" class="btn btn-ghost">Enquire</a>
+      <a href="../index.html#tools" class="btn btn-primary">Check Eligibility</a>
+    </div>
+  </div>
+</header>
+
+<section class="learn-hero">
+  <div class="wrap learn-narrow">
+    <p class="eyebrow">The film</p>
+    <h1>Stacked debt</h1>
+    <p class="lead">A UK company still trading, cash drowning. Play the film. At each beat, choose what the director does. The next scene is the consequence.</p>
+    <p class="packager-line"><strong>Strata</strong> packages; it does not lend.</p>
+  </div>
+</section>
+<section>
+  <div class="wrap learn-narrow">
+    <div class="learn-player" id="film-stage">
+      <video id="film" src="videos/stacked-debt-film.mp4" poster="videos/stacked-debt-film.jpg" controls playsinline preload="metadata"></video>
+      <div id="film-quiz" class="learn-quiz film-overlay" hidden></div>
+    </div>
+    <p class="learn-muted">If the video does not play, the file belongs at <code>learn/videos/stacked-debt-film.mp4</code>.</p>
+  </div>
+</section>
+
+    <section class="learn-cta">
+      <div class="wrap">
+        <p class="eyebrow">Next step</p>
+        <h2>Check where you stand — no obligation.</h2>
+        <p>Strata packages files. It does not lend. The eligibility check is indicative, not a lending decision.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary" href="../index.html#tools">Check eligibility</a>
+          <a class="btn btn-ghost" href="../index.html#tools">Enquire</a>
+        </div>
+      </div>
+    </section>
+<script>window.STRATA_FILM_BEATS = [{"id":"oxygen","start":0,"pauseAt":28,"title":"Your business is drowning","quiz":{"question":"Still trading, cash is drowning, a broker can get a facility in 24 hours. What do you do?","explain":"Same-day money is how the stack starts. Strata packages files; it does not lend. Read the books before another name hits the current account.","choices":[{"label":"A","text":"Take it. Oxygen first, structure later.","correct":false},{"label":"B","text":"Stop. Map every facility, HMRC, and the personal guarantee before anyone new is paid.","correct":true},{"label":"C","text":"Sign whatever they email today so Friday wages clear.","correct":false}]}},{"id":"more","start":28,"pauseAt":58,"title":"Thirty to sixty days later","quiz":{"question":"The same broker rings. The first facility is already eating the account. They can get you more. What do you do?","explain":"Loan two does not pay off loan one. It sits on top of it. Strata packages; it does not lend.","choices":[{"label":"A","text":"Take the second facility so you can keep the first one current.","correct":false},{"label":"B","text":"Ask who the lender is and what it costs in pounds — then do not stack.","correct":true},{"label":"C","text":"Roll the first one into a larger version of the same product.","correct":false}]}},{"id":"trap","start":58,"pauseAt":100,"title":"Loan two sits on top","quiz":{"question":"You are now borrowing to service the last loan. Friday wages almost do not happen. What is this?","explain":"Borrowing to service the last loan is the definition of a trap. Strata packages files. We do not lend.","choices":[{"label":"A","text":"A growth facility that needs time to bed in.","correct":false},{"label":"B","text":"A refinance that will settle once turnover recovers.","correct":false},{"label":"C","text":"A trap. Stacked short-term credit servicing itself.","correct":true}]}},{"id":"way-out","start":100,"pauseAt":148,"title":"The house is on a personal guarantee","quiz":{"question":"3 a.m. The spreadsheet. The house is on a personal guarantee. What is the way out?","explain":"The way out is not another facility. Do not stack your way out of a hole. Strata packages; it does not lend.","choices":[{"label":"A","text":"Another facility, larger, from a better-sounding broker.","correct":false},{"label":"B","text":"A hard look at the books, then a packager who will not stack you further.","correct":true},{"label":"C","text":"Hide from HMRC until someone says yes.","correct":false}]}},{"id":"close","start":148,"pauseAt":171.6,"title":"Don't stack your way out of a hole","quiz":null}];</script>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-row">
+      <div class="footer-brand">
+        <a href="../index.html#top" class="brand" style="padding-left:0;">
+          <img class="logo-for-light" src="../images/logo-light.png" alt="Strata Finance"/>
+          <img class="logo-for-dark" src="../images/logo-dark.png" alt="Strata Finance"/>
+        </a>
+        <a href="../index.html#tools" class="btn btn-primary">Enquire</a>
+      </div>
+      <nav class="footer-nav-col">
+        <a href="../index.html#problems">The Problem</a>
+        <a href="../index.html#process">Our Solution</a>
+        <a href="../index.html#tools">Free Tools</a>
+        <a href="index.html">Learn</a>
+      </nav>
+      <nav class="footer-nav-col">
+        <a href="../hmrc-time-to-pay.html">HMRC Time to Pay</a>
+        <a href="../cdfi-funding.html">CDFI Funding</a>
+        <a href="../ancillary-funding.html">Ancillary Funding</a>
+        <a href="../integrated-forecasts.html">Integrated Forecasts</a>
+      </nav>
+      <nav class="footer-nav-col">
+        <a href="../privacy-policy.html">Privacy Policy</a>
+        <a href="../cookies-policy.html">Cookies Policy</a>
+        <a href="../terms-and-conditions.html">Terms &amp; Conditions</a>
+        <a href="../complaints-procedure.html">Complaints Procedure</a>
+      </nav>
+    </div>
+    <div class="footer-legal">
+      Strata Finance is not authorised or regulated by the Financial Conduct Authority. We arrange non-regulated commercial business-to-business finance and provide corporate restructuring consultancy services; we are not a lender. Learn is training, not advice on a specific company. All calculators produce indicative, non-binding estimates and do not constitute financial advice or a lending decision — actual terms are subject to HMRC or the relevant lender. © <span class="footer-year">2026</span> Strata Finance. All rights reserved.
+    </div>
+  </div>
+</footer>
+<script src="learn.js"></script>
+</body>
+</html>

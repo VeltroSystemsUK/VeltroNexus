@@ -29,8 +29,6 @@ pnpm-debug.log*
 dist/
 build/
 out/
-# Generated Learn site export (scripts/build_learn_site_pack.ts)
-packs/
 .next/
 .vercel/
 .netlify/

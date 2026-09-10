@@ -1,0 +1,1847 @@
+{
+  "version": "1.0",
+  "generatedAt": "2026-09-08T07:11:31.829Z",
+  "site": "https://stratafinance.co.uk",
+  "identity": {
+    "name": "Strata Finance",
+    "does": "Packages distress-refinance files for UK SMEs with stacked short-term debt and HMRC arrears.",
+    "doesNot": [
+      "lend",
+      "quote rates or APR",
+      "guarantee eligibility or outcomes",
+      "take insolvency appointments",
+      "act as FCA-authorised firm"
+    ]
+  },
+  "houseRules": [
+    "Strata packages; it does not lend.",
+    "No rates, APR, guarantees, instant approval, or we-lend claims.",
+    "Do not tell a visitor they are eligible.",
+    "Time to Pay is an instalment arrangement, not a loan.",
+    "Teach structures, do not name lenders as villains.",
+    "Sales TTP page and Learn TTP article are different URLs."
+  ],
+  "nav": {
+    "header": [
+      "The Problem",
+      "How It Works",
+      "Solutions",
+      "Learn",
+      "Free Tools"
+    ],
+    "learnHref": "/learn/",
+    "cta": {
+      "enquire": "/index.html#tools",
+      "eligibility": "/index.html#tools"
+    }
+  },
+  "outOfScope": [
+    "news",
+    "ask-librarian",
+    "this-helped",
+    "email-me-this"
+  ],
+  "path": [
+    {
+      "slug": "payday-lenders",
+      "kind": "video",
+      "title": "What a commercial payday lender actually is",
+      "excerpt": "An informal name for very short-term, high-cost business credit — and why it stacks.",
+      "url": "/learn/watch/payday-lenders.html",
+      "durationLabel": "1 min",
+      "pathPosition": 1,
+      "video": "/learn/videos/payday-lenders.mp4"
+    },
+    {
+      "slug": "cashflow",
+      "kind": "video",
+      "title": "Poor cashflow will kill the business on its own",
+      "excerpt": "The current account is the oxygen. Sort that before anyone sells you another facility.",
+      "url": "/learn/watch/cashflow.html",
+      "durationLabel": "1 min",
+      "pathPosition": 2,
+      "video": "/learn/videos/cashflow.mp4"
+    },
+    {
+      "slug": "time-to-pay",
+      "kind": "video",
+      "title": "Time to Pay is not time to hide",
+      "excerpt": "An instalment arrangement with HMRC, not a loan, and not a place to disappear.",
+      "url": "/learn/watch/time-to-pay.html",
+      "durationLabel": "1 min",
+      "pathPosition": 3,
+      "video": "/learn/videos/time-to-pay.mp4"
+    },
+    {
+      "slug": "bad-brokers",
+      "kind": "video",
+      "title": "How to avoid a warehouse broker",
+      "excerpt": "If they will not name the lender, they are selling inventory.",
+      "url": "/learn/watch/bad-brokers.html",
+      "durationLabel": "55 sec",
+      "pathPosition": 4,
+      "video": "/learn/videos/bad-brokers.mp4"
+    }
+  ],
+  "handbook": [
+    {
+      "slug": "if-the-business-is-in-trouble",
+      "kind": "article",
+      "title": "If the business is in trouble, start here",
+      "excerpt": "A director's map for the first 48 hours — what to stop doing, what to read, and which help is real.",
+      "url": "/learn/read/if-the-business-is-in-trouble.html",
+      "durationLabel": "12 min",
+      "handbookOrder": 1,
+      "related": [
+        "warehouse-brokers",
+        "hidden-commissions",
+        "hmrc-time-to-pay",
+        "terms-that-should-stop-the-pen",
+        "products-that-finish-companies",
+        "directors-in-the-danger-zone",
+        "help-that-is-actually-there",
+        "stacked-debt"
+      ],
+      "wordCount": 1017,
+      "quizzes": [
+        {
+          "question": "A broker says they can get money in by Monday if you pay a commitment fee today. What should you do first?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Pay the fee so the offer does not expire.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Stop signing, write down who you already owe, and ask the four questions in writing.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Sign the personal guarantee \"just to get the offer out\".",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Let them send the pack to every lender they know, then decide.",
+              "correct": false
+            }
+          ],
+          "explain": "Same-day pressure is a sales tool. A file that cannot be written down is not ready to be leveraged again."
+        },
+        {
+          "question": "HMRC is chasing, and a VAT return is still unfiled. Can you hide behind a Time to Pay request?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Yes — asking for Time to Pay pauses everything.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "No. The return comes first. Time to Pay is not a place to hide.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Yes, if a broker files it for you.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only if you also take a short-term facility to show \"intent\".",
+              "correct": false
+            }
+          ],
+          "explain": "HMRC Time to Pay is an instalment arrangement after the liability is visible. Unfiled returns are the opposite of that."
+        },
+        {
+          "question": "Who is real help on a Thursday afternoon, and who is a product?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A warehouse broker who wants a card payment today.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Business Debtline, or a licensed insolvency practitioner's first conversation.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Any firm that rang you offering to \"save the company\".",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A lead-gen turnaround site that will not name the person you will speak to.",
+              "correct": false
+            }
+          ],
+          "explain": "Free charity advice and a licensed IP are help. A same-day broker is selling inventory."
+        },
+        {
+          "question": "You want to pay the supplier you like, and leave HMRC and a quiet lender waiting, because the supplier shouted. What is the risk?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "None — directors can choose who to pay.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A preference claim, if the company is insolvent or bordering on it.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Only a problem if you pay yourself.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only a problem after a winding-up order.",
+              "correct": false
+            }
+          ],
+          "explain": "Moving money to a favoured creditor when the company cannot pay everyone is how preference claims get built. Read the danger-zone lesson before you move cash."
+        },
+        {
+          "question": "What four things should you get in writing from a broker before they go to market?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Their logo, a testimonial, a LinkedIn, and a mobile number.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Lender name, product, every fee, and the commission in pounds.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A same-day decision and a \"soft search\" pack.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A personal guarantee template \"for later\".",
+              "correct": false
+            }
+          ],
+          "explain": "If they will not name the lender and the commission, they are selling a product they already have, not packaging a file."
+        },
+        {
+          "question": "What is Strata, in one sentence you should be able to repeat?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A lender that specialises in distress.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A packager of files. It does not lend.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A turnaround firm that takes appointments as administrator.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A broker that holds a warehouse of same-day products.",
+              "correct": false
+            }
+          ],
+          "explain": "House identity is not decoration. If a page here ever sounds like a lender, it has gone wrong."
+        }
+      ]
+    },
+    {
+      "slug": "warehouse-brokers",
+      "kind": "article",
+      "title": "Warehouse brokers",
+      "excerpt": "How a call-centre broker actually gets paid, why they will not name the lender, and the questions that end the pitch.",
+      "url": "/learn/read/warehouse-brokers.html",
+      "durationLabel": "16 min",
+      "handbookOrder": 2,
+      "related": [
+        "hidden-commissions",
+        "stacked-debt",
+        "hmrc-time-to-pay",
+        "products-that-finish-companies",
+        "terms-that-should-stop-the-pen"
+      ],
+      "wordCount": 1451,
+      "quizzes": [
+        {
+          "question": "A broker will not name the lender, but wants a commitment fee today. What is happening?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "They are matching you carefully to a panel.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "They already have a product. You are the inventory.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Same-day funding is how high-street banks work now.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Naming the lender would breach confidentiality until you sign.",
+              "correct": false
+            }
+          ],
+          "explain": "A packager can name the proposed lender. A warehouse is selling stock. The fee is to stop you walking before the commission drops."
+        },
+        {
+          "question": "Which three income lines can sit on the same warehouse file?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Your fee, the lender's commission to the broker, and the resale of your data.",
+              "correct": true
+            },
+            {
+              "label": "B",
+              "text": "Interest, VAT, and stamp duty.",
+              "correct": false
+            },
+            {
+              "label": "C",
+              "text": "Only the fee on the invoice they send you.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only what Companies House shows as a charge.",
+              "correct": false
+            }
+          ],
+          "explain": "The fee you see is one line. Commission and lead-sale are the other two. Ask for the commission in pounds."
+        },
+        {
+          "question": "Dual charging — a fee from you and a commission from the lender — is automatically unlawful in commercial finance. True or false?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "True. Any second payment is a bribe.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "False. It is common. The problem is concealment, a false claim of independence, and packing the fattest kickback.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "True, but only if the loan is over a certain size.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "False, and you should never ask about it because it is confidential.",
+              "correct": false
+            }
+          ],
+          "explain": "Commercial dual charging is common. Concealment and a pretend independent role are the problem. Wood is the case. Get the number in writing."
+        },
+        {
+          "question": "\"We'll restructure the existing stack\" from a warehouse usually means what?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "They will negotiate a single longer facility and cancel the sweeps.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "They will add another short-term product whose collections sit on top of the ones you already cannot pay.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "They will file a Time to Pay for you.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "They will take an administration appointment.",
+              "correct": false
+            }
+          ],
+          "explain": "Restructuring, in that mouth, is a new product. Read stacked debt before you sign it."
+        },
+        {
+          "question": "What belongs in an email to a broker before anyone goes to market?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A scanned driving licence and a card number.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Lender legal name, product in one sentence, every fee in pounds, commission in pounds.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Permission to submit to any lender they like.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A signed personal guarantee \"to speed things up\".",
+              "correct": false
+            }
+          ],
+          "explain": "If they cannot answer those four in writing, they are not packaging a file."
+        },
+        {
+          "question": "Your mobile starts ringing with firms you never contacted, twenty minutes after the first broker call. What happened?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "The market is competitive and they all found you independently.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Your data was sold down an introducer chain.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Companies House publishes mobile numbers.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "It is a sign the deal is strong.",
+              "correct": false
+            }
+          ],
+          "explain": "A packager does not need to sell your mobile to eat. A warehouse does."
+        },
+        {
+          "question": "A broker agreement says they are not your agent and give no advice, but the call said they were on your side. What should you do?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Trust the call. The agreement is standard.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Treat the document as the truth, and walk if it does not match the pitch.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Sign, because oral promises override terms.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Tick the independent legal advice box without ringing a solicitor, to keep things moving.",
+              "correct": false
+            }
+          ],
+          "explain": "The agreement is what gets read later. The call is what gets you to sign. Put the pen down."
+        }
+      ]
+    },
+    {
+      "slug": "hidden-commissions",
+      "kind": "article",
+      "title": "Hidden commissions",
+      "excerpt": "Secret fees, half-secret small print, Wood, Hopcraft, and why a 2025 Supreme Court case is not a magic claim for every commercial director.",
+      "url": "/learn/read/hidden-commissions.html",
+      "durationLabel": "18 min",
+      "handbookOrder": 3,
+      "related": [
+        "help-that-is-actually-there"
+      ],
+      "wordCount": 1515,
+      "quizzes": [
+        {
+          "question": "A broker's terms say they \"may receive a fee from lenders\" and will tell you the amount in writing before you complete. They never send the amount. After Wood, how should you treat that commission?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "As half-secret, so there is nothing you can do.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "As fully secret, because you were entitled to proceed as if no commission was being paid.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "As automatically a Consumer Credit Act claim.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "As lawful, because \"may receive\" is enough disclosure.",
+              "correct": false
+            }
+          ],
+          "explain": "Wood held that a promised written figure that never arrived left the borrowers off notice. The commissions were secret, not half-secret."
+        },
+        {
+          "question": "What did the Supreme Court actually do in Hopcraft in August 2025?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "It held that every undisclosed motor-finance commission is a bribe.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "It held that typical motor dealers do not owe a fiduciary duty of loyalty, so the bribery and equity claims failed. One claimant still won under the Consumer Credit Act.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "It extended Wood to every introducer in the United Kingdom.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "It banned lender commissions.",
+              "correct": false
+            }
+          ],
+          "explain": "Hopcraft pulled the law back. Dealers selling cars are not impartial brokers. Johnson won on unfair relationship, not on bribery."
+        },
+        {
+          "question": "Why is Plevin a dangerous case to wave at a commercial facility?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "It is not a real case.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "It is a consumer PPI unfair-relationship decision. Most SME facilities are not in the Consumer Credit Act.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "It only applies in Scotland.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "It abolished secret commissions.",
+              "correct": false
+            }
+          ],
+          "explain": "Plevin is about PPI and s.140A. It is not a template for unregulated commercial credit. Ask a solicitor whether your agreement is in scope before you build a plan on it."
+        },
+        {
+          "question": "A warehouse broker told you they were independent and would find the best deal. The terms say they are not your agent. Which story is closer?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Hopcraft — they were obviously a salesman.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Wood — they held themselves out as impartial, then took a lender payment you were not told about.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Neither. Oral pitches never matter.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only FCA rules matter, and commercial brokers are never in court.",
+              "correct": false
+            }
+          ],
+          "explain": "The pitch can create the duty Wood talked about — honest and impartial information or recommendation. The terms are an attempt to write it away. Get advice on the facts."
+        },
+        {
+          "question": "What should you have in pounds, in writing, before you are bound?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Only the monthly collection, because commission is confidential.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Every fee you pay, and every commission the lender pays the broker.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Nothing. Asking is rude.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only what appears on a Companies House charge.",
+              "correct": false
+            }
+          ],
+          "explain": "Pounds, in writing, before you are bound. \"We may receive a fee\" is not a number."
+        },
+        {
+          "question": "Is an undisclosed commission automatically a bribe after 2025?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Yes, always.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "No. It depends on the duty the intermediary actually owed, and on whether any unfair-relationship statute applies.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Yes, but only for companies.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "No, and therefore you should never ask.",
+              "correct": false
+            }
+          ],
+          "explain": "Hopcraft restored orthodoxy. Secret payments to someone who owed you impartiality are one thing. Payments to a salesman who never pretended to be your agent are another. Ask, then get advice."
+        }
+      ]
+    },
+    {
+      "slug": "hmrc-time-to-pay",
+      "kind": "article",
+      "title": "HMRC Time to Pay",
+      "excerpt": "An instalment arrangement, not a loan, not a right, and not a place to hide. What HMRC actually looks at, and what happens if you break it.",
+      "url": "/learn/read/hmrc-time-to-pay.html",
+      "durationLabel": "16 min",
+      "handbookOrder": 4,
+      "related": [
+        "stacked-debt",
+        "help-that-is-actually-there",
+        "directors-in-the-danger-zone"
+      ],
+      "wordCount": 1335,
+      "quizzes": [
+        {
+          "question": "What is HMRC Time to Pay?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A loan from HMRC at a special rate.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "An instalment arrangement for tax you already owe. Not credit, not a right.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Automatic breathing space for any limited company that asks.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A write-off if you keep paying something.",
+              "correct": false
+            }
+          ],
+          "explain": "Time to Pay is collection by instalments. It is not credit and not a right. HMRC either believes you cannot pay on the due date, or they enforce."
+        },
+        {
+          "question": "For business taxes, what does HMRC's own manual say about duration?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Two to five years is standard.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "It should be less than 12 months. Longer is exceptional.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "It lasts as long as the new facility you are about to take.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "There is no guidance.",
+              "correct": false
+            }
+          ],
+          "explain": "DMBM800040: business-tax Time to Pay should be under 12 months except in exceptional, manager-authorised cases. Do not model a refinance on a plan HMRC has not agreed."
+        },
+        {
+          "question": "A VAT return is unfiled. Can you use Time to Pay as cover?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Yes. Asking pauses penalties.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "No. File first. Time to Pay is not a place to hide.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Yes, if a broker calls HMRC for you.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only for Corporation Tax.",
+              "correct": false
+            }
+          ],
+          "explain": "The liability has to be visible. Unfiled returns are the opposite of an instalment arrangement."
+        },
+        {
+          "question": "Why did Crown preference coming back in 2020 change distressed refinance?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "It did not.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Certain VAT, PAYE and NICs are secondary preferential in insolvency, so treating HMRC as just another unsecured creditor is out of date.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "HMRC can no longer petition to wind a company up.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Time to Pay became a legal right.",
+              "correct": false
+            }
+          ],
+          "explain": "Finance Act 2020 restored Crown preference from 1 December 2020 for specified taxes. A packager who still treats HMRC as ordinary unsecured is not reading the file."
+        },
+        {
+          "question": "You take a short-term sweep \"to catch up HMRC\" and then miss the Time to Pay anyway. What have you done?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Shown good faith. HMRC will wait.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Put a second collector on the same cash. The insolvency is later, and worse.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Created a regulated consumer-credit agreement.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Nothing, as long as the broker filed the plan.",
+              "correct": false
+            }
+          ],
+          "explain": "Stacking a sweep on top of a tax schedule is how broken Time to Pay arrangements are born. Offer HMRC a number you can keep without a fantasy facility."
+        },
+        {
+          "question": "Is Time to Pay the same as breathing space or a company moratorium?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Yes — all three freeze creditors.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "No. Breathing space is for individuals. A Part A1 moratorium is a different company tool with a monitor. Time to Pay is HMRC only.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Yes, if HMRC agrees.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Time to Pay is the company moratorium.",
+              "correct": false
+            }
+          ],
+          "explain": "Three different tools. Mixing them up is how directors miss the one that might actually help."
+        }
+      ]
+    },
+    {
+      "slug": "terms-that-should-stop-the-pen",
+      "kind": "article",
+      "title": "Terms that should stop the pen",
+      "excerpt": "All-monies, additional security on demand, a personal guarantee that never dies, and the boxes you ticked without a solicitor in the room.",
+      "url": "/learn/read/terms-that-should-stop-the-pen.html",
+      "durationLabel": "18 min",
+      "handbookOrder": 5,
+      "related": [
+        "stacked-debt",
+        "products-that-finish-companies"
+      ],
+      "wordCount": 1352,
+      "quizzes": [
+        {
+          "question": "An all-monies clause means what?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "The security covers only this facility.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "The security can cover everything you owe that lender, now or later, not just this facility.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "The lender must release the charge when this facility is paid.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "It only applies to property mortgages.",
+              "correct": false
+            }
+          ],
+          "explain": "All-monies turns a single facility into a pipe. Ask what it takes to release the charge and the guarantee."
+        },
+        {
+          "question": "The offer expires in twenty minutes and the independent-legal-advice box is blank. What should you do?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Tick it. Everyone does.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Do not tick it. Let the offer expire if they will not wait for a solicitor.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Ask the broker to initial it for you.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Tick it, then ring a solicitor next week.",
+              "correct": false
+            }
+          ],
+          "explain": "The certificate is a statement that you understood. Ticking it without advice is how that statement gets used against you."
+        },
+        {
+          "question": "Cross-default on a stacked file does what?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Nothing, unless a court orders it.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Turns a missed payment to someone else into a default under this facility too.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Protects you from other lenders.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only applies to HMRC.",
+              "correct": false
+            }
+          ],
+          "explain": "One local miss becomes a simultaneous acceleration. Distressed companies should not collect cross-defaults like stamps."
+        },
+        {
+          "question": "A personal guarantee is \"continuing\", \"on demand\", and \"joint and several\". Can they come for you before they have finished with the company?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "No. They must liquidate first.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Yes. That is what those words are for.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Only if you were the majority shareholder.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only if the facility was a personal regulated credit agreement.",
+              "correct": false
+            }
+          ],
+          "explain": "On demand and joint and several means they can pick the deepest pocket first. The company being \"in process\" is not a shield."
+        },
+        {
+          "question": "The broker promised on the call that they would renew at the same price. The document has an entire-agreement clause. Where does the promise live?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "In the call. Courts always prefer oral evidence.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Nowhere, unless it is in the document.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "In the broker's CRM.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "In the Companies House charge.",
+              "correct": false
+            }
+          ],
+          "explain": "Entire agreement and non-reliance are there to kill the call. If it matters, it goes in the document."
+        },
+        {
+          "question": "Additional security on demand is \"standard\" according to the broker. What is it actually?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A courtesy.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A lever to demand the house, a spouse, or shares, and to treat a refusal as default.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Illegal in commercial contracts.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only enforceable after a CCJ.",
+              "correct": false
+            }
+          ],
+          "explain": "On a distressed day they use it. Cap it, or walk."
+        },
+        {
+          "question": "The only way out of the facility is a \"renewal\" with a new fee on the remaining balance. What do you have?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A normal working-capital line.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A subscription to your own debt, not an exit.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A Time to Pay.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A regulated consumer-credit relationship by default.",
+              "correct": false
+            }
+          ],
+          "explain": "A renewal fee on the residual is how you still owe more than you borrowed after months of collections. Put the pen down."
+        }
+      ]
+    },
+    {
+      "slug": "products-that-finish-companies",
+      "kind": "article",
+      "title": "Products that finish companies",
+      "excerpt": "Daily sweeps, stacked short-term credit, bridging used as working capital, and \"renewals\" that are just a new fee. Structures, not brand names.",
+      "url": "/learn/read/products-that-finish-companies.html",
+      "durationLabel": "17 min",
+      "handbookOrder": 6,
+      "related": [
+        "stacked-debt",
+        "warehouse-brokers",
+        "directors-in-the-danger-zone"
+      ],
+      "wordCount": 1201,
+      "quizzes": [
+        {
+          "question": "A daily sweep feels \"flexible\" on a busy Saturday. What does a quiet Tuesday tell you?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Nothing. Daily is always cheaper.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "The operating account is no longer yours in practice. The product has to work on the quiet week, not the best week.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "HMRC will treat the sweep as a Time to Pay.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Quiet days are not collected.",
+              "correct": false
+            }
+          ],
+          "explain": "Sweeps price risk by taking cash first. If the residual cannot pay VAT and wages, the product does not fit. A second sweep will not fix that."
+        },
+        {
+          "question": "What is stacking?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Refinancing several facilities into one longer structure.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Two or more short-term collectors on the same cash, each taking a fee.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Filing two VAT returns.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Having a current account and a savings account.",
+              "correct": false
+            }
+          ],
+          "explain": "Stacking is extra collectors, not a refinance. A warehouse \"restructure\" that adds a product is stacking with better branding."
+        },
+        {
+          "question": "Bridging used to pay wages and VAT is usually what?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A normal working-capital tool.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A property product with a defined exit, being used as same-day working capital — which is how it becomes an insolvency.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A regulated consumer-credit agreement automatically.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A Time to Pay.",
+              "correct": false
+            }
+          ],
+          "explain": "Bridging needs a contracted take-out. \"We'll extend\" is not an exit."
+        },
+        {
+          "question": "You have paid collections for months. They offer a \"renewal\" with a new fee on the remaining balance. What has happened?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "You have reached a genuine working-capital relationship.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "You are being sold a subscription to the same debt.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "The old facility is legally gone even if the balance is not.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "The fee is always refundable.",
+              "correct": false
+            }
+          ],
+          "explain": "A renewal fee on the residual is how you still owe more than you borrowed. Pay down, refinance onto something that lasts, or take insolvency advice."
+        },
+        {
+          "question": "Why does this lesson not name lenders?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "There are no problem products.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "The structure is what does the damage. Brand names are how you buy a libel letter instead of a better file.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "The FCA forbids naming companies.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Strata is a lender and cannot comment.",
+              "correct": false
+            }
+          ],
+          "explain": "Structures, not logos. Once you can see the shape, you do not need the letterhead. Strata packages; it does not lend."
+        },
+        {
+          "question": "Invoice finance plus the whole ledger plus an all-asset charge plus a continuing personal guarantee is a sign of what?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A lender that loves the book.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A lender that does not want to rely on the book alone — they want the company and the director too.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A standard current-account overdraft.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A product that never notifies debtors.",
+              "correct": false
+            }
+          ],
+          "explain": "If they want the ledger and the house, believe the security pack, not the pitch."
+        }
+      ]
+    },
+    {
+      "slug": "directors-in-the-danger-zone",
+      "kind": "article",
+      "title": "Directors in the danger zone",
+      "excerpt": "Sequana, wrongful trading, preferences, overdrawn loan accounts, and the minutes a court will actually want to see.",
+      "url": "/learn/read/directors-in-the-danger-zone.html",
+      "durationLabel": "20 min",
+      "handbookOrder": 7,
+      "related": [
+        "warehouse-brokers",
+        "help-that-is-actually-there",
+        "hmrc-time-to-pay"
+      ],
+      "wordCount": 1115,
+      "quizzes": [
+        {
+          "question": "After Sequana, when does the creditor duty switch on?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "As soon as there is any real risk of insolvency.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "When directors know or ought to know the company is insolvent or bordering on insolvency, or that insolvent liquidation or administration is probable.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Only after a winding-up order.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Never, because duties are always to shareholders.",
+              "correct": false
+            }
+          ],
+          "explain": "The Supreme Court rejected a \"real risk\" trigger. Bordering on insolvency, or probable insolvent process. When the process is inevitable, creditors are paramount."
+        },
+        {
+          "question": "What is the core of wrongful trading under section 214?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Any loss-making year.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Continuing once you knew or ought to have concluded there was no reasonable prospect of avoiding insolvent liquidation, without taking every step to minimise loss to creditors.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Filing a VAT return late.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Taking a personal guarantee.",
+              "correct": false
+            }
+          ],
+          "explain": "The switch is \"no reasonable prospect\". The duty is \"every step\". Minutes and licensed advice are how you show it."
+        },
+        {
+          "question": "You pay the supplier you like, and leave HMRC and a quiet lender waiting, because the supplier shouted. What claim is that inviting?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Nothing. Directors choose.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A preference, especially if the company is insolvent and the payment is influenced by a desire to prefer.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Only fraudulent trading.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Only a consumer-credit claim.",
+              "correct": false
+            }
+          ],
+          "explain": "Section 239. Connected parties are worse. Shouting is not a legal order of priority."
+        },
+        {
+          "question": "An overdrawn director's loan account in a liquidation is what?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Drawings, so it vanishes.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Money the company can call, treated as an asset the liquidator will chase.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A dividend by another name, always lawful.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Protected if you called it wages on WhatsApp.",
+              "correct": false
+            }
+          ],
+          "explain": "An overdrawn DLA is a debt you owe the company. Liquidators collect it."
+        },
+        {
+          "question": "The COVID-era suspension of wrongful trading still protects you in 2026. True or false?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "True.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "False. That relief expired. Do not rely on a 2020 memory.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "True for Bounce Back Loans only.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "True if HMRC agrees.",
+              "correct": false
+            }
+          ],
+          "explain": "Temporary wrongful-trading relief was a pandemic measure. It is not a standing shield."
+        },
+        {
+          "question": "What belongs in the minutes if you think the duty is on?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A slogan about being a fighter.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Cash, HMRC, the stack, licensed advice with a date, and a decision to continue for a defined reason or to open a process.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Only the broker's name.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Nothing. Minutes can be used against you, so write none.",
+              "correct": false
+            }
+          ],
+          "explain": "If the only record is WhatsApp with a warehouse, that is the record. Write the adult version."
+        }
+      ]
+    },
+    {
+      "slug": "help-that-is-actually-there",
+      "kind": "article",
+      "title": "Help that is actually there",
+      "excerpt": "Business Debtline, licensed insolvency practitioners, HMRC, the Ombudsman, the company moratorium — and the firms that ring you first.",
+      "url": "/learn/read/help-that-is-actually-there.html",
+      "durationLabel": "16 min",
+      "handbookOrder": 8,
+      "related": [
+        "hmrc-time-to-pay"
+      ],
+      "wordCount": 1153,
+      "quizzes": [
+        {
+          "question": "Business Debtline just rang your mobile offering to save the company for a fee. What is going on?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "That is how they work now.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "It is not them. They never cold-call, never WhatsApp, and never charge.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Pay them. Charity numbers get reused.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Ask them to take the administration appointment.",
+              "correct": false
+            }
+          ],
+          "explain": "Money Advice Trust is explicit. They do not call first and they do not charge. Hang up."
+        },
+        {
+          "question": "Who can take a company into administration, a CVA, or a Part A1 moratorium?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Any turnaround consultant with a good website.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A licensed insolvency practitioner.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A warehouse broker with a panel.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "HMRC automatically.",
+              "correct": false
+            }
+          ],
+          "explain": "Formal insolvency tools run through licensed IPs. First conversations are often without a fee. Use GOV.UK to find one."
+        },
+        {
+          "question": "A limited company can use the Debt Respite Scheme (\"breathing space\") to freeze creditors. True or false?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "True.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "False. Breathing space is for individuals. Companies have a different tool: the Part A1 moratorium, with a monitor.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "True if turnover is under £6.5 million.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "True if HMRC agrees.",
+              "correct": false
+            }
+          ],
+          "explain": "Mixing up individual breathing space with the company moratorium is how directors miss both."
+        },
+        {
+          "question": "How long is the initial Part A1 moratorium?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A year.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "20 business days, extendable.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Until HMRC is paid.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Until the warehouse facility lands.",
+              "correct": false
+            }
+          ],
+          "explain": "Twenty business days, with a licensed monitor, to structure a rescue — not a product a broker can sell on a call."
+        },
+        {
+          "question": "Can every SME take a commercial-finance complaint to the Ombudsman?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Yes, always.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "No. Size tests apply, the firm must be in jurisdiction, and a lot of business-purpose credit sits outside the FCA perimeter.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Yes, if you have a personal guarantee.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "No, because the Ombudsman closed in 2019.",
+              "correct": false
+            }
+          ],
+          "explain": "Micro-enterprise and small-business tests, plus FCA perimeter. \"We'll go to the Ombudsman later\" is not a plan for an unregulated sweep."
+        },
+        {
+          "question": "What is the first free call if you are a director with personal exposure and a company in trouble?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "The warehouse that rang you.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Business Debtline on 0800 197 6026, then a licensed IP if the company itself needs a process.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A claims-management firm waving Plevin.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A lead-gen \"rescue\" ad.",
+              "correct": false
+            }
+          ],
+          "explain": "Charity first for the personal map. Licensed IP for the company. Packager after that, if there is still a file. Strata packages; it does not lend."
+        }
+      ]
+    },
+    {
+      "slug": "stacked-debt",
+      "kind": "article",
+      "title": "Stacked debt",
+      "excerpt": "How the same cash gets pledged three times, why \"one more facility\" is the hole, and the sequence that actually stops the digging.",
+      "url": "/learn/read/stacked-debt.html",
+      "durationLabel": "15 min",
+      "handbookOrder": 9,
+      "related": [
+        "warehouse-brokers",
+        "products-that-finish-companies",
+        "terms-that-should-stop-the-pen",
+        "help-that-is-actually-there",
+        "directors-in-the-danger-zone"
+      ],
+      "wordCount": 991,
+      "quizzes": [
+        {
+          "question": "A broker offers to \"restructure\" two existing sweeps by adding a third facility. What is that?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A refinance.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Stacking, unless the new money actually clears the old collectors.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "A Time to Pay.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "A company moratorium.",
+              "correct": false
+            }
+          ],
+          "explain": "Restructure means the old collectors leave. A new collector on the same cash is a stack."
+        },
+        {
+          "question": "Why draw a quiet-week cash page before you speak to anyone?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "To impress HMRC with a graphic.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "If the residual is already negative after the existing collectors, a new collector cannot fix it.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Lenders require colour charts.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "You should not. It is demoralising.",
+              "correct": false
+            }
+          ],
+          "explain": "The quiet week is the truth. Best-week stories are how stacks get sold."
+        },
+        {
+          "question": "Three lenders each have all-monies and cross-default wording. What is the practical effect?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Nothing until a court consolidates them.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "One miss can accelerate more than one facility, and paying \"this line\" may not release the house.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "The first lender to call wins everything automatically.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Cross-default is unenforceable against companies.",
+              "correct": false
+            }
+          ],
+          "explain": "Stack plus those clauses is a simultaneous problem. Map priority and releases in writing."
+        },
+        {
+          "question": "What is the first move on a stacked file?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Sign the renewal so you have time to think.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Stop signing, then write the map of collectors, HMRC, security and guarantees.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Let the warehouse submit you to the whole panel.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Pay the supplier who shouted, from the VAT.",
+              "correct": false
+            }
+          ],
+          "explain": "The next signature is the hole. The map is the file. Packaging comes after."
+        },
+        {
+          "question": "Using a new sweep to \"catch up HMRC\", then missing HMRC anyway, does what?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Proves good faith.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Puts another collector on the tax money and makes the later insolvency worse.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Creates an automatic Time to Pay.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "Moves HMRC down the priority list.",
+              "correct": false
+            }
+          ],
+          "explain": "HMRC wants money arriving, not a new Direct Debit competing with them. File and schedule first."
+        },
+        {
+          "question": "When is a new facility actually a replacement, not a stack?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "When the broker uses the word restructure.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "When it pays out the old collectors, kills their Debits, and releases security and guarantees you did not mean to keep — in writing.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "When it is same-day.",
+              "correct": false
+            },
+            {
+              "label": "D",
+              "text": "When the logo is different.",
+              "correct": false
+            }
+          ],
+          "explain": "Replace means the old collectors leave. Everything else is branding."
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "slug": "debt-stress-check",
+      "url": "/learn/tools/debt-stress-check.html",
+      "title": "Debt Stress Check",
+      "excerpt": "Income, outgoings, facilities; cost per trading day; stacking flag."
+    },
+    {
+      "slug": "time-to-pay-calculator",
+      "url": "/learn/tools/time-to-pay-calculator.html",
+      "title": "Time to Pay Calculator",
+      "excerpt": "Indicative monthly instalment. HMRC sets terms. 60-month cap under £250k arrears."
+    }
+  ],
+  "film": {
+    "url": "/learn/film.html",
+    "video": "/learn/videos/stacked-debt-film.mp4",
+    "poster": "/learn/videos/stacked-debt-film.jpg",
+    "beats": [
+      {
+        "id": "oxygen",
+        "start": 0,
+        "pauseAt": 28,
+        "title": "Your business is drowning",
+        "quiz": {
+          "question": "Still trading, cash is drowning, a broker can get a facility in 24 hours. What do you do?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Take it. Oxygen first, structure later.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Stop. Map every facility, HMRC, and the personal guarantee before anyone new is paid.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Sign whatever they email today so Friday wages clear.",
+              "correct": false
+            }
+          ],
+          "explain": "Same-day money is how the stack starts. Strata packages files; it does not lend. Read the books before another name hits the current account."
+        }
+      },
+      {
+        "id": "more",
+        "start": 28,
+        "pauseAt": 58,
+        "title": "Thirty to sixty days later",
+        "quiz": {
+          "question": "The same broker rings. The first facility is already eating the account. They can get you more. What do you do?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Take the second facility so you can keep the first one current.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "Ask who the lender is and what it costs in pounds — then do not stack.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Roll the first one into a larger version of the same product.",
+              "correct": false
+            }
+          ],
+          "explain": "Loan two does not pay off loan one. It sits on top of it. Strata packages; it does not lend."
+        }
+      },
+      {
+        "id": "trap",
+        "start": 58,
+        "pauseAt": 100,
+        "title": "Loan two sits on top",
+        "quiz": {
+          "question": "You are now borrowing to service the last loan. Friday wages almost do not happen. What is this?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "A growth facility that needs time to bed in.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A refinance that will settle once turnover recovers.",
+              "correct": false
+            },
+            {
+              "label": "C",
+              "text": "A trap. Stacked short-term credit servicing itself.",
+              "correct": true
+            }
+          ],
+          "explain": "Borrowing to service the last loan is the definition of a trap. Strata packages files. We do not lend."
+        }
+      },
+      {
+        "id": "way-out",
+        "start": 100,
+        "pauseAt": 148,
+        "title": "The house is on a personal guarantee",
+        "quiz": {
+          "question": "3 a.m. The spreadsheet. The house is on a personal guarantee. What is the way out?",
+          "choices": [
+            {
+              "label": "A",
+              "text": "Another facility, larger, from a better-sounding broker.",
+              "correct": false
+            },
+            {
+              "label": "B",
+              "text": "A hard look at the books, then a packager who will not stack you further.",
+              "correct": true
+            },
+            {
+              "label": "C",
+              "text": "Hide from HMRC until someone says yes.",
+              "correct": false
+            }
+          ],
+          "explain": "The way out is not another facility. Do not stack your way out of a hole. Strata packages; it does not lend."
+        }
+      },
+      {
+        "id": "close",
+        "start": 148,
+        "pauseAt": 171.6,
+        "title": "Don't stack your way out of a hole",
+        "quiz": null
+      }
+    ]
+  },
+  "thursdayPack": {
+    "url": "/learn/thursday-pack/"
+  },
+  "collisions": [
+    {
+      "live": "/hmrc-time-to-pay.html",
+      "pack": "/learn/read/hmrc-time-to-pay.html",
+      "note": "Sales page vs training article. Keep both."
+    }
+  ]
+}
