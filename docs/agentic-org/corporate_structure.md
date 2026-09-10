@@ -71,7 +71,7 @@ Owns: Stream A **mailbox factory**. Operator CSV + hopper rows missing a sendabl
 Owns: triage and drafted replies for every genuine inbound to `enquiries@stratafinance.co.uk`. Same James Hale persona as the cold mail. IMAP read and Drafts write only — no SMTP. Runtime pack: [strata-inbound/](./strata-inbound/). Shaun approves and sends. STOP still produces no draft.
 
 **SAL-2 Communications**  
-Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file. Rowan Vale (`mailbox-clerk`) owns STOP/unsubscribe (permanent suppression), bounces, and spam delete. A live customer reply is classified and drafted by SAL-1, not answered by Rowan and not auto-threaded by SAL-2.
+Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file. Rowan Vale (`mailbox-clerk`) owns STOP/unsubscribe (permanent suppression), bounces, and spam delete. A live customer reply is classified and drafted by SAL-1, not answered by Rowan and not auto-threaded by SAL-2. After sme_1 and sme_2 have both been opened with no reply, James swaps onto the convert playbook (agents/SAL-2-convert.md) and cancels sme_close.
 
 **FIN-2 File factory**  
 Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep, credit memo *recommendation*, completeness gate, compilation of the Sterling zip.
@@ -100,6 +100,7 @@ Owns: Media Gallery index. Hunts Unsplash, Pexels, Openverse, and Firecrawl imag
 | Missing email/phone | RES-2 (Elena desk inbound/introducer; Harper desk SME harvest) | Elena: one retry next day. Harper: domain-locked SMTP harvest on every real SME file without an email, including quarantine. Skip test companies. |
 | First template email (cold or inbound ack) | SAL-2 | Auto-send if SMTP live and PECR stop line present |
 | Cadence follow-up email | SAL-2 | Auto on timer |
+| Dual-open SME convert (site enquiry) | SAL-2 James | Auto-send N1–N3; Shaun C1; Promote on enquiry |
 | Inbound reply to enquiries@ (not STOP) | SAL-1 | Draft only. Shaun sends. Spec: `agents/SAL-1.md` |
 | STOP / unsubscribe inbound | SAL-2 Rowan | No SAL-1 draft. Suppression. Confirm to Shaun |
 | LinkedIn | SAL-2 drafts, Shaun posts | Never auto-post |

@@ -80,4 +80,10 @@ describe("Openers UI wiring", () => {
     expect(service).toMatch(/waitUntil: wakeAt/);
     expect(service).toMatch(/isConvertOpener\(opener\) && \(action === "start" \|\| action === "approve"\)/);
   });
+
+  it("corporate structure mentions convert after dual-open", () => {
+    const doc = fs.readFileSync(path.resolve("docs/agentic-org/corporate_structure.md"), "utf8");
+    expect(doc).toMatch(/sme_nurture|dual-open|convert playbook/i);
+    expect(doc).toMatch(/SAL-2-convert/);
+  });
 });
