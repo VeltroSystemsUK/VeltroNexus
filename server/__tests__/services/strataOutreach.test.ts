@@ -160,3 +160,25 @@ describe("strata outreach scripts", () => {
     expect(call.beats.some((beat) => /debt schedule/i.test(beat.say))).toBe(true);
   });
 });
+
+describe("convert templates", () => {
+  const deal = { ...huntDeal, contactName: "David Cole" };
+  const unnamed = { ...huntDeal, contactName: "" };
+
+  it("N1–N3 point at www.stratafinance.co.uk, stop line, packager identity, no Learn/call ask", () => {
+    for (const id of ["sme_n1", "sme_n2", "sme_n2_hmrc", "sme_n2_clicked", "sme_n3", "sme_n3_form"] as const) {
+      const email = renderOutreachEmail(deal, id, "outreach-sales");
+      expect(email.subject.length).toBeLessThanOrEqual(45);
+      expect(email.text).toContain("https://www.stratafinance.co.uk/");
+      expect(email.text).toContain("If this isn't useful, reply stop and we won't email again.");
+      expect(email.text).toMatch(/do not lend/i);
+      expect(email.text).not.toMatch(/learn\.stratanexus|explore\.stratanexus/i);
+      expect(email.text).not.toMatch(/10-minute|Thursday|brief call/i);
+      expect(email.html).toContain("sf=");
+    }
+    expect(renderOutreachEmail(deal, "sme_n1", "outreach-sales").subject).toBe("30 seconds on eligibility");
+    expect(renderOutreachEmail(deal, "sme_n3", "outreach-sales").text).toContain("?sf=n3#contact");
+    expect(renderOutreachEmail(unnamed, "sme_n1", "outreach-sales").text).toMatch(/^Hi,/);
+    expect(renderOutreachEmail(unnamed, "sme_n1", "outreach-sales").text).not.toMatch(/Hi there,/);
+  });
+});

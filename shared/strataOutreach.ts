@@ -10,8 +10,18 @@ import {
   type SalesStream,
 } from "./salesOs";
 import { compileIntroducerStep, INTRODUCER_PANEL_ONE_LINER } from "./introducerPlaybook";
+import { CONVERT_SITE_ORIGIN, convertCopyOk, convertGreetingName } from "./smeConvert";
 
-export type OutreachTouchId = CadenceTouchId | "cold_1" | "cold_2" | "cold_3" | "sme_open" | "sme_followup";
+export type OutreachTouchId =
+  | CadenceTouchId
+  | "cold_1"
+  | "cold_2"
+  | "cold_3"
+  | "sme_open"
+  | "sme_followup"
+  | "sme_n2_hmrc"
+  | "sme_n2_clicked"
+  | "sme_n3_form";
 
 export interface RenderedEmail {
   touchId: OutreachTouchId;
@@ -220,7 +230,9 @@ function withSignature(
   };
 }
 
-function canonicalTouchId(touchId: OutreachTouchId): CadenceTouchId | "sme_open" | "sme_followup" {
+function canonicalTouchId(
+  touchId: OutreachTouchId
+): CadenceTouchId | "sme_open" | "sme_followup" | "sme_n2_hmrc" | "sme_n2_clicked" | "sme_n3_form" {
   if (touchId === "cold_1") return "sme_1";
   if (touchId === "cold_2") return "sme_2";
   if (touchId === "cold_3") return "sme_close";
@@ -473,6 +485,91 @@ export function renderOutreachEmail(
       html: signed.html,
       text: signed.text,
       purpose: compiled.purpose,
+    };
+  }
+
+  if (id === "sme_n1" || id === "sme_n2" || id === "sme_n2_hmrc" || id === "sme_n2_clicked" || id === "sme_n3" || id === "sme_n3_form") {
+    const convertName = convertGreetingName(deal.contactName);
+    const greeting = convertName ? `Hi ${convertName},` : `Hi,`;
+    let subject = company;
+    let lines: string[] = [];
+    let purpose = "";
+
+    if (id === "sme_n1") {
+      subject = "30 seconds on eligibility";
+      lines = [
+        greeting,
+        `You opened both notes I sent about ${company}'s debt commitments.`,
+        `If it is useful, there is a 30-second eligibility check on our site. No credit search, and no conversation.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n1#tools`,
+        `Strata packages the file. We do not lend.`,
+      ];
+      purpose = "Convert N1 — dual-open diagnostic. Point at #tools.";
+    } else if (id === "sme_n2") {
+      subject = "What the monthly stack becomes";
+      lines = [
+        greeting,
+        `If ${company} is servicing more than one short-term facility, the refinance calculator on our site shows what that stack looks like as a single structure.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n2#tools`,
+        `Apply from the result if it is useful. We do not lend.`,
+      ];
+      purpose = "Convert N2 — refinance calculator.";
+    } else if (id === "sme_n2_hmrc") {
+      subject = "HMRC Time to Pay first number";
+      lines = [
+        greeting,
+        `For ${company}, the first figure most lenders will want is a Time to Pay shape on the HMRC balance. The calculator on our site is an indicative guide, not a lending decision.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n2#tools`,
+        `Apply from the result if it is useful. We do not lend.`,
+      ];
+      purpose = "Convert N2 HMRC — Time to Pay calculator.";
+    } else if (id === "sme_n2_clicked") {
+      subject = "Same page, next check";
+      lines = [
+        greeting,
+        `You looked at the eligibility check for ${company}. The refinance calculator is on the same page if you want a picture of the monthly stack as one structure.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n2#tools`,
+        `Apply from the result if it is useful. We do not lend.`,
+      ];
+      purpose = "Convert N2 after N1 click — refinance calculator.";
+    } else if (id === "sme_n3") {
+      subject = "Last note from me";
+      lines = [
+        greeting,
+        `I will not keep emailing about ${company}.`,
+        `If you want a view on the file, the enquiry form is on our site. No credit search. We reply within one working day.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n3#contact`,
+        `We do not lend. We package.`,
+      ];
+      purpose = "Convert N3 — enquiry form. Last email.";
+    } else {
+      subject = "The form is on that page";
+      lines = [
+        greeting,
+        `You opened the enquiry page for ${company} and did not send it. The form is still on that page if you want it looked at.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n3#contact`,
+        `We do not lend.`,
+      ];
+      purpose = "Convert N3 form reminder — enquiry still open.";
+    }
+
+    const signed = withSignature(lines, mailbox, [STOP_LINE]);
+    const check = convertCopyOk({ subject, html: signed.html, text: signed.text });
+    if (!check.ok) {
+      return {
+        touchId: id,
+        subject: company,
+        html: "",
+        text: "",
+        purpose: "playbook_gap:convert_copy",
+      };
+    }
+    return {
+      touchId: id,
+      subject,
+      html: signed.html,
+      text: signed.text,
+      purpose,
     };
   }
 
