@@ -88,6 +88,11 @@ export interface AgenticDealFile {
   outreachBody?: string;
   outreachTouch?: number;
   outreachTouchId?: string;
+  convertPlaybook?: "sme_nurture";
+  convertEnrolledAt?: string;
+  convertCycle?: number;
+  convertWakeAt?: string;
+  convertStopReason?: "completed" | "reply" | "opt_out" | "promoted" | "manual" | "blocked" | "dead";
   smeOpenFollowUpSentAt?: string;
   smeFollowupSentAt?: string;
   socialPlaybook?: { network: "linkedin"; action: string; message: string };

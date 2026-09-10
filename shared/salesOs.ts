@@ -301,7 +301,7 @@ export function classifyProspectStream(input: {
   return { stream: "sme", reason: "direct SME candidate" };
 }
 
-export type CadenceChannel = "email" | "linkedin" | "email+call" | "warm-call";
+export type CadenceChannel = "email" | "linkedin" | "email+call" | "warm-call" | "closer";
 
 export type CadenceTouchId =
   | "inbound_ack"
@@ -310,6 +310,10 @@ export type CadenceTouchId =
   | "sme_linkedin"
   | "sme_2"
   | "sme_close"
+  | "sme_n1"
+  | "sme_n2"
+  | "sme_n3"
+  | "sme_c1"
   | "intro_1"
   | "intro_linkedin"
   | "intro_mid"
@@ -331,6 +335,13 @@ export const SME_CADENCE: CadenceStep[] = [
   { index: 2, day: 4, delayDaysFromPrevious: 3, touchId: "sme_linkedin", channel: "linkedin", autoSend: false, queueCall: false, job: "LinkedIn profile review + connection request" },
   { index: 3, day: 8, delayDaysFromPrevious: 4, touchId: "sme_2", channel: "email", autoSend: true, queueCall: false, job: "Commercial case study email" },
   { index: 4, day: 14, delayDaysFromPrevious: 6, touchId: "sme_close", channel: "email+call", autoSend: true, queueCall: true, job: "Final review email + SME call queue" },
+];
+
+export const SME_NURTURE_CADENCE: CadenceStep[] = [
+  { index: 1, day: 0, delayDaysFromPrevious: 0, touchId: "sme_n1", channel: "email", autoSend: true, queueCall: false, job: "Dual-open diagnostic — eligibility tools" },
+  { index: 2, day: 4, delayDaysFromPrevious: 4, touchId: "sme_n2", channel: "email", autoSend: true, queueCall: false, job: "Refinance or HMRC calculator" },
+  { index: 3, day: 9, delayDaysFromPrevious: 5, touchId: "sme_n3", channel: "email", autoSend: true, queueCall: false, job: "Enquiry form — last email" },
+  { index: 4, day: 12, delayDaysFromPrevious: 3, touchId: "sme_c1", channel: "closer", autoSend: false, queueCall: false, job: "Openers WhatsApp or call closer" },
 ];
 
 export const INTRODUCER_CADENCE: CadenceStep[] = [
@@ -359,6 +370,22 @@ export function dealStream(source?: string, stream?: SalesStream | string | null
 
 export function nextCadenceStep(stream: SalesStream, completedTouches: number): CadenceStep | null {
   return cadenceFor(stream)[completedTouches] || null;
+}
+
+export function cadenceForDeal(deal: {
+  source?: string;
+  stream?: SalesStream | string | null;
+  convertPlaybook?: string;
+}): CadenceStep[] {
+  if (deal.convertPlaybook === "sme_nurture") return SME_NURTURE_CADENCE;
+  return cadenceFor(dealStream(deal.source, deal.stream));
+}
+
+export function nextCadenceStepForDeal(
+  deal: { source?: string; stream?: SalesStream | string | null; convertPlaybook?: string },
+  completedTouches: number
+): CadenceStep | null {
+  return cadenceForDeal(deal)[completedTouches] || null;
 }
 
 export function assessIntroducerFit(input: {

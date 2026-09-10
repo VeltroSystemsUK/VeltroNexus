@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "fs";
+import path from "path";
 import {
   CONVERT_SITE_ORIGIN,
   CONVERT_STOP_LINE,
@@ -17,6 +19,7 @@ import {
   shouldWakeConvert,
   siteClickKind,
 } from "@shared/smeConvert";
+import { nextCadenceStep, nextCadenceStepForDeal, SME_NURTURE_CADENCE } from "@shared/salesOs";
 
 const sme1 = {
   touchId: "sme_1",
@@ -150,5 +153,20 @@ describe("wake and copy", () => {
     expect(convertCopyOk({ subject: "Call?", text: "got 10 minutes Thursday? https://learn.stratanexus.co.uk" }).ok).toBe(false);
     expect(buildCloserScript({ company: "Acme Ltd", name: "David", lastSiteClickUrl: null })).toMatch(/No site click/);
     expect(buildCloserScript({ company: "Acme Ltd", name: "David", lastSiteClickUrl: `${CONVERT_SITE_ORIGIN}/?sf=n2#tools` })).toMatch(/Last site click/);
+  });
+});
+
+describe("convert cadence", () => {
+  it("does not change hunt next step, and convert deals read SME_NURTURE_CADENCE", () => {
+    expect(nextCadenceStep("sme", 3)?.touchId).toBe("sme_close");
+    expect(SME_NURTURE_CADENCE.map((s) => s.touchId)).toEqual(["sme_n1", "sme_n2", "sme_n3", "sme_c1"]);
+    expect(SME_NURTURE_CADENCE[3].autoSend).toBe(false);
+    expect(SME_NURTURE_CADENCE[3].queueCall).toBe(false);
+    expect(nextCadenceStepForDeal({ convertPlaybook: "sme_nurture" }, 0)?.touchId).toBe("sme_n1");
+    expect(nextCadenceStepForDeal({ convertPlaybook: "sme_nurture" }, 3)?.touchId).toBe("sme_c1");
+    const yaml = fs.readFileSync(path.resolve("shared/playbooks/sme_nurture.yaml"), "utf8");
+    expect(yaml).toMatch(/playbook_id: sme_nurture/);
+    expect(yaml).toMatch(/os_touch: sme_c1/);
+    expect(yaml).toMatch(/If this isn't useful, reply stop and we won't email again/);
   });
 });
