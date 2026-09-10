@@ -1,4 +1,5 @@
 import type { AgenticDealFile } from "./agenticWorkflow";
+import { isLiveSigned } from "./engagementPack";
 import { SME_FOLLOWUP_DELAY_MS } from "./smeOpenFollowUp";
 
 export type FactoryNodeKind = "trigger" | "auto" | "human" | "gate" | "output" | "fail";
@@ -45,8 +46,9 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "partial", label: "SFP PARTIAL", desk: "Sophie", kind: "gate", detail: "Chase missing items", x: 2240, y: 160 },
   { id: "complete", label: "SFP COMPLETE", desk: "Priya", kind: "gate", detail: "Sourced numbers only", x: 2240, y: 360 },
   { id: "credit", label: "Credit memo", desk: "You", kind: "human", detail: "Approve recommendation", x: 2520, y: 360 },
-  { id: "sterling", label: "Sterling zip", desk: "ORC-1", kind: "output", detail: "Blocked if incomplete", x: 2800, y: 360 },
-  { id: "david", label: "David", desk: "Sterling", kind: "output", detail: "Lender recommendation", x: 3080, y: 360 },
+  { id: "engagement", label: "Engagement letter", desk: "Customer", kind: "human", detail: "E-sign Sterling terms before the pack leaves", x: 2660, y: 360 },
+  { id: "sterling", label: "Sterling zip", desk: "ORC-1", kind: "output", detail: "Blocked until signed", x: 2940, y: 360 },
+  { id: "david", label: "David", desk: "Sterling", kind: "output", detail: "Lender recommendation", x: 3220, y: 360 },
   { id: "parked", label: "Parked / stopped", desk: "ORC-1", kind: "fail", detail: "Opt-out, no pack, BBB fail", x: 2240, y: 520 },
   { id: "brand-review", label: "Quarterly brand review", desk: "Isla", kind: "trigger", detail: "30-asset consistency audit against the gate · sets next quarter's brand decisions", x: 0, y: 560 },
   { id: "brand-system", label: "Govern brand & visual identity", desk: "Isla", kind: "auto", detail: "Logo, colour, type, imagery, motion — the standard every asset, and Frankie's feed, works to", x: 280, y: 560 },
@@ -101,7 +103,8 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-ingest-complete", source: "ingest", target: "complete" },
   { id: "e-partial-fulfil", source: "partial", target: "fulfil", label: "chase" },
   { id: "e-complete-credit", source: "complete", target: "credit" },
-  { id: "e-credit-sterling", source: "credit", target: "sterling" },
+  { id: "e-credit-engagement", source: "credit", target: "engagement" },
+  { id: "e-engagement-sterling", source: "engagement", target: "sterling" },
   { id: "e-sterling-david", source: "sterling", target: "david" },
   { id: "e-mkt-scan-compose", source: "mkt-scan", target: "mkt-compose", label: "ammo" },
   { id: "e-mkt-hunt-compose", source: "mkt-hunt", target: "mkt-compose", label: "stills" },
@@ -137,7 +140,7 @@ function smeSideTouchNode(
 
 export function nodeForDeal(
   deal: Pick<AgenticDealFile, "stage" | "status" | "source" | "humanReason" | "sfp" | "stream"> &
-    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId" | "smeOpenFollowUpSentAt" | "smeFollowupSentAt">>
+    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId" | "smeOpenFollowUpSentAt" | "smeFollowupSentAt" | "engagement">>
 ): string {
   const reason = deal.humanReason || "";
   if (deal.status === "failed") {
@@ -178,7 +181,9 @@ export function nodeForDeal(
     case "human_review":
       return "credit";
     case "complete":
-      return deal.sterlingHandoffId ? "david" : "sterling";
+      if (deal.sterlingHandoffId) return "david";
+      if (!isLiveSigned(deal.engagement)) return "engagement";
+      return "sterling";
     default:
       return "parked";
   }

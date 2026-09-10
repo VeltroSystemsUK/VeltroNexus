@@ -5,13 +5,21 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { fromZodError } from "zod-validation-error";
 import { insertCompanySchema } from "@shared/schema";
-import { searchCompanyInfo } from "../utils/geminiClient";
+import { enrichCompanyProfile } from "../utils/companyEnrichment";
 import { formatOfficerName, formatAddress } from "../utils/formatters";
 import { getSicDescription } from "../utils/sicCodeLookup";
 import { chFetch } from "../utils/companiesHouseClient";
 import { creditsafeClient } from "../utils/creditsafeClient";
 import { getReadableProspect } from "../utils/prospectAccess";
 import { searchCompanyWeb } from "../utils/companyWebSearch";
+import {
+  identityFromOfficer,
+  isIndividualPerson,
+  matchReasons,
+  officerAppointmentsPath,
+  officerSearchQuery,
+  pickMatchingOfficerHits,
+} from "../utils/officerIdentity";
 
 const router = Router();
 
@@ -25,11 +33,14 @@ const router = Router();
         if (!companyName) {
           return res.status(400).json({ error: "Company name is required" });
         }
+        if (!String(websiteUrl || "").trim()) {
+          return res.status(400).json({ error: "Website URL is required" });
+        }
 
         console.log(
           `[Enrichment] Request received for: "${companyName}", Website: "${websiteUrl}"`
         );
-        const result = await searchCompanyInfo(companyName, websiteUrl);
+        const result = await enrichCompanyProfile(companyName, websiteUrl);
         res.json(result);
       } catch (error) {
         console.error("[Enrichment] API Error:", error);
@@ -455,76 +466,87 @@ const router = Router();
         const officers = officersRes && officersRes.ok ? await officersRes.json() : { items: [] };
         const psc = pscRes && pscRes.ok ? await pscRes.json() : { items: [] };
 
-        // Find companies with common officers
-        const officerNames =
-          officers.items?.filter((o: any) => !o.resigned_on).map((o: any) => o.name) || [];
         const companiesViaOfficers: any[] = [];
+        const companiesViaPSC: any[] = [];
 
-        for (const officerName of officerNames.slice(0, 5)) {
-          // Limit to prevent too many API calls
-          try {
+        const collectAppointments = async (
+          subjectRecord: any,
+          bucket: any[],
+          nameKey: "officer_name" | "psc_name"
+        ) => {
+          if (!isIndividualPerson(subjectRecord)) return;
+          const subject = identityFromOfficer(subjectRecord);
+          const displayName = subject.displayName || formatOfficerName(subjectRecord.name || "");
+          const paths = new Map<string, { match_reason: string; officer_address: string }>();
+          const nativePath = officerAppointmentsPath(subjectRecord);
+          if (nativePath) {
+            paths.set(nativePath, {
+              match_reason: "this company's officer record",
+              officer_address: formatAddress(subjectRecord.address),
+            });
+          }
+          const query = officerSearchQuery(subject, subjectRecord.name || "");
+          if (query) {
             const searchRes = await chFetch(
-              `/search/officers?q=${encodeURIComponent(officerName)}&items_per_page=5`
+              `/search/officers?q=${encodeURIComponent(query)}&items_per_page=20`
             );
-
             if (searchRes.ok) {
               const searchData = await searchRes.json();
-              for (const item of searchData.items || []) {
-                if (item.links?.officer?.appointments) {
-                  const appointmentsRes = await chFetch(item.links.officer.appointments);
-
-                  if (appointmentsRes.ok) {
-                    const appointments = await appointmentsRes.json();
-                    for (const appointment of appointments.items || []) {
-                      if (
-                        appointment.appointed_to?.company_number !== companyNumber &&
-                        !appointment.resigned_on
-                      ) {
-                        companiesViaOfficers.push({
-                          company_number: appointment.appointed_to?.company_number,
-                          company_name: appointment.appointed_to?.company_name,
-                          company_status: appointment.appointed_to?.company_status,
-                          officer_name: officerName,
-                          officer_role: appointment.officer_role,
-                          appointed_on: appointment.appointed_on,
-                        });
-                      }
-                    }
-                  }
-                }
+              const matched = pickMatchingOfficerHits(
+                subject,
+                searchData.items || [],
+                (hit: any) => identityFromOfficer(hit)
+              );
+              for (const item of matched) {
+                const path = officerAppointmentsPath(item);
+                if (!path || paths.has(path)) continue;
+                const candidate = identityFromOfficer(item);
+                paths.set(path, {
+                  match_reason: matchReasons(subject, candidate) || "name and address",
+                  officer_address: item.address_snippet || formatAddress(item.address),
+                });
               }
             }
+          }
+          for (const [appointmentsPath, meta] of paths) {
+            const appointmentsRes = await chFetch(appointmentsPath);
+            if (!appointmentsRes.ok) continue;
+            const appointments = await appointmentsRes.json();
+            for (const appointment of appointments.items || []) {
+              if (
+                appointment.appointed_to?.company_number !== companyNumber &&
+                !appointment.resigned_on
+              ) {
+                bucket.push({
+                  company_number: appointment.appointed_to?.company_number,
+                  company_name: appointment.appointed_to?.company_name,
+                  company_status: appointment.appointed_to?.company_status,
+                  [nameKey]: displayName,
+                  officer_role: appointment.officer_role,
+                  appointed_on: appointment.appointed_on,
+                  match_reason: meta.match_reason,
+                  officer_address: meta.officer_address,
+                });
+              }
+            }
+          }
+        };
+
+        const activeOfficers = (officers.items || []).filter((o: any) => !o.resigned_on).slice(0, 5);
+        for (const officer of activeOfficers) {
+          try {
+            await collectAppointments(officer, companiesViaOfficers, "officer_name");
           } catch (err) {
-            console.error(`Error searching for officer ${officerName}:`, err);
+            console.error(`Error searching for officer ${officer?.name}:`, err);
           }
         }
 
-        // Find companies with common PSC
-        const pscNames = psc.items?.filter((p: any) => !p.ceased_on).map((p: any) => p.name) || [];
-        const companiesViaPSC: any[] = [];
-
-        for (const pscName of pscNames.slice(0, 3)) {
+        const activePsc = (psc.items || []).filter((p: any) => !p.ceased_on).slice(0, 3);
+        for (const person of activePsc) {
           try {
-            const searchRes = await chFetch(
-              `/search/companies?q=${encodeURIComponent(pscName)}&items_per_page=10`
-            );
-
-            if (searchRes.ok) {
-              const searchData = await searchRes.json();
-              for (const company of searchData.items || []) {
-                if (company.company_number !== companyNumber) {
-                  companiesViaPSC.push({
-                    company_number: company.company_number,
-                    company_name: company.title,
-                    company_status: company.company_status,
-                    psc_name: pscName,
-                    address_snippet: company.address_snippet,
-                  });
-                }
-              }
-            }
+            await collectAppointments(person, companiesViaPSC, "psc_name");
           } catch (err) {
-            console.error(`Error searching for PSC ${pscName}:`, err);
+            console.error(`Error searching for PSC ${person?.name}:`, err);
           }
         }
 
@@ -603,16 +625,11 @@ const router = Router();
           return res.status(404).json({ error: "Prospect not found" });
         }
 
-        const tavilyApiKey = process.env.TAVILY_API_KEY;
-        if (!tavilyApiKey) {
-          return res.status(500).json({ error: "Tavily API key not configured" });
-        }
-
         const companyName = prospect.company.companyName;
         console.log(`Searching web for company news/adverse media: ${companyName}`);
 
         const data = await searchCompanyWeb({
-          apiKey: tavilyApiKey,
+          apiKey: process.env.TAVILY_API_KEY,
           companyName,
           companyNumber: prospect.company.companyNumber,
           registeredAddress: prospect.company.registeredAddress,

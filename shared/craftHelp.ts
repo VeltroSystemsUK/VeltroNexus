@@ -43,7 +43,7 @@ export type CraftHelpRecipe = {
   steps: CraftHelpStep[];
 };
 
-export type CraftHelpNav = "desk" | "recipes" | "rules";
+export type CraftHelpNav = "desk" | "recipes" | "rules" | "manual";
 
 export const CRAFT_HELP_DESK: { title: string; body: string }[] = [
   {

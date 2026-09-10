@@ -81,12 +81,31 @@ export function defaultEyebrow(track: PostTrack): string {
   return track === "introducer" ? "INTRODUCERS  ·  STRATA" : "SME DIRECTORS  ·  STRATA";
 }
 
-function clipHook(text: string, max: number): string {
-  const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
+const DANGLING = /\b(the|a|an|to|your|our|for|of|and|or|with|we|more)$/i;
+
+export function lineDangles(text: string): boolean {
+  return DANGLING.test(text.replace(/\s+/g, " ").trim());
+}
+
+/** Fit a line to max without ending mid-word or on a dangling article. */
+export function completeLine(text: string, max: number): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= max && !lineDangles(trimmed.replace(/\s+/g, " "))) return trimmed;
+  const t = trimmed.replace(/\s+/g, " ");
   const cut = t.slice(0, max);
-  const sp = cut.lastIndexOf(" ");
-  return (sp > 8 ? cut.slice(0, sp) : cut).trim();
+  const sentence = cut.match(/^[\s\S]*?[.!?]/);
+  if (sentence) {
+    const line = sentence[0]!.trim();
+    if (line.length >= 12 && !lineDangles(line)) return line;
+  }
+  const parts = (cut.lastIndexOf(" ") > 0 ? cut.slice(0, cut.lastIndexOf(" ")) : cut).trim().split(/\s+/);
+  while (parts.length && lineDangles(parts.join(" "))) parts.pop();
+  return parts.join(" ");
+}
+
+function clipHook(text: string, max: number): string {
+  return completeLine(text, max);
 }
 
 /** Split a hero into two colourable punches. */
@@ -183,7 +202,7 @@ export function parseWeekGenerate(input: unknown): {
   return { from, mode, selectedId, stamp };
 }
 
-function heldPost(post: CraftPost): boolean {
+export function heldPost(post: CraftPost): boolean {
   if (post.status === "rejected") return false;
   return (
     post.status === "approved" ||
@@ -238,8 +257,25 @@ export function weekDesignWipeIds(
   return existing.filter((post) => !heldPost(post)).map((post) => post.id);
 }
 
+export function shapePostToDay(post: CraftPost): CraftPost {
+  if (!post.daySlot) return post;
+  if (post.daySlot === "sunday-silence") {
+    const words = post.hook.split(/\s+/).filter(Boolean).slice(0, 8).join(" ");
+    return { ...post, hook: words, body: "", cta: "", hashtags: [], eyebrow: "" };
+  }
+  if (
+    post.daySlot === "tuesday-stamp" ||
+    post.daySlot === "wednesday-voice" ||
+    post.daySlot === "thursday-redact" ||
+    post.daySlot === "saturday-object"
+  ) {
+    return { ...post, cta: "" };
+  }
+  return post;
+}
+
 export function stampAmmoOnPost(post: CraftPost, brief: CreativeAmmoBrief): CraftPost {
-  const copy = copyFromAmmo(brief);
+  const copy = copyFromAmmo(brief, post.daySlot);
   const visual = visualForTrack(copy.track, copy.stockId);
   return {
     ...post,

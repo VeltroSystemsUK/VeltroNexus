@@ -1,0 +1,11 @@
+verify_provider: mx_only
+verify_api_key_env: VERIFY_API_KEY
+finder_provider: null
+max_contact_page_fetches_per_hour: 60
+role_guess: false
+named_work_in_ready_file: false
+role_mailbox_in_ready_file: true   # published role only; guessed still excluded
+personal_webmail_policy: drop_from_ready
+reverify_days: 30
+attach_to_nexus_book: true
+create_net_new_from_list: false

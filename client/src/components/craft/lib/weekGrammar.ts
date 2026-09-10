@@ -1,7 +1,10 @@
-import { BANNED, COPY_LIMITS, defaultEyebrow, type CraftPost } from "@shared/craftQueue";
+import { BANNED, COPY_LIMITS, PACKAGER_IDENTITY, defaultEyebrow, type CraftPost } from "@shared/craftQueue";
+import { IDENTITY_LINES, identityLineFor } from "@shared/craftDirector";
+import { CRAFT_MANUAL_MOTION, CRAFT_OVERLAY_PRESETS, weekPlaybook } from "@shared/craftManual";
 import { applyBrand } from "./brand";
 import { applyNodeMotion, applyNodeShadow } from "./looks";
-import { documentFromTemplate } from "./templates";
+import { presetById } from "./motionPresets";
+import { documentFromTemplate, weekDayPage } from "./templates";
 import {
   DEFAULT_BRAND,
   uid,
@@ -10,6 +13,7 @@ import {
   type CraftNode,
   type CraftPage,
   type DaySlot,
+  type MotionNode,
   type WeekMaster,
   type WeekRoute,
 } from "./types";
@@ -27,7 +31,7 @@ export const DAY_SLOTS: DaySlot[] = [
   "sunday-silence",
 ];
 
-export const WEEK_IDENTITY = "We do not lend." as const;
+export const WEEK_IDENTITY = IDENTITY_LINES[1];
 export const HARD_OFFSET = { color: "rgba(26,29,33,0.22)", blur: 0, x: 4, y: 4 };
 
 const FRIDAY_RATE = /%|\bAPR\b|\bfrom\b|\d+(\.\d+)?%/i;
@@ -126,7 +130,7 @@ export function defaultWeekMaster(weekId: string, route: WeekRoute = "sharp-cult
     type: { display: "Unbounded", body: "Inter", mono: "JetBrains Mono" },
     finish: { shadow: "hard-offset", radiusImage: 0, radiusChip: 2 },
     goldMaxArea: 0.1,
-    identity: WEEK_IDENTITY,
+    identity: identityLineFor(weekId),
     platformLine: "",
   };
 }
@@ -158,7 +162,9 @@ function lockIdentity(node: CraftNode, identity: string): CraftNode {
 export function applyDayContract(page: CraftPage, slot: DaySlot, route: WeekRoute = "sharp-cultural"): CraftPage {
   const still = route === "safe-distinctive";
   const nodes = page.nodes.map((node) => {
-    let next = node.name === "Identity" ? lockIdentity(node, WEEK_IDENTITY) : node;
+    let next = node.name === "Identity" ? lockIdentity(node, identityLineFor(slot)) : node;
+    if (next.name === "Hashtags") next = show(next, false);
+    if (next.name === "Identity") next = { ...next, shadow: { ...HARD_OFFSET } };
     if (next.shadow) next = { ...next, shadow: { ...HARD_OFFSET } };
     if (next.name === "CTA" || next.name === "Media frame" || next.name === "Visual") {
       next = applyNodeShadow(next, "hard");
@@ -175,10 +181,12 @@ export function applyDayContract(page: CraftPage, slot: DaySlot, route: WeekRout
     }
     if (slot === "tuesday-stamp") {
       if (next.name === "LightLeak") next = show(next, true);
+      if (next.name === "Body") next = show(next, false);
       if (next.name === "RedactSweep" || next.name === "DataTicker" || next.name === "Silence") next = show(next, false);
     }
     if (slot === "wednesday-voice") {
       if (next.name === "Voice") next = show(next, true);
+      if (next.name === "Body" || next.name === "Hook 1" || next.name === "Hook 2") next = show(next, false);
       if (next.name === "RedactSweep" || next.name === "DataTicker" || next.name === "Silence" || next.name === "LightLeak") {
         next = show(next, false);
       }
@@ -189,10 +197,14 @@ export function applyDayContract(page: CraftPage, slot: DaySlot, route: WeekRout
     }
     if (slot === "friday-number") {
       if (next.name === "DataTicker") next = show(next, true);
+      if (next.name === "Hook 1" || next.name === "Hook 2" || next.name === "Eyebrow") next = show(next, false);
       if (next.name === "RedactSweep" || next.name === "Silence" || next.name === "LightLeak") next = show(next, false);
     }
     if (slot === "saturday-object") {
       if (next.name === "Media frame") next = show(next, true);
+      if (next.name === "Hook 1" || next.name === "Hook 2") {
+        next = show(applyNodeMotion(next, still ? "none" : "slideIn"), true);
+      }
       if (next.name === "RedactSweep" || next.name === "DataTicker" || next.name === "Silence" || next.name === "LightLeak") {
         next = show(next, false);
       }
@@ -204,6 +216,7 @@ export function applyDayContract(page: CraftPage, slot: DaySlot, route: WeekRout
         next.name === "CTA" ||
         next.name === "CTA label" ||
         next.name === "Hook 2" ||
+        next.name === "Body" ||
         next.name === "RedactSweep" ||
         next.name === "DataTicker" ||
         next.name === "LightLeak" ||
@@ -213,6 +226,7 @@ export function applyDayContract(page: CraftPage, slot: DaySlot, route: WeekRout
       ) {
         next = show(next, false);
       }
+      if (next.name === "Hook 1") next = show(next, true);
     }
     return next;
   });
@@ -222,7 +236,90 @@ export function applyDayContract(page: CraftPage, slot: DaySlot, route: WeekRout
       ? nodes.filter((node) => node.name !== "Media frame" && node.name !== "Visual" && node.type !== "image")
       : nodes;
 
-  return { ...page, daySlot: slot, nodes: withoutSundayStill };
+  return applyPlaybookStack({ ...page, daySlot: slot, nodes: withoutSundayStill });
+}
+
+export const PLAYBOOK_NODE_PREFIX = "Playbook ";
+
+export function playbookNodeName(presetId: string): string {
+  return `${PLAYBOOK_NODE_PREFIX}${presetId}`;
+}
+
+function stackFrame(page: CraftPage): { x: number; y: number; width: number; height: number } {
+  const frame = page.nodes.find((node) => node.name === "Media frame" || node.name === "Visual");
+  if (frame && page.daySlot !== "sunday-silence") {
+    return { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+  }
+  return { x: 40, y: 40, width: page.width - 80, height: Math.min(480, page.height - 140) };
+}
+
+function plateCarriesHook(presetId: string): boolean {
+  if ((CRAFT_OVERLAY_PRESETS as readonly string[]).includes(presetId)) return true;
+  const use = CRAFT_MANUAL_MOTION.find((item) => item.id === presetId);
+  return use?.role === "overlay" || use?.role === "type";
+}
+
+export function applyPlaybookStack(
+  page: CraftPage,
+  fills?: { hook?: string; hook2?: string },
+): CraftPage {
+  const play = weekPlaybook(page.daySlot);
+  if (!play) return page;
+  const frame = stackFrame(page);
+  const existing = new Map(
+    page.nodes
+      .filter((node): node is MotionNode => node.type === "motion" && node.name.startsWith(PLAYBOOK_NODE_PREFIX))
+      .map((node) => [node.name, node]),
+  );
+  const built: MotionNode[] = play.stack.map((presetId) => {
+    const name = playbookNodeName(presetId);
+    const prev = existing.get(name);
+    const preset = presetById(presetId);
+    const carry = plateCarriesHook(presetId);
+    return {
+      id: prev?.id ?? uid("motion"),
+      name,
+      type: "motion",
+      x: frame.x,
+      y: frame.y,
+      width: frame.width,
+      height: frame.height,
+      rotation: prev?.rotation ?? 0,
+      opacity: prev?.opacity ?? 1,
+      locked: prev?.locked ?? false,
+      hidden: false,
+      constraints: prev?.constraints ?? { horizontal: "scale", vertical: "scale" },
+      schema: preset.schema,
+      preview: "live",
+      seed: prev?.seed ?? 1,
+      capturedAssetId: prev?.capturedAssetId,
+      copyExempt: presetId === "redact-sweep" || presetId === "declassified-text" ? true : prev?.copyExempt,
+      text: carry ? (fills?.hook ?? prev?.text) : prev?.text,
+      text2: carry ? (fills?.hook2 ?? prev?.text2) : prev?.text2,
+    };
+  });
+  const without = page.nodes.filter(
+    (node) => !(node.type === "motion" && node.name.startsWith(PLAYBOOK_NODE_PREFIX)),
+  );
+  const groundAt = without.findIndex((node) => node.name === "Ground");
+  const at = groundAt >= 0 ? groundAt + 1 : 0;
+  let nodes = [...without.slice(0, at), ...built, ...without.slice(at)];
+  if (
+    page.daySlot !== "saturday-object" &&
+    page.daySlot !== "wednesday-voice" &&
+    page.daySlot !== "tuesday-stamp"
+  ) {
+    nodes = nodes.map((node) =>
+      node.type === "shape" && (node.name === "Media frame" || node.name === "Visual")
+        ? { ...node, hidden: true }
+        : node,
+    );
+  }
+  return { ...page, nodes };
+}
+
+export function shouldHangWeekStill(daySlot?: string): boolean {
+  return daySlot === "saturday-object" || daySlot === "wednesday-voice";
 }
 
 export function materialiseWeek(master: Pick<WeekMaster, "weekId" | "route"> & Partial<WeekMaster>): CraftDocument {
@@ -234,8 +331,11 @@ export function materialiseWeek(master: Pick<WeekMaster, "weekId" | "route"> & P
     bodyFont: week.type.body,
   };
   const base = documentFromTemplate("li-landscape", kit);
-  const home = base.pages[0]!;
-  const pages = WEEK_DAYS.map((name, i) => applyDayContract(clonePage(home, name, DAY_SLOTS[i]!), DAY_SLOTS[i]!, week.route));
+  const pages = WEEK_DAYS.map((name, i) => {
+    const slot = DAY_SLOTS[i]!;
+    const page = { ...weekDayPage(slot), name, id: uid("page") };
+    return applyDayContract(page, slot, week.route);
+  });
   const doc: CraftDocument = applyBrand(
     {
       ...base,
@@ -321,11 +421,11 @@ export function reviewWeekPage(page: CraftPage): WeekReview {
   const slot = page.daySlot;
   const identity = named(page, "Identity");
   const identityText = identity?.type === "text" ? identity.text : "";
-  if (!identity || identity.type !== "text" || !/do not lend/i.test(identityText)) {
+  if (!identity || identity.type !== "text" || !PACKAGER_IDENTITY.test(identityText)) {
     findings.push({
       level: "block",
       code: "identity",
-      message: "Identity missing — lock We do not lend. on the board.",
+      message: "Identity missing — packager identity on the board.",
       nodeId: identity?.id,
     });
   }

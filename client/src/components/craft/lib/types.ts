@@ -245,7 +245,7 @@ export type WeekMaster = {
   type: { display: "Unbounded"; body: "Inter"; mono: "JetBrains Mono" };
   finish: { shadow: "hard-offset"; radiusImage: 0; radiusChip: 2 };
   goldMaxArea: 0.1;
-  identity: "We do not lend.";
+  identity: string;
   platformLine: string;
 };
 
@@ -258,6 +258,9 @@ export interface MotionNode extends NodeBase {
   mask?: Exclude<MaskShape, "none">;
   stroke?: string;
   strokeWidth?: number;
+  /** Caption drawn on type plates. Wins over sibling Hook 1 when set. */
+  text?: string;
+  text2?: string;
 }
 
 export type CraftNode = TextNode | ShapeNode | ImageNode | PathNode | MotionNode;
@@ -626,6 +629,8 @@ function normalizeNode(raw: unknown, index: number): CraftNode {
       mask: MASK_VALUES.includes(node.mask as MaskShape) ? (node.mask as Exclude<MaskShape, "none">) : undefined,
       stroke: typeof node.stroke === "string" ? node.stroke : undefined,
       strokeWidth: node.strokeWidth !== undefined ? asNumber(node.strokeWidth, 0) : undefined,
+      text: typeof node.text === "string" ? node.text : undefined,
+      text2: typeof node.text2 === "string" ? node.text2 : undefined,
     };
   }
 
@@ -686,7 +691,7 @@ function normalizeWeek(raw: unknown): WeekMaster | undefined {
     type: { display: "Unbounded", body: "Inter", mono: "JetBrains Mono" },
     finish: { shadow: "hard-offset", radiusImage: 0, radiusChip: 2 },
     goldMaxArea: 0.1,
-    identity: "We do not lend.",
+    identity: asString(week.identity, "We package the case. We do not lend."),
     platformLine: asString(week.platformLine, ""),
   };
 }

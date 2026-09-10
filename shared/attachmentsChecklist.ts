@@ -7,7 +7,6 @@ export const ATTACHMENT_ITEMS = [
   { id: "debt-schedule", label: "Debt schedule / existing facilities" },
   { id: "id", label: "Photo ID for all directors (passport or driving licence)" },
   { id: "proof-of-address", label: "Proof of address (utility bill, not a mobile bill)" },
-  { id: "company-search", label: "Companies House search" },
   { id: "application-form", label: "Signed application form" },
   { id: "sal", label: "Personal statement of assets & liabilities (each director)" },
   { id: "use-of-funds", label: "Use of funds evidence (quotes, invoices, lender statements)" },

@@ -1,0 +1,9 @@
+gazette.winding_up_petition: 95
+ch.insolvency_case: 90
+charge.multiple_outstanding: 70
+charge.created: 50
+accounts.interest_spike: 40
+accounts.late: 25
+manual.operator_flag: 100
+charge.high_street: 0
+charge.just_refinanced: -40

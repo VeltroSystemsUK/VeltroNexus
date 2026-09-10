@@ -10,11 +10,13 @@ import {
   pickWeekVisual,
   reviewWeekPage,
   seedGrammarWeek,
+  shouldHangWeekStill,
   weekContractReminder,
 } from "@/components/craft/lib/weekGrammar";
 import { composeSocialPost } from "@/components/craft/lib/composePost";
 import { documentFromTemplate } from "@/components/craft/lib/templates";
-import { applyAmmoToWeek, applyCopyPatch, generateWeek, normalizePost } from "@shared/craftQueue";
+import { applyAmmoToWeek, applyCopyPatch, generateWeek, normalizePost, PACKAGER_IDENTITY, shapePostToDay } from "@shared/craftQueue";
+import { IDENTITY_LINES } from "@shared/craftDirector";
 import { parseWeekGrammar } from "../../services/craftDesk";
 import type { CraftAsset } from "@/components/craft/lib/types";
 
@@ -51,7 +53,8 @@ describe("week grammar", () => {
     expect(doc.pages).toHaveLength(7);
     expect(doc.pages.map((page) => page.name)).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
     expect(doc.week?.route).toBe("sharp-cultural");
-    expect(doc.week?.identity).toBe("We do not lend.");
+    expect(IDENTITY_LINES).toContain(doc.week?.identity);
+    const identityTexts = new Set<string>();
     for (const page of doc.pages) {
       expect(page.width).toBe(1200);
       expect(page.height).toBe(627);
@@ -59,19 +62,48 @@ describe("week grammar", () => {
       expect(page.daySlot).toMatch(/^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)-/);
       expect(page.background.color.toUpperCase()).toBe("#F7F5F1");
       const identity = page.nodes.find((node) => node.type === "text" && node.name === "Identity");
-      expect(identity?.type === "text" ? identity.text : "").toBe("We do not lend.");
+      const line = identity?.type === "text" ? identity.text : "";
+      expect(IDENTITY_LINES).toContain(line);
+      expect(PACKAGER_IDENTITY.test(line)).toBe(true);
+      identityTexts.add(line);
       expect(identity?.locked).toBe(true);
       expect(identity?.type === "text" ? identity.fontFamily : "").toBe("JetBrains Mono");
       expect(page.nodes.some((node) => node.shadow && node.shadow.blur === 0 && node.shadow.x !== 0)).toBe(true);
       expect(doc.brand.headingFont).toBe("Unbounded");
       expect(doc.brand.bodyFont).toBe("Inter");
     }
+    expect(identityTexts.size).toBeGreaterThan(1);
     expect(textOn(pageNamed(doc, "Mon"), "Hook 1")).toBe("");
     expect(textOn(pageNamed(doc, "Mon"), "Hook 2")).toBe("");
+    expect(pageNamed(doc, "Mon").nodes.filter((node) => node.type === "motion").map((node) => node.name)).toEqual([
+      "Playbook horizon-shift",
+      "Playbook cinematic-hook-slam",
+    ]);
     expect(textOn(pageNamed(doc, "Fri"), "DataTicker")).toBe("00");
     expect(pageNamed(doc, "Sun").nodes.some((node) => node.name === "Visual" || node.name === "Media frame")).toBe(
       false,
     );
+  });
+
+  it("reviewWeekPage accepts a rotated packager footer, not only the badge", () => {
+    const doc = materialiseWeek({ weekId: "2026-W36", route: "sharp-cultural" });
+    const page = doc.pages[0]!;
+    const line = "We are the packager. The lender decides, not us.";
+    expect(PACKAGER_IDENTITY.test(line)).toBe(true);
+    const next = {
+      ...page,
+      nodes: page.nodes.map((node) =>
+        node.type === "text" && node.name === "Identity" ? { ...node, text: line } : node,
+      ),
+    };
+    expect(reviewWeekPage(next).findings.some((item) => item.code === "identity")).toBe(false);
+    const empty = {
+      ...page,
+      nodes: page.nodes.map((node) =>
+        node.type === "text" && node.name === "Identity" ? { ...node, text: "STRATA" } : node,
+      ),
+    };
+    expect(reviewWeekPage(empty).findings.some((item) => item.code === "identity")).toBe(true);
   });
 
   it("names the ISO week from a date in that week", () => {
@@ -177,6 +209,79 @@ describe("day contracts", () => {
     expect(monday.nodes.some((node) => node.name === "Hook 1")).toBe(true);
     expect(monday.nodes.some((node) => node.name === "Hook 2")).toBe(true);
     expect(thursday.nodes.some((node) => node.name === "RedactSweep" && node.copyExempt)).toBe(true);
+  });
+
+  it("mutates Friday into a ticker hero and Sunday into silence, not the same type stack", () => {
+    const doc = materialiseWeek({ weekId: "2026-W36", route: "sharp-cultural" });
+    const friday = doc.pages.find((page) => page.name === "Fri")!;
+    const sunday = doc.pages.find((page) => page.name === "Sun")!;
+    const wednesday = doc.pages.find((page) => page.name === "Wed")!;
+    const ticker = friday.nodes.find((node) => node.name === "DataTicker");
+    const fridayHook = friday.nodes.find((node) => node.name === "Hook 1");
+    expect(ticker && !ticker.hidden).toBe(true);
+    expect(ticker && ticker.y < 120 && ticker.height >= 140).toBe(true);
+    expect(fridayHook?.hidden).toBe(true);
+    expect(sunday.nodes.find((node) => node.name === "Body")?.hidden).toBe(true);
+    expect(sunday.nodes.find((node) => node.name === "CTA label")?.hidden).toBe(true);
+    const voice = wednesday.nodes.find((node) => node.name === "Voice");
+    expect(voice && !voice.hidden).toBe(true);
+    expect(wednesday.nodes.find((node) => node.name === "Body")?.hidden).toBe(true);
+  });
+
+  it("does not clone one LinkedIn card seven times", () => {
+    const doc = materialiseWeek({ weekId: "2026-W36", route: "sharp-cultural" });
+    const hookGeom = doc.pages.map((page) => {
+      const hook = page.nodes.find((node) => node.name === "Hook 1");
+      return hook ? `${Math.round(hook.x)}:${Math.round(hook.y)}:${Math.round(hook.width)}:${hook.hidden ? "h" : "v"}` : "missing";
+    });
+    expect(new Set(hookGeom).size).toBeGreaterThan(3);
+    const mediaVisible = doc.pages.filter((page) =>
+      page.nodes.some((node) => node.name === "Media frame" && !node.hidden),
+    );
+    expect(mediaVisible.map((page) => page.name).sort()).toEqual(["Sat", "Tue", "Wed"]);
+    expect(pageNamed(doc, "Mon").nodes.some((node) => node.name === "Media frame")).toBe(false);
+    expect(pageNamed(doc, "Fri").nodes.find((node) => node.name === "DataTicker")?.width).toBeGreaterThan(800);
+  });
+
+  it("weekday posters use editorial scale, not a padded slide", () => {
+    const doc = materialiseWeek({ weekId: "2026-W36", route: "sharp-cultural" });
+    const monHook = pageNamed(doc, "Mon").nodes.find((node) => node.name === "Hook 1");
+    expect(monHook?.type === "text" ? monHook.fontSize : 0).toBeGreaterThanOrEqual(72);
+    const monGround = pageNamed(doc, "Mon").nodes.find((node) => node.name === "Ground");
+    expect(monGround?.type === "shape" ? monGround.role : "").toBe("primary");
+    const ticker = pageNamed(doc, "Fri").nodes.find((node) => node.name === "DataTicker");
+    expect(ticker?.type === "text" ? ticker.fontSize : 0).toBeGreaterThanOrEqual(140);
+    expect(ticker && ticker.x < 24).toBe(true);
+    const tueFrame = pageNamed(doc, "Tue").nodes.find((node) => node.name === "Media frame");
+    expect(tueFrame && tueFrame.x < 80).toBe(true);
+    const voice = pageNamed(doc, "Wed").nodes.find((node) => node.name === "Voice");
+    expect(voice?.type === "text" ? voice.fontSize : 0).toBeGreaterThanOrEqual(40);
+    const sunHook = pageNamed(doc, "Sun").nodes.find((node) => node.name === "Hook 1");
+    expect(sunHook?.type === "text" ? sunHook.align : "").toBe("left");
+  });
+
+  it("Sunday ammo cannot keep a CTA or a two-beat deck", () => {
+    const seeded = seedGrammarWeek("2026-09-01", "sharp-cultural");
+    const sunday = shapePostToDay({
+      ...seeded[6]!,
+      hook: "A meeting with no pack is theatre",
+      hook2: "The list is the deal.",
+      body: "Missing stays listed until it is not.",
+      cta: "Talk to Strata",
+      hashtags: ["#SMEFinance"],
+    });
+    expect(sunday.cta).toBe("");
+    expect(sunday.body).toBe("");
+    expect(sunday.hashtags).toEqual([]);
+    expect(sunday.hook.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(8);
+  });
+
+  it("only hangs week stills on object and voice days", () => {
+    expect(shouldHangWeekStill("saturday-object")).toBe(true);
+    expect(shouldHangWeekStill("wednesday-voice")).toBe(true);
+    expect(shouldHangWeekStill("sunday-silence")).toBe(false);
+    expect(shouldHangWeekStill("monday-two-beat")).toBe(false);
+    expect(shouldHangWeekStill("friday-number")).toBe(false);
   });
 });
 

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   applyCreativeDirection,
@@ -30,7 +31,7 @@ describe("composeSocialPost", () => {
     const home = doc.pages.find((page) => page.name === post.weekday) ?? doc.pages[0]!;
     const texts = home.nodes.filter((n) => n.type === "text").map((n) => n.text);
     expect(texts.some((t) => t.includes(post.hook) || t.startsWith(post.hook.slice(0, 24)))).toBe(true);
-    expect(texts.join(" ").toUpperCase()).toMatch(/DO NOT LEND/);
+    expect(texts.join(" ")).toMatch(/\b(do not lend|packager)\b/i);
     expect(home.daySlot).toBeTruthy();
     const names = home.nodes.filter((n) => n.type === "text").map((n) => n.name.toLowerCase());
     expect(names.some((n) => n.includes("cta"))).toBe(true);
@@ -167,16 +168,17 @@ describe("composeSocialPost", () => {
   });
 
   it("lets Creative Design hang a framed, shadowed, moving still instead of a blob", () => {
-    const post = generateWeek("2026-08-31")[0]!;
-    const doc = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain"), post);
-    const visual = doc.pages[0]!.nodes.find(
+    const post = generateWeek("2026-08-31")[5]!;
+    const doc = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain", { weekday: post.weekday }), post);
+    const page = doc.pages.find((item) => item.name === post.weekday) ?? doc.pages[0]!;
+    const visual = page.nodes.find(
       (node) => (node.type === "image" && node.name === "Visual") || node.name === "Media frame",
     );
     expect(visual).toBeTruthy();
     expect(visual?.shadow).toBeTruthy();
     expect(visual?.type === "image" ? visual.tintOpacity ?? 0 : 0).toBe(0);
-    const hook1 = doc.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 1");
-    const hook2 = doc.pages[0]!.nodes.find((node) => node.type === "text" && node.name === "Hook 2");
+    const hook1 = page.nodes.find((node) => node.type === "text" && node.name === "Hook 1");
+    const hook2 = page.nodes.find((node) => node.type === "text" && node.name === "Hook 2");
     expect(hook1?.animation?.type && hook1.animation.type !== "none").toBe(true);
     expect(hook2?.type === "text" && hook1?.type === "text" && hook2.color !== hook1.color).toBe(true);
   });
@@ -194,13 +196,155 @@ describe("composeSocialPost", () => {
   });
 
   it("keeps the directed frame when ammo copy is relaid", () => {
-    const post = generateWeek("2026-08-31")[0]!;
-    const directed = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain"), post);
-    const before = directed.pages[0]!.nodes.find((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"));
+    const post = generateWeek("2026-08-31")[5]!;
+    const directed = applyCreativeDirection(applyPostVisual(composeSocialPost(post), STILL, "plain", { weekday: post.weekday }), post);
+    const pageOf = (doc: ReturnType<typeof composeSocialPost>) =>
+      doc.pages.find((item) => item.name === post.weekday) ?? doc.pages[0]!;
+    const before = pageOf(directed).nodes.find((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"));
     const relaid = applyPostCopy(directed, { ...post, hook: "Ammo hook on the board", hook2: "We do not lend." });
-    const after = relaid.pages[0]!.nodes.find((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"));
+    const after = pageOf(relaid).nodes.find((node) => node.type === "image" && (node.name === "Visual" || node.name === "Media frame"));
     expect(after?.type === "image" ? after.mask : undefined).toBe(before?.type === "image" ? before.mask : "missing");
     expect(after?.shadow?.blur).toBe(before?.shadow?.blur);
     expect(after?.animation?.type).toBe(before?.animation?.type);
   });
 });
+
+describe("compose executes Isla playbook stacks", () => {
+  function motionNames(doc: ReturnType<typeof composeSocialPost>, weekday: string): string[] {
+    const page = doc.pages.find((item) => item.name === weekday) ?? doc.pages[0]!;
+    return page.nodes.filter((node) => node.type === "motion").map((node) => node.name);
+  }
+
+  it("lays Monday glass-and-slam plates and writes the hook on the overlay", () => {
+    const post = {
+      ...generateWeek("2026-08-31")[0]!,
+      hook: "They wanted a lender.",
+      hook2: "They needed a packager.",
+    };
+    const doc = composeSocialPost(post);
+    expect(motionNames(doc, "Mon")).toEqual(["Playbook horizon-shift", "Playbook cinematic-hook-slam"]);
+    const monday = doc.pages.find((page) => page.name === "Mon")!;
+    const slam = monday.nodes.find((node) => node.type === "motion" && node.name === "Playbook cinematic-hook-slam");
+    expect(slam?.type === "motion" ? slam.text : "").toBe("They wanted a lender.");
+    expect(slam?.type === "motion" ? slam.text2 : "").toBe("They needed a packager.");
+  });
+
+  it("does not duplicate plates when copy is relaid", () => {
+    const post = generateWeek("2026-08-31")[0]!;
+    const doc = composeSocialPost(post);
+    const relaid = applyPostCopy(doc, { ...post, hook: "File first. Then the lender." });
+    expect(motionNames(relaid, "Mon")).toEqual(["Playbook horizon-shift", "Playbook cinematic-hook-slam"]);
+    const slam = relaid.pages[0]!.nodes.find((node) => node.name === "Playbook cinematic-hook-slam");
+    expect(slam?.type === "motion" ? slam.text : "").toBe("File first. Then the lender.");
+  });
+
+  it("builds every weekday stack from the studio playbook", () => {
+    const week = generateWeek("2026-08-31");
+    const doc = composeSocialPost(week[0]!);
+    expect(motionNames(doc, "Tue")).toEqual(["Playbook stamp-pulse", "Playbook light-leak"]);
+    expect(motionNames(doc, "Wed")).toEqual(["Playbook grain-breath", "Playbook vellum-crease"]);
+    expect(motionNames(doc, "Thu")).toEqual(["Playbook redact-sweep", "Playbook declassified-text"]);
+    expect(motionNames(doc, "Fri")).toEqual(["Playbook ledger-ticker", "Playbook odometer-roll"]);
+    expect(motionNames(doc, "Sat")).toEqual(["Playbook vapor-drift"]);
+    expect(motionNames(doc, "Sun")).toEqual(["Playbook breathing-monument"]);
+    const thursday = doc.pages.find((page) => page.name === "Thu")!;
+    const sweep = thursday.nodes.find((node) => node.name === "Playbook redact-sweep");
+    expect(sweep?.copyExempt).toBe(true);
+  });
+});
+
+describe("Isla card lands on the weekday board", () => {
+  it("Friday ticker is the count, not the body paragraph", () => {
+    const week = generateWeek("2026-08-31");
+    const friday = {
+      ...week[4]!,
+      daySlot: "friday-number" as const,
+      hook: "22 files on the desk.",
+      hook2: "Then a decision.",
+      body: "A complete pack is the job. Missing stays listed.",
+    };
+    const doc = composeSocialPost(friday);
+    const page = doc.pages.find((item) => item.name === "Fri")!;
+    const ticker = page.nodes.find((node) => node.name === "DataTicker");
+    expect(ticker?.type === "text" ? ticker.text : "").toBe("22");
+  });
+
+  it("Wednesday Voice is the spoken line, and week posters hide hashtags", () => {
+    const week = generateWeek("2026-08-31");
+    const wednesday = {
+      ...week[2]!,
+      daySlot: "wednesday-voice" as const,
+      hook: "He rebranded my judgement.",
+      hook2: "Accountant, referral partner.",
+      body: "",
+      cta: "",
+    };
+    const doc = composeSocialPost(wednesday);
+    const wed = doc.pages.find((item) => item.name === "Wed")!;
+    const voice = wed.nodes.find((node) => node.name === "Voice");
+    expect(voice?.type === "text" ? voice.text : "").toMatch(/rebranded my judgement/i);
+    const monday = composeSocialPost(week[0]!).pages.find((item) => item.name === "Mon")!;
+    const tags = monday.nodes.find((node) => node.name === "Hashtags");
+    expect(tags?.hidden).toBe(true);
+  });
+});
+
+describe("Casey scan vs Isla generate", () => {
+  it("scan writes ammo only — empty week, no compose, no stills, no seed boards", () => {
+    const desk = readFileSync("server/services/craftDesk.ts", "utf8");
+    const scan = desk.slice(desk.indexOf("export async function runCraftScan"), desk.indexOf("export async function runCraftComposeWeek"));
+    expect(scan).not.toContain("craftWeek(");
+    expect(scan).not.toContain("applyAmmoToWeek");
+    expect(scan).not.toContain("stampAmmoOnPost");
+    expect(scan).not.toContain("seedGrammarWeek");
+    expect(scan).not.toContain("generateStillsForWeek");
+    expect(scan).toContain("research.briefs");
+    expect(scan).toContain("week: []");
+    const routes = readFileSync("server/routes/craft.ts", "utf8");
+    const scanRoute = routes.slice(routes.indexOf('router.post("/craft/scan"'), routes.indexOf("router.patch"));
+    expect(scanRoute).toContain("week: []");
+    const ui = readFileSync("client/src/pages/Craft.tsx", "utf8");
+    const scanUi = ui.slice(ui.indexOf("scanAmmo"), ui.indexOf("patchPost"));
+    expect(scanUi).not.toContain("generateStillsForWeek");
+    expect(scanUi).not.toContain("paintWeekFromPosts");
+    expect(scanUi).not.toContain("createWeek");
+    expect(scanUi).not.toContain("syncFromPost");
+    expect(scanUi).toContain("await purgeAllCraftDocs()");
+    expect(scanUi).toContain("week: []");
+    expect(scanUi).toMatch(/Casey landed ammo/);
+  });
+
+  it("generate uses Casey ammo then Isla copy, paints the week file, and hangs stills", () => {
+    const desk = readFileSync("server/services/craftDesk.ts", "utf8");
+    const compose = desk.slice(desk.indexOf("export async function runCraftComposeWeek"));
+    expect(compose).toContain("desk.briefs");
+    expect(compose).toContain("craftWeek(source)");
+    expect(compose).toContain("applyAmmoToWeek");
+    const ui = readFileSync("client/src/pages/Craft.tsx", "utf8");
+    expect(ui).toContain("paintWeekFromPosts");
+    expect(ui).toContain("generateStillsForWeek");
+    expect(ui).toContain("createWeek");
+  });
+});
+
+describe("week stills hang on the week file", () => {
+  it("generateStillsForWeek no longer skips grammar week posts", () => {
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    const start = store.indexOf("generateStillsForWeek: async");
+    const fn = store.slice(start, store.indexOf("applyLook:", start));
+    expect(fn).not.toMatch(/if \(post\.weekId \|\| post\.daySlot\) return/);
+    expect(fn).toContain("shouldHangWeekStill");
+    expect(fn).toContain("week:");
+  });
+
+  it("applyPostVisual can target one weekday without painting the whole week", () => {
+    const week = generateWeek("2026-08-31");
+    const doc = composeSocialPost(week[5]!);
+    const hung = applyPostVisual(doc, STILL, "plain", { daySlot: "saturday-object" });
+    const saturday = hung.pages.find((page) => page.name === "Sat")!;
+    const monday = hung.pages.find((page) => page.name === "Mon")!;
+    expect(saturday.nodes.some((node) => node.type === "image" && node.name === "Media frame")).toBe(true);
+    expect(monday.nodes.some((node) => node.type === "image")).toBe(false);
+  });
+});
+

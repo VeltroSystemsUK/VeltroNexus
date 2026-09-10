@@ -2,6 +2,25 @@ import fs from "fs";
 
 const depths = new Map<string, number>();
 
+function removeStaleLock(lockPath: string) {
+  try {
+    const ownerPid = Number(fs.readFileSync(lockPath, "utf8").trim());
+    if (!Number.isInteger(ownerPid) || ownerPid <= 0) {
+      fs.unlinkSync(lockPath);
+      return;
+    }
+    try {
+      process.kill(ownerPid, 0);
+    } catch (error: any) {
+      // ESRCH means the process that created the lock has gone away.
+      // EPERM means it is alive but inaccessible, so leave the lock intact.
+      if (error?.code === "ESRCH") fs.unlinkSync(lockPath);
+    }
+  } catch {
+    // The lock may have been released between the read and this check.
+  }
+}
+
 function acquireLockFile(lockPath: string) {
   const start = Date.now();
   while (true) {
@@ -9,6 +28,7 @@ function acquireLockFile(lockPath: string) {
       fs.writeFileSync(lockPath, String(process.pid), { flag: "wx" });
       return;
     } catch {
+      removeStaleLock(lockPath);
       if (Date.now() - start > 8000) {
         throw new Error("json store lock timeout");
       }

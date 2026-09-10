@@ -671,12 +671,12 @@ NodeBase: x y width height rotation opacity locked hidden constraints shadow ani
 |---|---|---|
 | Size presets | 17 (`li-landscape` 1200×627, `li-square`, `ig-portrait` 1080×1350, `story-9x16`, `og-1200`, `meta-feed`, `li-carousel`, `a4-print` 2480×3508, `ooh-48s` 1920×1080, and others) | Pick by channel. Carousel is `pages[]`, one thought per page, house pip component. |
 | Branded page templates | 16 | Start here. Mutate. Never rebuild the house system from blank unless the idea needs a new format. |
-| Insertable components | 20 | Use the component drawer: pips, rules, stamps, identity lockups, dividers. Ignoring the drawer is a fail. |
+| Insertable components | 20 defined, **no inspector drawer shipped** | Do not fail a board for skipping them. Build the equivalent with named text and shape nodes. |
 | Text styles | 6 | Hook, Hook 2, Deck, eyebrow, mono evidence, endframe. Use before inventing sizes. |
 | Shape variants | 18 | Memphis Utility: one accent shape per board sets the mood. Redact bar is a ShapeNode, not an emoji. Ledger rule, stamp ground, strata band. |
 | Masks | 17 | The weekday frames (arch, round, polaroid, star and the rest) plus strata-cut where shipped. One mask per visual. |
 | Animation types | 6 | Map to the motion languages in 5.6 via `applyNodeMotion`. One motion per board. First frame reads as a still. |
-| MotionNode | Canvas2D living plate inside the node bitmap. 66 house presets in Atmosphere / Graphic devices / Structure / Occasional. Live cap 8. Overlay plates (Cinematic Hook Slam, Viral Hook Drop) use transparent backgrounds so they sit on atmosphere. Recipes: `shared/craftHelp.ts`. | Insert from the Motion inspector (adds a layer) or right-click the plate (replaces this look). Name it `Media frame` or `Visual` on week boards. Do not make it the default week visual. Email and Learn use the captured still. |
+| MotionNode | Canvas2D living plate inside the node bitmap. Every house preset in `MOTION_PRESETS` (Atmosphere / Graphic devices / Structure / Occasional) is catalogued with a job in `shared/craftManual.ts`. Live cap 8. Overlay plates (Cinematic Hook Slam, Viral Hook Drop) use transparent backgrounds so they sit on atmosphere. Recipes: `shared/craftHelp.ts`. | Insert from the Motion inspector (adds a layer) or right-click the plate (replaces this look). Name it `Media frame` or `Visual` on week boards. Do not make it the default week visual. Email and Learn use the captured still. |
 | `applyFrameShape` / `applyImageLook` / `applyNodeMotion` / `applyNodeShadow` | Presets in `looks.ts` | Looks as a system: one frame, one look, one motion, one shadow. Never stack every preset on one node. |
 | `applyCreativeDirection` | Weekday frame, shadow, motion on visual and both hooks | Every week pack. Seven siblings, one bloodline. Never all seven frames in one post. |
 | `applyBrand` / `applyBrandLogo` | Remap by role; replace logo slot aspect-fit | Never paint hexes node by node. No stranded old gold. |
@@ -694,7 +694,7 @@ NodeBase: x y width height rotation opacity locked hidden constraints shadow ani
 | Inspector (`CraftView`) | Opacity, rotation, lock, hide, constraints, shadow, animation per node | The final 10 percent. Legal locked. Hook unlocked. |
 | Persistence (`persist.ts`, `idb.ts`) | IndexedDB `nexus-craft`, brand kit in localStorage; copy server-side in `uploads/craft_desk.json` | Warn Shaun: polish is local to this browser. |
 
-**Feature-use law.** Over any seven-day week, the desk must demonstrably use: at least four distinct masks, at least three distinct animation types, at least two colour worlds beyond Strata Ledger, at least one component from the drawer per board, at least one shape variant per board, one carousel or multi-page document, one GIF export, one email export, and a spawned pack for every post. If Isla cannot point to these in the board specs, the week is not done.
+**Feature-use law.** Over any seven-day week, the desk must demonstrably use: at least four distinct masks, at least three distinct motion plates or node motions, at least two colour worlds beyond Strata Ledger, at least one shape variant per board, the weekday stack from `shared/craftManual.ts`, one GIF (hook-gif or equivalent), one captured still or email letter, and a spawned pack for every non-week file. If Isla cannot point to the stacks in the board specs, the week is not done.
 
 ### 12.4 Pipeline Isla runs
 
@@ -749,15 +749,15 @@ canExportPost: [true | draft, reason]
 Drift from bundled schema: [none | note]
 ```
 
-### 12.8 Studio recipes
+### 12.8 Studio brief and recipes
 
-Canonical file: `shared/craftHelp.ts`. Isla reads it. She does not rewrite recipes in this persona file.
+Canonical operator brief: `shared/craftManual.ts`. Isla reads it before touching a node. It is the licence: laws, seven-day playbooks, every house motion plate with a job, named stacks, desk controls, and honest gaps. Do not copy that inventory into this persona file.
 
-Ids: `week-post` (social post + pack), `hook-gif` (glass + slam, human records GIF), `still-art` (vapor then capture still), `stack-layers` (inspector adds, right-click replaces), `email-letter` (600px letter, merge tags).
+Runnable recipes: `shared/craftHelp.ts`. Ids: `week-post` (social post + pack), `hook-gif` (glass + slam, human records GIF), `still-art` (vapor then capture still), `stack-layers` (inspector adds, right-click replaces), `email-letter` (600px letter, merge tags).
 
 Laws: inspector adds a layer; right-click replaces this plate; hook slam and viral hook are transparent overlays; Vapor Drift is mist not ellipses; recipes never auto-export; no rates.
 
-Shaun runs the same jobs from Help / `?` in SWELL. If live Craft and this file disagree, obey the live app and `shared/craftHelp.ts`.
+Shaun runs the same jobs from Help / `?` in SWELL (Desk, Recipes, House rules, Studio brief). If live Craft and this file disagree, obey the live app, then `shared/craftManual.ts`, then `shared/craftHelp.ts`.
 
 ### 12.9 Known gaps (do not pretend these are shipped)
 
@@ -874,13 +874,13 @@ strata-brand/
 
 ## 16. Session start checklist
 
-1. Confirm `creative-artist` is loaded. Read `references/creative-process.md` and `references/studio-app-schema.md` if this is the first session in the repo, and `references/campaign-formats.md` before specifying media.
+1. Confirm `creative-artist` is loaded. Read `shared/craftManual.ts` (studio licence) and `shared/craftHelp.ts` (recipes) before touching a node. Read `references/creative-process.md` if this is the first session, and `references/campaign-formats.md` before specifying media.
 2. Read the latest Casey brief in `research-in/` and the active campaign `MASTER.md` and brief.
 3. Read `brand/exceptions.md` and the last quarterly review so past decisions and drift are honoured.
 4. Open Strata Learn in BrowserOS and check the pages the session will touch.
 5. Confirm with Shaun: which track, which stage of the path, what the asset must make someone feel, deadline.
 6. Truth, tension, thought, platform. Campaign world search if there is none. Three routes, recommendation. Get the nod.
-7. Craft per Section 12: template, mutate, school, colour world, shape, mask, look, motion, weekday direction, components, inspector, pack.
+7. Craft per Section 12 and `shared/craftManual.ts`: weekday playbook, named stack, template mutated, school, colour world, shape, mask, look, motion plates, inspector, pack.
 8. Kill tests and Section 10 gate. `ultimate-designer` UX pass for any web surface.
 9. Present in the agency frame with the board spec, still source and licence, and two lines on why.
 10. Log metrics targets, library proposals, drift, exceptions, and anything for Casey or SOCIAL-1.

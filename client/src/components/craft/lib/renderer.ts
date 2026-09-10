@@ -449,9 +449,9 @@ function drawNode(
       click: motionOpts?.click,
       atMs,
       onImage,
-      hooks: motionOpts?.hooks ?? {
-        hook1: hook1?.type === "text" ? hook1.text : undefined,
-        hook2: hook2?.type === "text" ? hook2.text : undefined,
+      hooks: {
+        hook1: node.text?.trim() ? node.text : motionOpts?.hooks?.hook1 ?? (hook1?.type === "text" ? hook1.text : undefined),
+        hook2: node.text2?.trim() ? node.text2 : motionOpts?.hooks?.hook2 ?? (hook2?.type === "text" ? hook2.text : undefined),
       },
       signals: motionOpts?.signals,
     });

@@ -1,4 +1,5 @@
 import type { Contact, DueDiligenceData, ProspectWithCompany } from "@shared/schema";
+import { toAiBullets } from "@shared/aiBullets";
 
 type Underwriting = NonNullable<DueDiligenceData["underwriting"]>;
 
@@ -18,6 +19,7 @@ export function loanAmountPounds(
 
 export function isStubAiSection(text: string): boolean {
   const trimmed = (text || "").trim();
+  if (toAiBullets(trimmed).length >= 2) return false;
   if (trimmed.length < 80) return true;
   if (/unavailable/i.test(trimmed) && trimmed.length < 220) return true;
   return false;

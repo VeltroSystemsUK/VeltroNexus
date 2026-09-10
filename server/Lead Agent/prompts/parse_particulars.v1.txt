@@ -1,0 +1,22 @@
+Extract charge shape from Companies House charge particulars for Stream A.
+
+Persons entitled: {{persons}}
+Particulars:
+"""
+{{text}}
+"""
+
+Return JSON:
+{
+  "lender_type": "high_street | high_cost | invoice | hp_lease | specialist | other | unknown",
+  "contains_fixed": bool,
+  "contains_floating": bool,
+  "negative_pledge": bool,
+  "assets_guess": [],
+  "notes": "short"
+}
+
+Rules:
+- lender_type high_street if persons entitled match the high-street deny list.
+- Do not invent a street name. assets_guess stays [] unless an address is verbatim in the particulars (stored as evidence, not as a property lead).
+- This is a debt-stress parse, not a property-asset parse.

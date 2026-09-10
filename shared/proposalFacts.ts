@@ -540,7 +540,7 @@ export function deriveProposal(
 }
 
 export const SLOT_CAPS = {
-  background: { cap: 5, maxWords: 25 },
+  background: { cap: 10, maxWords: 25 },
   theBusiness: { cap: 6, maxWords: 25 },
   campari: { cap: 6, maxWords: 20 },
   swot: { cap: 5, maxWords: 20 },

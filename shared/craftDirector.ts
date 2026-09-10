@@ -1,4 +1,4 @@
-import { PACKAGER_IDENTITY, splitHookLines } from "./craftQueue";
+import { COPY_LIMITS, PACKAGER_IDENTITY, completeLine, splitHookLines } from "./craftQueue";
 import type { CreativeAmmoBrief } from "./craftScout";
 export { MARKETING_DIRECTOR_PROMPT } from "./islaQuinn";
 
@@ -122,31 +122,38 @@ export function visualForTrack(track: "borrower" | "introducer", stockId: string
   return LIBRARY[stockId] ?? (track === "introducer" ? LIBRARY.paper : LIBRARY.desk);
 }
 
-function clipLine(text: string, max: number): string {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  const sp = cut.lastIndexOf(" ");
-  return (sp > 24 ? cut.slice(0, sp) : cut).trim();
+function ctaForSlot(daySlot: string | undefined, written: string | undefined, track: CreativeAmmoBrief["track"]): string {
+  if (
+    daySlot === "sunday-silence" ||
+    daySlot === "tuesday-stamp" ||
+    daySlot === "wednesday-voice" ||
+    daySlot === "thursday-redact" ||
+    daySlot === "saturday-object"
+  ) {
+    return "";
+  }
+  const line = (written ?? "").trim();
+  if (line) return completeLine(line, COPY_LIMITS.cta);
+  return completeLine(track === "introducer" ? "Package with Strata" : "Talk to Strata", COPY_LIMITS.cta);
 }
 
 // Job first, disclosure second, never the reverse — see shared/islaQuinn.ts section 4.3.
 // Rotated (not a single fixed clause) so a week of seven cards doesn't stamp the same
 // negation on every one of them.
-const IDENTITY_LINES = [
+export const IDENTITY_LINES = [
   "We build the file. We do not lend it.",
   "We package the case. We do not lend.",
   "One structure, built properly. We do not lend on it.",
   "We are the packager. The lender decides, not us.",
-];
+] as const;
 
-function identityLineFor(seed: string): string {
+export function identityLineFor(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   return IDENTITY_LINES[hash % IDENTITY_LINES.length]!;
 }
 
-export function copyFromAmmo(brief: CreativeAmmoBrief): {
+export function copyFromAmmo(brief: CreativeAmmoBrief, daySlot?: string): {
   track: CreativeAmmoBrief["track"];
   title: string;
   hook: string;
@@ -157,20 +164,44 @@ export function copyFromAmmo(brief: CreativeAmmoBrief): {
   stockId: string;
 } {
   const identity = identityLineFor(brief.headline || brief.coreFact || brief.track);
-  const impact = brief.smeImpact.trim();
-  const body = PACKAGER_IDENTITY.test(impact) ? impact : `${impact} ${identity}`;
-  const hero = splitHookLines(brief.socialAngle);
+  const writtenHook = brief.hook?.trim();
+  const hero = writtenHook
+    ? { hook: completeLine(writtenHook, COPY_LIMITS.hook), hook2: completeLine(brief.hook2 ?? "", COPY_LIMITS.hook2) }
+    : splitHookLines(brief.socialAngle);
+  const writtenBody = brief.body?.trim();
+  const impact = (writtenBody || brief.smeImpact).trim();
+  const body = writtenBody
+    ? completeLine(writtenBody, COPY_LIMITS.body)
+    : PACKAGER_IDENTITY.test(impact) || impact.length + 1 + identity.length > COPY_LIMITS.body
+      ? completeLine(impact, COPY_LIMITS.body)
+      : completeLine(`${impact} ${identity}`, COPY_LIMITS.body);
+  const hashtags =
+    brief.track === "introducer"
+      ? ["#CommercialFinance", "#Introducers", "#UKBrokers"]
+      : ["#SMEFinance", "#UKBusiness", "#WorkingCapital"];
+  const cta = ctaForSlot(daySlot, brief.cta, brief.track);
+  if (daySlot === "sunday-silence") {
+    const line = (hero.hook || brief.socialAngle.split(/[.!?]/)[0] || "").trim();
+    const words = line.split(/\s+/).filter(Boolean).slice(0, 8).join(" ");
+    return {
+      track: brief.track,
+      title: brief.headline.trim(),
+      hook: completeLine(words, COPY_LIMITS.hook),
+      hook2: identity,
+      body: "",
+      cta: "",
+      hashtags: [],
+      stockId: brief.stockId,
+    };
+  }
   return {
     track: brief.track,
     title: brief.headline.trim(),
     hook: hero.hook,
     hook2: hero.hook2,
-    body: clipLine(body, 120),
-    cta: clipLine(brief.track === "introducer" ? "Package with Strata" : "Talk to Strata", 28),
-    hashtags:
-      brief.track === "introducer"
-        ? ["#CommercialFinance", "#Introducers", "#UKBrokers"]
-        : ["#SMEFinance", "#UKBusiness", "#WorkingCapital"],
+    body,
+    cta,
+    hashtags,
     stockId: brief.stockId,
   };
 }

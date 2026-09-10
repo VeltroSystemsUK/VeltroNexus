@@ -37,4 +37,11 @@ describe("openers routes", () => {
     expect(src).toMatch(/listOpenerPipelineCompanyNumbers/);
     expect(src).toMatch(/openerOnPipeline/);
   });
+
+  it("allows super_admin and sales_admin on the openers API", () => {
+    const src = fs.readFileSync(path.resolve("server/routes/openers.ts"), "utf8");
+    expect(src).toMatch(/role !== "super_admin" && role !== "sales_admin"/);
+    expect(src).toMatch(/requireOpenersAccess/);
+    expect(src).not.toMatch(/requireSuperAdmin/);
+  });
 });

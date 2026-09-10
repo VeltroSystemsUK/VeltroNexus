@@ -30,6 +30,7 @@ interface CompanyInformationProps {
 
 export function CompanyInformation({ companyProfile }: CompanyInformationProps) {
   const companyNumber = companyProfile.company_number;
+  const companyStatus = companyProfile.company_status || "Unknown";
 
   // Fetch Officers
   const {
@@ -117,9 +118,9 @@ export function CompanyInformation({ companyProfile }: CompanyInformationProps) 
               </CardTitle>
               <CardDescription>Company Number: {companyProfile.company_number}</CardDescription>
             </div>
-            <Badge variant={getStatusColor(companyProfile.company_status)} className="gap-1">
-              {getStatusIcon(companyProfile.company_status)}
-              {companyProfile.company_status}
+            <Badge variant={getStatusColor(companyStatus)} className="gap-1">
+              {getStatusIcon(companyStatus)}
+              {companyStatus}
             </Badge>
           </div>
         </CardHeader>

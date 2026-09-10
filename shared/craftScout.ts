@@ -204,6 +204,10 @@ export type CreativeAmmoBrief = {
   emailAngle: string;
   stockId: string;
   imagePrompt: string;
+  hook?: string;
+  hook2?: string;
+  body?: string;
+  cta?: string;
 };
 
 export const MARKET_RESEARCHER_PROMPT = `Role Identifier: CommercialFinance_MarketIntelligence_v2
@@ -579,6 +583,10 @@ export function normalizeAmmo(input: unknown): CreativeAmmoBrief[] {
       emailAngle: typeof item.emailAngle === "string" ? item.emailAngle.trim() : "",
       stockId: typeof item.stockId === "string" && item.stockId ? item.stockId : "desk",
       imagePrompt: typeof item.imagePrompt === "string" ? item.imagePrompt.trim() : "",
+      hook: typeof item.hook === "string" ? item.hook.trim() : undefined,
+      hook2: typeof item.hook2 === "string" ? item.hook2.trim() : undefined,
+      body: typeof item.body === "string" ? item.body.trim() : undefined,
+      cta: typeof item.cta === "string" ? item.cta.trim() : undefined,
     });
   }
   return rows;

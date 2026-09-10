@@ -1,0 +1,3 @@
+filename_hints: ["fullz", "combo", "leaked", "breach", "10m_emails", "linkedin_scrape"]
+webmail_majority_threshold: 0.5
+require_company_number_or_domain: true

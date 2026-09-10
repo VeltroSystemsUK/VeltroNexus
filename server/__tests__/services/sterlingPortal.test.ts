@@ -48,7 +48,11 @@ describe("sterling portal helpers", () => {
     expect(items.find((i) => i.id === "insurance")?.attached).toBe(false);
 
     const lines = sterlingPackLines(items);
-    expect(lines[0]).toEqual({ label: "Completed Loan Application", ok: true });
+    expect(lines[0]).toEqual({ label: "Completed Loan Application", ok: false });
+    expect(sterlingPackLines(items, { applicationSigned: true })[0]).toEqual({
+      label: "Completed Loan Application",
+      ok: true,
+    });
     expect(lines[1]).toEqual({ label: "Funding proposal stamped", ok: true });
     expect(lines[2].label).toMatch(/supporting files$/);
     expect(lines.some((l) => l.label.toLowerCase().includes("insurance") && !l.ok)).toBe(true);
@@ -56,6 +60,9 @@ describe("sterling portal helpers", () => {
 
   it("maps a due-diligence filename onto the handover item without a second upload", () => {
     expect(attachmentCategoryFromFilename("FY24-accounts.pdf")).toBe("accounts");
+    expect(attachmentCategoryFromFilename("Home Crafters yearly profit and loss 2024-03-01 to 2025-02-28.pdf")).toBe(
+      "accounts",
+    );
     expect(attachmentCategoryFromFilename("June-bank-statements.pdf")).toBe("bank-statements");
     expect(attachmentCategoryFromFilename("random-scan.pdf")).toBe("general");
   });

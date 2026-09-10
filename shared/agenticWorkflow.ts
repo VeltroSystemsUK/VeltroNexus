@@ -107,6 +107,7 @@ export interface AgenticDealFile {
     caseNumber?: string;
   };
   hopper?: "gated" | "hunt_contact" | "sendable" | "parked" | "queued" | "quarantine";
+  reachableCorporateContact?: boolean;
   mailboxGrade?: "director" | "role";
   attachAttempts?: number;
   nonBankChargeCount?: number;
@@ -122,6 +123,8 @@ export interface AgenticDealFile {
   packReceivedAt?: string;
   sfp?: import("./sfp").StandardFinancialProfile;
   sterlingHandoffId?: number;
+  engagement?: import("./engagementPack").EngagementState;
+  applicationData?: import("./applicationDataFields").ApplicationDataState;
   events: AgenticEvent[];
   createdAt: string;
   updatedAt: string;

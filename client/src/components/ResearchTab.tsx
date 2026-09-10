@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { AiCompanyProfileCard, profileFromResearch } from "@/components/AiCompanyProfileCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,6 +128,27 @@ interface ResearchTabProps {
     prospect: any;
 }
 
+function latestAccountsYear(accountsAnalysis: any): any | null {
+    const years = Array.isArray(accountsAnalysis?.years) ? accountsAnalysis.years : [];
+    return years.filter((year: any) => year && typeof year === "object").slice().sort((a: any, b: any) =>
+        String(b.yearEnding || b.year || "").localeCompare(String(a.yearEnding || a.year || ""))
+    )[0] || null;
+}
+
+function narrativeFromProspect(prospect: any, dueDiligence: any): string {
+    const values = [dueDiligence?.underwriting?.adviserSummary?.purpose, prospect.loanRequirementNotes, prospect.background];
+    return values.map(value => typeof value === "string" ? value.trim() : "")
+        .filter(Boolean).filter((value, index, all) => all.indexOf(value) === index).join("\n\n");
+}
+
+function repaymentFromNarrative(narrative: string): { primary: string; secondary: string } {
+    const lower = narrative.toLowerCase();
+    return {
+        primary: lower.includes("rental") || lower.includes("rent") ? "Rental income" : lower.includes("sale") || lower.includes("exit") ? "Sale / exit proceeds" : lower.includes("contract") || lower.includes("order") ? "Trading cashflow from contracted work" : "Trading cashflow",
+        secondary: lower.includes("refinanc") ? "Refinance / replacement facility" : lower.includes("asset") || lower.includes("property") ? "Realisation or refinance of assets" : "To be confirmed from the supporting narrative",
+    };
+}
+
 // Module mapping based on product type
 const getActiveModule = (productType: string): string => {
     switch (productType) {
@@ -204,6 +226,11 @@ const getDefaultProperty = (): PropertyModule => ({
 export default function ResearchTab({ prospect }: ResearchTabProps) {
     const queryClient = useQueryClient();
 
+    const { data: dueDiligence } = useQuery<any>({
+        queryKey: [`/api/prospects/${prospect.id}/due-diligence`],
+        enabled: Boolean(prospect?.id),
+    });
+
     // Get product type from loan requirement data
     const loanRequirementData = prospect.loanRequirementData || {};
     const productType = loanRequirementData.product_type || "";
@@ -234,6 +261,27 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
         setPropertyData(research.property_module || getDefaultProperty());
     }, [prospect]);
 
+    useEffect(() => {
+        const underwriting = dueDiligence?.underwriting || {};
+        const latest = latestAccountsYear(underwriting.accountsAnalysis);
+        const narrative = narrativeFromProspect(prospect, dueDiligence);
+        const repayment = repaymentFromNarrative(narrative);
+        if (!latest && !narrative) return;
+        setCampariData(previous => ({
+            ...previous,
+            affordability: {
+                ...previous.affordability,
+                ...(latest ? {
+                    last_ebitda: Number(latest.ebitda ?? latest.operatingProfit ?? latest.netProfit ?? 0),
+                    debt_service_coverage_ratio: Number(underwriting.accountsAnalysis?.dscr?.average ?? previous.affordability.debt_service_coverage_ratio ?? 0),
+                } : {}),
+            },
+            means: { ...previous.means, ...(latest ? { tangible_net_worth: Number(latest.netAssets ?? latest.shareholderFunds ?? 0) } : {}) },
+            purpose: { ...previous.purpose, ...(narrative ? { validation_comment: narrative } : {}) },
+            repayment: { ...previous.repayment, ...(narrative ? { primary_source: repayment.primary, secondary_source: repayment.secondary } : {}) },
+        }));
+    }, [dueDiligence, prospect]);
+
     // Save mutation
     const saveMutation = useMutation({
         mutationFn: (updates: any) =>
@@ -251,6 +299,7 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
 
     const handleSave = () => {
         const researchData: ResearchData = {
+            ...existingResearch,
             status: "IN_PROGRESS",
             last_updated: new Date().toISOString(),
             active_module: activeModule,
@@ -263,27 +312,33 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
         saveMutation.mutate({ researchData });
     };
 
+    const aiProfile = profileFromResearch(existingResearch);
+
     // No product selected message
     if (!productType || !activeModule) {
         return (
-            <Card>
-                <CardContent className="py-12">
-                    <div className="text-center text-muted-foreground">
-                        <Search className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                        <h3 className="text-lg font-semibold mb-2">No Product Selected</h3>
-                        <p className="text-sm">
-                            Please select a Financial Product in the Requirements tab first.
-                            <br />
-                            The Research module will adapt based on the product type.
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
+            <div className="space-y-6">
+                {aiProfile ? <AiCompanyProfileCard profile={aiProfile} /> : null}
+                <Card>
+                    <CardContent className="py-12">
+                        <div className="text-center text-muted-foreground">
+                            <Search className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                            <h3 className="text-lg font-semibold mb-2">No Product Selected</h3>
+                            <p className="text-sm">
+                                Please select a Financial Product in the Requirements tab first.
+                                <br />
+                                The Research module will adapt based on the product type.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         );
     }
 
     return (
         <div className="space-y-6">
+            {aiProfile ? <AiCompanyProfileCard profile={aiProfile} /> : null}
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -329,7 +384,6 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <Label>Credit History Summary</Label>
-                                    <AIActionButton action="check_directors_bureau" label="Check Directors" />
                                 </div>
                                 <Textarea
                                     value={campariData.character.credit_history_summary}
@@ -356,11 +410,12 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <Label>Last EBITDA (£)</Label>
-                                    <AIActionButton action="analyse_bank_statements" label="Analyse Statements" />
                                 </div>
                                 <Input
                                     type="number"
                                     value={campariData.affordability.last_ebitda || ""}
+                                    readOnly
+                                    className="bg-muted/40"
                                     onChange={e => setCampariData(prev => ({
                                         ...prev,
                                         affordability: { ...prev.affordability, last_ebitda: parseFloat(e.target.value) || 0 }
@@ -373,6 +428,8 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                                     type="number"
                                     step="0.1"
                                     value={campariData.affordability.debt_service_coverage_ratio || ""}
+                                    readOnly
+                                    className="bg-muted/40"
                                     onChange={e => setCampariData(prev => ({
                                         ...prev,
                                         affordability: { ...prev.affordability, debt_service_coverage_ratio: parseFloat(e.target.value) || 0 }
@@ -396,6 +453,8 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                                 <Input
                                     type="number"
                                     value={campariData.means.tangible_net_worth || ""}
+                                    readOnly
+                                    className="bg-muted/40"
                                     onChange={e => setCampariData(prev => ({
                                         ...prev,
                                         means: { ...prev.means, tangible_net_worth: parseFloat(e.target.value) || 0 }
@@ -610,7 +669,6 @@ export default function ResearchTab({ prospect }: ResearchTabProps) {
                                     <BarChart3 className="h-4 w-4 text-green-600" />
                                     Market Valuation
                                 </span>
-                                <AIActionButton action="fetch_market_comparables" label="Get Comparables" />
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">

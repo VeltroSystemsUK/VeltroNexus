@@ -177,30 +177,31 @@ export default function LoanRequirementCard({ prospect }: LoanRequirementCardPro
 
     // Update product type
     const setProductType = (type: ProductType) => {
+        const keep = getPrimaryAmount() || (prospect.loanAmount ? prospect.loanAmount / 100 : 0);
         setFormData(prev => ({
             ...prev,
             product_type: type,
-            product_details: getDefaultProductDetails(type),
+            product_details: getDefaultProductDetails(type, keep),
         }));
     };
 
     // Get default product details for a type
-    const getDefaultProductDetails = (type: ProductType): Record<string, any> => {
+    const getDefaultProductDetails = (type: ProductType, amount = 0): Record<string, any> => {
         switch (type) {
             case "BUSINESS_LOAN":
             case "SECURED_LOAN":
-                return { loan_amount: 0, term_months: 0, target_interest_rate_percent: 0 };
+                return { loan_amount: amount, term_months: 0, target_interest_rate_percent: 0 };
             case "ASSET_FINANCE":
             case "EQUIPMENT_LEASING":
-                return { asset_description: "", supplier_name: "", purchase_price: 0, deposit_amount: 0, finance_amount: 0, term_months: 0 };
+                return { asset_description: "", supplier_name: "", purchase_price: amount, deposit_amount: 0, finance_amount: amount, term_months: 0 };
             case "INVOICE_FINANCE":
-                return { annual_turnover: 0, current_ledger_value: 0, number_of_live_debtors: 0, required_facility_limit: 0 };
+                return { annual_turnover: 0, current_ledger_value: 0, number_of_live_debtors: 0, required_facility_limit: amount };
             case "BRIDGING_LOAN":
-                return { net_loan_amount: 0, security_value_open_market: 0, ltv_percentage: 0, term_months: 0, exit_strategy: "" };
+                return { net_loan_amount: amount, security_value_open_market: 0, ltv_percentage: 0, term_months: 0, exit_strategy: "" };
             case "COMMERCIAL_MORTGAGE":
-                return { property_value: 0, mortgage_amount: 0, term_years: 0, repayment_type: "" };
+                return { property_value: 0, mortgage_amount: amount, term_years: 0, repayment_type: "" };
             case "BUY_TO_LET":
-                return { property_value: 0, mortgage_amount: 0, term_years: 0, repayment_type: "", projected_monthly_rental: 0 };
+                return { property_value: 0, mortgage_amount: amount, term_years: 0, repayment_type: "", projected_monthly_rental: 0 };
             default:
                 return {};
         }
@@ -240,7 +241,7 @@ export default function LoanRequirementCard({ prospect }: LoanRequirementCardPro
             case "BUY_TO_LET":
                 return details.mortgage_amount || 0;
             default:
-                return 0;
+                return details.loan_amount || formData.use_of_funds.total_request_amount || 0;
         }
     };
 
@@ -719,6 +720,29 @@ export default function LoanRequirementCard({ prospect }: LoanRequirementCardPro
                         </SelectContent>
                     </Select>
                 </div>
+
+                {!formData.product_type && (
+                    <div className="space-y-2">
+                        <Label htmlFor="requirement-loan-amount">Loan Amount (£)</Label>
+                        <Input
+                            id="requirement-loan-amount"
+                            type="number"
+                            min="0"
+                            value={formData.product_details.loan_amount || ""}
+                            onChange={(e) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    product_details: {
+                                        ...prev.product_details,
+                                        loan_amount: parseFloat(e.target.value) || 0,
+                                    },
+                                }))
+                            }
+                            placeholder="85000"
+                            data-testid="input-requirement-loan-amount"
+                        />
+                    </div>
+                )}
 
                 {/* Dynamic Product Fields */}
                 {renderProductFields()}

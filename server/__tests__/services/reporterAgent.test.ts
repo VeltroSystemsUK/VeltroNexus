@@ -11,6 +11,8 @@ describe("reporterUserPrompt", () => {
     expect(prompt).toContain("UK Economy");
     expect(prompt).toContain("2026-09-03");
     expect(prompt).toContain("https://example.com/rate");
+    expect(prompt).not.toMatch(/# UK Economy — 2026-09-03/);
+    expect(prompt).toMatch(/one desk note/i);
     expect(prompt).not.toMatch(/no notes landed/i);
   });
 

@@ -1,4 +1,4 @@
-import { deleteBlob, getBlob, putBlob } from "./idb";
+import { clearBlobs, deleteBlob, getBlob, putBlob } from "./idb";
 import { parseCraftJson, serializeCraft } from "./lib/persist";
 import { DEFAULT_BRAND, activePage, type CraftAsset, type CraftBrand, type CraftDocument } from './lib/types';
 import { cloneBrand } from './lib/brand';
@@ -117,6 +117,12 @@ export async function deleteCraftForAsset(assetId: string): Promise<void> {
   if (id) await deleteBlob(`craftdoc:${id}`);
   delete index[assetId];
   writeIndex(index);
+}
+
+/** Wipe every Craft document in this browser. Scan and Generate both start from empty boards. */
+export async function purgeAllCraftDocs(): Promise<void> {
+  await clearBlobs();
+  writeIndex({});
 }
 
 export function pageSizeOf(doc: CraftDocument): { width: number; height: number } {

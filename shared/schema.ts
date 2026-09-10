@@ -524,6 +524,7 @@ export const accountsAnalysisSchema = z.object({
   trends: z.any().optional(),
   dscr: z.number().optional(),
   concerns: z.array(z.string()).optional(),
+  notesToAccounts: z.array(z.any()).optional(),
   auditorOpinion: z.string().optional(),
   summary: z.string().optional(),
   riskAssessment: z.enum(["low", "medium", "high"]).optional(),
@@ -633,6 +634,8 @@ export const dueDiligenceDataSchema = z.object({
       slots: proposalSlotsSchema.optional(),
     })
     .optional(),
+  cashflowForecast: z.any().optional(),
+  applicationData: z.any().optional(),
 });
 
 export const dueDiligenceSchema = z.object({

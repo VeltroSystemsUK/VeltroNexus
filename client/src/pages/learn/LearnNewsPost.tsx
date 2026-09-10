@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { editorialMarkdownToHtml } from "@shared/editorial";
 import { parseLikedCookie, type LearnNewsCommentPublic } from "@shared/learnNews";
-import { NEWS_CATEGORY_LABELS, type LearnPiecePublic } from "@shared/learn";
+import { displayNewsHeadline, NEWS_CATEGORY_LABELS, stripNewsBodyTitle, type LearnPiecePublic } from "@shared/learn";
 import { LearnCta, LearnNotFound, PackagerLine, setLearnMeta } from "./LearnHome";
 
 type NewsPiece = LearnPiecePublic & { comments?: LearnNewsCommentPublic[] };
@@ -38,7 +38,10 @@ export default function LearnNewsPost() {
 
   useEffect(() => {
     if (!piece) return;
-    setLearnMeta(`${piece.title} — Strata Learn`, piece.excerpt || piece.title);
+    setLearnMeta(
+      `${displayNewsHeadline(piece.title, piece.category, piece.body)} — Strata Learn`,
+      piece.excerpt || piece.title,
+    );
     setLikes(piece.thisHelped || 0);
     setDislikes(piece.thisNotHelped || 0);
     setLiked(typeof piece.id === "number" && cookieIds("learn_news_liked").includes(piece.id));
@@ -127,7 +130,9 @@ export default function LearnNewsPost() {
         <p className="font-['Space_Mono'] text-emerald-400 text-sm">
           News{piece.category && piece.category in NEWS_CATEGORY_LABELS ? ` · ${NEWS_CATEGORY_LABELS[piece.category]}` : ""}
         </p>
-        <h1 className="font-['Unbounded'] text-3xl md:text-4xl tracking-tight leading-tight">{piece.title}</h1>
+        <h1 className="font-['Unbounded'] text-3xl md:text-4xl tracking-tight leading-tight">
+          {displayNewsHeadline(piece.title, piece.category, piece.body)}
+        </h1>
         {piece.excerpt && <p className="text-lg text-zinc-300 max-w-2xl">{piece.excerpt}</p>}
         <PackagerLine />
       </header>
@@ -137,7 +142,9 @@ export default function LearnNewsPost() {
       )}
       <div
         className="prose prose-invert max-w-2xl prose-headings:font-['Unbounded'] prose-p:font-['Plus_Jakarta_Sans']"
-        dangerouslySetInnerHTML={{ __html: editorialMarkdownToHtml(piece.body, piece.title) }}
+        dangerouslySetInnerHTML={{
+          __html: editorialMarkdownToHtml(stripNewsBodyTitle(piece.body, piece.title), piece.title),
+        }}
       />
 
       <div className="flex flex-wrap gap-3">

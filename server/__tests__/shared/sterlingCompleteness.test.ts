@@ -37,13 +37,14 @@ describe("Sterling completeness gate", () => {
     expect(result.missing).toEqual([]);
   });
 
-  it("treats a Companies House number as the company-search item", () => {
+  it("does not require a separate Companies House search document", () => {
     const result = evaluateSterlingCompleteness({
       documents: [],
       companyNumber: "00445790",
       sfpStatus: "PARTIAL",
     });
-    expect(result.present.map((item) => item.id)).toContain("company-search");
+    expect(result.present.map((item) => item.id)).not.toContain("company-search");
+    expect(result.missing.map((item) => item.id)).not.toContain("company-search");
   });
 
   it("accepts legacy pack category names", () => {

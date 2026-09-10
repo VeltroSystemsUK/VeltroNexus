@@ -23,6 +23,17 @@ interface AutomaticCreditAnalysisProps {
   data: DueDiligenceData;
 }
 
+export function formatCreditRatio(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "N/A";
+  return value.toFixed(2);
+}
+
+export function formatCreditPercent(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "N/A";
+  const pct = value <= 0 ? 0 : value < 1 ? value * 100 : value;
+  return `${pct.toFixed(1)}%`;
+}
+
 export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) {
   const underwriting = data.underwriting;
   const financialAnalysis = underwriting?.financialAnalysis;
@@ -82,15 +93,8 @@ export function AutomaticCreditAnalysis({ data }: AutomaticCreditAnalysisProps) 
     return value;
   };
 
-  const formatPercent = (value: number | undefined) => {
-    if (value === undefined) return "N/A";
-    return `${normalizePercent(value).toFixed(1)}%`;
-  };
-
-  const formatRatio = (value: number | undefined) => {
-    if (value === undefined) return "N/A";
-    return value.toFixed(2);
-  };
+  const formatPercent = formatCreditPercent;
+  const formatRatio = formatCreditRatio;
 
   const getDscrStatus = (dscr: number | undefined) => {
     if (dscr === undefined) return { status: "unknown", color: "secondary", icon: AlertCircle };
@@ -485,9 +489,9 @@ function RatioTableRow({
 }: {
   label: string;
   benchmark: string;
-  values: (number | undefined)[];
-  formatFn: (v: number | undefined) => string;
-  isGood: (v: number | undefined) => boolean;
+  values: (number | null | undefined)[];
+  formatFn: (v: number | null | undefined) => string;
+  isGood: (v: number | null | undefined) => boolean;
 }) {
   return (
     <tr className="border-b last:border-0">

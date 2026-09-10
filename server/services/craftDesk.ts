@@ -7,6 +7,7 @@ import {
   mergeGeneratedWeek,
   normalizePost,
   parseWeekGenerate,
+  shapePostToDay,
   type CraftChannel,
   type CraftPost,
   type WeekGenerateMode,
@@ -101,15 +102,17 @@ function deskRoute(desk: Desk): WeekRoute {
 
 function asGrammarWeek(week: CraftPost[], from: string, route: WeekRoute): CraftPost[] {
   const weekId = week[0]?.weekId || isoWeekId(from);
-  return week.map((post, i) => ({
-    ...post,
-    weekId: post.weekId || weekId,
-    route: post.route === "safe-distinctive" || post.route === "beautiful-insane" || post.route === "sharp-cultural"
-      ? post.route
-      : route,
-    daySlot: post.daySlot || DAY_SLOTS[i],
-    presetId: "li-landscape",
-  }));
+  return week.map((post, i) =>
+    shapePostToDay({
+      ...post,
+      weekId: post.weekId || weekId,
+      route: post.route === "safe-distinctive" || post.route === "beautiful-insane" || post.route === "sharp-cultural"
+        ? post.route
+        : route,
+      daySlot: post.daySlot || DAY_SLOTS[i],
+      presetId: "li-landscape",
+    }),
+  );
 }
 
 /** craftBrief() returns the same object reference, unchanged, whenever Isla's LLM pass fails. */
@@ -119,26 +122,19 @@ function islaFallbackWarning(before: CreativeAmmoBrief[], after: CreativeAmmoBri
   return `Isla's writing pass failed for ${fellBack} of ${before.length} briefs — using Casey's raw angle for those.`;
 }
 
-/** Casey's "scan the week" job — refreshes Creative Ammo Briefs and re-applies them to the queue. */
+/** Casey's job — ammo only. Never writes copy, stills, or boards. */
 export async function runCraftScan(userId: string): Promise<Desk> {
   const desk = deskFor(userId);
   const research = await researchWeek(desk.briefs);
-  const briefs = await craftWeek(research.briefs);
   const channels = desk.channels.length ? desk.channels : defaultChannels();
-  const route = deskRoute(desk);
-  const from = desk.weekStart || new Date().toISOString().slice(0, 10);
-  const week = desk.week.length
-    ? applyAmmoToWeek(asGrammarWeek(desk.week, from, route), briefs)
-    : applyAmmoToWeek(seedGrammarWeek(from, route), briefs).map((post) => applyChannelHandles(post, channels));
   const next: Desk = {
-    ...desk,
     channels,
-    week,
-    weekStart: week[0]?.date ?? desk.weekStart,
-    briefs,
-    weekId: week[0]?.weekId ?? isoWeekId(from),
-    route,
-    researchWarning: research.warning ?? islaFallbackWarning(research.briefs, briefs),
+    week: [],
+    weekStart: desk.weekStart,
+    briefs: research.briefs,
+    weekId: desk.weekId ?? null,
+    route: deskRoute(desk),
+    researchWarning: research.warning,
   };
   saveDesk(userId, next);
   return next;
@@ -153,15 +149,15 @@ export async function runCraftComposeWeek(
   const channels = desk.channels.length ? desk.channels : defaultChannels();
   const route = deskRoute(desk);
   let researchWarning: string | null = null;
-  const briefs =
-    params.mode === "selected" && desk.briefs.length === 7
-      ? desk.briefs
-      : await (async () => {
-          const research = await researchWeek(desk.briefs);
-          const crafted = await craftWeek(research.briefs);
-          researchWarning = research.warning ?? islaFallbackWarning(research.briefs, crafted);
-          return crafted;
-        })();
+  let source = desk.briefs;
+  if (source.length < 7) {
+    const research = await researchWeek(desk.briefs);
+    source = research.briefs;
+    researchWarning = research.warning;
+  }
+  const crafted = await craftWeek(source);
+  researchWarning = researchWarning ?? islaFallbackWarning(source, crafted);
+  const briefs = crafted;
   const generated = applyAmmoToWeek(seedGrammarWeek(params.from, route), briefs).map((post) =>
     applyChannelHandles(post, channels),
   );

@@ -49,6 +49,17 @@ import {
   type MotionFps,
   type MotionTrigger,
 } from "./lib/motionSchema";
+import {
+  DRIP_FONTS,
+  DRIP_FONT_STYLES,
+  DRIP_INTERACT,
+  DRIP_LIQUIDS,
+  DRIP_MOTIONS,
+  DRIP_SHAPES,
+  DRIP_TEXTURES,
+  applyLiquidPreset,
+  DEFAULT_MOTION_WIDGET,
+} from "./lib/motionWidget";
 import { drawFrame } from './lib/renderer';
 import {
   DEFAULT_BRAND,
@@ -218,7 +229,7 @@ export function CraftView({
       if (event.key === 'Enter' && !mod) {
         const page = pageOf(state);
         const selected = page?.nodes.filter((node) => state.selectedIds.includes(node.id));
-        if (selected?.length === 1 && selected[0].type === 'text') {
+        if (selected?.length === 1 && (selected[0].type === 'text' || selected[0].type === 'motion')) {
           event.preventDefault();
           state.beginTextEdit(selected[0].id);
           return;
@@ -630,7 +641,7 @@ function CraftCanvas({
       ctx.shadowColor = 'transparent';
       const motion = pageHasMotion(page.nodes);
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const liveIds = liveMotionIds(page.nodes, state.selectedIds, 2, {
+      const liveIds = liveMotionIds(page.nodes, state.selectedIds, 8, {
         panX: state.panX,
         panY: state.panY,
         zoom: state.zoom,
@@ -916,7 +927,7 @@ function CraftCanvas({
     if (!editingTextId) return null;
     const page = pageOf(useCraftStore.getState());
     const node = page?.nodes.find((item) => item.id === editingTextId);
-    return node?.type === "text" ? node : null;
+    return node?.type === "text" || node?.type === "motion" ? node : null;
   })();
 
   const onContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -939,11 +950,12 @@ function CraftCanvas({
     const state = useCraftStore.getState();
     const page = pageOf(state);
     if (!page) return;
-    const hit = page.nodes.slice().reverse().find((node) => {
+    const hits = page.nodes.slice().reverse().filter((node) => {
       if (node.hidden || node.locked) return false;
       return pointInNode(pt.x, pt.y, node);
     });
-    if (hit?.type === "text") {
+    const hit = hits.find((node) => node.type === "text" || node.type === "motion");
+    if (hit?.type === "text" || hit?.type === "motion") {
       event.preventDefault();
       drag.current = null;
       state.beginTextEdit(hit.id);
@@ -996,7 +1008,10 @@ function CraftCanvas({
           panY={panY}
           onCommit={(text) => {
             useCraftStore.getState().endTextEdit(text);
-            const patch = copyPatchFromNode(editingNode.name, text);
+            const patch = copyPatchFromNode(
+              editingNode.type === "motion" ? "Hook 1" : editingNode.name,
+              text,
+            );
             if (patch) onCopyChange?.(patch);
           }}
           onCancel={() => useCraftStore.getState().endTextEdit()}
@@ -1004,6 +1019,32 @@ function CraftCanvas({
       )}
     </div>
   );
+}
+
+function motionOverlaySource(node: MotionNode): OverlayLike {
+  return {
+    x: node.x,
+    y: node.y + node.height * 0.28,
+    width: node.width,
+    height: Math.max(48, node.height * 0.44),
+    fontSize: Math.max(18, Math.min(node.width * 0.12, node.height * 0.22)),
+    fontFamily: "Unbounded",
+    fontWeight: "800",
+    color: "#F7F5F1",
+    align: "center",
+    letterSpacing: 0,
+    lineHeight: 1.15,
+    rotation: node.rotation,
+  };
+}
+
+type OverlayLike = Parameters<typeof textOverlayBox>[0];
+
+function motionCaption(node: MotionNode): string {
+  if (node.text?.trim()) return node.text;
+  const page = pageOf(useCraftStore.getState());
+  const hook = page?.nodes.find((item) => item.type === "text" && item.name === "Hook 1");
+  return hook?.type === "text" ? hook.text : "";
 }
 
 function TextEditOverlay({
@@ -1014,7 +1055,7 @@ function TextEditOverlay({
   onCommit,
   onCancel,
 }: {
-  node: TextNode;
+  node: TextNode | MotionNode;
   zoom: number;
   panX: number;
   panY: number;
@@ -1022,9 +1063,10 @@ function TextEditOverlay({
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const [value, setValue] = useState(node.text);
-  const box = textOverlayBox(node, zoom, panX, panY);
-  const maxLength = canvasCopyLimit(node.name, useCraftStore.getState().assetId);
+  const initial = node.type === "motion" ? motionCaption(node) : node.text;
+  const [value, setValue] = useState(initial);
+  const box = textOverlayBox(node.type === "motion" ? motionOverlaySource(node) : node, zoom, panX, panY);
+  const maxLength = canvasCopyLimit(node.type === "motion" ? "Hook 1" : node.name, useCraftStore.getState().assetId);
 
   useEffect(() => {
     const el = ref.current;
@@ -1072,7 +1114,7 @@ function TextEditOverlay({
         lineHeight: box.lineHeight,
         transform: box.transform,
         transformOrigin: "center center",
-        textTransform: node.uppercase ? "uppercase" : undefined,
+        textTransform: node.type === "text" && node.uppercase ? "uppercase" : undefined,
         touchAction: "auto",
       }}
     />
@@ -1180,6 +1222,8 @@ function CraftInspector({
       <InspectorSection title="Type">
         {textNode ? (
           <TextTypeFields node={textNode} onCopyChange={onCopyChange} />
+        ) : node?.type === "motion" ? (
+          <MotionCopyField node={node} onCopyChange={onCopyChange} />
         ) : (
           <InspectorHint>Click a headline or any line on the board. Typefaces open here — Unbounded is the Strata hero.</InspectorHint>
         )}
@@ -1433,7 +1477,7 @@ function CraftInspector({
         {gifProgress != null && (
           <p className="text-[11px] text-muted-foreground">Recording GIF…</p>
         )}
-        <InspectorHint>Living plate inside the node. Default week boards stay photo unless you insert this.</InspectorHint>
+        <InspectorHint>Each click adds a layer. Same look on the selected plate replays it. Overlay plates (hook slam) sit on top of atmosphere plates.</InspectorHint>
       </InspectorSection>
 
       <InspectorSection title="Selection">
@@ -1603,10 +1647,176 @@ function MotionNodeFields({ node }: { node: MotionNode }) {
   const palette = node.schema.visual.palette;
   const physics = node.schema.physicsAndMath;
   const interaction = node.schema.interactionRules;
+  const widget = node.schema.widget ?? DEFAULT_MOTION_WIDGET;
+  const dripping = node.schema.category === "DrippingText";
+  const commitWidget = (patch: Partial<typeof widget>) =>
+    commitSchema({ ...node.schema, widget: { ...widget, ...patch } });
 
   return (
     <>
       {sessionWarning && <InspectorHint>{sessionWarning}</InspectorHint>}
+      <label className="grid gap-1 text-[10px] tracking-[0.1em] text-muted-foreground uppercase">
+        Word on plate
+        <Input
+          value={node.text ?? ""}
+          aria-label="Word on plate"
+          placeholder={dripping ? "DRIP" : "FILE FIRST"}
+          onChange={(event) => {
+            noteTyping();
+            update({ text: event.target.value });
+          }}
+        />
+      </label>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Texture</p>
+      <div className="flex flex-wrap gap-1">
+        {DRIP_TEXTURES.map((texture) => (
+          <Button
+            key={texture}
+            size="sm"
+            variant={widget.texture === texture ? "secondary" : "ghost"}
+            onClick={() => commitWidget({ texture })}
+          >
+            {texture}
+          </Button>
+        ))}
+      </div>
+      {dripping && (
+        <>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Liquid</p>
+          <div className="flex flex-wrap gap-1">
+            {DRIP_LIQUIDS.map((id) => (
+              <Button
+                key={id}
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  const next = applyLiquidPreset(widget, id);
+                  commitSchema({
+                    ...node.schema,
+                    widget: next.widget,
+                    visual: {
+                      ...node.schema.visual,
+                      palette: next.visual.palette,
+                      background: next.visual.background,
+                    },
+                  });
+                }}
+              >
+                {id}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Motion</p>
+          <div className="flex flex-wrap gap-1">
+            {DRIP_MOTIONS.map((motion) => (
+              <Button
+                key={motion}
+                size="sm"
+                variant={widget.motion === motion ? "secondary" : "ghost"}
+                onClick={() => commitWidget({ motion })}
+              >
+                {motion}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Drop shape</p>
+          <div className="flex flex-wrap gap-1">
+            {DRIP_SHAPES.map((shape) => (
+              <Button
+                key={shape}
+                size="sm"
+                variant={widget.shape === shape ? "secondary" : "ghost"}
+                onClick={() => commitWidget({ shape })}
+              >
+                {shape}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Interact</p>
+          <div className="flex flex-wrap gap-1">
+            {DRIP_INTERACT.map((mode) => (
+              <Button
+                key={mode}
+                size="sm"
+                variant={widget.interaction === mode ? "secondary" : "ghost"}
+                onClick={() => commitWidget({ interaction: mode })}
+              >
+                {mode}
+              </Button>
+            ))}
+          </div>
+          <select
+            className="h-8 w-full rounded-lg border border-input bg-transparent px-2 text-xs"
+            aria-label="Drip font"
+            value={widget.fontFamily}
+            onChange={(event) => commitWidget({ fontFamily: event.target.value })}
+          >
+            {DRIP_FONTS.map((font) => (
+              <option key={font.id} value={font.id}>
+                {font.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-8 w-full rounded-lg border border-input bg-transparent px-2 text-xs"
+            aria-label="Drip style"
+            value={`${widget.fontWeight}|${widget.fontStyle}`}
+            onChange={(event) => {
+              const [fontWeight, fontStyle] = event.target.value.split("|");
+              commitWidget({
+                fontWeight: fontWeight ?? widget.fontWeight,
+                fontStyle: fontStyle === "italic" ? "italic" : "normal",
+              });
+            }}
+          >
+            {DRIP_FONT_STYLES.map((style) => (
+              <option key={style.id} value={style.id}>
+                {style.label}
+              </option>
+            ))}
+          </select>
+          <InspectorSlider
+            label="Type size"
+            value={widget.fontSize}
+            min={80}
+            max={360}
+            step={10}
+            onChange={(fontSize) => commitWidget({ fontSize })}
+          />
+          <InspectorSlider
+            label="Gravity"
+            value={Math.round(widget.gravity * 100)}
+            min={0}
+            max={200}
+            onChange={(value) => commitWidget({ gravity: value / 100 })}
+            format={(value) => (value / 100).toFixed(2)}
+          />
+          <InspectorSlider
+            label="Drift"
+            value={Math.round(widget.drift * 100)}
+            min={0}
+            max={200}
+            onChange={(value) => commitWidget({ drift: value / 100 })}
+            format={(value) => (value / 100).toFixed(2)}
+          />
+          <InspectorSlider
+            label="Viscosity"
+            value={Math.round(widget.viscosity * 100)}
+            min={0}
+            max={100}
+            onChange={(value) => commitWidget({ viscosity: value / 100 })}
+            format={(value) => `${value}%`}
+          />
+          <InspectorSlider
+            label="Chaos"
+            value={Math.round(widget.turbulence * 100)}
+            min={0}
+            max={200}
+            onChange={(value) => commitWidget({ turbulence: value / 100 })}
+            format={(value) => (value / 100).toFixed(2)}
+          />
+        </>
+      )}
       <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Frame</p>
       <div className="flex flex-wrap gap-1">
         {FRAME_SHAPES.map((shape) => (
@@ -1629,6 +1839,7 @@ function MotionNodeFields({ node }: { node: MotionNode }) {
       <ColorPicker compact label="Filament 1" value={palette[0] ?? "#1A1D21"} onChange={(hex) => setPaletteSlot(0, hex)} />
       <ColorPicker compact label="Filament 2" value={palette[1] ?? "#2F5199"} onChange={(hex) => setPaletteSlot(1, hex)} />
       <ColorPicker compact label="Accent" value={palette[2] ?? "#C69123"} onChange={(hex) => setPaletteSlot(2, hex)} />
+      <ColorPicker compact label="Filament 4" value={palette[3] ?? "#6F8A22"} onChange={(hex) => setPaletteSlot(3, hex)} />
       <InspectorSlider
         label="Density"
         value={physics.densityCount}
@@ -1764,6 +1975,16 @@ function MotionNodeFields({ node }: { node: MotionNode }) {
         <Button size="sm" variant="ghost" onClick={() => update({ seed: Date.now() })}>
           Reset seed
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            update({ seed: Date.now() });
+            pulseMotion("dock");
+          }}
+        >
+          Replay pour
+        </Button>
       </div>
       {!advancedOpen ? (
         <>
@@ -1851,19 +2072,23 @@ function NodeFields({
           </Button>
         ))}
       </div>
-      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Motion</p>
-      <div className="flex flex-wrap gap-1">
-        {IMAGE_MOTIONS.map((motion) => (
-          <Button
-            key={motion.id}
-            size="sm"
-            variant={node.animation?.type === motion.id || (!node.animation && motion.id === "none") ? "secondary" : "ghost"}
-            onClick={() => useCraftStore.getState().applyMotion(motion.id as ImageMotionId)}
-          >
-            {motion.label}
-          </Button>
-        ))}
-      </div>
+      {node.type !== "motion" && (
+        <>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Motion</p>
+          <div className="flex flex-wrap gap-1">
+            {IMAGE_MOTIONS.map((motion) => (
+              <Button
+                key={motion.id}
+                size="sm"
+                variant={node.animation?.type === motion.id || (!node.animation && motion.id === "none") ? "secondary" : "ghost"}
+                onClick={() => useCraftStore.getState().applyMotion(motion.id as ImageMotionId)}
+              >
+                {motion.label}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
       {node.type === 'text' && !hideTextType && (
         <TextTypeFields node={node} onCopyChange={onCopyChange} />
       )}
@@ -1970,6 +2195,37 @@ function TypeBar() {
           {name === "Unbounded" ? "Unbounded" : name === "Plus Jakarta Sans" ? "Jakarta" : "Mono"}
         </button>
       ))}
+    </div>
+  );
+}
+
+function MotionCopyField({
+  node,
+  onCopyChange,
+}: {
+  node: MotionNode;
+  onCopyChange?: (patch: CraftCopyPatch) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Line on plate</p>
+      <Textarea
+        value={motionCaption(node)}
+        aria-label="Motion caption"
+        rows={3}
+        className="min-h-[4.5rem] text-xs"
+        onChange={(event) => {
+          noteTyping();
+          const text = event.target.value;
+          useCraftStore.getState().updateNode(node.id, { text });
+          const page = pageOf(useCraftStore.getState());
+          const hook = page?.nodes.find((item) => item.type === "text" && item.name === "Hook 1");
+          if (hook?.type === "text") useCraftStore.getState().updateNode(hook.id, { text });
+          const patch = copyPatchFromNode("Hook 1", text);
+          if (patch) onCopyChange?.(patch);
+        }}
+      />
+      <InspectorHint>Double-click the plate or press Enter to type on it.</InspectorHint>
     </div>
   );
 }

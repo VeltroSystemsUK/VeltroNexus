@@ -1,7 +1,9 @@
+import fs from "fs";
 import { Router } from "express";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { getAgentMail, listAgentMail, recordInbound, recordOpen, recordClick } from "../services/agentMailLog";
+import { resolveMailAttachmentFile } from "../services/agentMailAttachments";
 import { sendEmail } from "../services/email";
 import { maybeSendSmeOpenFollowUp } from "../services/smeOpenFollowUp";
 import { pollImapInbox } from "../services/imapInbox";
@@ -9,6 +11,7 @@ import { mailboxForAgent, mailboxList } from "@shared/agentMailboxes";
 import { shouldRecordMailTracking } from "@shared/mailTracking";
 import { escapeHtml, htmlEmail, signatureHtml } from "@shared/strataOutreach";
 import { sendTrackingPixel } from "../utils/trackingPixel";
+import { encodeContentDisposition } from "../utils/security";
 
 function replyHtml(bodyText: string, agentId: string | undefined, original: { from: string; text: string; createdAt: string }): string {
   const mailbox = mailboxForAgent(agentId);
@@ -37,6 +40,24 @@ router.get("/api/agent-mail", isAuthenticated, async (_req, res) => {
 router.post("/api/agent-mail/sync", isAuthenticated, async (_req, res) => {
   try {
     res.json(await pollImapInbox());
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
+router.get("/api/agent-mail/:id/attachments/:index", isAuthenticated, async (req, res) => {
+  try {
+    const item = getAgentMail(req.params.id);
+    if (!item) return res.status(404).json({ error: "Message not found" });
+    const index = Number.parseInt(String(req.params.index), 10);
+    if (!Number.isInteger(index) || index < 0) return res.status(400).json({ error: "Invalid attachment" });
+    const file = (item.attachments || []).find((row) => row.index === index);
+    if (!file) return res.status(404).json({ error: "Attachment not found" });
+    const disk = resolveMailAttachmentFile(item.id, file.storedName);
+    if (!disk || !fs.existsSync(disk)) return res.status(404).json({ error: "Attachment file missing" });
+    res.setHeader("Content-Type", file.contentType || "application/octet-stream");
+    res.setHeader("Content-Disposition", encodeContentDisposition(file.filename));
+    res.sendFile(disk);
   } catch (error) {
     handleApiError(res, error, "api-error");
   }

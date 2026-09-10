@@ -10,7 +10,8 @@ import {
   attachmentCategoryFromFilename,
   attachmentsFromDocuments,
 } from "@shared/sterlingPortal";
-import { ClipboardCheck, Paperclip, Upload } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { ClipboardCheck, Paperclip, Sparkles, Upload } from "lucide-react";
 
 type ProspectDocument = {
   id: number;
@@ -36,6 +37,21 @@ export function AttachmentsChecklistForm({ prospectId, compact }: AttachmentsChe
   const fileCount = items.reduce((n, item) => n + (item.files?.length || 0), 0);
   const missing = items.filter((item) => !item.attached);
 
+  const generatePlan = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest(`/api/prospects/${prospectId}/business-plan`, "POST", {});
+      return res.json() as Promise<{ fileName: string }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/due-diligence`] });
+      toast.success(`Business plan generated: ${data.fileName}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Could not generate a business plan");
+    },
+  });
+
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
       for (const file of files) {
@@ -60,9 +76,24 @@ export function AttachmentsChecklistForm({ prospectId, compact }: AttachmentsChe
             <p className={`text-sm ${item.attached ? "text-foreground" : "text-muted-foreground"}`}>
               {item.label}
             </p>
-            <span className={`text-xs font-medium shrink-0 ${item.attached ? "text-emerald-700" : "text-destructive"}`}>
-              {item.attached ? "On file" : "Missing"}
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {item.id === "business-plan" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  disabled={generatePlan.isPending}
+                  onClick={() => generatePlan.mutate()}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  {generatePlan.isPending ? "Writing…" : "Generate with AI"}
+                </Button>
+              )}
+              <span className={`text-xs font-medium ${item.attached ? "text-emerald-700" : "text-destructive"}`}>
+                {item.attached ? "On file" : "Missing"}
+              </span>
+            </div>
           </div>
           {item.files?.length ? (
             <ul className="mt-1 space-y-0.5">

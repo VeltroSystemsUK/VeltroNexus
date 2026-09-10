@@ -11,9 +11,12 @@ import {
   SHADOW_PRESETS,
   type ImageMotionId,
 } from "../lib/looks";
-import { ALL_SHAPE_VARIANTS, type CraftNode } from "../lib/types";
+import { ALL_SHAPE_VARIANTS, type CraftNode, type MotionPreview } from "../lib/types";
 import { SHAPE_LABELS } from "../lib/templates";
+import { MOTION_PRESETS, MOTION_PRESET_GROUPS } from "../lib/motionPresets";
 import { useCraftStore } from "../store";
+
+const MOTION_PREVIEWS: MotionPreview[] = ["live", "still", "reduced"];
 
 export function CraftContextMenu({
   x,
@@ -106,8 +109,50 @@ export function CraftContextMenu({
       <p className="px-2 py-1.5 text-[10px] uppercase tracking-[0.14em] text-white/35">
         {node ? node.name : "Board"}
       </p>
-      {node?.type === "text" && (
-        <Item onClick={() => run(onEditText)}>{editLabel}</Item>
+      {(node?.type === "text" || node?.type === "motion") && (
+        <Item onClick={() => run(onEditText)}>{node.type === "motion" ? "Edit line on plate" : editLabel}</Item>
+      )}
+      {node?.type === "motion" && (
+        <>
+          {MOTION_PRESET_GROUPS.map((group) => (
+            <Group key={group} label={group}>
+              <div className="flex flex-wrap gap-1 px-2 py-1">
+                {MOTION_PRESETS.filter((preset) => preset.group === group).map((preset) => {
+                  const active = node.schema.meta?.title === preset.schema.meta?.title;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      title={preset.schema.meta?.vibe}
+                      className={`rounded-md px-1.5 py-1 text-[10px] hover:bg-white/10 ${active ? "bg-white/15 text-white ring-1 ring-white/25" : "text-white/80"}`}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => run(() => useCraftStore.getState().replaceMotionPreset(preset.id))}
+                    >
+                      {preset.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </Group>
+          ))}
+          <Group label="Preview">
+            <div className="flex flex-wrap gap-1 px-2 py-1">
+              {MOTION_PREVIEWS.map((preview) => (
+                <button
+                  key={preview}
+                  type="button"
+                  className={`rounded-md px-1.5 py-1 text-[10px] hover:bg-white/10 ${node.preview === preview ? "bg-white/15 text-white" : "text-white/80"}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => run(() => useCraftStore.getState().updateNode(node.id, { preview }))}
+                >
+                  {preview}
+                </button>
+              ))}
+            </div>
+          </Group>
+          <Item onClick={() => run(() => useCraftStore.getState().captureMotionStill(node.id))}>Capture still</Item>
+          <Item onClick={() => run(() => void useCraftStore.getState().recordMotionGif(node.id))}>Record GIF</Item>
+        </>
       )}
       {node?.type === "shape" && (
         <Group label="Shape">
@@ -183,7 +228,7 @@ export function CraftContextMenu({
           </div>
         </Group>
       )}
-      {node && (
+      {node && node.type !== "motion" && (
         <Group label="Colour">
           <div className="px-2 py-1.5">
             <ColorPicker
@@ -199,7 +244,7 @@ export function CraftContextMenu({
           </div>
         </Group>
       )}
-      {node && (
+      {node && node.type !== "motion" && (
         <Group label="Motion">
           <div className="flex flex-wrap gap-1 px-2 py-1">
             {IMAGE_MOTIONS.map((motion) => (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
-import { Inbox, Loader2, Mail, MailOpen, Reply, RefreshCw, Search, Send } from "lucide-react";
+import { Inbox, Loader2, Mail, MailOpen, Paperclip, Reply, RefreshCw, Search, Send, ShieldAlert } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle, usePageActions } from "@/context/LayoutContext";
 import { cn } from "@/lib/utils";
+import { agentMailInFolder, type AgentMailFolder } from "@shared/mailDesk";
 import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, stripMailTracking } from "@shared/mailTracking";
 
 type MailItem = {
@@ -30,7 +31,58 @@ type MailItem = {
   createdAt: string;
   opens?: string[];
   clicks?: Array<{ at: string; url: string }>;
+  attachments?: Array<{
+    index: number;
+    filename: string;
+    contentType: string;
+    size: number;
+    contentBase64?: string;
+  }>;
 };
+
+function bytesFromBase64(value: string): Uint8Array {
+  const bin = atob(value);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadMailAttachment(
+  mailId: string,
+  file: NonNullable<MailItem["attachments"]>[number],
+): Promise<boolean> {
+  const href = `/api/agent-mail/${mailId}/attachments/${file.index}`;
+  try {
+    const res = await fetch(href, { credentials: "same-origin" });
+    if (res.ok) {
+      saveBlob(await res.blob(), file.filename);
+      return true;
+    }
+  } catch {
+    /* old NexusApp has no download route — fall back to bytes on the mail record */
+  }
+  if (file.contentBase64) {
+    saveBlob(
+      new Blob([bytesFromBase64(file.contentBase64)], {
+        type: file.contentType || "application/octet-stream",
+      }),
+      file.filename,
+    );
+    return true;
+  }
+  return false;
+}
 
 // Renders the exact HTML the customer's mail client would show, sandboxed
 // so nothing in the email (agent-authored or an inbound reply) can run script
@@ -84,7 +136,7 @@ type Payload = {
   messages: MailItem[];
 };
 
-type Folder = "inbox" | "sent" | "opened" | "all";
+type Folder = AgentMailFolder;
 
 const READING_PANE_KEY = "agent-mail-reading-pane";
 
@@ -188,12 +240,11 @@ export default function AgentMail() {
   const messages = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = (data?.messages || []).filter((item) => {
-      if (folder === "inbox" && item.direction !== "inbound") return false;
-      if (folder === "sent" && item.direction !== "outbound") return false;
-      if (folder === "opened" && !isOpenedOutboundMail(item)) return false;
+      if (!agentMailInFolder(item, folder)) return false;
       if (agent !== "all" && item.agentName !== agent) return false;
       if (!q) return true;
-      return [item.subject, item.from, item.to, item.agentName, item.text].some((value) =>
+      const files = (item.attachments || []).map((file) => file.filename).join(" ");
+      return [item.subject, item.from, item.to, item.agentName, item.text, files].some((value) =>
         String(value || "").toLowerCase().includes(q)
       );
     });
@@ -210,9 +261,11 @@ export default function AgentMail() {
 
   const selected = messages.find((item) => item.id === selectedId) || null;
   const selectedOpen = selected ? mailOpenState(selected) : null;
-  const inboundCount = (data?.messages || []).filter((item) => item.direction === "inbound").length;
-  const sentCount = (data?.messages || []).filter((item) => item.direction === "outbound").length;
-  const openedCount = (data?.messages || []).filter((item) => isOpenedOutboundMail(item)).length;
+  const inboundCount = (data?.messages || []).filter((item) => agentMailInFolder(item, "inbox")).length;
+  const sentCount = (data?.messages || []).filter((item) => agentMailInFolder(item, "sent")).length;
+  const openedCount = (data?.messages || []).filter((item) => agentMailInFolder(item, "opened")).length;
+  const quarantineCount = (data?.messages || []).filter((item) => agentMailInFolder(item, "quarantine")).length;
+  const allCount = (data?.messages || []).filter((item) => agentMailInFolder(item, "all")).length;
 
   useEffect(() => {
     setReplyOpen(false);
@@ -296,9 +349,16 @@ export default function AgentMail() {
           <FolderButton
             icon={Mail}
             label="All mail"
-            count={(data?.messages || []).length}
+            count={allCount}
             active={folder === "all"}
             onClick={() => setFolder("all")}
+          />
+          <FolderButton
+            icon={ShieldAlert}
+            label="Quarantine"
+            count={quarantineCount}
+            active={folder === "quarantine"}
+            onClick={() => setFolder("quarantine")}
           />
         </div>
         {agents.length > 0 && (
@@ -361,7 +421,9 @@ export default function AgentMail() {
             <p className="p-4 text-sm text-muted-foreground">
               {folder === "opened"
                 ? "No opens yet. Tracked sent mail lands here when the recipient’s client loads the pixel."
-                : "No messages in this folder."}
+                : folder === "quarantine"
+                  ? "No mailer-daemon messages in quarantine."
+                  : "No messages in this folder."}
             </p>
           )}
           {messages.map((item) => {
@@ -383,7 +445,17 @@ export default function AgentMail() {
                     {formatWhen(folder === "opened" ? lastMailOpenAt(item.opens) || item.createdAt : item.createdAt)}
                   </span>
                 </div>
-                <p className="text-sm truncate mt-0.5">{item.subject || "(no subject)"}</p>
+                <p className="text-sm truncate mt-0.5 flex items-center gap-1.5">
+                  {(item.attachments || []).length > 0 && (
+                    <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="truncate">{item.subject || "(no subject)"}</span>
+                </p>
+                {(item.attachments || []).length > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {(item.attachments || []).length} attachment{(item.attachments || []).length === 1 ? "" : "s"}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {item.agentName ? `${item.agentName} · ` : ""}
                   {item.text || item.status}
@@ -468,6 +540,37 @@ export default function AgentMail() {
                   </p>
                 )}
               </div>
+              {(selected.attachments || []).length > 0 && (
+                <div className="pt-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Attachments</p>
+                  {(selected.attachments || []).map((file) => (
+                    <a
+                      key={file.index}
+                      data-testid="link-mail-attachment"
+                      className="flex items-center gap-2 text-sm text-primary hover:underline"
+                      href={`/api/agent-mail/${selected.id}/attachments/${file.index}`}
+                      download={file.filename}
+                      onClick={async (event) => {
+                        event.preventDefault();
+                        const ok = await downloadMailAttachment(selected.id, file);
+                        if (!ok) {
+                          toast({
+                            title: "Could not download attachment",
+                            description: "Refresh Agent mail, then try again.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <Paperclip className="h-4 w-4" />
+                      {file.filename}
+                      {file.size ? (
+                        <span className="text-muted-foreground">({Math.max(1, Math.round(file.size / 1024))} KB)</span>
+                      ) : null}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
             <ScrollArea className="flex-1">
               <AgentMailBody html={selected.html} text={selected.text} />

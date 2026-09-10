@@ -9,6 +9,7 @@ import {
   type CadenceTouchId,
   type SalesStream,
 } from "./salesOs";
+import { compileIntroducerStep, INTRODUCER_PANEL_ONE_LINER } from "./introducerPlaybook";
 
 export type OutreachTouchId = CadenceTouchId | "cold_1" | "cold_2" | "cold_3" | "sme_open" | "sme_followup";
 
@@ -35,6 +36,7 @@ export const EDITABLE_OUTREACH_TOUCHES: OutreachTouchId[] = [
   "sme_2",
   "sme_close",
   "intro_1",
+  "intro_mid",
   "intro_2",
 ];
 
@@ -89,14 +91,27 @@ export function htmlEmail(lines: string[]): string {
   return lines.map((line) => `<p>${linkify(escapeHtml(line))}</p>`).join("\n");
 }
 
-export function packUploadUrl(token?: string | null): string | undefined {
-  if (!token) return undefined;
-  const base = (
+function publicAppBase(): string {
+  return (
     process.env.PUBLIC_APP_URL ||
     process.env.APP_URL ||
     "https://leads.stratanexus.co.uk"
   ).replace(/\/$/, "");
-  return `${base}/pack/${encodeURIComponent(token)}`;
+}
+
+export function packUploadUrl(token?: string | null): string | undefined {
+  if (!token) return undefined;
+  return `${publicAppBase()}/pack/${encodeURIComponent(token)}`;
+}
+
+export function signEngagementUrl(token?: string | null): string | undefined {
+  if (!token) return undefined;
+  return `${publicAppBase()}/sign/${encodeURIComponent(token)}`;
+}
+
+export function applyOnlineUrl(token?: string | null): string | undefined {
+  if (!token) return undefined;
+  return `${publicAppBase()}/apply/${encodeURIComponent(token)}`;
 }
 
 function uploadButtonHtml(url: string): string {
@@ -241,6 +256,7 @@ export function renderOutreachEmail(
     | "stream"
     | "source"
     | "petition"
+    | "website"
   >,
   touchId: OutreachTouchId,
   senderNameOrMailbox?: string | AgentMailbox
@@ -424,51 +440,48 @@ export function renderOutreachEmail(
     };
   }
 
-  if (id === "intro_1") {
-    const lines = [
-      `Hi ${name},`,
-      `When viable corporate clients face cash-flow pressure caused by high-interest short-term debt, stacked Merchant Cash Advances, or HMRC arrears, standard high-street lenders rarely step forward.`,
-      `Strata Finance works directly with accountancy practices and corporate advisers to restructure complex debt profiles into sustainable CDFI (Community Development Finance Institution) facilities:`,
-      `1. Institutional Credit Packaging: We construct the full 24-month integrated P&L, balance sheet, and CFADS/DSCR models required by CDFI credit committees.`,
-      `2. Tax Arrears Resolution: Stabilise and consolidate HMRC liabilities into affordable 5-year facilities (£25k to £250k).`,
-      `3. Client Retention: We eliminate immediate cash-flow threats while keeping your advisory relationship central.`,
-      `You can inspect our advisory framework here: https://${SITE}`,
-      `Could we arrange a 10-minute introductory call on Thursday?`,
-    ];
-    const signed = withSignature(lines, mailbox, [STOP_LINE]);
+  if (id === "intro_1" || id === "intro_linkedin" || id === "intro_mid" || id === "intro_2") {
+    const compiled = compileIntroducerStep(id, {
+      introducerFirm: company,
+      introducerFirstNameOrRole: name === "there" ? "the directors" : name,
+      panelOneLiner: INTRODUCER_PANEL_ONE_LINER,
+      senderName: mailbox.displayName || "James Hale",
+      senderFirm: "Strata Finance",
+      senderPhone: "",
+      sourceExplanation: deal.website
+        ? `the company's published contact page`
+        : "the firm's published contact details",
+      introducerType: "accountant",
+    });
+    if (!compiled.ok) {
+      return {
+        touchId: id,
+        subject: company,
+        html: "",
+        text: "",
+        purpose: `playbook_gap:${compiled.reason}`,
+      };
+    }
+    const lines = compiled.text.split(/\n\n/);
+    const signed =
+      compiled.channel === "linkedin_staged"
+        ? { html: htmlEmail(lines), text: compiled.text }
+        : withSignature(lines, mailbox);
     return {
       touchId: id,
-      subject: "Refinancing & HMRC restructuring mechanism for your corporate clients",
+      subject: compiled.subject,
       html: signed.html,
       text: signed.text,
-      purpose: "Stream B day 1 — partner outreach.",
+      purpose: compiled.purpose,
     };
   }
 
-  if (id === "intro_linkedin") {
-    const text = `Hi ${name}, following up on my email regarding our CDFI restructuring framework. We frequently partner with accountancy practices whose clients need to refinance aggressive short-term debt or formalise HMRC Time to Pay arrangements. We manage the entire 24-month financial model and underwriter pack. I would welcome the opportunity to share our structure: https://${SITE}`;
-    return {
-      touchId: id,
-      subject: `LinkedIn briefing — ${company}`,
-      html: htmlEmail(text.split("\n")),
-      text,
-      purpose: "Stream B day 5 — LinkedIn technical briefing. Not an email.",
-    };
-  }
-
-  const lines = [
-    `Hi ${name},`,
-    `I wanted to check if your practice currently has clients navigating cash-flow restrictions due to aggressive monthly debt service or HMRC arrears.`,
-    `We can review client debt schedules on a confidential, no-obligation basis and produce a preliminary restructuring feasibility model within 48 hours.`,
-    `Let me know if you would like to schedule a brief introductory briefing: https://${SITE}`,
-  ];
-  const signed = withSignature(lines, mailbox, [STOP_LINE]);
   return {
-    touchId: "intro_2",
-    subject: "Supporting distressed debt files for your clients",
-    html: signed.html,
-    text: signed.text,
-    purpose: "Stream B day 10 — partner alignment. Queue the introducer voice call.",
+    touchId: id,
+    subject: company,
+    html: "",
+    text: "",
+    purpose: "playbook_gap",
   };
 }
 

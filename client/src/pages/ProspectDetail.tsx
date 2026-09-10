@@ -27,6 +27,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { AiCompanyProfileCard, profileFromResearch } from "@/components/AiCompanyProfileCard";
+import { ApplicationCompanyPanel, ApplicationDirectorPanel } from "@/components/ApplicationDataPanel";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -135,6 +137,7 @@ import TimeTracking from "@/components/TimeTracking";
 import ExceptionsPanel from "@/components/ExceptionsPanel";
 import type { CompanyProfile } from "@shared/companiesHouseTypes";
 import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
+import { BulletField, BulletList } from "@/components/BulletField";
 import { CommunicationsTab } from "@/components/communications/CommunicationsTab";
 import { EmailLink } from "@/components/EmailLink";
 
@@ -505,7 +508,6 @@ export default function ProspectDetail() {
   const { data: prospect, isLoading } = useQuery<ProspectWithCompany>({
     queryKey: [`/api/prospects/${prospectId}`],
     enabled: prospectId > 0,
-    refetchInterval: 15000, // Frequent refresh for research updates
   });
 
   const { data: allProspects = [] } = useQuery<ProspectWithCompany[]>({
@@ -1085,12 +1087,40 @@ function StageCard({ prospect }: { prospect: ProspectWithCompany }) {
 }
 
 function LoanAmountCard({ prospect }: { prospect: ProspectWithCompany }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const pounds = prospect.loanAmount ? String(Math.round(prospect.loanAmount / 100)) : "";
+  const [loanAmount, setLoanAmount] = useState(pounds);
+
+  useEffect(() => {
+    setLoanAmount(prospect.loanAmount ? String(Math.round(prospect.loanAmount / 100)) : "");
+  }, [prospect.loanAmount]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
       currency: "GBP",
       minimumFractionDigits: 0,
     }).format(amount / 100);
+  };
+
+  const updateLoanAmountMutation = useMutation({
+    mutationFn: (pence: number | null) =>
+      apiRequest(`/api/prospects/${prospect.id}`, "PATCH", { loanAmount: pence }),
+    onSuccess: () => {
+      toast.success("Loan amount updated");
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}/due-diligence`] });
+      setIsEditing(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update loan amount");
+    },
+  });
+
+  const handleSave = () => {
+    const value = Number(loanAmount);
+    updateLoanAmountMutation.mutate(Number.isFinite(value) && value > 0 ? Math.round(value * 100) : null);
   };
 
   return (
@@ -1100,9 +1130,64 @@ function LoanAmountCard({ prospect }: { prospect: ProspectWithCompany }) {
           <Label className="text-muted-foreground text-sm">Loan Amount</Label>
           <PoundSterling className="h-4 w-4 text-muted-foreground" />
         </div>
-        <p className="text-base font-semibold" data-testid="text-loan-amount">
-          {prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "Not set"}
-        </p>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              id="stat-loan-amount"
+              name="loan-amount"
+              type="number"
+              min="0"
+              step="1"
+              value={loanAmount}
+              onChange={(e) => setLoanAmount(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave();
+                if (e.key === "Escape") {
+                  setIsEditing(false);
+                  setLoanAmount(pounds);
+                }
+              }}
+              placeholder="85000"
+              className="h-8 text-sm"
+              autoFocus
+              data-testid="input-stat-loan-amount"
+            />
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={handleSave}
+              disabled={updateLoanAmountMutation.isPending}
+              data-testid="button-save-loan-amount"
+            >
+              <Save className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                setIsEditing(false);
+                setLoanAmount(pounds);
+              }}
+              data-testid="button-cancel-loan-amount"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-base font-semibold" data-testid="text-loan-amount">
+              {prospect.loanAmount ? formatCurrency(prospect.loanAmount) : "Not set"}
+            </p>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setIsEditing(true)}
+              data-testid="button-edit-loan-amount"
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1321,12 +1406,56 @@ function PremiumResearchLock() {
   );
 }
 
-function DeepResearchComponent({ companyName, websiteUrl, companyId, prospectId, initialBackground }: { companyName: string, websiteUrl?: string, companyId: number, prospectId: number, initialBackground?: string }) {
-  const [result, setResult] = useState<CompanyEnrichmentResult | null>(null);
+function DeepResearchComponent({
+  companyName,
+  websiteUrl,
+  companyId,
+  prospectId,
+  initialBackground,
+  savedResearch,
+}: {
+  companyName: string;
+  websiteUrl?: string;
+  companyId: number;
+  prospectId: number;
+  initialBackground?: string;
+  savedResearch?: unknown;
+}) {
+  const saved = profileFromResearch(savedResearch);
+  const [result, setResult] = useState<CompanyEnrichmentResult | null>(
+    saved
+      ? {
+          companyName,
+          companyDetails: {},
+          keyPeople: saved.keyPeople || [],
+          businessProfile: saved.businessProfile || "",
+          sourceCommentary: saved.sourceCommentary,
+          sources: (saved.sources || []).map((source) => ({ url: source.url, title: source.title || source.url })),
+        }
+      : null
+  );
+  const profileRef = useRef<HTMLDivElement | null>(null);
   const [localWebsite, setLocalWebsite] = useState(websiteUrl || "");
   const [backgroundContent, setBackgroundContent] = useState(initialBackground || "");
   const [isSavingBackground, setIsSavingBackground] = useState(false);
   const [isSavingContacts, setIsSavingContacts] = useState(false);
+
+  useEffect(() => {
+    const next = profileFromResearch(savedResearch);
+    if (!next?.businessProfile) return;
+    setResult((current) =>
+      current?.businessProfile
+        ? current
+        : {
+            companyName,
+            companyDetails: {},
+            keyPeople: next.keyPeople || [],
+            businessProfile: next.businessProfile || "",
+            sourceCommentary: next.sourceCommentary,
+            sources: (next.sources || []).map((source) => ({ url: source.url, title: source.title || source.url })),
+          }
+    );
+  }, [savedResearch, companyName]);
 
   const handleSaveBackground = async () => {
     if (!result?.businessProfile) return;
@@ -1402,11 +1531,30 @@ function DeepResearchComponent({ companyName, websiteUrl, companyId, prospectId,
       if (localWebsite !== websiteUrl && localWebsite.trim()) {
         await saveWebsiteMutation.mutateAsync(localWebsite);
       }
-      return apiRequest("/api/companies/enrich", "POST", { companyName, websiteUrl: localWebsite }).then(r => r.json());
+      const data = (await apiRequest("/api/companies/enrich", "POST", {
+        companyName,
+        websiteUrl: localWebsite,
+      }).then((r) => r.json())) as CompanyEnrichmentResult;
+      const existing =
+        savedResearch && typeof savedResearch === "object" ? (savedResearch as Record<string, unknown>) : {};
+      await apiRequest(`/api/prospects/${prospectId}`, "PATCH", {
+        researchData: {
+          ...existing,
+          businessProfile: data.businessProfile,
+          keyPeople: data.keyPeople,
+          sourceCommentary: data.sourceCommentary,
+          sources: data.sources,
+          companyDetails: data.companyDetails,
+          last_updated: new Date().toISOString(),
+        },
+      });
+      return data;
     },
     onSuccess: (data: CompanyEnrichmentResult) => {
       setResult(data);
-      toast.success("Company profile generated");
+      toast.success("Company profile generated — it is on Company and Research");
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}`] });
+      requestAnimationFrame(() => profileRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     },
     onError: (error: Error) => {
       toast.error(`Analysis failed: ${error.message}`);
@@ -1478,14 +1626,13 @@ function DeepResearchComponent({ companyName, websiteUrl, companyId, prospectId,
       </Card>
 
       {result && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* Business Analysis Deep Dive */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" />
-                Business Analysis Deep Dive
-              </CardTitle>
+        <div
+          ref={profileRef}
+          className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
+        >
+          <AiCompanyProfileCard
+            profile={result}
+            headerAction={
               <Button
                 variant="outline"
                 size="sm"
@@ -1496,14 +1643,36 @@ function DeepResearchComponent({ companyName, websiteUrl, companyId, prospectId,
                 {isSavingBackground ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 Save to Background
               </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed bg-muted/30 p-4 rounded-lg border">
-                {/* Render markdown safe content */}
-                <div className="whitespace-pre-line">{result.businessProfile}</div>
-              </div>
-            </CardContent>
-          </Card>
+            }
+          />
+
+          {result.keyPeople?.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Key people</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveContacts}
+                  disabled={isSavingContacts}
+                  className="h-8 gap-2"
+                >
+                  {isSavingContacts ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  Save to contacts
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <ul className="text-sm space-y-1.5">
+                  {result.keyPeople.map((person) => (
+                    <li key={`${person.name}-${person.role}`}>
+                      <span className="font-medium">{person.name}</span>
+                      {person.role ? <span className="text-muted-foreground"> · {person.role}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Source Analysis & Commentary */}
           <Card>
@@ -1518,11 +1687,11 @@ function DeepResearchComponent({ companyName, websiteUrl, companyId, prospectId,
                 {result.sourceCommentary || "No source commentary available."}
               </div>
 
-              {result.sources.length > 0 && (
+              {(result.sources || []).length > 0 && (
                 <div className="pt-2">
                   <p className="text-xs text-muted-foreground font-medium mb-3">Verified Sources Used:</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {result.sources.map((source: any, i: number) => (
+                    {(result.sources || []).map((source: any, i: number) => (
                       <a
                         key={i}
                         href={source.url}
@@ -2047,6 +2216,15 @@ function ContactsTab({
                       </Button>
                     </div>
                   </div>
+                  {contact.id ? (
+                    <div className="mt-3">
+                      <ApplicationDirectorPanel
+                        prospectId={prospectId}
+                        contactId={contact.id}
+                        contactName={contact.name}
+                      />
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
@@ -3233,11 +3411,13 @@ function CompanyInformationTab({
 }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [background, setBackground] = useState(prospect.background || "");
+  const [notes, setNotes] = useState(prospect.notes || "");
   const { user } = useAuth();
 
   useEffect(() => {
     setBackground(prospect.background || "");
-  }, [prospect.background]);
+    setNotes(prospect.notes || "");
+  }, [prospect.background, prospect.notes]);
 
   const saveBackgroundMutation = useMutation({
     mutationFn: (updates: { background: string }) =>
@@ -3251,6 +3431,26 @@ function CompanyInformationTab({
       queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
       toast.success("Background saved");
     },
+  });
+
+  const saveNotesMutation = useMutation({
+    mutationFn: (value: string) =>
+      fetch(`/api/prospects/${prospect.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ notes: value }),
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error((await response.json()).error || "Failed to save findings");
+        }
+        return response.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      toast.success("Findings saved");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to save findings"),
   });
 
   const rewriteBackgroundMutation = useMutation({
@@ -3352,11 +3552,24 @@ function CompanyInformationTab({
 
   return (
     <div className="space-y-6">
+      {prospect.id ? <ApplicationCompanyPanel prospectId={prospect.id} /> : null}
+      {user?.hasUnderwritingAccess ? (
+        <DeepResearchComponent
+          companyName={prospect.company.companyName}
+          websiteUrl={(prospect.company as any).website || undefined}
+          companyId={prospect.company.id || 0}
+          prospectId={prospect.id || 0}
+          initialBackground={prospect.background || ""}
+          savedResearch={(prospect as { researchData?: unknown }).researchData}
+        />
+      ) : (
+        <PremiumResearchLock />
+      )}
       <Tabs defaultValue="official" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="official">Companies House Data</TabsTrigger>
-          <TabsTrigger value="research">Research Data</TabsTrigger>
           <TabsTrigger value="creditsafe">Credit Check</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="official" className="space-y-6">
@@ -3397,14 +3610,11 @@ function CompanyInformationTab({
                     </Button>
                   )}
                 </div>
-                <Textarea
-                  id="company-background"
-                  name="company-background"
+                <BulletField
                   value={background}
-                  onChange={(e) => setBackground(e.target.value)}
-                  placeholder="Enter background information about the company, its history, principals, and any relevant context..."
-                  className="min-h-[150px]"
-                  data-testid="input-company-background"
+                  onChange={setBackground}
+                  placeholder="Company history, principals, and context — one bullet per line"
+                  testId="input-company-background"
                 />
                 <div className="flex justify-end mt-2">
                   <Button
@@ -3420,22 +3630,41 @@ function CompanyInformationTab({
           </Card>
         </TabsContent>
 
-        <TabsContent value="research" className="space-y-6">
-          {user?.hasUnderwritingAccess ? (
-            <DeepResearchComponent
-              companyName={prospect.company.companyName}
-              websiteUrl={(prospect.company as any).website || undefined}
-              companyId={prospect.company.id || 0}
-              prospectId={prospect.id || 0}
-              initialBackground={prospect.background || ""}
-            />
-          ) : (
-            <PremiumResearchLock />
-          )}
-        </TabsContent>
-
         <TabsContent value="creditsafe" className="space-y-6">
           <CreditsafeCheck prospect={prospect} />
+        </TabsContent>
+
+        <TabsContent value="notes" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Case Findings</CardTitle>
+              <CardDescription>
+                Record your findings, observations, follow-ups, and anything relevant to this company.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                id="company-findings"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Record your findings about the company and this case..."
+                className="min-h-[260px]"
+                data-testid="input-company-findings"
+              />
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-xs text-muted-foreground">
+                  These notes are saved to the case and are not sent to Companies House.
+                </span>
+                <Button
+                  onClick={() => saveNotesMutation.mutate(notes)}
+                  disabled={saveNotesMutation.isPending}
+                  data-testid="button-save-company-findings"
+                >
+                  {saveNotesMutation.isPending ? "Saving..." : "Save Findings"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
@@ -3538,7 +3767,8 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                 Associated Companies
               </CardTitle>
               <CardDescription>
-                Find companies linked through common directors, ownership, or registered address
+                Find companies linked through the same director or owner — matched on name, date of
+                birth and nearby address, not namesakes elsewhere
               </CardDescription>
             </div>
             <Button
@@ -3687,6 +3917,16 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                                 <span className="font-medium">{company.officer_name}</span>
                                 {company.officer_role && ` (${company.officer_role})`}
                               </p>
+                              {company.officer_address && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {company.officer_address}
+                                </p>
+                              )}
+                              {company.match_reason && (
+                                <p className="text-xs text-muted-foreground">
+                                  Matched on {company.match_reason}
+                                </p>
+                              )}
                               {company.appointed_on && (
                                 <p className="text-xs text-muted-foreground mt-1">
                                   Appointed:{" "}
@@ -3751,6 +3991,16 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                               <p className="text-sm text-muted-foreground">
                                 Common PSC: <span className="font-medium">{company.psc_name}</span>
                               </p>
+                              {company.officer_address && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {company.officer_address}
+                                </p>
+                              )}
+                              {company.match_reason && (
+                                <p className="text-xs text-muted-foreground">
+                                  Matched on {company.match_reason}
+                                </p>
+                              )}
                               {company.address_snippet && (
                                 <p className="text-xs text-muted-foreground mt-1">
                                   {company.address_snippet}
@@ -3846,7 +4096,8 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
                     <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="font-semibold mb-2">No Associated Companies Found</h3>
                     <p className="text-sm text-muted-foreground">
-                      No companies found with common directors, ownership, or registered address.
+                      No companies found for directors we can identify by date of birth or nearby
+                      address.
                     </p>
                   </div>
                 )}
@@ -4006,6 +4257,14 @@ function AssociationsMediaTab({ prospect }: { prospect: ProspectWithCompany }) {
 
 const DOCUMENT_CATEGORIES = [
   { value: "general", label: "General" },
+  { value: "accounts", label: "Filed / audited accounts" },
+  { value: "bank-statements", label: "Bank statements" },
+  { value: "management-accounts", label: "Management accounts" },
+  { value: "cashflow", label: "Cash flow forecast" },
+  { value: "debt-schedule", label: "Debt schedule" },
+  { value: "id", label: "Director ID" },
+  { value: "use-of-funds", label: "Use of funds" },
+  { value: "insurance", label: "Insurance" },
   { value: "financial", label: "Financial Statements" },
   { value: "legal", label: "Legal Documents" },
   { value: "identity", label: "Identity Documents" },
@@ -4029,6 +4288,12 @@ interface ProspectDocument {
 
 function DocumentsTab({ prospectId }: { prospectId: number }) {
   const [isUploading, setIsUploading] = useState(false);
+  const [editingDocumentId, setEditingDocumentId] = useState<number | null>(null);
+  const [editingFileName, setEditingFileName] = useState("");
+  const [editingCategory, setEditingCategory] = useState("general");
+  const [qaDocument, setQaDocument] = useState<ProspectDocument | null>(null);
+  const [qaQuestion, setQaQuestion] = useState("");
+  const [qaAnswer, setQaAnswer] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("general");
   const [notes, setNotes] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -4091,6 +4356,65 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
     onError: (error: Error) => {
       toast.error(error.message);
     },
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: async ({ documentId, fileName, category }: { documentId: number; fileName: string; category: string }) => {
+      const response = await fetch(`/api/prospects/${prospectId}/documents/${documentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ fileName, category }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Rename failed");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/documents`] });
+      setEditingDocumentId(null);
+      setEditingFileName("");
+      setEditingCategory("general");
+      toast.success("Document name updated");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveNotesMutation = useMutation({
+    mutationFn: (value: string) =>
+      fetch(`/api/prospects/${prospect.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ notes: value }),
+      }).then(async (response) => {
+        if (!response.ok) throw new Error((await response.json()).error || "Failed to save findings");
+        return response.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospect.id}`] });
+      toast.success("Findings saved");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to save findings"),
+  });
+
+  const askDocumentMutation = useMutation({
+    mutationFn: async () => {
+      if (!qaDocument) throw new Error("Select a document first");
+      const response = await fetch(`/api/prospects/${prospectId}/documents/${qaDocument.id}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ question: qaQuestion, consentToAiProcessing: true }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not answer question");
+      return payload;
+    },
+    onSuccess: (payload) => setQaAnswer(payload.answer || "No answer returned"),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -4257,9 +4581,51 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                     {getFileIcon(doc.fileType)}
                   </div>
                   <div>
-                    <p className="font-medium text-sm" data-testid={`text-document-name-${doc.id}`}>
-                      {doc.fileName}
-                    </p>
+                    {editingDocumentId === doc.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editingFileName}
+                          onChange={(event) => setEditingFileName(event.target.value)}
+                          className="h-8 w-72"
+                          autoFocus
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && editingFileName.trim()) {
+                              renameMutation.mutate({ documentId: doc.id, fileName: editingFileName.trim(), category: editingCategory });
+                            }
+                            if (event.key === "Escape") setEditingDocumentId(null);
+                          }}
+                          data-testid={`input-document-name-${doc.id}`}
+                        />
+                        <Select value={editingCategory} onValueChange={setEditingCategory}>
+                          <SelectTrigger className="h-8 w-52" data-testid={`select-document-category-${doc.id}`}>
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DOCUMENT_CATEGORIES.map((category) => (
+                              <SelectItem key={category.value} value={category.value}>
+                                {category.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!editingFileName.trim() || renameMutation.isPending}
+                          onClick={() => renameMutation.mutate({ documentId: doc.id, fileName: editingFileName.trim(), category: editingCategory })}
+                          data-testid={`button-save-document-name-${doc.id}`}
+                        >
+                          Save
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditingDocumentId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="font-medium text-sm" data-testid={`text-document-name-${doc.id}`}>
+                        {doc.fileName}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Badge variant="outline" className="text-xs">
                         {getCategoryLabel(doc.category)}
@@ -4271,6 +4637,37 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setQaDocument(doc);
+                      setQaQuestion("");
+                      setQaAnswer("");
+                    }}
+                    aria-label={`Ask AI about ${doc.fileName}`}
+                    data-testid={`button-ask-document-${doc.id}`}
+                  >
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditingDocumentId(doc.id);
+                      setEditingFileName(doc.fileName);
+                      setEditingCategory(
+                        DOCUMENT_CATEGORIES.some((category) => category.value === doc.category)
+                          ? doc.category
+                          : "general",
+                      );
+                    }}
+                    disabled={editingDocumentId !== null && editingDocumentId !== doc.id}
+                    aria-label={`Edit name of ${doc.fileName}`}
+                    data-testid={`button-edit-document-name-${doc.id}`}
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -4311,6 +4708,49 @@ function DocumentsTab({ prospectId }: { prospectId: number }) {
           </div>
         )}
       </CardContent>
+      <Dialog
+        open={!!qaDocument}
+        onOpenChange={(open) => {
+          if (!open) {
+            setQaDocument(null);
+            setQaQuestion("");
+            setQaAnswer("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Ask AI about this document</DialogTitle>
+            <DialogDescription>
+              {qaDocument?.fileName} — PDF, Excel, and CSV are readable.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={qaQuestion}
+              onChange={(event) => setQaQuestion(event.target.value)}
+              placeholder="For example: What is the latest year-end turnover shown?"
+              rows={3}
+              data-testid="textarea-document-question"
+            />
+            {qaAnswer && (
+              <div className="rounded-md border bg-muted/30 p-4" data-testid="text-document-answer">
+                <BulletList text={qaAnswer} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => askDocumentMutation.mutate()}
+              disabled={!qaQuestion.trim() || askDocumentMutation.isPending}
+              data-testid="button-ask-document"
+            >
+              {askDocumentMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              {askDocumentMutation.isPending ? "Reading document..." : "Ask AI"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

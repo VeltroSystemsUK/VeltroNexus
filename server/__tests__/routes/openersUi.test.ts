@@ -18,6 +18,8 @@ describe("Openers UI wiring", () => {
     const nav = fs.readFileSync(path.resolve("client/src/components/shell/navModel.ts"), "utf8");
     expect(nav).toMatch(/path: "\/openers".*group: "Marketing"/);
     expect(nav).toMatch(/label: "Openers"/);
+    expect(nav).toMatch(/path: "\/openers".*roles: \["super_admin", "sales_admin"\]/);
+    expect(nav).toMatch(/path: "\/agent-mail".*roles: \["super_admin", "sales_admin"\]/);
 
     const app = fs.readFileSync(path.resolve("client/src/App.tsx"), "utf8");
     expect(app).toMatch(/path="\/openers"/);

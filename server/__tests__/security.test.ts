@@ -31,6 +31,7 @@ describe("Security Integration Tests", () => {
 
       app.post("/api/webhooks/test", (req, res) => res.json({ success: true }));
       app.post("/api/pack/token/files", (req, res) => res.json({ success: true }));
+      app.post("/api/sign/token", (req, res) => res.json({ success: true }));
       app.post("/api/inbound/refinance", (req, res) => res.json({ success: true }));
       app.post("/api/telnyx/voice", (req, res) => res.json({ success: true }));
       app.post("/api/agent-mail/inbound", (req, res) => res.json({ success: true }));
@@ -105,6 +106,8 @@ describe("Security Integration Tests", () => {
       expect(webhook.status).toBe(200);
       const pack = await request(app).post("/api/pack/token/files").send({});
       expect(pack.status).toBe(200);
+      const sign = await request(app).post("/api/sign/token").send({});
+      expect(sign.status).toBe(200);
       const inbound = await request(app).post("/api/inbound/refinance").send({});
       expect(inbound.status).toBe(200);
       const telnyx = await request(app).post("/api/telnyx/voice").send({});

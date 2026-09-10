@@ -1,6 +1,9 @@
 import { parseAddressList } from "./imapInbox";
+import { isOpenedOutboundMail } from "./mailTracking";
 
 export type MailKind = "stop" | "bounce" | "spam" | "responsive" | "other";
+
+export type AgentMailFolder = "inbox" | "sent" | "opened" | "all" | "quarantine";
 
 export type MailClassification = {
   kind: MailKind;
@@ -58,6 +61,23 @@ export function isHardBounce(reason: string): boolean {
   return /no longer exist|unknown user|user unknown|mailbox unavailable|550\s*5\.1\.1|does not exist|not a valid|rejected|blocked/i.test(
     reason
   );
+}
+
+export function isMailerDaemonAddress(from?: string | null): boolean {
+  return /mailer-daemon/i.test(String(from || ""));
+}
+
+export function agentMailInFolder(
+  item: { from?: string; direction?: string; opens?: string[] },
+  folder: AgentMailFolder,
+): boolean {
+  const quarantined = isMailerDaemonAddress(item.from);
+  if (folder === "quarantine") return quarantined;
+  if (quarantined) return false;
+  if (folder === "inbox") return item.direction === "inbound";
+  if (folder === "sent") return item.direction === "outbound";
+  if (folder === "opened") return isOpenedOutboundMail(item);
+  return true;
 }
 
 function isOperator(from: string): boolean {

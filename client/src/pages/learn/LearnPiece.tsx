@@ -88,6 +88,7 @@ export default function LearnPiece({ kind }: { kind: "video" | "article" }) {
           videoUrl={piece.videoUrl}
           title={piece.title}
           fallback={piece.transcript || piece.excerpt}
+          poster={piece.heroImageUrl}
         />
       ) : (
         <div className="space-y-6">

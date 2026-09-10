@@ -1,0 +1,39 @@
+# High-street / building-society names. A live charge whose person entitled
+# matches this list is NOT SIG-01. Ageing of these charges is not a Stream A lead.
+high_street:
+  - "hsbc"
+  - "natwest"
+  - "national westminster"
+  - "lloyds"
+  - "barclays"
+  - "santander"
+  - "handelsbanken"
+  - "bank of scotland"
+  - "rbs"
+  - "royal bank of scotland"
+  - "halifax"
+  - "nationwide"
+  - "clydesdale"
+  - "virgin money"
+  - "metro bank"
+  - "tsb"
+  - "aib"
+  - "bank of ireland"
+  - "danske"
+  - "ulster bank"
+  - "co-operative bank"
+
+# Specialist / high-cost names for copy (lenderLabel). Eligibility is "not high-street",
+# not membership of this list. Operator extends it.
+high_cost:
+  - "iwoca"
+  - "funding circle"
+  - "marketinvoice"
+  - "youlend"
+  - "libertas"
+  - "merchant cash"
+  - "capital on tap"
+  - "fleximize"
+  - "funding tree"
+
+false_positives: []

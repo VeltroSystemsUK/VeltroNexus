@@ -1,0 +1,29 @@
+Write the Stream A refinance hypothesis for this company.
+
+Company: {{name}} ({{company_number}})
+Primary product: {{primary_product}}   # hmrc_distress | stacked_debt | high_cost_refi
+Score: {{score}} {{priority}}
+Signals (each has an id):
+{{signals_block}}
+
+Output JSON:
+{
+  "hypothesis": "80-140 words, British English",
+  "why_us_now": "one sentence",
+  "urgency": "low|medium|high",
+  "urgency_reason": "one sentence citing a date or notice",
+  "opening_line": "one sentence a packager can say or email",
+  "questions_to_ask": ["q1","q2","q3"],
+  "do_not_pitch": ["..."],
+  "grounding_map": [
+    { "clause": "first six words of the clause", "evidence_id": "evt_..." }
+  ]
+}
+
+Rules:
+- Every factual clause needs a grounding_map entry.
+- Do not mention LTV, property value, bridging take-out, planning, or EPC unless a signal contains that figure — and Stream A should not.
+- Name the lender, the charge date, or the Gazette notice. Vague is failure.
+- If distress: opening_line offers a conversation, does not announce their petition back to them.
+- If Uncertain, start hypothesis with "Uncertain:".
+- Brand: Strata Finance. Facility appetite £25,000–£250,000.

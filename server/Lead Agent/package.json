@@ -1,7 +1,7 @@
 {
   "name": "lead-finder",
-  "version": "1.0.0",
-  "description": "Lead Finder Agent — local business discovery and enrichment for Veltro",
+  "version": "1.1.0",
+  "description": "Super Lead Finder (slf.agent.v1) — Stream A signal desk for Strata Finance",
   "type": "module",
   "main": "dist/api.js",
   "bin": {

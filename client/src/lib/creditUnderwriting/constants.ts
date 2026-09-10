@@ -99,7 +99,7 @@ export const MEMO_SECTIONS = SUMMARY_SECTIONS.filter((section) =>
 
 export const CAMPARI_QUESTIONS: Record<string, string[]> = {
   overview: [
-    "What does the business do, and what is the lending proposition in one paragraph?",
+    "What does the business do, and what is the lending proposition? One fact per bullet.",
     "What are the key facts a credit officer needs before reading CAMPARI?",
   ],
   background: [

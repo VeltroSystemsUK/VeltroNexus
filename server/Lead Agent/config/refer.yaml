@@ -1,0 +1,10 @@
+own_company_numbers: []
+allow_named_work_introducers: false
+create_introducer_on_accept: true
+stream_b_requires_nexus_id: true
+types_enabled:
+  accountant: true
+  ip: false
+  solicitor: false
+  broker: false
+  packager: false

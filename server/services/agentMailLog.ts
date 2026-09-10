@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
+import type { AgentMailAttachment } from "@shared/agentMailAttachments";
 import { storage } from "../storage";
 import { upsertOpenerFromMail } from "./openers";
 import { withJsonFileLock } from "../utils/jsonFileLock";
@@ -28,6 +29,7 @@ export type AgentMailItem = {
   clicks?: Array<{ at: string; url: string }>;
   deskKind?: "stop" | "bounce" | "spam" | "responsive" | "other";
   deskNote?: string;
+  attachments?: AgentMailAttachment[];
 };
 
 const DEFAULT_STORE = path.resolve(process.cwd(), "uploads", "agent_mail.json");
@@ -170,6 +172,19 @@ function writeAll(items: AgentMailItem[]) {
   });
 }
 
+export function dedupeAgentMailStore(): number {
+  let before = 0;
+  let after = 0;
+  withJsonFileLock(storePath(), () => {
+    const all = readAll();
+    before = all.length;
+    const next = dedupeAgentMailItems(all);
+    after = next.length;
+    if (next.length !== all.length) writeAll(next);
+  });
+  return before - after;
+}
+
 export function listAgentMail(limit = 200): AgentMailItem[] {
   return readAll()
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -262,16 +277,54 @@ export function injectMailTracking(html: string, id: string): string {
   return withClicks.includes("</body>") ? withClicks.replace("</body>", `${pixel}</body>`) : `${withClicks}${pixel}`;
 }
 
+export function dedupeAgentMailItems(items: AgentMailItem[]): AgentMailItem[] {
+  const kept: AgentMailItem[] = [];
+  const seen = new Map<string, number>();
+  for (const item of items) {
+    const mid = String(item.messageId || "").trim();
+    if (!mid) {
+      kept.push(item);
+      continue;
+    }
+    const idx = seen.get(mid);
+    if (idx === undefined) {
+      seen.set(mid, kept.length);
+      kept.push(item);
+      continue;
+    }
+    const prev = kept[idx]!;
+    const prevAtt = prev.attachments?.length || 0;
+    const nextAtt = item.attachments?.length || 0;
+    if (nextAtt > prevAtt) kept[idx] = item;
+  }
+  return kept;
+}
+
 export function logAgentMail(entry: Omit<AgentMailItem, "id" | "createdAt"> & { id?: string; createdAt?: string }): AgentMailItem {
-  const item: AgentMailItem = {
+  const incoming: AgentMailItem = {
     id: entry.id || crypto.randomUUID(),
     createdAt: entry.createdAt || new Date().toISOString(),
     ...entry,
   };
-  const all = readAll();
-  all.push(item);
-  writeAll(all.slice(-2000));
-  return item;
+  let saved = incoming;
+  withJsonFileLock(storePath(), () => {
+    const all = readAll();
+    const mid = String(incoming.messageId || "").trim();
+    if (mid) {
+      const existing = all.find((row) => String(row.messageId || "").trim() === mid);
+      if (existing) {
+        if ((!existing.attachments || existing.attachments.length === 0) && incoming.attachments?.length) {
+          existing.attachments = incoming.attachments;
+          writeAll(all);
+        }
+        saved = existing;
+        return;
+      }
+    }
+    all.push(incoming);
+    writeAll(all.slice(-2000));
+  });
+  return saved;
 }
 
 export async function recordInbound(payload: {
@@ -282,6 +335,8 @@ export async function recordInbound(payload: {
   html?: string;
   messageId?: string;
   createdAt?: string;
+  id?: string;
+  attachments?: AgentMailAttachment[];
 }): Promise<AgentMailItem> {
   const mailbox = mailboxByAddress(payload.to) || mailboxByAddress(payload.from);
   const fromEmail = String(payload.from || "").trim().toLowerCase();
@@ -348,5 +403,7 @@ export async function recordInbound(payload: {
     dealId,
     prospectId,
     createdAt: payload.createdAt,
+    ...(payload.id ? { id: payload.id } : {}),
+    ...(payload.attachments?.length ? { attachments: payload.attachments } : {}),
   });
 }

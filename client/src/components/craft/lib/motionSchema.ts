@@ -1,3 +1,7 @@
+import { parseMotionWidget, type MotionWidget } from "./motionWidget";
+
+export type { MotionWidget } from "./motionWidget";
+
 export const MOTION_SCHEMA_ID = "WebAnimationIntegrationSchema";
 export const MOTION_SCHEMA_VERSION = "1.0.0";
 export const THREE_CDN = "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js";
@@ -69,6 +73,30 @@ export const MOTION_CATEGORIES = [
   "PillPulse",
   "OdometerRoll",
   "RedactHighlight",
+  "DrippingText",
+  "WordPiston",
+  "WordVortex",
+  "LetterAssembly",
+  "MisregisterGlitch",
+  "MonumentBreathe",
+  "StrokeReveal",
+  "TelemetryOverlay",
+  "VanishingTunnel",
+  "IconWeather",
+  "BufferGlitch",
+  "StaticResolve",
+  "RedactionLift",
+  "KintsugiMend",
+  "FerrofluidPull",
+  "SlowFax",
+  "SundialShadow",
+  "HalftoneLamp",
+  "HourglassDrain",
+  "MurmurationFlock",
+  "PendulumSwing",
+  "TabEscape",
+  "MossBloom",
+  "InkPileup",
 ] as const;
 
 export type MotionCategory = (typeof MOTION_CATEGORIES)[number];
@@ -137,6 +165,7 @@ export type MotionSchema = {
     respectReducedMotion: true;
     maxDpr: number;
   };
+  widget?: MotionWidget;
 };
 
 const ALLOWED_ROOT = new Set([
@@ -150,6 +179,7 @@ const ALLOWED_ROOT = new Set([
   "physicsAndMath",
   "interactionRules",
   "performance",
+  "widget",
 ]);
 
 export const LEDGER_CURRENT: MotionSchema = {
@@ -302,7 +332,7 @@ export function validateMotionSchema(raw: unknown): { ok: boolean; error?: strin
       domTarget: DOM_TARGET,
       visual: {
         palette: (paletteRaw.length ? paletteRaw : LEDGER_CURRENT.visual.palette).slice(0, 4).map((item, i) => hex(item, LEDGER_CURRENT.visual.palette[i] ?? "#1A1D21")),
-        background: hex(visual.background, LEDGER_CURRENT.visual.background),
+        background: visual.background === "transparent" ? "transparent" : hex(visual.background, LEDGER_CURRENT.visual.background),
         blending,
         opacity: clamp(asNumber(visual.opacity, 0.72), 0, 1),
         bloom: false,
@@ -330,6 +360,7 @@ export function validateMotionSchema(raw: unknown): { ok: boolean; error?: strin
         respectReducedMotion: true,
         maxDpr: clamp(asNumber(performance.maxDpr, 2), 1, 2),
       },
+      widget: parseMotionWidget(rec.widget, category === "DrippingText"),
     },
   };
 }

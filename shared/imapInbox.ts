@@ -36,6 +36,8 @@ export function inboundAlreadyLogged(
   return existing.some((item) => item.direction === "inbound" && String(item.messageId || "").trim() === id);
 }
 
+export const IMAP_QUARANTINE_FALLBACKS = ["Quarantine", "INBOX.Quarantine"];
+
 export function pickMailboxPath(
   boxes: Array<{ path: string; name?: string; specialUse?: string }>,
   specialUse: string,

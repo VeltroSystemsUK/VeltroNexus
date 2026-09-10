@@ -1,0 +1,31 @@
+playbook_id: introducer_10d
+version: 2
+pipeline: introducer
+timezone: Europe/London
+require_refer_reachable: true
+# Copy: shared/introducerPlaybook.ts — agent compiles, does not rewrite.
+# Stream B = accountants / turnaround. Never SME pack. Never brokers.
+stop_line: "If this isn't useful, reply stop and we won't email again."
+panel_one_liner: "You keep the client. We pack the CDFI / stacked-debt file against panel and report back to you."
+steps:
+  - id: b0
+    os_touch: intro_1
+    day: 1
+    channel: email
+    requires: [panel_one_liner, source_explanation]
+  - id: bL
+    os_touch: intro_linkedin
+    day: 3
+    channel: linkedin_staged
+    wait_for: director_posted
+    wait_blocks_email: false
+  - id: b1
+    os_touch: intro_mid
+    day: 5
+    channel: email
+  - id: b2
+    os_touch: intro_2
+    day: 10
+    channel: email
+    final: true
+    queue_call: true

@@ -301,7 +301,7 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
 function isCsrfExemptPath(requestPath: string): boolean {
     const path = requestPath.split("?")[0] || "";
     if (path === "/api/agent-mail/inbound" || path.startsWith("/api/agent-mail/inbound/")) return true;
-    return ["/api/webhooks", "/api/pack", "/api/inbound", "/api/telnyx"].some(
+    return ["/api/webhooks", "/api/pack", "/api/sign", "/api/inbound", "/api/telnyx"].some(
         (prefix) => path === prefix || path.startsWith(`${prefix}/`)
     );
 }

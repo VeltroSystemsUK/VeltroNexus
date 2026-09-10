@@ -21,16 +21,28 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary] Uncaught error:", error, info.componentStack);
-
-    if (sessionStorage.getItem("eb-reload") !== "1") {
-      sessionStorage.setItem("eb-reload", "1");
-      window.location.reload();
-    }
   }
 
   render() {
     if (this.state.hasError) {
-      return null;
+      return (
+        <div className="min-h-[40vh] flex items-center justify-center p-6">
+          <div className="max-w-md text-center space-y-3">
+            <h1 className="text-lg font-semibold">This page hit an error</h1>
+            <p className="text-sm text-muted-foreground">Reload and try again. If it keeps happening, open the page from the prospect record.</p>
+            <button
+              type="button"
+              className="text-sm underline"
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.reload();
+              }}
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
     }
 
     return this.props.children;

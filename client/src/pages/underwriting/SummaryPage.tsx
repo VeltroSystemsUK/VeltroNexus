@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { BulletField } from "@/components/BulletField";
+import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
 import {
     Select,
     SelectContent,
@@ -142,6 +144,28 @@ export default function SummaryPage() {
         }
     });
 
+    const recommendationAssistMutation = useMutation({
+        mutationFn: async (action: "draft" | "improve") => {
+            const response = await apiRequest(
+                `/api/prospects/${prospectId}/underwriting/adviser-recommendation-assist`,
+                "POST",
+                {
+                    action,
+                    text: adviserSummary.recommendation || "",
+                    consentToAiProcessing: true,
+                },
+            );
+            return response.json();
+        },
+        onSuccess: (result) => {
+            const updated = { ...adviserSummary, recommendation: result.text };
+            setAdviserSummary(updated);
+            saveMutation.mutate(updated);
+            toast.success("Grok recommendation ready to review");
+        },
+        onError: (error: Error) => toast.error(error.message || "Grok could not write the recommendation"),
+    });
+
     const handleSave = () => {
         saveMutation.mutate(adviserSummary);
     };
@@ -175,6 +199,8 @@ export default function SummaryPage() {
                                     <SelectItem value="ELEM2">ELEM2</SelectItem>
                                     <SelectItem value="MEIFII">MEIFII</SelectItem>
                                     <SelectItem value="STARTUP">Start Up Loan</SelectItem>
+                                    <SelectItem value="GGS">Growth Guarantee Scheme</SelectItem>
+                                    <SelectItem value="COMMUNITY_ENABLE">Community ENABLE Fund</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -253,17 +279,16 @@ export default function SummaryPage() {
                                     )}
                                 </CardHeader>
                                 <CardContent>
-                                    <Textarea
-                                        rows={8}
+                                    <BulletField
                                         value={adviserSummary.sections?.[section.key] || ""}
-                                        onChange={(e) => setAdviserSummary({
+                                        onChange={(next) => setAdviserSummary({
                                             ...adviserSummary,
                                             sections: {
                                                 ...adviserSummary.sections,
-                                                [section.key]: e.target.value
+                                                [section.key]: next
                                             }
                                         })}
-                                        placeholder={`Enter ${section.title} details...`}
+                                        placeholder={`Enter ${section.title} as bullets...`}
                                     />
                                 </CardContent>
                             </Card>
@@ -313,17 +338,16 @@ export default function SummaryPage() {
                                     )}
                                 </CardHeader>
                                 <CardContent>
-                                    <Textarea
-                                        rows={8}
+                                    <BulletField
                                         value={adviserSummary.sections?.[section.key] || ""}
-                                        onChange={(e) => setAdviserSummary({
+                                        onChange={(next) => setAdviserSummary({
                                             ...adviserSummary,
                                             sections: {
                                                 ...adviserSummary.sections,
-                                                [section.key]: e.target.value
+                                                [section.key]: next
                                             }
                                         })}
-                                        placeholder={`Enter ${section.title} details...`}
+                                        placeholder={`Enter ${section.title} as bullets...`}
                                     />
                                 </CardContent>
                             </Card>
@@ -337,8 +361,34 @@ export default function SummaryPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Adviser recommendation</CardTitle>
-                    <CardDescription>Written in the Sterling portal. Not stored on this file.</CardDescription>
+                    <CardDescription>Draft and edit the recommendation here. Grok uses the case file and never makes the credit decision.</CardDescription>
                 </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={recommendationAssistMutation.isPending || !prospect}
+                            onClick={() => recommendationAssistMutation.mutate("draft")}
+                        >
+                            {recommendationAssistMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                            Draft with Grok
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={recommendationAssistMutation.isPending || !(adviserSummary.recommendation || "").trim()}
+                            onClick={() => recommendationAssistMutation.mutate("improve")}
+                        >
+                            Improve with Grok
+                        </Button>
+                    </div>
+                    <BulletField
+                        value={adviserSummary.recommendation || ""}
+                        onChange={(next) => setAdviserSummary({ ...adviserSummary, recommendation: next })}
+                        placeholder="Write the adviser recommendation as bullets..."
+                    />
+                </CardContent>
             </Card>
         </div>
     );

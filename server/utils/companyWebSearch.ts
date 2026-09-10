@@ -1,4 +1,15 @@
+import { xaiBearer } from "@shared/craftYaffle";
+
 const TAVILY_API_URL = "https://api.tavily.com/search";
+const GROK_RESPONSES_URL = "https://api.x.ai/v1/responses";
+const GROK_SEARCH_MODEL = "grok-4.6";
+const GROK_EXCLUDED_DOMAINS = [
+  "company-information.service.gov.uk",
+  "find-and-update.company-information.service.gov.uk",
+  "endole.co.uk",
+  "open.endole.co.uk",
+  "companycheck.co.uk",
+];
 
 const LEGAL_SUFFIXES =
   /\b(limited|ltd\.?|plc|llp|llc|inc\.?|holdings?|group|company|co\.?|uk|cic|cio)\b/gi;
@@ -311,21 +322,163 @@ async function tavilySearch(
   return { answer: data.answer || "", results: data.results || [] };
 }
 
-export async function searchCompanyWeb(input: {
-  apiKey: string;
-  companyName: string;
-  companyNumber?: string | null;
-  registeredAddress?: string | null;
-}): Promise<{
+type Env = Record<string, string | undefined>;
+
+export type CompanyWebSearchResult = {
   answer: string;
   results: RankedWebResult[];
   query: string;
   queries: string[];
-}> {
+};
+
+function citationUrl(entry: unknown): { url: string; title: string; content: string } | null {
+  if (typeof entry === "string" && /^https?:\/\//i.test(entry)) {
+    return { url: entry, title: hostnameOf(entry) || entry, content: "" };
+  }
+  if (!entry || typeof entry !== "object") return null;
+  const rec = entry as Record<string, unknown>;
+  const url = String(rec.url || rec.uri || "").trim();
+  if (!/^https?:\/\//i.test(url)) return null;
+  return {
+    url,
+    title: String(rec.title || rec.name || hostnameOf(url) || url).trim(),
+    content: String(rec.content || rec.snippet || rec.text || "").trim(),
+  };
+}
+
+function collectGrokCitations(payload: Record<string, unknown>): TavilyResult[] {
+  const found: TavilyResult[] = [];
+  const push = (entry: unknown) => {
+    const row = citationUrl(entry);
+    if (row) found.push(row);
+  };
+  if (Array.isArray(payload.citations)) payload.citations.forEach(push);
+  const output = Array.isArray(payload.output) ? payload.output : [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const rec = item as Record<string, unknown>;
+    const content = Array.isArray(rec.content) ? rec.content : [];
+    for (const block of content) {
+      if (!block || typeof block !== "object") continue;
+      const annotations = Array.isArray((block as Record<string, unknown>).annotations)
+        ? ((block as Record<string, unknown>).annotations as unknown[])
+        : [];
+      annotations.forEach(push);
+    }
+    const action = rec.action && typeof rec.action === "object" ? (rec.action as Record<string, unknown>) : null;
+    if (action && Array.isArray(action.sources)) action.sources.forEach(push);
+  }
+  return found;
+}
+
+function grokOutputText(payload: Record<string, unknown>): string {
+  if (typeof payload.output_text === "string" && payload.output_text.trim()) return payload.output_text.trim();
+  const output = Array.isArray(payload.output) ? payload.output : [];
+  const parts: string[] = [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const content = Array.isArray((item as Record<string, unknown>).content)
+      ? ((item as Record<string, unknown>).content as unknown[])
+      : [];
+    for (const block of content) {
+      if (!block || typeof block !== "object") continue;
+      const text = (block as Record<string, unknown>).text;
+      if (typeof text === "string" && text.trim()) parts.push(text.trim());
+    }
+  }
+  return parts.join("\n\n");
+}
+
+export function parseGrokWebSearchResponse(payload: unknown): { answer: string; results: TavilyResult[] } {
+  const rec = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  return {
+    answer: grokOutputText(rec),
+    results: collectGrokCitations(rec),
+  };
+}
+
+export async function grokSearchCompanyWeb(input: {
+  companyName: string;
+  companyNumber?: string | null;
+  registeredAddress?: string | null;
+  env?: Env;
+}): Promise<CompanyWebSearchResult> {
+  const env = input.env || process.env;
+  const key = xaiBearer(env);
+  if (!key) throw new Error("XAI_API_KEY is not configured on the server");
+  const names = tradingNames(input.companyName);
+  const location = localityHint(input.registeredAddress);
+  const query = [
+    `UK company news and adverse media for ${names.join(" / ")}`,
+    input.companyNumber ? `company number ${input.companyNumber}` : "",
+    location,
+    "Exclude Companies House and company-directory listings. Prefer local press, BBC, and insolvency/news coverage.",
+  ]
+    .filter(Boolean)
+    .join(". ");
+
+  const res = await fetch(GROK_RESPONSES_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: env.XAI_MODEL?.trim() || GROK_SEARCH_MODEL,
+      input: [{ role: "user", content: query }],
+      tools: [
+        {
+          type: "web_search",
+          filters: { excluded_domains: GROK_EXCLUDED_DOMAINS },
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(90000),
+  });
+  if (!res.ok) {
+    throw new Error((await res.text()).slice(0, 400) || `Grok web search failed (${res.status})`);
+  }
+  const parsed = parseGrokWebSearchResponse(await res.json());
+  const withSnippets = parsed.results.map((row) => ({
+    ...row,
+    content: `${input.companyName}. ${row.content || parsed.answer.slice(0, 400)}`.trim(),
+  }));
+  return {
+    answer: parsed.answer,
+    results: rankCompanyWebResults(withSnippets, names, input.companyNumber),
+    query,
+    queries: [query],
+  };
+}
+
+export async function searchCompanyWeb(input: {
+  apiKey?: string;
+  companyName: string;
+  companyNumber?: string | null;
+  registeredAddress?: string | null;
+  env?: Env;
+}): Promise<CompanyWebSearchResult> {
+  const env = input.env || process.env;
+  let grokError: unknown;
+  if (xaiBearer(env)) {
+    try {
+      return await grokSearchCompanyWeb({
+        companyName: input.companyName,
+        companyNumber: input.companyNumber,
+        registeredAddress: input.registeredAddress,
+        env,
+      });
+    } catch (error) {
+      console.warn("[WebSearch] Grok search failed, trying Tavily:", error);
+      grokError = error;
+    }
+  }
+  const tavilyKey = input.apiKey?.trim();
+  if (!tavilyKey) {
+    if (grokError instanceof Error) throw grokError;
+    throw new Error("XAI_API_KEY is not configured on the server");
+  }
   const names = tradingNames(input.companyName);
   const queries = buildCompanyWebSearchQueries(input);
 
-  const settled = await Promise.allSettled(queries.map((spec) => tavilySearch(input.apiKey, spec)));
+  const settled = await Promise.allSettled(queries.map((spec) => tavilySearch(tavilyKey, spec)));
 
   const answers: string[] = [];
   const rawResults: TavilyResult[] = [];

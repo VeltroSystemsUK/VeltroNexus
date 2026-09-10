@@ -1,0 +1,25 @@
+THE THURSDAY PACK
+Drop-in lesson for learn.stratanexus.co.uk
+
+Open index.html from this folder (assets/ must sit next to it).
+Or host the whole folder as a static lesson.
+
+Play
+  Sit down → four tiles: Offer / HMRC / Call-centre broker / Professional broker.
+  Professional track: assessment → Time to Pay → week 2 cash flow → ten minutes → write the page.
+  Call-centre track: sign the offer → page 11 → sweep / personal guarantee / stack → ending.
+
+What the game teaches
+  Not every broker is the same.
+  A call-centre broker is found online, or rings when you are desperate.
+  A professional broker is a member of the Guild of Business Finance Professionals, or is sent by a trusted business partner.
+  Map the stack. Package Time to Pay. One structure.
+  Strata packages. It does not lend.
+
+End screen
+  Links to Learn tools:
+  /tools/debt-stress-check
+  /tools/time-to-pay-calculator
+  Change those URLs if your slugs differ.
+
+Not advice. HMRC sets Time to Pay. Funders set the structure.

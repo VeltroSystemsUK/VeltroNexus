@@ -99,6 +99,9 @@ import agentMailRouter from "./routes/agentMail";
 import openersRouter from "./routes/openers";
 import gmailRouter from "./routes/gmail";
 import packUploadRouter from "./routes/packUpload";
+import signEngagementRouter from "./routes/signEngagement";
+import applyOnlineRouter from "./routes/applyOnline";
+import prospectApplicationRouter from "./routes/prospectApplication";
 import telnyxVoiceRouter from "./routes/telnyxVoice";
 import activitiesRouter from "./routes/activities";
 import addonsRouter from "./routes/addons";
@@ -551,11 +554,14 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use(brokerPortalRouter);
   app.use(exceptionsRouter);
   app.use("/api", prospectsRouter);
+  app.use(prospectApplicationRouter);
   app.use(agenticWorkflowRouter);
   app.use(agentMailRouter);
   app.use(openersRouter);
   app.use(gmailRouter);
   app.use(packUploadRouter);
+  app.use(signEngagementRouter);
+  app.use(applyOnlineRouter);
   app.use(telnyxVoiceRouter);
   app.use("/api", forecastsRouter);
   app.use("/api", invoicesRouter);
@@ -1074,10 +1080,11 @@ export async function registerRoutes(app: Application): Promise<Server> {
       }
 
       const { generateText } = await import("./utils/geminiClient");
-      const prompt = `Rewrite the following text to be clear, concise, and factual. Ensure there is no duplication or unnecessary information. Structure the output in a professional, no-nonsense style.\n\nInput Text:\n${text}`;
+      const { joinAiBullets, toAiBullets, AI_BULLET_INSTRUCTIONS } = await import("@shared/aiBullets");
+      const prompt = `${AI_BULLET_INSTRUCTIONS} Rewrite the following so it is clear, concise, and factual. No duplication.\n\nInput Text:\n${text}`;
 
       const rewritten = await generateText(prompt);
-      res.json({ text: rewritten });
+      res.json({ text: joinAiBullets(toAiBullets(rewritten, 6)) });
     } catch (error: any) {
       console.error("AI Rewrite CRITICAL error:", error);
       console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));

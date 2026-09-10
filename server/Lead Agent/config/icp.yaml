@@ -1,0 +1,15 @@
+include_types: ["ltd", "llp", "plc", "private-limited-guarant-nsc"]
+exclude_status: ["dissolved", "converted-closed", "removed"]
+# Sales OS excluded SICs — do not fork; keep in sync with shared/salesOs.ts
+exclude_sics:
+  - "41100"
+  - "64191"
+  - "64921"
+  - "64922"
+  - "92000"
+  - "12000"
+exclude_sic_prefixes: ["64", "65", "66", "68", "92", "12"]
+exclude_if_only_signal: ["company_exists", "charge.high_street"]
+min_company_age_months: 12
+stream_b_introducers: false
+property_signals: false

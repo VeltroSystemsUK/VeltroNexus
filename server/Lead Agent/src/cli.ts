@@ -18,9 +18,9 @@ const program = new Command();
 const api = new LeadFinderAPI();
 
 program
-  .name('lead-finder')
-  .description('Lead Finder — local business discovery and enrichment for Veltro')
-  .version('1.0.0');
+  .name('slf')
+  .description('Super Lead Finder — Stream A signal desk for Strata (CH / Gazette). Maps search is not the finder.')
+  .version('1.1.0');
 
 // ─────────────────────────────────────────────
 // init
@@ -197,6 +197,15 @@ program
 // ─────────────────────────────────────────────
 // agent
 // ─────────────────────────────────────────────
+
+program
+  .command('ingest <companyNumber>')
+  .description('Stream A ingest — run from Nexus root: npm run slf -- ingest <number> [--fixture]')
+  .option('--fixture', 'Use gold Stream A fixtures')
+  .action((companyNumber: string, opts: { fixture?: boolean }) => {
+    const flag = opts.fixture ? ' --fixture' : '';
+    console.log(`Super Lead Finder CLI lives at the Nexus repo root:\n  npm run slf -- ingest ${companyNumber}${flag}`);
+  });
 
 program
   .command('agent <instruction>')

@@ -70,7 +70,7 @@ export function isSterlingLenderId(value: string): value is SterlingLenderId {
 
 const DOC_HINTS: Array<{ test: RegExp; ids: string[] }> = [
   { test: /bank.?statement|open.?banking|accountscore/i, ids: ["bank-statements"] },
-  { test: /statutory|audited|filed.?account|accounts/i, ids: ["accounts"] },
+  { test: /statutory|audited|filed.?account|accounts|profit.?and.?loss|\bp\s*&\s*l\b/i, ids: ["accounts"] },
   { test: /management.?account/i, ids: ["management-accounts"] },
   { test: /business.?plan|proposal|cv/i, ids: ["business-plan"] },
   { test: /forecast|projection|cash.?flow|cff/i, ids: ["cashflow"] },
@@ -79,7 +79,6 @@ const DOC_HINTS: Array<{ test: RegExp; ids: string[] }> = [
   { test: /insurance|indemnity/i, ids: ["insurance"] },
   { test: /debt.?schedule|facility|existing.?debt/i, ids: ["debt-schedule"] },
   { test: /hmrc|vat|time.?to.?pay/i, ids: ["hmrc"] },
-  { test: /companies.?house|company.?search/i, ids: ["company-search"] },
   { test: /statement of assets|s.?a.?l|liabilit/i, ids: ["sal"] },
   { test: /use of funds|quote|invoice/i, ids: ["use-of-funds"] },
   { test: /application.?form/i, ids: ["application-form"] },
@@ -147,11 +146,14 @@ export function missingAttachments(items: ResolvedAttachment[]): ResolvedAttachm
   return items.filter((item) => !item.attached);
 }
 
-export function sterlingPackLines(items: ResolvedAttachment[]): Array<{ label: string; ok: boolean }> {
+export function sterlingPackLines(
+  items: ResolvedAttachment[],
+  opts?: { applicationSigned?: boolean },
+): Array<{ label: string; ok: boolean }> {
   const fileCount = items.reduce((n, item) => n + (item.files?.length || (item.attached ? 1 : 0)), 0);
   const missing = items.filter((item) => !item.attached);
   return [
-    { label: "Completed Loan Application", ok: true },
+    { label: "Completed Loan Application", ok: Boolean(opts?.applicationSigned) },
     { label: "Funding proposal stamped", ok: true },
     { label: `${fileCount} supporting files`, ok: fileCount > 0 },
     ...missing.map((item) => ({ label: item.label, ok: false })),

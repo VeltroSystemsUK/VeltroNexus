@@ -1,0 +1,29 @@
+playbook_id: sme_14d
+version: 1
+pipeline: sme
+timezone: Europe/London
+send_window: { days: [mon, tue, wed, thu, fri], start: "08:30", end: "16:30" }
+# Copy is shared/strataOutreach.ts — this file is the clock, not the voice.
+stop_line: "If this isn't useful, reply stop and we won't email again."
+steps:
+  - id: sme_1
+    day: 1
+    channel: email
+    os_touch: sme_1
+    requires_merge: [contactName, companyName]
+  - id: sme_linkedin
+    day: 4
+    channel: linkedin_staged
+    os_touch: sme_linkedin
+    wait_for: director_posted
+    wait_blocks_email: false
+  - id: sme_2
+    day: 8
+    channel: email
+    os_touch: sme_2
+  - id: sme_close
+    day: 14
+    channel: email
+    os_touch: sme_close
+    final: true
+    queue_call: true

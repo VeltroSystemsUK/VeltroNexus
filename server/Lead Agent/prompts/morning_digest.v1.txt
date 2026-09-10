@@ -1,0 +1,8 @@
+Summarise today's Stream A queue for the operator. Max 12 bullets for Hot, 8 for Warm.
+Split into Book moved first, then New names.
+Each bullet:
+- Company (number)
+- Score and product (hmrc_distress | stacked_debt | high_cost_refi)
+- One-line why (named charge or named Gazette notice)
+- The single best evidence URL
+No preamble. No sign-off. No property language.

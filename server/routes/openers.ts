@@ -33,8 +33,9 @@ const router = Router();
 const NURTURE_ACTIONS = ["start", "approve", "skip", "stop", "touch2"] as const;
 type NurtureAction = (typeof NURTURE_ACTIONS)[number];
 
-function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
-  if ((req.user as any)?.role !== "super_admin") {
+function requireOpenersAccess(req: Request, res: Response, next: NextFunction) {
+  const role = (req.user as any)?.role;
+  if (role !== "super_admin" && role !== "sales_admin") {
     return res.status(403).json({ error: "Forbidden" });
   }
   next();
@@ -86,7 +87,7 @@ function presentOpener(
   };
 }
 
-router.get("/api/openers", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.get("/api/openers", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     // Snapshot Agent Mail once for hydrate + timeline. Hydrate writes openers.json once.
     await refreshOpenerIdentitySnapshot();
@@ -101,7 +102,7 @@ router.get("/api/openers", isAuthenticated, requireSuperAdmin, async (req, res) 
   }
 });
 
-router.get("/api/openers/:id", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.get("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     const opener = getOpener(req.params.id);
     if (!opener) return res.status(404).json({ error: "Opener not found" });
@@ -114,7 +115,7 @@ router.get("/api/openers/:id", isAuthenticated, requireSuperAdmin, async (req, r
   }
 });
 
-router.patch("/api/openers/:id", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.patch("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     const { status, notes, companyNumber } = req.body || {};
     if (status === "promoted") {
@@ -147,7 +148,7 @@ router.patch("/api/openers/:id", isAuthenticated, requireSuperAdmin, async (req,
   }
 });
 
-router.post("/api/openers/:id/enrich", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.post("/api/openers/:id/enrich", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     res.json(presentOpener(await enrichOpener(req.params.id)));
   } catch (error) {
@@ -155,7 +156,7 @@ router.post("/api/openers/:id/enrich", isAuthenticated, requireSuperAdmin, async
   }
 });
 
-router.post("/api/openers/:id/nurture", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.post("/api/openers/:id/nurture", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     const action = req.body?.action as NurtureAction;
     if (!NURTURE_ACTIONS.includes(action)) {
@@ -168,7 +169,7 @@ router.post("/api/openers/:id/nurture", isAuthenticated, requireSuperAdmin, asyn
   }
 });
 
-router.post("/api/openers/:id/promote", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.post("/api/openers/:id/promote", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     const result = await promoteOpener(req.params.id, String((req.user as any)?.id || ""));
     res.json({ ...result, opener: presentOpener(result.opener) });
@@ -177,7 +178,7 @@ router.post("/api/openers/:id/promote", isAuthenticated, requireSuperAdmin, asyn
   }
 });
 
-router.post("/api/openers/:id/whatsapp", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.post("/api/openers/:id/whatsapp", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     const message = String(req.body?.message || "");
     if (!message) return res.status(400).json({ error: "message required" });
@@ -187,7 +188,7 @@ router.post("/api/openers/:id/whatsapp", isAuthenticated, requireSuperAdmin, asy
   }
 });
 
-router.post("/api/openers/:id/call", isAuthenticated, requireSuperAdmin, async (req, res) => {
+router.post("/api/openers/:id/call", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     res.json(presentOpener(await logOpenerCall(req.params.id, String(req.body?.note || ""))));
   } catch (error) {

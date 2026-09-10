@@ -15,7 +15,7 @@ import crypto from "crypto";
 import { csrfProtection, setupAuth } from "./auth";
 import { agentService } from "./services/agentService";
 import { validateEnv } from "./config";
-import { isStrataEmbedPath, mountStrataEmbed } from "./strataEmbed";
+import { allowsSameOriginFrame, isStrataEmbedPath, mountStrataEmbed } from "./strataEmbed";
 import { sqliteConnection } from "./db/schema";
 
 const app = express();
@@ -72,7 +72,7 @@ app.use("/brand/logo", express.static(path.resolve(process.cwd(), "brand", "logo
 const isProduction = process.env.NODE_ENV === "production";
 app.use((req, res, next) => {
   // Same-origin only so the Strata workspace can render inside Nexus.
-  if (isStrataEmbedPath(req.path)) {
+  if (allowsSameOriginFrame(req.path)) {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
   } else {
     res.setHeader("X-Frame-Options", "DENY");
@@ -116,7 +116,7 @@ app.use((req, res, next) => {
       "font-src 'self' data: https://fonts.gstatic.com https://editor.unlayer.com",
       "connect-src 'self' wss: ws: https://*.run.app https://corsproxy.io https://api.company-information.service.gov.uk https://europe-west2-veltro-prod.cloudfunctions.net ws://localhost:* http://localhost:* https://editor.unlayer.com https://*.unlayer.com",
       "frame-src 'self' https://editor.unlayer.com",
-      isStrataEmbedPath(req.path) ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
+      allowsSameOriginFrame(req.path) ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",

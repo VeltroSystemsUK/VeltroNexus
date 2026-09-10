@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { joinAiBullets, toAiBullets } from "@shared/aiBullets";
 import { searchGazetteNotices } from "./gazetteClient";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
@@ -67,8 +68,10 @@ function resolveAnthropicModel(requestedModel?: string): string {
   return requestedModel?.startsWith("claude-") ? requestedModel : DEFAULT_GEMINI_MODEL;
 }
 
+type AnthropicUserContent = string | Array<Record<string, unknown>>;
+
 async function anthropicChat(
-  messages: Array<{ role: string; content: string }>,
+  messages: Array<{ role: string; content: AnthropicUserContent }>,
   options: { model?: string; system?: string; maxTokens?: number } = {}
 ): Promise<string> {
   if (!anthropic) {
@@ -80,7 +83,7 @@ async function anthropicChat(
     ...(options.system ? { system: options.system } : {}),
     messages: messages.map((message) => ({
       role: message.role === "assistant" ? "assistant" as const : "user" as const,
-      content: message.content,
+      content: message.content as any,
     })),
   });
   const text = response.content
@@ -105,6 +108,24 @@ async function generateJson<T>(prompt: string, systemInstruction?: string, maxTo
     system: systemInstruction,
     maxTokens,
   });
+  return extractJson(text) as T;
+}
+
+async function generateJsonWithPdfs<T>(
+  prompt: string,
+  pdfs: { fileName: string; data: Buffer }[],
+  maxTokens?: number
+): Promise<T> {
+  const content: Array<Record<string, unknown>> = pdfs.slice(0, 3).map((pdf) => ({
+    type: "document",
+    source: {
+      type: "base64",
+      media_type: "application/pdf",
+      data: Buffer.from(pdf.data).toString("base64"),
+    },
+  }));
+  content.push({ type: "text", text: prompt });
+  const text = await anthropicChat([{ role: "user", content }], { maxTokens });
   return extractJson(text) as T;
 }
 
@@ -150,11 +171,12 @@ export async function researchCompany(
     const parsed = await generateJson<typeof fallback>(
       `From existing knowledge only, research the UK company "${companyName}"${website ? ` (website: ${website})` : ""}.
 Do not invent URLs. If uncertain, say so in sourceCommentary.
+businessProfile must be 4 to 6 short bullet points, one fact per line, no paragraphs.
 Return JSON only:
 {"businessProfile":"","sourceCommentary":"","sources":[]}`
     );
     return {
-      businessProfile: parsed.businessProfile || fallback.businessProfile,
+      businessProfile: joinAiBullets(toAiBullets(parsed.businessProfile || fallback.businessProfile, 6)),
       sourceCommentary: parsed.sourceCommentary || fallback.sourceCommentary,
       sources: Array.isArray(parsed.sources) ? parsed.sources : [],
     };
@@ -327,7 +349,7 @@ function coerceFinancialAnalysis(parsed: any, monthlyRepayment?: number): Financ
     netDisposableIncome: Number.isFinite(netDisposableIncome) ? netDisposableIncome : 0,
     dscr: Number.isFinite(resolvedDscr) ? resolvedDscr : 0,
     riskScore: typeof parsed?.riskScore === "string" ? parsed.riskScore : base.riskScore,
-    summary: typeof parsed?.summary === "string" ? parsed.summary : base.summary,
+    summary: joinAiBullets(toAiBullets(typeof parsed?.summary === "string" ? parsed.summary : base.summary, 8)),
     monthlyBreakdown: Array.isArray(parsed?.monthlyBreakdown) ? parsed.monthlyBreakdown : [],
     transactionCount: Number(parsed?.transactionCount) || 0,
     profitAndLoss: { ...base.profitAndLoss, ...(parsed?.profitAndLoss || {}) },
@@ -382,6 +404,7 @@ Requested amount: £${Number(loanAmount || 0).toLocaleString()}
 Monthly repayment: £${Number(monthlyRepayment || 0).toLocaleString()}
 Always return numeric dscr (net disposable monthly income / monthly repayment). If unknown, use 0.
 Identify only from the data — do not invent: regular direct debits, bounced/returned items, suspected loan or MCA repayments, gambling/betting spend, and personal use of the business account.
+summary must be 4 to 8 short bullet points, one fact per line, no paragraphs.
 
 DATA:
 ${typeof data === "string" ? data.slice(0, 20000) : JSON.stringify(data).slice(0, 20000)}
@@ -428,6 +451,7 @@ Compare bank-statement findings against these figures in the summary.
       `You are a commercial-lending analyst. Extract cash-flow metrics from these bank-statement texts.
 Always return numeric dscr (monthly net disposable income / monthly repayment). If unknown, use 0.
 Identify only from the statements — do not invent: regular direct debits, bounced/returned items, suspected loan or MCA repayments, gambling/betting spend, and personal use of the business account.
+summary must be 4 to 8 short bullet points, one fact per line, no paragraphs.
 ${accountsContext}
 LOAN DETAILS:
 - Requested amount: £${Number(loanAmount || 0).toLocaleString()}
@@ -454,42 +478,56 @@ const AUDITED_ACCOUNTS_JSON_SHAPE = `{
   "trends":{"turnoverGrowth":[],"profitGrowth":[],"netAssetGrowth":[],"trend":"stable","summary":""},
   "dscr":{"historical":[],"average":0,"trend":"stable"},
   "concerns":[{"category":"other","description":"","severity":"low","yearEnding":""}],
+  "notesToAccounts":[{"note":"","accountsEvidence":"","assessment":"clarification_required","severity":"medium","action":""}],
   "auditorOpinion":"",
   "summary":"",
   "riskAssessment":"medium"
 }`;
 
 export async function analyzeAuditedAccounts(
-  pdfTexts: { year: string; text: string }[],
+  pdfTexts: { year: string; text: string; data?: Buffer }[],
   loanAmount?: number,
-  monthlyRepayment?: number
+  monthlyRepayment?: number,
+  caseNotes?: string,
+  extras?: { creditsafeJson?: string; spreadsheetText?: string }
 ): Promise<any> {
   const combinedText = (Array.isArray(pdfTexts) ? pdfTexts : [])
     .map((item) => `\n=== ACCOUNTS FOR YEAR ENDING ${item.year} ===\n${item.text || ""}`)
     .join("\n\n");
-
-  try {
-    const parsed = await generateJson<any>(
-      `You are a financial analyst specialising in UK commercial lending. Analyse these audited / statutory accounts (up to 3 years) and return a credit assessment.
+  const pdfsWithData = (Array.isArray(pdfTexts) ? pdfTexts : []).filter((item) => item.data && item.data.length > 100);
+  const prompt = `You are a financial analyst specialising in UK commercial lending. Analyse these audited / statutory accounts (up to 3 years) and return a credit assessment.
 
 CRITICAL:
-- Extract key figures from each year
-- Calculate ratios and identify trends
-- Note going-concern warnings, contingent liabilities, related-party transactions, and auditor qualifications
-- Calculate historical DSCR from operating profit and any debt service mentioned
+- Do not invent turnover or profit. If no P&L is in the uploaded PDFs, sheets, or Creditsafe, leave those fields null.
+- Prefer the structured Creditsafe figures below for the balance sheet.
+- Use uploaded Profit & Loss PDFs (and xlsx/csv) for turnover, gross profit, and operating profit when Creditsafe has no P&L line. Quote only numbers present in those files.
+- Use statutory-accounts PDFs for Notes to the accounts, accounting policies, average employees, related-party / director loan notes, going-concern wording, and auditor opinion.
+- Extract every note that should be raised with the adviser.
+- For notesToAccounts, use assessment values: "confirmed", "inconsistent", "not_found", or "clarification_required". Do not treat a note as a fact merely because it is written in the notes.
+
+STRUCTURED BALANCE SHEET (Creditsafe — use these numbers):
+${String(extras?.creditsafeJson || "None").slice(0, 8000)}
+
+SPREADSHEETS ON THE CASE FILE:
+${String(extras?.spreadsheetText || "None").slice(0, 24000)}
 
 AUDITED ACCOUNTS TEXT:
 ${combinedText.slice(0, 24000)}
 
 LOAN DETAILS:
-- Requested amount: £${Number(loanAmount || 0).toLocaleString()}
-- Monthly repayment: £${Number(monthlyRepayment || 0).toLocaleString()}
+- Requested amount: £${Number(loanAmount || 0).toLocaleString("en-GB")}
+- Monthly repayment: £${Number(monthlyRepayment || 0).toLocaleString("en-GB")}
+
+CASE NOTES / UNDERWRITER FINDINGS:
+${String(caseNotes || "No case notes recorded.").slice(0, 12000)}
 
 Return JSON only:
-${AUDITED_ACCOUNTS_JSON_SHAPE}`,
-      undefined,
-      8192
-    );
+${AUDITED_ACCOUNTS_JSON_SHAPE}`;
+
+  try {
+    const parsed = pdfsWithData.length
+      ? await generateJsonWithPdfs<any>(prompt, pdfsWithData, 8192)
+      : await generateJson<any>(prompt, undefined, 8192);
 
     return {
       years: Array.isArray(parsed?.years) ? parsed.years : [],
@@ -505,8 +543,9 @@ ${AUDITED_ACCOUNTS_JSON_SHAPE}`,
         ? parsed.dscr
         : { historical: [], average: Number(parsed?.dscr) || 0, trend: "stable" },
       concerns: Array.isArray(parsed?.concerns) ? parsed.concerns : [],
+      notesToAccounts: Array.isArray(parsed?.notesToAccounts) ? parsed.notesToAccounts : [],
       auditorOpinion: parsed?.auditorOpinion || "",
-      summary: parsed?.summary || "",
+      summary: joinAiBullets(toAiBullets(parsed?.summary || "", 8)),
       riskAssessment: parsed?.riskAssessment === "low" || parsed?.riskAssessment === "high"
         ? parsed.riskAssessment
         : "medium",
@@ -571,6 +610,7 @@ PERIOD: ${periodMonths} months
 CONTENT:
 ${String(parsedText).slice(0, 20000)}
 
+summary, commentary, profitabilityAssessment and liquidityAssessment must be short bullet points, one fact per line, no paragraphs.
 Return JSON only:
 {"summary":"","keyMetrics":{},"commentary":"","strengths":[],"concerns":[],"recommendations":[],"profitabilityAssessment":"","liquidityAssessment":"","overallRating":"satisfactory"}`,
       undefined,
@@ -583,6 +623,10 @@ Return JSON only:
       strengths: parsed.strengths || [],
       concerns: parsed.concerns || [],
       recommendations: parsed.recommendations || [],
+      summary: joinAiBullets(toAiBullets(parsed.summary || "", 6)),
+      commentary: joinAiBullets(toAiBullets(parsed.commentary || "", 6)),
+      profitabilityAssessment: joinAiBullets(toAiBullets(parsed.profitabilityAssessment || "", 4)),
+      liquidityAssessment: joinAiBullets(toAiBullets(parsed.liquidityAssessment || "", 4)),
       overallRating: ["strong", "satisfactory", "weak", "critical"].includes(parsed.overallRating)
         ? parsed.overallRating
         : "weak",
@@ -630,14 +674,15 @@ Companies House: ${companiesHouseData || "n/a"}
 Bank analysis: ${bankAnalysisSummary || "n/a"}
 Eligibility notes: ${eligibilityNotes || "n/a"}
 
+Each SWOT item is one short bullet (max 20 words). No paragraphs. summary is 3 short bullets joined by newlines, not a paragraph.
 Return JSON only:
 {"strengths":[],"weaknesses":[],"opportunities":[],"threats":[],"summary":""}`);
     const result = {
-      strengths: Array.isArray(parsed.strengths) ? parsed.strengths.filter((item): item is string => typeof item === "string") : [],
-      weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses.filter((item): item is string => typeof item === "string") : [],
-      opportunities: Array.isArray(parsed.opportunities) ? parsed.opportunities.filter((item): item is string => typeof item === "string") : [],
-      threats: Array.isArray(parsed.threats) ? parsed.threats.filter((item): item is string => typeof item === "string") : [],
-      summary: typeof parsed.summary === "string" ? parsed.summary : "",
+      strengths: toAiBullets((Array.isArray(parsed.strengths) ? parsed.strengths : []).join("\n"), 5),
+      weaknesses: toAiBullets((Array.isArray(parsed.weaknesses) ? parsed.weaknesses : []).join("\n"), 5),
+      opportunities: toAiBullets((Array.isArray(parsed.opportunities) ? parsed.opportunities : []).join("\n"), 5),
+      threats: toAiBullets((Array.isArray(parsed.threats) ? parsed.threats : []).join("\n"), 5),
+      summary: joinAiBullets(toAiBullets(typeof parsed.summary === "string" ? parsed.summary : "", 3)),
     };
     if (
       !result.strengths.length &&
@@ -654,11 +699,46 @@ Return JSON only:
   }
 }
 
+export async function extractCashflowForecastJson(flatText: string): Promise<unknown> {
+  return generateJson(
+    `Extract monthly-average figures from this cashflow forecast dump.
+Return JSON only:
+{"creditsAvg":null,"opexAvg":null,"debtServiceAvg":null,"netAvg":null,"months":[]}
+Use JSON numbers. Use null when a figure is not clearly present. Never use 0 as a stand-in for unknown. No prose, no pound signs inside strings, no loan-amount commentary.
+
+DUMP:
+${String(flatText || "").slice(0, 20000)}`,
+  );
+}
+
+export async function critiqueCashflowForecastJson(input: {
+  without: { creditsAvg: number | null; opexAvg: number | null; debtServiceAvg: number | null; netAvg: number | null; dscr: number | null };
+  with: { creditsAvg: number | null; opexAvg: number | null; debtServiceAvg: number | null; netAvg: number | null; dscr: number | null };
+  findings: string[];
+  flattenedText: string;
+}): Promise<string[]> {
+  const facts = JSON.stringify({ without: input.without, with: input.with, findings: input.findings });
+  const parsed = await generateJson<{ bullets?: string[] }>(
+    `You are a sceptical commercial-finance underwriter. The customer's cashflow forecast is a claim. The bank-statement run-rate is evidence.
+Write up to 8 short bullets that critique the forecast. Call out excessive optimism. Temper the sheet with statement reality.
+Use only numbers in FILE FACTS. Do not invent figures, grades, or a loan amount.
+Each bullet max 30 words. No paragraphs. No "note on scope". No "the document provided".
+Return JSON only: {"bullets":["..."]}
+
+FILE FACTS:
+${facts}
+
+FORECAST DUMP (excerpt):
+${String(input.flattenedText || "").slice(0, 8000)}`,
+  );
+  return Array.isArray(parsed?.bullets) ? parsed.bullets.map((line) => String(line)) : [];
+}
+
 const SECTION_GUIDANCE: Record<string, string> = {
   overview:
     "Credit memo Overview: short bullets on what the business does and the lending proposition. Qualitative facts a credit officer needs before CAMPARI. No amounts, grades, or facility terms.",
   background:
-    "Background: short bullets on history, ownership, trading sites, and recent events (refinance, distress, expansion) that explain this application. No amounts or grades.",
+    "Background: up to 10 short bullets on history, ownership, trading sites, and recent events (refinance, distress, expansion) that explain this application. No amounts or grades.",
   bank:
     "Bank Statement Summary: short bullets on inflows, outgoings, missed payments, returned items, MCA sweeps, HMRC time-to-pay. No pound figures or ratios.",
   recommendation:
@@ -705,11 +785,12 @@ export async function generateCampariSection(
     "repayment",
     "insurance",
   ]);
+  const isBackground = sectionKey === "background";
   const slotConstraint =
-    `Do not write pound amounts, DSCR ratios, risk grades, or facility term in months or years. Those are injected from the file ledger. Do not write "note on scope", "the document provided", "cannot currently be assessed", or any commentary about missing documents. Maximum 6 bullets, 20 words each for CAMPARI; 5 bullets, 20 words for SWOT.`;
+    `Do not write pound amounts, DSCR ratios, risk grades, or facility term in months or years. Those are injected from the file ledger. Do not write "note on scope", "the document provided", "cannot currently be assessed", or any commentary about missing documents. Maximum 6 bullets, 20 words each for CAMPARI; 10 bullets, 25 words for Background; 5 bullets, 20 words for SWOT.`;
   const shape = campariKeys.has(sectionKey)
     ? `Write only this CAMPARI pillar as up to 6 short bullet points, 20 words each. One fact per bullet. Do not write the other CAMPARI pillars. No lengthy paragraphs, no essay, no numbered report. A short bold heading is allowed only to group related bullets. Do not repeat the pillar title or company name as a heading. ${slotConstraint}`
-    : `Write this section for a UK commercial-lending file as short bullet points only (maximum 6 bullets, 20 words each).
+    : `Write this section for a UK commercial-lending file as short bullet points only (maximum ${isBackground ? 10 : 6} bullets, ${isBackground ? 25 : 20} words each).
 Write the section itself. Do not wrap it in a full credit-memo template unless the section is overview. ${slotConstraint}`;
   const text = await generateText(`${brief}
 ${shape}
@@ -730,7 +811,7 @@ Bank analysis: ${bankAnalysisSummary || "n/a"}
 Accounts analysis: ${accountsAnalysisSummary || "n/a"}
 Documents:
 ${docs.slice(0, 12000)}`);
-  return text;
+  return joinAiBullets(toAiBullets(text, sectionKey === "background" ? 10 : 6));
 }
 
 export const ai = {

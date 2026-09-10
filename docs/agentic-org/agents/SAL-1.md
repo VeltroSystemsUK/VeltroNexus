@@ -15,7 +15,7 @@ Runtime pack (session files, answer bank, templates, queue): [strata-inbound/](.
 - Draft a reply for every message that warrants one, in IONOS Drafts and in `strata-inbound/inbox/queue/`
 - Own the answer bank, document-request list, and staged email-first intake
 - Thread memory: what they were sent, what they said, what they were promised
-- Credit-pack collection after a yes: staged asks, completeness, chases, indexed handoff to Shaun
+- Credit-pack collection after a yes: staged asks, completeness, chases. Documentation/data-field chases specifically (missing attachments, missing GOAF fields) sit with Maya (RES-2, `agents/RES-2.md`), not this desk, indexed handoff to Shaun
 - Flag HOT, DOCS IN, PACK COMPLETE, DISTRESS, COMPLAINT, REGULATORY
 
 ### Does not own

@@ -33,7 +33,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { CraftView } from "@/components/craft/CraftView";
-import { deleteCraftForAsset } from "@/components/craft/persist";
+import { purgeAllCraftDocs } from "@/components/craft/persist";
 import { useCraftStore } from "@/components/craft/store";
 import type { ComplianceStatus, CraftChannel, CraftCopyPatch, CraftPost, PostStatus } from "@shared/craftQueue";
 import {
@@ -41,7 +41,6 @@ import {
   canExportPost,
   exportablePosts,
   reviewMarketingCopy,
-  weekDesignWipeIds,
   type WeekGenerateMode,
 } from "@shared/craftQueue";
 import type { CreativeAmmoBrief } from "@shared/craftScout";
@@ -155,12 +154,18 @@ export default function Craft() {
   const briefs = desk?.briefs ?? [];
   const selected = week.find((p) => p.id === selectedId) ?? null;
   const boardOpen = Boolean(selected);
+  const weekHasCopy = week.some((post) => Boolean(post.hook || post.body));
 
   const closeBoard = () => {
     pulseMotion("close");
     setSelectedId(null);
     useCraftStore.getState().close();
   };
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!weekHasCopy) void purgeAllCraftDocs();
+  }, [isLoading, weekHasCopy]);
 
   useEffect(() => {
     if (selected) setCopy(copyFrom(selected));
@@ -194,22 +199,19 @@ export default function Craft() {
 
   const generate = useMutation({
     mutationFn: async (mode: WeekGenerateMode) => {
-      const wipe = weekDesignWipeIds(week, mode, selectedId ?? undefined);
-      const weekFile = week[0]?.weekId ? [`week:${week[0].weekId}`] : [];
       useCraftStore.getState().close();
       setSelectedId(null);
-      await Promise.all([...wipe, ...weekFile].map((id) => deleteCraftForAsset(id)));
+      await purgeAllCraftDocs();
       const res = await apiRequest("/api/craft/week", "POST", {
         mode,
         selectedId: mode === "selected" ? selectedId : undefined,
         stamp: mode === "replace" ? Date.now().toString(36) : undefined,
       });
-      return { desk: (await res.json()) as Desk, wipe, mode };
+      return { desk: (await res.json()) as Desk, mode };
     },
-    onSuccess: async ({ desk: next, wipe, mode }) => {
-      await Promise.all(wipe.map((id) => deleteCraftForAsset(id)));
+    onSuccess: async ({ desk: next, mode }) => {
+      await purgeAllCraftDocs();
       const weekId = next.weekId || next.week[0]?.weekId;
-      if (weekId) await deleteCraftForAsset(`week:${weekId}`);
       queryClient.setQueryData(["/api/craft/desk"], next);
       setSelectedId(null);
       if (weekId) {
@@ -217,6 +219,7 @@ export default function Craft() {
           ? next.route
           : weekRoute) as WeekRoute;
         await useCraftStore.getState().createWeek({ weekId, route });
+        useCraftStore.getState().paintWeekFromPosts(next.week);
       }
       toast.success(
         mode === "replace"
@@ -234,19 +237,20 @@ export default function Craft() {
 
   const scanAmmo = useMutation({
     mutationFn: async () => {
+      useCraftStore.getState().close();
+      setSelectedId(null);
+      await purgeAllCraftDocs();
       const res = await apiRequest("/api/craft/scan", "POST", {});
       return res.json() as Promise<Desk>;
     },
-    onSuccess: (next) => {
-      queryClient.setQueryData(["/api/craft/desk"], next);
+    onSuccess: async (next) => {
+      await purgeAllCraftDocs();
+      queryClient.setQueryData(["/api/craft/desk"], { ...next, week: [] });
       setContentAidOpen(true);
-      const openId = selectedId;
-      const post = openId ? next.week.find((item) => item.id === openId) : undefined;
-      if (post) useCraftStore.getState().syncFromPost(post);
-      toast.success("Casey scanned the week. Copy is on the drafts and the board.");
+      useCraftStore.getState().close();
+      setSelectedId(null);
+      toast.success("Casey landed ammo. Generate week for Isla to write and design.");
       if (next.researchWarning) toast.warning(next.researchWarning);
-      toast("Generating stills for the week…");
-      void useCraftStore.getState().generateStillsForWeek(next.week, next.briefs ?? []);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -649,7 +653,9 @@ export default function Craft() {
           {isLoading && <p className="text-xs text-white/40 px-2 py-6 text-center">Loading desk…</p>}
           {!isLoading && week.length === 0 && (
             <p className="text-xs text-white/45 px-2 py-6 text-center leading-relaxed">
-              No week queued — New week opens seven house boards. Generate week writes Isla's copy onto them.
+              {briefs.length
+                ? "Casey landed ammo. Generate week for Isla to write and design."
+                : "Scan first — Casey lands ammo. Generate week is Isla writing and designing. Nothing is generated from a scan."}
             </p>
           )}
           {week.map((post) => {

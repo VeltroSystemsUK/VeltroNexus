@@ -1,5 +1,5 @@
 const DB_NAME = "nexus-craft";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "blobs";
 
 function openDb(): Promise<IDBDatabase> {
@@ -9,6 +9,8 @@ function openDb(): Promise<IDBDatabase> {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE);
+      } else if (request.oldVersion < 2) {
+        request.transaction?.objectStore(STORE).clear();
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -41,6 +43,17 @@ export async function getBlob(key: string): Promise<Blob | undefined> {
   if (value instanceof ArrayBuffer) return new Blob([value]);
   if (value instanceof Uint8Array) return new Blob([value]);
   return undefined;
+}
+
+export async function clearBlobs(): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB clear failed"));
+    tx.objectStore(STORE).clear();
+  });
+  db.close();
 }
 
 export async function deleteBlob(key: string): Promise<void> {

@@ -9,7 +9,7 @@ describe("isNavLocked", () => {
     expect(isNavLocked("sales_admin", "/ai-studio")).toBe(true);
     expect(isNavLocked("sales_admin", "/craft")).toBe(true);
     expect(isNavLocked("sales_admin", "/editorial")).toBe(true);
-    expect(isNavLocked("sales_admin", "/openers")).toBe(true);
+    expect(isNavLocked("sales_admin", "/gmail")).toBe(true);
   });
 
   it("leaves the Sterling workspace open", () => {
@@ -19,6 +19,12 @@ describe("isNavLocked", () => {
     expect(isNavLocked("sales_admin", "/lenders")).toBe(false);
     expect(isNavLocked("sales_admin", "/credit-tools")).toBe(false);
     expect(isNavLocked("sales_admin", "/settings")).toBe(false);
+  });
+
+  it("opens Agent Mail, Opened mail, and Dashboard for sales_admin", () => {
+    expect(isNavLocked("sales_admin", "/agent-mail")).toBe(false);
+    expect(isNavLocked("sales_admin", "/openers")).toBe(false);
+    expect(isNavLocked("sales_admin", "/pipeline")).toBe(false);
   });
 
   it("does not lock Shaun as super_admin", () => {

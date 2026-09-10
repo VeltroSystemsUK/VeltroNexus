@@ -1,8 +1,27 @@
+import { randomUUID } from "crypto";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import { imapConfigFromEnv, inboundAlreadyLogged, parseAddressList, pickMailboxPath } from "@shared/imapInbox";
-import { getAgentMail, inboundMessageIds, listAgentMail, logAgentMail, loggedMessageIds, recordInbound } from "./agentMailLog";
+import {
+  IMAP_QUARANTINE_FALLBACKS,
+  imapConfigFromEnv,
+  inboundAlreadyLogged,
+  parseAddressList,
+  pickMailboxPath,
+} from "@shared/imapInbox";
+import { mailNeedsAttachmentBackfill, shouldKeepMailAttachment } from "@shared/agentMailAttachments";
+import {
+  getAgentMail,
+  inboundMessageIds,
+  listAgentMail,
+  logAgentMail,
+  loggedMessageIds,
+  patchAgentMail,
+  recordInbound,
+  type AgentMailItem,
+} from "./agentMailLog";
+import { persistMailAttachments } from "./agentMailAttachments";
 import { mailboxByAddress } from "@shared/agentMailboxes";
+import { isMailerDaemonAddress } from "@shared/mailDesk";
 import { processAgentInbox } from "./mailDesk";
 
 let running = false;
@@ -19,6 +38,26 @@ function addressesOf(value: unknown): string {
   const row = value as { value?: Array<{ address?: string }>; text?: string };
   const addr = row.value?.[0]?.address || row.text;
   return parseAddressList(addr);
+}
+
+function parsedAttachments(parsed: { attachments?: Parameters<typeof persistMailAttachments>[1] }) {
+  return parsed.attachments || [];
+}
+
+function keepableCount(parsed: { attachments?: Parameters<typeof persistMailAttachments>[1] }) {
+  return parsedAttachments(parsed).filter(shouldKeepMailAttachment).length;
+}
+
+function backfillAttachmentsIfNeeded(
+  item: AgentMailItem | undefined,
+  parsed: { attachments?: Parameters<typeof persistMailAttachments>[1] },
+): boolean {
+  if (!item || !mailNeedsAttachmentBackfill(item, keepableCount(parsed))) return false;
+  const attachments = persistMailAttachments(item.id, parsedAttachments(parsed));
+  if (!attachments.length) return false;
+  patchAgentMail(item.id, { attachments });
+  item.attachments = attachments;
+  return true;
 }
 
 function trackingIdFromHtml(html?: string): string | undefined {
@@ -48,6 +87,18 @@ async function resolveMailbox(client: ImapFlow, specialUse: string, fallbacks: s
   return null;
 }
 
+async function ensureQuarantinePath(client: ImapFlow): Promise<string> {
+  try {
+    const boxes = await client.list();
+    const hit = pickMailboxPath(boxes, "", IMAP_QUARANTINE_FALLBACKS);
+    if (hit) return hit;
+  } catch {
+    /* list can fail on some hosts */
+  }
+  const created = await client.mailboxCreate("Quarantine");
+  return created.path || "Quarantine";
+}
+
 export async function pollImapInbox(): Promise<{ fetched: number; stored: number; skipped: number }> {
   const cfg = imapConfigFromEnv();
   if (!cfg) {
@@ -70,14 +121,16 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
 
   try {
     await client.connect();
+    const existing = listAgentMail(2000);
     const inboxLock = await client.getMailboxLock("INBOX");
     try {
       const known = inboundMessageIds();
-      const existing = listAgentMail(2000);
       const unseen = (await client.search({ seen: false }, { uid: true })) || [];
       const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
       const recent = (await client.search({ since }, { uid: true })) || [];
-      const uids = [...new Set([...unseen, ...recent])];
+      const daemon = (await client.search({ from: "mailer-daemon" }, { uid: true })) || [];
+      const uids = [...new Set([...unseen, ...recent, ...daemon])];
+      const quarantineUids = new Set<number>();
       for (const uid of uids) {
         fetched += 1;
         const msg = await client.fetchOne(uid, { envelope: true, source: true }, { uid: true });
@@ -87,12 +140,17 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
         }
         const parsed = await simpleParser(msg.source || Buffer.from(""));
         const messageId = String(parsed.messageId || msg.envelope?.messageId || "").trim();
+        const from = addressesOf(parsed.from) || parseAddressList(msg.envelope?.from?.[0]?.address);
+        if (isMailerDaemonAddress(from)) quarantineUids.add(uid);
         if (messageId && (known.has(messageId) || inboundAlreadyLogged(existing, messageId))) {
-          skipped += 1;
+          const logged = existing.find(
+            (item) => item.direction === "inbound" && String(item.messageId || "").trim() === messageId,
+          );
+          if (backfillAttachmentsIfNeeded(logged, parsed)) stored += 1;
+          else skipped += 1;
           await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
           continue;
         }
-        const from = addressesOf(parsed.from) || parseAddressList(msg.envelope?.from?.[0]?.address);
         const to =
           addressesOf(parsed.to) ||
           parseAddressList(msg.envelope?.to?.[0]?.address) ||
@@ -101,7 +159,9 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
           skipped += 1;
           continue;
         }
-        await recordInbound({
+        const id = randomUUID();
+        const item = await recordInbound({
+          id,
           from,
           to,
           subject: parsed.subject || msg.envelope?.subject || "(no subject)",
@@ -109,10 +169,25 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
           html: typeof parsed.html === "string" ? parsed.html : undefined,
           messageId: messageId || undefined,
           createdAt: (parsed.date || msg.envelope?.date || new Date()).toISOString(),
+          attachments: persistMailAttachments(id, parsedAttachments(parsed)),
         });
+        existing.push(item);
         if (messageId) known.add(messageId);
         stored += 1;
         await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+      }
+      if (quarantineUids.size) {
+        try {
+          const dest = await ensureQuarantinePath(client);
+          const moved = await client.messageMove([...quarantineUids], dest, { uid: true });
+          if (moved) {
+            console.log(`[AgentMail] moved ${quarantineUids.size} mailer-daemon message(s) to ${dest}`);
+          } else {
+            console.warn(`[AgentMail] could not move ${quarantineUids.size} mailer-daemon message(s) to ${dest}`);
+          }
+        } catch (error: any) {
+          console.warn("[AgentMail] quarantine move failed:", error?.message || error);
+        }
       }
     } finally {
       inboxLock.release();
@@ -140,7 +215,9 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
           const parsed = await simpleParser(msg.source || Buffer.from(""));
           const messageId = String(parsed.messageId || msg.envelope?.messageId || "").trim();
           if (messageId && known.has(messageId)) {
-            skipped += 1;
+            const logged = existing.find((item) => String(item.messageId || "").trim() === messageId);
+            if (backfillAttachmentsIfNeeded(logged, parsed)) stored += 1;
+            else skipped += 1;
             continue;
           }
           const from = addressesOf(parsed.from) || parseAddressList(msg.envelope?.from?.[0]?.address) || cfg.user;
@@ -152,12 +229,15 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
           const html = typeof parsed.html === "string" ? parsed.html : undefined;
           const reusedId = trackingIdFromHtml(html);
           if (reusedId && getAgentMail(reusedId)) {
-            skipped += 1;
+            const logged = getAgentMail(reusedId);
+            if (backfillAttachmentsIfNeeded(logged, parsed)) stored += 1;
+            else skipped += 1;
             continue;
           }
           const mailbox = mailboxByAddress(from);
+          const id = reusedId || randomUUID();
           logAgentMail({
-            id: reusedId,
+            id,
             direction: "outbound",
             agentId: mailbox?.agentId,
             agentName: mailbox?.displayName,
@@ -169,6 +249,7 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
             status: "sent",
             messageId: messageId || undefined,
             createdAt: (parsed.date || msg.envelope?.date || new Date()).toISOString(),
+            attachments: persistMailAttachments(id, parsedAttachments(parsed)),
           });
           if (messageId) known.add(messageId);
           stored += 1;
@@ -188,7 +269,11 @@ export async function pollImapInbox(): Promise<{ fetched: number; stored: number
   if (stored || fetched) {
     console.log(`[AgentMail] IMAP poll fetched ${fetched}, stored ${stored}, skipped ${skipped}`);
   }
-  await processAgentInbox();
+  try {
+    await processAgentInbox();
+  } catch (error: any) {
+    console.error("[AgentMail] inbox process failed:", error?.message || error);
+  }
   return { fetched, stored, skipped };
 }
 

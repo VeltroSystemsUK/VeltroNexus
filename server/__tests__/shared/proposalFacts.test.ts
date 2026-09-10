@@ -229,8 +229,9 @@ describe("validateBullet", () => {
 
 describe("validateSlot", () => {
   it("drops bullets past the cap", () => {
-    const items = Array.from({ length: 8 }, (_, i) => `Established trading point ${i}`);
-    expect(validateSlot(items, SLOT_CAPS.background.cap, SLOT_CAPS.background.maxWords)).toHaveLength(5);
+    const items = Array.from({ length: 12 }, (_, i) => `Established trading point ${i}`);
+    expect(SLOT_CAPS.background).toEqual({ cap: 10, maxWords: 25 });
+    expect(validateSlot(items, SLOT_CAPS.background.cap, SLOT_CAPS.background.maxWords)).toHaveLength(10);
   });
 });
 

@@ -1,4 +1,4 @@
-import { COPY_LIMITS, defaultEyebrow, type CraftCopyPatch, type CraftPost } from "@shared/craftQueue";
+import { COPY_LIMITS, completeLine, defaultEyebrow, type CraftCopyPatch, type CraftPost } from "@shared/craftQueue";
 import { applyBrand, applyBrandLogo, cloneBrand } from "./brand";
 import {
   applyFrameShape,
@@ -11,7 +11,8 @@ import {
   type ShadowPresetId,
 } from "./looks";
 import { uid, type CraftAsset, type CraftBrand, type CraftDocument, type CraftNode, type CraftPage, type ImageNode, type TextNode } from "./types";
-import { applyDayContract, isoWeekId, materialiseWeek, pageMatchesPost, pickWeekVisual, WEEK_IDENTITY } from "./weekGrammar";
+import { applyDayContract, applyPlaybookStack, isoWeekId, materialiseWeek, pageMatchesPost, pickWeekVisual } from "./weekGrammar";
+import { identityLineFor } from "@shared/craftDirector";
 
 export type CreativeDirection = {
   frame: FrameShapeId;
@@ -78,15 +79,11 @@ export const STRATA_BRAND: CraftBrand = {
 };
 
 function clip(text: string, max: number): string {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  const sp = cut.lastIndexOf(" ");
-  return `${(sp > 40 ? cut.slice(0, sp) : cut).trim()}…`;
+  return completeLine(text, max);
 }
 
 function ctaLabel(post: CraftPost): string {
-  return clip(post.cta.trim(), COPY_LIMITS.cta).replace(/…$/, "");
+  return clip(post.cta.trim(), COPY_LIMITS.cta);
 }
 
 type Fills = {
@@ -104,12 +101,21 @@ type Fills = {
   ticker: string;
 };
 
+function tickerCount(post: CraftPost): string {
+  const blob = `${post.hook} ${post.hook2}`;
+  const digits = blob.match(/\b\d{1,4}\b/);
+  if (digits) return digits[0]!;
+  const word = blob.match(/\b(twenty(?:-[\w]+)?|thirty(?:-[\w]+)?|forty(?:-[\w]+)?|dozen|hundred|thousand)\b/i);
+  if (word) return word[0]!;
+  return post.hook;
+}
+
 function fillsFor(post: CraftPost): Fills {
-  const body = clip(post.body, COPY_LIMITS.body).replace(/…$/, "");
+  const body = clip(post.body, COPY_LIMITS.body);
   return {
-    eyebrow: clip(post.eyebrow || defaultEyebrow(post.track), COPY_LIMITS.eyebrow).replace(/…$/, ""),
-    hook: clip(post.hook, COPY_LIMITS.hook).replace(/…$/, ""),
-    hook2: clip(post.hook2 ?? "", COPY_LIMITS.hook2).replace(/…$/, ""),
+    eyebrow: clip(post.eyebrow || defaultEyebrow(post.track), COPY_LIMITS.eyebrow),
+    hook: clip(post.hook, COPY_LIMITS.hook),
+    hook2: clip(post.hook2 ?? "", COPY_LIMITS.hook2),
     deck: body,
     cta: ctaLabel(post),
     hashtags: (post.hashtags ?? []).slice(0, COPY_LIMITS.hashtags).join("  "),
@@ -117,8 +123,8 @@ function fillsFor(post: CraftPost): Fills {
     handle: "@stratafinance",
     brand: "STRATA",
     role: post.track === "introducer" ? "Introducer desk" : "SME directors",
-    identity: WEEK_IDENTITY,
-    ticker: body,
+    identity: identityLineFor(post.id || post.title || post.body),
+    ticker: tickerCount(post),
   };
 }
 
@@ -167,6 +173,7 @@ function fillNode(node: CraftNode, fills: Fills, brand: CraftBrand): CraftNode {
   const n = node.name.toLowerCase();
   if (n === "identity") return { ...node, text: fills.identity, locked: true, fontFamily: "JetBrains Mono" };
   if (n === "dataticker" || n === "ticker") return { ...node, text: fills.ticker };
+  if (n === "voice") return { ...node, text: [fills.hook, fills.hook2].filter(Boolean).join(" ") };
   if (n === "silence" && fills.hook) return { ...node, text: fills.hook };
   if (/wordmark/.test(n)) return { ...node, text: fills.brand };
   const field = copyFieldForNodeName(node.name);
@@ -266,11 +273,9 @@ function ensureHeroSplit(page: CraftPage): CraftPage {
 }
 
 function fillPage(page: CraftPage, fills: Fills, brand: CraftBrand): CraftPage {
-  if (page.daySlot === "sunday-silence") {
-    return { ...page, nodes: page.nodes.map((node) => fillNode(node, fills, brand)) };
-  }
-  const withSlots = ensureHeroSplit(ensureCopySlots(page));
-  return { ...withSlots, nodes: withSlots.nodes.map((node) => fillNode(node, fills, brand)) };
+  const source = page.daySlot ? page : ensureHeroSplit(ensureCopySlots(page));
+  const filled = { ...source, nodes: source.nodes.map((node) => fillNode(node, fills, brand)) };
+  return applyPlaybookStack(filled, { hook: fills.hook, hook2: fills.hook2 });
 }
 
 export function applyPostCopy(doc: CraftDocument, post: CraftPost): CraftDocument {
@@ -297,10 +302,12 @@ export function applyPostVisual(
   doc: CraftDocument,
   asset: CraftAsset,
   look: ImageLookId = "plain",
-  opts?: { weekFill?: boolean },
+  opts?: { weekFill?: boolean; daySlot?: string; weekday?: string },
 ): CraftDocument {
   const assets = [...doc.assets.filter((item) => item.id !== asset.id), asset];
   const pages = doc.pages.map((page) => {
+    if (opts?.daySlot && page.daySlot !== opts.daySlot) return page;
+    if (opts?.weekday && page.name !== opts.weekday) return page;
     if (opts?.weekFill && page.daySlot) {
       const picked = pickWeekVisual(assets, page.daySlot);
       if ("empty" in picked) return page;

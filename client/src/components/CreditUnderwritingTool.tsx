@@ -72,6 +72,7 @@ import {
   CAMPARI_QUESTIONS,
 } from "@/lib/creditUnderwriting/constants";
 import { formatAsBulletPoints } from "@/lib/formatBulletPoints";
+import { BulletField, BulletList } from "@/components/BulletField";
 
 interface CreditUnderwritingToolProps {
   prospect: ProspectWithCompany;
@@ -3096,20 +3097,19 @@ export function CreditUnderwritingTool({
                         )}
                       </CardHeader>
                       <CardContent>
-                        <Textarea
+                        <BulletField
                           value={adviserSummary.sections?.[section.key] || ""}
-                          onChange={(e) =>
+                          onChange={(next) =>
                             setAdviserSummary({
                               ...adviserSummary,
                               sections: {
                                 ...adviserSummary.sections,
-                                [section.key]: e.target.value,
+                                [section.key]: next,
                               },
                             })
                           }
-                          placeholder={`Enter ${section.title.split("–")[1]?.trim() || section.key}...`}
-                          rows={5}
-                          data-testid={`textarea-${section.key}`}
+                          placeholder={`Enter ${section.title.split("–")[1]?.trim() || section.key} as bullets...`}
+                          testId={`textarea-${section.key}`}
                         />
                       </CardContent>
                     </Card>
@@ -3164,20 +3164,19 @@ export function CreditUnderwritingTool({
                         )}
                       </CardHeader>
                       <CardContent>
-                        <Textarea
+                        <BulletField
                           value={adviserSummary.sections?.[section.key] || ""}
-                          onChange={(e) =>
+                          onChange={(next) =>
                             setAdviserSummary({
                               ...adviserSummary,
                               sections: {
                                 ...adviserSummary.sections,
-                                [section.key]: e.target.value,
+                                [section.key]: next,
                               },
                             })
                           }
-                          placeholder={`Enter ${section.title.split("–")[1]?.trim() || section.key} assessment...`}
-                          rows={5}
-                          data-testid={`textarea-${section.key}`}
+                          placeholder={`Enter ${section.title.split("–")[1]?.trim() || section.key} as bullets...`}
+                          testId={`textarea-${section.key}`}
                         />
                       </CardContent>
                     </Card>
@@ -3280,9 +3279,7 @@ export function CreditUnderwritingTool({
               {underwriting.swotAnalysis?.summary && (
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm font-medium mb-1">Summary</p>
-                  <p className="text-sm text-muted-foreground">
-                    {underwriting.swotAnalysis.summary}
-                  </p>
+                  <BulletList text={underwriting.swotAnalysis.summary} className="text-muted-foreground" />
                 </div>
               )}
 

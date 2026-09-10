@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,47 @@ const OPTIONAL_SLOTS = [
 
 const ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.webp,.csv,.xls,.xlsx,.doc,.docx,.zip";
 
+const STRATA_BANDS =
+  "linear-gradient(90deg, #2E5096 0% 25%, #C68B22 25% 50%, #439840 50% 75%, #C41E28 75% 100%)";
+const PACK_SANS = { fontFamily: "'Plus Jakarta Sans', sans-serif" } as const;
+const PACK_DISPLAY = { fontFamily: "'Unbounded', sans-serif" } as const;
+const PACK_MONO = { fontFamily: "'Space Mono', monospace" } as const;
+
+function PackShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-white text-[#181A1E] antialiased" style={{ ...PACK_SANS, colorScheme: "light" }}>
+      <header className="sticky top-0 z-50 bg-white">
+        <div className="h-1 w-full" style={{ background: STRATA_BANDS }} aria-hidden />
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          <a href="https://stratafinance.co.uk" target="_blank" rel="noopener noreferrer">
+            <img src="/images/strata-logo-light.png" alt="Strata Finance" className="h-8 w-auto" />
+          </a>
+          <span
+            className="text-[11px] uppercase tracking-[1.5px] text-[#5C6673] flex items-center gap-1.5"
+            style={PACK_MONO}
+          >
+            <Shield className="h-3.5 w-3.5 text-[#2E5096]" /> Secure upload
+          </span>
+        </div>
+      </header>
+      {children}
+      <footer className="max-w-2xl mx-auto px-4 py-8 text-xs text-[#5C6673] space-y-1 border-t border-[#E3E6EB]">
+        <p>
+          0115 984 9800 · Sterling House, Unit 5 Wheatcroft Business Park, Landmere Lane, Edwalton,
+          Nottingham NG12 4DG
+        </p>
+        <p>
+          Strata Finance arranges non-regulated commercial B2B finance and is not authorised by the
+          FCA. We are not a lender.{" "}
+          <a href="https://stratafinance.co.uk" className="text-[#2E5096] hover:underline">
+            stratafinance.co.uk
+          </a>
+        </p>
+      </footer>
+    </div>
+  );
+}
+
 async function readPack(res: Response): Promise<PackState> {
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
@@ -73,19 +114,21 @@ function Slot({
   onPick: (list: FileList | null) => void;
 }) {
   return (
-    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-3">
+    <section className="rounded-[6px] border border-[#E3E6EB] bg-white p-5 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          <p className="text-sm text-slate-400 mt-1">{hint}</p>
+          <h2 className="text-base font-semibold text-[#12141A]" style={PACK_DISPLAY}>
+            {title}
+          </h2>
+          <p className="text-sm text-[#5C6673] mt-1 leading-relaxed">{hint}</p>
         </div>
-        {done && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />}
+        {done && <CheckCircle2 className="h-5 w-5 text-[#2C7A2E] shrink-0 mt-0.5" />}
       </div>
       {files.length > 0 && (
         <ul className="space-y-1.5">
           {files.map((file) => (
-            <li key={file.id} className="flex items-center gap-2 text-sm text-slate-200">
-              <FileText className="h-4 w-4 text-violet-300 shrink-0" />
+            <li key={file.id} className="flex items-center gap-2 text-sm text-[#181A1E]">
+              <FileText className="h-4 w-4 text-[#2E5096] shrink-0" />
               <span className="truncate">{file.fileName}</span>
             </li>
           ))}
@@ -103,7 +146,10 @@ function Slot({
             event.target.value = "";
           }}
         />
-        <span className="inline-flex items-center gap-2 rounded-md bg-[#4B2E6F] px-4 py-2 text-sm font-semibold text-white cursor-pointer hover:bg-[#5b3a86]">
+        <span
+          className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[#2E5096] px-5 py-2.5 text-[13px] font-bold uppercase tracking-[1.5px] text-white cursor-pointer hover:bg-[#213C77]"
+          style={PACK_MONO}
+        >
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
           {uploading ? "Uploading…" : files.length ? "Add more files" : "Choose files"}
         </span>
@@ -174,23 +220,27 @@ export default function PackUpload() {
   if (!token || error) {
     const message = error instanceof Error ? error.message : "This upload link is not valid.";
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-        <div className="max-w-md text-center space-y-3">
-          <Shield className="h-8 w-8 text-violet-300 mx-auto" />
-          <h1 className="text-xl font-semibold">{message}</h1>
-          <p className="text-slate-400 text-sm">
+      <PackShell>
+        <main className="max-w-md mx-auto px-4 py-16 text-center space-y-3">
+          <Shield className="h-8 w-8 text-[#2E5096] mx-auto" />
+          <h1 className="text-xl font-semibold text-[#12141A]" style={PACK_DISPLAY}>
+            {message}
+          </h1>
+          <p className="text-[#5C6673] text-sm leading-relaxed">
             Ask Maya to send the email again, or call Strata Finance on 0115 984 9800.
           </p>
-        </div>
-      </div>
+        </main>
+      </PackShell>
     );
   }
 
   if (isLoading || !data) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-violet-300" />
-      </div>
+      <PackShell>
+        <main className="flex items-center justify-center py-24">
+          <Loader2 className="h-6 w-6 animate-spin text-[#2E5096]" />
+        </main>
+      </PackShell>
     );
   }
 
@@ -199,35 +249,33 @@ export default function PackUpload() {
     (data.documents || []).filter((doc) => packCategoryForAttachment(doc.category) === id);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <header className="border-b border-white/10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <img src="/images/strata-finance-logo.png" alt="Strata Finance" className="h-10 w-auto" />
-          <span className="text-xs text-slate-400 flex items-center gap-1">
-            <Shield className="h-3.5 w-3.5" /> Secure upload
-          </span>
-        </div>
-      </header>
-
+    <PackShell>
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <div>
-          <p className="text-sm text-violet-200">Hi {data.contactFirstName}</p>
-          <h1 className="text-2xl font-bold mt-1">Send the pack for {data.companyName}</h1>
-          <p className="text-slate-400 mt-2 text-sm leading-relaxed">
+          <p
+            className="text-[11px] uppercase tracking-[1.5px] text-[#2E5096]"
+            style={PACK_MONO}
+          >
+            Hi {data.contactFirstName}
+          </p>
+          <h1 className="text-2xl font-bold mt-2 text-[#12141A] leading-tight" style={PACK_DISPLAY}>
+            Send the pack for {data.companyName}
+          </h1>
+          <p className="text-[#5C6673] mt-2 text-sm leading-relaxed">
             To take this forward we need bank statements, accounts, a 24-month cash flow, the current
             debt schedule, director ID, and a short note on why the funding or refinance is needed.
           </p>
         </div>
 
         {complete && (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          <div className="rounded-[6px] border border-[#439840]/30 bg-[#439840]/10 px-4 py-3 text-sm text-[#2C7A2E]">
             The required documents are on the file. We will review them and come back to you — we will
             not send this to a lender until the file is complete.
           </div>
         )}
 
         {notice && !complete && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
+          <div className="rounded-[6px] border border-[#E3E6EB] bg-[#F3F5F8] px-4 py-3 text-sm text-[#181A1E]">
             {notice}
           </div>
         )}
@@ -247,13 +295,17 @@ export default function PackUpload() {
           );
         })}
 
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-3">
+        <section className="rounded-[6px] border border-[#E3E6EB] bg-white p-5 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-white">Why is the funding or refinance needed?</h2>
-              <p className="text-sm text-slate-400 mt-1">A short note is enough — stacked loans, HMRC, cashflow, a decline.</p>
+              <h2 className="text-base font-semibold text-[#12141A]" style={PACK_DISPLAY}>
+                Why is the funding or refinance needed?
+              </h2>
+              <p className="text-sm text-[#5C6673] mt-1 leading-relaxed">
+                A short note is enough — stacked loans, HMRC, cashflow, a decline.
+              </p>
             </div>
-            {data.hasReason && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />}
+            {data.hasReason && <CheckCircle2 className="h-5 w-5 text-[#2C7A2E] shrink-0 mt-0.5" />}
           </div>
           <Textarea
             value={reason}
@@ -261,18 +313,24 @@ export default function PackUpload() {
             rows={5}
             maxLength={4000}
             placeholder="Tell us why the funding or refinance is needed"
-            className="bg-slate-900 border-white/10 text-white placeholder:text-slate-500"
+            className="bg-[#F3F5F8] border-[#CCD1D9] text-[#181A1E] placeholder:text-[#8993A0] min-h-[7.5rem]"
           />
           <Button
             onClick={() => saveReason.mutate()}
             disabled={saveReason.isPending || !reason.trim()}
-            className="bg-[#4B2E6F] hover:bg-[#5b3a86]"
+            className="min-h-11 rounded-[6px] bg-[#2E5096] hover:bg-[#213C77] text-white font-bold uppercase tracking-[1.5px] text-[13px]"
+            style={PACK_MONO}
           >
             {saveReason.isPending ? "Saving…" : data.hasReason ? "Update note" : "Save note"}
           </Button>
         </section>
 
-        <p className="text-xs uppercase tracking-wide text-slate-500">Optional — send if you have them</p>
+        <p
+          className="text-[11px] uppercase tracking-[1.5px] text-[#5C6673]"
+          style={PACK_MONO}
+        >
+          Optional — send if you have them
+        </p>
         {OPTIONAL_SLOTS.map((slot) => {
           const files = filesFor(slot.id);
           return (
@@ -288,11 +346,6 @@ export default function PackUpload() {
           );
         })}
       </main>
-
-      <footer className="max-w-2xl mx-auto px-4 pb-10 text-xs text-slate-500 space-y-1">
-        <p>0115 984 9800 · Sterling House, Unit 5 Wheatcroft Business Park, Landmere Lane, Edwalton, Nottingham NG12 4DG</p>
-        <p>Strata Finance arranges non-regulated commercial B2B finance and is not authorised by the FCA. We are not a lender.</p>
-      </footer>
-    </div>
+    </PackShell>
   );
 }

@@ -19,13 +19,18 @@ export function reporterUserPrompt(category: NewsCategory, notes: CaseyNote[], t
   const ground = crawled
     ? `Use ONLY these notes for stories and source URLs. Do not invent a story or a URL that is not in the notes below.\nNOTES:\n${crawled}`
     : "No notes landed today. Write a single short paragraph saying there is nothing to report and why, rather than inventing stories.";
-  return `Write a short UK news digest in Markdown for the "${NEWS_CATEGORY_LABELS[category]}" section of Strata Learn.
+  const politicsShape =
+    category === "uk_politics"
+      ? "One desk note, not a Westminster ticker. Pick ONE story that would change what a UK director or introducer does, fears, or trusts. Do not list Farage/Reform/Dover as five near-identical bullets."
+      : "One desk note. Lead with the story, not the section name. Two items maximum if they actually differ.";
+  return `Write one desk note in Markdown for the "${NEWS_CATEGORY_LABELS[category]}" section of Strata Learn.
 Today (UK): ${today}
 
 Shape:
-# ${NEWS_CATEGORY_LABELS[category]} — ${today}
+# <the story headline — never "${NEWS_CATEGORY_LABELS[category]} — ${today}">
 Short standfirst (one sentence)
-3-5 items, each a ## heading (the headline) followed by a short paragraph and a plain-text source line ("Source: <name>, <url>")
+Then 1-2 ## items, each a distinct headline, a short paragraph, and a plain-text source line ("Source: <name>, <url>")
+${politicsShape}
 
 ${ground}
 

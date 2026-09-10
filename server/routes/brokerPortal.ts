@@ -16,6 +16,14 @@ import {
 import { loadSterlingFileContext, buildSterlingPackZip, sterlingReportHtml, readStoredFile } from "../services/sterlingPack";
 import { handoverPackHtml } from "@shared/handoverPack";
 import { buildProspectReportData } from "../utils/prospectReport";
+import { parseSterlingCopyEdits, sterlingCopyForHandoff } from "@shared/sterlingEdits";
+import { applicationFormHtml } from "@shared/sterlingApplicationPreview";
+import { isApplicationSigned, parseApplicationData, type LenderCode } from "@shared/applicationDataFields";
+import {
+  loadProspectApplication,
+  prospectApplicationDocx,
+  sendProspectApplication,
+} from "../services/prospectApplication";
 
 const router = Router();
 
@@ -85,6 +93,7 @@ router.get("/api/broker-portal/handoffs/:id", isAuthenticated, canUseSterlingPor
       id: handoff.id,
       status: handoff.status || "awaiting_recommendation",
       recommendation: handoff.recommendation || "",
+      copy: sterlingCopyForHandoff(handoff, ctx.diligence as any),
       returnNote: handoff.returnNote || "",
       approvedLenderId: handoff.approvedLenderId || null,
       companyName: ctx.prospect.company.companyName,
@@ -113,6 +122,16 @@ router.get("/api/broker-portal/handoffs/:id", isAuthenticated, canUseSterlingPor
         ...l,
         destination: settings[l.id],
       })),
+      application: (() => {
+        const data = parseApplicationData((ctx.diligence as any)?.applicationData);
+        return {
+          status: data.status,
+          sentAt: data.sentAt,
+          signed: isApplicationSigned(data),
+          signedName: data.signedName,
+          signedAt: data.signedAt,
+        };
+      })(),
     });
   } catch (error) {
     handleApiError(res, error, "api-error");
@@ -131,6 +150,57 @@ router.get("/api/broker-portal/handoffs/:id/handover.html", isAuthenticated, can
   }
 });
 
+router.get("/api/broker-portal/handoffs/:id/application.html", isAuthenticated, canUseSterlingPortal, async (req: Request, res: Response) => {
+  try {
+    const handoff = await loadHandoff(req, res);
+    if (!handoff) return;
+    const lenderId = String(req.query.lender || "");
+    if (!isSterlingLenderId(lenderId)) {
+      return res.status(400).json({ error: "Choose a lender to preview." });
+    }
+    const ctx = await loadSterlingFileContext(handoff);
+    const { data } = await loadProspectApplication(ctx.prospect.id!);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(
+      applicationFormHtml({
+        lenderId: lenderId as LenderCode,
+        companyName: ctx.prospect.company.companyName || "File",
+        answers: data.answers,
+        directors: data.directors,
+      }),
+    );
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
+router.post("/api/broker-portal/handoffs/:id/application/send", isAuthenticated, canUseSterlingPortal, async (req: Request, res: Response) => {
+  try {
+    const handoff = await loadHandoff(req, res);
+    if (!handoff) return;
+    const ctx = await loadSterlingFileContext(handoff);
+    const sent = await sendProspectApplication(ctx.prospect.id!);
+    res.json({ url: sent.url, sentAt: sent.data.sentAt, status: sent.data.status });
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
+router.get("/api/broker-portal/handoffs/:id/application.docx", isAuthenticated, canUseSterlingPortal, async (req: Request, res: Response) => {
+  try {
+    const handoff = await loadHandoff(req, res);
+    if (!handoff) return;
+    const ctx = await loadSterlingFileContext(handoff);
+    const lender = String(req.query.lender || "");
+    const { buffer, filename } = await prospectApplicationDocx(ctx.prospect.id!, lender);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
 router.get("/api/broker-portal/handoffs/:id/report.html", isAuthenticated, canUseSterlingPortal, async (req: Request, res: Response) => {
   try {
     const handoff = await loadHandoff(req, res);
@@ -138,8 +208,9 @@ router.get("/api/broker-portal/handoffs/:id/report.html", isAuthenticated, canUs
     const prospect = await storage.getProspectById(handoff.prospectId);
     if (!prospect) return res.status(404).json({ error: "Prospect not found" });
     const reportData = await buildProspectReportData(prospect, { layoutUserId: prospect.userId });
+    const copy = sterlingCopyForHandoff(handoff, reportData.dueDiligence?.data as any);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(sterlingReportHtml(reportData));
+    res.send(sterlingReportHtml({ ...reportData, sterlingCopy: copy }));
   } catch (error) {
     if (error instanceof ProposalNotReadyError) {
       return res.status(error.status).json({
@@ -160,7 +231,12 @@ router.get("/api/broker-portal/handoffs/:id/report.pdf", isAuthenticated, canUse
     if (!prospect) return res.status(404).json({ error: "Prospect not found" });
     const { buildProspectReportData, reportFilename, streamProspectReport } = await import("../utils/prospectReport");
     const reportData = await buildProspectReportData(prospect, { layoutUserId: prospect.userId });
-    await streamProspectReport(res, { ...reportData, hideAdviserRecommendation: true } as any, reportFilename(prospect.company.companyName));
+    const copy = sterlingCopyForHandoff(handoff, reportData.dueDiligence?.data as any);
+    await streamProspectReport(
+      res,
+      { ...reportData, hideAdviserRecommendation: true, sterlingCopy: copy } as any,
+      reportFilename(prospect.company.companyName),
+    );
   } catch (error) {
     if (error instanceof ProposalNotReadyError) {
       return res.status(error.status).json({
@@ -178,12 +254,42 @@ router.put("/api/broker-portal/handoffs/:id/recommendation", isAuthenticated, ca
     const handoff = await loadHandoff(req, res);
     if (!handoff) return;
     const recommendation = String(req.body?.recommendation || "");
+    const narrativeEdits = {
+      ...parseSterlingCopyEdits(handoff.narrativeEdits),
+      recommendation,
+    };
     const updated = await storage.updateBrokerHandoff(handoff.id, {
       recommendation,
+      narrativeEdits,
       recommendedAt: new Date().toISOString(),
       recommendedByUserId: req.user!.id,
     });
     res.json({ ok: true, recommendation: updated?.recommendation || recommendation });
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
+router.put("/api/broker-portal/handoffs/:id/copy", isAuthenticated, canUseSterlingPortal, async (req: Request, res: Response) => {
+  try {
+    const handoff = await loadHandoff(req, res);
+    if (!handoff) return;
+    const narrativeEdits = parseSterlingCopyEdits(req.body);
+    const recommendation =
+      typeof narrativeEdits.recommendation === "string"
+        ? narrativeEdits.recommendation
+        : String(handoff.recommendation || "");
+    const updated = await storage.updateBrokerHandoff(handoff.id, {
+      narrativeEdits,
+      recommendation,
+      recommendedAt: new Date().toISOString(),
+      recommendedByUserId: req.user!.id,
+    });
+    res.json({
+      ok: true,
+      copy: sterlingCopyForHandoff(updated || { ...handoff, narrativeEdits, recommendation }, null),
+      recommendation,
+    });
   } catch (error) {
     handleApiError(res, error, "api-error");
   }

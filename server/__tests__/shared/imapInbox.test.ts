@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { imapConfigFromEnv, inboundAlreadyLogged, parseAddressList, pickMailboxPath } from "@shared/imapInbox";
+import {
+  IMAP_QUARANTINE_FALLBACKS,
+  imapConfigFromEnv,
+  inboundAlreadyLogged,
+  parseAddressList,
+  pickMailboxPath,
+} from "@shared/imapInbox";
 
 describe("imapConfigFromEnv", () => {
   it("uses the SMTP mailbox login against IONOS IMAP", () => {
@@ -54,6 +60,19 @@ describe("pickMailboxPath", () => {
         ["Sent", "Sent Items", "INBOX.Sent"],
       ),
     ).toBe("INBOX.Sent");
+  });
+
+  it("finds an existing Quarantine mailbox by name", () => {
+    expect(
+      pickMailboxPath(
+        [
+          { path: "INBOX", specialUse: "\\Inbox" },
+          { path: "INBOX.Quarantine", name: "Quarantine" },
+        ],
+        "",
+        IMAP_QUARANTINE_FALLBACKS,
+      ),
+    ).toBe("INBOX.Quarantine");
   });
 });
 

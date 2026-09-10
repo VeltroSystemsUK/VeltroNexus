@@ -1,5 +1,10 @@
 task,route_to,requires_shaun,notes
-hunt_companies_house_gazette,RES-2,no,Drop fit<70 and SIG-06
+hunt_companies_house_gazette,SLF-2,no,Stream A signals; drop fit<70 and SIG-06; queue-first against SME hopper
+stream_a_lead_review,SLF-2,yes,Shaun accept/reject/snooze; book-lane never create; auto-push off
+slf_package_to_nexus,SLF-2,yes,Adapter promote/enrich/create after accept
+list_ingest_and_verify,LST-2,no,Operator CSV + book-missing mailboxes; refuse dumps
+list_attach_director_mailbox,LST-2,no,attach_mailbox on existing deal; director primary; never guess info@; never create deal; Harper grades sendable
+hunt_open_file_after_accept,RES-2,no,Attach mailbox and open gated deal; do not duplicate SLF book row
 inbound_enquiry_open_file,RES-2,no,Always open
 companies_house_single_match,RES-2,no,
 companies_house_ambiguous_match,ORC-1,yes,waiting_human

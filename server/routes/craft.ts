@@ -57,7 +57,8 @@ router.post("/craft/week/grammar", isAuthenticated, (req: AuthenticatedRequest, 
 
 router.post("/craft/scan", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    res.json(await runCraftScan(req.user!.id));
+    const desk = await runCraftScan(req.user!.id);
+    res.json({ ...desk, week: [] });
   } catch (err) {
     handleApiError(res, err, "craft-scan");
   }

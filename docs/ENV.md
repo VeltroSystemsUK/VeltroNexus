@@ -68,13 +68,15 @@ Note: `DATABASE_URL` takes precedence if set.
 ### AI Services
 | Variable | Description | Example |
 |----------|-------------|---------|
+| `XAI_API_KEY` | xAI / Grok key for Company Deep Research, Associations AI Web Search, and BBB business-plan generation (`xai-…` console key) | `xai-...` |
+| `XAI_MODEL` | Optional Grok model. Deep Research, Associations search, and business plans default to `grok-4.6` | `grok-4.6` |
 | `AI_INTEGRATIONS_GEMINI_API_KEY` | Gemini AI API key | `AIza...` |
 | `AI_INTEGRATIONS_GEMINI_BASE_URL` | Gemini API base URL | `https://...` |
 
 ### Search
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `TAVILY_API_KEY` | Tavily search API key | `tvly-...` |
+| `TAVILY_API_KEY` | Optional Tavily fallback if Grok Associations web search fails | `tvly-...` |
 | `FIRECRAWL_API_KEY` | Cloud Firecrawl key for Casey/Craft **search** only. Harper does not scrape the cloud | `fc-...` |
 | `FIRECRAWL_API_URL` | Optional self-hosted Firecrawl (needs ~8GB Docker RAM). If unset, Harper fetches contact pages directly | `http://127.0.0.1:3002` |
 

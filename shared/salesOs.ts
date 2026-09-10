@@ -312,6 +312,7 @@ export type CadenceTouchId =
   | "sme_close"
   | "intro_1"
   | "intro_linkedin"
+  | "intro_mid"
   | "intro_2";
 
 export type CadenceStep = {
@@ -333,9 +334,10 @@ export const SME_CADENCE: CadenceStep[] = [
 ];
 
 export const INTRODUCER_CADENCE: CadenceStep[] = [
-  { index: 1, day: 1, delayDaysFromPrevious: 0, touchId: "intro_1", channel: "email", autoSend: true, queueCall: false, job: "Partner outreach — client debt mechanism" },
-  { index: 2, day: 5, delayDaysFromPrevious: 4, touchId: "intro_linkedin", channel: "linkedin", autoSend: false, queueCall: false, job: "LinkedIn technical briefing" },
-  { index: 3, day: 10, delayDaysFromPrevious: 5, touchId: "intro_2", channel: "email+call", autoSend: true, queueCall: true, job: "Partner alignment email + introducer call queue" },
+  { index: 1, day: 1, delayDaysFromPrevious: 0, touchId: "intro_1", channel: "email", autoSend: true, queueCall: false, job: "Stream B open — packager, you keep the client" },
+  { index: 2, day: 3, delayDaysFromPrevious: 2, touchId: "intro_linkedin", channel: "linkedin", autoSend: false, queueCall: false, job: "LinkedIn staged — director posts" },
+  { index: 3, day: 5, delayDaysFromPrevious: 2, touchId: "intro_mid", channel: "email", autoSend: true, queueCall: false, job: "How a file moves" },
+  { index: 4, day: 10, delayDaysFromPrevious: 5, touchId: "intro_2", channel: "email+call", autoSend: true, queueCall: true, job: "Last note — queue partner call" },
 ];
 
 export const INBOUND_CADENCE: CadenceStep[] = [

@@ -1,4 +1,5 @@
 import { CHECKLIST_SECTIONS } from "./checklistData";
+import { STERLING_PAPER_CSS } from "./sterlingPaper";
 
 export type HandoverAnswer = "yes" | "no" | "na" | "";
 
@@ -102,7 +103,8 @@ export function handoverPackHtml(pack: HandoverPack, opts: { companyName: string
   <meta charset="utf-8" />
   <title>Handover pack — ${escapeHtml(opts.companyName)}</title>
   <style>
-    body { font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; color: #10233f; margin: 32px; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; color: #10233f; }
     .bar { height: 3px; background: #123a66; margin: 0 0 20px; }
     h1 { font-size: 22px; margin: 0 0 4px; }
     .meta { color: #5b6b7c; font-size: 13px; margin-bottom: 24px; }
@@ -115,13 +117,16 @@ export function handoverPackHtml(pack: HandoverPack, opts: { companyName: string
     .na { color: #7a5b12; }
     .blank { color: #8a96a3; font-weight: 600; }
     .note { font-size: 12.5px; color: #3d4d5c; padding: 0 0 10px; }
+    ${STERLING_PAPER_CSS}
   </style>
 </head>
 <body>
+  <div class="doc">
   <div class="bar"></div>
   <h1>Handover pack</h1>
   <p class="meta">${escapeHtml(opts.companyName)} · ${pack.answered} of ${pack.total} questions answered</p>
   ${sections}
+  </div>
 </body>
 </html>`;
 }

@@ -6,7 +6,6 @@ export const REQUIRED_FOR_STERLING_SEND: AttachmentItemId[] = [
   "cashflow",
   "debt-schedule",
   "id",
-  "company-search",
   "use-of-funds",
 ];
 
@@ -43,7 +42,7 @@ export function packCategoryForAttachment(category?: string | null): AttachmentI
 export function isPackUploadCategory(category: string): boolean {
   const mapped = packCategoryForAttachment(category);
   if (mapped === "other") return category === "other" || category === "other";
-  return mapped !== "company-search";
+  return mapped !== "other" || category === "other";
 }
 
 function itemById(id: AttachmentItemId): CompletenessItem {
@@ -52,9 +51,7 @@ function itemById(id: AttachmentItemId): CompletenessItem {
 }
 
 export function requiredCustomerPackLabels(): string[] {
-  return REQUIRED_FOR_STERLING_SEND.filter((id) => id !== "company-search").map(
-    (id) => ATTACHMENT_ITEMS.find((item) => item.id === id)!.label
-  );
+  return REQUIRED_FOR_STERLING_SEND.map((id) => ATTACHMENT_ITEMS.find((item) => item.id === id)!.label);
 }
 
 function presentIds(input: {
@@ -74,7 +71,6 @@ function presentIds(input: {
     if (/passport|driving|licence|license|identity/i.test(name)) found.add("id");
   }
   if (String(input.fundingReason || "").trim()) found.add("use-of-funds");
-  if (String(input.companyNumber || "").trim()) found.add("company-search");
   return found;
 }
 

@@ -137,9 +137,11 @@ describe("strata outreach scripts", () => {
       "intro_1",
       "outreach-sales"
     );
-    expect(email.subject).toMatch(/corporate clients/i);
+    expect(email.subject).toMatch(/CDFI packaging/i);
     expect(email.text).toMatch(/accountancy practices/i);
     expect(email.text).toMatch(/reply stop/i);
+    expect(email.text).toMatch(/You keep the client/i);
+    expect(email.text).not.toMatch(/Acme|petition|Mill Lane/i);
   });
 
   it("warm call is permission-based and names Strata", () => {

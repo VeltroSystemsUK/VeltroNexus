@@ -175,15 +175,17 @@ export default function UnderwritingLayout() {
                         <h4 className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                             Tools
                         </h4>
-                        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
-                            <Calculator className="h-4 w-4 mr-2" />
-                            Quick Calculator
-                        </Button>
+                        <Link href="/credit-tools">
+                            <a className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" data-testid="link-quick-calculator">
+                                <Calculator className="h-4 w-4 mr-2" />
+                                Quick Calculator
+                            </a>
+                        </Link>
                         <Link href="/lenders">
-                            <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
+                            <a className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" data-testid="link-lender-database">
                                 <Database className="h-4 w-4 mr-2" />
                                 Lender Database
-                            </Button>
+                            </a>
                         </Link>
                     </div>
                 </nav>

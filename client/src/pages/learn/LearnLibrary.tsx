@@ -2,7 +2,15 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { handbookPieces, isHandbookSlug, type LearnPiecePublic } from "@shared/learn";
-import { LearnCatalogFailed, LearnPieceCard, PackagerLine, setLearnMeta } from "./LearnHome";
+import {
+  FilmCard,
+  isPromoHero,
+  LearnCatalogFailed,
+  LearnPieceCard,
+  PackagerLine,
+  ScenarioCard,
+  setLearnMeta,
+} from "./LearnHome";
 import { LearnDeskPrompts } from "./LearnDeskPrompts";
 
 export default function LearnLibrary() {
@@ -19,7 +27,7 @@ export default function LearnLibrary() {
 
   const library = data?.library ?? [];
   const handbook = handbookPieces(library);
-  const rest = library.filter((piece) => !isHandbookSlug(piece.slug));
+  const rest = library.filter((piece) => !isHandbookSlug(piece.slug) && !isPromoHero(piece));
 
   if (isLoading) return <p className="text-zinc-500">Loading library…</p>;
   if (isError) return <LearnCatalogFailed />;
@@ -47,6 +55,13 @@ export default function LearnLibrary() {
           </Link>
         </div>
         <LearnDeskPrompts />
+      </section>
+      <section className="space-y-4">
+        <h2 className="font-['Unbounded'] text-2xl tracking-tight">The film and the scenario</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          <FilmCard />
+          <ScenarioCard />
+        </div>
       </section>
       {handbook.length > 0 && (
         <section id="handbook" className="space-y-4">

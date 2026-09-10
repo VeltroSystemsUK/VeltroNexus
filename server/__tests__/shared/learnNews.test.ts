@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { canPublishLearn, buildLearnHome, type LearnPieceLike } from "@shared/learn";
+import {
+  buildLearnHome,
+  canPublishLearn,
+  displayNewsHeadline,
+  stripNewsBodyTitle,
+  type LearnPieceLike,
+} from "@shared/learn";
 import { retrieveLearnPieces } from "@shared/learnLibrarian";
 import {
   canPostLearnNewsComment,
@@ -166,5 +172,35 @@ describe("news lane vs lessons", () => {
   it("does not feed news posts to the desk", () => {
     const news = live();
     expect(retrieveLearnPieces([news], "HMRC writing").map((row) => row.slug)).toEqual([]);
+  });
+});
+
+describe("news headline display", () => {
+  const body = [
+    "# UK Politics — 2026-09-07",
+    "A snapshot of the day's key stories.",
+    "",
+    "## Whitehall starts paying a council's £2bn debt",
+    "The BBC reports the government has begun paying down a council's books.",
+  ].join("\n");
+
+  it("does not repeat the section name or the date as the card title", () => {
+    const headline = displayNewsHeadline("UK Politics — 2026-09-07", "uk_politics", body);
+    expect(headline).not.toMatch(/UK Politics/i);
+    expect(headline).not.toMatch(/2026-09-07/);
+    expect(headline).toMatch(/£2bn/);
+  });
+
+  it("leaves a real headline alone", () => {
+    expect(displayNewsHeadline("This is the channel", "uk_commercial_finance", "Notes from the desk.")).toBe(
+      "This is the channel",
+    );
+  });
+
+  it("drops a body H1 that repeats the post title", () => {
+    const stripped = stripNewsBodyTitle(body, "UK Politics — 2026-09-07");
+    expect(stripped).not.toMatch(/^# UK Politics/m);
+    expect(stripped).toMatch(/^A snapshot/m);
+    expect(stripped).toMatch(/£2bn/);
   });
 });

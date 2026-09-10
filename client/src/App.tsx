@@ -57,6 +57,7 @@ const LearnDesk = lazy(() => import("@/pages/LearnDesk"));
 const LearnApp = lazy(() => import("@/pages/learn/LearnApp"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const Craft = lazy(() => import("@/pages/Craft"));
+const CraftMotionLab = lazy(() => import("@/pages/CraftMotionLab"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
 const BrokerPortal = lazy(() => import("@/pages/BrokerPortal"));
@@ -64,6 +65,8 @@ const SterlingFile = lazy(() => import("@/pages/sterling/SterlingFile"));
 const SterlingSettings = lazy(() => import("@/pages/sterling/SterlingSettings"));
 const IntroductionPortal = lazy(() => import("@/pages/IntroductionPortal"));
 const PackUpload = lazy(() => import("@/pages/PackUpload"));
+const SignEngagement = lazy(() => import("@/pages/SignEngagement"));
+const ApplyOnline = lazy(() => import("@/pages/ApplyOnline"));
 const CallCentre = lazy(() => import("@/pages/CallCentre"));
 const AgentMail = lazy(() => import("@/pages/AgentMail"));
 const Openers = lazy(() => import("@/pages/Openers"));
@@ -109,6 +112,8 @@ function NexusRouter() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/pack/:token" component={PackUpload} />
+          <Route path="/sign/:token" component={SignEngagement} />
+          <Route path="/apply/:token" component={ApplyOnline} />
           <Route path="/broker-portal/settings" component={SterlingSettings} />
           <Route path="/broker-portal/:id" component={SterlingFile} />
           <Route path="/broker-portal" component={BrokerPortal} />
@@ -126,11 +131,18 @@ function NexusRouter() {
       <Switch>
         {/* Public Routes */}
         <Route path="/auth" component={AuthPage} />
+        <Route path="/motion-lab">
+          {typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+            ? <CraftMotionLab />
+            : <Redirect to="/auth" />}
+        </Route>
         <Route path="/privacy" component={PrivacyPolicy} />
         <Route path="/terms" component={Terms} />
         <Route path="/unsubscribe" component={Unsubscribe} />
         <Route path="/introduction-portal" component={IntroductionPortal} />
         <Route path="/pack/:token" component={PackUpload} />
+        <Route path="/sign/:token" component={SignEngagement} />
+        <Route path="/apply/:token" component={ApplyOnline} />
 
         <Route path="/broker-portal/settings">
           {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingSettings />}
@@ -156,6 +168,9 @@ function NexusRouter() {
         </Route>
         <Route path="/search">
           {!isAuthenticated ? <Redirect to="/auth" /> : <CompanySearch mode="user" />}
+        </Route>
+        <Route path="/prospect/:id/underwriting">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <UnderwritingLayout />}
         </Route>
         <Route path="/prospect/:id/underwriting/:rest*">
           {!isAuthenticated ? <Redirect to="/auth" /> : <UnderwritingLayout />}
@@ -306,7 +321,8 @@ function AppContent() {
 function NexusAppContent() {
   const [location] = useLocation();
   const { isAuthenticated, isLoading, user, role } = useAuth();
-  const isCustomerPack = location.startsWith("/pack/");
+  const isCustomerPack =
+    location.startsWith("/pack/") || location.startsWith("/sign/") || location.startsWith("/apply/");
   const isSterlingPortal =
     role === "external_broker" || location.startsWith("/broker-portal");
 

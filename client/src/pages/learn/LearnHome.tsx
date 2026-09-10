@@ -2,12 +2,20 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
+  displayNewsHeadline,
   handbookPieces,
   isAllowedVideoSource,
   isHandbookSlug,
   LEARN_VIDEO_PUBLIC_PREFIX,
   type LearnPiecePublic,
 } from "@shared/learn";
+import {
+  STACKED_DEBT_SCENARIO_HREF,
+  STACKED_DEBT_SCENARIO_POSTER,
+  STACKED_DEBT_SCENARIO_VIDEO,
+  THURSDAY_PACK_HREF,
+  THURSDAY_PACK_POSTER,
+} from "@shared/learnScenario";
 import { LearnDeskPrompts } from "./LearnDeskPrompts";
 
 export const EXPLORE_URL = "https://explore.stratanexus.co.uk";
@@ -70,10 +78,12 @@ export function LearnPlayer({
   videoUrl,
   title,
   fallback,
+  poster,
 }: {
   videoUrl: string;
   title: string;
   fallback?: string;
+  poster?: string | null;
 }) {
   const [failed, setFailed] = useState(false);
   const embed = embedSrc(videoUrl);
@@ -89,8 +99,10 @@ export function LearnPlayer({
     return (
       <video
         src={embed.src}
+        poster={poster || undefined}
         controls
         playsInline
+        preload="metadata"
         className="w-full rounded-xl bg-black aspect-video"
         onError={() => setFailed(true)}
       />
@@ -154,6 +166,69 @@ export function LearnNotFound() {
   );
 }
 
+export function FilmCard({ featured = false }: { featured?: boolean }) {
+  return (
+    <Link
+      href={STACKED_DEBT_SCENARIO_HREF}
+      className={`relative overflow-hidden block rounded-xl border border-white/10 bg-white/[0.03] hover:border-emerald-400/40 transition-colors ${
+        featured ? "p-8 md:p-10" : "p-5"
+      }`}
+    >
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-cover bg-center opacity-20"
+        style={{ backgroundImage: `url(${STACKED_DEBT_SCENARIO_POSTER})` }}
+      />
+      <div className="relative">
+        <span className="font-['Space_Mono'] text-emerald-400 text-sm">The film</span>
+        <h2
+          className={`font-['Unbounded'] tracking-tight text-zinc-50 mt-2 ${
+            featured ? "text-3xl md:text-4xl" : "text-lg"
+          }`}
+        >
+          Stacked debt
+        </h2>
+        <p className={`text-zinc-400 mt-2 ${featured ? "text-base max-w-2xl" : "text-sm"}`}>
+          Play the film. At each beat, choose. Loan two does not pay off loan one.
+        </p>
+        <p className="mt-4 text-xs uppercase tracking-wide text-emerald-400">Watch</p>
+      </div>
+    </Link>
+  );
+}
+
+export function ScenarioCard({ featured = false }: { featured?: boolean }) {
+  return (
+    <a
+      href={THURSDAY_PACK_HREF}
+      className={`relative overflow-hidden block rounded-xl border border-white/10 bg-white/[0.03] hover:border-emerald-400/40 transition-colors ${
+        featured ? "p-8 md:p-10" : "p-5"
+      }`}
+    >
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-cover bg-center opacity-20"
+        style={{ backgroundImage: `url(${THURSDAY_PACK_POSTER})` }}
+      />
+      <div className="relative">
+        <span className="font-['Space_Mono'] text-emerald-400 text-sm">Scenario</span>
+        <h2
+          className={`font-['Unbounded'] tracking-tight text-zinc-50 mt-2 ${
+            featured ? "text-3xl md:text-4xl" : "text-lg"
+          }`}
+        >
+          The Thursday Pack
+        </h2>
+        <p className={`text-zinc-400 mt-2 ${featured ? "text-base max-w-2xl" : "text-sm"}`}>
+          Payroll is Friday. A call-centre broker has an offer. Sit down, click a picture, and choose. Not every
+          broker is the same. Map the stack. Time to Pay. One structure.
+        </p>
+        <p className="mt-4 text-xs uppercase tracking-wide text-emerald-400">Play</p>
+      </div>
+    </a>
+  );
+}
+
 export function LearnPieceCard({
   piece,
   featured = false,
@@ -163,6 +238,8 @@ export function LearnPieceCard({
 }) {
   const href = pieceHref(piece.kind, piece.slug);
   const action = piece.kind === "news" ? "News" : piece.kind === "article" ? "Read" : "Watch";
+  const headline =
+    piece.kind === "news" ? displayNewsHeadline(piece.title, piece.category, piece.body) : piece.title;
   const showBackgroundImage = piece.kind === "news" && Boolean(piece.heroImageUrl);
   return (
     <Link
@@ -189,7 +266,7 @@ export function LearnPieceCard({
             featured ? "text-3xl md:text-4xl" : "text-lg"
           }`}
         >
-          {piece.title}
+          {headline}
         </h3>
         {piece.excerpt && (
           <p className={`text-zinc-400 mt-2 ${featured ? "text-base max-w-2xl" : "text-sm line-clamp-2"}`}>
@@ -259,12 +336,25 @@ export default function LearnHome() {
         <PackagerLine />
       </section>
 
-      {hero && (
-        <section className="space-y-3">
-          <LearnPlayer videoUrl={hero.videoUrl} title={hero.title} fallback={hero.transcript || hero.excerpt} />
-          <p className="text-sm text-zinc-500">{hero.title}</p>
-        </section>
-      )}
+      <section className="space-y-3">
+        <p className="font-['Space_Mono'] text-emerald-400 text-sm">The film</p>
+        <LearnPlayer
+          videoUrl={hero?.videoUrl || STACKED_DEBT_SCENARIO_VIDEO}
+          title={hero?.title || "Stacked short-term debt"}
+          fallback={hero?.transcript || hero?.excerpt}
+          poster={hero?.heroImageUrl || STACKED_DEBT_SCENARIO_POSTER}
+        />
+        <p className="text-sm text-zinc-500">
+          {hero?.title || "Stacked short-term debt. Loan two does not pay off loan one."}
+        </p>
+        <Link href={STACKED_DEBT_SCENARIO_HREF} className="inline-block text-sm text-emerald-400 hover:underline">
+          Play with pauses
+        </Link>
+      </section>
+
+      <section>
+        <ScenarioCard featured />
+      </section>
 
       {path.length > 0 && (
         <section className="space-y-6">

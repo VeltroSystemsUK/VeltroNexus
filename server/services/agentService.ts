@@ -1,6 +1,7 @@
 import { storage } from "../storage";
 import { DigitalAssociate, AssociateStatus } from "@shared/agents";
 import { MARKETING_DIRECTOR_PROMPT } from "@shared/craftDirector";
+import { islaStudioBrief } from "@shared/craftManual";
 import { MARKET_RESEARCHER_PROMPT } from "@shared/craftScout";
 import { MEDIA_CURATOR_PROMPT } from "@shared/mediaCurator";
 import { REPORTER_DIGEST_PROMPT } from "./reporterAgent";
@@ -163,7 +164,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     ],
     tools: ["Companies House API", "ICAEW/ACCA directory", "Deal files"],
     description:
-      "Refer Agent. Finds Stream B introducer candidates only — accountancy practices, fractional CFOs, turnaround advisers. Elena retries contact; once reachable they enter Identified → James contacts → Approved. Never the SME pack or Sterling path.",
+      "Super Refer Agent (slf.refer.v1). Resolves introducer firms (accountants, fractional CFOs, turnaround advisers — never brokers). Proves a published role mailbox. Only writer of reachableCorporateContact. Never sends. Never enrols Stream B. Never copies SME distress language onto the introducer row.",
     hourlyRate: 0,
     scores: [
       { subject: "Accuracy", A: 99, fullMark: 100 },
@@ -262,7 +263,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     expertise: ["Lead Generation", "Personalized Outreach", "Meeting Booking"],
     tools: ["Email Synthesizer", "LinkedIn Profiler", "BANT Scorer"],
     description:
-      "Runs hunt cadences only. Stream A SME: 14-day Email → LinkedIn → Email → Phone. Stream B introducer: 10-day Email → LinkedIn → Phone once Tom has a reachable partner. Inbound ack is Maya; inbound chase is Sophie.",
+      "Hunt email desk (slf.outreach.v1). Stream A 14-day playbook from Sales OS copy. Stream B 10-day only after Refer reachability. Does not invent copy. SMTP accept-or-hold. Inbound replies are SAL-1.",
     hourlyRate: 0,
     scores: [
       { subject: "Engagement Rate", A: 92, fullMark: 100 },
@@ -278,7 +279,8 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
         "Never email an introducer that still has no corporate contact",
         "Stage LinkedIn copy and wait for the director to post",
         "Include a stop line on cold email",
-        "Hold on PECR personal mailboxes and failed SMTP — retry the same touch, not day 1",
+        "Hold on PECR, missing stop line, wrong pipeline pack, Refer-missing, and failed SMTP — retry the same touch",
+        "Never invent copy; missing template is playbook_gap",
       ],
       tasks: [
         {
@@ -695,7 +697,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
     voiceEnabled: false,
     aresCertification: { status: "certified", score: 96 },
     workflow: {
-      jobDescription: MARKETING_DIRECTOR_PROMPT,
+      jobDescription: `${MARKETING_DIRECTOR_PROMPT}\n\n${islaStudioBrief()}`,
       responsibilities: [
         "Own brand strategy, positioning, and messaging architecture across the borrower and introducer tracks",
         "Govern the visual identity system: logo, colour, type, imagery, motion, layout — the brand wins over generic design-skill defaults",

@@ -6,7 +6,7 @@ import { ammoForPost, yafflePromptFromAmmo } from "@shared/craftYaffle";
 import type { CreativeAmmoBrief } from "@shared/craftScout";
 import { adaptPage, spawnSizes } from "./lib/adapt";
 import { applyCreativeDirection, applyPostCopy, applyPostVisual, composeSocialPost, STRATA_BRAND } from "./lib/composePost";
-import { applyWeekRoute, canExportWeekPage, isHouseWeekDoc, isoWeekId, materialiseWeek, reviewWeekPage, type WeekRoute } from "./lib/weekGrammar";
+import { applyWeekRoute, canExportWeekPage, isHouseWeekDoc, isoWeekId, materialiseWeek, reviewWeekPage, shouldHangWeekStill, type WeekRoute } from "./lib/weekGrammar";
 import { applyFrameShape, applyImageLook, applyNodeMotion, applyNodeOpacity, applyNodeShadow, nudgeNodeOrder, pageHasMotion, type FrameShapeId, type ImageLookId, type ImageMotionId, type ShadowPresetId } from "./lib/looks";
 import { fetchImageDataUrl, stockById } from "./lib/stock";
 import { applyBrand, applyBrandLogo, cloneBrand, extractPaletteFromImage, isLogoSlot } from './lib/brand';
@@ -160,6 +160,7 @@ interface CraftState {
   newBlank: (opts?: { title?: string; presetId?: string; silent?: boolean }) => Promise<void>;
   openFromPost: (post: CraftPost) => Promise<void>;
   generateStillsForWeek: (posts: CraftPost[], briefs: CreativeAmmoBrief[]) => Promise<void>;
+  paintWeekFromPosts: (posts: CraftPost[]) => void;
   syncFromPost: (post: CraftPost) => void;
   openFromAsset: (asset: { id: string; name: string; mimeType: string }) => Promise<void>;
   openFromFile: (file: File) => Promise<void>;
@@ -169,6 +170,7 @@ interface CraftState {
   addShape: (variant?: ShapeVariant, x?: number, y?: number) => void;
   addMotion: (presetId?: string, x?: number, y?: number) => void;
   applyMotionPreset: (id: string) => void;
+  replaceMotionPreset: (id: string) => void;
   runCraftHelpStep: (recipeId: string, stepIndex: number) => Promise<{ ok: boolean; error?: string }>;
   applyCurrentDescription: (phrase: string) => void;
   captureMotionStill: (id?: string) => void;
@@ -317,7 +319,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
       if (!doc) return;
       const page = currentPage(doc, pageId);
       const node = page.nodes.find((item) => item.id === id);
-      if (!node || node.type !== "text" || node.locked || node.hidden) return;
+      if (!node || (node.type !== "text" && node.type !== "motion") || node.locked || node.hidden) return;
       set({ selectedIds: [id], editingTextId: id, tool: "select" });
     },
     endTextEdit: (text) => {
@@ -328,6 +330,17 @@ export const useCraftStore = create<CraftState>((set, get) => {
         const node = page.nodes.find((item) => item.id === editingTextId);
         if (node?.type === "text" && node.text !== text) {
           get().updateNode(editingTextId, { text });
+        }
+        if (node?.type === "motion") {
+          const hook = page.nodes.find((item) => item.type === "text" && item.name === "Hook 1");
+          commit(withPage(doc, page.id, (current) => ({
+            ...current,
+            nodes: current.nodes.map((item) => {
+              if (item.id === editingTextId && item.type === "motion") return { ...item, text };
+              if (hook && item.id === hook.id && item.type === "text") return { ...item, text };
+              return item;
+            }),
+          })));
         }
       }
       set({ editingTextId: null });
@@ -420,6 +433,24 @@ export const useCraftStore = create<CraftState>((set, get) => {
         console.error(error);
         toast.error("Could not compose that post");
       }
+    },
+
+    paintWeekFromPosts: (posts) => {
+      const { doc, assetId, history, historyIndex } = get();
+      if (!doc?.week || !posts.length) return;
+      const weekAsset = `week:${doc.week.weekId}`;
+      if (assetId !== weekAsset) return;
+      let next = doc;
+      for (const post of posts) next = applyPostCopy(next, post);
+      const pushed = pushHistory(history, historyIndex, next);
+      set({
+        doc: next,
+        pageId: next.activePageId,
+        dirty: true,
+        history: pushed.stack,
+        historyIndex: pushed.index,
+      });
+      void persistLocal(next, weekAsset);
     },
 
     syncFromPost: (post) => {
@@ -541,6 +572,24 @@ export const useCraftStore = create<CraftState>((set, get) => {
       }
       const page = currentPage(doc, pageId);
       const selected = selectedIds[0] ? page.nodes.find((item) => item.id === selectedIds[0]) : undefined;
+      if (selected?.type === "motion" && selected.schema.category === preset.schema.category) {
+        clearMotionSessionWarning(selected.id);
+        get().updateNode(selected.id, { schema: preset.schema, seed: Date.now() });
+        pulseMotion("dock");
+        return;
+      }
+      get().addMotion(preset.id);
+    },
+
+    replaceMotionPreset: (id) => {
+      const { doc, pageId, selectedIds } = get();
+      const preset = MOTION_PRESETS.find((item) => item.id === id) ?? MOTION_PRESETS[0]!;
+      if (!doc) {
+        get().addMotion(preset.id);
+        return;
+      }
+      const page = currentPage(doc, pageId);
+      const selected = selectedIds[0] ? page.nodes.find((item) => item.id === selectedIds[0]) : undefined;
       if (selected?.type === "motion") {
         clearMotionSessionWarning(selected.id);
         const patch: Partial<typeof selected> = { schema: preset.schema, seed: Date.now() };
@@ -548,6 +597,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
           patch.animation = applyNodeMotion(selected, "hook-turn").animation;
         }
         get().updateNode(selected.id, patch);
+        pulseMotion("dock");
         return;
       }
       get().addMotion(preset.id);
@@ -593,10 +643,9 @@ export const useCraftStore = create<CraftState>((set, get) => {
             break;
           }
           case "replaceMotionPreset": {
-            // replaceMotionPreset is not on this branch; add a layer instead.
             if (!get().doc) await get().newBlank({ silent: true });
             if (!get().doc) return noDoc();
-            get().addMotion(action.presetId);
+            get().replaceMotionPreset(action.presetId);
             break;
           }
           case "addText": {
@@ -1036,9 +1085,8 @@ export const useCraftStore = create<CraftState>((set, get) => {
     },
 
     /**
-     * Runs Grok generation for every post in the week that doesn't already have a saved
-     * board, and persists the bespoke still into each post's own document — so opening any
-     * post later finds it already there instead of falling back to a generic stock photo.
+     * Generates stills for days that want photography (Wednesday voice, Saturday object)
+     * and hangs them on the house week file the desk actually opens.
      */
     generateStillsForWeek: async (posts, briefs) => {
       const pullImage = async (jobId: string): Promise<string> => {
@@ -1053,15 +1101,20 @@ export const useCraftStore = create<CraftState>((set, get) => {
         });
       };
 
+      const weekId = posts.find((post) => post.weekId)?.weekId;
+      const weekAsset = weekId ? `week:${weekId}` : null;
       const results = await Promise.allSettled(
         posts.map(async (post) => {
-          if (post.weekId || post.daySlot) return;
-          const existing = await loadCraftForAsset(post.id);
-          if (existing) return;
+          if (post.weekId || post.daySlot) {
+            if (!shouldHangWeekStill(post.daySlot)) return null;
+          } else {
+            const existing = await loadCraftForAsset(post.id);
+            if (existing) return null;
+          }
 
           const ammo = ammoForPost(briefs, post);
           const prompt = ammo ? yafflePromptFromAmmo(ammo) : post.visual?.prompt || post.hook;
-          if (!prompt?.trim()) return;
+          if (!prompt?.trim()) return null;
 
           const res = await fetch("/api/craft/yaffle/image", {
             method: "POST",
@@ -1087,17 +1140,55 @@ export const useCraftStore = create<CraftState>((set, get) => {
               throw new Error("Images timed out.");
             })();
           }
+          return { post, dataUrl };
+        }),
+      );
 
+      let weekDoc = weekAsset
+        ? get().assetId === weekAsset
+          ? get().doc
+          : await loadCraftForAsset(weekAsset)
+        : null;
+      if (weekAsset && !weekDoc && weekId) {
+        const sample = posts.find((post) => post.weekId === weekId);
+        const route =
+          sample?.route === "safe-distinctive" || sample?.route === "beautiful-insane" || sample?.route === "sharp-cultural"
+            ? sample.route
+            : "sharp-cultural";
+        weekDoc = materialiseWeek({ weekId, route });
+      }
+
+      for (const result of results) {
+        if (result.status !== "fulfilled" || !result.value) continue;
+        const { post, dataUrl } = result.value;
+        const asset: CraftAsset = {
+          id: `visual_${post.id}`,
+          name: "Generated still",
+          mime: "image/png",
+          dataUrl,
+          source: "generated",
+        };
+        if (weekDoc && weekAsset) {
+          weekDoc = applyPostCopy(weekDoc, post);
+          weekDoc = applyPostVisual(weekDoc, asset, "plain", {
+            daySlot: post.daySlot,
+            weekday: post.weekday,
+          });
+        } else {
           const saved = loadBrandKit();
           const brand = saved.name && saved.name !== "Studio" ? saved : STRATA_BRAND;
           const logo = loadBrandLogo();
           let doc = composeSocialPost(post, brand, logo);
           doc = applyPostCopy(doc, post);
-          const asset: CraftAsset = { id: `visual_${post.id}`, name: "Generated still", mime: "image/png", dataUrl };
           doc = applyCreativeDirection(applyPostVisual(doc, asset, "plain"), post);
           await persistLocal(doc, post.id);
-        }),
-      );
+        }
+      }
+
+      if (weekDoc && weekAsset) {
+        const id = await persistLocal(weekDoc, weekAsset);
+        if (get().assetId === weekAsset) loadDocument(weekDoc, id);
+      }
 
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed) toast.error(`${failed} still${failed === 1 ? "" : "s"} could not be generated`);

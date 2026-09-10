@@ -49,6 +49,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { withJsonFileLock } from "./utils/jsonFileLock";
+import { mergeCollections, parseCollectionsStore } from "./utils/collectionsStore";
 
 const SqliteStore = createBetterSqlite3Store(session);
 const sessionDb = new Database("sessions.db");
@@ -63,16 +64,22 @@ function getStoreData(filePath = COLLECTIONS_STORE_PATH): Record<string, any[]> 
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify({}));
   }
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch {
-    return {};
-  }
+  return parseCollectionsStore(fs.readFileSync(filePath, "utf8")) as Record<string, any[]>;
+}
+
+function persistStore(data: Record<string, any[]>, filePath = COLLECTIONS_STORE_PATH) {
+  const tmp = `${filePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, filePath);
 }
 
 function writeStoreData(data: Record<string, any[]>, filePath = COLLECTIONS_STORE_PATH) {
   withJsonFileLock(filePath, () => {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    let onDisk: Record<string, any[]> = {};
+    if (fs.existsSync(filePath)) {
+      onDisk = parseCollectionsStore(fs.readFileSync(filePath, "utf8")) as Record<string, any[]>;
+    }
+    persistStore(mergeCollections(onDisk, data) as Record<string, any[]>, filePath);
   });
 }
 
@@ -82,9 +89,11 @@ function getCollection(name: string, filePath = COLLECTIONS_STORE_PATH): any[] {
 }
 
 function setCollection(name: string, list: any[], filePath = COLLECTIONS_STORE_PATH) {
-  const data = getStoreData(filePath);
-  data[name] = list;
-  writeStoreData(data, filePath);
+  withJsonFileLock(filePath, () => {
+    const data = getStoreData(filePath);
+    data[name] = list;
+    persistStore(data, filePath);
+  });
 }
 
 function insertItem(collectionName: string, item: any, filePath = COLLECTIONS_STORE_PATH): any {

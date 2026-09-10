@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCompanyWebSearchQueries,
+  grokSearchCompanyWeb,
   localityHint,
+  parseGrokWebSearchResponse,
   rankCompanyWebResults,
+  searchCompanyWeb,
   tradingNames,
 } from "../../utils/companyWebSearch";
 
@@ -176,5 +179,107 @@ describe("rankCompanyWebResults", () => {
       names
     );
     expect(ranked).toHaveLength(0);
+  });
+});
+
+describe("parseGrokWebSearchResponse", () => {
+  it("maps Grok output_text and citations into Associations web-search rows", () => {
+    const parsed = parseGrokWebSearchResponse({
+      output_text: "George's Tradition was bought out of administration; more than 100 jobs were saved.",
+      citations: [
+        "https://www.bbc.co.uk/news/uk-england-derbyshire-59698046",
+        { url: "https://www.derbytelegraph.co.uk/food", title: "Local press" },
+      ],
+    });
+    expect(parsed.answer).toMatch(/administration/);
+    expect(parsed.results.map((row) => row.url)).toEqual([
+      "https://www.bbc.co.uk/news/uk-england-derbyshire-59698046",
+      "https://www.derbytelegraph.co.uk/food",
+    ]);
+    expect(parsed.results[1].title).toBe("Local press");
+  });
+});
+
+describe("grokSearchCompanyWeb", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("calls Grok Responses API with web_search enabled", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(String(url)).toBe("https://api.x.ai/v1/responses");
+      const body = JSON.parse(String(init?.body || "{}"));
+      expect(body.model).toBe("grok-4.6");
+      expect(body.tools).toEqual(
+        expect.arrayContaining([expect.objectContaining({ type: "web_search" })])
+      );
+      expect(JSON.stringify(body.input)).toMatch(/THE HOME CRAFTERS/);
+      return {
+        ok: true,
+        json: async () => ({
+          output_text: "Home Crafters is a kitchen fitter in Bristol.",
+          citations: ["https://www.bbc.co.uk/news/uk-england-bristol-home-crafters"],
+        }),
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await grokSearchCompanyWeb({
+      companyName: "THE HOME CRAFTERS LTD.",
+      companyNumber: "10034885",
+      registeredAddress: "Bristol",
+      env: { XAI_API_KEY: "xai-test-key" },
+    });
+
+    expect(result.answer).toMatch(/kitchen fitter/);
+    expect(result.results[0].url).toContain("bbc.co.uk");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("searchCompanyWeb", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses Grok web_search for Associations even when a Tavily key is present", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(String(url)).toBe("https://api.x.ai/v1/responses");
+      return {
+        ok: true,
+        json: async () => ({
+          output_text: "Home Crafters fits kitchens in Bristol.",
+          citations: ["https://www.bbc.co.uk/news/uk-england-bristol-home-crafters"],
+        }),
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchCompanyWeb({
+      apiKey: "tvly-should-not-be-used",
+      companyName: "THE HOME CRAFTERS LTD.",
+      companyNumber: "10034885",
+      env: { XAI_API_KEY: "xai-test-key" },
+    });
+
+    expect(result.answer).toMatch(/kitchens/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rethrows the Grok error when Tavily is not configured", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        text: async () => "quota exceeded",
+      }) as Response)
+    );
+
+    await expect(
+      searchCompanyWeb({
+        companyName: "THE HOME CRAFTERS LTD.",
+        env: { XAI_API_KEY: "xai-test-key" },
+      })
+    ).rejects.toThrow(/quota exceeded/);
   });
 });

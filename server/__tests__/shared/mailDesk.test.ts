@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  agentMailInFolder,
   bounceRecipient,
   classifyInboundMail,
   isHardBounce,
+  isMailerDaemonAddress,
   isSuppressed,
 } from "@shared/mailDesk";
 
@@ -72,5 +74,41 @@ describe("suppression", () => {
 describe("bounceRecipient", () => {
   it("pulls the starred failed address from IONOS copy", () => {
     expect(bounceRecipient("could not be reached:\n* ops@works.co.uk\n")).toBe("ops@works.co.uk");
+  });
+});
+
+describe("isMailerDaemonAddress", () => {
+  it("matches mailer-daemon in the from address, including display names", () => {
+    expect(isMailerDaemonAddress("mailer-daemon@kundenserver.de")).toBe(true);
+    expect(isMailerDaemonAddress("Mail Delivery System <MAILER-DAEMON@ionos.co.uk>")).toBe(true);
+    expect(isMailerDaemonAddress("ops@joinery.co.uk")).toBe(false);
+    expect(isMailerDaemonAddress("postmaster@ionos.co.uk")).toBe(false);
+  });
+});
+
+describe("agentMailInFolder", () => {
+  const bounce = { from: "mailer-daemon@kundenserver.de", direction: "inbound" as const };
+  const inbound = { from: "ops@joinery.co.uk", direction: "inbound" as const };
+  const sent = {
+    from: "enquiries@stratafinance.co.uk",
+    direction: "outbound" as const,
+    opens: ["2026-09-01T00:00:00.000Z"],
+  };
+
+  it("files mailer-daemon only in quarantine and hides it from inbox and all", () => {
+    expect(agentMailInFolder(bounce, "quarantine")).toBe(true);
+    expect(agentMailInFolder(bounce, "inbox")).toBe(false);
+    expect(agentMailInFolder(bounce, "all")).toBe(false);
+    expect(agentMailInFolder(bounce, "sent")).toBe(false);
+    expect(agentMailInFolder(bounce, "opened")).toBe(false);
+  });
+
+  it("keeps ordinary mail in inbox and all, not quarantine", () => {
+    expect(agentMailInFolder(inbound, "inbox")).toBe(true);
+    expect(agentMailInFolder(inbound, "all")).toBe(true);
+    expect(agentMailInFolder(inbound, "quarantine")).toBe(false);
+    expect(agentMailInFolder(sent, "sent")).toBe(true);
+    expect(agentMailInFolder(sent, "opened")).toBe(true);
+    expect(agentMailInFolder(sent, "quarantine")).toBe(false);
   });
 });

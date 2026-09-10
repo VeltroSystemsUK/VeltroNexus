@@ -1,0 +1,47 @@
+# nexus.adapter.v1 — the only Nexus field map.
+# Book = AgenticDealFile stream=sme. See docs/superpowers/specs/2026-09-07-nexus-adapter-design.md
+
+object:
+  candidate: "AgenticDealFile"
+  id_prefix: "deal:"
+  id_field: "id"
+  company_number_field: "companyNumber"
+  name_field: "companyName"
+  domain_field: "website"
+  status_field: "hopper"
+  stage_field: "stage"
+  owner_field: "ownerUserId"
+  last_touched_field: "updatedAt"
+  email_field: "email"
+  contact_name_field: "contactName"
+  stream_field: "stream"
+  stream_value: "sme"
+  source_field: "source"
+
+status_map:
+  gated: prospective
+  hunt_contact: prospective
+  sendable: queued
+  queued: queued
+  parked: nurture
+  quarantine: prospective
+  outreach: contacted
+  human_call: meeting
+  fulfilment: packaging
+  processing: packaging
+  underwriting: packaging
+  human_review: packaging
+  complete: won
+  failed: lost
+
+source_map:
+  distress_scan: slf
+  strata_inbound: inbound
+  harvest_csv: operator
+
+writes:
+  intel_field: events
+  mailbox_field: email
+  contact_field: contactName
+  score_field: slfScore
+  product_field: slfProduct

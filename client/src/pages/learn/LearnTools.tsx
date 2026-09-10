@@ -80,12 +80,23 @@ export function EmailMeThis({ tool, payload }: { tool: ToolId; payload: () => Re
 
 const TOOLS = [
   {
-    slug: "time-to-pay-calculator",
+    href: "/thursday-pack/",
+    title: "The Thursday Pack",
+    description: "Payroll is Friday. A call-centre broker has an offer. Sit down and choose. Not every broker is the same.",
+    external: true,
+  },
+  {
+    href: "/tools/stacked-debt-scenario",
+    title: "Stacked debt — the film",
+    description: "Play the film. At each beat, choose. Loan two does not pay off loan one.",
+  },
+  {
+    href: "/tools/time-to-pay-calculator",
     title: "Time to Pay Calculator",
     description: "Estimate a monthly instalment for HMRC arrears — indicative only, not a Time to Pay offer.",
   },
   {
-    slug: "debt-stress-check",
+    href: "/tools/debt-stress-check",
     title: "Debt Stress Check",
     description: "See your combined debt repayments against income, cost per trading day, and whether facilities are stacking.",
   },
@@ -109,17 +120,26 @@ export default function LearnTools() {
         <PackagerLine />
       </header>
       <div className="grid gap-4 md:grid-cols-2">
-        {TOOLS.map((tool) => (
-          <Link
-            key={tool.slug}
-            href={`/tools/${tool.slug}`}
-            className="block rounded-xl border border-white/10 bg-white/[0.03] p-5 hover:border-emerald-400/40 transition-colors"
-          >
-            <h3 className="font-['Unbounded'] tracking-tight text-zinc-50 text-lg">{tool.title}</h3>
-            <p className="text-zinc-400 mt-2 text-sm">{tool.description}</p>
-            <p className="mt-4 text-xs uppercase tracking-wide text-emerald-400">Open</p>
-          </Link>
-        ))}
+        {TOOLS.map((tool) => {
+          const className =
+            "block rounded-xl border border-white/10 bg-white/[0.03] p-5 hover:border-emerald-400/40 transition-colors";
+          const inner = (
+            <>
+              <h3 className="font-['Unbounded'] tracking-tight text-zinc-50 text-lg">{tool.title}</h3>
+              <p className="text-zinc-400 mt-2 text-sm">{tool.description}</p>
+              <p className="mt-4 text-xs uppercase tracking-wide text-emerald-400">Open</p>
+            </>
+          );
+          return tool.external ? (
+            <a key={tool.href} href={tool.href} className={className}>
+              {inner}
+            </a>
+          ) : (
+            <Link key={tool.href} href={tool.href} className={className}>
+              {inner}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

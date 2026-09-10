@@ -1,0 +1,18 @@
+brand_name: "Strata Finance"
+owner: "Shaun Tuhey"
+reviewer: "shaun"
+timezone: "Europe/London"
+territory: ["GB-ENG", "GB-WLS", "GB-SCT", "GB-NIR"]
+stream: "sme"
+facility_min_gbp: 25000
+facility_max_gbp: 250000
+turnover_min_gbp: 250000
+turnover_max_gbp: 5000000
+auto_push: false
+auto_push_min_score: 88
+auto_push_min_resolution: 0.95
+distressed_product: true
+morning_digest_hour: "06:30"
+queue_cap_hot: 40
+queue_cap_warm: 40
+focus_regions: []

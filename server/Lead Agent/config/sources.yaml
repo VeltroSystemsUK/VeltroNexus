@@ -1,0 +1,13 @@
+ch:
+  rest_base: "https://api.company-information.service.gov.uk"
+  key_env: "CH_API_KEY"
+  stream: stub
+gazette:
+  base: "https://www.thegazette.co.uk"
+news: stub
+reddit: stub
+x: stub
+planning: stub
+epc: stub
+linkedin:
+  mode: "official_export_only"

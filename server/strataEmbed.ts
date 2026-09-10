@@ -7,6 +7,11 @@ export function isStrataEmbedPath(urlPath: string) {
   return EMBED_PREFIXES.some((prefix) => urlPath === prefix || urlPath.startsWith(`${prefix}/`));
 }
 
+export function allowsSameOriginFrame(urlPath: string) {
+  if (isStrataEmbedPath(urlPath)) return true;
+  return /^\/api\/broker-portal\/handoffs\/[^/]+\/(report|handover|application)\.html$/.test(urlPath);
+}
+
 export function embedPathFromLaunch(launchUrl?: string | null) {
   if (!launchUrl) return undefined;
   try {

@@ -55,6 +55,52 @@ describe("agentMailLog store isolation", () => {
     expect(after).toBe(before);
     if (fs.existsSync(file)) fs.unlinkSync(file);
   });
+
+  it("does not insert a second row for the same message-id and keeps attachments", () => {
+    const file = path.join(os.tmpdir(), `agent-mail-dedupe-${process.pid}-${Date.now()}.json`);
+    setAgentMailStorePathForTests(file);
+    const first = logAgentMail({
+      direction: "inbound",
+      from: "kirsty@example.co.uk",
+      to: "enquiries@stratafinance.co.uk",
+      subject: "pack",
+      text: "files attached",
+      status: "received",
+      messageId: "<same@mail>",
+    });
+    const second = logAgentMail({
+      direction: "inbound",
+      from: "kirsty@example.co.uk",
+      to: "enquiries@stratafinance.co.uk",
+      subject: "pack",
+      text: "files attached",
+      status: "received",
+      messageId: "<same@mail>",
+      attachments: [
+        {
+          index: 0,
+          filename: "statement.pdf",
+          storedName: "0-statement.pdf",
+          contentType: "application/pdf",
+          size: 12,
+        },
+      ],
+    });
+    const rows = listAgentMail();
+    expect(rows).toHaveLength(1);
+    expect(second.id).toBe(first.id);
+    expect(rows[0].attachments).toEqual([
+      {
+        index: 0,
+        filename: "statement.pdf",
+        storedName: "0-statement.pdf",
+        contentType: "application/pdf",
+        size: 12,
+      },
+    ]);
+    setAgentMailStorePathForTests(null);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  });
 });
 
 describe("agentMailLog local backups", () => {

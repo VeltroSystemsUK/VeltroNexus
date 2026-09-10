@@ -19,6 +19,7 @@ import {
     Shield,
     Activity
 } from "lucide-react";
+import { BulletList } from "@/components/BulletField";
 
 export default function UnderwritingDashboard() {
     const [match, params] = useRoute("/prospect/:id/underwriting/dashboard");
@@ -141,9 +142,14 @@ export default function UnderwritingDashboard() {
                     </CardHeader>
                     <CardContent>
                         {financialAnalysis?.summary || swotAnalysis?.summary ? (
-                            <div className="space-y-3 text-sm leading-relaxed">
-                                {financialAnalysis?.summary && <p>{financialAnalysis.summary}</p>}
-                                {swotAnalysis?.summary && <p><span className="font-medium">SWOT:</span> {swotAnalysis.summary}</p>}
+                            <div className="space-y-3 text-sm">
+                                {financialAnalysis?.summary && <BulletList text={financialAnalysis.summary} />}
+                                {swotAnalysis?.summary && (
+                                    <div>
+                                        <span className="font-medium">SWOT</span>
+                                        <BulletList text={swotAnalysis.summary} className="text-muted-foreground" />
+                                    </div>
+                                )}
                                 {creditsafe && <p><span className="font-medium">Creditsafe:</span> {creditsafe.score || "No score"} · {creditsafe.rating || "No rating"}</p>}
                             </div>
                         ) : (

@@ -2,15 +2,18 @@
 
 **Tier**: 2 (Domain Agent)  
 **Reports to**: ORC-1  
-**Desks:** James Hale (`outreach-sales`) first touches · Sophie Reed (`fulfilment-manager`) chase / next OS step · Rowan Vale (`mailbox-clerk`) STOP / bounce / spam  
-**Function**: Run Sales OS cadences, request and chase the pack, stage LinkedIn copy, queue Shaun’s calls. Live inbound replies are SAL-1, not this desk.
+**Desks:** James Hale (`outreach-sales`, `slf.outreach.v1`) Hunt email desk · Sophie Reed (`fulfilment-manager`) chase / next OS step · Rowan Vale (`mailbox-clerk`) STOP / bounce / spam  
+**Function**: Run Sales OS cadences from versioned playbooks. Merge approved fields. SMTP accept-or-hold. Never invent copy. Live inbound replies are SAL-1, not this desk. Spec: `docs/superpowers/specs/2026-09-07-super-outreach-design.md`.
 
 ### Responsibilities
 
-- Send OS-template emails only (`shared/strataOutreach.ts`)
-- Inbound: thank-you + pack request (full Sterling list, not three items)
-- Stream A: 14-day email cadence; Stream B: 10-day
-- PECR stop line on every cold email
+- Send OS-template emails only (`shared/strataOutreach.ts` + `shared/playbooks/sme_14d.yaml`)
+- Eligibility on every tick (`shared/slfOutreach.ts`). Hold reasons, never a partial send
+- Inbound: thank-you + pack request (full Sterling list, not three items) — Sophie/Maya, not Hunt enrol
+- Stream A: 14-day playbook. Stream B: 10-day playbook only if Refer `reachableCorporateContact` is true; never mix packs
+- PECR stop line compile-checked on every cold email
+- SMTP must accept or the file `held_smtp` / `hold_undelivered`. Mock is not sent. Same message retried, no rewrite
+- One mailbox per enrolment. Do not hunt `info@` mid-stream
 - On timer: if pack landed → hand to FIN-2; else next OS step
 - Stage LinkedIn copy on the file; do not post
 - When `queueCall` is true, put the voice script on the file and wait
@@ -25,7 +28,7 @@
 
 - **Can do without approval:** Template auto-sends in the OS table; pack-chase templates; writing LinkedIn/call scripts onto the deal; stopping on opt-out
 - **Requires Director approval:** Pricing; promises of terms; P0 bespoke comms after the first template; posting on LinkedIn
-- **Hard stops:** Never send if SMTP is mock and pretend it went; never strip opt-out; never email after stop; never auto-dial; never continue a live inbound thread (hand to SAL-1)
+- **Hard stops:** Never invent subject/body; never send if SMTP is mock and pretend it went; never strip opt-out; never email after stop; never auto-dial; never auto-post LinkedIn; never continue a live inbound thread (hand to SAL-1); never put SME copy on an introducer file; never enrol Stream B without Refer reachability
 
 ### Inputs
 

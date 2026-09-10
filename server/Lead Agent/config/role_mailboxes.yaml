@@ -1,0 +1,5 @@
+# Published collection only. Not Stream A sendable.
+# Sendable classification is shared/smeHopper.ts — do not fork.
+preferred: [enquiries, info, finance, hello, contact, sales]
+drop: [noreply, donotreply, no-reply, postmaster, abuse, mailer-daemon]
+# Hopper also treats these as role (not sendable): admin, office, accounts, team, mail, reception, bookings, support, marketing, webmaster, ops, hr, jobs, billing

@@ -1,0 +1,21 @@
+desk: hunt
+sequencer: hunt_agent
+agent_id: slf.outreach.v1
+workforce: outreach-sales
+streams:
+  sme:
+    playbook: shared/playbooks/sme_14d.yaml
+    pipeline: sme
+  introducer:
+    playbook: shared/playbooks/introducer_10d.yaml
+    pipeline: introducer
+    require_refer_reachable: true
+smtp:
+  hold_on_reject: true
+linkedin:
+  mode: staged_wait
+  wait_blocks_email: false
+inbox:
+  mode: sal1_drafts
+approval:
+  sme_1: shaun

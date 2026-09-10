@@ -13,7 +13,8 @@ describe("factory graph", () => {
       expect(ids.has(edge.source)).toBe(true);
       expect(ids.has(edge.target)).toBe(true);
     }
-    expect(FACTORY_EDGES.some((edge) => edge.source === "credit" && edge.target === "sterling")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "credit" && edge.target === "engagement")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "engagement" && edge.target === "sterling")).toBe(true);
   });
 
   it("plots the Editorial lane from Casey through Isla to Shaun", () => {

@@ -30,6 +30,8 @@ import { toast } from "sonner";
 import { CreditsafeCheck } from "@/components/CreditsafeCheck";
 import { AccountsAnalysis } from "@/components/AccountsAnalysis";
 import { unwrapDueDiligence } from "@shared/dueDiligence";
+import { storeProspectFile } from "@/lib/storeProspectFile";
+import { BankStatementSweep } from "@/components/BankStatementSweep";
 
 export default function FinancialsPage() {
     const [match, params] = useRoute("/prospect/:id/underwriting/financials");
@@ -52,12 +54,12 @@ export default function FinancialsPage() {
 
     // Mutations
     const analyzeCsvMutation = useMutation({
-        mutationFn: async (csvData: string) => {
+        mutationFn: async (payload: { csvData?: string; documentId?: number; csvFileName?: string }) => {
             const response = await apiRequest(
                 `/api/prospects/${prospectId}/underwriting/analyze-csv`,
                 "POST",
                 {
-                    csvData,
+                    ...payload,
                     loanAmount: underwriting.loanDetails?.amount || 0,
                     monthlyRepayment: underwriting.loanDetails?.monthlyRepayment || 0,
                     consentToAiProcessing: true,
@@ -78,20 +80,29 @@ export default function FinancialsPage() {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        if (!file.name.endsWith(".csv")) {
-            toast.error("Please upload a CSV file");
+        const name = file.name.toLowerCase();
+        if (!name.endsWith(".csv") && !name.endsWith(".xlsx") && !name.endsWith(".xlsm")) {
+            toast.error("Please upload a CSV or Excel file");
             return;
         }
 
         setCsvFileName(file.name);
+        if (name.endsWith(".xlsx") || name.endsWith(".xlsm")) {
+            storeProspectFile(prospectId, file, "bank-statements")
+                .then((stored) =>
+                    analyzeCsvMutation.mutate({ documentId: stored.id, csvFileName: file.name })
+                )
+                .catch((err) => toast.error(err.message || "Failed to analyse Excel file"));
+            return;
+        }
+
+        storeProspectFile(prospectId, file, "bank-statements").catch((err) =>
+            console.warn("Could not keep bank CSV on the case:", err),
+        );
         const reader = new FileReader();
         reader.onload = (e) => {
             const text = e.target?.result as string;
-            // In a real app we might validate content here
-
-            // Auto-analyze or wait for button? Original tool did it on a separate button click or immediate?
-            // Let's offer a button to analyze to be clear.
-            analyzeCsvMutation.mutate(text);
+            analyzeCsvMutation.mutate({ csvData: text, csvFileName: file.name });
         };
         reader.readAsText(file);
     };
@@ -113,15 +124,16 @@ export default function FinancialsPage() {
                 </TabsList>
 
                 <TabsContent value="banking" className="space-y-4">
+                    {prospectId > 0 && <BankStatementSweep prospectId={prospectId} />}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Bank Statements (CSV)</CardTitle>
-                            <CardDescription>Upload raw transaction data for AI analysis.</CardDescription>
+                            <CardTitle>Bank statements (CSV / Excel)</CardTitle>
+                            <CardDescription>Upload raw transaction data for AI analysis, or analyse a sheet already in Documents.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid w-full max-w-sm items-center gap-1.5">
-                                <Label htmlFor="csv_upload">Upload Statement (CSV)</Label>
-                                <Input id="csv_upload" type="file" accept=".csv" onChange={handleCsvUpload} disabled={analyzeCsvMutation.isPending} />
+                                <Label htmlFor="csv_upload">Upload statement (CSV or Excel)</Label>
+                                <Input id="csv_upload" type="file" accept=".csv,.xlsx,.xlsm" onChange={handleCsvUpload} disabled={analyzeCsvMutation.isPending} />
                             </div>
 
                             {csvFileName && (
@@ -148,7 +160,6 @@ export default function FinancialsPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Add PDF Bank Statement Upload here if needed */}
                 </TabsContent>
 
                 <TabsContent value="accounts" className="space-y-4">

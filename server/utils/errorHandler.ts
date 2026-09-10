@@ -5,7 +5,7 @@ import { createErrorResponse } from "./errorResponse";
 function statusFromThrown(error: unknown, fallback: number): number {
   if (error instanceof ProposalNotReadyError) return error.status;
   const status = (error as { status?: unknown })?.status;
-  if (status === 400 || status === 409) return status;
+  if (status === 400 || status === 404 || status === 409) return status;
   return fallback;
 }
 

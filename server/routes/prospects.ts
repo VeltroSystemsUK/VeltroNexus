@@ -24,15 +24,25 @@ import { encodeContentDisposition } from "../utils/security";
 import { getObjectStorage } from "../utils/routerHelpers";
 import busboy from "busboy";
 import { wrapAiRequest, requirePremiumAndConsent, AI_GOVERNANCE_CONFIG, redactSensitiveData } from "../utils/aiGovernance";
+import { resultWithin } from "../utils/resultWithin";
 import { createErrorResponse } from "../utils/errorResponse";
 import { getSicDescription } from "../utils/sicCodeLookup";
 import { generatePipelineExcel } from "../utils/excelExporter";
 import { formatOfficerName } from "../utils/formatters";
 import { getReadableProspect } from "../utils/prospectAccess";
+import { generateBbbBusinessPlan, pdfToStream } from "../utils/bbbBusinessPlan";
+import { parsePdfBuffer } from "../utils/pdfText";
+import { accountPdfsFromDocuments, pdfTextsFromDocuments, spreadsheetTextsFromDocuments } from "../utils/prospectDocumentText";
+import { extractSpreadsheetText, isSpreadsheetFile } from "../utils/spreadsheetText";
+import { buildAccountsAnalysis, parseCreditsafeStatements, yearsFromAccountsText } from "@shared/accountsAnalysisBuild";
+import { analyseBankStatements } from "@shared/bankStatementSweep";
+import { xaiBearer } from "@shared/craftYaffle";
 import {
   buildCreditFileContext,
   loanAmountPounds,
 } from "../utils/creditFileContext";
+import { applyLoanAmountToRequirementData, applyLoanAmountToUnderwriting } from "@shared/loanAmountEdit";
+import { joinAiBullets, toAiBullets } from "@shared/aiBullets";
 import multer from "multer";
 import * as fs from "fs";
 import * as path from "path";
@@ -380,8 +390,26 @@ const router = Router();
       try {
         const userId = req.user!.id;
         const id = parseInt(req.params.id);
+        const updates = { ...(req.body || {}) };
 
-        const prospect = await storage.updateProspect(id, userId, req.body);
+        if (Object.prototype.hasOwnProperty.call(updates, "loanAmount")) {
+          const existing = await storage.getProspect(id, userId);
+          if (!existing) return res.status(404).json({ error: "Prospect not found" });
+          const pence = Number(updates.loanAmount);
+          const pounds = Number.isFinite(pence) && pence > 0 ? pence / 100 : 0;
+          if (!updates.loanRequirementData) {
+            const nextReq = applyLoanAmountToRequirementData(existing.loanRequirementData, pounds);
+            if (nextReq) updates.loanRequirementData = nextReq;
+          }
+          const due = await storage.getDueDiligence(id, userId);
+          const data = (due?.data || {}) as Record<string, any>;
+          await storage.upsertDueDiligence(id, existing.userId, {
+            ...data,
+            underwriting: applyLoanAmountToUnderwriting(data.underwriting, pounds),
+          } as any);
+        }
+
+        const prospect = await storage.updateProspect(id, userId, updates);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
         }
@@ -826,18 +854,34 @@ const router = Router();
       try {
         const userId = req.user!.id;
         const prospectId = parseInt(req.params.prospectId);
-        const { csvData, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
-
-        if (!csvData || !loanAmount || !monthlyRepayment) {
-          return res
-            .status(400)
-            .json({ error: "Missing required fields: csvData, loanAmount, monthlyRepayment" });
-        }
+        const { csvFileName, loanAmount, monthlyRepayment, consentToAiProcessing } = req.body;
+        let csvData = typeof req.body.csvData === "string" ? req.body.csvData : "";
+        let sourceName = typeof csvFileName === "string" ? csvFileName : "";
 
         // Verify prospect belongs to user
         const prospect = await storage.getProspect(prospectId, userId);
         if (!prospect) {
           return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        const documentId = Number(req.body.documentId);
+        if (!csvData && Number.isFinite(documentId) && documentId > 0) {
+          const document = await storage.getProspectDocument(documentId, userId);
+          if (!document || document.prospectId !== prospectId) {
+            return res.status(404).json({ error: "Document not found" });
+          }
+          if (!isSpreadsheetFile(document.fileName, document.fileType)) {
+            return res.status(415).json({ error: "That document is not a CSV or Excel file" });
+          }
+          const { data } = await getObjectStorage().downloadAsBytes(document.storagePath);
+          csvData = await extractSpreadsheetText(Buffer.from(data), document.fileName);
+          sourceName = document.fileName;
+        }
+
+        if (!csvData || !loanAmount || !monthlyRepayment) {
+          return res
+            .status(400)
+            .json({ error: "Missing required fields: csvData or documentId, loanAmount, monthlyRepayment" });
         }
 
         // Use governance wrapper for consent, redaction, size limits, and audit logging
@@ -871,6 +915,7 @@ const router = Router();
           underwriting: {
             ...(existingData.underwriting || {}),
             financialAnalysis: result.result,
+            ...(sourceName.trim() ? { csvFileName: sourceName.trim() } : {}),
             analyzedAt: new Date().toISOString(),
           },
         };
@@ -1120,7 +1165,7 @@ const router = Router();
             consentToAiProcessing: !!consentToAiProcessing,
           },
           combinedText,
-          async () => analyzeAuditedAccounts(processedPdfTexts, loanAmount, monthlyRepayment),
+          async () => analyzeAuditedAccounts(processedPdfTexts, loanAmount, monthlyRepayment, prospect.notes || ""),
           { skipRedaction: true } // Already redacted above
         );
 
@@ -1138,6 +1183,12 @@ const router = Router();
           ...existingData,
           underwriting: {
             ...(existingData.underwriting || {}),
+            accountsPdfs: pdfTexts.map((pdf: { year: string; fileName?: string; text: string; pages?: number }) => ({
+              year: pdf.year,
+              fileName: pdf.fileName || pdf.year,
+              text: pdf.text || "",
+              ...(pdf.pages ? { pages: pdf.pages } : {}),
+            })),
             accountsAnalysis: result.result,
             accountsAnalyzedAt: new Date().toISOString(),
           },
@@ -1148,6 +1199,164 @@ const router = Router();
       } catch (error: any) {
         console.error("Accounts analysis error:", error);
         handleApiError(res, error, "api-error");
+      }
+    }
+  );
+
+  router.post(
+    "/prospects/:prospectId/underwriting/sweep-statements",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const prospectId = parseInt(req.params.prospectId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+        const documents = await storage.listProspectDocuments(prospectId);
+        const selectedIds = Array.isArray(req.body?.documentIds)
+          ? (req.body.documentIds as unknown[]).map((id) => Number(id)).filter((id) => Number.isFinite(id))
+          : [];
+        const pool = selectedIds.length
+          ? documents.filter((doc) => selectedIds.includes(doc.id))
+          : documents;
+        const pdfs = await pdfTextsFromDocuments(pool as any, "bank-statements");
+        if (!pdfs.length) {
+          return res.status(400).json({ error: "No bank statement PDFs on this record to sweep" });
+        }
+        const combined = pdfs.map((pdf) => pdf.text).join("\n");
+        const ratePdfs = await pdfTextsFromDocuments(documents as any, "mca-rates");
+        const rateText = ratePdfs.map((pdf) => pdf.text).join("\n");
+        const existing = await storage.getDueDiligence(prospectId, prospect.userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const underwriting = existingData.underwriting || {};
+        const loanAmount = loanAmountPounds(prospect, underwriting);
+        const rawRepayment = Number(req.body?.proposedMonthly || underwriting.loanDetails?.monthlyRepayment || 0);
+        const proposedMonthly =
+          Number(req.body?.proposedMonthly) > 0
+            ? Number(req.body.proposedMonthly)
+            : rawRepayment > 10000
+              ? rawRepayment / 100
+              : rawRepayment > 0
+                ? rawRepayment
+                : loanAmount > 0
+                  ? Math.round((loanAmount / 60) * 100) / 100
+                  : 0;
+        const analysis = analyseBankStatements(combined, { proposedMonthly, rateText });
+        const affordabilitySweep = {
+          at: new Date().toISOString(),
+          files: pdfs.map((pdf) => ({ id: pdf.id, fileName: pdf.fileName, pages: pdf.pages })),
+          ...analysis,
+        };
+        const financialAnalysis = {
+          ...(underwriting.financialAnalysis || {}),
+          averageMonthlyRevenue: analysis.totals.avgIn,
+          averageMonthlyExpenses: analysis.totals.avgOut,
+          netDisposableIncome: analysis.totals.avgNet,
+          dscr: analysis.dscrCurrent,
+          summary: analysis.summary,
+          monthlyBreakdown: analysis.months.map((month) => ({
+            month: month.label,
+            income: month.moneyIn,
+            expenses: month.moneyOut,
+            net: month.net,
+            closingBalance: month.closing,
+          })),
+        };
+        await storage.upsertDueDiligence(prospectId, prospect.userId, {
+          ...existingData,
+          underwriting: {
+            ...underwriting,
+            affordabilitySweep,
+            financialAnalysis,
+            analyzedAt: new Date().toISOString(),
+            analysisSource: "pdf",
+          },
+        } as any);
+        res.json({ affordabilitySweep, financialAnalysis });
+      } catch (error) {
+        handleApiError(res, error, "sweep-statements");
+      }
+    }
+  );
+
+  router.post(
+    "/prospects/:prospectId/underwriting/analyze-accounts-documents",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const prospectId = parseInt(req.params.prospectId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+        const documents = await storage.listProspectDocuments(prospectId);
+        const pdfs = await accountPdfsFromDocuments(documents as any);
+        const sheets = await spreadsheetTextsFromDocuments(documents as any);
+        const spreadsheetText = sheets
+          .map((sheet) => `=== FILE ${sheet.fileName} ===\n${sheet.text}`)
+          .join("\n\n")
+          .slice(0, 40000);
+        const existing = await storage.getDueDiligence(prospectId, prospect.userId);
+        const existingData = (existing?.data || {}) as Record<string, any>;
+        const underwriting = existingData.underwriting || {};
+        const statements = parseCreditsafeStatements((prospect as any).company?.creditsafeReport);
+        const pdfYears = pdfs.flatMap((pdf) => yearsFromAccountsText(pdf.text, pdf.fileName));
+        if (!pdfs.length && !statements.length && !sheets.length) {
+          return res.status(400).json({ error: "No accounts PDFs, spreadsheets, or Creditsafe statements on this record" });
+        }
+        const loanAmount = loanAmountPounds(prospect, underwriting);
+        const rawRepayment = Number(req.body?.monthlyRepayment || underwriting.loanDetails?.monthlyRepayment || 0);
+        const monthlyRepayment = rawRepayment > 10000 ? rawRepayment / 100 : rawRepayment;
+        const financeMonthly = Number(underwriting.affordabilitySweep?.financeMonthly || 0);
+        const { analyzeAuditedAccounts } = await import("../utils/geminiClient");
+        const combined = [
+          JSON.stringify(statements).slice(0, 8000),
+          spreadsheetText,
+          ...pdfs.map((pdf) => pdf.text),
+        ].join("\n---\n");
+        let aiSlice = null;
+        if (req.body?.consentToAiProcessing) {
+          const result = await resultWithin(
+            wrapAiRequest(
+              {
+                userId: req.user!.id,
+                prospectId,
+                operation: "analyze_accounts",
+                dataType: "pdf",
+                consentToAiProcessing: true,
+              },
+              combined,
+              async () =>
+                analyzeAuditedAccounts(
+                  pdfs.map((pdf) => ({ year: pdf.fileName, text: pdf.text })),
+                  loanAmount,
+                  monthlyRepayment,
+                  prospect.notes || "",
+                  { creditsafeJson: JSON.stringify(statements), spreadsheetText }
+                ),
+              { skipRedaction: true }
+            ),
+            20000,
+          );
+          if (result && !("error" in result)) aiSlice = result.result;
+        }
+        const accountsAnalysis = buildAccountsAnalysis({
+          statements,
+          caseNotes: prospect.notes || "",
+          financeMonthly,
+          loanPounds: loanAmount,
+          pdfYears,
+          ai: aiSlice,
+        });
+        await storage.upsertDueDiligence(prospectId, prospect.userId, {
+          ...existingData,
+          underwriting: {
+            ...underwriting,
+            accountsPdfs: pdfs.map((pdf) => ({ year: pdf.fileName, fileName: pdf.fileName, pages: pdf.pages })),
+            accountsAnalysis,
+            accountsAnalyzedAt: new Date().toISOString(),
+          },
+        } as any);
+        res.json(accountsAnalysis);
+      } catch (error) {
+        handleApiError(res, error, "analyze-accounts-documents");
       }
     }
   );
@@ -1164,29 +1373,20 @@ const router = Router();
         return res.status(400).json({ error: "PDF data is required" });
       }
 
-      // Import pdf-parse with correct default export handling
-      const pdfImport = await import("pdf-parse");
-      // @ts-ignore
-      const pdfParse = pdfImport.default || pdfImport;
-
-      // Convert base64 to buffer
       const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
-      // Enforce size limit on decoded buffer (not base64 string)
       if (pdfBuffer.length > MAX_PDF_DECODED_SIZE) {
         return res
           .status(413)
           .json({ error: "PDF exceeds 7.5MB limit. Please use a smaller file." });
       }
 
-      // Parse PDF using standard API
-      // @ts-ignore
-      const result = await pdfParse(pdfBuffer);
+      const result = await parsePdfBuffer(pdfBuffer);
 
       res.json({
         text: result.text,
-        pages: result.numpages,
-        info: result.info || {},
+        pages: result.pages,
+        info: {},
       });
     } catch (error: any) {
       console.error("PDF parsing error:", error);
@@ -1424,6 +1624,64 @@ const router = Router();
 
   // CAMPARI section AI generation
   router.post(
+    "/prospects/:prospectId/underwriting/adviser-recommendation-assist",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = req.user!.id;
+        const prospectId = parseInt(req.params.prospectId);
+        const { text = "", action = "draft", consentToAiProcessing } = req.body || {};
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+        if (typeof text !== "string" || text.length > 12000) {
+          return res.status(400).json({ error: "Recommendation text must be 12,000 characters or fewer" });
+        }
+        const key = xaiBearer(process.env);
+        if (!key) return res.status(503).json({ error: "Grok is not configured on the server" });
+        const existing = await storage.getDueDiligence(prospectId, prospect.userId);
+        const ddData = (existing?.data || {}) as Record<string, any>;
+        const contacts = await storage.listContacts(prospectId, prospect.userId);
+        const fileFacts = buildCreditFileContext({ prospect, dueDiligence: ddData, contacts });
+        const { redacted } = redactSensitiveData(text);
+        const prompt = action === "improve"
+          ? `Improve the adviser recommendation below for a UK commercial finance file. Keep every supported fact and number, remove unsupported claims. Return 4 to 6 short bullet points, one fact per line, no paragraphs.\n\nDRAFT:\n${redacted}`
+          : `Draft an adviser recommendation for a UK commercial finance file using only the file facts below. Cover proposed route, key strengths, material risks, and conditions still required. 4 to 6 short bullet points, one fact per line, no paragraphs. Do not invent facts, rates, approvals, or lender decisions.\n\nFILE FACTS:\n${fileFacts}`;
+        const contextData = JSON.stringify({ action, textChars: text.length });
+        const result = await wrapAiRequest(
+          { userId, prospectId, operation: "adviser_recommendation_grok", dataType: "underwriting", consentToAiProcessing: !!consentToAiProcessing },
+          contextData,
+          async () => {
+            const response = await fetch("https://api.x.ai/v1/chat/completions", {
+              method: "POST",
+              headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+              body: JSON.stringify({
+                model: process.env.XAI_MODEL?.trim() || "grok-3-mini",
+                temperature: 0.2,
+                max_tokens: 1200,
+                messages: [
+                  { role: "system", content: "You are a careful UK commercial finance adviser writing assistant. Never invent or overstate evidence. Use UK English. The packager does not lend or make the credit decision." },
+                  { role: "user", content: prompt },
+                ],
+              }),
+              signal: AbortSignal.timeout(60000),
+            });
+            if (!response.ok) throw new Error((await response.text()).slice(0, 400) || `Grok request failed (${response.status})`);
+            const json = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+            const content = json.choices?.[0]?.message?.content?.trim();
+            if (!content) throw new Error("Grok returned an empty recommendation");
+            return joinAiBullets(toAiBullets(content, 6));
+          },
+        );
+        if ("error" in result) return res.status(result.code).json({ error: result.error, requiresConsent: result.code === 403 });
+        res.json({ text: result.result, provider: "grok" });
+      } catch (error: any) {
+        console.error("Grok adviser recommendation error:", error);
+        handleApiError(res, error, "grok-recommendation-error");
+      }
+    },
+  );
+
+  router.post(
     "/prospects/:prospectId/underwriting/campari-section",
     isAuthenticated,
     async (req: Request, res: Response) => {
@@ -1474,16 +1732,12 @@ const router = Router();
 
         // Parse document contents with redaction
         const documentSummaries: { fileName: string; category: string; content: string }[] = [];
-        const pdfImport = await import("pdf-parse");
-        // @ts-ignore
-        const pdfParse = pdfImport.default || pdfImport;
-
         for (const doc of relevantDocs.slice(0, AI_GOVERNANCE_CONFIG.maxDocuments)) {
           try {
             const { data } = await getObjectStorage().downloadAsBytes(doc.storagePath);
 
             if (doc.fileType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf")) {
-              const pdfData = await pdfParse(Buffer.from(data));
+              const pdfData = await parsePdfBuffer(Buffer.from(data));
               const textContent = pdfData.text?.trim() || "";
               if (textContent.length > 100) {
                 const truncatedContent =
@@ -1733,6 +1987,67 @@ const router = Router();
     }
   );
 
+  router.post(
+    "/prospects/:prospectId/business-plan",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const prospectId = parseInt(req.params.prospectId);
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+
+        const [contacts, documents, dueDiligence] = await Promise.all([
+          storage.listContacts(prospectId),
+          storage.listProspectDocuments(prospectId),
+          storage.getDueDiligence(prospectId, prospect.userId),
+        ]);
+        let fundingReason = "";
+        try {
+          const deals = await storage.listAgenticDeals();
+          const deal = deals.find((item: { prospectId?: number; fundingReason?: string }) => item.prospectId === prospectId);
+          fundingReason = String(deal?.fundingReason || "");
+        } catch {
+          /* deal file is optional */
+        }
+        const research = (prospect as { researchData?: { businessProfile?: string } }).researchData;
+        const generated = await generateBbbBusinessPlan({
+          companyName: prospect.company.companyName,
+          companyNumber: prospect.company.companyNumber,
+          registeredAddress: prospect.company.registeredAddress,
+          companyStatus: prospect.company.companyStatus,
+          sicDescription: prospect.company.sicDescription,
+          contacts: contacts.map((contact) => [contact.name, contact.role].filter(Boolean).join(", ")),
+          background: prospect.background,
+          fundingReason,
+          researchProfile: research?.businessProfile,
+          documents: documents.map((doc) => doc.fileName),
+          loanAmount: loanAmountPounds(prospect, (dueDiligence?.data as any)?.underwriting),
+          termMonths: prospect.term,
+        });
+        const stamp = Date.now();
+        const storagePath = `.private/documents/${prospectId}/${stamp}_${generated.fileName.replace(/[^\w.\-]/g, "_")}`;
+        await getObjectStorage().uploadFromStream(storagePath, pdfToStream(generated.pdf));
+        const document = await storage.createProspectDocument(
+          {
+            prospectId,
+            userId: req.user!.id,
+            fileName: generated.fileName,
+            fileType: "application/pdf",
+            fileSize: generated.pdf.length,
+            storagePath,
+            category: "business-plan",
+            notes: "AI-generated BBB / CDFI business plan",
+            status: "pending",
+          } as any,
+          req.user!.id
+        );
+        res.status(201).json({ document, fileName: generated.fileName });
+      } catch (error) {
+        handleApiError(res, error, "business-plan");
+      }
+    }
+  );
+
   // Prospect Documents - List all documents for a prospect
   router.get(
     "/prospects/:prospectId/documents",
@@ -1895,6 +2210,60 @@ const router = Router();
   );
 
   // Download a prospect document
+  router.post(
+    "/prospects/:prospectId/documents/:id/ask",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = req.user!.id;
+        const prospectId = parseInt(req.params.prospectId);
+        const documentId = parseInt(req.params.id);
+        const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+        if (!question || question.length > 2000) {
+          return res.status(400).json({ error: "Enter a question between 1 and 2,000 characters" });
+        }
+        const prospect = await getReadableProspect(req, prospectId);
+        if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+        const document = await storage.getProspectDocument(documentId, prospect.userId);
+        if (!document || document.prospectId !== prospectId) return res.status(404).json({ error: "Document not found" });
+
+        const { data } = await getObjectStorage().downloadAsBytes(document.storagePath);
+        const lowerName = document.fileName.toLowerCase();
+        let documentText = "";
+        if (document.fileType === "application/pdf" || lowerName.endsWith(".pdf")) {
+          documentText = (await parsePdfBuffer(Buffer.from(data))).text || "";
+        } else if (isSpreadsheetFile(document.fileName, document.fileType)) {
+          documentText = await extractSpreadsheetText(Buffer.from(data), document.fileName);
+        } else if (String(document.fileType || "").startsWith("text/") || lowerName.endsWith(".txt")) {
+          documentText = Buffer.from(data).toString("utf8");
+        } else {
+          return res.status(415).json({ error: "AI questions currently support PDF, Excel, CSV, and text documents" });
+        }
+        documentText = documentText.trim();
+        if (!documentText) return res.status(422).json({ error: "No readable text was found in this document" });
+        if (Buffer.byteLength(documentText, "utf8") > AI_GOVERNANCE_CONFIG.maxPdfTextSize) {
+          return res.status(413).json({ error: "This document is too large to question in one request" });
+        }
+
+        const { generateText } = await import("../utils/geminiClient");
+        const result = await wrapAiRequest(
+          { userId, prospectId, operation: "document_question_answer", dataType: "document", consentToAiProcessing: !!req.body?.consentToAiProcessing },
+          documentText,
+          async (processedText) => generateText(
+            `Answer the question using only the document text below. If the document does not contain the answer, say so in one bullet. Do not infer, invent, or use outside knowledge. Mention the relevant page, section, or heading when the text makes that possible. Return 3 to 6 short bullet points, one fact per line, no paragraphs.\n\nQUESTION:\n${question}\n\nDOCUMENT TEXT:\n${processedText}`,
+            undefined,
+            "You are an evidence-grounded document assistant for a UK commercial finance case."
+          ),
+          { maxSize: AI_GOVERNANCE_CONFIG.maxPdfTextSize },
+        );
+        if ("error" in result) return res.status(result.code).json({ error: result.error, requiresConsent: result.code === 403 });
+        res.json({ answer: joinAiBullets(toAiBullets(String(result.result || ""), 6)), fileName: document.fileName });
+      } catch (error) {
+        handleApiError(res, error, "document-question-error");
+      }
+    },
+  );
+
   router.get(
     "/prospects/:prospectId/documents/:id/download",
     isAuthenticated,
@@ -1926,6 +2295,51 @@ const router = Router();
   );
 
   // Delete a prospect document
+  router.patch(
+    "/prospects/:prospectId/documents/:id",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = req.user!.id;
+        const prospectId = parseInt(req.params.prospectId);
+        const documentId = parseInt(req.params.id);
+        const prospect = await storage.getProspect(prospectId, userId);
+        if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+
+        const document = await storage.getProspectDocument(documentId);
+        if (!document || document.prospectId !== prospectId) {
+          return res.status(404).json({ error: "Document not found" });
+        }
+
+        const requestedName = typeof req.body?.fileName === "string" ? req.body.fileName.trim() : "";
+        const requestedCategory = typeof req.body?.category === "string" ? req.body.category.trim() : (document.category || "general");
+        if (!requestedName || requestedName.length > 255) {
+          return res.status(400).json({ error: "A document name between 1 and 255 characters is required" });
+        }
+
+        // This is a display/download name only. Keep storagePath unchanged so existing files remain valid.
+        const safeName = requestedName
+          .replace(/[\\/]/g, "-")
+          .replace(/[\u0000-\u001f\u007f]/g, "")
+          .trim();
+        if (!safeName) return res.status(400).json({ error: "Document name is invalid" });
+        if (!requestedCategory || requestedCategory.length > 80 || !/^[a-z0-9][a-z0-9_-]*$/i.test(requestedCategory)) {
+          return res.status(400).json({ error: "Document category is invalid" });
+        }
+
+        const updated = await storage.updateProspectDocument(
+          documentId,
+          { fileName: safeName, category: requestedCategory },
+          userId,
+        );
+        if (!updated) return res.status(404).json({ error: "Document not found" });
+        res.json(updated);
+      } catch (error) {
+        handleApiError(res, error, "rename-document-error");
+      }
+    },
+  );
+
   router.delete(
     "/prospects/:prospectId/documents/:id",
     isAuthenticated,

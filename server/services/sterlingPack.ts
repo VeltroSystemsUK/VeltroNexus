@@ -25,6 +25,8 @@ import type { DueDiligenceData } from "@shared/schema";
 import { unwrapDueDiligence } from "@shared/dueDiligence";
 import { handoverPackHtml, resolveHandoverPack } from "@shared/handoverPack";
 import { evaluateSterlingCompleteness } from "@shared/sterlingCompleteness";
+import { sterlingCopyForHandoff } from "@shared/sterlingEdits";
+import { isApplicationSigned, parseApplicationData } from "@shared/applicationDataFields";
 
 const TEMPLATE_ROOT = path.resolve(process.cwd(), "server", "templates", "sterling");
 
@@ -44,6 +46,7 @@ export async function loadSterlingFileContext(handoff: { prospectId: number; sub
   const dd = unwrapDueDiligence(diligence?.data || diligence) as DueDiligenceData;
   const attachments = attachmentsFromDocuments(documents);
   const handover = resolveHandoverPack(dd.checklist);
+  const application = parseApplicationData((dd as any)?.applicationData);
   const loan =
     dd.underwriting?.loanDetails?.amount ||
     (prospect.loanAmount ? prospect.loanAmount / 100 : undefined);
@@ -58,7 +61,7 @@ export async function loadSterlingFileContext(handoff: { prospectId: number; sub
     otherDocuments: unmatchedSterlingDocuments(documents, attachments),
     handover,
     packLines: [
-      ...sterlingPackLines(attachments),
+      ...sterlingPackLines(attachments, { applicationSigned: isApplicationSigned(application) }),
       {
         label: `Handover pack · ${handover.answered} of ${handover.total} answered`,
         ok: handover.answered > 0,
@@ -101,6 +104,12 @@ export async function buildSterlingPackZip(opts: {
   }
 
   const ctx = await loadSterlingFileContext(opts.handoff);
+  const application = parseApplicationData((ctx.diligence as any)?.applicationData);
+  if (!isApplicationSigned(application)) {
+    throw Object.assign(new Error("Wait for the customer to complete and e-sign the application before sending the pack."), {
+      status: 400,
+    });
+  }
   const sfpStatus = (ctx.diligence as any)?.underwriting?.sfp?.status || "PARTIAL";
   const gate = evaluateSterlingCompleteness({
     documents: ctx.documents,
@@ -134,9 +143,11 @@ export async function buildSterlingPackZip(opts: {
   }
 
   const reportData = await buildProspectReportData(ctx.prospect, { layoutUserId: ctx.prospect.userId });
+  const sterlingCopy = sterlingCopyForHandoff(opts.handoff, ctx.diligence as any);
   const pdf = await renderFundingProposalPdf({
     ...reportData,
     hideAdviserRecommendation: true,
+    sterlingCopy: { ...sterlingCopy, recommendation: rec },
     sterlingRecommendation: rec,
     sterlingSignedBy: opts.signedBy,
   });
@@ -145,12 +156,18 @@ export async function buildSterlingPackZip(opts: {
   const slug = (ctx.prospect.company.companyName || "file").replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 40);
   zip.file(`Funding_Proposal_${slug}.pdf`, pdf);
 
-  const templateDir = sterlingTemplateDir(opts.lenderId);
-  if (existsSync(templateDir)) {
-    const files = await readdir(templateDir);
-    for (const name of files) {
-      const full = path.join(templateDir, name);
-      zip.file(`application/${name}`, await readFile(full));
+  const { prospectApplicationDocx } = await import("./prospectApplication");
+  try {
+    const filled = await prospectApplicationDocx(ctx.prospect.id!, opts.lenderId);
+    zip.file(`application/${filled.filename}`, filled.buffer);
+  } catch {
+    const templateDir = sterlingTemplateDir(opts.lenderId);
+    if (existsSync(templateDir)) {
+      const files = await readdir(templateDir);
+      for (const name of files) {
+        const full = path.join(templateDir, name);
+        zip.file(`application/${name}`, await readFile(full));
+      }
     }
   }
 
@@ -177,5 +194,8 @@ export function sterlingReportHtml(reportData: Parameters<typeof renderFundingPr
       }),
     ),
   );
-  return renderFundingProposalHtmlFromData({ ...reportData, hideAdviserRecommendation: true });
+  return renderFundingProposalHtmlFromData({
+    ...reportData,
+    hideAdviserRecommendation: true,
+  });
 }

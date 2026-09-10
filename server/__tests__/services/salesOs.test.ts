@@ -106,8 +106,11 @@ describe("cadence", () => {
 
   it("runs Stream B across 10 days", () => {
     expect(nextCadenceStep("introducer", 0)?.touchId).toBe("intro_1");
+    expect(nextCadenceStep("introducer", 1)?.touchId).toBe("intro_linkedin");
     expect(nextCadenceStep("introducer", 1)?.channel).toBe("linkedin");
-    expect(nextCadenceStep("introducer", 2)?.queueCall).toBe(true);
+    expect(nextCadenceStep("introducer", 2)?.touchId).toBe("intro_mid");
+    expect(nextCadenceStep("introducer", 3)?.touchId).toBe("intro_2");
+    expect(nextCadenceStep("introducer", 3)?.queueCall).toBe(true);
   });
 });
 

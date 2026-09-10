@@ -35,6 +35,42 @@ export function isNewsCategory(value: unknown): value is NewsCategory {
   return typeof value === "string" && (NEWS_CATEGORIES as readonly string[]).includes(value);
 }
 
+function firstMarkdownHeading(markdown: string, level: 1 | 2): string | null {
+  const re = level === 1 ? /^#\s+(.+)$/m : /^##\s+(.+)$/m;
+  const match = re.exec(markdown.replace(/\r\n/g, "\n"));
+  return match?.[1]?.trim() || null;
+}
+
+export function displayNewsHeadline(
+  title: string,
+  category?: NewsCategory | null,
+  body?: string,
+): string {
+  const raw = String(title || "").trim();
+  const label = category && isNewsCategory(category) ? NEWS_CATEGORY_LABELS[category] : null;
+  let out = raw;
+  if (label) {
+    const prefix = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[—–-]\\s*`, "i");
+    out = out.replace(prefix, "").trim();
+  }
+  if (!out || /^\d{4}-\d{2}-\d{2}$/.test(out)) {
+    return firstMarkdownHeading(body || "", 2) || firstMarkdownHeading(body || "", 1) || raw;
+  }
+  return out;
+}
+
+export function stripNewsBodyTitle(markdown: string, title: string): string {
+  const src = String(markdown || "").replace(/\r\n/g, "\n");
+  const want = String(title || "").trim();
+  const lines = src.split("\n");
+  const first = lines[0]?.trim() || "";
+  const heading = first.replace(/^#\s+/, "").trim();
+  if (first.startsWith("# ") && (heading === want || heading.replace(/\s+/g, " ") === want.replace(/\s+/g, " "))) {
+    return lines.slice(1).join("\n").replace(/^\n+/, "");
+  }
+  return src;
+}
+
 export type LearnPieceLike = {
   id?: number;
   slug: string;

@@ -4,7 +4,7 @@ export async function storeProspectFile(
   prospectId: number,
   file: File,
   category: string,
-): Promise<void> {
+): Promise<{ id: number; fileName: string }> {
   const formData = new FormData();
   formData.append("category", category);
   formData.append("file", file);
@@ -17,6 +17,8 @@ export async function storeProspectFile(
     const error = await response.json().catch(() => ({ error: "Upload failed" }));
     throw new Error(error.error || "Upload failed");
   }
+  const created = await response.json();
   await queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/documents`] });
   await queryClient.invalidateQueries({ queryKey: [`/api/prospects/${prospectId}/due-diligence`] });
+  return created;
 }

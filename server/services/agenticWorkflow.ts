@@ -7,8 +7,10 @@ import { sendEmail } from "./email";
 import { applyOutreachTemplateOverride, renderCallForDeal, renderOutreachEmail, type OutreachTemplateOverride } from "@shared/strataOutreach";
 import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { cadenceAfterOutreach, wasEmailDelivered } from "@shared/outreachSend";
+import { outreachEligibility } from "@shared/slfOutreach";
 import { buildSfp, type StandardFinancialProfile } from "@shared/sfp";
 import { evaluateSterlingCompleteness, namedPackGaps } from "@shared/sterlingCompleteness";
+import { sterlingSendBlockedByEngagement } from "@shared/engagementPack";
 import { ensureSterlingHandoff } from "./sterlingHandoff";
 import {
   assessIntroducerFit,
@@ -1990,9 +1992,17 @@ export const agenticWorkflow = {
     const isLinkedIn = step.channel === "linkedin";
 
     const pecrReason = outreachBlockReason(deal.email, stream, deal.companyNumber, deal.companyName);
+    const huntGate = outreachEligibility({
+      deal,
+      touchId: step.touchId,
+      compiledText: script.text,
+      channel: step.channel,
+    });
     const needsApproval = smeEmailNeedsApproval({ stream, isLinkedIn });
     let delivered = !step.autoSend || isLinkedIn;
-    if (step.autoSend && !isLinkedIn && pecrReason) {
+    if (!huntGate.ok) {
+      delivered = false;
+    } else if (step.autoSend && !isLinkedIn && pecrReason) {
       delivered = false;
     } else if (needsApproval) {
       delivered = false;
@@ -2017,6 +2027,16 @@ export const agenticWorkflow = {
         console.error("[Agentic] Outreach email failed:", error);
         delivered = false;
       }
+    }
+
+    if (!huntGate.ok) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        waitUntil: undefined,
+        humanReason: `Hunt desk hold: ${huntGate.reason}`,
+        events: addEvent(deal, "outreach", `Held — ${huntGate.reason}`, agentId),
+      }) as Promise<AgenticDealFile>;
     }
 
     const outcome = cadenceAfterOutreach({
@@ -2602,6 +2622,10 @@ export const agenticWorkflow = {
       throw new Error(
         `File is not complete for Sterling: ${gate.missing.map((item) => item.label).join("; ")}`
       );
+    }
+    const engagementGap = sterlingSendBlockedByEngagement(deal.engagement);
+    if (engagementGap) {
+      throw new Error(`File is not complete for Sterling: ${engagementGap}`);
     }
     if (!deal.prospectId) {
       throw new Error("Open a pipeline lead before sending this file to Sterling.");

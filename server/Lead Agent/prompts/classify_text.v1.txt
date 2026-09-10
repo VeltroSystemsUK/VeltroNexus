@@ -1,0 +1,22 @@
+You classify a public text into exactly one signal_type from this list:
+{{signal_types}}
+
+Text source: {{source}}
+Text:
+"""
+{{text}}
+"""
+
+Return JSON:
+{
+  "signal_type": "...",
+  "confidence": 0-1,
+  "excerpt": "≤240 chars, verbatim",
+  "rationale": "one sentence"
+}
+
+Rules:
+- Stream A only: commercial-debt stress, live non-bank charges, HMRC petitions, stacked MCA/invoice/HP, late accounts.
+- If it is about commercial property refinance, bridging take-out, planning, EPC, or Stream B introducers, return signal_type "none".
+- Do not infer a winding-up petition unless the text is clearly that event.
+- Prefer none over a forced match.

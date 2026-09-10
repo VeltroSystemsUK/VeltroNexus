@@ -3,6 +3,9 @@ graph TD
     D --> ORC["ORC-1 Orchestrator<br/>Stage machine · gates · tick()"]
 
     ORC --> RES["RES-2 Origination<br/>Daniel / Maya / Elena / Harper"]
+    ORC --> SLF["SLF-2 Super Lead Finder<br/>Stream A signals · never outreach"]
+    ORC --> LST["LST-2 Super List Finder<br/>Director primary · never invent info@"]
+    ORC --> REF["REF-2 Super Refer<br/>Tom · reachable introducers"]
     ORC --> SAL1["SAL-1 Inbound enquiries<br/>James Hale · drafts only"]
     ORC --> SAL["SAL-2 Communications<br/>James / Sophie / Rowan"]
     ORC --> FIN["FIN-2 File factory<br/>Priya"]
@@ -14,6 +17,14 @@ graph TD
     RES --> T_GZ[("Gazette")]
     RES --> T_PL[("Google Places")]
     RES --> T_CRM[("Prospect pipeline")]
+    SLF --> T_CH
+    SLF --> T_GZ
+    SLF -->|Book moved / New names| D
+    SLF -->|accept → gated deal| RES
+    LST -->|attach director mailbox| RES
+    LST -->|refuse dump| D
+    REF -->|reachable flag| SAL
+    REF -->|not a broker| D
 
     SAL1 --> T_IMAP[("IMAP read + Drafts write")]
     SAL1 -->|approval packet| D
@@ -41,6 +52,7 @@ graph TD
     CURATE --> T_STOCK["Unsplash / Pexels / Openverse / Firecrawl"]
 
     RES -->|ambiguous match| D
+    SLF -->|unresolved / regulated hold| D
     SAL1 -->|HOT / DISTRESS / COMPLAINT / P0| D
     SAL -->|complaint / P0 leftover| D
     FIN -->|credit memo checkpoint| D
@@ -49,5 +61,8 @@ graph TD
 
     style D fill:#1B3A6B,color:#fff
     style ORC fill:#2E75B6,color:#fff
+    style SLF fill:#2E75B6,color:#fff
+    style LST fill:#2E75B6,color:#fff
+    style REF fill:#2E75B6,color:#fff
     style SAL1 fill:#2E75B6,color:#fff
     style DAVID fill:#123a66,color:#fff

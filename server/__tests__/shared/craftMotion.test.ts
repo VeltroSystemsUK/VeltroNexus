@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { evaluateAnimation } from "@/components/craft/lib/renderer";
+import { IMAGE_MOTIONS, applyNodeMotion } from "@/components/craft/lib/looks";
 import { adaptPage } from "@/components/craft/lib/adapt";
 import { applyBrand } from "@/components/craft/lib/brand";
 import { applyCreativeDirection, applyPostVisual, creativeDirectionFor } from "@/components/craft/lib/composePost";
@@ -60,6 +62,15 @@ function motionDoc(node: MotionNode) {
 }
 
 describe("MotionNode schema", () => {
+  it("keeps a MotionNode caption through normalizeDocument", () => {
+    const node = makeMotionNode({ name: "Media frame", text: "File first" });
+    const doc = normalizeDocument(JSON.parse(JSON.stringify(motionDoc(node))));
+    const next = doc.pages[0]!.nodes[0];
+    expect(next?.type).toBe("motion");
+    if (next?.type !== "motion") return;
+    expect(next.text).toBe("File first");
+  });
+
   it("keeps a MotionNode and its schema through normalizeDocument", () => {
     const node = makeMotionNode({ name: "Media frame", x: 40, y: 40, width: 640, height: 400 });
     const doc = normalizeDocument(JSON.parse(JSON.stringify(motionDoc(node))));
@@ -164,6 +175,30 @@ describe("MotionNode schema", () => {
       "PillPulse",
       "OdometerRoll",
       "RedactHighlight",
+      "DrippingText",
+      "WordPiston",
+      "WordVortex",
+      "LetterAssembly",
+      "MisregisterGlitch",
+      "MonumentBreathe",
+      "StrokeReveal",
+      "TelemetryOverlay",
+      "VanishingTunnel",
+      "IconWeather",
+      "BufferGlitch",
+      "StaticResolve",
+      "RedactionLift",
+      "KintsugiMend",
+      "FerrofluidPull",
+      "SlowFax",
+      "SundialShadow",
+      "HalftoneLamp",
+      "HourglassDrain",
+      "MurmurationFlock",
+      "PendulumSwing",
+      "TabEscape",
+      "MossBloom",
+      "InkPileup",
     ]);
     const warp = validateMotionSchema({
       ...LEDGER_CURRENT,
@@ -299,9 +334,10 @@ describe("MotionNode live cap and reduced motion", () => {
     expect(node.preview).toBe("live");
   });
 
-  it("liveMotionIds prefers selection and caps at two", () => {
+  it("liveMotionIds prefers selection and runs a stack", () => {
     const nodes = [0, 1, 2].map((i) => makeMotionNode({ id: `m${i}`, preview: "live" }));
-    expect(liveMotionIds(nodes, ["m2"])).toEqual(new Set(["m2", "m0"]));
+    expect(liveMotionIds(nodes, ["m2"], 2)).toEqual(new Set(["m2", "m0"]));
+    expect(liveMotionIds(nodes, ["m2"])).toEqual(new Set(["m2", "m0", "m1"]));
   });
 
   it("liveMotionIds drops offscreen nodes when a host view is passed", () => {
@@ -449,6 +485,7 @@ describe("MotionNode presets", () => {
       "voronoi-partition",
       "liquid-text-mask",
       "odometer-roll",
+      "dripping-text",
       "goo-merge",
       "shatter-plate",
       "ink-splash-bloom",
@@ -488,10 +525,16 @@ describe("MotionNode presets", () => {
     expect(presetById("voronoi-partition").schema.category).toBe("VoronoiPulse");
     expect(presetById("viral-hook-drop").schema.category).toBe("ViralHook");
     expect(presetById("liquid-glass-shift").schema.category).toBe("LiquidGlass");
+    expect(presetById("liquid-glass-shift").schema.visual.background.toLowerCase()).not.toBe("#f7f5f1");
+    expect(presetById("liquid-glass-shift").schema.visual.background.toLowerCase()).toBe("#1a1d21");
     expect(presetById("viral-hook-drop").schema.meta?.vibe).not.toMatch(/apr|rate|loan|approved|%/i);
     expect(presetById("cinematic-hook-slam").schema.category).toBe("HookSlam");
     expect(presetById("odometer-roll").schema.category).toBe("OdometerRoll");
     expect(presetById("redact-highlight").schema.category).toBe("RedactHighlight");
+    expect(presetById("dripping-text").schema.category).toBe("DrippingText");
+    expect(presetById("dripping-text").schema.widget?.shape).toBe("teardrop");
+    expect(presetById("dripping-text").schema.widget?.motion).toBe("gravity");
+    expect(presetById("dripping-text").schema.widget?.texture).toBe("scanlines");
   });
 
   it("maps vibe language onto locked preset ids", () => {
@@ -533,6 +576,7 @@ describe("MotionNode presets", () => {
     expect(matchMotionPreset("highlight wipe")).toBe("redact-highlight");
     expect(matchMotionPreset("viral overshoot")).toBe("viral-hook-drop");
     expect(matchMotionPreset("chrome shift")).toBe("liquid-glass-shift");
+    expect(matchMotionPreset("drip melt teardrop")).toBe("dripping-text");
   });
 
   it("TypeKinetic reads hook copy and DataTicker never emits rate claims", () => {
@@ -606,6 +650,7 @@ describe("MotionNode presets", () => {
       "PillPulse",
       "OdometerRoll",
       "RedactHighlight",
+      "DrippingText",
     ] as const;
     for (const category of remaining) {
       const node = makeMotionNode({ schema: { ...LEDGER_CURRENT, category } });
@@ -695,6 +740,7 @@ describe("MotionNode presets", () => {
       "PillPulse",
       "OdometerRoll",
       "RedactHighlight",
+      "DrippingText",
     ]) {
       expect(runtime).toContain(`case "${category}"`);
     }
@@ -791,6 +837,11 @@ describe("MotionNode inspector", () => {
     expect(view).toMatch(/Field opacity/);
     expect(view).toMatch(/Pull strength/);
     expect(view).toMatch(/MOTION_BLENDS/);
+    expect(view).toMatch(/DRIP_TEXTURES/);
+    expect(view).toMatch(/DRIP_SHAPES/);
+    expect(view).toMatch(/DRIP_MOTIONS/);
+    expect(view).toMatch(/applyLiquidPreset/);
+    expect(view).toContain("Replay pour");
     expect(view).toMatch(/validateMotionSchema/);
     expect(view).toMatch(/setAdvancedOpen\(false\)/);
     expect(view).toMatch(/getMotionSessionWarning/);
@@ -806,6 +857,7 @@ describe("MotionNode inspector", () => {
     expect(store).toMatch(/silent: true/);
     expect(store).toMatch(/captureMotionFrame/);
     expect(store).toMatch(/disposeNode/);
+    expect(store).toMatch(/node.type !== "text" && node.type !== "motion"/);
     const runtime = readFileSync("client/src/components/craft/lib/motionRuntime.ts", "utf8");
     expect(runtime).not.toMatch(/const t = freeze \? 0/);
     expect(runtime).toMatch(/getImageEl/);
@@ -818,15 +870,674 @@ describe("MotionNode inspector", () => {
 
 describe("Describe a current", () => {
   it("matchMotionPreset stays on locked ids", () => {
-    expect(["ledger-current", "paper-sparks", "after-hours-warp", "corporate-ribbon"]).toContain(
-      matchMotionPreset("liquid glass wave sparks"),
-    );
+    expect([
+      "ledger-current",
+      "paper-sparks",
+      "after-hours-warp",
+      "corporate-ribbon",
+      "liquid-glass-shift",
+    ]).toContain(matchMotionPreset("liquid glass wave sparks"));
+    expect(matchMotionPreset("liquid glass")).toBe("liquid-glass-shift");
   });
 
   it("HUD flag and Describe a current exist in CraftView", () => {
     const view = readFileSync("client/src/components/craft/CraftView.tsx", "utf8");
     expect(view).toMatch(/Describe a current/);
     expect(view).toMatch(/craftMotionHud/);
+  });
+
+  it("lets a selected motion plate enter text edit", () => {
+    const view = readFileSync("client/src/components/craft/CraftView.tsx", "utf8");
+    expect(view).toMatch(/hit\?\.type === "text" \|\| hit\?\.type === "motion"/);
+    expect(view).toMatch(/node\?\.type === "text" \|\| node\?\.type === "motion"/);
+    expect(view).toContain("MotionCopyField");
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    expect(store).toMatch(/node.type !== "text" && node.type !== "motion"/);
+    const menu = readFileSync("client/src/components/craft/shell/CraftContextMenu.tsx", "utf8");
+    expect(menu).toMatch(/node\?\.type === "text" \|\| node\?\.type === "motion"/);
+  });
+
+  it("double-click edits the topmost text or motion plate", () => {
+    const view = readFileSync("client/src/components/craft/CraftView.tsx", "utf8");
+    expect(view).not.toContain("textHit ?? motionHit");
+    expect(view).toMatch(/hits\.find\(\(node\) => node\.type === "text" \|\| node\.type === "motion"\)/);
+  });
+
+  it("applyMotionPreset stacks a new plate unless the selected look is the same", () => {
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    const apply = store.slice(
+      store.indexOf("applyMotionPreset: (id) =>"),
+      store.indexOf("replaceMotionPreset: (id)"),
+    );
+    expect(apply).toMatch(/selected\.schema\.category === preset\.schema\.category/);
+    expect(apply).toMatch(/get\(\)\.addMotion\(preset\.id\)/);
+    expect(apply).not.toMatch(/patch: Partial<typeof selected> = \{ schema: preset.schema/);
+  });
+
+  it("right-click motion plate lists house looks and plate actions", () => {
+    const menu = readFileSync("client/src/components/craft/shell/CraftContextMenu.tsx", "utf8");
+    expect(menu).toContain("MOTION_PRESETS");
+    expect(menu).toContain("replaceMotionPreset");
+    expect(menu).toContain("Capture still");
+    expect(menu).toContain("Record GIF");
+    expect(menu).toContain("MOTION_PRESET_GROUPS");
+    expect(menu).toMatch(/node\.type === "motion"/);
+    const store = readFileSync("client/src/components/craft/store.ts", "utf8");
+    expect(store).toContain("replaceMotionPreset:");
+    const replace = store.slice(store.indexOf("replaceMotionPreset: (id)"));
+    expect(replace).toMatch(/schema: preset\.schema, seed: Date\.now\(\)/);
+  });
+
+  it("hides CSS tween and colour on motion plates", () => {
+    const menu = readFileSync("client/src/components/craft/shell/CraftContextMenu.tsx", "utf8");
+    expect(menu).toMatch(/node\.type !== "motion"/);
+    expect(menu).toContain("IMAGE_MOTIONS");
+    const view = readFileSync("client/src/components/craft/CraftView.tsx", "utf8");
+    const idx = view.lastIndexOf("IMAGE_MOTIONS");
+    expect(view.slice(Math.max(0, idx - 500), idx)).toMatch(/node\.type !== "motion"/);
+  });
+});
+
+describe("Motion overlay layers", () => {
+  it("keeps a transparent plate background through validateMotionSchema", () => {
+    const node = makeMotionNode({
+      schema: { ...LEDGER_CURRENT, visual: { ...LEDGER_CURRENT.visual, background: "transparent" } },
+    });
+    expect(node.schema.visual.background).toBe("transparent");
+  });
+
+  it("hook slam and viral hook are transparent overlays", () => {
+    expect(presetById("cinematic-hook-slam").schema.visual.background).toBe("transparent");
+    expect(presetById("viral-hook-drop").schema.visual.background).toBe("transparent");
+  });
+
+  it("runtime skips the card fill on a transparent overlay", () => {
+    const runtime = readFileSync("client/src/components/craft/lib/motionRuntime.ts", "utf8");
+    expect(runtime).toMatch(/background !== "transparent"/);
+  });
+});
+
+describe("Dripping Text widget", () => {
+  it("keeps enhanced widget settings through validateMotionSchema", () => {
+    const next = validateMotionSchema({
+      ...LEDGER_CURRENT,
+      category: "DrippingText",
+      widget: {
+        texture: "waves",
+        shape: "snowflake",
+        motion: "swirl",
+        interaction: "repel",
+        gravity: 0.4,
+        drift: 1.2,
+        viscosity: 0.7,
+        turbulence: 0.9,
+        fontFamily: "Unbounded",
+        fontWeight: "800",
+        fontStyle: "italic",
+        fontSize: 180,
+        multi: false,
+      },
+    });
+    expect(next.ok).toBe(true);
+    expect(next.schema.category).toBe("DrippingText");
+    expect(next.schema.widget).toMatchObject({
+      texture: "waves",
+      shape: "snowflake",
+      motion: "swirl",
+      interaction: "repel",
+      fontFamily: "Unbounded",
+      multi: false,
+    });
+  });
+
+  it("rejects unknown widget keys by falling back to defaults", () => {
+    const next = validateMotionSchema({
+      ...LEDGER_CURRENT,
+      category: "DrippingText",
+      widget: { texture: "galaxy", shape: "teardrop", motion: "gravity" },
+    });
+    expect(next.ok).toBe(true);
+    expect(next.schema.widget?.texture).toBe("scanlines");
+  });
+});
+
+describe("Vapor Drift", () => {
+  it("paints soft gradient mist instead of ellipses", () => {
+    const runtime = readFileSync("client/src/components/craft/lib/motionRuntime.ts", "utf8");
+    const start = runtime.indexOf("function drawVaporDrift");
+    const next = runtime.indexOf("\nfunction ", start + 1);
+    const body = runtime.slice(start, next);
+    expect(body).toContain("function drawVaporDrift");
+    expect(body).not.toMatch(/ctx\.ellipse/);
+    expect(body).not.toMatch(/ctx\.scale/);
+    expect(body).toMatch(/createLinearGradient/);
+    expect(body).toMatch(/createRadialGradient/);
+  });
+});
+
+describe("Cinematic Hook Slam caption", () => {
+  it("hook overshoot starts oversized and rests at 1", async () => {
+    const { hookOvershootScale } = await import("@/components/craft/lib/motionRuntime");
+    expect(hookOvershootScale(Number.POSITIVE_INFINITY, 300, 0.35, 45, 4.2, 3.1)).toBe(1);
+    expect(hookOvershootScale(0, 300, 0.35, 45, 4.2, 3.1)).toBeGreaterThanOrEqual(2.5);
+    expect(hookOvershootScale(0.35, 300, 0.35, 45, 4.2, 3.1)).toBeGreaterThanOrEqual(0.9);
+  });
+});
+
+type AuditCall = { op: string; args: unknown[]; fill: string; stroke: string; alpha: number; dash: number };
+
+type AuditCanvas = {
+  width: number;
+  height: number;
+  calls: AuditCall[];
+  getContext: (type: string) => unknown;
+  toDataURL: () => string;
+};
+
+function installAuditCanvas() {
+  const priorDoc = (globalThis as { document?: unknown }).document;
+  const priorEl = (globalThis as { HTMLCanvasElement?: unknown }).HTMLCanvasElement;
+  const hadDoc = Object.prototype.hasOwnProperty.call(globalThis, "document");
+  const hadEl = Object.prototype.hasOwnProperty.call(globalThis, "HTMLCanvasElement");
+
+  class AuditCanvasEl {
+    width = 1;
+    height = 1;
+    calls: AuditCall[] = [];
+    private ctx: Record<string, unknown> | null = null;
+
+    getContext(type: string) {
+      if (type !== "2d") return null;
+      if (this.ctx) return this.ctx;
+      const canvas = this;
+      const state = {
+        fillStyle: "#000000" as unknown,
+        strokeStyle: "#000000" as unknown,
+        globalAlpha: 1,
+        globalCompositeOperation: "source-over",
+        lineWidth: 1,
+        lineCap: "butt",
+        lineJoin: "miter",
+        lineDashOffset: 0,
+        font: "10px sans-serif",
+        textAlign: "start",
+        textBaseline: "alphabetic",
+      };
+      const stack: Array<typeof state> = [];
+      const rec = (op: string, args: unknown[]) => {
+        canvas.calls.push({
+          op,
+          args,
+          fill: String(state.fillStyle),
+          stroke: String(state.strokeStyle),
+          alpha: state.globalAlpha,
+          dash: state.lineDashOffset,
+        });
+      };
+      const gradient = () => ({
+        addColorStop(...args: unknown[]) {
+          rec("addColorStop", args);
+        },
+        toString() {
+          return "gradient";
+        },
+      });
+      const ctx: Record<string, unknown> = {
+        canvas,
+        get fillStyle() {
+          return state.fillStyle;
+        },
+        set fillStyle(value: unknown) {
+          state.fillStyle = value;
+        },
+        get strokeStyle() {
+          return state.strokeStyle;
+        },
+        set strokeStyle(value: unknown) {
+          state.strokeStyle = value;
+        },
+        get globalAlpha() {
+          return state.globalAlpha;
+        },
+        set globalAlpha(value: number) {
+          state.globalAlpha = value;
+        },
+        get globalCompositeOperation() {
+          return state.globalCompositeOperation;
+        },
+        set globalCompositeOperation(value: string) {
+          state.globalCompositeOperation = value;
+        },
+        get lineWidth() {
+          return state.lineWidth;
+        },
+        set lineWidth(value: number) {
+          state.lineWidth = value;
+        },
+        get lineCap() {
+          return state.lineCap;
+        },
+        set lineCap(value: string) {
+          state.lineCap = value;
+        },
+        get lineJoin() {
+          return state.lineJoin;
+        },
+        set lineJoin(value: string) {
+          state.lineJoin = value;
+        },
+        get lineDashOffset() {
+          return state.lineDashOffset;
+        },
+        set lineDashOffset(value: number) {
+          state.lineDashOffset = value;
+        },
+        get font() {
+          return state.font;
+        },
+        set font(value: string) {
+          state.font = value;
+        },
+        get textAlign() {
+          return state.textAlign;
+        },
+        set textAlign(value: string) {
+          state.textAlign = value;
+        },
+        get textBaseline() {
+          return state.textBaseline;
+        },
+        set textBaseline(value: string) {
+          state.textBaseline = value;
+        },
+        save() {
+          stack.push({ ...state });
+        },
+        restore() {
+          const next = stack.pop();
+          if (next) Object.assign(state, next);
+        },
+        fillRect(...args: unknown[]) {
+          rec("fillRect", args);
+        },
+        strokeRect(...args: unknown[]) {
+          rec("strokeRect", args);
+        },
+        clearRect(...args: unknown[]) {
+          rec("clearRect", args);
+        },
+        rect(...args: unknown[]) {
+          rec("rect", args);
+        },
+        roundRect(...args: unknown[]) {
+          rec("roundRect", args);
+        },
+        beginPath() {
+          rec("beginPath", []);
+        },
+        closePath() {
+          rec("closePath", []);
+        },
+        moveTo(...args: unknown[]) {
+          rec("moveTo", args);
+        },
+        lineTo(...args: unknown[]) {
+          rec("lineTo", args);
+        },
+        quadraticCurveTo(...args: unknown[]) {
+          rec("quadraticCurveTo", args);
+        },
+        bezierCurveTo(...args: unknown[]) {
+          rec("bezierCurveTo", args);
+        },
+        arc(...args: unknown[]) {
+          rec("arc", args);
+        },
+        ellipse(...args: unknown[]) {
+          rec("ellipse", args);
+        },
+        fill() {
+          rec("fill", []);
+        },
+        stroke() {
+          rec("stroke", []);
+        },
+        clip() {
+          rec("clip", []);
+        },
+        fillText(...args: unknown[]) {
+          rec("fillText", args);
+        },
+        strokeText(...args: unknown[]) {
+          rec("strokeText", args);
+        },
+        measureText(text: string) {
+          const size = Number.parseFloat(state.font) || 12;
+          return { width: Math.max(1, String(text).length * size * 0.55) };
+        },
+        createLinearGradient(...args: unknown[]) {
+          rec("createLinearGradient", args);
+          return gradient();
+        },
+        createRadialGradient(...args: unknown[]) {
+          rec("createRadialGradient", args);
+          return gradient();
+        },
+        setTransform() {
+          rec("setTransform", []);
+        },
+        translate(...args: unknown[]) {
+          rec("translate", args);
+        },
+        rotate(...args: unknown[]) {
+          rec("rotate", args);
+        },
+        scale(...args: unknown[]) {
+          rec("scale", args);
+        },
+        transform() {
+          rec("transform", []);
+        },
+        setLineDash() {},
+        drawImage() {
+          rec("drawImage", []);
+        },
+      };
+      this.ctx = ctx;
+      return ctx;
+    }
+
+    toDataURL() {
+      return "data:image/png;base64,QQ==";
+    }
+  }
+
+  (globalThis as { document: unknown }).document = {
+    createElement(tag: string) {
+      if (tag === "canvas") return new AuditCanvasEl();
+      return { style: {} };
+    },
+  };
+  (globalThis as { HTMLCanvasElement: unknown }).HTMLCanvasElement = AuditCanvasEl;
+
+  return () => {
+    disposeAll();
+    if (hadDoc) (globalThis as { document: unknown }).document = priorDoc;
+    else delete (globalThis as { document?: unknown }).document;
+    if (hadEl) (globalThis as { HTMLCanvasElement: unknown }).HTMLCanvasElement = priorEl;
+    else delete (globalThis as { HTMLCanvasElement?: unknown }).HTMLCanvasElement;
+  };
+}
+
+function contentOps(calls: AuditCall[], width: number, height: number): AuditCall[] {
+  return calls.filter((call) => {
+    if (
+      call.op === "save" ||
+      call.op === "restore" ||
+      call.op === "setTransform" ||
+      call.op === "clearRect" ||
+      call.op === "beginPath" ||
+      call.op === "closePath" ||
+      call.op === "clip" ||
+      call.op === "transform"
+    ) {
+      return false;
+    }
+    if (call.op === "fillRect") {
+      const [x, y, w, h] = call.args as number[];
+      if (w <= 1 && h <= 1) return false;
+      if (
+        x === 0 &&
+        y === 0 &&
+        w >= width - 1 &&
+        h >= height - 1 &&
+        call.fill !== "gradient" &&
+        !call.fill.startsWith("rgba") &&
+        !call.fill.startsWith("hsla")
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function paintPreset(id: string, atMs: number, extra: Partial<Parameters<typeof motionBitmap>[2]> = {}) {
+  const preset = presetById(id);
+  const node = makeMotionNode({
+    id: `audit-${id}-${atMs}-${Math.random().toString(36).slice(2, 7)}`,
+    width: 320,
+    height: 200,
+    schema: preset.schema,
+    seed: 7,
+  });
+  const bitmap = motionBitmap(node, [], {
+    live: true,
+    reduced: false,
+    atMs,
+    dpr: 1,
+    hooks: { hook1: "FILE", hook2: "NOW" },
+    ...extra,
+  }) as unknown as AuditCanvas;
+  return { node, calls: bitmap.calls.slice() };
+}
+
+describe("Motion asset audit", () => {
+  let restore: (() => void) | undefined;
+  afterEach(() => {
+    restore?.();
+    restore = undefined;
+    disposeAll();
+    resetMotionSignals();
+  });
+
+  it("maps every locked category to exactly one house preset", () => {
+    const cats = MOTION_PRESETS.map((preset) => preset.schema.category);
+    expect(new Set(cats).size).toBe(cats.length);
+    expect(MOTION_PRESETS).toHaveLength(MOTION_CATEGORIES.length);
+    for (const category of MOTION_CATEGORIES) {
+      expect(cats).toContain(category);
+    }
+  });
+
+  it("paints a visible rest pose for every house look", () => {
+    restore = installAuditCanvas();
+    const blank: string[] = [];
+    for (const preset of MOTION_PRESETS) {
+      const { calls } = paintPreset(preset.id, 1400);
+      if (contentOps(calls, 320, 200).length === 0) blank.push(preset.id);
+    }
+    expect(blank).toEqual([]);
+  });
+
+  it("keeps looping looks moving between two ticks", () => {
+    restore = installAuditCanvas();
+    const looping = [
+      "ledger-current",
+      "paper-sparks",
+      "grain-breath",
+      "vapor-drift",
+      "static-shiver",
+      "vignette-breathing",
+      "horizon-shift",
+      "parchment-heat",
+      "liquid-quartz",
+      "liquid-glass-shift",
+      "thermal-heat-bloom",
+      "redact-sweep",
+      "ink-bleed",
+      "light-leak",
+      "cybernetic-scanline",
+      "ledger-margin-glow",
+      "resin-gloss-sweep",
+      "holographic-foil",
+      "vellum-crease",
+      "guilloche-wave",
+      "glowing-pill-pulse",
+      "corporate-ribbon",
+      "perspective-grid",
+      "network-map",
+      "hook-turn",
+      "ledger-ticker",
+      "ledger-stitch",
+      "acoustic-waveform-pulse",
+      "topographic-contour",
+      "liquid-text-mask",
+      "odometer-roll",
+      "goo-merge",
+      "quantum-glitch",
+      "typewriter-cursor",
+      "mechanical-escapement",
+    ];
+    const stuck: string[] = [];
+    for (const id of looping) {
+      const preset = presetById(id);
+      const node = makeMotionNode({
+        id: `loop-${id}`,
+        width: 320,
+        height: 200,
+        schema: preset.schema,
+        seed: 7,
+      });
+      const opts = {
+        live: true as const,
+        reduced: false,
+        dpr: 1,
+        hooks: { hook1: "FILE", hook2: "NOW" },
+      };
+      const canvas = motionBitmap(node, [], { ...opts, atMs: 0 }) as unknown as AuditCanvas;
+      canvas.calls = [];
+      motionBitmap(node, [], { ...opts, atMs: 20 });
+      const a = JSON.stringify(contentOps(canvas.calls, 320, 200));
+      canvas.calls = [];
+      motionBitmap(node, [], { ...opts, atMs: 920 });
+      const b = JSON.stringify(contentOps(canvas.calls, 320, 200));
+      if (a === b) stuck.push(id);
+      disposeNode(node.id);
+    }
+    expect(stuck).toEqual([]);
+  });
+
+  it("does not drop a click that lands between fps ticks", () => {
+    restore = installAuditCanvas();
+    const node = makeMotionNode({
+      id: "click-gap",
+      width: 320,
+      height: 200,
+      schema: presetById("ledger-fracture").schema,
+      seed: 3,
+    });
+    motionBitmap(node, [], { live: true, reduced: false, atMs: 0, dpr: 1 });
+    const canvas = motionBitmap(node, [], { live: true, reduced: false, atMs: 0, dpr: 1 }) as unknown as AuditCanvas;
+    canvas.calls = [];
+    motionBitmap(node, [], {
+      live: true,
+      reduced: false,
+      atMs: 8,
+      dpr: 1,
+      click: { x: node.x + 48, y: node.y + 40 },
+    });
+    expect(canvas.calls.filter((call) => call.op === "lineTo").length).toBeGreaterThan(8);
+  });
+
+  it("stencil punch sits on a dark plate so the cut-out reads", () => {
+    restore = installAuditCanvas();
+    const { calls } = paintPreset("kinetic-stencil-punch", 400);
+    const plate = calls.some(
+      (call) =>
+        (call.op === "fillRect" || call.op === "roundRect") &&
+        Number(call.args[2]) > 80 &&
+        Number(call.args[3]) > 40 &&
+        /26,\s*29,\s*33/.test(call.fill),
+    );
+    expect(plate).toBe(true);
+    expect(calls.some((call) => call.op === "fillText" && call.args[0] === "FILE")).toBe(true);
+  });
+
+  it("guilloche draws complete roses, not a trimmed open scribble", () => {
+    restore = installAuditCanvas();
+    const { calls } = paintPreset("guilloche-wave", 0);
+    expect(calls.filter((call) => call.op === "lineTo").length).toBeGreaterThan(200);
+  });
+
+  it("typewriter cursor blinks while idle", () => {
+    restore = installAuditCanvas();
+    const idle = snapshotMotionSignals(0);
+    const cursor = (atMs: number) =>
+      paintPreset("typewriter-cursor", atMs, { signals: idle }).calls.filter(
+        (call) => call.op === "fillRect" && Number(call.args[2]) < 40 && Number(call.args[3]) > 8,
+      );
+    expect(cursor(0).length + cursor(500).length).toBeGreaterThan(0);
+  });
+
+  it("escapement ticks while idle instead of freezing at angle 0", () => {
+    restore = installAuditCanvas();
+    const idle = snapshotMotionSignals(0);
+    const angle = (atMs: number) =>
+      paintPreset("mechanical-escapement", atMs, { signals: idle }).calls.find((call) => call.op === "rotate")?.args[0];
+    expect(angle(0)).not.toEqual(angle(2400));
+  });
+
+  it("anode flicker stays faint at rest instead of washing the plate", () => {
+    restore = installAuditCanvas();
+    const idle = snapshotMotionSignals(0);
+    const { calls } = paintPreset("anode-flicker-decay", 800, { signals: idle });
+    const wash = calls.filter(
+      (call) =>
+        call.op === "fillRect" &&
+        call.args[0] === 0 &&
+        call.args[1] === 0 &&
+        Number(call.args[2]) >= 320 &&
+        Number(call.args[3]) >= 200 &&
+        /26,\s*29,\s*33/.test(call.fill),
+    );
+    expect(wash).toHaveLength(0);
+  });
+
+  it("redact highlight rests on the hook instead of an empty plate", () => {
+    restore = installAuditCanvas();
+    const { calls } = paintPreset("redact-highlight", 800, { signals: snapshotMotionSignals(0) });
+    expect(calls.some((call) => call.fill.toLowerCase().includes("201,27,37") || call.fill === "#C91B25")).toBe(true);
+    expect(calls.some((call) => call.op === "fillText")).toBe(true);
+  });
+
+  it("after-hours warp still paints a 2d fallback without three.js", () => {
+    restore = installAuditCanvas();
+    const { calls } = paintPreset("after-hours-warp", 600);
+    expect(contentOps(calls, 320, 200).length).toBeGreaterThan(0);
+    const runtime = readFileSync("client/src/components/craft/lib/motionRuntime.ts", "utf8");
+    expect(runtime).toMatch(/drawWarpFallback/);
+  });
+
+  it("CSS node tweens still land on identity when finished", () => {
+    for (const motion of IMAGE_MOTIONS) {
+      const node = applyNodeMotion(makeMotionNode({ id: `tween-${motion.id}` }), motion.id);
+      if (motion.id === "none") {
+        expect(evaluateAnimation(node.animation, 120)).toMatchObject({
+          opacity: 1,
+          scaleX: 1,
+          scaleY: 1,
+          dx: 0,
+          dy: 0,
+        });
+        continue;
+      }
+      const spec = node.animation!;
+      const mid = evaluateAnimation(spec, spec.duration / 4);
+      if (motion.id === "pulse") {
+        expect(mid.scaleX).not.toBe(1);
+        expect(evaluateAnimation(spec, spec.duration * 3 + spec.duration / 4).scaleX).not.toBe(1);
+        continue;
+      }
+      const done = evaluateAnimation(spec, spec.duration + 20);
+      expect(done).toMatchObject({ opacity: 1, scaleX: 1, scaleY: 1, dx: 0, dy: 0, rotationDeg: 0 });
+      if (motion.id === "fadeIn") {
+        expect(mid.opacity).toBeGreaterThan(0);
+        expect(mid.opacity).toBeLessThan(1);
+      } else {
+        expect(JSON.stringify(mid)).not.toEqual(JSON.stringify(done));
+      }
+    }
   });
 });
 

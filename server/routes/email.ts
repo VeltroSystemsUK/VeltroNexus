@@ -4,8 +4,9 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { emailVerificationService } from "../services/emailVerification";
+import { sendEmail } from "../services/email";
+import { sharedInbox } from "@shared/agentMailboxes";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.get("/inbox", isAuthenticated, async (req: Request, res: Response) => {
             console.log(JSON.stringify({ type: "local_inbox_created", inboxId: inbox.inboxId }));
         }
 
-        res.json(inbox);
+        res.json({ ...inbox, emailAddress: sharedInbox() });
     } catch (error) {
         handleApiError(res, error, "api-error");
     }
@@ -211,37 +212,17 @@ router.post("/send", isAuthenticated, async (req: Request, res: Response) => {
         // Send via SMTP if credentials are configured — this is the user's personal
         // work mailbox (shaun@stratafinance.co.uk), separate from the shared
         // enquiries@ account agents use for outreach.
-        const smtpHost = process.env.WORK_SMTP_HOST;
-        const smtpPort = parseInt(process.env.WORK_SMTP_PORT || "587");
-        const smtpUser = process.env.WORK_SMTP_USER;
-        const smtpPass = process.env.WORK_SMTP_PASS;
-
-        if (smtpHost && smtpUser && smtpPass) {
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: smtpHost,
-                    port: smtpPort,
-                    secure: smtpPort === 465,
-                    auth: {
-                        user: smtpUser,
-                        pass: smtpPass,
-                    },
-                });
-
-                await transporter.sendMail({
-                    from: process.env.WORK_SMTP_FROM || smtpUser,
-                    to: toAddresses.join(", "),
-                    cc: ccAddresses.length > 0 ? ccAddresses.join(", ") : undefined,
-                    subject,
-                    text: body,
-                });
-                console.log(`[SMTP] Sent email to ${toAddresses.join(", ")}`);
-            } catch (err: any) {
-                console.error("[SMTP] Failed to send email via SMTP:", err.message);
-            }
-        } else {
-            console.log(`[Email Mock] Sent outbound email to ${toAddresses.join(", ")} (SMTP not configured)`);
-        }
+        await sendEmail(
+            {
+                agentId: "inbound-intake",
+                fromEmail: sharedInbox(),
+                replyTo: sharedInbox(),
+                prospectId,
+            },
+            toAddresses.join(", "),
+            subject,
+            body || "",
+        );
 
         const savedMessage = await storage.createEmailMessage({
             inboxId: inbox.id,
@@ -249,7 +230,7 @@ router.post("/send", isAuthenticated, async (req: Request, res: Response) => {
             threadId: replyToMessageId || `thread-${crypto.randomUUID()}`,
             contactId: contactId ? parseInt(contactId) : null,
             prospectId: prospectId ? parseInt(prospectId) : null,
-            fromAddress: process.env.WORK_SMTP_FROM || inbox.emailAddress,
+            fromAddress: sharedInbox(),
             toAddresses,
             ccAddresses,
             subject,

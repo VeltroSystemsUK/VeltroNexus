@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { STAGE_LABELS, type AgenticDealFile } from "@shared/agenticWorkflow";
 import { namedPackGaps } from "@shared/sterlingCompleteness";
-import { packUploadUrl } from "@shared/strataOutreach";
+import { packUploadUrl, signEngagementUrl } from "@shared/strataOutreach";
+import { isLiveSigned } from "@shared/engagementPack";
 import {
   isWaitingSmeEmailApproval,
   remainingSmeFirstTouchSlots,
@@ -601,6 +602,19 @@ export function DealFilesPanel() {
                 >
                   Upload link
                 </a>
+                <p>
+                  {isLiveSigned(deal.engagement)
+                    ? `Engagement signed by ${deal.engagement?.signedName}`
+                    : "Engagement letter not signed"}
+                </p>
+                <a
+                  href={signEngagementUrl(deal.uploadToken)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-violet-300 hover:underline break-all"
+                >
+                  E-sign link
+                </a>
               </div>
             )}
 
@@ -647,7 +661,16 @@ export function DealFilesPanel() {
               {deal.stage === "human_review" && (
                 <Button
                   size="sm"
-                  disabled={namedPackGaps(deal).length > 0 || deal.sfp?.status !== "COMPLETE"}
+                  disabled={
+                    namedPackGaps(deal).length > 0 ||
+                    deal.sfp?.status !== "COMPLETE" ||
+                    !isLiveSigned(deal.engagement)
+                  }
+                  title={
+                    !isLiveSigned(deal.engagement)
+                      ? "Client must e-sign the Privacy Notice and Terms of Business first"
+                      : undefined
+                  }
                   onClick={() => resolveHuman.mutate({ id: deal.id, action: "approve_sterling" })}
                 >
                   Send to David

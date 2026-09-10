@@ -35,4 +35,14 @@ describe("funding proposal report gate", () => {
     expect(src).toMatch(/ProposalNotReadyError/);
     expect(src).toMatch(/status === 400 \|\| status === 409/);
   });
+
+  it("extracts the cashflow attachment before printing the PDF", () => {
+    const src = fs.readFileSync(path.resolve("server/utils/fundingProposal.ts"), "utf8");
+    expect(src).toMatch(/ensureCashflowForecast/);
+  });
+
+  it("rewrites Background on Generate Report", () => {
+    const src = fs.readFileSync(path.resolve("server/utils/fundingProposal.ts"), "utf8");
+    expect(src).toMatch(/ensureBackground/);
+  });
 });

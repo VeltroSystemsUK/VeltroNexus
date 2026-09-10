@@ -10,6 +10,13 @@ describe("Auto Write slot constraints", () => {
     expect(src).not.toMatch(/Loan amount: £\$\{/);
   });
 
+  it("asks Background for up to ten short bullets", () => {
+    const src = fs.readFileSync(path.resolve("server/utils/geminiClient.ts"), "utf8");
+    const line = src.split("\n").find((row) => /Background:/.test(row) && /short bullets/.test(row));
+    expect(line).toBeTruthy();
+    expect(line!).toMatch(/10|ten/i);
+  });
+
   it("SECTION_GUIDANCE is bullet-only without ledger facts", () => {
     const src = fs.readFileSync(path.resolve("server/utils/geminiClient.ts"), "utf8");
     expect(src).not.toMatch(/one paragraph/);

@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { unwrapDueDiligence } from "@shared/dueDiligence";
+import { BulletList } from "@/components/BulletField";
 
 export default function AnalysisPage() {
     const [match, params] = useRoute("/prospect/:id/underwriting/analysis");
@@ -274,9 +275,9 @@ export default function AnalysisPage() {
                                             </ul>
                                         </div>
                                     </div>
-                                    <div className="text-sm bg-muted p-3 rounded">
-                                        <span className="font-semibold">Summary: </span>
-                                        <span className="text-muted-foreground">{swotAnalysis.summary}</span>
+                                    <div className="text-sm bg-muted p-3 rounded space-y-1">
+                                        <span className="font-semibold">Summary</span>
+                                        <BulletList text={swotAnalysis.summary} className="text-muted-foreground" />
                                     </div>
                                 </div>
                             ) : (

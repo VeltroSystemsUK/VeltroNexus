@@ -13,6 +13,7 @@ import {
   type CraftNode,
   type CraftPage,
   type DropShadow,
+  type DaySlot,
   type FontRole,
   type ShapeVariant,
 } from "./types";
@@ -307,12 +308,123 @@ function liLandscape(): CraftPage {
     text("Silence", "", 80, 240, 1040, 90, 28, "text", { hidden: true, fontRole: "heading" }),
     shape("CTA", "rect", 500, 470, 220, 52, "accent", { borderRadius: 2, shadow: HARD_SHADOW }),
     text("CTA label", "", 500, 484, 220, 28, 16, "text", { align: "center", fontRole: "body", fontWeight: "700" }),
-    monoText("Identity", "We do not lend.", 500, 548, 640, 24, 13, "text", {
+    monoText("Identity", "We package the case. We do not lend.", 500, 548, 640, 24, 13, "text", {
       letterSpacing: 2,
       uppercase: false,
       locked: true,
     }),
   ]);
+}
+
+function trackRole(): ReturnType<typeof text> {
+  return text("Role", "", 0, 0, 12, 12, 10, "muted", { hidden: true });
+}
+
+function identityLine(x: number, y: number, width = 1040, role: ColorRole = "text"): ReturnType<typeof monoText> {
+  return monoText("Identity", "We package the case. We do not lend.", x, y, width, 24, 13, role, {
+    letterSpacing: 2,
+    uppercase: false,
+    locked: true,
+    shadow: HARD_SHADOW,
+  });
+}
+
+/** Seven different 1200×627 boards. Cloning li-landscape seven times is a PowerPoint deck. */
+export function weekDayPage(slot: DaySlot): CraftPage {
+  const stretch = { constraints: { horizontal: "stretch" as const, vertical: "stretch" as const } };
+  const hard = { borderRadius: 0, shadow: HARD_SHADOW };
+  const nodes: CraftNode[] =
+    slot === "monday-two-beat"
+      ? [
+          shape("Ground", "rect", 0, 0, 1200, 627, "primary", stretch),
+          shape("Gold blade", "rect", 0, 0, 8, 627, "accent"),
+          monoText("Eyebrow", "", 48, 28, 720, 22, 12, "background", { letterSpacing: 4, opacity: 0.7 }),
+          text("Hook 1", "", 40, 64, 1140, 220, 80, "background", { fontRole: "heading", lineHeight: 0.94, fontWeight: "800" }),
+          text("Hook 2", "", 48, 300, 980, 88, 42, "accent", { fontRole: "heading", lineHeight: 1.0 }),
+          text("Body", "", 48, 408, 760, 72, 16, "background", { fontRole: "body", fontWeight: "400", lineHeight: 1.35, opacity: 0.72 }),
+          shape("CTA", "rect", 48, 500, 220, 48, "accent", hard),
+          text("CTA label", "", 48, 512, 220, 26, 15, "text", { align: "center", fontRole: "body", fontWeight: "700" }),
+          identityLine(48, 568, 900, "background"),
+          monoText("Hashtags", "", 320, 514, 400, 24, 11, "muted", { letterSpacing: 1, hidden: true }),
+          monoText("Link", "", 740, 514, 400, 24, 11, "background", { letterSpacing: 1, hidden: true }),
+          trackRole(),
+        ]
+      : slot === "tuesday-stamp"
+        ? [
+            shape("Ground", "rect", 0, 0, 1200, 627, "background", stretch),
+            shape("LightLeak", "rect", 0, 0, 8, 627, "accent"),
+            shape("Media frame", "rect", 40, 40, 500, 547, "muted", { shadow: HARD_SHADOW }),
+            monoText("Eyebrow", "", 580, 48, 560, 22, 12, "muted", { letterSpacing: 4 }),
+            text("Hook 1", "", 580, 140, 560, 160, 36, "text", { fontRole: "heading", lineHeight: 1.02 }),
+            text("Hook 2", "", 580, 320, 560, 80, 24, "accent", { fontRole: "heading", lineHeight: 1.08 }),
+            text("Body", "", 580, 420, 400, 40, 16, "muted", { hidden: true, fontRole: "body" }),
+            identityLine(580, 568, 560),
+            trackRole(),
+          ]
+        : slot === "wednesday-voice"
+          ? [
+              shape("Ground", "rect", 0, 0, 1200, 627, "primary", stretch),
+              shape("Media frame", "rect", 0, 0, 1200, 627, "muted", stretch),
+              shape("Wash", "rect", 0, 240, 1200, 387, "primary", { opacity: 0.72 }),
+              monoText("Eyebrow", "", 48, 36, 800, 22, 12, "background", { letterSpacing: 4, opacity: 0.75 }),
+              text("Voice", "", 48, 280, 1104, 200, 44, "background", { fontRole: "heading", lineHeight: 1.08 }),
+              text("Hook 1", "", 48, 80, 400, 40, 18, "text", { hidden: true }),
+              text("Hook 2", "", 48, 120, 400, 40, 18, "accent", { hidden: true }),
+              text("Body", "", 48, 160, 400, 40, 16, "muted", { hidden: true }),
+              identityLine(48, 568, 1100, "background"),
+              trackRole(),
+            ]
+          : slot === "thursday-redact"
+            ? [
+                shape("Ground", "rect", 0, 0, 1200, 627, "background", stretch),
+                monoText("Eyebrow", "", 48, 28, 800, 22, 12, "muted", { letterSpacing: 4 }),
+                shape("RedactSweep", "rect", 40, 88, 1120, 96, "primary", { opacity: 0.94, copyExempt: true }),
+                text("Hook 1", "", 48, 220, 1104, 140, 56, "text", { fontRole: "heading", lineHeight: 0.98 }),
+                text("Hook 2", "", 48, 372, 1104, 72, 32, "accent", { fontRole: "heading" }),
+                text("Body", "", 48, 460, 820, 56, 16, "muted", { fontRole: "body", fontWeight: "400", lineHeight: 1.35 }),
+                identityLine(48, 568),
+                trackRole(),
+              ]
+            : slot === "friday-number"
+              ? [
+                  shape("Ground", "rect", 0, 0, 1200, 627, "primary", stretch),
+                  monoText("Eyebrow", "", 48, 24, 800, 22, 12, "background", { letterSpacing: 4, hidden: true }),
+                  monoText("DataTicker", "00", -40, 16, 1240, 240, 168, "background", {
+                    letterSpacing: -6,
+                    uppercase: false,
+                    fontWeight: "800",
+                  }),
+                  text("Body", "", 48, 280, 900, 80, 20, "background", { fontRole: "body", fontWeight: "400", lineHeight: 1.3, opacity: 0.8 }),
+                  text("Hook 1", "", 48, 80, 400, 40, 18, "text", { hidden: true }),
+                  text("Hook 2", "", 48, 120, 400, 40, 18, "accent", { hidden: true }),
+                  shape("CTA", "rect", 48, 400, 220, 48, "accent", hard),
+                  text("CTA label", "", 48, 412, 220, 26, 15, "text", { align: "center", fontRole: "body", fontWeight: "700" }),
+                  identityLine(48, 568, 900, "background"),
+                  trackRole(),
+                ]
+              : slot === "saturday-object"
+                ? [
+                    shape("Ground", "rect", 0, 0, 1200, 627, "primary", stretch),
+                    shape("Media frame", "rect", 0, 0, 1200, 627, "muted", stretch),
+                    shape("CaptionBar", "rect", 0, 460, 1200, 167, "primary", { opacity: 0.88 }),
+                    monoText("Eyebrow", "", 40, 20, 600, 22, 11, "background", { letterSpacing: 4, opacity: 0.8 }),
+                    text("Hook 1", "", 40, 480, 900, 44, 24, "background", { fontRole: "heading", lineHeight: 1.05 }),
+                    text("Hook 2", "", 40, 526, 800, 32, 18, "accent", { fontRole: "body" }),
+                    identityLine(40, 572, 800, "background"),
+                    trackRole(),
+                  ]
+                : [
+                    shape("Ground", "rect", 0, 0, 1200, 627, "background", stretch),
+                    monoText("Eyebrow", "", 72, 40, 900, 22, 12, "muted", { letterSpacing: 6, hidden: true }),
+                    text("Hook 1", "", 72, 248, 960, 120, 36, "text", { fontRole: "heading", align: "left", lineHeight: 1.12 }),
+                    text("Hook 2", "", 72, 400, 400, 40, 18, "accent", { hidden: true }),
+                    text("Body", "", 72, 440, 400, 40, 16, "muted", { hidden: true }),
+                    text("CTA label", "", 72, 500, 200, 28, 16, "text", { hidden: true }),
+                    identityLine(72, 568, 960),
+                    trackRole(),
+                  ];
+  const page = pageOf("li-landscape", slot, nodes);
+  return { ...page, daySlot: slot };
 }
 
 function ogBanner(): CraftPage {

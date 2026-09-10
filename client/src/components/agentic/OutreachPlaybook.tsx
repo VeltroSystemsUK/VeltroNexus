@@ -10,6 +10,7 @@ const TOUCH_IDS: OutreachTouchId[] = [
   "sme_close",
   "intro_1",
   "intro_linkedin",
+  "intro_mid",
   "intro_2",
 ];
 

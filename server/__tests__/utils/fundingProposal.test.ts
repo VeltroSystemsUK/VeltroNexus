@@ -166,6 +166,19 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("text-align: right");
   });
 
+  it("starts each numbered section on a new page", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+    });
+    expect(html.match(/<section class="section">/g)?.length).toBe(9);
+    expect(html).toMatch(/\.section\s*\{[^}]*break-before:\s*page/);
+    expect(html).not.toContain("min-height: 255mm");
+    expect(html).not.toContain("1 / 9");
+  });
+
   it("expands Companies House register, charges, risk indicators and background notes", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect({ notes: "Director meeting 12 Aug." }),
@@ -638,8 +651,8 @@ describe("Passan-format funding proposal", () => {
     expect(pdf.length).toBeGreaterThan(2000);
     const raw = pdf.toString("latin1");
     const pageCount = (raw.match(/\/Type\s*\/Page(?!s)/g) || []).length;
-    expect(pageCount).toBeGreaterThanOrEqual(3);
-    expect(pageCount).toBeLessThanOrEqual(12);
+    expect(pageCount).toBeGreaterThanOrEqual(8);
+    expect(pageCount).toBeLessThanOrEqual(16);
   }, 60000);
 
   it("prints one amount, D then A, and no working-notes", () => {
@@ -770,5 +783,289 @@ describe("Passan-format funding proposal", () => {
     });
     expect(html).not.toMatch(/Risk grade:\s*Very Low Risk/);
     expect(html).toMatch(/Creditsafe/);
+  });
+
+  it("prints Creditsafe statements in section 5 even when P&L cells are zero", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect({
+        company: {
+          ...prospect().company,
+          creditsafeScore: "A",
+          creditsafeRatingDescription: "Very Low Risk",
+          creditsafeCreditLimit: 1_000_000,
+          creditsafeReport: JSON.stringify({
+            report: {
+              financialStatements: [
+                {
+                  yearEndDate: "2026-02-28",
+                  profitAndLoss: { revenue: 0, operatingProfit: 0, profitBeforeTax: 0 },
+                  balanceSheet: { totalAssets: 45000, totalLiabilities: 12000, totalShareholdersEquity: 33000 },
+                  ratios: { currentRatio: 1.2 },
+                },
+              ],
+            },
+          }),
+        },
+      }),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({ accountsAnalysis: { years: [] } }),
+    });
+    const section = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    expect(section).not.toContain("Historic financials not yet on file");
+    expect(section).toContain("Creditsafe snapshot");
+    expect(section).toContain("Very Low Risk");
+    expect(section).toContain("Creditsafe financial statements");
+    expect(section).toContain("Total assets");
+    expect(section).toContain("28/02/2026");
+  });
+
+  it("prints forecast evidence vs claim, chart, and critique in section 7", () => {
+    const dd = dueDiligence({
+      affordabilitySweep: { financeMonthly: 5702.7, cashForDebt: 4950.95 },
+    });
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: {
+        ...dd,
+        data: {
+          ...dd.data,
+          cashflowForecast: {
+            source: { documentId: 9, fileName: "cashflow.xlsx" },
+            confirmed: false,
+            extractable: true,
+            without: { creditsAvg: 20201, opexAvg: 15250, debtServiceAvg: 5703, netAvg: -753, dscr: 0.87 },
+            with: { creditsAvg: 28000, opexAvg: 12000, debtServiceAvg: 3047, netAvg: 12953, dscr: 5.2 },
+            findings: ["Credits in the forecast are 39% above statement run-rate."],
+            critique: ["The sheet steps sales 39% above what the account actually cleared."],
+          },
+        },
+      },
+    });
+    const section = html.split("7.&nbsp;&nbsp;Financial forecasts")[1]?.split("8.&nbsp;&nbsp;Recommendation")[0] || "";
+    expect(section).not.toContain("Forecasts not yet modelled");
+    expect(section).toContain("Without facility");
+    expect(section).toContain("After refinance");
+    expect(section).toContain("Sheet forecast");
+    expect(section).toContain("above statement run-rate");
+    expect(section).toContain("steps sales 39%");
+    expect(section).toContain("<svg");
+    expect(section).not.toContain("Creditsafe");
+    expect(section).toContain("DSCR after (statements)");
+    expect(section).toContain("DSCR after (sheet)");
+    expect(section).toContain("After refinance");
+    expect(section).toMatch(/Forecast comparison/i);
+    expect(section).not.toContain("Accounts trend");
+  });
+
+  it("draws a bank-activity chart in the same style as accounts", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+    });
+    const section = html.split("4.&nbsp;&nbsp;Current financial situation")[1]?.split("5.&nbsp;&nbsp;Historic financial information")[0] || "";
+    expect(section).toContain("Bank statement activity");
+    expect(section).toContain("class=\"accounts-chart\"");
+    expect(section).toContain("Credits");
+    expect(section).toContain("Debits");
+    expect(section).toContain("<polyline");
+  });
+
+  it("uses uploaded P&L years in section 5 even when Creditsafe has no revenue", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect({
+        company: {
+          ...prospect().company,
+          creditsafeReport: JSON.stringify({
+            report: {
+              financialStatements: [
+                {
+                  yearEndDate: "2025-02-28",
+                  profitAndLoss: {},
+                  balanceSheet: {
+                    totalShareholdersEquity: 40931,
+                    totalAssets: 63560,
+                    totalLiabilities: 22629,
+                    cash: 0,
+                    totalReceivables: 62754,
+                  },
+                },
+                {
+                  yearEndDate: "2024-02-29",
+                  profitAndLoss: {},
+                  balanceSheet: {
+                    totalShareholdersEquity: 52577,
+                    totalAssets: 54119,
+                    totalLiabilities: 1542,
+                    cash: 0,
+                    totalReceivables: 53313,
+                  },
+                },
+              ],
+            },
+          }),
+        },
+      }),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({
+        accountsAnalysis: {
+          years: [
+            { yearEnding: "2025-02-28", turnover: 132325, grossProfit: 40195, netProfit: -31228, netAssets: 40931, cashAndEquivalents: 0, debtors: 62754, totalAssets: 63560 },
+            { yearEnding: "2024-02-29", turnover: 121943, grossProfit: 66479, netProfit: 10174, netAssets: 52577, cashAndEquivalents: 0, debtors: 53313, totalAssets: 54119 },
+          ],
+        },
+      }),
+      companiesHouseData: {
+        profile: { accounts: { last_accounts: { type: "micro-entity" } } },
+      },
+    });
+    const section = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    expect(section).toMatch(/121,?943/);
+    expect(section).toMatch(/132,?325/);
+    expect(section).toMatch(/cash/i);
+  });
+
+  it("loads The business from a long overview essay instead of leaving it blank", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({
+        adviserSummary: {
+          sections: {
+            overview:
+              "# Overview\n\nThe Home Crafters Ltd. (company number 10034885) is an active Bristol-based limited company, incorporated 1 March 2016, trading as an arts, craft and hobby retailer under sector code 47910 (retail sale via mail order houses or via internet).\n\nThe business operates an omnichannel model comprising a physical store at Yate Shopping Centre in Bristol together with an online shop serving UK-wide customers with tracked delivery click and collect.",
+          },
+        },
+      }),
+    });
+    const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
+    expect(business).not.toContain("Business narrative has not been written up");
+    expect(business).toMatch(/Yate|omnichannel|hobby/i);
+  });
+
+  it("prints statement-based after DSCR in section 7 even when the sheet did not extract", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect({
+        loanAmount: 12_000_000,
+        interestRate: "18",
+        term: 60,
+        loanRequirementData: {
+          product_type: "BUSINESS_LOAN",
+          product_details: { loan_amount: 120000, term_months: 60 },
+        },
+      }),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({
+        affordabilitySweep: { financeMonthly: 5702.7, cashForDebt: 4950.95 },
+      }),
+    });
+    const section = html.split("7.&nbsp;&nbsp;Financial forecasts")[1]?.split("8.&nbsp;&nbsp;Recommendation")[0] || "";
+    expect(section).not.toContain("Forecasts not yet modelled");
+    expect(section).toContain("DSCR after (statements)");
+    expect(section).toMatch(/1\.6\d\s*x/);
+  });
+
+  it("replaces empty Research Hub with file research on a refinance pack", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+      documents: [
+        { id: 1, fileName: "FY24-accounts.pdf", category: "accounts" },
+        { id: 2, fileName: "2026_August_Statement.pdf", category: "bank-statements" },
+      ] as any,
+      companiesHouseData: {
+        profile: {
+          accounts: { last_accounts: { type: "micro-entity", made_up_to: "2026-02-28" } },
+          has_charges: false,
+          has_insolvency_history: false,
+        },
+      },
+    });
+    const section = html.split("6.&nbsp;&nbsp;Deal summary")[1]?.split("7.&nbsp;&nbsp;Financial forecasts")[0] || "";
+    expect(section).not.toContain("Research Hub not yet completed");
+    expect(section).toContain("File research");
+    expect(section).toMatch(/micro.?entity|abbreviated/i);
+    expect(section).toMatch(/no full audited/i);
+  });
+
+  it("adds abbreviated-accounts commentary in section 5", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect({
+        company: {
+          ...prospect().company,
+          creditsafeReport: JSON.stringify({
+            report: {
+              financialStatements: [
+                {
+                  yearEndDate: "2026-02-28",
+                  profitAndLoss: { revenue: 0 },
+                  balanceSheet: { totalShareholdersEquity: 59817, totalAssets: 67275, totalLiabilities: 7458 },
+                },
+                {
+                  yearEndDate: "2025-02-28",
+                  profitAndLoss: { revenue: 0 },
+                  balanceSheet: { totalShareholdersEquity: 40931, totalAssets: 63560, totalLiabilities: 22629 },
+                },
+                {
+                  yearEndDate: "2024-02-29",
+                  profitAndLoss: { revenue: 0 },
+                  balanceSheet: { totalShareholdersEquity: 52577, totalAssets: 54119, totalLiabilities: 1542 },
+                },
+              ],
+            },
+          }),
+        },
+      }),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence({ accountsAnalysis: { years: [] } }),
+      companiesHouseData: {
+        profile: { accounts: { last_accounts: { type: "micro-entity" } } },
+      },
+    });
+    const section = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    expect(section).toMatch(/no full audited/i);
+    expect(section).toMatch(/net assets/i);
+  });
+
+  it("prints David's Sterling copy edits, including long recommendation with pounds", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+      hideAdviserRecommendation: true,
+      sterlingCopy: {
+        background: "David's background on the Yate shop.",
+        theBusiness: "David's business narrative for the omnichannel retailer.",
+        character: "David is satisfied with Kirsty Bevan's conduct.",
+        forecastCritique: "David tempers the sheet: underwrite 1.62x not 5.15x.",
+        financials: "Uploaded P&L shows FY25 turnover of £132,325.",
+        dealSummary: "Purpose is refinance of stacked MCA, not expansion.",
+        recommendation: "Approve the £120,000 refinance over 60 months subject to a site visit.",
+      },
+    });
+    expect(html).toContain("David's background on the Yate shop.");
+    const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
+    expect(business).toContain("David's business narrative for the omnichannel retailer.");
+    expect(html).toContain("David is satisfied with Kirsty Bevan's conduct.");
+    const forecasts = html.split("7.&nbsp;&nbsp;Financial forecasts")[1]?.split("8.&nbsp;&nbsp;Recommendation")[0] || "";
+    expect(forecasts).toContain("underwrite 1.62x not 5.15x");
+    const historic = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    expect(historic).toContain("FY25 turnover of £132,325");
+    const deal = html.split("6.&nbsp;&nbsp;Deal summary")[1]?.split("7.&nbsp;&nbsp;Financial forecasts")[0] || "";
+    expect(deal).toContain("stacked MCA");
+    const rec = html.split("8.&nbsp;&nbsp;Recommendation")[1]?.split("9.&nbsp;&nbsp;Attachments")[0] || "";
+    expect(rec).toContain("Approve the £120,000 refinance over 60 months subject to a site visit.");
+    expect(rec).not.toContain("Awaiting recommendation");
   });
 });

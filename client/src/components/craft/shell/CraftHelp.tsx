@@ -9,11 +9,24 @@ import {
   type CraftHelpNav,
   type CraftHelpRecipeId,
 } from "@shared/craftHelp";
+import {
+  CRAFT_MANUAL_NAV,
+  CRAFT_MANUAL_SECTIONS,
+  type CraftManualNav,
+} from "@shared/craftManual";
 import { useCraftStore } from "../store";
+
+const NAV_LABEL: Record<CraftHelpNav, string> = {
+  desk: "Desk",
+  recipes: "Recipes",
+  rules: "House rules",
+  manual: "Studio brief",
+};
 
 export function CraftHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [nav, setNav] = useState<CraftHelpNav>("recipes");
   const [recipeId, setRecipeId] = useState<CraftHelpRecipeId>("hook-gif");
+  const [manualId, setManualId] = useState<CraftManualNav>("laws");
   const [ticks, setTicks] = useState<Record<string, boolean>>({});
   if (!open) return null;
   const recipe = CRAFT_HELP.find((item) => item.id === recipeId) ?? CRAFT_HELP[0]!;
@@ -35,13 +48,16 @@ export function CraftHelp({ open, onClose }: { open: boolean; onClose: () => voi
 
   return (
     <div
-      className="fixed top-12 right-2 z-[80] flex h-[min(36rem,calc(100vh-4rem))] w-[22rem] overflow-hidden rounded-lg border border-white/10 bg-[#12141c]/95 shadow-2xl backdrop-blur-md"
+      className={cn(
+        "fixed top-12 right-2 z-[80] flex h-[min(40rem,calc(100vh-4rem))] overflow-hidden rounded-lg border border-white/10 bg-[#12141c]/95 shadow-2xl backdrop-blur-md",
+        nav === "manual" ? "w-[min(36rem,calc(100vw-1rem))]" : "w-[22rem]",
+      )}
       role="dialog"
       aria-label="SWELL studio"
       onPointerDown={(event) => event.stopPropagation()}
     >
       <div className="flex w-36 shrink-0 flex-col gap-1 border-r border-white/10 p-2">
-        {(["desk", "recipes", "rules"] as CraftHelpNav[]).map((id) => (
+        {(["desk", "recipes", "rules", "manual"] as CraftHelpNav[]).map((id) => (
           <button
             key={id}
             type="button"
@@ -51,7 +67,7 @@ export function CraftHelp({ open, onClose }: { open: boolean; onClose: () => voi
             )}
             onClick={() => setNav(id)}
           >
-            {id === "desk" ? "Desk" : id === "recipes" ? "Recipes" : "House rules"}
+            {NAV_LABEL[id]}
           </button>
         ))}
       </div>
@@ -59,7 +75,11 @@ export function CraftHelp({ open, onClose }: { open: boolean; onClose: () => voi
         <div className="flex items-start justify-between gap-2 border-b border-white/10 px-3 py-2">
           <div>
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">SWELL studio</p>
-            <p className="text-[11px] text-white/70">Idea, then board. Export is a decision, not a default.</p>
+            <p className="text-[11px] text-white/70">
+              {nav === "manual"
+                ? "Isla's licence. Every instrument, then the week."
+                : "Idea, then board. Export is a decision, not a default."}
+            </p>
           </div>
           <Button size="icon" variant="ghost" aria-label="Close studio help" onClick={onClose}>
             <X className="size-4" />
@@ -80,6 +100,39 @@ export function CraftHelp({ open, onClose }: { open: boolean; onClose: () => voi
                 <p className="mt-1 text-xs text-white/80">{item.body}</p>
               </section>
             ))}
+          {nav === "manual" && (
+            <>
+              <div className="mb-3 flex flex-wrap gap-1">
+                {CRAFT_MANUAL_NAV.map((id) => {
+                  const section = CRAFT_MANUAL_SECTIONS.find((item) => item.id === id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={cn(
+                        "rounded-md px-1.5 py-1 text-[10px] text-white/75 hover:bg-white/10",
+                        id === manualId && "bg-white/15 text-white ring-1 ring-white/25",
+                      )}
+                      onClick={() => setManualId(id)}
+                    >
+                      {section?.title ?? id}
+                    </button>
+                  );
+                })}
+              </div>
+              {CRAFT_MANUAL_SECTIONS.filter((item) => item.id === manualId).map((section) => (
+                <div key={section.id}>
+                  <p className="mb-2 text-xs text-white/70">{section.lead}</p>
+                  {section.blocks.map((block) => (
+                    <section key={block.heading} className="mb-3">
+                      <h3 className="text-[10px] uppercase tracking-[0.14em] text-white/45">{block.heading}</h3>
+                      <p className="mt-1 text-xs text-white/80">{block.body}</p>
+                    </section>
+                  ))}
+                </div>
+              ))}
+            </>
+          )}
           {nav === "recipes" && (
             <>
               <div className="mb-3 flex flex-wrap gap-1">
