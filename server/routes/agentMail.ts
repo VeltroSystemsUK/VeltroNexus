@@ -113,6 +113,20 @@ router.post("/api/agent-mail/inbound", async (req, res) => {
     });
     const { processAgentInbox } = await import("../services/mailDesk");
     await processAgentInbox();
+    try {
+      const { classifyInboundMail } = await import("@shared/mailDesk");
+      const { stopConvertAndPromote } = await import("../services/openers");
+      const kind = classifyInboundMail({
+        from: item.from,
+        to: item.to,
+        subject: item.subject,
+        text: item.text,
+        html: item.html,
+      }).kind;
+      await stopConvertAndPromote(item.from, kind === "stop" ? "opt_out" : "reply");
+    } catch (error) {
+      console.warn("[AgentMail] convert stop failed:", error);
+    }
     res.json(item);
   } catch (error) {
     handleApiError(res, error, "api-error");

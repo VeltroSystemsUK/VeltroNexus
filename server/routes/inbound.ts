@@ -111,6 +111,13 @@ router.post("/refinance", async (req, res) => {
 
         const pipeline = await promoteInternalLeadToPipeline(lead);
 
+        try {
+            const { stopConvertAndPromote } = await import("../services/openers");
+            await stopConvertAndPromote(email, "promoted");
+        } catch (error) {
+            console.error("[Inbound] convert auto-promote failed:", error);
+        }
+
         // 4. Return the "Result" to the frontend (The Hook)
         // We give them the data immediately as the reward for signing up
         res.json({

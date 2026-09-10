@@ -22,7 +22,7 @@ export type OpenerNurture = {
   touch2Channel?: "whatsapp" | "call";
   touch2At?: string;
   stoppedAt?: string;
-  stopReason?: "completed" | "reply" | "opt_out" | "promoted" | "manual";
+  stopReason?: "completed" | "reply" | "opt_out" | "promoted" | "manual" | "blocked";
   stream?: "convert" | "opener_3touch";
   convertCycle?: number;
   wakeAt?: string;
@@ -636,6 +636,39 @@ export function stopNurture(
       step: 3,
       stoppedAt: stamp,
       stopReason: reason,
+    },
+  };
+}
+
+export function applyConvertStop(
+  opener: OpenerRecord,
+  reason: "promoted" | "reply" | "opt_out" | "blocked",
+  now?: Date
+): OpenerRecord {
+  const stamp = nowIso(now);
+  if (reason === "blocked") {
+    return {
+      ...opener,
+      status: opener.status === "promoted" ? opener.status : "nurturing",
+      updatedAt: stamp,
+      nurture: {
+        ...opener.nurture,
+        stream: "convert",
+        promoteBlocked: true,
+        wakeAt: undefined,
+        stoppedAt: stamp,
+        stopReason: "blocked",
+      },
+    };
+  }
+  const stopped = stopNurture(opener, reason, now);
+  return {
+    ...stopped,
+    status: reason === "promoted" ? "promoted" : stopped.status,
+    nurture: {
+      ...stopped.nurture,
+      stream: opener.nurture.stream ?? "convert",
+      wakeAt: undefined,
     },
   };
 }

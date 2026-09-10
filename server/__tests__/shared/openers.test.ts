@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import fs from "fs";
+import path from "path";
 import {
   OPENER_CONVERT_CLOSER_DELAY_MS,
   OPENER_TOUCH2_DELAY_MS,
   applyClickEvent,
+  applyConvertStop,
   applyOpenEvent,
   applySecondEmailNurturing,
   approveNurtureSend,
@@ -585,5 +588,48 @@ describe("convert stream", () => {
     expect(done.status).toBe("non_responsive");
     expect(done.nurture.stopReason).toBe("completed");
     expect(done.nurture.wakeAt).toBeTruthy();
+  });
+});
+
+describe("convert auto-promote", () => {
+  it("stops convert on inbound refinance even without a company number, and promotes when a number exists", () => {
+    const withNumber = enrolConvertOpener(opener({ companyNumber: "08765432", email: "ops@acme.test" }));
+    const blocked = enrolConvertOpener(opener({ email: "ops@acme.test", companyNumber: undefined }));
+    const promoted = applyConvertStop(withNumber, "promoted");
+    expect(promoted.status).toBe("promoted");
+    expect(promoted.nurture.stopReason).toBe("promoted");
+    expect(promoted.nurture.wakeAt).toBeUndefined();
+    expect(promoted.nurture.stream).toBe("convert");
+
+    const parked = applyConvertStop(blocked, "blocked");
+    expect(parked.nurture.promoteBlocked).toBe(true);
+    expect(parked.status).toBe("nurturing");
+    expect(parked.nurture.stopReason).toBe("blocked");
+    expect(parked.nurture.stream).toBe("convert");
+    expect(parked.nurture.wakeAt).toBeUndefined();
+    expect(parked.nurture.step).toBe(blocked.nurture.step);
+    expect(startNurture(parked, { subject: "x", html: "y" })).toEqual(parked);
+  });
+
+  it("parks convert on opt-out without promoting, and stops on reply", () => {
+    const enrolled = enrolConvertOpener(opener({ companyNumber: "08765432", email: "ops@acme.test" }));
+    const opted = applyConvertStop(enrolled, "opt_out");
+    expect(opted.status).toBe("not_now");
+    expect(opted.nurture.stopReason).toBe("opt_out");
+    expect(opted.nurture.wakeAt).toBeUndefined();
+    expect(opted.status).not.toBe("promoted");
+
+    const replied = applyConvertStop(enrolled, "reply");
+    expect(replied.nurture.stopReason).toBe("reply");
+    expect(replied.nurture.wakeAt).toBeUndefined();
+    expect(replied.status).not.toBe("promoted");
+  });
+
+  it("inbound refinance and agent-mail inbound call stopConvertAndPromote", () => {
+    const inbound = fs.readFileSync(path.resolve("server/routes/inbound.ts"), "utf8");
+    expect(inbound).toMatch(/stopConvertAndPromote/);
+    const mail = fs.readFileSync(path.resolve("server/routes/agentMail.ts"), "utf8");
+    expect(mail).toMatch(/stopConvertAndPromote/);
+    expect(mail).toMatch(/opt_out/);
   });
 });

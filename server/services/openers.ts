@@ -7,6 +7,7 @@ import { resolveSendAsMailbox } from "@shared/agentMailboxes";
 import { signatureHtml } from "@shared/strataOutreach";
 import {
   applyClickEvent,
+  applyConvertStop,
   applyOpenEvent,
   applySecondEmailNurturing,
   approveNurtureSend,
@@ -14,6 +15,7 @@ import {
   completeTouch2,
   enrolConvertOpener,
   failNurtureSend,
+  isConvertOpener,
   isDoNotContactOpener,
   recordConvertSend,
   writeCloserScript,
@@ -903,6 +905,7 @@ function applyUnsubscribes(all: OpenerRecord[], optOutEmails: Set<string>): {
     );
     if (!hit || opener.status === "not_now") return opener;
     dirty = true;
+    if (isConvertOpener(opener)) return applyConvertStop(opener, "opt_out");
     return stopNurture(opener, "opt_out");
   });
   return { all: next, dirty };
@@ -1517,12 +1520,118 @@ export function deleteOpenerByEmail(email: string): boolean {
   return true;
 }
 
+const convertStopChain = new Map<string, Promise<void>>();
+
+function findOpenerByIdOrEmail(openerIdOrEmail: string): OpenerRecord | undefined {
+  const key = String(openerIdOrEmail || "").trim();
+  if (!key) return undefined;
+  return getOpener(key) || findByEmail(readOpeners(), normalizeEmail(key));
+}
+
+async function patchConvertDealStop(
+  opener: OpenerRecord,
+  reason: "promoted" | "reply" | "opt_out" | "blocked"
+): Promise<void> {
+  try {
+    const { storage } = await import("../storage");
+    const deals = (await storage.listAgenticDeals()) || [];
+    const email = normalizeEmail(opener.email);
+    const aliases = new Set(
+      [email, ...(opener.emails || []).map(normalizeEmail)].filter(Boolean)
+    );
+    const number = normalizeCompanyNumber(opener.companyNumber);
+    for (const deal of deals) {
+      const isOpenerDeal = opener.dealId != null && deal.id === opener.dealId;
+      const emailHit = Boolean(normalizeEmail(deal.email) && aliases.has(normalizeEmail(deal.email)));
+      const numberHit = Boolean(number && normalizeCompanyNumber(deal.companyNumber) === number);
+      if (!isOpenerDeal && !emailHit && !numberHit) continue;
+      if (!isOpenerDeal && deal.convertPlaybook !== "sme_nurture") continue;
+      await storage.updateAgenticDeal(deal.id, {
+        convertPlaybook: undefined,
+        convertStopReason: reason,
+        convertWakeAt: undefined,
+      });
+    }
+  } catch (error: any) {
+    console.warn("[Openers] convert deal stop failed:", error?.message || error);
+  }
+}
+
+async function runConvertStopAndPromote(
+  openerId: string,
+  reason: "promoted" | "reply" | "opt_out",
+  deps?: PromoteDeps
+): Promise<void> {
+  const opener = getOpener(openerId);
+  if (!opener || !isConvertOpener(opener)) return;
+
+  if (reason === "opt_out" || isDoNotContactOpener(opener)) {
+    const next =
+      opener.status === "not_now" && opener.nurture.stopReason === "opt_out"
+        ? opener
+        : saveOpener(applyConvertStop(opener, "opt_out"));
+    await patchConvertDealStop(next, "opt_out");
+    return;
+  }
+
+  if (!canPromoteOpener(opener)) {
+    const next = opener.nurture.promoteBlocked
+      ? opener
+      : saveOpener(applyConvertStop(opener, "blocked"));
+    await patchConvertDealStop(next, "blocked");
+    return;
+  }
+
+  const stopped = saveOpener(applyConvertStop(opener, reason));
+  await patchConvertDealStop(stopped, reason);
+
+  const promoteDeps = deps ?? (inVitest() ? null : await defaultPromoteDeps());
+  if (!promoteDeps) return;
+  try {
+    await promoteOpener(openerId, "system", promoteDeps);
+  } catch (error: any) {
+    console.warn("[Openers] convert promote failed:", error?.message || error);
+  }
+}
+
+export async function stopConvertAndPromote(
+  openerIdOrEmail: string,
+  reason: "promoted" | "reply" | "opt_out",
+  deps?: PromoteDeps
+): Promise<void> {
+  const opener = findOpenerByIdOrEmail(openerIdOrEmail);
+  if (!opener || !isConvertOpener(opener)) return;
+
+  const prev = convertStopChain.get(opener.id);
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  convertStopChain.set(opener.id, current);
+  if (prev) await prev.catch(() => undefined);
+  try {
+    await runConvertStopAndPromote(opener.id, reason, deps);
+  } finally {
+    release();
+    if (convertStopChain.get(opener.id) === current) convertStopChain.delete(opener.id);
+  }
+}
+
 export function stopOpenerNurtureByEmail(
   email: string,
   reason: "reply" | "opt_out"
 ): OpenerRecord | undefined {
   const opener = findByEmail(readOpeners(), normalizeEmail(email));
   if (!opener) return undefined;
+  if (isConvertOpener(opener)) {
+    const mapped =
+      reason === "opt_out" ? "opt_out" : canPromoteOpener(opener) ? "reply" : "blocked";
+    const next = saveOpener(applyConvertStop(opener, mapped));
+    void stopConvertAndPromote(opener.id, reason).catch((error: any) => {
+      console.warn("[Openers] convert auto-promote failed:", error?.message || error);
+    });
+    return next;
+  }
   if (reason === "opt_out") {
     if (opener.status === "not_now" && opener.nurture.stopReason === "opt_out") return opener;
     return saveOpener(stopNurture(opener, "opt_out"));
