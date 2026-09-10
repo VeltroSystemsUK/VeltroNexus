@@ -12,9 +12,11 @@ import {
   applySecondEmailNurturing,
   approveNurtureSend,
   canPromoteOpener,
+  completeConvertCloser,
   completeTouch2,
   enrolConvertOpener,
   failNurtureSend,
+  isConvertCloserDue,
   isConvertOpener,
   isDoNotContactOpener,
   recordConvertSend,
@@ -35,7 +37,7 @@ import {
   stopNurture,
   type OpenerRecord,
 } from "@shared/openers";
-import { buildCloserScript, buildConvertEnrolment, convertGreetingName } from "@shared/smeConvert";
+import { buildCloserScript, buildConvertEnrolment, convertGreetingName, convertWakeAt } from "@shared/smeConvert";
 import { classifyInboundMail } from "@shared/mailDesk";
 import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { dealStream } from "@shared/salesOs";
@@ -1329,6 +1331,10 @@ export function completeTouch2IfDue(
 ): OpenerRecord {
   const when = now ?? new Date();
   const stamp = when.toISOString();
+  if (isConvertOpener(opener) && isConvertCloserDue(opener, when)) {
+    const next = completeConvertCloser(opener, channel, when);
+    return { ...next, lastTouchAt: stamp, updatedAt: stamp };
+  }
   const next = isTouch2Due(opener, when) ? completeTouch2(opener, channel, when) : opener;
   return { ...next, lastTouchAt: stamp, updatedAt: stamp };
 }
@@ -1339,8 +1345,8 @@ function refuseDoNotContact(opener: OpenerRecord): void {
 
 export async function runNurtureAction(
   id: string,
-  action: "start" | "approve" | "skip" | "stop" | "touch2",
-  opts?: { channel?: "whatsapp" | "call"; now?: Date; send?: SendEmailFn; agentId?: string }
+  action: "start" | "approve" | "skip" | "stop" | "touch2" | "closer",
+  opts?: { channel?: "whatsapp" | "call" | "skip"; now?: Date; send?: SendEmailFn; agentId?: string }
 ): Promise<OpenerRecord> {
   const opener = requireOpener(id);
   const now = opts?.now;
@@ -1364,6 +1370,18 @@ export async function runNurtureAction(
       throw httpError("channel required", 400);
     }
     return saveOpener(completeTouch2(opener, channel, now));
+  }
+
+  if (action === "closer") {
+    const channel = opts?.channel;
+    if (channel !== "whatsapp" && channel !== "call" && channel !== "skip") {
+      throw httpError("channel required", 400);
+    }
+    if (!isConvertOpener(opener) || !isConvertCloserDue(opener, now)) return opener;
+    const mapped = channel === "skip" ? "skipped" : channel;
+    const next = saveOpener(completeConvertCloser(opener, mapped, now));
+    await patchConvertDealCompleted(next, now);
+    return next;
   }
 
   if (opener.nurture.touch1MailId) return opener;
@@ -1501,7 +1519,9 @@ export async function sendOpenerWhatsApp(
       return whatsappService.sendMessage(phone, body);
     });
   await sendFn(opener.phone, message);
-  return saveOpener(completeTouch2IfDue(opener, "whatsapp", now));
+  const next = saveOpener(completeTouch2IfDue(opener, "whatsapp", now));
+  await maybePatchConvertCloserDeal(opener, next, now);
+  return next;
 }
 
 export async function logOpenerCall(id: string, note: string, now?: Date): Promise<OpenerRecord> {
@@ -1514,7 +1534,9 @@ export async function logOpenerCall(id: string, note: string, now?: Date): Promi
     ...opener,
     notes: opener.notes ? `${line}\n${opener.notes}` : line,
   };
-  return saveOpener(completeTouch2IfDue(withNote, "call", now));
+  const next = saveOpener(completeTouch2IfDue(withNote, "call", now));
+  await maybePatchConvertCloserDeal(opener, next, now);
+  return next;
 }
 
 export function deleteOpenerByEmail(email: string): boolean {
@@ -1537,9 +1559,42 @@ function findOpenerByIdOrEmail(openerIdOrEmail: string): OpenerRecord | undefine
   return getOpener(key) || findByEmail(readOpeners(), normalizeEmail(key));
 }
 
-async function patchConvertDealStop(
+function convertCloserCompleted(opener: OpenerRecord): boolean {
+  return (
+    isConvertOpener(opener) &&
+    opener.nurture.stopReason === "completed" &&
+    (opener.nurture.closerStatus === "done" || opener.nurture.closerStatus === "skipped")
+  );
+}
+
+async function maybePatchConvertCloserDeal(
+  before: OpenerRecord,
+  after: OpenerRecord,
+  now?: Date
+): Promise<void> {
+  if (!convertCloserCompleted(after)) return;
+  if (convertCloserCompleted(before)) return;
+  await patchConvertDealCompleted(after, now);
+}
+
+async function patchConvertDealCompleted(opener: OpenerRecord, now?: Date): Promise<void> {
+  const wakeAt = opener.nurture.wakeAt || convertWakeAt(now ?? new Date());
+  await patchConvertDealFields(opener, {
+    convertPlaybook: undefined,
+    convertStopReason: "completed",
+    convertWakeAt: wakeAt,
+    waitUntil: wakeAt,
+  });
+}
+
+async function patchConvertDealFields(
   opener: OpenerRecord,
-  reason: "promoted" | "reply" | "opt_out" | "blocked"
+  patch: {
+    convertPlaybook?: undefined;
+    convertStopReason: "promoted" | "reply" | "opt_out" | "blocked" | "completed";
+    convertWakeAt?: string;
+    waitUntil?: string;
+  }
 ): Promise<void> {
   try {
     const { storage } = await import("../storage");
@@ -1555,15 +1610,22 @@ async function patchConvertDealStop(
       const numberHit = Boolean(number && normalizeCompanyNumber(deal.companyNumber) === number);
       if (!isOpenerDeal && !emailHit && !numberHit) continue;
       if (!isOpenerDeal && deal.convertPlaybook !== "sme_nurture") continue;
-      await storage.updateAgenticDeal(deal.id, {
-        convertPlaybook: undefined,
-        convertStopReason: reason,
-        convertWakeAt: undefined,
-      });
+      await storage.updateAgenticDeal(deal.id, patch);
     }
   } catch (error: any) {
     console.warn("[Openers] convert deal stop failed:", error?.message || error);
   }
+}
+
+async function patchConvertDealStop(
+  opener: OpenerRecord,
+  reason: "promoted" | "reply" | "opt_out" | "blocked"
+): Promise<void> {
+  await patchConvertDealFields(opener, {
+    convertPlaybook: undefined,
+    convertStopReason: reason,
+    convertWakeAt: undefined,
+  });
 }
 
 async function runConvertStopAndPromote(

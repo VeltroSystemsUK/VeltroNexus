@@ -3,9 +3,11 @@ import {
   canDragOpenerTo,
   daysSitting,
   OPENER_STATUSES,
+  openerBelongsToDesk,
   openerOnPipeline,
   withDerivedNurture,
   normalizeEmail,
+  type OpenerDesk,
   type OpenerRecord,
   type OpenerStatus,
 } from "@shared/openers";
@@ -13,12 +15,15 @@ import { lastMailOpenAt } from "@shared/mailTracking";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { listAgentMail, type AgentMailItem } from "../services/agentMailLog";
+import { loadSuppression } from "../services/mailSuppression";
 import {
   attachCompanyNumber,
+  autoPromoteEligibleOpeners,
   currentOpenerPipelineCompanyNumbers,
   enrichOpener,
   getOpener,
   hydrateFromAgentMail,
+  listOpeners,
   listOpenerPipelineCompanyNumbers,
   logOpenerCall,
   patchOpener,
@@ -30,7 +35,7 @@ import {
 
 const router = Router();
 
-const NURTURE_ACTIONS = ["start", "approve", "skip", "stop", "touch2"] as const;
+const NURTURE_ACTIONS = ["start", "approve", "skip", "stop", "touch2", "closer"] as const;
 type NurtureAction = (typeof NURTURE_ACTIONS)[number];
 
 function requireOpenersAccess(req: Request, res: Response, next: NextFunction) {
@@ -91,8 +96,21 @@ router.get("/api/openers", isAuthenticated, requireOpenersAccess, async (req, re
   try {
     // Snapshot Agent Mail once for hydrate + timeline. Hydrate writes openers.json once.
     await refreshOpenerIdentitySnapshot();
-    const mail = listAgentMail(2000);
-    const openers = hydrateFromAgentMail(mail);
+    const mail = listAgentMail(5000);
+    const suppression = loadSuppression();
+    const optOutEmails = suppression
+      .filter((row) => /opt-out/i.test(String(row.reason || "")))
+      .map((row) => row.email);
+    const bounceEmails = suppression
+      .filter((row) => /hard bounce/i.test(String(row.reason || "")))
+      .map((row) => row.email);
+    hydrateFromAgentMail(mail, undefined, { optOutEmails, bounceEmails });
+    await autoPromoteEligibleOpeners(mail, {
+      optOutEmails,
+      userId: String((req.user as any)?.id || ""),
+    });
+    const desk: OpenerDesk = req.query.desk === "non_responsive" ? "non_responsive" : "openers";
+    const openers = listOpeners().filter((opener) => openerBelongsToDesk(opener, desk));
     const pipelineCompanyNumbers = await listOpenerPipelineCompanyNumbers(
       String((req.user as any)?.id || "")
     );
@@ -109,7 +127,7 @@ router.get("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (req
     const pipelineCompanyNumbers = await listOpenerPipelineCompanyNumbers(
       String((req.user as any)?.id || "")
     );
-    res.json(presentOpener(opener, listAgentMail(2000), pipelineCompanyNumbers));
+    res.json(presentOpener(opener, listAgentMail(5000), pipelineCompanyNumbers));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }
@@ -162,8 +180,8 @@ router.post("/api/openers/:id/nurture", isAuthenticated, requireOpenersAccess, a
     if (!NURTURE_ACTIONS.includes(action)) {
       return res.status(400).json({ error: "Invalid nurture action" });
     }
-    const channel = req.body?.channel as "whatsapp" | "call" | undefined;
-    res.json(presentOpener(await runNurtureAction(req.params.id, action, { channel })));
+    const channel = req.body?.channel as "whatsapp" | "call" | "skip" | undefined;
+    res.json(presentOpener(await runNurtureAction(req.params.id, action, { channel, agentId: req.body?.agentId })));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }

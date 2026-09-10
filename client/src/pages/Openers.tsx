@@ -16,9 +16,17 @@ import { toast } from "sonner";
 import {
   canDragOpenerTo,
   canPromoteOpener,
+  compareOpenersByOpenCount,
+  convertStepBadge,
   daysSitting,
-  OPENER_STATUSES,
+  openerClickCount,
+  isConvertCloserDue,
+  isConvertOpener,
+  isHotClickOpener,
+  isDoNotContactOpener,
+  OPENER_BOARD_STATUSES,
   withDerivedNurture,
+  type OpenerDesk,
   type OpenerRecord,
   type OpenerStatus,
 } from "@shared/openers";
@@ -41,6 +49,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/context/LayoutContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { HotClickDot } from "@/components/mail/HotClickDot";
+import { SendAsSelect } from "@/components/mail/SendAsSelect";
 
 type TimelineItem = {
   mailId: string;
@@ -57,9 +67,10 @@ type OpenerBoardItem = OpenerRecord & {
 };
 
 const COLUMN_LABELS: Record<OpenerStatus, string> = {
+  non_responsive: "Non Responsive",
   new: "New",
   nurturing: "Nurturing",
-  not_now: "Not now",
+  not_now: "Unsubscribed",
   promoted: "Promoted",
 };
 
@@ -79,6 +90,7 @@ function openerTitle(opener: Pick<OpenerRecord, "companyName" | "email">) {
 
 function nurtureHint(opener: OpenerBoardItem) {
   if (opener.onPipeline || opener.status === "promoted") return "On pipeline";
+  if (isConvertOpener(opener)) return convertStepBadge(opener);
   if (opener.nurture.touch2Status === "due") return "Touch 2 due";
   return null;
 }
@@ -110,8 +122,11 @@ function sittingLabel(days: number) {
   return `${days} days sitting`;
 }
 
-function defaultWhatsAppMessage(opener: OpenerBoardItem) {
+function defaultWhatsAppMessage(opener: OpenerBoardItem, desk: OpenerDesk = "openers") {
   const who = openerTitle(opener);
+  if (desk === "non_responsive") {
+    return `Hi, we sent a note about restructuring monthly debt commitments for ${who}. If a short call would help, reply here.`;
+  }
   return `Hi, you opened our note about restructuring monthly debt commitments for ${who}. If a short call would help, reply here.`;
 }
 
@@ -168,6 +183,7 @@ function OpenerCards({
     <>
       {items.map((opener, index) => {
         const hint = nurtureHint(opener);
+        const clicks = openerClickCount(opener);
         return (
           <Draggable key={opener.id} draggableId={opener.id} index={index}>
             {(dragProvided, dragSnapshot) => (
@@ -187,17 +203,30 @@ function OpenerCards({
                         <GripVertical className="h-4 w-4" />
                       </button>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate">{openerTitle(opener)}</p>
+                        <p className="font-medium text-sm truncate flex items-center gap-2">
+                          <span className="truncate">{openerTitle(opener)}</span>
+                          {isHotClickOpener(opener) && <HotClickDot />}
+                        </p>
                         <p className="text-xs text-muted-foreground">{sittingLabel(opener.daysSitting)}</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pl-6">
+                      {clicks > 0 && (
+                        <Badge data-testid="badge-opener-clicks">
+                          {clicks} click{clicks === 1 ? "" : "s"}
+                        </Badge>
+                      )}
                       <Badge variant="outline">
                         {opener.openCount} open{opener.openCount === 1 ? "" : "s"}
                         {opener.lastOpenedAt ? ` · ${formatWhen(opener.lastOpenedAt)}` : ""}
                       </Badge>
                       {opener.nonBankChargeCount > 0 && (
                         <Badge variant="destructive">Live charges</Badge>
+                      )}
+                      {isDoNotContactOpener(opener) && (
+                        <Badge variant="destructive" data-testid="badge-do-not-contact">
+                          DO NOT CONTACT
+                        </Badge>
                       )}
                       {hint && <Badge variant="secondary">{hint}</Badge>}
                     </div>
@@ -259,8 +288,14 @@ function ColumnFrame({
   );
 }
 
-export default function Openers() {
-  usePageTitle("Openers", "Companies that opened Agent Mail");
+export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
+  const isNonResponsive = desk === "non_responsive";
+  usePageTitle(
+    isNonResponsive ? "Non Responsive" : "Openers",
+    isNonResponsive
+      ? "Sent successfully, not opened, not bounced, not unsubscribed"
+      : "Companies that opened Agent Mail"
+  );
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [hasChNumber, setHasChNumber] = useState(false);
@@ -271,9 +306,11 @@ export default function Openers() {
   const [attachNumber, setAttachNumber] = useState("");
   const [waMessage, setWaMessage] = useState("");
   const [callNote, setCallNote] = useState("");
+  const [sendAs, setSendAs] = useState("outreach-sales");
+  const boardStatuses = isNonResponsive ? (["non_responsive"] as const) : OPENER_BOARD_STATUSES;
 
   const { data, isLoading, error } = useQuery<OpenerBoardItem[]>({
-    queryKey: ["/api/openers"],
+    queryKey: isNonResponsive ? ["/api/openers", { desk: "non_responsive" }] : ["/api/openers"],
   });
 
   const openers = useMemo(() => (data || []).map(present), [data]);
@@ -284,8 +321,9 @@ export default function Openers() {
     if (!selected) return;
     setNotes(selected.notes || "");
     setAttachNumber(selected.companyNumber || "");
-    setWaMessage(defaultWhatsAppMessage(selected));
+    setWaMessage(defaultWhatsAppMessage(selected, desk));
     setCallNote("");
+    setSendAs("outreach-sales");
   }, [selected?.id]);
 
   const invalidate = () => {
@@ -302,8 +340,18 @@ export default function Openers() {
   });
 
   const nurtureMutation = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: "start" | "approve" | "skip" | "stop" }) => {
-      const res = await apiRequest(`/api/openers/${id}/nurture`, "POST", { action });
+    mutationFn: async ({
+      id,
+      action,
+      agentId,
+      channel,
+    }: {
+      id: string;
+      action: "start" | "approve" | "skip" | "stop" | "closer";
+      agentId?: string;
+      channel?: "whatsapp" | "call" | "skip";
+    }) => {
+      const res = await apiRequest(`/api/openers/${id}/nurture`, "POST", { action, agentId, channel });
       return res.json();
     },
     onSuccess: invalidate,
@@ -377,20 +425,16 @@ export default function Openers() {
   }, [openers, search, hasChNumber, onPipelineOnly, hasLiveCharges]);
 
   const byStatus = useMemo(() => {
-    const groups: Record<OpenerStatus, OpenerBoardItem[]> = {
-      new: [],
-      nurturing: [],
-      not_now: [],
-      promoted: [],
-    };
+    const groups = {} as Record<OpenerStatus, OpenerBoardItem[]>;
+    for (const status of boardStatuses) groups[status] = [];
     for (const opener of filtered) {
       groups[opener.status]?.push(opener);
     }
-    for (const status of OPENER_STATUSES) {
-      groups[status].sort((a, b) => b.daysSitting - a.daysSitting);
+    for (const status of boardStatuses) {
+      groups[status].sort(compareOpenersByOpenCount);
     }
     return groups;
-  }, [filtered]);
+  }, [filtered, boardStatuses]);
 
   const onDragEnd = (result: DropResult) => {
     const { destination, draggableId, source } = result;
@@ -427,6 +471,7 @@ export default function Openers() {
     patchMutation.mutate({ id: selected.id, body: { companyNumber: attachNumber.trim() } });
   };
 
+  const doNotContact = Boolean(selected && isDoNotContactOpener(selected));
   const promoteLabel =
     selected && (selected.onPipeline || selected.status === "promoted")
       ? "Open on Deck"
@@ -441,7 +486,7 @@ export default function Openers() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search openers"
+              placeholder={isNonResponsive ? "Search non-responsive" : "Search openers"}
               className="h-9 pl-8"
             />
           </div>
@@ -473,7 +518,7 @@ export default function Openers() {
         {isLoading && (
           <p className="text-sm text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading openers…
+            {isNonResponsive ? "Loading non-responsive…" : "Loading openers…"}
           </p>
         )}
         {error && (
@@ -481,7 +526,23 @@ export default function Openers() {
         )}
 
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-4 md:gap-4 md:pb-0 md:mx-0 md:px-0">
+          <div
+            className={cn(
+              "flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:gap-4 md:pb-0 md:mx-0 md:px-0 md:grid",
+              isNonResponsive ? "md:grid-cols-1" : "md:grid-cols-4"
+            )}
+          >
+            {isNonResponsive ? (
+              <ColumnFrame
+                data-testid="column-non_responsive"
+                label={COLUMN_LABELS.non_responsive}
+                droppableId="non_responsive"
+                items={byStatus.non_responsive}
+                count={byStatus.non_responsive.length}
+                onSelect={setSelectedId}
+              />
+            ) : (
+              <>
             <ColumnFrame
               data-testid="column-new"
               label={COLUMN_LABELS.new}
@@ -514,6 +575,8 @@ export default function Openers() {
               count={byStatus.promoted.length}
               onSelect={setSelectedId}
             />
+              </>
+            )}
           </div>
         </DragDropContext>
       </main>
@@ -525,12 +588,18 @@ export default function Openers() {
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
                   {openerTitle(selected)}
+                  {isHotClickOpener(selected) && <HotClickDot />}
                   {selected.nonBankChargeCount > 0 && (
                     <Badge variant="destructive">Live charges</Badge>
                   )}
+                  {isDoNotContactOpener(selected) && (
+                    <Badge variant="destructive" data-testid="badge-do-not-contact">
+                      DO NOT CONTACT
+                    </Badge>
+                  )}
                 </SheetTitle>
                 <SheetDescription>
-                  {[selected.companyNumber, selected.status.replace("_", " "), tradingAge(selected.dateOfCreation)]
+                  {[selected.companyNumber, COLUMN_LABELS[selected.status], tradingAge(selected.dateOfCreation)]
                     .filter(Boolean)
                     .join(" · ")}
                 </SheetDescription>
@@ -637,15 +706,47 @@ export default function Openers() {
                     />
                   </section>
 
-                  <section className="space-y-2">
+                  {!isNonResponsive && <section className="space-y-2">
                     <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Nurture</h3>
-                    <div className="flex flex-wrap gap-2">
+                    {doNotContact && (
+                      <p className="text-sm text-destructive">This address asked to be removed. No further contact.</p>
+                    )}
+                    {isConvertOpener(selected) ? (
+                      <>
+                        <Badge data-testid="badge-convert-step">{convertStepBadge(selected)}</Badge>
+                        {selected.nurture.closerScript && (
+                          <p data-testid="convert-closer-script" className="text-sm whitespace-pre-wrap">
+                            {selected.nurture.closerScript}
+                          </p>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          data-testid="button-skip-closer"
+                          disabled={
+                            nurtureMutation.isPending ||
+                            doNotContact ||
+                            !isConvertCloserDue(selected) ||
+                            Boolean(selected.phone)
+                          }
+                          onClick={() =>
+                            nurtureMutation.mutate({ id: selected.id, action: "closer", channel: "skip" })
+                          }
+                        >
+                          Skip closer
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <SendAsSelect value={sendAs} onChange={setSendAs} disabled={nurtureMutation.isPending || doNotContact} />
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => nurtureMutation.mutate({ id: selected.id, action: "start" })}
-                        disabled={nurtureMutation.isPending}
+                        disabled={nurtureMutation.isPending || doNotContact}
                       >
                         Start nurture
                       </Button>
@@ -653,8 +754,8 @@ export default function Openers() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => nurtureMutation.mutate({ id: selected.id, action: "approve" })}
-                        disabled={nurtureMutation.isPending}
+                        onClick={() => nurtureMutation.mutate({ id: selected.id, action: "approve", agentId: sendAs })}
+                        disabled={nurtureMutation.isPending || doNotContact}
                       >
                         Approve
                       </Button>
@@ -663,7 +764,7 @@ export default function Openers() {
                         variant="outline"
                         size="sm"
                         onClick={() => nurtureMutation.mutate({ id: selected.id, action: "skip" })}
-                        disabled={nurtureMutation.isPending}
+                        disabled={nurtureMutation.isPending || doNotContact}
                       >
                         Skip
                       </Button>
@@ -684,7 +785,9 @@ export default function Openers() {
                         status={selected.nurture.touch1Status}
                       />
                     )}
-                  </section>
+                      </>
+                    )}
+                  </section>}
 
                   <section className="space-y-2">
                     <Label htmlFor="opener-whatsapp">WhatsApp</Label>
@@ -692,13 +795,13 @@ export default function Openers() {
                       id="opener-whatsapp"
                       value={waMessage}
                       onChange={(event) => setWaMessage(event.target.value)}
-                      disabled={!selected.phone}
+                      disabled={!selected.phone || doNotContact}
                       rows={3}
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!selected.phone || !waMessage.trim() || whatsappMutation.isPending}
+                      disabled={!selected.phone || !waMessage.trim() || whatsappMutation.isPending || doNotContact}
                       onClick={() => whatsappMutation.mutate({ id: selected.id, message: waMessage.trim() })}
                     >
                       <MessageSquare className="h-4 w-4 mr-2" />
@@ -716,12 +819,12 @@ export default function Openers() {
                       value={callNote}
                       onChange={(event) => setCallNote(event.target.value)}
                       placeholder="Call note"
-                      disabled={!selected.phone}
+                      disabled={!selected.phone || doNotContact}
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!selected.phone || callMutation.isPending}
+                      disabled={!selected.phone || callMutation.isPending || doNotContact}
                       onClick={() => callMutation.mutate({ id: selected.id, note: callNote.trim() })}
                     >
                       <Phone className="h-4 w-4 mr-2" />

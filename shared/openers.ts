@@ -497,6 +497,24 @@ export function isConvertCloserDue(opener: OpenerRecord, now?: Date): boolean {
   return end - start >= OPENER_CONVERT_CLOSER_DELAY_MS;
 }
 
+const CONVERT_STEP_GAP_MS = 4 * 24 * 60 * 60 * 1000;
+
+function daysUntil(fromIso: string | undefined, delayMs: number, now?: Date): number {
+  const start = Date.parse(fromIso || "");
+  if (!Number.isFinite(start)) return 0;
+  const end = (now ?? new Date()).getTime();
+  return Math.max(0, Math.ceil((start + delayMs - end) / (24 * 60 * 60 * 1000)));
+}
+
+export function convertStepBadge(opener: OpenerRecord, now?: Date): string {
+  if (isConvertCloserDue(opener, now)) return "C1 due";
+  const { n1At, n2At, n3At } = opener.nurture;
+  if (!n1At) return "N1 queued";
+  if (!n2At) return `N2 in ${daysUntil(n1At, CONVERT_STEP_GAP_MS, now)} days`;
+  if (!n3At) return `N3 in ${daysUntil(n2At, CONVERT_STEP_GAP_MS, now)} days`;
+  return "N3 in 0 days";
+}
+
 export function completeConvertCloser(
   opener: OpenerRecord,
   channel: "whatsapp" | "call" | "skipped",

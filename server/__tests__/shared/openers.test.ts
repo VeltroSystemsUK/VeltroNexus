@@ -15,6 +15,7 @@ import {
   compareOpenersByOpenCount,
   completeConvertCloser,
   completeTouch2,
+  convertStepBadge,
   daysSitting,
   emptyNurture,
   enrolConvertOpener,
@@ -647,5 +648,27 @@ describe("convert auto-promote", () => {
     expect(convertReasonFromInboundKind("bounce")).toBeUndefined();
     expect(convertReasonFromInboundKind("spam")).toBeUndefined();
     expect(convertReasonFromInboundKind("other")).toBeUndefined();
+  });
+});
+
+describe("convert step badge", () => {
+  it("labels N1 queued, N2/N3 in n days from +4d, and C1 due when closer due", () => {
+    const now = new Date("2026-09-20T10:00:00.000Z");
+    const enrolled = enrolConvertOpener(opener(), now);
+    expect(convertStepBadge(enrolled, now)).toBe("N1 queued");
+
+    const afterN1 = recordConvertSend(enrolled, "sme_n1", "mail-n1", now);
+    expect(convertStepBadge(afterN1, now)).toBe("N2 in 4 days");
+    expect(convertStepBadge(afterN1, new Date("2026-09-22T10:00:00.000Z"))).toBe("N2 in 2 days");
+    expect(convertStepBadge(afterN1, new Date("2026-09-23T10:00:00.000Z"))).toBe("N2 in 1 days");
+
+    const afterN2 = recordConvertSend(afterN1, "sme_n2", "mail-n2", now);
+    expect(convertStepBadge(afterN2, now)).toBe("N3 in 4 days");
+
+    const afterN3 = recordConvertSend(afterN2, "sme_n3", "mail-n3", now);
+    expect(convertStepBadge(afterN3, now)).toBe("N3 in 0 days");
+    expect(convertStepBadge(afterN3, new Date(now.getTime() + OPENER_CONVERT_CLOSER_DELAY_MS))).toBe(
+      "C1 due"
+    );
   });
 });
