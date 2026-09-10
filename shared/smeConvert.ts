@@ -453,9 +453,23 @@ export function buildConvertEnrolment(
   mail: ConvertMail[],
   deal: ConvertDeal,
   opener: { id: string; status?: string; nurture?: { stopReason?: string; stream?: string } },
-  now?: Date
+  now?: Date,
+  extras?: {
+    inboundDeals?: Array<{ id?: number; source?: string; email?: string; companyNumber?: string }>;
+    blockedReason?: string | null;
+  }
 ): { dealPatch: ConvertEnrolPatch; openerId: string } | null {
-  if (!isDualOpenConvertEligible({ mail, deal, opener })) return null;
+  if (
+    !isDualOpenConvertEligible({
+      mail,
+      deal,
+      opener,
+      inboundDeals: extras?.inboundDeals,
+      blockedReason: extras?.blockedReason,
+    })
+  ) {
+    return null;
+  }
   const sme2 = mail.find(
     (item) => item.direction === "outbound" && item.status === "sent" && isSme2Touch(item.touchId)
   );

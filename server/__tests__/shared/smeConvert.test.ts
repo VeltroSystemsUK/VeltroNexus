@@ -188,4 +188,18 @@ describe("convert enrolment", () => {
       buildConvertEnrolment([sme1], deal, { id: "op-1" }, new Date("2026-09-09T09:00:00.000Z"))
     ).toBeNull();
   });
+
+  it("returns null when inboundDeals has strata_inbound matching the email", () => {
+    const now = new Date("2026-09-09T09:00:00.000Z");
+    expect(
+      buildConvertEnrolment([sme1, sme2], deal, { id: "op-1" }, now, {
+        inboundDeals: [{ source: "strata_inbound", email: "ops@acme.test" }],
+      })
+    ).toBeNull();
+    expect(
+      buildConvertEnrolment([sme1, sme2], deal, { id: "op-1" }, now, {
+        blockedReason: "suppressed — do not contact",
+      })
+    ).toBeNull();
+  });
 });

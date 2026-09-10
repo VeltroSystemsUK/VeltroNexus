@@ -33,6 +33,8 @@ import {
 } from "@shared/openers";
 import { buildConvertEnrolment } from "@shared/smeConvert";
 import { classifyInboundMail } from "@shared/mailDesk";
+import { coldEmailBlockedReason } from "@shared/pecrSend";
+import { dealStream } from "@shared/salesOs";
 import { wasEmailDelivered } from "@shared/outreachSend";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
 import type { AgentMailItem } from "./agentMailLog";
@@ -493,15 +495,30 @@ function saveOpener(opener: OpenerRecord, dropId?: string): OpenerRecord {
   return opener;
 }
 
+const enrolConvertInFlight = new Set<number>();
+
+function blockedReasonFor(deal: {
+  email?: string;
+  companyNumber?: string;
+  companyName?: string;
+  source?: string;
+  stream?: string | null;
+}, isSuppressed: (email?: string | null, companyNumber?: string | null) => boolean): string | null {
+  if (isSuppressed(deal.email, deal.companyNumber)) return "suppressed — do not contact";
+  return coldEmailBlockedReason(deal.email, dealStream(deal.source, deal.stream), deal.companyName);
+}
+
 export async function enrolConvertFromMail(item: AgentMailItem, now?: Date): Promise<void> {
   const dealId = item.dealId;
   if (dealId == null) return;
-  const email = normalizeEmail(item.to);
-  if (!email) return;
-  const opener = findByEmail(readOpeners(), email);
-  if (!opener) return;
-
+  if (enrolConvertInFlight.has(dealId)) return;
+  enrolConvertInFlight.add(dealId);
   try {
+    const email = normalizeEmail(item.to);
+    if (!email) return;
+    const opener = findByEmail(readOpeners(), email);
+    if (!opener) return;
+
     const { storage } = await import("../storage");
     const deal = await storage.getAgenticDeal(dealId);
     if (!deal) return;
@@ -510,13 +527,21 @@ export async function enrolConvertFromMail(item: AgentMailItem, now?: Date): Pro
     const mail = listAgentMail(10_000).filter((row) => row.dealId === dealId);
     if (item.id && !mail.some((row) => row.id === item.id)) mail.push(item);
 
-    const built = buildConvertEnrolment(mail, deal, opener, now);
+    const inboundDeals = ((await storage.listAgenticDeals()) || []).filter(
+      (row) => row.source === "strata_inbound"
+    );
+    const { mailIsSuppressed } = await import("./mailDesk");
+    const blockedReason = blockedReasonFor(deal, mailIsSuppressed);
+
+    const built = buildConvertEnrolment(mail, deal, opener, now, { inboundDeals, blockedReason });
     if (!built) return;
 
     await storage.updateAgenticDeal(dealId, built.dealPatch);
     saveOpener(enrolConvertOpener(getOpener(opener.id) || opener, now));
   } catch (error: any) {
     console.warn("[Openers] convert enrol failed:", error?.message || error);
+  } finally {
+    enrolConvertInFlight.delete(dealId);
   }
 }
 
