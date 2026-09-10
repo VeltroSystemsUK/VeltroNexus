@@ -449,6 +449,22 @@ export function buildCloserScript(opts: {
   return `${company} (${name}). Opened sme_1 and sme_2. No site click.\nPoint them at ${CONVERT_SITE_ORIGIN}/?sf=c1#contact\nEnquiry form, no credit search. No meeting ask.`;
 }
 
+export function buildConvertEnrolment(
+  mail: ConvertMail[],
+  deal: ConvertDeal,
+  opener: { id: string; status?: string; nurture?: { stopReason?: string; stream?: string } },
+  now?: Date
+): { dealPatch: ConvertEnrolPatch; openerId: string } | null {
+  if (!isDualOpenConvertEligible({ mail, deal, opener })) return null;
+  const sme2 = mail.find(
+    (item) => item.direction === "outbound" && item.status === "sent" && isSme2Touch(item.touchId)
+  );
+  return {
+    dealPatch: enrolConvertDealPatch(deal, { now, sme2SentAt: sme2?.createdAt }),
+    openerId: opener.id,
+  };
+}
+
 export function enrolConvertDealPatch(
   deal: ConvertDeal,
   opts: { now?: Date; sme2SentAt?: string } = {}

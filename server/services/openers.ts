@@ -3,13 +3,18 @@ import fs from "fs";
 import path from "path";
 import { countLiveNonBankCharges, isLiveCharge } from "@shared/chargeClassifier";
 import { isOpenedOutboundMail, lastMailOpenAt } from "@shared/mailTracking";
-import { mailboxForAgent } from "@shared/agentMailboxes";
+import { resolveSendAsMailbox } from "@shared/agentMailboxes";
+import { signatureHtml } from "@shared/strataOutreach";
 import {
+  applyClickEvent,
   applyOpenEvent,
+  applySecondEmailNurturing,
   approveNurtureSend,
   canPromoteOpener,
   completeTouch2,
+  enrolConvertOpener,
   failNurtureSend,
+  isDoNotContactOpener,
   isNurtureInFlight,
   isTouch2Due,
   mergeOpeners,
@@ -17,12 +22,17 @@ import {
   normalizeEmail,
   normalizeOpener,
   openedMailEvents,
+  openerHasReceivedSecondEmail,
+  sentUnopenedMailEvents,
   openerNurtureDraft,
+  shouldAutoPromoteOpener,
   skipNurtureStep,
   startNurture,
   stopNurture,
   type OpenerRecord,
 } from "@shared/openers";
+import { buildConvertEnrolment } from "@shared/smeConvert";
+import { classifyInboundMail } from "@shared/mailDesk";
 import { wasEmailDelivered } from "@shared/outreachSend";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
 import type { AgentMailItem } from "./agentMailLog";
@@ -55,6 +65,8 @@ export type OpenerIdentityDeal = {
   phone?: string | null;
   prospectId?: number | null;
   email?: string | null;
+  smeOpenFollowUpSentAt?: string | null;
+  smeFollowupSentAt?: string | null;
 };
 
 export type OpenerIdentityProspect = {
@@ -403,7 +415,13 @@ function scheduleDefaultIdentityFollowUp(mail: AgentMailItem): void {
   enqueueIdentityFollowUp(async () => {
     const hit = await resolveOpenerIdentity(email, mail);
     applyOpenedMail(mail, () => hit, 0, true);
+    applySentUnopenedMail(mail, () => hit);
   });
+}
+
+function lastClickAt(clicks?: Array<{ at: string; url?: string }>): string | undefined {
+  if (!clicks?.length) return undefined;
+  return clicks[clicks.length - 1]?.at;
 }
 
 function takeResolveHit(email: string, mail: AgentMailItem, resolve?: OpenerResolver): OpenerResolveHit {
@@ -415,6 +433,21 @@ function takeResolveHit(email: string, mail: AgentMailItem, resolve?: OpenerReso
 
 function findByEmail(items: OpenerRecord[], email: string): OpenerRecord | undefined {
   return items.find((row) => row.email === email || row.emails.includes(email));
+}
+
+export function suppressionFanoutForEmail(email: string): { emails: string[]; companyNumber?: string } {
+  const normalized = normalizeEmail(email);
+  const emails = new Set<string>();
+  if (normalized) emails.add(normalized);
+  const opener = findByEmail(readOpeners(), normalized);
+  if (opener) {
+    emails.add(opener.email);
+    for (const extra of opener.emails || []) {
+      const alias = normalizeEmail(extra);
+      if (alias) emails.add(alias);
+    }
+  }
+  return { emails: [...emails], companyNumber: opener?.companyNumber };
 }
 
 function findByCompany(items: OpenerRecord[], companyNumber?: string): OpenerRecord | undefined {
@@ -460,6 +493,33 @@ function saveOpener(opener: OpenerRecord, dropId?: string): OpenerRecord {
   return opener;
 }
 
+export async function enrolConvertFromMail(item: AgentMailItem, now?: Date): Promise<void> {
+  const dealId = item.dealId;
+  if (dealId == null) return;
+  const email = normalizeEmail(item.to);
+  if (!email) return;
+  const opener = findByEmail(readOpeners(), email);
+  if (!opener) return;
+
+  try {
+    const { storage } = await import("../storage");
+    const deal = await storage.getAgenticDeal(dealId);
+    if (!deal) return;
+
+    const { listAgentMail } = await import("./agentMailLog");
+    const mail = listAgentMail(10_000).filter((row) => row.dealId === dealId);
+    if (item.id && !mail.some((row) => row.id === item.id)) mail.push(item);
+
+    const built = buildConvertEnrolment(mail, deal, opener, now);
+    if (!built) return;
+
+    await storage.updateAgenticDeal(dealId, built.dealPatch);
+    saveOpener(enrolConvertOpener(getOpener(opener.id) || opener, now));
+  } catch (error: any) {
+    console.warn("[Openers] convert enrol failed:", error?.message || error);
+  }
+}
+
 function identityChanged(before: OpenerRecord, after: OpenerRecord): boolean {
   return (
     before.companyNumber !== after.companyNumber ||
@@ -487,7 +547,9 @@ function applyOpenedMailTo(
 
   const hit = takeResolveHit(email, mail, resolve);
   const seenRow = all.find((row) => row.mailIds?.includes(mail.id));
-  const identityOnly = Boolean(skipIfSeen && seenRow);
+  const identityOnly = Boolean(
+    skipIfSeen && seenRow && seenRow.status !== "non_responsive" && seenRow.openCount > 0
+  );
 
   let opener: OpenerRecord;
   let dropId: string | undefined;
@@ -522,6 +584,7 @@ function applyOpenedMailTo(
         firstOpenedAt: earliestOpenAt(opens, at),
         lastOpenedAt: at,
         openCount: 0,
+        clickCount: 0,
         companyNumber: hit.companyNumber,
         companyName: hit.companyName,
         dealId: hit.dealId ?? mail.dealId,
@@ -585,15 +648,312 @@ export function upsertOpenerFromMail(
   return opener;
 }
 
+function applySentUnopenedMailTo(
+  all: OpenerRecord[],
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): { all: OpenerRecord[]; opener?: OpenerRecord } {
+  if (mail.direction !== "outbound" || mail.status !== "sent") return { all };
+  if (isOpenedOutboundMail(mail) || lastClickAt(mail.clicks)) return { all };
+  const email = normalizeEmail(mail.to);
+  if (!email) return { all };
+
+  const hit = takeResolveHit(email, mail, resolve);
+  const existing = findByEmail(all, email) || findByCompany(all, hit.companyNumber);
+  if (existing) {
+    if (existing.status !== "non_responsive") return { all, opener: existing };
+    const opener = {
+      ...applyIdentity(existing, email, mail, hit),
+      lastTouchAt: mail.createdAt || existing.lastTouchAt,
+      mailIds: [...new Set([...(existing.mailIds || []), mail.id])],
+      updatedAt: new Date().toISOString(),
+    };
+    const next = all.filter((row) => row.id !== opener.id);
+    next.push(opener);
+    return { all: next, opener };
+  }
+
+  const opener = applyIdentity(
+    normalizeOpener({
+      id: crypto.randomUUID(),
+      email,
+      status: "non_responsive",
+      openCount: 0,
+      clickCount: 0,
+      firstOpenedAt: "",
+      lastOpenedAt: "",
+      lastTouchAt: mail.createdAt,
+      mailIds: [mail.id],
+      companyNumber: hit.companyNumber,
+      companyName: hit.companyName,
+      dealId: hit.dealId ?? mail.dealId,
+      prospectId: hit.prospectId ?? mail.prospectId,
+      phone: hit.phone,
+    }),
+    email,
+    mail,
+    hit
+  );
+  return { all: [...all, opener], opener };
+}
+
+function applySentUnopenedMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  const all = readOpeners();
+  const existing = findByEmail(all, normalizeEmail(mail.to));
+  const hadNumber = Boolean(normalizeCompanyNumber(existing?.companyNumber));
+  const result = applySentUnopenedMailTo(all, mail, resolve);
+  if (!result.opener || result.opener === existing) {
+    if (result.opener && result.all !== all) writeOpeners(result.all);
+    return result.opener;
+  }
+  writeOpeners(result.all);
+  scheduleEnrichIfNew(hadNumber, result.opener);
+  return result.opener;
+}
+
+export function upsertNonResponsiveFromMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound" || mail.status !== "sent") return undefined;
+  if (isOpenedOutboundMail(mail) || lastClickAt(mail.clicks)) return undefined;
+  const resolver = resolve ?? defaultOpenerResolver;
+  const opener = applySentUnopenedMail(mail, resolver);
+  if (resolve) {
+    const email = normalizeEmail(mail.to);
+    const pending = resolve(email, mail);
+    if (pending && typeof (pending as Promise<OpenerResolveHit>).then === "function") {
+      enqueueIdentityFollowUp(async () => {
+        const hit = await pending;
+        applySentUnopenedMail(mail, () => hit);
+      });
+    }
+  } else {
+    scheduleDefaultIdentityFollowUp(mail);
+  }
+  return opener;
+}
+
+export function upsertOpenerClickFromMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound") return undefined;
+  if (!mail.clicks?.length) return undefined;
+  const resolver = resolve ?? defaultOpenerResolver;
+  const all = readOpeners();
+  const result = applyClickEngagementTo(all, mail, resolver, 1);
+  if (!result.opener) return undefined;
+  if (result.all !== all) writeOpeners(result.all);
+  return result.opener;
+}
+
+function dealFlagsForOpener(opener: OpenerRecord): {
+  smeOpenFollowUpSentAt?: string | null;
+  smeFollowupSentAt?: string | null;
+} {
+  const snapshot = identitySnapshot;
+  if (!snapshot) return {};
+  const byId = opener.dealId != null ? snapshot.dealsById.get(opener.dealId) : undefined;
+  const byEmail = snapshot.dealsByEmail.get(normalizeEmail(opener.email));
+  const deal = byId || byEmail;
+  if (!deal) return {};
+  return {
+    smeOpenFollowUpSentAt: deal.smeOpenFollowUpSentAt,
+    smeFollowupSentAt: deal.smeFollowupSentAt,
+  };
+}
+
+function applySecondEmailNurturingPass(
+  all: OpenerRecord[],
+  mail: AgentMailItem[]
+): { all: OpenerRecord[]; dirty: boolean } {
+  let dirty = false;
+  const next = all.map((opener) => {
+    if (
+      !openerHasReceivedSecondEmail(opener, {
+        mail,
+        ...dealFlagsForOpener(opener),
+      })
+    ) {
+      return opener;
+    }
+    const moved = applySecondEmailNurturing(opener);
+    if (moved.status !== opener.status) dirty = true;
+    return moved;
+  });
+  return { all: next, dirty };
+}
+
+function collectOptOutEmails(
+  items: AgentMailItem[],
+  extra?: Iterable<string>
+): Set<string> {
+  const emails = new Set(
+    [...(extra || [])].map(normalizeEmail).filter(Boolean)
+  );
+  for (const item of items) {
+    if (item.direction !== "inbound") continue;
+    const from = normalizeEmail(item.from);
+    if (!from) continue;
+    if (item.deskKind === "stop") {
+      emails.add(from);
+      continue;
+    }
+    if (item.deskKind) continue;
+    if (classifyInboundMail(item).kind === "stop") emails.add(from);
+  }
+  return emails;
+}
+
+function applyUnsubscribes(all: OpenerRecord[], optOutEmails: Set<string>): {
+  all: OpenerRecord[];
+  dirty: boolean;
+} {
+  if (optOutEmails.size === 0) return { all, dirty: false };
+  let dirty = false;
+  const next = all.map((opener) => {
+    const hit = [opener.email, ...(opener.emails || [])].some((email) =>
+      optOutEmails.has(normalizeEmail(email))
+    );
+    if (!hit || opener.status === "not_now") return opener;
+    dirty = true;
+    return stopNurture(opener, "opt_out");
+  });
+  return { all: next, dirty };
+}
+
+function applyClickEngagementTo(
+  all: OpenerRecord[],
+  mail: AgentMailItem,
+  resolve?: OpenerResolver,
+  extraClicks = 1
+): { all: OpenerRecord[]; opener?: OpenerRecord } {
+  if (mail.direction !== "outbound") return { all };
+  const at = lastClickAt(mail.clicks);
+  if (!at) return { all };
+  const email = normalizeEmail(mail.to);
+  if (!email) return { all };
+
+  const hit = takeResolveHit(email, mail, resolve);
+  const existing = findByEmail(all, email) || findByCompany(all, hit.companyNumber);
+  if (existing) {
+    if (extraClicks === 0 && existing.status !== "non_responsive") {
+      return { all, opener: existing };
+    }
+    const opener = {
+      ...applyClickEvent(applyIdentity(existing, email, mail, hit), extraClicks),
+      mailIds: [...new Set([...(existing.mailIds || []), mail.id])],
+    };
+    const next = all.filter((row) => row.id !== opener.id);
+    next.push(opener);
+    return { all: next, opener };
+  }
+
+  const opener = applyClickEvent(
+    applyIdentity(
+      normalizeOpener({
+        id: crypto.randomUUID(),
+        email,
+        status: "new",
+        openCount: 0,
+        clickCount: 0,
+        firstOpenedAt: at,
+        lastOpenedAt: at,
+        lastTouchAt: mail.createdAt,
+        mailIds: [mail.id],
+        companyNumber: hit.companyNumber,
+        companyName: hit.companyName,
+        dealId: hit.dealId ?? mail.dealId,
+        prospectId: hit.prospectId ?? mail.prospectId,
+        phone: hit.phone,
+      }),
+      email,
+      mail,
+      hit
+    ),
+    extraClicks
+  );
+  return { all: [...all, opener], opener };
+}
+
+function totalClicksFor(opener: OpenerRecord, items: AgentMailItem[]): number {
+  const emails = new Set(
+    [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
+  );
+  let n = 0;
+  for (const item of items) {
+    if (item.direction !== "outbound") continue;
+    if (!emails.has(normalizeEmail(item.to))) continue;
+    n += item.clicks?.length ?? 0;
+  }
+  return n;
+}
+
+function syncClickCounts(
+  all: OpenerRecord[],
+  items: AgentMailItem[]
+): { all: OpenerRecord[]; dirty: boolean } {
+  let dirty = false;
+  const next = all.map((opener) => {
+    const clickCount = totalClicksFor(opener, items);
+    const status =
+      clickCount > 0 && opener.status === "non_responsive" ? "new" : opener.status;
+    if (clickCount === opener.clickCount && status === opener.status) return opener;
+    dirty = true;
+    return { ...opener, clickCount, status, updatedAt: new Date().toISOString() };
+  });
+  return { all: next, dirty };
+}
+
+function dropBounced(
+  all: OpenerRecord[],
+  bounceEmails: Set<string>
+): { all: OpenerRecord[]; dirty: boolean } {
+  if (bounceEmails.size === 0) return { all, dirty: false };
+  const next = all.filter((opener) => {
+    return ![opener.email, ...(opener.emails || [])].some((email) =>
+      bounceEmails.has(normalizeEmail(email))
+    );
+  });
+  return { all: next, dirty: next.length !== all.length };
+}
+
 export function hydrateFromAgentMail(
   items: AgentMailItem[],
-  resolve?: OpenerResolver
+  resolve?: OpenerResolver,
+  opts?: { optOutEmails?: Iterable<string>; bounceEmails?: Iterable<string> }
 ): OpenerRecord[] {
   const resolver = resolve ?? defaultOpenerResolver;
   let all = readOpeners();
   const byId = new Map(items.map((item) => [item.id, item]));
   let dirty = false;
   const newlyNumbered: OpenerRecord[] = [];
+
+  for (const event of sentUnopenedMailEvents(items)) {
+    const mail = byId.get(event.mailId);
+    if (!mail) continue;
+    const email = normalizeEmail(mail.to);
+    const existing = findByEmail(all, email);
+    const hadNumber = Boolean(normalizeCompanyNumber(existing?.companyNumber));
+    const result = applySentUnopenedMailTo(all, mail, resolver);
+    if (result.opener) {
+      if (result.all !== all) dirty = true;
+      all = result.all;
+      if (
+        result.opener.status === "non_responsive" &&
+        !hadNumber &&
+        result.opener.companyNumber &&
+        !result.opener.enrichedAt
+      ) {
+        newlyNumbered.push(result.opener);
+      }
+    }
+  }
+
   for (const event of openedMailEvents(items)) {
     const mail = byId.get(event.mailId);
     if (!mail) continue;
@@ -609,9 +969,78 @@ export function hydrateFromAgentMail(
       }
     }
   }
+
+  for (const item of items) {
+    const result = applyClickEngagementTo(all, item, resolver, 0);
+    if (result.opener && result.all !== all) {
+      all = result.all;
+      dirty = true;
+    }
+  }
+
+  const clicks = syncClickCounts(all, items);
+  all = clicks.all;
+  if (clicks.dirty) dirty = true;
+
+  const secondEmail = applySecondEmailNurturingPass(all, items);
+  all = secondEmail.all;
+  if (secondEmail.dirty) dirty = true;
+  const unsubscribed = applyUnsubscribes(all, collectOptOutEmails(items, opts?.optOutEmails));
+  all = unsubscribed.all;
+  if (unsubscribed.dirty) dirty = true;
+  const bounced = dropBounced(
+    all,
+    new Set([...(opts?.bounceEmails || [])].map(normalizeEmail).filter(Boolean))
+  );
+  all = bounced.all;
+  if (bounced.dirty) dirty = true;
   if (dirty) writeOpeners(all);
   for (const opener of newlyNumbered) scheduleEnrichIfNew(false, opener);
   return all;
+}
+
+export function markOpenerNurturingOnOutbound(
+  mail: AgentMailItem,
+  allMail: AgentMailItem[] = [mail]
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound" || mail.status !== "sent") return undefined;
+  const email = normalizeEmail(mail.to);
+  if (!email) return undefined;
+  const all = readOpeners();
+  const opener = findByEmail(all, email);
+  if (!opener) return undefined;
+  if (
+    !openerHasReceivedSecondEmail(opener, {
+      mail: allMail,
+      ...dealFlagsForOpener(opener),
+      ...(mail.touchId === "sme_open" ? { smeOpenFollowUpSentAt: mail.createdAt } : {}),
+      ...(mail.touchId === "sme_followup" ? { smeFollowupSentAt: mail.createdAt } : {}),
+    })
+  ) {
+    return undefined;
+  }
+  const moved = applySecondEmailNurturing(opener);
+  if (moved.status === opener.status) return opener;
+  return saveOpener(moved);
+}
+
+export async function autoPromoteEligibleOpeners(
+  mail: AgentMailItem[],
+  opts?: { userId?: string; optOutEmails?: Iterable<string>; deps?: PromoteDeps }
+): Promise<OpenerRecord[]> {
+  const deps = opts?.deps ?? (inVitest() ? null : await defaultPromoteDeps());
+  if (!deps) return [];
+  const promoted: OpenerRecord[] = [];
+  for (const opener of readOpeners()) {
+    if (!shouldAutoPromoteOpener(opener, mail, opts?.optOutEmails)) continue;
+    try {
+      const result = await promoteOpener(opener.id, opts?.userId || "", deps);
+      promoted.push(result.opener);
+    } catch (error: any) {
+      console.warn("[Openers] auto-promote failed:", opener.email, error?.message || error);
+    }
+  }
+  return promoted;
 }
 
 function asItems(payload: any): any[] {
@@ -810,13 +1239,18 @@ export function completeTouch2IfDue(
   return { ...next, lastTouchAt: stamp, updatedAt: stamp };
 }
 
+function refuseDoNotContact(opener: OpenerRecord): void {
+  if (isDoNotContactOpener(opener)) throw httpError("Do not contact", 400);
+}
+
 export async function runNurtureAction(
   id: string,
   action: "start" | "approve" | "skip" | "stop" | "touch2",
-  opts?: { channel?: "whatsapp" | "call"; now?: Date; send?: SendEmailFn }
+  opts?: { channel?: "whatsapp" | "call"; now?: Date; send?: SendEmailFn; agentId?: string }
 ): Promise<OpenerRecord> {
   const opener = requireOpener(id);
   const now = opts?.now;
+  if (action !== "stop") refuseDoNotContact(opener);
 
   if (action === "start") {
     return saveOpener(startNurture(opener, openerNurtureDraft(opener), now));
@@ -842,12 +1276,13 @@ export async function runNurtureAction(
 
   const draft = opener.nurture.touch1Draft || openerNurtureDraft(opener);
   const send = opts?.send ?? (await import("./email")).sendEmail;
-  const mailbox = mailboxForAgent("outreach-sales");
+  const mailbox = resolveSendAsMailbox(opts?.agentId, "outreach-sales");
+  const html = `${draft.html}\n${signatureHtml(mailbox)}`;
   let result: Awaited<ReturnType<SendEmailFn>>;
   try {
     result = await send(
       {
-        agentId: "outreach-sales",
+        agentId: mailbox.agentId,
         fromEmail: mailbox.address,
         fromName: mailbox.fromName,
         replyTo: mailbox.replyTo,
@@ -857,7 +1292,7 @@ export async function runNurtureAction(
       },
       opener.email,
       draft.subject,
-      draft.html
+      html
     );
   } catch {
     return saveOpener(failNurtureSend(opener));
@@ -963,6 +1398,7 @@ export async function sendOpenerWhatsApp(
   now?: Date
 ): Promise<OpenerRecord> {
   const opener = requireOpener(id);
+  refuseDoNotContact(opener);
   if (!opener.phone) throw httpError("Phone required", 400);
   const sendFn =
     send ??
@@ -976,6 +1412,7 @@ export async function sendOpenerWhatsApp(
 
 export async function logOpenerCall(id: string, note: string, now?: Date): Promise<OpenerRecord> {
   const opener = requireOpener(id);
+  refuseDoNotContact(opener);
   if (!opener.phone) throw httpError("Phone required", 400);
   const stamp = (now ?? new Date()).toISOString();
   const line = `${stamp} ${note}`;
@@ -986,11 +1423,28 @@ export async function logOpenerCall(id: string, note: string, now?: Date): Promi
   return saveOpener(completeTouch2IfDue(withNote, "call", now));
 }
 
+export function deleteOpenerByEmail(email: string): boolean {
+  const target = normalizeEmail(email);
+  if (!target) return false;
+  const all = readOpeners();
+  const next = all.filter(
+    (row) => row.email !== target && !(row.emails || []).includes(target)
+  );
+  if (next.length === all.length) return false;
+  writeOpeners(next);
+  return true;
+}
+
 export function stopOpenerNurtureByEmail(
   email: string,
   reason: "reply" | "opt_out"
 ): OpenerRecord | undefined {
   const opener = findByEmail(readOpeners(), normalizeEmail(email));
-  if (!opener || !isNurtureInFlight(opener)) return undefined;
+  if (!opener) return undefined;
+  if (reason === "opt_out") {
+    if (opener.status === "not_now" && opener.nurture.stopReason === "opt_out") return opener;
+    return saveOpener(stopNurture(opener, "opt_out"));
+  }
+  if (!isNurtureInFlight(opener)) return undefined;
   return saveOpener(stopNurture(opener, reason));
 }

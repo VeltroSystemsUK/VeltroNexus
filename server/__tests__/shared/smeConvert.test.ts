@@ -6,6 +6,7 @@ import {
   CONVERT_STOP_LINE,
   CONVERT_WAKE_DAYS,
   buildCloserScript,
+  buildConvertEnrolment,
   convertCopyOk,
   convertGreetingName,
   convertWakeAt,
@@ -168,5 +169,23 @@ describe("convert cadence", () => {
     expect(yaml).toMatch(/playbook_id: sme_nurture/);
     expect(yaml).toMatch(/os_touch: sme_c1/);
     expect(yaml).toMatch(/If this isn't useful, reply stop and we won't email again/);
+  });
+});
+
+describe("convert enrolment", () => {
+  it("buildConvertEnrolment resets hunt index and stamps sme_nurture", () => {
+    const built = buildConvertEnrolment(
+      [sme1, sme2],
+      { ...deal, outreachTouch: 3, callPlaybook: { title: "hunt" } as never },
+      { id: "op-1", status: "new" },
+      new Date("2026-09-09T09:00:00.000Z")
+    );
+    expect(built?.dealPatch.convertPlaybook).toBe("sme_nurture");
+    expect(built?.dealPatch.outreachTouch).toBe(0);
+    expect(built?.dealPatch.callPlaybook).toBeUndefined();
+    expect(built?.openerId).toBe("op-1");
+    expect(
+      buildConvertEnrolment([sme1], deal, { id: "op-1" }, new Date("2026-09-09T09:00:00.000Z"))
+    ).toBeNull();
   });
 });

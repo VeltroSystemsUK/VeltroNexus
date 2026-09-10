@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import type { AgentMailAttachment } from "@shared/agentMailAttachments";
 import { storage } from "../storage";
-import { upsertOpenerFromMail } from "./openers";
+import { autoPromoteEligibleOpeners, enrolConvertFromMail, markOpenerNurturingOnOutbound, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerFromMail } from "./openers";
 import { withJsonFileLock } from "../utils/jsonFileLock";
 
 export type MailDirection = "outbound" | "inbound";
@@ -33,6 +33,7 @@ export type AgentMailItem = {
 };
 
 const DEFAULT_STORE = path.resolve(process.cwd(), "uploads", "agent_mail.json");
+export const AGENT_MAIL_KEEP = 10_000;
 const BACKUP_KEEP_MS = 14 * 24 * 60 * 60 * 1000;
 export const MAIL_BACKUP_HOUR_LONDON = 3;
 let storeOverride: string | null = null;
@@ -246,6 +247,7 @@ export function recordOpen(id: string): AgentMailItem | undefined {
   writeAll(all);
   try {
     upsertOpenerFromMail(item);
+    enrolConvertFromMail(item);
   } catch (error: any) {
     console.warn("[Openers] upsert after open failed:", error?.message || error);
   }
@@ -258,6 +260,12 @@ export function recordClick(id: string, url: string): AgentMailItem | undefined 
   if (!item) return undefined;
   item.clicks = [...(item.clicks || []), { at: new Date().toISOString(), url }];
   writeAll(all);
+  try {
+    upsertOpenerClickFromMail(item);
+    enrolConvertFromMail(item);
+  } catch (error: any) {
+    console.warn("[Openers] upsert after click failed:", error?.message || error);
+  }
   return item;
 }
 
@@ -322,8 +330,24 @@ export function logAgentMail(entry: Omit<AgentMailItem, "id" | "createdAt"> & { 
       }
     }
     all.push(incoming);
-    writeAll(all.slice(-2000));
+    writeAll(all.slice(-AGENT_MAIL_KEEP));
   });
+  if (saved.direction === "outbound" && saved.status === "sent") {
+    const all = readAll();
+    try {
+      upsertNonResponsiveFromMail(saved);
+    } catch (error: any) {
+      console.warn("[Openers] non-responsive upsert failed:", error?.message || error);
+    }
+    try {
+      markOpenerNurturingOnOutbound(saved, all);
+    } catch (error: any) {
+      console.warn("[Openers] second-email nurture failed:", error?.message || error);
+    }
+    void autoPromoteEligibleOpeners(all).catch((error: any) => {
+      console.warn("[Openers] auto-promote failed:", error?.message || error);
+    });
+  }
   return saved;
 }
 
