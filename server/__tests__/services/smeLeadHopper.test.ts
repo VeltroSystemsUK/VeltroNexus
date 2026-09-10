@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { SME_ATTACH_ATTEMPT_CAP } from "@shared/smeHopper";
 import {
   ATTACH_FIRECRAWL_PATHS,
   GATED_SME_HUNT_HOLD,
+  HARVEST_FLUSH_EVERY,
+  HARVEST_PER_HOUR,
   HARVEST_RETRY_MS,
   attachOne,
   collectPageEmails,
@@ -853,6 +856,22 @@ describe("Harvest agent loop", () => {
     ).toBe(false);
   });
 
+  it("stops harvesting after six attach misses", () => {
+    expect(SME_ATTACH_ATTEMPT_CAP).toBe(6);
+    expect(
+      isHarvestCandidate(
+        { source: "distress_scan", hopper: "quarantine", companyName: "Pet Shop Ltd", attachAttempts: 6 },
+        now
+      )
+    ).toBe(false);
+    expect(
+      isHarvestCandidate(
+        { source: "distress_scan", hopper: "quarantine", companyName: "Pet Shop Ltd", attachAttempts: 5 },
+        now
+      )
+    ).toBe(true);
+  });
+
   it("refills from quarantine and empty hopper, skipping Pack Upload Test Ltd", async () => {
     const places = vi.fn(async () => null);
     const { patches } = await refillSendableHopper({
@@ -954,6 +973,179 @@ describe("Harvest agent loop", () => {
     });
     expect(seen[0]).toEqual({ phase: "start", companyName: "Slow SMTP Ltd", index: 0, total: 1 });
     expect(seen.some((row) => row.phase === "done")).toBe(true);
+  });
+
+  it("grades a stored company-domain CSV mailbox without burning CH, Places or Firecrawl", async () => {
+    const officers = vi.fn(async () => ["Ada Lovelace"]);
+    const places = vi.fn();
+    const firecrawl = vi.fn();
+    const { dealPatch } = await attachOne(
+      {
+        hopper: "hunt_contact",
+        companyName: "Pet Shop Ltd",
+        companyNumber: "01234567",
+        email: "adam@petshop.co.uk",
+        website: "https://petshop.co.uk",
+        contactName: "Adam",
+      } as any,
+      { officers, places, firecrawl, mxValid: async () => true },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.hopper).toBe("sendable");
+    expect(dealPatch.email).toBe("adam@petshop.co.uk");
+    expect(officers).not.toHaveBeenCalled();
+    expect(places).not.toHaveBeenCalled();
+    expect(firecrawl).not.toHaveBeenCalled();
+  });
+
+  it("still hunts a company mailbox when the CSV row is a personal address", async () => {
+    const officers = vi.fn(async () => ["Ada Lovelace"]);
+    const places = vi.fn(async () => ({ website: "https://petshop.co.uk" }));
+    const firecrawl = vi.fn(async () => ["ada@petshop.co.uk"]);
+    const { dealPatch } = await attachOne(
+      {
+        hopper: "hunt_contact",
+        companyName: "Pet Shop Ltd",
+        companyNumber: "1",
+        email: "ada@gmail.com",
+        contactName: "Ada",
+      } as any,
+      { officers, places, firecrawl, mxValid: async () => true },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(places).toHaveBeenCalled();
+    expect(firecrawl).toHaveBeenCalled();
+    expect(dealPatch.hopper).toBe("sendable");
+    expect(dealPatch.email).toBe("ada@petshop.co.uk");
+  });
+
+  it("stops after the hourly cap so a 3000-file hopper cannot become one job", async () => {
+    expect(HARVEST_PER_HOUR).toBe(25);
+    expect(HARVEST_FLUSH_EVERY).toBe(1);
+    const base = {
+      source: "distress_scan" as const,
+      hopper: "hunt_contact" as const,
+      ownerUserId: "u",
+      stage: "ingest" as const,
+      status: "waiting_timer" as const,
+      events: [],
+      createdAt: "",
+      updatedAt: "",
+    };
+    const { patches } = await refillSendableHopper({
+      deals: [
+        { ...base, id: 1, companyName: "A Ltd", email: "a@a.co.uk", website: "https://a.co.uk", contactName: "Ada" },
+        { ...base, id: 2, companyName: "B Ltd", email: "b@b.co.uk", website: "https://b.co.uk", contactName: "Ben" },
+        { ...base, id: 3, companyName: "C Ltd", email: "c@c.co.uk", website: "https://c.co.uk", contactName: "Cat" },
+      ] as any,
+      deps: {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      limit: 2,
+      now,
+    });
+    expect(patches.map((row) => row.id)).toEqual([1, 2]);
+  });
+
+  it("quarantines a company that hangs past the attach timeout and keeps going", async () => {
+    const { patches } = await refillSendableHopper({
+      deals: [
+        {
+          id: 1,
+          source: "distress_scan" as const,
+          hopper: "hunt_contact" as const,
+          companyName: "Hang Ltd",
+          companyNumber: "1",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+        {
+          id: 2,
+          source: "distress_scan" as const,
+          hopper: "hunt_contact" as const,
+          companyName: "Ok Ltd",
+          email: "ok@ok.co.uk",
+          website: "https://ok.co.uk",
+          contactName: "Ada",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+      ] as any,
+      deps: {
+        officers: async () => [],
+        places: () => new Promise(() => {}),
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      attachTimeoutMs: 30,
+      now,
+    });
+    expect(patches.map((row) => row.id)).toEqual([1, 2]);
+    expect(patches[0].patch.hopper).toBe("quarantine");
+    expect(patches[1].patch.hopper).toBe("sendable");
+  });
+
+  it("hands each finished file to onPatch before starting the next so a crash keeps work already done", async () => {
+    const order: string[] = [];
+    const { patches } = await refillSendableHopper({
+      deals: [
+        {
+          id: 1,
+          source: "distress_scan" as const,
+          hopper: "hunt_contact" as const,
+          companyName: "A Ltd",
+          email: "a@a.co.uk",
+          website: "https://a.co.uk",
+          contactName: "Ada",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+        {
+          id: 2,
+          source: "distress_scan" as const,
+          hopper: "hunt_contact" as const,
+          companyName: "B Ltd",
+          email: "b@b.co.uk",
+          website: "https://b.co.uk",
+          contactName: "Ben",
+          ownerUserId: "u",
+          stage: "ingest" as const,
+          status: "waiting_timer" as const,
+          events: [],
+          createdAt: "",
+          updatedAt: "",
+        },
+      ] as any,
+      deps: {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      onProgress: async (row) => {
+        if (row.phase === "start") order.push(`start ${row.companyName}`);
+      },
+      onPatch: async (row) => {
+        order.push(`patch ${row.id}`);
+      },
+    });
+    expect(patches.map((row) => row.id)).toEqual([1, 2]);
+    expect(order).toEqual(["start A Ltd", "patch 1", "start B Ltd", "patch 2"]);
   });
 
   it("holds a failed harvest for a day instead of burning budget every tick", async () => {

@@ -6,7 +6,9 @@ import {
   directorForEmail,
   gradeMailbox,
   isProtectedFromQuarantine,
+  isRoleMailbox,
   isSendableContact,
+  SME_ATTACH_ATTEMPT_CAP,
   type HopperDeal,
 } from "@shared/smeHopper";
 import { rejectBeforeCharges } from "./strataFit";
@@ -62,6 +64,9 @@ export const GATED_SME_HUNT_HOLD = {
 
 export const HARVEST_AGENT_ID = "harvest";
 export const HARVEST_RETRY_MS = 24 * 60 * 60 * 1000;
+export const HARVEST_ATTACH_TIMEOUT_MS = 45 * 1000;
+export const HARVEST_PER_HOUR = 25;
+export const HARVEST_FLUSH_EVERY = 1;
 
 export function isHarvestCandidate(
   deal: {
@@ -76,12 +81,14 @@ export function isHarvestCandidate(
     sterlingHandoffId?: number | null;
     packDocuments?: Array<unknown> | null;
     stage?: string;
+    attachAttempts?: number | null;
   },
   now: Date = new Date()
 ): boolean {
   if (isNoiseDeal({ companyName: deal.companyName || "", ownerUserId: deal.ownerUserId || "" })) return false;
   if (deal.source === "strata_inbound") return false;
   if (isProtectedFromQuarantine(deal)) return false;
+  if ((deal.attachAttempts || 0) >= SME_ATTACH_ATTEMPT_CAP) return false;
   const hopper = deal.hopper;
   if (hopper === "sendable" || hopper === "queued" || hopper === "parked") return false;
   const hasEmail = Boolean(String(deal.email || "").trim());
@@ -373,6 +380,46 @@ export async function attachOne(
   let phone = deal.phone;
   const found: Array<{ email: string; source: NonNullable<AgenticDealFile["contactSource"]> }> = [];
 
+  const stored = String(deal.email || "").trim();
+  const storedDomain = companyDomainFromWebsite(website);
+  if (
+    stored &&
+    !isPersonalMailbox(stored) &&
+    !isRoleMailbox(stored) &&
+    (!storedDomain || emailOnCompanyDomain(stored, storedDomain)) &&
+    !isExcludedFromSmeHunt({ email: stored }, new Set(), new Set(), inboundEmails)
+  ) {
+    const name = deal.contactName || directorNames[0] || "Director";
+    if (await mailboxPasses(stored, name, directorNames, deps, next, deal.companyName, false)) {
+      extra.website = website;
+      extra.phone = phone;
+      if (directorNames.length) extra.directorNames = directorNames;
+      return {
+        dealPatch: sendableAttachPatch(
+          deal,
+          extra,
+          {
+            contactSource: "ch",
+            contactName: name,
+            email: stored,
+            website,
+            phone,
+            mailboxGrade: "director",
+            mailboxConfidence: mailboxConfidence({
+              source: "ch",
+              mx: true,
+              smtp: "unknown",
+              catchAll: "unknown",
+              citedOnDomain: 1,
+            }),
+          },
+          now
+        ),
+        budget: next,
+      };
+    }
+  }
+
   if (deal.companyNumber && next.ch > 0 && directorNames.length === 0) {
     next.ch -= 1;
     const fetched = await deps.officers(deal.companyNumber);
@@ -380,7 +427,6 @@ export async function attachOne(
   }
   if (directorNames.length) extra.directorNames = directorNames;
 
-  const stored = String(deal.email || "").trim();
   if (stored) found.push({ email: stored, source: "ch" });
 
   if (next.places > 0 && !website) {
@@ -556,6 +602,9 @@ export async function refillSendableHopper(opts: {
   now?: Date;
   inboundEmails?: Set<string>;
   onProgress?: (row: HarvestProgress) => void | Promise<void>;
+  onPatch?: (row: { id: number; patch: Partial<AgenticDealFile> }) => void | Promise<void>;
+  attachTimeoutMs?: number;
+  limit?: number;
 }): Promise<{ patches: Array<{ id: number; patch: Partial<AgenticDealFile> }>; budget: AttachBudget }> {
   let budget = copyBudget(opts.budget || DEFAULT_ATTACH_BUDGET);
   const now = opts.now || new Date();
@@ -563,7 +612,8 @@ export async function refillSendableHopper(opts: {
   for (const email of suppressionSets().emails) inboundEmails.add(email);
   const candidates = opts.deals
     .filter((deal) => isHarvestCandidate(deal, now))
-    .sort((a, b) => compareSendable(hopperRankFields(a), hopperRankFields(b)));
+    .sort((a, b) => compareSendable(hopperRankFields(a), hopperRankFields(b)))
+    .slice(0, opts.limit ?? Number.POSITIVE_INFINITY);
 
   const patches: Array<{ id: number; patch: Partial<AgenticDealFile> }> = [];
   const total = candidates.length;
@@ -586,9 +636,30 @@ export async function refillSendableHopper(opts: {
         });
         continue;
       }
-      const result = await attachOne(deal, opts.deps, budget, now, inboundEmails);
+      const timeoutMs = opts.attachTimeoutMs ?? HARVEST_ATTACH_TIMEOUT_MS;
+      let result: { dealPatch: Partial<AgenticDealFile>; budget: AttachBudget };
+      try {
+        result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error("harvest attach timed out")), timeoutMs);
+          attachOne(deal, opts.deps, budget, now, inboundEmails).then(
+            (value) => {
+              clearTimeout(timer);
+              resolve(value);
+            },
+            (err) => {
+              clearTimeout(timer);
+              reject(err);
+            }
+          );
+        });
+      } catch (err) {
+        if (!(err instanceof Error && err.message === "harvest attach timed out")) throw err;
+        result = { dealPatch: failAttachPatch(deal, {}, now), budget };
+      }
       budget = result.budget;
-      patches.push({ id: deal.id, patch: result.dealPatch });
+      const row = { id: deal.id, patch: result.dealPatch };
+      patches.push(row);
+      await opts.onPatch?.(row);
       await opts.onProgress?.({
         index: i + 1,
         total,
@@ -647,7 +718,9 @@ export function liveAttachDeps(): AttachDeps {
       const key = placesApiKey();
       if (!key) return null;
       const query = [companyName, address].filter(Boolean).join(" ");
-      const response = await fetch(`${PLACES_TEXT_URL}?query=${encodeURIComponent(query)}&key=${key}`);
+      const response = await fetch(`${PLACES_TEXT_URL}?query=${encodeURIComponent(query)}&key=${key}`, {
+        signal: AbortSignal.timeout(8000),
+      });
       if (!response.ok) return null;
       const data = await response.json();
       const top = data.results?.[0];
@@ -657,7 +730,8 @@ export function liveAttachDeps(): AttachDeps {
       if (top.place_id) {
         try {
           const detailsRes = await fetch(
-            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(top.place_id)}&fields=formatted_phone_number,international_phone_number,website&key=${key}`
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(top.place_id)}&fields=formatted_phone_number,international_phone_number,website&key=${key}`,
+            { signal: AbortSignal.timeout(8000) }
           );
           const details = detailsRes.ok ? await detailsRes.json() : null;
           const result = details?.result;
