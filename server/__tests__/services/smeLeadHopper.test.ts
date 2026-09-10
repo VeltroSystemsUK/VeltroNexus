@@ -625,6 +625,84 @@ describe("SME attach waterfall", () => {
     expect(dealPatch.email).not.toBe("adam.taylor@petshop.co.uk");
   });
 
+  it("attaches first.last for the file's director on Google MX with no SMTP", async () => {
+    const smtpProbe = vi.fn(async () => "unknown" as const);
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "gated",
+        companyName: "Pet Shop Ltd",
+        companyNumber: "1",
+        website: "https://petshop.co.uk",
+        directorNames: ["Adam Taylor"],
+      } as any,
+      {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+        mxHosts: async () => ["aspmx.l.google.com"],
+        smtpProbe,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.email).toBe("adam.taylor@petshop.co.uk");
+    expect(dealPatch.contactSource).toBe("domain");
+    expect(dealPatch.hopper).toBe("sendable");
+    expect(dealPatch.mailboxGrade).toBe("director");
+    expect(dealPatch.mailboxConfidence).toBeGreaterThanOrEqual(75);
+    expect(smtpProbe).not.toHaveBeenCalled();
+  });
+
+  it("skips a bounced first.last and attaches flast on the next mute-MX pass", async () => {
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "hunt_contact",
+        companyName: "Pet Shop Ltd",
+        companyNumber: "1",
+        website: "https://petshop.co.uk",
+        directorNames: ["Adam Taylor"],
+      } as any,
+      {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+        mxHosts: async () => ["aspmx.l.google.com"],
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 },
+      new Date(),
+      new Set(["adam.taylor@petshop.co.uk"])
+    );
+    expect(dealPatch.email).toBe("ataylor@petshop.co.uk");
+    expect(dealPatch.email).not.toBe("adam.taylor@petshop.co.uk");
+  });
+
+  it("does not guess when guessing is paused", async () => {
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "gated",
+        companyName: "Pet Shop Ltd",
+        companyNumber: "1",
+        website: "https://petshop.co.uk",
+        directorNames: ["Adam Taylor"],
+      } as any,
+      {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+        mxHosts: async () => ["aspmx.l.google.com"],
+        guessPaused: true,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.hopper).not.toBe("sendable");
+    expect(dealPatch.email).toBeUndefined();
+  });
+
   it("skips Places and Companies House when the file already has a website and directors", async () => {
     const places = vi.fn();
     const officers = vi.fn();

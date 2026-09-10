@@ -184,6 +184,7 @@ export type AttachDeps = {
   osint?(companyName: string, address?: string): Promise<{ emails: string[]; website?: string }>;
   wayback?(website: string): Promise<string[]>;
   mxHosts?(domain: string): Promise<string[]>;
+  guessPaused?: boolean;
 };
 
 async function probeSmtp(deps: AttachDeps, email: string): Promise<SmtpProbe> {
@@ -489,15 +490,27 @@ export async function attachOne(
   const citedOnDomain = found.filter((item) => item.source !== "domain").length;
   let catchAll: CatchAllStatus = "unknown";
   let family = mxFamilyFromHosts(domain && deps.mxHosts ? await deps.mxHosts(domain) : []);
-  if (domain && directorNames.length && next.smtp > 0 && smtpTrusted(family)) {
-    const probes: SmtpProbe[] = [];
-    for (const box of [`nx-no-box-strata@${domain}`, `nx-no-box-strata-b@${domain}`]) {
-      if (next.smtp <= 0) break;
-      next.smtp -= 1;
-      probes.push(await probeSmtp(deps, box));
-    }
-    catchAll = catchAllStatus(probes);
-    if (catchAll === "not_catch_all") {
+  const guessPaused = Boolean(deps.guessPaused);
+  if (domain && directorNames.length && !guessPaused) {
+    if (smtpTrusted(family) && next.smtp > 0) {
+      const probes: SmtpProbe[] = [];
+      for (const box of [`nx-no-box-strata@${domain}`, `nx-no-box-strata-b@${domain}`]) {
+        if (next.smtp <= 0) break;
+        next.smtp -= 1;
+        probes.push(await probeSmtp(deps, box));
+      }
+      catchAll = catchAllStatus(probes);
+      if (catchAll === "not_catch_all") {
+        const pattern = inferMailboxPattern(
+          found.map((item) => item.email),
+          directorNames
+        );
+        for (const email of contactMailboxGuesses(domain, directorNames, pattern)) {
+          if (found.some((item) => item.email === email)) continue;
+          found.push({ email, source: "domain" });
+        }
+      }
+    } else if (!smtpTrusted(family)) {
       const pattern = inferMailboxPattern(
         found.map((item) => item.email),
         directorNames
@@ -514,6 +527,7 @@ export async function attachOne(
 
   const tryGrade = async (want: "director" | "role"): Promise<Partial<AgenticDealFile> | null> => {
     const ranked = [...found].sort((a, b) => {
+      if (a.source === "domain" && b.source === "domain") return 0;
       const am = directorForEmail(a.email, directorNames) ? 0 : 1;
       const bm = directorForEmail(b.email, directorNames) ? 0 : 1;
       return am - bm;
@@ -546,7 +560,7 @@ export async function attachOne(
         continue;
       }
       const smtp =
-        item.source === "domain" && next.smtp > 0
+        item.source === "domain" && smtpTrusted(family) && next.smtp > 0
           ? ((next.smtp -= 1), await probeSmtp(deps, item.email))
           : "unknown";
       const score = mailboxConfidence({
@@ -582,7 +596,17 @@ export async function attachOne(
   const roleHit = await tryGrade("role");
   if (roleHit) return { dealPatch: roleHit, budget: next };
 
-  return { dealPatch: failAttachPatch(deal, extra, now), budget: next };
+  const fail = failAttachPatch(deal, extra, now);
+  const domainGuesses = found.filter((item) => item.source === "domain");
+  if (
+    domainGuesses.length > 0 &&
+    domainGuesses.every((item) =>
+      isExcludedFromSmeHunt({ email: item.email }, new Set(), new Set(), inboundEmails)
+    )
+  ) {
+    fail.attachAttempts = SME_ATTACH_ATTEMPT_CAP;
+  }
+  return { dealPatch: fail, budget: next };
 }
 
 export type HarvestProgress = {
