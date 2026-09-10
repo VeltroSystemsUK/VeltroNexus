@@ -479,6 +479,30 @@ export function buildConvertEnrolment(
   };
 }
 
+export function nextOutreachTouchAfterSend(
+  cadenceTouchId: "sme_n1" | "sme_n2" | "sme_n3"
+): number {
+  if (cadenceTouchId === "sme_n1") return 1;
+  if (cadenceTouchId === "sme_n2") return 2;
+  return 3;
+}
+
+export function convertOverridesHopperHold(deal: {
+  convertPlaybook?: string;
+  hopper?: string;
+}): boolean {
+  return deal.convertPlaybook === "sme_nurture";
+}
+
+export function sme2SentAtFromMail(mail: ConvertMail[]): string | undefined {
+  const hit = (mail || []).find((item) => isOutboundSent(item) && isSme2Touch(item.touchId));
+  return hit?.createdAt;
+}
+
+export function lastSiteClickUrlFromMail(mail: ConvertMail[]): string | null {
+  return lastStrataSiteClick((mail || []).flatMap((item) => item.clicks || []))?.url || null;
+}
+
 export function enrolConvertDealPatch(
   deal: ConvertDeal,
   opts: { now?: Date; sme2SentAt?: string } = {}

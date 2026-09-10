@@ -4,7 +4,7 @@ import path from "path";
 import { storage } from "../storage";
 import { searchCompanies, companiesHouseClient, chFetch } from "../utils/companiesHouseClient";
 import { sendEmail } from "./email";
-import { applyOutreachTemplateOverride, renderCallForDeal, renderOutreachEmail, type OutreachTemplateOverride } from "@shared/strataOutreach";
+import { applyOutreachTemplateOverride, dealHasHmrcPetition, renderCallForDeal, renderOutreachEmail, type OutreachTemplateOverride } from "@shared/strataOutreach";
 import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { cadenceAfterOutreach, wasEmailDelivered } from "@shared/outreachSend";
 import { outreachEligibility } from "@shared/slfOutreach";
@@ -18,6 +18,7 @@ import {
   excludedSectorReason,
   isBrokerProspect,
   nextCadenceStep,
+  nextCadenceStepForDeal,
   type CadenceStep,
   type SalesStream,
 } from "@shared/salesOs";
@@ -43,7 +44,18 @@ import {
 } from "./smeLeadHopper";
 import { hopperCounts, isContactableDeal, isProtectedFromQuarantine, isSmeHopperSendable, rankSendable, smeHuntNeed } from "@shared/smeHopper";
 import { buildHuntQuality, sendableUnsentCount } from "@shared/smeQuality";
+import { OPENER_CONVERT_CLOSER_DELAY_MS } from "@shared/openers";
+import {
+  convertCopyOk,
+  convertOverridesHopperHold,
+  lastSiteClickUrlFromMail,
+  nextConvertSendWindow,
+  nextOutreachTouchAfterSend,
+  planConvertTick,
+  sme2SentAtFromMail,
+} from "@shared/smeConvert";
 import { listAgentMail } from "./agentMailLog";
+import { applyConvertCloserScript, applyConvertSendToOpener } from "./openers";
 import { mailIsSuppressed } from "./mailDesk";
 import { suppressionSets } from "./mailSuppression";
 import { isOpenedOutboundMail } from "@shared/mailTracking";
@@ -1924,6 +1936,9 @@ export const agenticWorkflow = {
       }
       return this.promoteToIntroducerPipeline(deal);
     }
+    if (convertOverridesHopperHold(deal)) {
+      return this.sendConvertOutreach(deal);
+    }
     if (stream === "sme" && deal.source !== "strata_inbound" && deal.hopper && deal.hopper !== "queued") {
       if (isSmeHuntContactRetry(deal)) return this.completeContact(deal);
       return deal;
@@ -1968,6 +1983,155 @@ export const agenticWorkflow = {
       }) as Promise<AgenticDealFile>;
     }
     return this.applyCadenceStep(deal, stream, step);
+  },
+
+  async sendConvertOutreach(deal: AgenticDealFile): Promise<AgenticDealFile> {
+    const now = new Date();
+    const mail = listAgentMail(10_000).filter((item) => item.dealId === deal.id);
+    const lastSiteClickUrl = lastSiteClickUrlFromMail(mail);
+    const tick = planConvertTick({
+      deal,
+      sme2SentAt: sme2SentAtFromMail(mail),
+      now,
+      lastSiteClickUrl,
+      hasHmrcPetition: dealHasHmrcPetition(deal),
+    });
+
+    if (tick.action === "hold" && tick.reason === "same_day_sme_2") {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_timer",
+        waitUntil: nextConvertSendWindow(new Date(now.getTime() + ONE_DAY_MS)).toISOString(),
+        events: addEvent(deal, "outreach", "Held N1 — same London day as sme_2", "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    if (tick.action === "queue_closer") {
+      const opener = applyConvertCloserScript(deal, lastSiteClickUrl, now);
+      const n3At = opener?.nurture.n3At;
+      const dueMs = n3At ? Date.parse(n3At) + OPENER_CONVERT_CLOSER_DELAY_MS : now.getTime();
+      const waitUntil = dueMs <= now.getTime() ? now.toISOString() : new Date(dueMs).toISOString();
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        waitUntil,
+        callPlaybook: undefined,
+        humanReason: "Convert closer due on Openers",
+        events: addEvent(deal, "outreach", "Convert closer due on Openers", "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    if (tick.action !== "send") return deal;
+
+    const mailbox = mailboxForAgent("outreach-sales");
+    const builtInScript = renderOutreachEmail(deal, tick.renderTouchId, mailbox);
+    const templateOverrides = (await storage.getSystemSetting("agent_outreach_templates")) || {};
+    const script = applyOutreachTemplateOverride(
+      builtInScript,
+      templateOverrides[tick.renderTouchId] as OutreachTemplateOverride | undefined,
+      deal,
+      mailbox
+    );
+    const copy = convertCopyOk({ subject: script.subject, html: script.html, text: script.text });
+    if (!String(script.html || "").trim() || !String(script.text || "").trim() || !copy.ok) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        waitUntil: undefined,
+        humanReason: "Hunt desk hold: playbook_gap",
+        events: addEvent(deal, "outreach", "Held — playbook_gap", "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    if (!deal.email) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_timer",
+        waitUntil: new Date(now.getTime() + ONE_DAY_MS).toISOString(),
+        events: addEvent(deal, "outreach", "No email yet — convert tick will retry tomorrow.", "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    const pecrReason = outreachBlockReason(deal.email, "sme", deal.companyNumber, deal.companyName);
+    const huntGate = outreachEligibility({
+      deal: { ...deal, stage: "outreach" },
+      touchId: tick.renderTouchId,
+      compiledText: script.text,
+      channel: "email",
+    });
+    if (!huntGate.ok) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        waitUntil: undefined,
+        humanReason: `Hunt desk hold: ${huntGate.reason}`,
+        events: addEvent(deal, "outreach", `Held — ${huntGate.reason}`, "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+    if (pecrReason) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        waitUntil: undefined,
+        humanReason: `Will not send cold email: ${pecrReason}`,
+        events: addEvent(deal, "outreach", `Held — ${pecrReason}`, "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    let delivered = false;
+    let mailId = "";
+    try {
+      const sendResult = await sendEmail(
+        {
+          agentId: "outreach-sales",
+          fromEmail: mailbox.address,
+          fromName: mailbox.fromName,
+          replyTo: mailbox.replyTo,
+          dealId: deal.id,
+          prospectId: deal.prospectId,
+          touchId: tick.renderTouchId,
+        },
+        deal.email,
+        script.subject,
+        script.html
+      );
+      delivered = wasEmailDelivered(sendResult);
+      mailId = String((sendResult as { id?: string })?.id || sendResult?.messageId || "");
+    } catch (error: any) {
+      console.error("[Agentic] Convert outreach email failed:", error);
+      delivered = false;
+    }
+
+    if (!delivered) {
+      return storage.updateAgenticDeal(deal.id, {
+        stage: "outreach",
+        status: "waiting_human",
+        waitUntil: undefined,
+        humanReason: "Email did not send (SMTP missing or failed). Retry when mail is live.",
+        events: addEvent(deal, "outreach", "Email not delivered — cadence not advanced", "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    const nextTouch = nextOutreachTouchAfterSend(tick.cadenceTouchId);
+    const following = nextCadenceStepForDeal(deal, nextTouch);
+    const waitDays = following?.delayDaysFromPrevious ?? 3;
+    applyConvertSendToOpener(deal, tick.cadenceTouchId, mailId, now, lastSiteClickUrl);
+    return storage.updateAgenticDeal(deal.id, {
+      stage: "outreach",
+      status: "waiting_timer",
+      waitUntil: nextConvertSendWindow(new Date(now.getTime() + daysMs(waitDays))).toISOString(),
+      outreachSubject: script.subject,
+      outreachBody: script.html,
+      outreachTouch: nextTouch,
+      outreachTouchId: script.touchId,
+      callPlaybook: undefined,
+      events: addEvent(
+        deal,
+        "outreach",
+        `Convert ${tick.cadenceTouchId} to ${deal.email}: ${script.purpose}`,
+        "outreach-sales"
+      ),
+    }) as Promise<AgenticDealFile>;
   },
 
   async applyCadenceStep(deal: AgenticDealFile, stream: SalesStream, step: CadenceStep): Promise<AgenticDealFile> {
@@ -2175,6 +2339,7 @@ export const agenticWorkflow = {
   },
 
   async runFulfilment(deal: AgenticDealFile): Promise<AgenticDealFile> {
+    if (deal.convertPlaybook === "sme_nurture") return this.sendOutreach(deal);
     const docs = deal.prospectId ? await storage.listProspectDocuments(deal.prospectId) : [];
     const packDocs = deal.packDocuments || [];
     const fileCount = packDocs.length || docs.length;
@@ -2534,6 +2699,9 @@ export const agenticWorkflow = {
     if (action === "retry_send") {
       const stream = dealStream(deal.source, deal.stream);
       const cleared = { ...deal, status: "running" as const, humanReason: undefined };
+      if (deal.convertPlaybook === "sme_nurture") {
+        return this.sendOutreach(cleared);
+      }
       if (stream === "introducer") {
         if (introducerWorkPaused()) {
           return storage.updateAgenticDeal(deal.id, {
@@ -2729,8 +2897,12 @@ export const agenticWorkflow = {
           (isSmeHuntContactRetry(deal) || shouldProcessAgenticTick(deal))
       );
       for (const deal of due) {
-        if (isSmeHuntContactRetry(deal)) continue;
         try {
+          if (deal.convertPlaybook === "sme_nurture") {
+            await this.sendOutreach(deal);
+            continue;
+          }
+          if (isSmeHuntContactRetry(deal)) continue;
           const kind = tickKindForDeal(deal);
           if (kind === "fulfilment") await this.runFulfilment(deal);
           if (kind === "introducer_retry") {

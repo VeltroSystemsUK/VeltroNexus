@@ -9,16 +9,20 @@ import {
   buildConvertEnrolment,
   convertCopyOk,
   convertGreetingName,
+  convertOverridesHopperHold,
   convertWakeAt,
   isDualOpenConvertEligible,
   isStrataSiteUrl,
+  lastSiteClickUrlFromMail,
   lastStrataSiteClick,
+  nextOutreachTouchAfterSend,
   pickConvertTouchId,
   planConvertTick,
   shouldHoldN1ForSme2SameDay,
   shouldSkipN2ForContactClick,
   shouldWakeConvert,
   siteClickKind,
+  sme2SentAtFromMail,
 } from "@shared/smeConvert";
 import { nextCadenceStep, nextCadenceStepForDeal, SME_NURTURE_CADENCE } from "@shared/salesOs";
 
@@ -201,5 +205,35 @@ describe("convert enrolment", () => {
         blockedReason: "suppressed — do not contact",
       })
     ).toBeNull();
+  });
+});
+
+describe("convert tick helpers", () => {
+  it("maps completed cadence index after each N-mail, including skip-N2", () => {
+    expect(nextOutreachTouchAfterSend("sme_n1")).toBe(1);
+    expect(nextOutreachTouchAfterSend("sme_n2")).toBe(2);
+    expect(nextOutreachTouchAfterSend("sme_n3")).toBe(3);
+  });
+
+  it("lets sme_nurture bypass hopper hold regardless of hopper state", () => {
+    expect(convertOverridesHopperHold({ convertPlaybook: "sme_nurture", hopper: "parked" })).toBe(true);
+    expect(convertOverridesHopperHold({ convertPlaybook: "sme_nurture", hopper: "sendable" })).toBe(true);
+    expect(convertOverridesHopperHold({ hopper: "parked" })).toBe(false);
+    expect(convertOverridesHopperHold({ convertPlaybook: "other", hopper: "queued" })).toBe(false);
+  });
+
+  it("reads sme_2 sentAt and last strata site click from Agent Mail", () => {
+    expect(sme2SentAtFromMail([sme1, sme2])).toBe("2026-09-08T09:00:00.000Z");
+    expect(sme2SentAtFromMail([{ ...sme2, touchId: "cold_2" }])).toBe("2026-09-08T09:00:00.000Z");
+    expect(sme2SentAtFromMail([sme1])).toBeUndefined();
+    expect(
+      lastSiteClickUrlFromMail([
+        {
+          ...sme1,
+          clicks: [{ at: "2026-09-08T11:00:00.000Z", url: `${CONVERT_SITE_ORIGIN}/?sf=n1#tools` }],
+        },
+      ])
+    ).toBe(`${CONVERT_SITE_ORIGIN}/?sf=n1#tools`);
+    expect(lastSiteClickUrlFromMail([sme1, sme2])).toBeNull();
   });
 });

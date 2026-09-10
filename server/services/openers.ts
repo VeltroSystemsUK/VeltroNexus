@@ -15,6 +15,8 @@ import {
   enrolConvertOpener,
   failNurtureSend,
   isDoNotContactOpener,
+  recordConvertSend,
+  writeCloserScript,
   isNurtureInFlight,
   isTouch2Due,
   mergeOpeners,
@@ -31,7 +33,7 @@ import {
   stopNurture,
   type OpenerRecord,
 } from "@shared/openers";
-import { buildConvertEnrolment } from "@shared/smeConvert";
+import { buildCloserScript, buildConvertEnrolment, convertGreetingName } from "@shared/smeConvert";
 import { classifyInboundMail } from "@shared/mailDesk";
 import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { dealStream } from "@shared/salesOs";
@@ -543,6 +545,61 @@ export async function enrolConvertFromMail(item: AgentMailItem, now?: Date): Pro
   } finally {
     enrolConvertInFlight.delete(dealId);
   }
+}
+
+function openerForConvertDeal(deal: { email?: string; id?: number }): OpenerRecord | undefined {
+  const all = readOpeners();
+  const email = normalizeEmail(deal.email);
+  if (email) {
+    const byEmail = findByEmail(all, email);
+    if (byEmail) return byEmail;
+  }
+  if (deal.id != null) return all.find((row) => row.dealId === deal.id);
+  return undefined;
+}
+
+export function applyConvertSendToOpener(
+  deal: { email?: string; id?: number; companyName?: string; contactName?: string },
+  cadenceTouchId: "sme_n1" | "sme_n2" | "sme_n3",
+  mailId: string,
+  now?: Date,
+  lastSiteClickUrl?: string | null
+): OpenerRecord | undefined {
+  const opener = openerForConvertDeal(deal);
+  if (!opener) return undefined;
+  let next = recordConvertSend(opener, cadenceTouchId, mailId, now);
+  if (cadenceTouchId === "sme_n3") {
+    next = writeCloserScript(
+      next,
+      buildCloserScript({
+        company: deal.companyName || opener.companyName || "",
+        name: convertGreetingName(deal.contactName) || "",
+        lastSiteClickUrl,
+      }),
+      now
+    );
+  }
+  return saveOpener(next);
+}
+
+export function applyConvertCloserScript(
+  deal: { email?: string; id?: number; companyName?: string; contactName?: string },
+  lastSiteClickUrl?: string | null,
+  now?: Date
+): OpenerRecord | undefined {
+  const opener = openerForConvertDeal(deal);
+  if (!opener) return undefined;
+  return saveOpener(
+    writeCloserScript(
+      opener,
+      buildCloserScript({
+        company: deal.companyName || opener.companyName || "",
+        name: convertGreetingName(deal.contactName) || "",
+        lastSiteClickUrl,
+      }),
+      now
+    )
+  );
 }
 
 function identityChanged(before: OpenerRecord, after: OpenerRecord): boolean {
