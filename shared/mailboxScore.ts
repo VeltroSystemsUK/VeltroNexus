@@ -44,10 +44,12 @@ export function mailboxConfidence(input: {
 }): number {
   if (!input.mx) return 0;
   const cited = input.source !== "domain";
+  if (cited) return 95;
+  const mute = Boolean(input.mxFamily && !smtpTrusted(input.mxFamily));
+  if (input.source === "domain" && mute) return 75;
   const smtp = input.mxFamily && !smtpTrusted(input.mxFamily) ? "unknown" : input.smtp || "unknown";
   const catchAll = input.mxFamily && !smtpTrusted(input.mxFamily) ? "unknown" : input.catchAll || "unknown";
 
-  if (cited) return 95;
   if (smtp === "user_unknown") return 10;
   if (smtp === "deliverable" && catchAll === "not_catch_all") return 95;
   if ((catchAll === "catch_all" || smtp === "unknown") && input.citedOnDomain >= 2) return 80;

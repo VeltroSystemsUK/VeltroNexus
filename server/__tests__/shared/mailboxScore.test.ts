@@ -84,6 +84,38 @@ describe("mailbox confidence", () => {
       MAILBOX_SEND_FLOOR
     );
   });
+
+  it("scores a mute-MX director guess at the send floor without SMTP", () => {
+    expect(
+      mailboxConfidence({
+        source: "domain",
+        mx: true,
+        smtp: "unknown",
+        catchAll: "unknown",
+        citedOnDomain: 0,
+        mxFamily: "google",
+      })
+    ).toBe(75);
+    expect(
+      mailboxConfidence({
+        source: "domain",
+        mx: true,
+        smtp: "unknown",
+        catchAll: "unknown",
+        citedOnDomain: 0,
+        mxFamily: "microsoft",
+      })
+    ).toBeGreaterThanOrEqual(MAILBOX_SEND_FLOOR);
+    expect(
+      mailboxConfidence({
+        source: "domain",
+        mx: true,
+        smtp: "unknown",
+        catchAll: "unknown",
+        citedOnDomain: 0,
+      })
+    ).toBe(50);
+  });
 });
 
 describe("OSINT snippets", () => {
