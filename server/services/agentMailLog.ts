@@ -24,6 +24,7 @@ export type AgentMailItem = {
   dealId?: number;
   prospectId?: number;
   touchId?: string;
+  contactSource?: string;
   createdAt: string;
   opens?: string[]; // ISO timestamp per tracking-pixel hit (noisy — see AgentMail.tsx tooltip)
   clicks?: Array<{ at: string; url: string }>;

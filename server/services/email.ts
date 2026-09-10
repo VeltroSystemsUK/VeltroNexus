@@ -55,6 +55,11 @@ function buildTransport(credentials: any) {
     return null;
 }
 
+function stampedContactSource(credentials: any): string | undefined {
+    const value = credentials?.contactSource;
+    return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 export async function sendEmail(
     credentials: any,
     to: string,
@@ -90,6 +95,7 @@ export async function sendEmail(
                 dealId: credentials?.dealId,
                 prospectId: credentials?.prospectId,
                 touchId: credentials?.touchId,
+                contactSource: stampedContactSource(credentials),
             });
             return { success: false, mock: true, id: mailLogId };
         }
@@ -125,6 +131,7 @@ export async function sendEmail(
             dealId: credentials?.dealId,
             prospectId: credentials?.prospectId,
             touchId: credentials?.touchId,
+            contactSource: stampedContactSource(credentials),
         });
         return { success: true, messageId: info.messageId, id: mailLogId };
     } catch (error: any) {
@@ -143,6 +150,7 @@ export async function sendEmail(
             dealId: credentials?.dealId,
             prospectId: credentials?.prospectId,
             touchId: credentials?.touchId,
+            contactSource: stampedContactSource(credentials),
         });
         throw new Error(`Failed to send email: ${error.message}`);
     }
