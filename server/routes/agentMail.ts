@@ -115,15 +115,18 @@ router.post("/api/agent-mail/inbound", async (req, res) => {
     await processAgentInbox();
     try {
       const { classifyInboundMail } = await import("@shared/mailDesk");
+      const { convertReasonFromInboundKind } = await import("@shared/openers");
       const { stopConvertAndPromote } = await import("../services/openers");
-      const kind = classifyInboundMail({
-        from: item.from,
-        to: item.to,
-        subject: item.subject,
-        text: item.text,
-        html: item.html,
-      }).kind;
-      await stopConvertAndPromote(item.from, kind === "stop" ? "opt_out" : "reply");
+      const reason = convertReasonFromInboundKind(
+        classifyInboundMail({
+          from: item.from,
+          to: item.to,
+          subject: item.subject,
+          text: item.text,
+          html: item.html,
+        }).kind
+      );
+      if (reason) await stopConvertAndPromote(item.from, reason);
     } catch (error) {
       console.warn("[AgentMail] convert stop failed:", error);
     }

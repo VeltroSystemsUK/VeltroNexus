@@ -673,6 +673,14 @@ export function applyConvertStop(
   };
 }
 
+export function convertReasonFromInboundKind(
+  kind: string
+): "opt_out" | "reply" | undefined {
+  if (kind === "stop") return "opt_out";
+  if (kind === "responsive") return "reply";
+  return undefined;
+}
+
 export function completeTouch2(
   opener: OpenerRecord,
   channel: "whatsapp" | "call",

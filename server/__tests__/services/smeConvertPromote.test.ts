@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { enrolConvertOpener, normalizeOpener } from "@shared/openers";
+import { convertReasonFromInboundKind, enrolConvertOpener, normalizeOpener } from "@shared/openers";
 
 vi.mock("../../storage", () => ({
   storage: {
@@ -153,5 +153,17 @@ describe("stopConvertAndPromote", () => {
       9,
       expect.objectContaining({ convertStopReason: "opt_out", convertPlaybook: undefined })
     );
+  });
+
+  it("Apply inbound routes stop convert, and bounce/spam do not promote", () => {
+    const inbound = fs.readFileSync(path.resolve("server/routes/inbound.ts"), "utf8");
+    expect(inbound).toMatch(/router\.post\("\/application"[\s\S]*stopConvertAfterInboundLead\(data\.email\)/);
+    expect(inbound).toMatch(/router\.post\("\/portal-submit"[\s\S]*stopConvertAfterInboundLead\(data\.email\)/);
+    const mail = fs.readFileSync(path.resolve("server/routes/agentMail.ts"), "utf8");
+    expect(mail).toMatch(/convertReasonFromInboundKind/);
+    expect(convertReasonFromInboundKind("responsive")).toBe("reply");
+    expect(convertReasonFromInboundKind("bounce")).toBeUndefined();
+    expect(convertReasonFromInboundKind("spam")).toBeUndefined();
+    expect(convertReasonFromInboundKind("other")).toBeUndefined();
   });
 });

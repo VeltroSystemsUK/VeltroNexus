@@ -28,6 +28,15 @@ function emailsMatch(left?: string | null, right?: string | null): boolean {
     return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
 }
 
+async function stopConvertAfterInboundLead(email: string): Promise<void> {
+    try {
+        const { stopConvertAndPromote } = await import("../services/openers");
+        await stopConvertAndPromote(email, "promoted");
+    } catch (error) {
+        console.error("[Inbound] convert auto-promote failed:", error);
+    }
+}
+
 // Schema for Inbound Refinancing Lead.
 // Shared by the site's per-tool calculator forms (which send currentDebt/monthlyPayment
 // directly) and the unified "Start The Conversation" widget on the Refinance Calculator,
@@ -111,12 +120,7 @@ router.post("/refinance", async (req, res) => {
 
         const pipeline = await promoteInternalLeadToPipeline(lead);
 
-        try {
-            const { stopConvertAndPromote } = await import("../services/openers");
-            await stopConvertAndPromote(email, "promoted");
-        } catch (error) {
-            console.error("[Inbound] convert auto-promote failed:", error);
-        }
+        await stopConvertAfterInboundLead(email);
 
         // 4. Return the "Result" to the frontend (The Hook)
         // We give them the data immediately as the reward for signing up
@@ -220,6 +224,8 @@ router.post("/application", async (req, res) => {
             workflowLeadId = created.id;
             pipelineProspectId = (await promoteInternalLeadToPipeline(created)).prospectId;
         }
+
+        await stopConvertAfterInboundLead(data.email);
 
         // 2. Send Email to Super Admin — best-effort notification only, never the only record.
         const subject = `[PRIORITY] New Refinance Application: ${data.companyName}`;
@@ -395,6 +401,8 @@ router.post("/portal-submit", async (req, res) => {
         });
 
         const pipeline = await promoteInternalLeadToPipeline(lead);
+
+        await stopConvertAfterInboundLead(data.email);
 
         res.json({
             success: true,

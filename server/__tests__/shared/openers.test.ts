@@ -6,6 +6,7 @@ import {
   OPENER_TOUCH2_DELAY_MS,
   applyClickEvent,
   applyConvertStop,
+  convertReasonFromInboundKind,
   applyOpenEvent,
   applySecondEmailNurturing,
   approveNurtureSend,
@@ -628,8 +629,23 @@ describe("convert auto-promote", () => {
   it("inbound refinance and agent-mail inbound call stopConvertAndPromote", () => {
     const inbound = fs.readFileSync(path.resolve("server/routes/inbound.ts"), "utf8");
     expect(inbound).toMatch(/stopConvertAndPromote/);
+    const refinance = inbound.slice(inbound.indexOf('router.post("/refinance"'));
+    const application = inbound.slice(inbound.indexOf('router.post("/application"'));
+    const portal = inbound.slice(inbound.indexOf('router.post("/portal-submit"'));
+    expect(refinance).toMatch(/stopConvertAfterInboundLead\(email\)/);
+    expect(application).toMatch(/stopConvertAfterInboundLead\(data\.email\)/);
+    expect(portal).toMatch(/stopConvertAfterInboundLead\(data\.email\)/);
     const mail = fs.readFileSync(path.resolve("server/routes/agentMail.ts"), "utf8");
     expect(mail).toMatch(/stopConvertAndPromote/);
-    expect(mail).toMatch(/opt_out/);
+    expect(mail).toMatch(/convertReasonFromInboundKind/);
+    expect(mail).not.toMatch(/kind === "stop" \? "opt_out" : "reply"/);
+  });
+
+  it("only promotes convert on a human reply, not bounce or spam", () => {
+    expect(convertReasonFromInboundKind("stop")).toBe("opt_out");
+    expect(convertReasonFromInboundKind("responsive")).toBe("reply");
+    expect(convertReasonFromInboundKind("bounce")).toBeUndefined();
+    expect(convertReasonFromInboundKind("spam")).toBeUndefined();
+    expect(convertReasonFromInboundKind("other")).toBeUndefined();
   });
 });
