@@ -507,36 +507,6 @@ export async function attachOne(
   let catchAll: CatchAllStatus = "unknown";
   let family = mxFamilyFromHosts(domain && deps.mxHosts ? await deps.mxHosts(domain) : []);
   const guessPaused = Boolean(deps.guessPaused);
-  if (domain && directorNames.length && !guessPaused) {
-    if (smtpTrusted(family) && next.smtp > 0) {
-      const probes: SmtpProbe[] = [];
-      for (const box of [`nx-no-box-strata@${domain}`, `nx-no-box-strata-b@${domain}`]) {
-        if (next.smtp <= 0) break;
-        next.smtp -= 1;
-        probes.push(await probeSmtp(deps, box));
-      }
-      catchAll = catchAllStatus(probes);
-      if (catchAll === "not_catch_all") {
-        const pattern = inferMailboxPattern(
-          found.map((item) => item.email),
-          directorNames
-        );
-        for (const email of contactMailboxGuesses(domain, directorNames, pattern)) {
-          if (found.some((item) => item.email === email)) continue;
-          found.push({ email, source: "domain" });
-        }
-      }
-    } else if (!smtpTrusted(family)) {
-      const pattern = inferMailboxPattern(
-        found.map((item) => item.email),
-        directorNames
-      );
-      for (const email of contactMailboxGuesses(domain, directorNames, pattern)) {
-        if (found.some((item) => item.email === email)) continue;
-        found.push({ email, source: "domain" });
-      }
-    }
-  }
 
   extra.website = website;
   extra.phone = phone;
@@ -611,6 +581,42 @@ export async function attachOne(
   if (directorHit) return { dealPatch: directorHit, budget: next };
   const roleHit = await tryGrade("role");
   if (roleHit) return { dealPatch: roleHit, budget: next };
+
+  if (domain && directorNames.length && !guessPaused) {
+    if (smtpTrusted(family) && next.smtp > 0) {
+      const probes: SmtpProbe[] = [];
+      for (const box of [`nx-no-box-strata@${domain}`, `nx-no-box-strata-b@${domain}`]) {
+        if (next.smtp <= 0) break;
+        next.smtp -= 1;
+        probes.push(await probeSmtp(deps, box));
+      }
+      catchAll = catchAllStatus(probes);
+      if (catchAll === "not_catch_all") {
+        const pattern = inferMailboxPattern(
+          found.map((item) => item.email),
+          directorNames
+        );
+        for (const email of contactMailboxGuesses(domain, directorNames, pattern)) {
+          if (found.some((item) => item.email === email)) continue;
+          found.push({ email, source: "domain" });
+        }
+      }
+    } else if (!smtpTrusted(family)) {
+      const pattern = inferMailboxPattern(
+        found.map((item) => item.email),
+        directorNames
+      );
+      for (const email of contactMailboxGuesses(domain, directorNames, pattern)) {
+        if (found.some((item) => item.email === email)) continue;
+        found.push({ email, source: "domain" });
+      }
+    }
+  }
+
+  const guessedDirector = await tryGrade("director");
+  if (guessedDirector) return { dealPatch: guessedDirector, budget: next };
+  const guessedRole = await tryGrade("role");
+  if (guessedRole) return { dealPatch: guessedRole, budget: next };
 
   const fail = failAttachPatch(deal, extra, now);
   const domainGuesses = found.filter((item) => item.source === "domain");

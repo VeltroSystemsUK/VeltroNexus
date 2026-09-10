@@ -463,11 +463,13 @@ describe("SME attach waterfall", () => {
       {
         officers: async () => [],
         places: async () => null,
-        firecrawl: async () => ["jane.smith@petshop.co.uk", "info@petshop.co.uk"],
+        firecrawl: async () => ["jane.smith@petshop.co.uk"],
         mxValid: async () => true,
         smtpValid,
       },
-      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 },
+      new Date(),
+      new Set(["jane.smith@petshop.co.uk"])
     );
     expect(dealPatch.email).toBe("adam.taylor@petshop.co.uk");
     expect(dealPatch.contactSource).toBe("domain");
@@ -651,6 +653,33 @@ describe("SME attach waterfall", () => {
     expect(dealPatch.hopper).toBe("sendable");
     expect(dealPatch.mailboxGrade).toBe("director");
     expect(dealPatch.mailboxConfidence).toBeGreaterThanOrEqual(75);
+    expect(smtpProbe).not.toHaveBeenCalled();
+  });
+
+  it("attaches a published mailto on Google MX instead of a constructed director", async () => {
+    const smtpProbe = vi.fn(async () => "unknown" as const);
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "gated",
+        companyName: "Pet Shop Ltd",
+        companyNumber: "1",
+        website: "https://petshop.co.uk",
+        directorNames: ["Adam Taylor"],
+      } as any,
+      {
+        officers: async () => [],
+        places: async () => null,
+        firecrawl: async () => ["info@petshop.co.uk"],
+        mxValid: async () => true,
+        mxHosts: async () => ["aspmx.l.google.com"],
+        smtpProbe,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(dealPatch.email).toBe("info@petshop.co.uk");
+    expect(dealPatch.contactSource).toBe("firecrawl");
+    expect(dealPatch.hopper).toBe("sendable");
     expect(smtpProbe).not.toHaveBeenCalled();
   });
 
