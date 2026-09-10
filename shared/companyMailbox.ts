@@ -145,3 +145,16 @@ export function contactMailboxGuesses(
   }
   return guesses;
 }
+
+export function domainCandidatesFromCompanyName(companyName: string): string[] {
+  const tokens = String(companyName || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/[\s-]+/)
+    .filter((token) => token.length >= 2 && !CORP_TOKENS.has(token));
+  if (!tokens.length) return [];
+  const joined = tokens.join("");
+  const hyphen = tokens.join("-");
+  const hosts = [`${joined}.co.uk`, `${hyphen}.co.uk`, `${joined}.com`];
+  return [...new Set(hosts)];
+}

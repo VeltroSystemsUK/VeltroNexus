@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   companyDomainFromWebsite,
   contactMailboxGuesses,
+  domainCandidatesFromCompanyName,
   emailsFromScrapedText,
   emailsOnCompanyDomain,
   inferMailboxPattern,
@@ -68,5 +69,14 @@ describe("company domain mailbox engine", () => {
       null
     );
     expect(companyDomainFromWebsite("https://www.yell.com/biz/acme")).toBe(null);
+  });
+
+  it("builds likely .co.uk / .com hosts from the legal name, not a registry page", () => {
+    expect(domainCandidatesFromCompanyName("Acme Joinery Limited")).toEqual([
+      "acmejoinery.co.uk",
+      "acme-joinery.co.uk",
+      "acmejoinery.com",
+    ]);
+    expect(domainCandidatesFromCompanyName("")).toEqual([]);
   });
 });
