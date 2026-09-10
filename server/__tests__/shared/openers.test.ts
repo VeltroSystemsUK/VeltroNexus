@@ -1,14 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  OPENER_CONVERT_CLOSER_DELAY_MS,
   OPENER_TOUCH2_DELAY_MS,
+  applyClickEvent,
   applyOpenEvent,
+  applySecondEmailNurturing,
   approveNurtureSend,
   canDragOpenerTo,
   canPromoteOpener,
+  compareOpenersByOpenCount,
+  completeConvertCloser,
   completeTouch2,
   daysSitting,
   emptyNurture,
+  enrolConvertOpener,
   failNurtureSend,
+  isConvertCloserDue,
+  isConvertOpener,
   isNurtureInFlight,
   isTouch2Due,
   mergeOpeners,
@@ -16,8 +24,17 @@ import {
   normalizeEmail,
   normalizeOpener,
   openedMailEvents,
+  openerBelongsToDesk,
+  openerHasReceivedSecondEmail,
   openerNurtureDraft,
   openerOnPipeline,
+  openerOutboundSentCount,
+  recordConvertSend,
+  shouldAutoPromoteOpener,
+  isDoNotContactOpener,
+  isHotClickOpener,
+  OPENER_AUTO_PROMOTE_AFTER_EMAILS,
+  sentUnopenedMailEvents,
   skipNurtureStep,
   startNurture,
   stopNurture,
@@ -62,6 +79,50 @@ describe("days sitting", () => {
   });
 });
 
+describe("board ranking", () => {
+  it("ranks higher openCount first even when the name would sort later", () => {
+    const low = opener({ id: "low", companyName: "Acme", openCount: 2 });
+    const high = opener({ id: "high", companyName: "Zebra", openCount: 9 });
+    expect([low, high].sort(compareOpenersByOpenCount).map((row) => row.id)).toEqual(["high", "low"]);
+  });
+
+  it("breaks equal openCount ties alphabetically by company name, falling back to email", () => {
+    const zebra = opener({ id: "z", companyName: "Zebra Ltd", openCount: 3 });
+    const acme = opener({ id: "a", companyName: "acme ltd", openCount: 3 });
+    const unnamed = opener({ id: "e", companyName: "  ", email: "beta@x.com", openCount: 3 });
+    expect([zebra, unnamed, acme].sort(compareOpenersByOpenCount).map((row) => row.id)).toEqual([
+      "a",
+      "e",
+      "z",
+    ]);
+  });
+
+  it("ranks a clicker above a higher-open card with no clicks", () => {
+    const openedALot = opener({ id: "opens", companyName: "Acme", openCount: 12, clickCount: 0 });
+    const clickedOnce = opener({ id: "click", companyName: "Zebra", openCount: 1, clickCount: 1 });
+    expect([openedALot, clickedOnce].sort(compareOpenersByOpenCount).map((row) => row.id)).toEqual([
+      "click",
+      "opens",
+    ]);
+  });
+
+  it("ranks more clicks first, then more opens, then name", () => {
+    const twoClicks = opener({ id: "two", companyName: "Zed", openCount: 1, clickCount: 2 });
+    const oneClickLowOpens = opener({ id: "one-low", companyName: "Acme", openCount: 1, clickCount: 1 });
+    const oneClickHighOpens = opener({ id: "one-high", companyName: "Beta", openCount: 8, clickCount: 1 });
+    expect(
+      [oneClickLowOpens, twoClicks, oneClickHighOpens]
+        .sort(compareOpenersByOpenCount)
+        .map((row) => row.id)
+    ).toEqual(["two", "one-high", "one-low"]);
+  });
+
+  it("marks a record hot only after more than two clicks", () => {
+    expect(isHotClickOpener(opener({ clickCount: 2 }))).toBe(false);
+    expect(isHotClickOpener(opener({ clickCount: 3 }))).toBe(true);
+  });
+});
+
 describe("opens and merge", () => {
   it("bumps lastOpenedAt and openCount on a later open", () => {
     const next = applyOpenEvent(opener(), "2026-09-03T12:00:00.000Z", 2);
@@ -70,20 +131,33 @@ describe("opens and merge", () => {
     expect(next.openCount).toBe(3);
   });
 
+  it("records clicks on the opener without changing openCount", () => {
+    const next = applyClickEvent(opener({ openCount: 4, clickCount: 1 }), 2);
+    expect(next.clickCount).toBe(3);
+    expect(next.openCount).toBe(4);
+  });
+
   it("merges two emails with the same company number into one card", () => {
-    const a = opener({ email: "ops@northpeak.co.uk", companyNumber: "08765432", openCount: 2 });
+    const a = opener({
+      email: "ops@northpeak.co.uk",
+      companyNumber: "08765432",
+      openCount: 2,
+      clickCount: 2,
+    });
     const b = opener({
       id: "op-2",
       email: "james@northpeak.co.uk",
       companyNumber: "08765432",
       firstOpenedAt: "2026-08-20T10:00:00.000Z",
       openCount: 3,
+      clickCount: 3,
       prospectId: 99,
       status: "promoted",
     });
     const merged = mergeOpeners(a, b);
     expect(merged.firstOpenedAt).toBe("2026-08-20T10:00:00.000Z");
     expect(merged.openCount).toBe(5);
+    expect(merged.clickCount).toBe(5);
     expect(merged.emails.sort()).toEqual(["james@northpeak.co.uk", "ops@northpeak.co.uk"]);
     expect(merged.prospectId).toBe(99);
     expect(merged.status).toBe("promoted");
@@ -159,6 +233,14 @@ describe("nurture", () => {
     expect(stopNurture(sent, "promoted").status).not.toBe("promoted");
   });
 
+  it("opt-out parks the card as not_now even when nurture never started", () => {
+    const sent = approveNurtureSend(startNurture(opener(), openerNurtureDraft(opener())), "mail-1");
+    expect(stopNurture(sent, "opt_out").status).toBe("not_now");
+    expect(stopNurture(sent, "reply").status).toBe("nurturing");
+    expect(stopNurture(opener(), "opt_out").status).toBe("not_now");
+    expect(stopNurture(opener(), "opt_out").nurture.stopReason).toBe("opt_out");
+  });
+
   it("skip on pending approval skips touch 1 and starts the 3-day clock", () => {
     const skipped = skipNurtureStep(
       startNurture(opener(), openerNurtureDraft(opener()), new Date("2026-09-04T10:00:00.000Z")),
@@ -176,7 +258,7 @@ describe("nurture", () => {
       openerNurtureDraft(stopped),
       new Date("2026-09-06T10:00:00.000Z")
     );
-    expect(restarted.status).toBe("new");
+    expect(restarted.status).toBe("nurturing");
     expect(restarted.nurture.step).toBe(0);
     expect(restarted.nurture.touch1Status).toBe("pending_approval");
     expect(restarted.nurture.touch2Status).toBe("idle");
@@ -223,6 +305,13 @@ describe("gates", () => {
     expect(openerOnPipeline(opener({ companyNumber: "08765432" }), ["SC123456"])).toBe(false);
   });
 
+  it("unsubscribed cards are do-not-contact", () => {
+    expect(isDoNotContactOpener(opener())).toBe(false);
+    expect(isDoNotContactOpener(opener({ status: "not_now" }))).toBe(true);
+    expect(isDoNotContactOpener(stopNurture(opener(), "opt_out"))).toBe(true);
+    expect(isDoNotContactOpener(stopNurture(opener(), "reply"))).toBe(false);
+  });
+
   it("drag rules match the spec", () => {
     const fresh = opener();
     expect(canDragOpenerTo(fresh, "new")).toBe(true);
@@ -235,6 +324,107 @@ describe("gates", () => {
     expect(canDragOpenerTo(sent, "nurturing")).toBe(true);
     expect(canDragOpenerTo(sent, "promoted")).toBe(false);
     expect(canDragOpenerTo({ ...sent, companyNumber: "08765432" }, "promoted")).toBe(true);
+  });
+
+  it("do-not-contact cards cannot leave Unsubscribed", () => {
+    const parked = stopNurture(opener({ companyNumber: "08765432" }), "opt_out");
+    expect(canDragOpenerTo(parked, "not_now")).toBe(true);
+    expect(canDragOpenerTo(parked, "new")).toBe(false);
+    expect(canDragOpenerTo(parked, "nurturing")).toBe(false);
+    expect(canDragOpenerTo(parked, "promoted")).toBe(false);
+  });
+});
+
+describe("non-responsive desk", () => {
+  it("lists successfully sent unopened outbound and skips opens, clicks, failed, and mock", () => {
+    const events = sentUnopenedMailEvents([
+      {
+        id: "m1",
+        direction: "outbound",
+        status: "sent",
+        to: "ops@northpeak.co.uk",
+        subject: "Debt service",
+        createdAt: "2026-09-01T09:00:00.000Z",
+        opens: [],
+        dealId: 7,
+      },
+      { id: "m2", direction: "outbound", status: "sent", to: "keep@hale.co.uk", opens: ["2026-09-01T10:00:00.000Z"] },
+      {
+        id: "m3",
+        direction: "outbound",
+        status: "sent",
+        to: "click@hale.co.uk",
+        opens: [],
+        clicks: [{ at: "2026-09-01T10:05:00.000Z", url: "https://example.com" }],
+      },
+      { id: "m4", direction: "outbound", status: "failed", to: "fail@hale.co.uk", opens: [] },
+      { id: "m5", direction: "outbound", status: "mock", to: "mock@hale.co.uk", opens: [] },
+      { id: "m6", direction: "inbound", status: "received", to: "james@stratanexus.co.uk", from: "ops@northpeak.co.uk" },
+    ]);
+    expect(events).toEqual([
+      {
+        email: "ops@northpeak.co.uk",
+        at: "2026-09-01T09:00:00.000Z",
+        subject: "Debt service",
+        dealId: 7,
+        prospectId: undefined,
+        mailId: "m1",
+      },
+    ]);
+  });
+
+  it("moves a non-responsive card onto Openers on the first real open", () => {
+    const cold = opener({
+      status: "non_responsive",
+      openCount: 0,
+      firstOpenedAt: "",
+      lastOpenedAt: "",
+      lastTouchAt: "2026-09-01T09:00:00.000Z",
+    });
+    const next = applyOpenEvent(cold, "2026-09-03T12:00:00.000Z", 1);
+    expect(next.status).toBe("new");
+    expect(next.firstOpenedAt).toBe("2026-09-03T12:00:00.000Z");
+    expect(next.lastOpenedAt).toBe("2026-09-03T12:00:00.000Z");
+    expect(next.openCount).toBe(1);
+  });
+
+  it("parks a non-responsive unsubscribe on Openers as not_now", () => {
+    const parked = stopNurture(
+      opener({ status: "non_responsive", openCount: 0, firstOpenedAt: "", lastOpenedAt: "" }),
+      "opt_out"
+    );
+    expect(parked.status).toBe("not_now");
+    expect(parked.nurture.stopReason).toBe("opt_out");
+    expect(openerBelongsToDesk(parked, "openers")).toBe(true);
+    expect(openerBelongsToDesk(parked, "non_responsive")).toBe(false);
+  });
+
+  it("splits desks: non_responsive stays off the Openers board until they open or unsubscribe", () => {
+    const cold = opener({ status: "non_responsive" });
+    const warm = opener({ status: "new" });
+    expect(openerBelongsToDesk(cold, "non_responsive")).toBe(true);
+    expect(openerBelongsToDesk(cold, "openers")).toBe(false);
+    expect(openerBelongsToDesk(warm, "openers")).toBe(true);
+    expect(openerBelongsToDesk(warm, "non_responsive")).toBe(false);
+  });
+
+  it("does not auto-promote a never-opened card", () => {
+    const cold = opener({
+      status: "non_responsive",
+      companyNumber: "08765432",
+      openCount: 0,
+    });
+    expect(
+      shouldAutoPromoteOpener(
+        cold,
+        Array.from({ length: 6 }, (_, i) => ({
+          id: `mail-${i + 1}`,
+          to: "ops@northpeak.co.uk",
+          direction: "outbound",
+          status: "sent",
+        }))
+      )
+    ).toBe(false);
   });
 });
 
@@ -266,12 +456,134 @@ describe("hydrate events", () => {
   });
 });
 
+describe("second-email nurturing", () => {
+  const sme1 = {
+    to: "ops@northpeak.co.uk",
+    direction: "outbound",
+    status: "sent",
+    touchId: "sme_1",
+  };
+  const smeOpen = {
+    to: "ops@northpeak.co.uk",
+    direction: "outbound",
+    status: "sent",
+    touchId: "sme_open",
+  };
+
+  it("detects a second email from sme_open, sme_followup, or two outbound sends", () => {
+    expect(openerHasReceivedSecondEmail(opener(), { mail: [sme1] })).toBe(false);
+    expect(openerHasReceivedSecondEmail(opener(), { mail: [sme1, smeOpen] })).toBe(true);
+    expect(openerHasReceivedSecondEmail(opener(), { mail: [smeOpen] })).toBe(true);
+    expect(
+      openerHasReceivedSecondEmail(opener(), {
+        mail: [{ ...sme1, touchId: "sme_followup" }],
+      })
+    ).toBe(true);
+    expect(
+      openerHasReceivedSecondEmail(opener(), {
+        mail: [sme1, { ...sme1, touchId: undefined }],
+      })
+    ).toBe(true);
+    expect(
+      openerHasReceivedSecondEmail(opener(), { smeOpenFollowUpSentAt: "2026-09-04T10:00:00.000Z" })
+    ).toBe(true);
+    expect(
+      openerHasReceivedSecondEmail(opener(), { smeFollowupSentAt: "2026-09-06T10:00:00.000Z" })
+    ).toBe(true);
+  });
+
+  it("moves new cards to nurturing without starting the desk sequence", () => {
+    const moved = applySecondEmailNurturing(opener(), new Date("2026-09-06T10:00:00.000Z"));
+    expect(moved.status).toBe("nurturing");
+    expect(moved.nurture).toEqual(emptyNurture());
+    expect(moved.updatedAt).toBe("2026-09-06T10:00:00.000Z");
+  });
+
+  it("does not override not_now or promoted", () => {
+    expect(applySecondEmailNurturing(opener({ status: "not_now" })).status).toBe("not_now");
+    expect(applySecondEmailNurturing(opener({ status: "promoted" })).status).toBe("promoted");
+    expect(applySecondEmailNurturing(opener({ status: "nurturing" })).status).toBe("nurturing");
+  });
+
+  it("keeps a second-email card in nurturing when the desk sequence starts", () => {
+    const pending = startNurture(
+      applySecondEmailNurturing(opener()),
+      openerNurtureDraft(opener())
+    );
+    expect(pending.status).toBe("nurturing");
+    expect(pending.nurture.touch1Status).toBe("pending_approval");
+  });
+});
+
 describe("empty nurture", () => {
   it("starts idle", () => {
     expect(emptyNurture()).toEqual({
       step: 0,
       touch1Status: "idle",
       touch2Status: "idle",
+      stream: "opener_3touch",
+      closerStatus: "idle",
     });
+  });
+});
+
+describe("sixth-email auto-promote", () => {
+  function sent(n: number, to = "ops@northpeak.co.uk") {
+    return Array.from({ length: n }, (_, i) => ({
+      id: `mail-${i + 1}`,
+      to,
+      direction: "outbound" as const,
+      status: "sent" as const,
+    }));
+  }
+
+  it("counts unique outbound sent mail to the opener, including aliases", () => {
+    const row = opener({ emails: ["ops@northpeak.co.uk", "james@northpeak.co.uk"] });
+    expect(openerOutboundSentCount(row, sent(3))).toBe(3);
+    expect(
+      openerOutboundSentCount(row, [
+        ...sent(2),
+        { id: "mail-3", to: "james@northpeak.co.uk", direction: "outbound", status: "sent" },
+        { id: "mail-1", to: "ops@northpeak.co.uk", direction: "outbound", status: "sent" },
+        { id: "in-1", to: "james@stratanexus.co.uk", direction: "inbound", status: "received" },
+        { id: "fail-1", to: "ops@northpeak.co.uk", direction: "outbound", status: "failed" },
+      ])
+    ).toBe(3);
+  });
+
+  it("promotes after more than 5 unique sent emails when the company can be promoted", () => {
+    expect(OPENER_AUTO_PROMOTE_AFTER_EMAILS).toBe(5);
+    const ready = opener({ companyNumber: "08765432", status: "nurturing" });
+    expect(shouldAutoPromoteOpener(ready, sent(5))).toBe(false);
+    expect(shouldAutoPromoteOpener(ready, sent(6))).toBe(true);
+    expect(shouldAutoPromoteOpener(opener({ status: "nurturing" }), sent(6))).toBe(false);
+    expect(shouldAutoPromoteOpener(opener({ companyNumber: "08765432", status: "promoted" }), sent(6))).toBe(false);
+    expect(shouldAutoPromoteOpener(stopNurture(ready, "opt_out"), sent(6))).toBe(false);
+    expect(shouldAutoPromoteOpener(opener({ companyNumber: "08765432", status: "not_now" }), sent(6))).toBe(false);
+    expect(shouldAutoPromoteOpener(ready, sent(6), ["ops@northpeak.co.uk"])).toBe(false);
+  });
+});
+
+describe("convert stream", () => {
+  it("blocks 3-touch and sixth-email promote, and parks after closer", () => {
+    const now = new Date("2026-09-20T10:00:00.000Z");
+    let row = enrolConvertOpener(opener({ companyNumber: "08765432", status: "new" }), now);
+    expect(isConvertOpener(row)).toBe(true);
+    expect(row.status).toBe("nurturing");
+    expect(row.nurture.convertCycle).toBe(1);
+    expect(startNurture(row, { subject: "x", html: "y" }, now)).toEqual(row);
+    expect(shouldAutoPromoteOpener(row, Array.from({ length: 8 }, (_, i) => ({
+      id: `m${i}`,
+      to: "ops@northpeak.co.uk",
+      direction: "outbound",
+      status: "sent",
+    })))).toBe(false);
+    expect(canDragOpenerTo(row, "nurturing")).toBe(true);
+    row = recordConvertSend(row, "sme_n3", "mail-n3", now);
+    expect(isConvertCloserDue(row, new Date(now.getTime() + OPENER_CONVERT_CLOSER_DELAY_MS))).toBe(true);
+    const done = completeConvertCloser(row, "call", new Date(now.getTime() + OPENER_CONVERT_CLOSER_DELAY_MS));
+    expect(done.status).toBe("non_responsive");
+    expect(done.nurture.stopReason).toBe("completed");
+    expect(done.nurture.wakeAt).toBeTruthy();
   });
 });
