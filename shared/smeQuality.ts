@@ -2,7 +2,7 @@ import { SME_HOPPER_TARGET, type HopperDeal } from "./smeHopper";
 
 export type AttachBudget = { ch: number; places: number; firecrawl: number; smtp: number };
 
-export type QualityAlert = { tone: "amber" | "red"; message: string };
+export type QualityAlert = { id?: string; tone: "amber" | "red"; message: string };
 
 export type HuntQuality = {
   scanned: number;
@@ -34,8 +34,16 @@ export function qualityAlerts(input: {
   budget: { total: AttachBudget; remaining: AttachBudget };
   chCooldown?: boolean;
   smtpFailed?: number;
+  guessPaused?: boolean;
 }): QualityAlert[] {
   const alerts: QualityAlert[] = [];
+  if (input.guessPaused) {
+    alerts.push({
+      id: "guess_paused",
+      tone: "amber",
+      message: "Guessing paused — bounce rate on constructed mailboxes. Published harvest continues.",
+    });
+  }
   const yieldPct = input.scanned > 0 ? (input.deliverable / input.scanned) * 100 : 0;
   if (input.scanned >= 20 && yieldPct < 15) {
     alerts.push({
@@ -92,6 +100,7 @@ export function buildHuntQuality(input: {
   budget: { total: AttachBudget; remaining: AttachBudget };
   chCooldown?: boolean;
   smtpFailed?: number;
+  guessPaused?: boolean;
 }): HuntQuality {
   const scanned = input.scanned;
   const yieldPct = scanned > 0 ? Math.round((input.deliverable / scanned) * 100) : 0;

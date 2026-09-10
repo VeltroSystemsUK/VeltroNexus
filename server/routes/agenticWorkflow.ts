@@ -153,6 +153,14 @@ router.post("/api/agentic/quarantine/purge", isAuthenticated, requireOps, async 
   }
 });
 
+router.post("/api/agentic/harvest/resume-guess", isAuthenticated, async (_req, res) => {
+  try {
+    res.json(await agenticWorkflow.resumeHarvestGuess());
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
 router.post("/api/agentic/harvest/csv", isAuthenticated, async (req, res) => {
   try {
     const fileName = String(req.body?.fileName || "").trim();

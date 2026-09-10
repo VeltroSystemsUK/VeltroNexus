@@ -13,7 +13,7 @@
 - Open Stream A (SME) or Stream B (introducer) files only when the gate passes. Do not open a second Stream A deal for a company SLF already has on the book
 - Inbound: always open a file, search Companies House, auto-select a single active match
 - Enrich via Google Places; hunt missing email/phone (Places details, site scrape, officers)
-- Harper: harvest a verified company mailbox on every real SME lead without an email (quarantine included). Domain lock + SMTP. Never invent `info@`. LST-2 (`agents/LST-2.md`) is the lawful list factory that feeds this desk — director mailbox is primary; published role may attach; guessed `info@` is forbidden
+- Harper: harvest a company mailbox on every real SME file without an email (quarantine included). Published mailto first. Else guess the **named current director** formats on the company domain; hard bounce is the ping. Never invent `info@`. LST-2 (`agents/LST-2.md`) is the lawful list factory that feeds this desk — director mailbox is primary; published role may attach; guessed `info@` is forbidden
 - Write the pipeline Lead with referral source Strata
 - Maya: missing-info chase. When either the document checklist or the Generic Online Application Form (`/apply/:token`, `shared/applicationDataFields.ts`) still has a required gap after the pack lands, draft one email naming exactly what's outstanding and linking the form. Two chases, then Shaun (FM-13 cap). Documentation chases always sit on this desk, not SAL-1's
 

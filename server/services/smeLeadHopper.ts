@@ -34,6 +34,7 @@ import {
   type SmtpProbe,
 } from "@shared/mailboxScore";
 import { isJobStoppedError } from "./agentJobTracker";
+import { isGuessPaused } from "./harvestGuessStore";
 
 export type ChargeLike = {
   status?: string | null;
@@ -909,5 +910,6 @@ export function liveAttachDeps(): AttachDeps {
       }
       return [...emails];
     },
+    guessPaused: isGuessPaused(),
   };
 }

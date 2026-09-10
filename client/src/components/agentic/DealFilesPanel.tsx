@@ -45,12 +45,14 @@ function QualityStrip({
   onKeep,
   onDelete,
   onPurge,
+  onResumeGuess,
   busy,
 }: {
   quality: QualityPayload;
   onKeep: (id: number) => void;
   onDelete: (id: number) => void;
   onPurge: () => void;
+  onResumeGuess: () => void;
   busy?: boolean;
 }) {
   const apis: Array<[string, number, number]> = [
@@ -94,12 +96,26 @@ function QualityStrip({
         })}
       </div>
       {quality.alerts.map((alert: QualityAlert) => (
-        <p
-          key={alert.message}
-          className={alert.tone === "red" ? "text-xs text-red-300" : "text-xs text-amber-200"}
+        <div
+          key={alert.id || alert.message}
+          className={`flex flex-wrap items-center justify-between gap-2 ${
+            alert.tone === "red" ? "text-xs text-red-300" : "text-xs text-amber-200"
+          }`}
         >
-          {alert.message}
-        </p>
+          <p>{alert.message}</p>
+          {alert.id === "guess_paused" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7"
+              data-testid="btn-resume-harvest-guess"
+              disabled={busy}
+              onClick={onResumeGuess}
+            >
+              Resume guessing
+            </Button>
+          ) : null}
+        </div>
       ))}
       {quarantined.length > 0 && (
         <div className="border-t border-slate-800 pt-3 space-y-2">
@@ -326,6 +342,16 @@ export function DealFilesPanel() {
     },
   });
 
+  const resumeGuess = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/agentic/harvest/resume-guess", "POST");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
+    },
+  });
+
   const uploadCsv = useMutation({
     mutationFn: async (payload: { fileName: string; csvData: string }) => {
       const res = await apiRequest("/api/agentic/harvest/csv", "POST", payload);
@@ -442,7 +468,12 @@ export function DealFilesPanel() {
       {quality ? (
         <QualityStrip
           quality={quality}
-          busy={keepQuarantine.isPending || deleteQuarantine.isPending || purgeQuarantine.isPending}
+          busy={
+            keepQuarantine.isPending ||
+            deleteQuarantine.isPending ||
+            purgeQuarantine.isPending ||
+            resumeGuess.isPending
+          }
           onKeep={(id) => keepQuarantine.mutate(id)}
           onDelete={(id) => deleteQuarantine.mutate(id)}
           onPurge={() => {
@@ -450,6 +481,7 @@ export function DealFilesPanel() {
               purgeQuarantine.mutate();
             }
           }}
+          onResumeGuess={() => resumeGuess.mutate()}
         />
       ) : null}
       <div className="flex items-center justify-between gap-3">
