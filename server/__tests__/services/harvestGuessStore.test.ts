@@ -3,11 +3,13 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  evaluateGuessPause,
   isGuessPaused,
   resumeGuessPause,
   setHarvestGuessStorePathForTests,
   tripGuessPause,
 } from "../../services/harvestGuessStore";
+import { liveAttachDeps } from "../../services/smeLeadHopper";
 
 const storeFiles = new Set<string>();
 
@@ -39,4 +41,21 @@ describe("harvest guess pause store", () => {
     resumeGuessPause();
     expect(isGuessPaused()).toBe(false);
   });
+
+  it("resume sticks through quality evaluation and the next harvest attach", () => {
+    tmpStore();
+    const items = Array.from({ length: 50 }, (_, i) => ({
+      to: `n${i}@acme.co.uk`,
+      status: "sent" as const,
+      contactSource: "domain" as const,
+      createdAt: `2020-01-01T00:${String(i).padStart(2, "0")}:00.000Z`,
+    }));
+    const suppressed = new Set(items.slice(0, 8).map((item) => item.to));
+    tripGuessPause({ bounced: 8, sampled: 50 });
+    resumeGuessPause();
+    evaluateGuessPause(items, suppressed);
+    expect(isGuessPaused()).toBe(false);
+    expect(liveAttachDeps().guessPaused).toBe(false);
+  });
 });
+

@@ -34,4 +34,22 @@ describe("guess bounce circuit breaker", () => {
     ];
     expect(guessedSendSample(items).map((item) => item.to)).toEqual(["adam.taylor@acme.co.uk"]);
   });
+
+  it("samples only guessed sends after resumeAt so the old 8/50 cannot re-trip", () => {
+    const older = Array.from({ length: 50 }, (_, i) => row(i));
+    const newer = [
+      {
+        to: "new@acme.co.uk",
+        status: "sent" as const,
+        contactSource: "domain" as const,
+        createdAt: "2026-09-11T00:00:00.000Z",
+      },
+    ];
+    const after = "2026-09-10T12:00:00.000Z";
+    const sample = guessedSendSample([...older, ...newer], { after });
+    expect(sample.map((item) => item.to)).toEqual(["new@acme.co.uk"]);
+    const suppressed8 = new Set(older.slice(0, 8).map((item) => item.to));
+    expect(shouldTripGuessPause(sample, suppressed8)).toBe(false);
+  });
 });
+

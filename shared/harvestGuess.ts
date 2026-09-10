@@ -8,9 +8,14 @@ export type GuessedSendRow = {
   createdAt?: string;
 };
 
-export function guessedSendSample<T extends GuessedSendRow>(items: T[]): T[] {
+export function guessedSendSample<T extends GuessedSendRow>(
+  items: T[],
+  opts?: { after?: string }
+): T[] {
+  const after = opts?.after;
   return items
     .filter((item) => item.contactSource === "domain" && (item.status === "sent" || item.status === "mock"))
+    .filter((item) => !after || String(item.createdAt || "") > after)
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
     .slice(0, HARVEST_GUESS_SAMPLE);
 }

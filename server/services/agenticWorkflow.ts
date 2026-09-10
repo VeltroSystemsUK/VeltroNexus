@@ -44,9 +44,8 @@ import {
 } from "./smeLeadHopper";
 import { hopperCounts, isContactableDeal, isProtectedFromQuarantine, isSmeHopperSendable, rankSendable, smeHuntNeed } from "@shared/smeHopper";
 import { buildHuntQuality, sendableUnsentCount } from "@shared/smeQuality";
-import { guessedSendSample, shouldTripGuessPause } from "@shared/harvestGuess";
-import { isGuessPaused, resumeGuessPause, tripGuessPause } from "./harvestGuessStore";
-import { OPENER_CONVERT_CLOSER_DELAY_MS, closerSiteClickUrl } from "@shared/openers";
+import { evaluateGuessPause, isGuessPaused, resumeGuessPause } from "./harvestGuessStore";
+import { OPENER_CONVERT_CLOSER_DELAY_MS } from "@shared/openers";
 import {
   convertCopyOk,
   convertOverridesHopperHold,
@@ -360,12 +359,7 @@ function copyAttachBudget(budget: AttachBudget): AttachBudget {
 }
 
 function maybeTripGuessPause() {
-  if (isGuessPaused()) return;
-  const sample = guessedSendSample(listAgentMail(5000));
-  const suppressed = suppressionSets().emails;
-  if (!shouldTripGuessPause(sample, suppressed)) return;
-  const bounced = sample.filter((item) => suppressed.has(String(item.to || "").toLowerCase())).length;
-  tripGuessPause({ bounced, sampled: sample.length });
+  evaluateGuessPause(listAgentMail(5000), suppressionSets().emails);
 }
 
 async function persistIfSendableSme(
@@ -433,7 +427,6 @@ async function persistHuntQuality(input: {
 }
 
 async function loadHuntQuality() {
-  maybeTripGuessPause();
   const deals = (await storage.listAgenticDeals()).filter((deal) => !isNoiseDeal(deal));
   const stored = (await storage.getSystemSetting(HUNT_QUALITY_KEY)) || {};
   const mail = listAgentMail(500);
@@ -2032,10 +2025,6 @@ export const agenticWorkflow = {
     const now = new Date();
     const mail = listAgentMail(10_000).filter((item) => item.dealId === deal.id);
     const lastSiteClickUrl = lastSiteClickUrlFromMail(mail);
-    const closerClickUrl = closerSiteClickUrl(
-      mail.flatMap((item) => item.clicks || []),
-      mail.reduce((n, item) => n + (item.dwells?.length ?? 0), 0)
-    );
     const optedOut = mailIsOptedOut(deal.email, deal.companyNumber);
     const bounced = !optedOut && mailIsHardBounced(deal.email);
     const phone = phoneForConvertDeal(deal);
@@ -2098,7 +2087,7 @@ export const agenticWorkflow = {
     }
 
     if (tick.action === "queue_closer") {
-      const opener = applyConvertCloserScript(deal, closerClickUrl, now);
+      const opener = applyConvertCloserScript(deal, lastSiteClickUrl, now);
       const n3At = opener?.nurture.n3At;
       const dueMs = n3At ? Date.parse(n3At) + OPENER_CONVERT_CLOSER_DELAY_MS : now.getTime();
       const waitUntil = dueMs <= now.getTime() ? now.toISOString() : new Date(dueMs).toISOString();
@@ -2207,7 +2196,7 @@ export const agenticWorkflow = {
     const nextTouch = nextOutreachTouchAfterSend(tick.cadenceTouchId);
     const following = nextCadenceStepForDeal(deal, nextTouch);
     const waitDays = following?.delayDaysFromPrevious ?? 3;
-    applyConvertSendToOpener(deal, tick.cadenceTouchId, mailId, now, closerClickUrl);
+    applyConvertSendToOpener(deal, tick.cadenceTouchId, mailId, now, lastSiteClickUrl);
     return storage.updateAgenticDeal(deal.id, {
       stage: "outreach",
       status: "waiting_timer",

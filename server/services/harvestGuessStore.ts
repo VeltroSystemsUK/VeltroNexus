@@ -1,9 +1,11 @@
 import fs from "fs";
 import path from "path";
+import { guessedSendSample, shouldTripGuessPause } from "@shared/harvestGuess";
 
 export type HarvestGuessState = {
   paused: boolean;
   at?: string;
+  resumeAt?: string;
   bounced?: number;
   sampled?: number;
 };
@@ -27,6 +29,7 @@ function readState(): HarvestGuessState {
     return {
       paused: Boolean(data?.paused),
       at: typeof data?.at === "string" ? data.at : undefined,
+      resumeAt: typeof data?.resumeAt === "string" ? data.resumeAt : undefined,
       bounced: typeof data?.bounced === "number" ? data.bounced : undefined,
       sampled: typeof data?.sampled === "number" ? data.sampled : undefined,
     };
@@ -62,9 +65,22 @@ export function resumeGuessPause(): HarvestGuessState {
   const state: HarvestGuessState = {
     paused: false,
     at: prev.at,
+    resumeAt: new Date().toISOString(),
     bounced: prev.bounced,
     sampled: prev.sampled,
   };
   writeState(state);
   return state;
+}
+
+export function evaluateGuessPause(
+  items: Array<{ to: string; status: string; contactSource?: string; createdAt?: string }>,
+  suppressedEmails: Set<string>
+): boolean {
+  if (isGuessPaused()) return true;
+  const sample = guessedSendSample(items, { after: readState().resumeAt });
+  if (!shouldTripGuessPause(sample, suppressedEmails)) return false;
+  const bounced = sample.filter((item) => suppressedEmails.has(String(item.to || "").toLowerCase())).length;
+  tripGuessPause({ bounced, sampled: sample.length });
+  return true;
 }
