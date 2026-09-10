@@ -1352,6 +1352,10 @@ export async function runNurtureAction(
   const now = opts?.now;
   if (action !== "stop") refuseDoNotContact(opener);
 
+  if (isConvertOpener(opener) && (action === "start" || action === "approve")) {
+    return opener;
+  }
+
   if (action === "start") {
     return saveOpener(startNurture(opener, openerNurtureDraft(opener), now));
   }
@@ -1384,7 +1388,7 @@ export async function runNurtureAction(
     return next;
   }
 
-  if (opener.nurture.touch1MailId) return opener;
+  if (isConvertOpener(opener) || opener.nurture.touch1MailId) return opener;
 
   const draft = opener.nurture.touch1Draft || openerNurtureDraft(opener);
   const send = opts?.send ?? (await import("./email")).sendEmail;

@@ -78,5 +78,6 @@ describe("Openers UI wiring", () => {
     expect(service).toMatch(/completeConvertCloser/);
     expect(service).toMatch(/convertStopReason: "completed"/);
     expect(service).toMatch(/waitUntil: wakeAt/);
+    expect(service).toMatch(/isConvertOpener\(opener\) && \(action === "start" \|\| action === "approve"\)/);
   });
 });

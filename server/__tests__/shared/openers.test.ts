@@ -672,3 +672,10 @@ describe("convert step badge", () => {
     );
   });
 });
+
+describe("convert 3-touch send gate", () => {
+  it("runNurtureAction refuses start and approve on convert openers", () => {
+    const service = fs.readFileSync(path.resolve("server/services/openers.ts"), "utf8");
+    expect(service).toMatch(/isConvertOpener\(opener\) && \(action === "start" \|\| action === "approve"\)/);
+  });
+});

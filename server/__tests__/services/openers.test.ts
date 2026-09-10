@@ -3,14 +3,16 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentMailItem } from "../../services/agentMailLog";
-import { OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
+import { enrolConvertOpener, OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
 import {
   attachCompanyNumber,
+  autoPromoteEligibleOpeners,
   enrichOpener,
   flushOpenerIdentityFollowUps,
   hydrateFromAgentMail,
   listOpenerPipelineCompanyNumbers,
   logOpenerCall,
+  markOpenerNurturingOnOutbound,
   patchOpener,
   promoteOpener,
   refreshOpenerIdentitySnapshot,
@@ -19,7 +21,12 @@ import {
   setOpenerIdentityDepsForTests,
   setOpenersStorePathForTests,
   stopOpenerNurtureByEmail,
+  suppressionFanoutForEmail,
+  deleteOpenerByEmail,
   upsertOpenerFromMail,
+  upsertOpenerClickFromMail,
+  upsertNonResponsiveFromMail,
+  writeOpeners,
   type OpenerChClient,
   type OpenerIdentityDeps,
   type PromoteDeps,
@@ -118,6 +125,76 @@ describe("upsertOpenerFromMail", () => {
   });
 });
 
+describe("upsertOpenerClickFromMail", () => {
+  it("records a click on the existing opener", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail());
+    const row = upsertOpenerClickFromMail(
+      mail({ clicks: [{ at: "2026-09-01T11:00:00.000Z", url: "https://example.com" }] })
+    );
+    expect(row?.clickCount).toBe(1);
+    expect(row?.openCount).toBe(1);
+  });
+
+  it("creates an opener from a click even without an open", () => {
+    tmpStore();
+    const row = upsertOpenerClickFromMail(
+      mail({
+        opens: [],
+        clicks: [{ at: "2026-09-01T11:00:00.000Z", url: "https://example.com" }],
+      })
+    );
+    expect(row?.email).toBe("ops@northpeak.co.uk");
+    expect(row?.status).toBe("new");
+    expect(row?.clickCount).toBe(1);
+    expect(row?.openCount).toBe(0);
+  });
+
+  it("ignores inbound", () => {
+    tmpStore();
+    expect(
+      upsertOpenerClickFromMail(
+        mail({
+          direction: "inbound",
+          from: "ops@northpeak.co.uk",
+          clicks: [{ at: "2026-09-01T11:00:00.000Z", url: "https://example.com" }],
+        })
+      )
+    ).toBeUndefined();
+  });
+});
+
+describe("non-responsive from sent unopened mail", () => {
+  it("creates a non_responsive card on a successful unopened send", () => {
+    tmpStore();
+    const row = upsertNonResponsiveFromMail(mail({ opens: [] }));
+    expect(row?.status).toBe("non_responsive");
+    expect(row?.email).toBe("ops@northpeak.co.uk");
+    expect(row?.openCount).toBe(0);
+    expect(row?.lastTouchAt).toBe("2026-09-01T09:00:00.000Z");
+  });
+
+  it("ignores failed, mock, opened, and clicked sends", () => {
+    tmpStore();
+    expect(upsertNonResponsiveFromMail(mail({ status: "failed", opens: [] }))).toBeUndefined();
+    expect(upsertNonResponsiveFromMail(mail({ status: "mock", opens: [] }))).toBeUndefined();
+    expect(upsertNonResponsiveFromMail(mail())).toBeUndefined();
+    expect(
+      upsertNonResponsiveFromMail(
+        mail({ opens: [], clicks: [{ at: "2026-09-01T10:05:00.000Z", url: "https://example.com" }] })
+      )
+    ).toBeUndefined();
+  });
+
+  it("does not overwrite an existing opener with non_responsive", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail());
+    const row = upsertNonResponsiveFromMail(mail({ id: "mail-2", opens: [], createdAt: "2026-09-02T09:00:00.000Z" }));
+    expect(row?.status).toBe("new");
+    expect(hydrateFromAgentMail([]).map((item) => item.status)).toEqual(["new"]);
+  });
+});
+
 describe("hydrateFromAgentMail", () => {
   it("backfills unique companies from existing opened outbound", () => {
     tmpStore();
@@ -127,6 +204,26 @@ describe("hydrateFromAgentMail", () => {
       mail({ id: "mail-3", to: "other@hale.co.uk", opens: ["2026-09-02T10:00:00.000Z"] }),
     ]);
     expect(rows.length).toBe(2);
+  });
+
+  it("sets clickCount from outbound mail clicks without double-counting", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail());
+    upsertOpenerClickFromMail(
+      mail({ clicks: [{ at: "2026-09-01T11:00:00.000Z", url: "https://a.example" }] })
+    );
+    const rows = hydrateFromAgentMail([
+      mail({
+        opens: ["2026-09-01T10:00:00.000Z"],
+        clicks: [
+          { at: "2026-09-01T11:00:00.000Z", url: "https://a.example" },
+          { at: "2026-09-01T12:00:00.000Z", url: "https://b.example" },
+        ],
+      }),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].clickCount).toBe(2);
+    expect(rows[0].openCount).toBe(1);
   });
 
   it("still applies identity when the mail id is already recorded, without bumping openCount", () => {
@@ -150,6 +247,107 @@ describe("hydrateFromAgentMail", () => {
     expect(rows[0].phone).toBe("07111111111");
     expect(rows[0].prospectId).toBe(9);
     expect(rows[0].dealId).toBe(7);
+  });
+
+  it("moves inbound stop and suppression opt-outs to not_now", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail())!;
+    upsertOpenerFromMail(mail({ id: "mail-2", to: "keep@hale.co.uk", opens: ["2026-09-02T10:00:00.000Z"] }));
+
+    const fromInbound = hydrateFromAgentMail([
+      mail(),
+      mail({
+        id: "in-1",
+        direction: "inbound",
+        from: "ops@northpeak.co.uk",
+        to: "james@stratanexus.co.uk",
+        subject: "unsubscribe",
+        text: "Please remove me from your mailing list",
+        status: "received",
+        createdAt: "2026-09-06T10:00:00.000Z",
+        opens: undefined,
+      }),
+    ]);
+    expect(fromInbound.find((row) => row.email === "ops@northpeak.co.uk")?.status).toBe("not_now");
+    expect(fromInbound.find((row) => row.email === "keep@hale.co.uk")?.status).toBe("new");
+
+    tmpStore();
+    upsertOpenerFromMail(mail())!;
+    const fromList = hydrateFromAgentMail([], undefined, { optOutEmails: ["OPS@northpeak.co.uk"] });
+    expect(fromList).toHaveLength(1);
+    expect(fromList[0].status).toBe("not_now");
+    expect(fromList[0].nurture.stopReason).toBe("opt_out");
+  });
+
+  it("backfills non_responsive from successfully sent unopened outbound", () => {
+    tmpStore();
+    const rows = hydrateFromAgentMail([
+      mail({ opens: [] }),
+      mail({ id: "mail-fail", to: "fail@hale.co.uk", status: "failed", opens: [] }),
+      mail({ id: "mail-mock", to: "mock@hale.co.uk", status: "mock", opens: [] }),
+      mail({ id: "mail-open", to: "keep@hale.co.uk", opens: ["2026-09-02T10:00:00.000Z"] }),
+    ]);
+    const byEmail = Object.fromEntries(rows.map((row) => [row.email, row]));
+    expect(byEmail["ops@northpeak.co.uk"]?.status).toBe("non_responsive");
+    expect(byEmail["fail@hale.co.uk"]).toBeUndefined();
+    expect(byEmail["mock@hale.co.uk"]).toBeUndefined();
+    expect(byEmail["keep@hale.co.uk"]?.status).toBe("new");
+  });
+
+  it("moves a later open from non_responsive onto Openers as new", () => {
+    tmpStore();
+    upsertNonResponsiveFromMail(mail({ opens: [] }));
+    const rows = hydrateFromAgentMail([
+      mail({ opens: ["2026-09-03T12:00:00.000Z"] }),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("new");
+    expect(rows[0].openCount).toBe(1);
+    expect(rows[0].firstOpenedAt).toBe("2026-09-03T12:00:00.000Z");
+  });
+
+  it("parks a never-opened unsubscribe on Openers as not_now", () => {
+    tmpStore();
+    const rows = hydrateFromAgentMail(
+      [
+        mail({ opens: [] }),
+        mail({
+          id: "in-1",
+          direction: "inbound",
+          from: "ops@northpeak.co.uk",
+          to: "james@stratanexus.co.uk",
+          subject: "unsubscribe",
+          text: "Please remove me from your mailing list",
+          status: "received",
+          createdAt: "2026-09-06T10:00:00.000Z",
+          opens: undefined,
+        }),
+      ]
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("not_now");
+    expect(rows[0].nurture.stopReason).toBe("opt_out");
+  });
+
+  it("does not create non_responsive for a hard-bounced address", () => {
+    tmpStore();
+    const rows = hydrateFromAgentMail([mail({ opens: [] })], undefined, {
+      bounceEmails: ["ops@northpeak.co.uk"],
+    });
+    expect(rows).toEqual([]);
+  });
+
+  it("keeps a clicker off Non Responsive even without an open pixel", () => {
+    tmpStore();
+    const rows = hydrateFromAgentMail([
+      mail({
+        opens: [],
+        clicks: [{ at: "2026-09-01T10:05:00.000Z", url: "https://example.com" }],
+      }),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("new");
+    expect(rows[0].status).not.toBe("non_responsive");
   });
 });
 
@@ -330,6 +528,24 @@ describe("nurture send and promote", () => {
     expect(sent.nurture.touch1MailId).toBe("mail-logged-1");
   });
 
+  it("approve send-as stamps that desk on From and signature", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await runNurtureAction(created.id, "start");
+    let captured: { agentId?: string; fromName?: string; html?: string } = {};
+    await runNurtureAction(created.id, "approve", {
+      agentId: "inbound-intake",
+      send: async (credentials, _to, _subject, html) => {
+        captured = { agentId: credentials?.agentId, fromName: credentials?.fromName, html };
+        return { success: true, id: "mail-maya-1" };
+      },
+    });
+    expect(captured.agentId).toBe("inbound-intake");
+    expect(captured.fromName).toMatch(/Maya Hart/);
+    expect(captured.html).toMatch(/Maya Hart/);
+    expect(captured.html).not.toMatch(/James Hale/);
+  });
+
   it("promote creates once and jumps the second time", async () => {
     tmpStore();
     const created = upsertOpenerFromMail(mail())!;
@@ -425,7 +641,50 @@ describe("nurture send and promote", () => {
     });
     const stopped = stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply");
     expect(stopped?.nurture.stopReason).toBe("reply");
-    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "opt_out")).toBeUndefined();
+    expect(stopped?.status).toBe("nurturing");
+    const unsubscribed = stopOpenerNurtureByEmail("ops@northpeak.co.uk", "opt_out");
+    expect(unsubscribed?.status).toBe("not_now");
+    expect(unsubscribed?.nurture.stopReason).toBe("opt_out");
+  });
+
+  it("opt-out moves the opener to not_now even when nurture is not in flight", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail())!;
+    const moved = stopOpenerNurtureByEmail("ops@northpeak.co.uk", "opt_out");
+    expect(moved?.status).toBe("not_now");
+    expect(moved?.nurture.stopReason).toBe("opt_out");
+    expect(moved?.nurture.step).toBe(3);
+  });
+
+  it("refuses nurture send, whatsapp, and call on an unsubscribed opener", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    stopOpenerNurtureByEmail("ops@northpeak.co.uk", "opt_out");
+    patchOpener(created.id, { phone: "07123456789" });
+    let sent = false;
+    await expect(runNurtureAction(created.id, "approve", {
+      send: async () => {
+        sent = true;
+        return { success: true, id: "should-not-send" };
+      },
+    })).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/do not contact/i) });
+    expect(sent).toBe(false);
+    await expect(sendOpenerWhatsApp(created.id, "hi", async () => {
+      sent = true;
+      return "ok";
+    })).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/do not contact/i) });
+    await expect(logOpenerCall(created.id, "called")).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/do not contact/i),
+    });
+    expect(sent).toBe(false);
+  });
+
+  it("hard bounce deletes the opener record", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail())!;
+    expect(deleteOpenerByEmail("ops@northpeak.co.uk")).toBe(true);
+    expect(hydrateFromAgentMail([])).toEqual([]);
   });
 
   it("promote without a company number is 400", async () => {
@@ -472,5 +731,176 @@ describe("nurture send and promote", () => {
     expect(due.nurture.touch2Status).toBe("done");
     expect(due.nurture.stopReason).toBe("completed");
     expect(due.lastTouchAt).toBe(dueAt.toISOString());
+  });
+
+  it("convert start and approve do not send 3-touch", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    writeOpeners([enrolConvertOpener(created)]);
+    let sent = false;
+    const started = await runNurtureAction(created.id, "start");
+    expect(started.nurture.stream).toBe("convert");
+    expect(started.nurture.touch1Status).toBe("idle");
+    expect(started.nurture.touch1Draft).toBeUndefined();
+    const approved = await runNurtureAction(created.id, "approve", {
+      send: async () => {
+        sent = true;
+        return { success: true, id: "should-not-send" };
+      },
+    });
+    expect(sent).toBe(false);
+    expect(approved.nurture.touch1MailId).toBeUndefined();
+    expect(approved.nurture.stream).toBe("convert");
+  });
+});
+
+describe("second-email auto-nurture", () => {
+  it("hydrate moves new openers to nurturing after sme_open is sent", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail({ touchId: "sme_1" }));
+    expect(hydrateFromAgentMail([])[0].status).toBe("new");
+
+    const rows = hydrateFromAgentMail([
+      mail({ id: "mail-1", touchId: "sme_1" }),
+      mail({
+        id: "mail-2",
+        touchId: "sme_open",
+        subject: "Re: Debt service",
+        opens: [],
+        createdAt: "2026-09-01T11:00:00.000Z",
+      }),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("nurturing");
+    expect(rows[0].nurture.step).toBe(0);
+  });
+
+  it("hydrate uses the deal sme_open flag when the send has been wiped from Agent Mail", async () => {
+    tmpStore();
+    const deal = {
+      id: 7,
+      email: "ops@northpeak.co.uk",
+      companyNumber: "08765432",
+      companyName: "Northpeak Joinery Ltd",
+      smeOpenFollowUpSentAt: "2026-09-04T07:25:26.052Z",
+    };
+    setOpenerIdentityDepsForTests(identityDeps({
+      async getAgenticDeal(id) { return id === 7 ? deal : undefined; },
+      async listAgenticDeals() { return [deal]; },
+    }));
+    upsertOpenerFromMail(mail({ dealId: 7 }));
+    await refreshOpenerIdentitySnapshot();
+    const rows = hydrateFromAgentMail([mail({ dealId: 7 })]);
+    expect(rows[0].status).toBe("nurturing");
+  });
+
+  it("hydrate leaves not_now and first-email-only cards alone", () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail({ touchId: "sme_1" }))!;
+    patchOpener(created.id, { status: "not_now" });
+    const parked = hydrateFromAgentMail([
+      mail({ id: "mail-1", touchId: "sme_1" }),
+      mail({ id: "mail-2", touchId: "sme_open", opens: [] }),
+    ]);
+    expect(parked[0].status).toBe("not_now");
+
+    tmpStore();
+    upsertOpenerFromMail(mail({ touchId: "sme_1" }));
+    const firstOnly = hydrateFromAgentMail([mail({ touchId: "sme_1" })]);
+    expect(firstOnly[0].status).toBe("new");
+  });
+
+  it("logging a second outbound moves the matching new opener", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail({ touchId: "sme_1" }));
+    const moved = markOpenerNurturingOnOutbound(
+      mail({
+        id: "mail-2",
+        touchId: "sme_open",
+        opens: [],
+        createdAt: "2026-09-01T11:00:00.000Z",
+      }),
+      [
+        mail({ id: "mail-1", touchId: "sme_1" }),
+        mail({ id: "mail-2", touchId: "sme_open", opens: [] }),
+      ]
+    );
+    expect(moved?.status).toBe("nurturing");
+    expect(hydrateFromAgentMail([])[0].status).toBe("nurturing");
+  });
+});
+
+describe("sixth-email auto-promote", () => {
+  function sentMails(n: number) {
+    return Array.from({ length: n }, (_, i) =>
+      mail({
+        id: `mail-${i + 1}`,
+        opens: i === 0 ? ["2026-09-01T10:00:00.000Z"] : [],
+        createdAt: `2026-09-01T09:0${i}:00.000Z`,
+      })
+    );
+  }
+
+  function promoteDeps() {
+    const companies = new Map<string, { id: number; companyNumber: string }>();
+    const prospects: Array<{ id: number; companyId: number }> = [];
+    const deps: PromoteDeps = {
+      async getCompanyByNumber(n) { return companies.get(n); },
+      async createCompany(data) {
+        const row = { id: 1, companyNumber: data.companyNumber };
+        companies.set(data.companyNumber, row);
+        return row;
+      },
+      async listProspects() { return prospects; },
+      async createProspect() {
+        const row = { id: 55, companyId: 1 };
+        prospects.push(row);
+        return row;
+      },
+      async createContact() { return {}; },
+    };
+    return { deps, prospects };
+  }
+
+  it("promotes a numbered opener after the sixth unique sent email", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(sentMails(1)[0])!;
+    await attachCompanyNumber(created.id, "08765432", fakeCh);
+    const { deps, prospects } = promoteDeps();
+    expect(await autoPromoteEligibleOpeners(sentMails(5), { deps })).toEqual([]);
+    expect(hydrateFromAgentMail([])[0].status).not.toBe("promoted");
+
+    const promoted = await autoPromoteEligibleOpeners(sentMails(6), { deps, userId: "user-1" });
+    expect(promoted).toHaveLength(1);
+    expect(promoted[0].status).toBe("promoted");
+    expect(promoted[0].prospectId).toBe(55);
+    expect(prospects).toHaveLength(1);
+    expect(hydrateFromAgentMail([])[0].status).toBe("promoted");
+  });
+
+  it("fans an opt-out out to every email on the opener card", () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    patchOpener(created.id, {
+      emails: ["ops@northpeak.co.uk", "admin@northpeak.co.uk"],
+      companyNumber: "08765432",
+    });
+    const fanout = suppressionFanoutForEmail("admin@northpeak.co.uk");
+    expect(fanout.companyNumber).toBe("08765432");
+    expect(fanout.emails.sort()).toEqual(["admin@northpeak.co.uk", "ops@northpeak.co.uk"]);
+  });
+
+  it("does not promote opted-out or unnumbered cards at six emails", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(sentMails(1)[0])!;
+    await attachCompanyNumber(created.id, "08765432", fakeCh);
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "opt_out")?.status).toBe("not_now");
+    const { deps } = promoteDeps();
+    expect(await autoPromoteEligibleOpeners(sentMails(6), { deps })).toEqual([]);
+
+    tmpStore();
+    upsertOpenerFromMail(sentMails(1)[0]);
+    expect(await autoPromoteEligibleOpeners(sentMails(6), { deps: promoteDeps().deps })).toEqual([]);
+    expect(hydrateFromAgentMail([])[0].status).toBe("new");
   });
 });
