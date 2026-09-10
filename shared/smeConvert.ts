@@ -283,11 +283,19 @@ export function isDualOpenConvertEligible(opts: {
   opener?: ConvertOpener | null;
   inboundDeals?: Array<{ id?: number; source?: string; email?: string; companyNumber?: string }>;
   blockedReason?: string | null;
+  now?: Date;
 }): boolean {
   const deal = opts.deal;
   if (!deal || deal.id == null) return false;
   if (deal.status === "failed" || deal.stage === "failed") return false;
   if (deal.convertPlaybook === "sme_nurture") return false;
+  if (
+    deal.convertStopReason === "completed" &&
+    deal.convertWakeAt &&
+    !shouldWakeConvert({ wakeAt: deal.convertWakeAt, now: opts.now })
+  ) {
+    return false;
+  }
 
   const opener = opts.opener;
   if (opener?.status === "promoted") return false;
@@ -330,7 +338,7 @@ export function isDualOpenConvertEligible(opts: {
   return sme2Ok;
 }
 
-function parkedStayReason(deal: ConvertDeal): ConvertTick | null {
+export function convertWakeGate(deal: ConvertDeal): ConvertTick {
   const stop = String(deal.convertStopReason || "").toLowerCase();
   if (stop === "opt_out") return { action: "stay_parked", reason: "opt_out" };
   if (stop === "promoted" || stop === "reply") return { action: "stay_parked", reason: "promoted" };
@@ -345,7 +353,8 @@ function parkedStayReason(deal: ConvertDeal): ConvertTick | null {
     return { action: "stay_parked", reason: "bounce_no_phone" };
   }
   if (stop === "smtp") return { action: "stay_parked", reason: "smtp" };
-  return null;
+  if (dealHasInboundResponse(deal)) return { action: "stay_parked", reason: "promoted" };
+  return { action: "wake_reenrol" };
 }
 
 export function planConvertTick(input: {
@@ -359,9 +368,9 @@ export function planConvertTick(input: {
   const now = input.now ?? new Date();
   const playbook = deal.convertPlaybook;
 
-  if (deal.convertWakeAt && !playbook && (deal.status === "parked" || deal.status === "non_responsive")) {
-    const stay = parkedStayReason(deal);
-    if (stay) return stay;
+  if (deal.convertWakeAt && playbook !== "sme_nurture") {
+    const gate = convertWakeGate(deal);
+    if (gate.action === "stay_parked") return gate;
     if (shouldWakeConvert({ wakeAt: deal.convertWakeAt, now })) {
       return { action: "wake_reenrol" };
     }
@@ -466,6 +475,7 @@ export function buildConvertEnrolment(
       opener,
       inboundDeals: extras?.inboundDeals,
       blockedReason: extras?.blockedReason,
+      now,
     })
   ) {
     return null;

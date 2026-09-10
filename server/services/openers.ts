@@ -604,6 +604,15 @@ export function applyConvertCloserScript(
   );
 }
 
+export function applyConvertWakeEnrolToOpener(
+  deal: { email?: string; id?: number },
+  now?: Date
+): OpenerRecord | undefined {
+  const opener = openerForConvertDeal(deal);
+  if (!opener) return undefined;
+  return saveOpener(enrolConvertOpener(opener, now));
+}
+
 function identityChanged(before: OpenerRecord, after: OpenerRecord): boolean {
   return (
     before.companyNumber !== after.companyNumber ||

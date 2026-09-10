@@ -48,14 +48,16 @@ import { OPENER_CONVERT_CLOSER_DELAY_MS } from "@shared/openers";
 import {
   convertCopyOk,
   convertOverridesHopperHold,
+  enrolConvertDealPatch,
   lastSiteClickUrlFromMail,
   nextConvertSendWindow,
   nextOutreachTouchAfterSend,
   planConvertTick,
+  shouldWakeConvert,
   sme2SentAtFromMail,
 } from "@shared/smeConvert";
 import { listAgentMail } from "./agentMailLog";
-import { applyConvertCloserScript, applyConvertSendToOpener } from "./openers";
+import { applyConvertCloserScript, applyConvertSendToOpener, applyConvertWakeEnrolToOpener } from "./openers";
 import { mailIsSuppressed } from "./mailDesk";
 import { suppressionSets } from "./mailSuppression";
 import { isOpenedOutboundMail } from "@shared/mailTracking";
@@ -116,6 +118,26 @@ function outreachBlockReason(
 ): string | null {
   if (mailIsSuppressed(email, companyNumber)) return "suppressed — do not contact";
   return coldEmailBlockedReason(email, stream, companyName);
+}
+
+function convertSmtpReady(): boolean {
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) return true;
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) return true;
+  return false;
+}
+
+function isConvertWakeDeal(deal: Pick<AgenticDealFile, "convertPlaybook" | "convertStopReason" | "convertWakeAt">): boolean {
+  return deal.convertPlaybook !== "sme_nurture" && deal.convertStopReason === "completed" && Boolean(deal.convertWakeAt);
+}
+
+function persistConvertStayReason(
+  reason: "opt_out" | "promoted" | "failed" | "dissolved" | "bounce_no_phone" | "smtp"
+): AgenticDealFile["convertStopReason"] | undefined {
+  if (reason === "opt_out") return "opt_out";
+  if (reason === "promoted") return "promoted";
+  if (reason === "failed" || reason === "dissolved") return "dead";
+  if (reason === "bounce_no_phone") return "blocked";
+  return undefined;
 }
 
 const PLACES_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json";
@@ -1936,7 +1958,7 @@ export const agenticWorkflow = {
       }
       return this.promoteToIntroducerPipeline(deal);
     }
-    if (convertOverridesHopperHold(deal)) {
+    if (convertOverridesHopperHold(deal) || isConvertWakeDeal(deal)) {
       return this.sendConvertOutreach(deal);
     }
     if (stream === "sme" && deal.source !== "strata_inbound" && deal.hopper && deal.hopper !== "queued") {
@@ -1989,13 +2011,50 @@ export const agenticWorkflow = {
     const now = new Date();
     const mail = listAgentMail(10_000).filter((item) => item.dealId === deal.id);
     const lastSiteClickUrl = lastSiteClickUrlFromMail(mail);
+    const gatedDeal = mailIsSuppressed(deal.email, deal.companyNumber)
+      ? { ...deal, convertStopReason: "opt_out" as const }
+      : deal;
     const tick = planConvertTick({
-      deal,
+      deal: gatedDeal,
       sme2SentAt: sme2SentAtFromMail(mail),
       now,
       lastSiteClickUrl,
       hasHmrcPetition: dealHasHmrcPetition(deal),
     });
+
+    if (tick.action === "stay_parked") {
+      if (tick.reason === "smtp") {
+        return storage.updateAgenticDeal(deal.id, {
+          status: "waiting_timer",
+          waitUntil: nextConvertSendWindow(now).toISOString(),
+          events: addEvent(deal, "outreach", "Convert wake held — SMTP unhealthy", "outreach-sales"),
+        }) as Promise<AgenticDealFile>;
+      }
+      const stopReason = persistConvertStayReason(tick.reason);
+      return storage.updateAgenticDeal(deal.id, {
+        waitUntil: undefined,
+        ...(stopReason ? { convertStopReason: stopReason } : {}),
+        events: addEvent(deal, "outreach", `Convert stay parked — ${tick.reason}`, "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
+
+    if (tick.action === "wake_reenrol") {
+      if (!convertSmtpReady()) {
+        return storage.updateAgenticDeal(deal.id, {
+          status: "waiting_timer",
+          waitUntil: nextConvertSendWindow(now).toISOString(),
+          events: addEvent(deal, "outreach", "Convert wake held — SMTP unhealthy", "outreach-sales"),
+        }) as Promise<AgenticDealFile>;
+      }
+      const patch = enrolConvertDealPatch({ ...deal, convertCycle: deal.convertCycle || 1 }, { now });
+      applyConvertWakeEnrolToOpener(deal, now);
+      return storage.updateAgenticDeal(deal.id, {
+        ...patch,
+        stage: "outreach",
+        status: "waiting_timer",
+        events: addEvent(deal, "outreach", "Convert wake re-enrol — N1 on next window", "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
+    }
 
     if (tick.action === "hold" && tick.reason === "same_day_sme_2") {
       return storage.updateAgenticDeal(deal.id, {
@@ -2889,16 +2948,22 @@ export const agenticWorkflow = {
       } catch (error) {
         console.error("[Agentic] Hopper refill on tick failed:", error);
       }
-      const due = (await storage.listAgenticDeals()).filter(
-        (deal) =>
+      const now = new Date();
+      const due = (await storage.listAgenticDeals()).filter((deal) => {
+        if (isConvertWakeDeal(deal) && shouldWakeConvert({ wakeAt: deal.convertWakeAt, now })) {
+          if (!deal.waitUntil) return true;
+          return Date.parse(deal.waitUntil) <= now.getTime();
+        }
+        return (
           deal.status === "waiting_timer" &&
-          deal.waitUntil &&
-          new Date(deal.waitUntil).getTime() <= Date.now() &&
+          Boolean(deal.waitUntil) &&
+          new Date(deal.waitUntil).getTime() <= now.getTime() &&
           (isSmeHuntContactRetry(deal) || shouldProcessAgenticTick(deal))
-      );
+        );
+      });
       for (const deal of due) {
         try {
-          if (deal.convertPlaybook === "sme_nurture") {
+          if (deal.convertPlaybook === "sme_nurture" || isConvertWakeDeal(deal)) {
             await this.sendOutreach(deal);
             continue;
           }

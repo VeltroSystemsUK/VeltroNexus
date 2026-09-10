@@ -146,6 +146,37 @@ describe("tick planner", () => {
   });
 });
 
+describe("90-day wake", () => {
+  it("does not re-enrol while wakeAt is in the future, and wake_reenrol after 90 days", () => {
+    const completed = {
+      id: 9,
+      email: "ops@acme.test",
+      convertStopReason: "completed" as const,
+      convertWakeAt: convertWakeAt(new Date("2026-09-20T12:00:00.000Z")),
+      convertCycle: 1,
+    };
+    expect(
+      isDualOpenConvertEligible({
+        mail: [sme1, sme2],
+        deal: completed,
+        now: new Date("2026-09-21T10:00:00.000Z"),
+      })
+    ).toBe(false);
+    expect(
+      planConvertTick({
+        deal: completed,
+        now: new Date("2026-12-20T09:00:00.000Z"),
+      })
+    ).toEqual({ action: "wake_reenrol" });
+    expect(
+      planConvertTick({
+        deal: { ...completed, convertStopReason: "opt_out" },
+        now: new Date("2026-12-20T09:00:00.000Z"),
+      })
+    ).toEqual({ action: "stay_parked", reason: "opt_out" });
+  });
+});
+
 describe("wake and copy", () => {
   it("diaries 90 London days and guards copy", () => {
     expect(CONVERT_WAKE_DAYS).toBe(90);
