@@ -1,12 +1,34 @@
 import { describe, it, expect } from "vitest";
+import { mailboxForAgent } from "@shared/agentMailboxes";
 import {
+  composeAgentMailHtml,
+  composeAgentReplyHtml,
   firstName,
   lenderLabel,
   nextColdTouch,
+  renderIntroducerCall,
   renderOutreachEmail,
   renderSmeCall,
   renderWarmCall,
+  strataCallbackNumber,
 } from "@shared/strataOutreach";
+
+function withPhoneEnv(values: { phone?: string; callback?: string }, run: () => void) {
+  const prevP = process.env.STRATA_PHONE;
+  const prevC = process.env.STRATA_CALLBACK_NUMBER;
+  if (values.phone === undefined) delete process.env.STRATA_PHONE;
+  else process.env.STRATA_PHONE = values.phone;
+  if (values.callback === undefined) delete process.env.STRATA_CALLBACK_NUMBER;
+  else process.env.STRATA_CALLBACK_NUMBER = values.callback;
+  try {
+    run();
+  } finally {
+    if (prevP === undefined) delete process.env.STRATA_PHONE;
+    else process.env.STRATA_PHONE = prevP;
+    if (prevC === undefined) delete process.env.STRATA_CALLBACK_NUMBER;
+    else process.env.STRATA_CALLBACK_NUMBER = prevC;
+  }
+}
 
 const huntDeal = {
   companyName: "Acme Joinery Limited",
@@ -35,9 +57,70 @@ describe("strata outreach scripts", () => {
     expect(email.html).toMatch(/strata-logo-light\.png/);
     expect(email.html).toMatch(/Strata Finance/);
     expect(email.html).toMatch(/not authorised or regulated by the FCA/i);
-    expect(email.html).toMatch(/0115 984 9800/);
+    expect(email.html).not.toMatch(/0115 984 9800/);
+    expect(email.text).not.toMatch(/0115 984 9800/);
     expect(email.html).toMatch(/Sterling House/);
     expect(email.text).toMatch(/NG12 4DG/);
+  });
+
+  it("does not default the callback number to David's office", () => {
+    withPhoneEnv({}, () => {
+      expect(strataCallbackNumber()).toBe("");
+      const sme = renderSmeCall({ companyName: "Acme Joinery Limited", contactName: "David Cole" });
+      expect(sme.voicemail).not.toMatch(/0115/);
+      expect(sme.voicemail).not.toMatch(/call me on/i);
+      const intro = renderIntroducerCall({ companyName: "Hartley Accountants", contactName: "Pat Hartley" });
+      expect(intro.voicemail).not.toMatch(/0115/);
+      expect(intro.voicemail).not.toMatch(/call me on/i);
+    });
+  });
+
+  it("prints STRATA_PHONE on the signature when set to a live number", () => {
+    withPhoneEnv({ phone: "020 7946 0018" }, () => {
+      const email = renderOutreachEmail(huntDeal, "sme_1", "outreach-sales");
+      expect(email.html).toMatch(/020 7946 0018/);
+      expect(email.html).not.toMatch(/0115 984 9800/);
+    });
+  });
+
+  it("never prints 0115 984 9800 even if STRATA_PHONE is still that number", () => {
+    withPhoneEnv({ phone: "0115 984 9800" }, () => {
+      expect(strataCallbackNumber()).toBe("");
+      const james = renderOutreachEmail(huntDeal, "sme_1", "outreach-sales");
+      expect(james.html).not.toMatch(/0115 984 9800/);
+      expect(james.text).not.toMatch(/0115 984 9800/);
+      const shaun = renderOutreachEmail(huntDeal, "sme_1", "director");
+      expect(shaun.html).not.toMatch(/0115 984 9800/);
+      expect(shaun.text).not.toMatch(/0115 984 9800/);
+    });
+  });
+
+  it("puts Shaun's mobile on the director signature only", () => {
+    withPhoneEnv({}, () => {
+      const shaun = renderOutreachEmail(huntDeal, "sme_1", "director");
+      expect(shaun.html).toMatch(/07898 789 313/);
+      expect(shaun.text).toMatch(/07898 789 313/);
+      const james = renderOutreachEmail(huntDeal, "sme_1", "outreach-sales");
+      expect(james.html).not.toMatch(/07898 789 313/);
+      expect(james.text).not.toMatch(/07898 789 313/);
+      const reply = composeAgentReplyHtml("Here it is.", mailboxForAgent("director"), {
+        from: "ops@joinery.co.uk",
+        text: "Can you send that again?",
+        createdAt: "2026-09-09T10:00:00.000Z",
+      });
+      expect(reply).toMatch(/07898 789 313/);
+      expect(reply).not.toMatch(/0115 984 9800/);
+    });
+  });
+
+  it("compose wraps a typed URL as a tracked-ready href plus the signature", () => {
+    const html = composeAgentMailHtml(
+      "If useful: https://www.stratafinance.co.uk/?sf=n1#tools",
+      mailboxForAgent("outreach-sales")
+    );
+    expect(html).toContain('href="https://www.stratafinance.co.uk/?sf=n1#tools"');
+    expect(html).toContain('href="https://stratafinance.co.uk"');
+    expect(html).not.toMatch(/On .* wrote:/);
   });
 
   it("Stream A day 1 on an HMRC petition leads with the hearing, not generic debt service", () => {
@@ -80,6 +163,34 @@ describe("strata outreach scripts", () => {
     expect(email.text).toMatch(/\/pack\/pack-token-test/);
     expect(email.html).toMatch(/Upload your documents/);
     expect(email.html).toMatch(/\/pack\/pack-token-test/);
+    expect(email.text).toMatch(/Maya Hart/);
+    expect(email.text).not.toMatch(/James Hale/);
+  });
+
+  it("signs outreach as the chosen mailbox, including Shaun", () => {
+    const maya = renderOutreachEmail(huntDeal, "sme_1", "inbound-intake");
+    expect(maya.text).toMatch(/Maya Hart/);
+    expect(maya.html).toMatch(/Maya Hart/);
+    expect(maya.text).not.toMatch(/James Hale/);
+
+    const shaun = renderOutreachEmail(huntDeal, "sme_1", "director");
+    expect(shaun.text).toMatch(/Shaun Tuhey/);
+    expect(shaun.html).toMatch(/Director/);
+    expect(shaun.text).not.toMatch(/James Hale/);
+  });
+
+  it("reply HTML stamps the send-as signature, not the thread's", () => {
+    const original = {
+      from: "ops@joinery.co.uk",
+      text: "Can you send that again?",
+      createdAt: "2026-09-09T10:00:00.000Z",
+    };
+    const html = composeAgentReplyHtml("Here it is.", mailboxForAgent("director"), original);
+    expect(html).toMatch(/Here it is/);
+    expect(html).toMatch(/Shaun Tuhey/);
+    expect(html).toMatch(/Director/);
+    expect(html).not.toMatch(/James Hale/);
+    expect(html).toMatch(/ops@joinery\.co\.uk/);
   });
 
   it("cold email does not include a customer upload link", () => {

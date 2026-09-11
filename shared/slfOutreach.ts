@@ -19,7 +19,6 @@ export type OutreachPipeline = "sme" | "introducer" | "inbound";
 
 const BLOCKED_STAGES = new Set([
   "human_call",
-  "fulfilment",
   "processing",
   "underwriting",
   "human_review",

@@ -234,6 +234,19 @@ export function isStrataSiteUrl(url?: string): boolean {
   }
 }
 
+function isCloserProductUrl(url?: string): boolean {
+  if (!url || !isStrataSiteUrl(url)) return false;
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.toLowerCase();
+    const hash = parsed.hash.toLowerCase();
+    if (path.includes("/strata-solution.html") || path.includes("/cdfi-funding.html")) return true;
+    return hash === "#tools" || hash === "#contact";
+  } catch {
+    return false;
+  }
+}
+
 export function lastStrataSiteClick(
   clicks: Array<{ at?: string; url?: string }>
 ): { at: string; url: string } | null {
@@ -463,7 +476,7 @@ export function buildCloserScript(opts: {
 }): string {
   const company = opts.company || "";
   const name = opts.name || "";
-  if (opts.lastSiteClickUrl && isStrataSiteUrl(opts.lastSiteClickUrl)) {
+  if (opts.lastSiteClickUrl && isCloserProductUrl(opts.lastSiteClickUrl)) {
     return `${company} (${name}). Opened sme_1 and sme_2. Last site click: ${opts.lastSiteClickUrl}. No enquiry.\nPoint them at the form on that same page. No meeting ask. No credit search.`;
   }
   return `${company} (${name}). Opened sme_1 and sme_2. No site click.\nPoint them at ${CONVERT_SITE_ORIGIN}/?sf=c1#contact\nEnquiry form, no credit search. No meeting ask.`;

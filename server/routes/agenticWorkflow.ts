@@ -285,7 +285,7 @@ router.post("/api/agentic/deals/:id/human", isAuthenticated, async (req, res) =>
     if (!["call_done", "approve_sterling", "stop", "linkedin_posted", "retry_send", "approve_send"].includes(action)) {
       return res.status(400).json({ error: "Invalid action" });
     }
-    res.json(await agenticWorkflow.resolveHuman(parseInt(req.params.id), action, req.body?.note));
+    res.json(await agenticWorkflow.resolveHuman(parseInt(req.params.id), action, req.body?.note, req.body?.agentId));
   } catch (error) {
     handleApiError(res, error, "api-error");
   }

@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { storage } from "../storage";
 import crypto from "crypto";
+import { mailIsSuppressed } from "../services/mailDesk";
 
 /**
  * Local Email Client (Google-free)
@@ -28,6 +29,9 @@ export async function sendEmail(
     userId: string
 ): Promise<{ id: string }> {
     console.log(`[Local Email] Sending email to ${to}`);
+    if (mailIsSuppressed(to)) {
+      throw new Error("Do not contact");
+    }
     const messageId = `msg-${crypto.randomUUID()}`;
 
     const smtpHost = process.env.SMTP_HOST;

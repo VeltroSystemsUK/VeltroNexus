@@ -7,6 +7,7 @@ import { resolveSendAsMailbox } from "@shared/agentMailboxes";
 import { signatureHtml } from "@shared/strataOutreach";
 import {
   applyClickEvent,
+  applyDwellEvent,
   applyConvertStop,
   applyOpenEvent,
   applySecondEmailNurturing,
@@ -432,6 +433,11 @@ function scheduleDefaultIdentityFollowUp(mail: AgentMailItem): void {
 function lastClickAt(clicks?: Array<{ at: string; url?: string }>): string | undefined {
   if (!clicks?.length) return undefined;
   return clicks[clicks.length - 1]?.at;
+}
+
+function lastDwellAt(dwells?: Array<{ at: string }>): string | undefined {
+  if (!dwells?.length) return undefined;
+  return dwells[dwells.length - 1]?.at;
 }
 
 function takeResolveHit(email: string, mail: AgentMailItem, resolve?: OpenerResolver): OpenerResolveHit {
@@ -861,6 +867,20 @@ export function upsertOpenerClickFromMail(
   return result.opener;
 }
 
+export function upsertOpenerDwellFromMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound") return undefined;
+  if (!mail.dwells?.length) return undefined;
+  const resolver = resolve ?? defaultOpenerResolver;
+  const all = readOpeners();
+  const result = applyDwellEngagementTo(all, mail, resolver, 1);
+  if (!result.opener) return undefined;
+  if (result.all !== all) writeOpeners(result.all);
+  return result.opener;
+}
+
 function dealFlagsForOpener(opener: OpenerRecord): {
   smeOpenFollowUpSentAt?: string | null;
   smeFollowupSentAt?: string | null;
@@ -991,6 +1011,61 @@ function applyClickEngagementTo(
   return { all: [...all, opener], opener };
 }
 
+function applyDwellEngagementTo(
+  all: OpenerRecord[],
+  mail: AgentMailItem,
+  resolve?: OpenerResolver,
+  extraDwells = 1
+): { all: OpenerRecord[]; opener?: OpenerRecord } {
+  if (mail.direction !== "outbound") return { all };
+  const at = lastDwellAt(mail.dwells);
+  if (!at) return { all };
+  const email = normalizeEmail(mail.to);
+  if (!email) return { all };
+
+  const hit = takeResolveHit(email, mail, resolve);
+  const existing = findByEmail(all, email) || findByCompany(all, hit.companyNumber);
+  if (existing) {
+    if (extraDwells === 0 && existing.status !== "non_responsive") {
+      return { all, opener: existing };
+    }
+    const opener = {
+      ...applyDwellEvent(applyIdentity(existing, email, mail, hit), extraDwells),
+      mailIds: [...new Set([...(existing.mailIds || []), mail.id])],
+    };
+    const next = all.filter((row) => row.id !== opener.id);
+    next.push(opener);
+    return { all: next, opener };
+  }
+
+  const opener = applyDwellEvent(
+    applyIdentity(
+      normalizeOpener({
+        id: crypto.randomUUID(),
+        email,
+        status: "new",
+        openCount: 0,
+        clickCount: 0,
+        dwellCount: 0,
+        firstOpenedAt: at,
+        lastOpenedAt: at,
+        lastTouchAt: mail.createdAt,
+        mailIds: [mail.id],
+        companyNumber: hit.companyNumber,
+        companyName: hit.companyName,
+        dealId: hit.dealId ?? mail.dealId,
+        prospectId: hit.prospectId ?? mail.prospectId,
+        phone: hit.phone,
+      }),
+      email,
+      mail,
+      hit
+    ),
+    extraDwells
+  );
+  return { all: [...all, opener], opener };
+}
+
 function totalClicksFor(opener: OpenerRecord, items: AgentMailItem[]): number {
   const emails = new Set(
     [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
@@ -1000,6 +1075,19 @@ function totalClicksFor(opener: OpenerRecord, items: AgentMailItem[]): number {
     if (item.direction !== "outbound") continue;
     if (!emails.has(normalizeEmail(item.to))) continue;
     n += item.clicks?.length ?? 0;
+  }
+  return n;
+}
+
+function totalDwellsFor(opener: OpenerRecord, items: AgentMailItem[]): number {
+  const emails = new Set(
+    [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
+  );
+  let n = 0;
+  for (const item of items) {
+    if (item.direction !== "outbound") continue;
+    if (!emails.has(normalizeEmail(item.to))) continue;
+    n += item.dwells?.length ?? 0;
   }
   return n;
 }
@@ -1016,6 +1104,22 @@ function syncClickCounts(
     if (clickCount === opener.clickCount && status === opener.status) return opener;
     dirty = true;
     return { ...opener, clickCount, status, updatedAt: new Date().toISOString() };
+  });
+  return { all: next, dirty };
+}
+
+function syncDwellCounts(
+  all: OpenerRecord[],
+  items: AgentMailItem[]
+): { all: OpenerRecord[]; dirty: boolean } {
+  let dirty = false;
+  const next = all.map((opener) => {
+    const dwellCount = totalDwellsFor(opener, items);
+    const status =
+      dwellCount > 0 && opener.status === "non_responsive" ? "new" : opener.status;
+    if (dwellCount === opener.dwellCount && status === opener.status) return opener;
+    dirty = true;
+    return { ...opener, dwellCount, status, updatedAt: new Date().toISOString() };
   });
   return { all: next, dirty };
 }
@@ -1094,6 +1198,17 @@ export function hydrateFromAgentMail(
   const clicks = syncClickCounts(all, items);
   all = clicks.all;
   if (clicks.dirty) dirty = true;
+
+  for (const item of items) {
+    const result = applyDwellEngagementTo(all, item, resolver, 0);
+    if (result.opener && result.all !== all) {
+      all = result.all;
+      dirty = true;
+    }
+  }
+  const dwells = syncDwellCounts(all, items);
+  all = dwells.all;
+  if (dwells.dirty) dirty = true;
 
   const secondEmail = applySecondEmailNurturingPass(all, items);
   all = secondEmail.all;

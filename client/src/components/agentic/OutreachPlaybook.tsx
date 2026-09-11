@@ -36,17 +36,17 @@ export function OutreachPlaybook({ deal }: { deal: AgenticDealFile }) {
         <div>
           <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
             {deal.status === "waiting_human" && deal.humanReason?.includes("Approve this email")
-              ? "Email draft — waiting for approval"
+              ? "Email queued — sending with the hourly clock"
               : "Email sent"}
           </p>
           <p className="text-sm font-medium text-white">{lastEmail.subject}</p>
           <p className="text-sm text-slate-300 whitespace-pre-wrap line-clamp-10 mt-1">{lastEmail.text}</p>
         </div>
       )}
-      {deal.socialPlaybook && (deal.humanReason?.includes("LinkedIn") || deal.stage === "outreach") && (
+      {deal.socialPlaybook && (
         <div>
           <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
-            LinkedIn — {deal.socialPlaybook.action}
+            LinkedIn — {deal.socialPlaybook.action} (optional)
           </p>
           <p className="text-sm text-slate-200 whitespace-pre-wrap">{deal.socialPlaybook.message}</p>
         </div>

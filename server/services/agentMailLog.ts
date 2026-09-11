@@ -4,8 +4,9 @@ import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import type { AgentMailAttachment } from "@shared/agentMailAttachments";
 import { storage } from "../storage";
-import { autoPromoteEligibleOpeners, enrolConvertFromMail, markOpenerNurturingOnOutbound, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerFromMail } from "./openers";
+import { autoPromoteEligibleOpeners, enrolConvertFromMail, markOpenerNurturingOnOutbound, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerDwellFromMail, upsertOpenerFromMail } from "./openers";
 import { withJsonFileLock } from "../utils/jsonFileLock";
+import { shouldTrackMailHref } from "@shared/mailTracking";
 
 export type MailDirection = "outbound" | "inbound";
 
@@ -28,6 +29,7 @@ export type AgentMailItem = {
   createdAt: string;
   opens?: string[]; // ISO timestamp per tracking-pixel hit (noisy — see AgentMail.tsx tooltip)
   clicks?: Array<{ at: string; url: string }>;
+  dwells?: Array<{ at: string; path?: string; sf?: string }>;
   deskKind?: "stop" | "bounce" | "spam" | "responsive" | "other";
   deskNote?: string;
   attachments?: AgentMailAttachment[];
@@ -270,7 +272,31 @@ export function recordClick(id: string, url: string): AgentMailItem | undefined 
   return item;
 }
 
-function trackingBaseUrl(): string {
+export function recordDwell(
+  id: string,
+  meta: { path?: string; sf?: string } = {}
+): AgentMailItem | undefined {
+  const all = readAll();
+  const item = all.find((m) => m.id === id);
+  if (!item) return undefined;
+  item.dwells = [
+    ...(item.dwells || []),
+    {
+      at: new Date().toISOString(),
+      ...(meta.path ? { path: meta.path } : {}),
+      ...(meta.sf ? { sf: meta.sf } : {}),
+    },
+  ];
+  writeAll(all);
+  try {
+    upsertOpenerDwellFromMail(item);
+  } catch (error: any) {
+    console.warn("[Openers] upsert after dwell failed:", error?.message || error);
+  }
+  return item;
+}
+
+export function trackingBaseUrl(): string {
   return (process.env.PUBLIC_APP_URL || process.env.APP_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 }
 
@@ -279,7 +305,7 @@ function trackingBaseUrl(): string {
 export function injectMailTracking(html: string, id: string): string {
   const base = trackingBaseUrl();
   const withClicks = html.replace(/href="(https?:\/\/[^"]+)"/gi, (_match, url: string) => {
-    if (/^https:\/\/explore\.stratanexus\.co\.uk\/?$/i.test(url)) return `href="${url}"`;
+    if (!shouldTrackMailHref(url)) return `href="${url}"`;
     return `href="${base}/api/agent-mail/click/${id}?url=${encodeURIComponent(url)}"`;
   });
   const pixel = `<img src="${base}/api/agent-mail/track/${id}.gif" width="1" height="1" style="display:none" alt="" />`;

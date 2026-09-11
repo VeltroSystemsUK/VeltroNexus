@@ -20,12 +20,14 @@ import {
   convertStepBadge,
   daysSitting,
   openerClickCount,
+  openerClickHeat,
+  clickHeatCounts,
   isConvertCloserDue,
   isConvertOpener,
-  isHotClickOpener,
   isDoNotContactOpener,
   OPENER_BOARD_STATUSES,
   withDerivedNurture,
+  type ClickHeatBand,
   type OpenerDesk,
   type OpenerRecord,
   type OpenerStatus,
@@ -49,7 +51,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/context/LayoutContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { HotClickDot } from "@/components/mail/HotClickDot";
 import { SendAsSelect } from "@/components/mail/SendAsSelect";
 
 type TimelineItem = {
@@ -73,6 +74,57 @@ const COLUMN_LABELS: Record<OpenerStatus, string> = {
   not_now: "Unsubscribed",
   promoted: "Promoted",
 };
+
+const CLICK_HEAT_FILTERS: Array<{
+  band: ClickHeatBand;
+  label: string;
+  testId: string;
+  idle: string;
+  active: string;
+}> = [
+  {
+    band: "hot",
+    label: "Hottest",
+    testId: "filter-click-heat-hot",
+    idle: "border-emerald-400/30 text-emerald-300",
+    active: "bg-emerald-400/15 border-emerald-400/80 text-emerald-200",
+  },
+  {
+    band: "warm",
+    label: "Average",
+    testId: "filter-click-heat-warm",
+    idle: "border-amber-400/30 text-amber-300",
+    active: "bg-amber-400/15 border-amber-400/80 text-amber-200",
+  },
+  {
+    band: "cold",
+    label: "Coldest",
+    testId: "filter-click-heat-cold",
+    idle: "border-sky-400/30 text-sky-300",
+    active: "bg-sky-400/15 border-sky-400/80 text-sky-200",
+  },
+];
+
+const CLICK_HEAT_BADGE: Record<ClickHeatBand, string> = {
+  hot: "border-transparent bg-emerald-400/20 text-emerald-200",
+  warm: "border-transparent bg-amber-400/20 text-amber-200",
+  cold: "border-transparent bg-sky-400/20 text-sky-200",
+};
+
+function ClickHeatBadge({ opener }: { opener: OpenerBoardItem }) {
+  const clicks = openerClickCount(opener);
+  if (clicks <= 0) return null;
+  const heat = openerClickHeat(opener);
+  return (
+    <Badge
+      data-testid="badge-opener-clicks"
+      data-heat={heat ?? undefined}
+      className={heat ? CLICK_HEAT_BADGE[heat] : undefined}
+    >
+      {clicks} click{clicks === 1 ? "" : "s"}
+    </Badge>
+  );
+}
 
 function present(opener: OpenerBoardItem): OpenerBoardItem {
   const derived = withDerivedNurture(opener);
@@ -183,7 +235,6 @@ function OpenerCards({
     <>
       {items.map((opener, index) => {
         const hint = nurtureHint(opener);
-        const clicks = openerClickCount(opener);
         return (
           <Draggable key={opener.id} draggableId={opener.id} index={index}>
             {(dragProvided, dragSnapshot) => (
@@ -205,15 +256,15 @@ function OpenerCards({
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-sm truncate flex items-center gap-2">
                           <span className="truncate">{openerTitle(opener)}</span>
-                          {isHotClickOpener(opener) && <HotClickDot />}
                         </p>
                         <p className="text-xs text-muted-foreground">{sittingLabel(opener.daysSitting)}</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pl-6">
-                      {clicks > 0 && (
-                        <Badge data-testid="badge-opener-clicks">
-                          {clicks} click{clicks === 1 ? "" : "s"}
+                      <ClickHeatBadge opener={opener} />
+                      {(opener.dwellCount || 0) > 0 && (
+                        <Badge data-testid="badge-opener-dwell">
+                          On site {opener.dwellCount}×
                         </Badge>
                       )}
                       <Badge variant="outline">
@@ -301,6 +352,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
   const [hasChNumber, setHasChNumber] = useState(false);
   const [onPipelineOnly, setOnPipelineOnly] = useState(false);
   const [hasLiveCharges, setHasLiveCharges] = useState(false);
+  const [heatFilter, setHeatFilter] = useState<ClickHeatBand | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [attachNumber, setAttachNumber] = useState("");
@@ -404,7 +456,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     onError: (err: Error) => toast.error(mutationError(err)),
   });
 
-  const filtered = useMemo(() => {
+  const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
     return openers.filter((opener) => {
       if (hasChNumber && !opener.companyNumber) return false;
@@ -423,6 +475,13 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
       return haystack.includes(q);
     });
   }, [openers, search, hasChNumber, onPipelineOnly, hasLiveCharges]);
+
+  const heatCounts = useMemo(() => clickHeatCounts(searched), [searched]);
+
+  const filtered = useMemo(() => {
+    if (!heatFilter) return searched;
+    return searched.filter((opener) => openerClickHeat(opener) === heatFilter);
+  }, [searched, heatFilter]);
 
   const byStatus = useMemo(() => {
     const groups = {} as Record<OpenerStatus, OpenerBoardItem[]>;
@@ -515,6 +574,31 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
           </div>
         </div>
 
+        {!isNonResponsive && (
+          <div data-testid="click-heat-strip" className="flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Clicks</span>
+            {CLICK_HEAT_FILTERS.map((item) => {
+              const selected = heatFilter === item.band;
+              return (
+                <button
+                  key={item.band}
+                  type="button"
+                  data-testid={item.testId}
+                  aria-pressed={selected}
+                  onClick={() => setHeatFilter((current) => (current === item.band ? null : item.band))}
+                  className={cn(
+                    "rounded-md border px-2.5 py-1 text-xs font-semibold tabular-nums",
+                    item.idle,
+                    selected && item.active
+                  )}
+                >
+                  {item.label} {heatCounts[item.band]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {isLoading && (
           <p className="text-sm text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -588,7 +672,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
                   {openerTitle(selected)}
-                  {isHotClickOpener(selected) && <HotClickDot />}
+                  <ClickHeatBadge opener={selected} />
                   {selected.nonBankChargeCount > 0 && (
                     <Badge variant="destructive">Live charges</Badge>
                   )}

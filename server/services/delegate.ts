@@ -46,7 +46,7 @@ export async function runDelegate(input: DelegateRequest) {
       ok: true,
       jobId: job.id,
       agentId,
-      summary: `Queued ${result.deals.length} SME first-touch drafts from ${result.scanned} Leads.`,
+      summary: `Sent ${result.deals.length} SME first-touches from ${result.scanned} hopper contacts.`,
       hunt: {
         opened: result.deals.length,
         scanned: result.scanned,

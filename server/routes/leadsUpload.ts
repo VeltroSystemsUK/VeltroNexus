@@ -8,6 +8,7 @@ import { zeusService } from "../services/zeusService";
 import { getSicDescription } from "../utils/sicCodeLookup";
 import { formatAddress } from "../utils/formatters";
 import { parseCSVLine } from "../utils/routerHelpers";
+import { mailIsSuppressed } from "../services/mailDesk";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -169,6 +170,11 @@ router.post(
             .toString()
             .replace(/\s/g, "")
             .toUpperCase();
+        }
+
+        if (mailIsSuppressed(leadData.email || leadData.contactEmail, leadData.companyNumber)) {
+          errors.push({ row: i + 1, message: "Do not contact" });
+          continue;
         }
 
         leadsToCreate.push(leadData);

@@ -7,17 +7,21 @@ import {
   deleteAgentMail,
   listAgentMail,
   logAgentMail,
+  recordClick,
+  recordDwell,
   backupAgentMailNow,
   maybeRunDailyMailBackup,
   setAgentMailBackupDirForTests,
   setAgentMailStorePathForTests,
 } from "../../services/agentMailLog";
+import { listOpeners, setOpenersStorePathForTests } from "../../services/openers";
 
 const LIVE = path.resolve(process.cwd(), "uploads", "agent_mail.json");
 
 afterEach(() => {
   setAgentMailBackupDirForTests(null);
   setAgentMailStorePathForTests(null);
+  setOpenersStorePathForTests(null);
 });
 
 function tmpPair() {
@@ -100,6 +104,76 @@ describe("agentMailLog store isolation", () => {
     ]);
     setAgentMailStorePathForTests(null);
     if (fs.existsSync(file)) fs.unlinkSync(file);
+  });
+
+  it("does not drop older mail once the store passes 2000", () => {
+    const file = path.join(os.tmpdir(), `agent-mail-keep-${process.pid}-${Date.now()}.json`);
+    setAgentMailStorePathForTests(file);
+    const seed = Array.from({ length: 2000 }, (_, i) => ({
+      id: `old-${i}`,
+      createdAt: "2026-09-01T00:00:00.000Z",
+      direction: "outbound" as const,
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "seed",
+      text: "x",
+      status: "sent" as const,
+    }));
+    fs.writeFileSync(file, JSON.stringify(seed));
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "newest",
+      text: "x",
+      status: "sent",
+    });
+    const rows = listAgentMail(10000);
+    expect(rows).toHaveLength(2001);
+    expect(rows.some((row) => row.id === "old-0")).toBe(true);
+    setAgentMailStorePathForTests(null);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  });
+
+  it("recordClick upserts clickCount onto the opener", () => {
+    const file = path.join(os.tmpdir(), `agent-mail-click-${process.pid}-${Date.now()}.json`);
+    const openerFile = path.join(os.tmpdir(), `openers-click-${process.pid}-${Date.now()}.json`);
+    setAgentMailStorePathForTests(file);
+    setOpenersStorePathForTests(openerFile);
+    const item = logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "click me",
+      text: "probe",
+      status: "sent",
+    });
+    recordClick(item.id, "https://example.com/pack");
+    expect(listOpeners()[0]?.email).toBe("ops@example.co.uk");
+    expect(listOpeners()[0]?.clickCount).toBe(1);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    if (fs.existsSync(openerFile)) fs.unlinkSync(openerFile);
+  });
+
+  it("recordDwell upserts dwellCount onto the opener", () => {
+    const file = path.join(os.tmpdir(), `agent-mail-dwell-${process.pid}-${Date.now()}.json`);
+    const openerFile = path.join(os.tmpdir(), `openers-dwell-${process.pid}-${Date.now()}.json`);
+    setAgentMailStorePathForTests(file);
+    setOpenersStorePathForTests(openerFile);
+    const item = logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "dwell me",
+      text: "probe",
+      status: "sent",
+    });
+    recordDwell(item.id, { path: "/#tools", sf: "n1" });
+    expect(listOpeners()[0]?.email).toBe("ops@example.co.uk");
+    expect(listOpeners()[0]?.dwellCount).toBe(1);
+    expect(listAgentMail(10).find((row) => row.id === item.id)?.dwells?.[0]?.sf).toBe("n1");
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    if (fs.existsSync(openerFile)) fs.unlinkSync(openerFile);
   });
 });
 

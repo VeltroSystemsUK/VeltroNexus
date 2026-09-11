@@ -42,8 +42,42 @@ export function isJobStoppedError(err: unknown): boolean {
   return err instanceof JobStoppedError || (err instanceof Error && err.name === "JobStoppedError");
 }
 
-export function harvestPassBlocked(jobs: Array<{ agentId: string; status: string }>): boolean {
-  return jobs.some((job) => job.agentId === "harvest" && job.status === "paused");
+export function harvestPassBlocked(
+  jobs: Array<{ agentId: string; status: string; totalSteps?: number }>,
+  cap = 100
+): boolean {
+  return jobs.some(
+    (job) => job.agentId === "harvest" && job.status === "paused" && (job.totalSteps || 0) <= cap
+  );
+}
+
+export function harvestHourBlocked(
+  jobs: Array<{ agentId: string; status?: string; startedAt?: Date | string }>,
+  _now = Date.now()
+): boolean {
+  return jobs.some((job) => job.agentId === "harvest" && job.status === "running");
+}
+
+export function harvestPassDecision(
+  running: Array<{ results?: { workerPid?: number } | null; logs: Array<{ timestamp: Date | string }> }>,
+  pid = process.pid,
+  now = Date.now()
+): "start" | "skip" | "replace-orphan" {
+  if (!running.length) return "start";
+  if (running.some((job) => job.results?.workerPid === pid)) return "skip";
+  const freshLog = running.some((job) => {
+    const last = job.logs[job.logs.length - 1];
+    if (!last) return false;
+    return now - new Date(last.timestamp).getTime() < 60 * 1000;
+  });
+  return freshLog ? "skip" : "replace-orphan";
+}
+
+export const JOB_LOG_CAP = 40;
+
+export function capJobLogs<T>(logs: T[], cap = JOB_LOG_CAP): T[] {
+  if (logs.length <= cap) return logs;
+  return logs.slice(-cap);
 }
 
 function workSnapshot(job: AgentJob, extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -65,14 +99,14 @@ export function applyJobStop(job: AgentJob, action: JobStopAction, at: Date): Ag
     currentStep: paused ? "Paused" : "Completed early",
     completedAt: at,
     results: workSnapshot(job, paused ? { paused: true } : { early: true }),
-    logs: [
+    logs: capJobLogs([
       ...job.logs,
       {
         timestamp: at,
         message: paused ? "Paused by director" : "Completed early by director",
         type: paused ? "warning" : "success",
       },
-    ],
+    ]),
   };
 }
 
@@ -117,7 +151,7 @@ function writeJobs(jobs: Record<string, AgentJob>) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(JOBS_FILE_PATH, JSON.stringify(jobs, null, 2));
+    fs.writeFileSync(JOBS_FILE_PATH, JSON.stringify(jobs));
   } catch (err) {
     console.error("[JobTracker] Error writing jobs file:", err);
   }
@@ -151,7 +185,7 @@ export class AgentJobTracker {
           type: "info",
         },
       ],
-      results: null,
+      results: { workerPid: process.pid },
       startedAt: new Date(),
     };
 
@@ -181,6 +215,7 @@ export class AgentJobTracker {
       message: logMessage,
       type: logType,
     });
+    job.logs = capJobLogs(job.logs);
 
     writeJobs(jobs);
     console.log(`[JobTracker] Job ${jobId}: ${logMessage}`);
@@ -210,6 +245,7 @@ export class AgentJobTracker {
       message: "Job completed successfully",
       type: "success",
     });
+    job.logs = capJobLogs(job.logs);
 
     writeJobs(jobs);
     console.log(`[JobTracker] Job ${jobId} completed`);
@@ -228,6 +264,7 @@ export class AgentJobTracker {
       message: `Job failed: ${error}`,
       type: "error",
     });
+    job.logs = capJobLogs(job.logs);
 
     writeJobs(jobs);
     console.log(`[JobTracker] Job ${jobId} failed: ${error}`);

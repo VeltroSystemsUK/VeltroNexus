@@ -36,7 +36,7 @@ export const DELEGATE_JOBS: DelegateJob[] = [
     id: "hunt",
     agentIds: ["database-builder", "database-builder-se"],
     label: "Hunt opportunities",
-    description: "Queue up to 50 personalised SME first-touch drafts from Leads for director approval. Introducer hunt is paused.",
+    description: "Send the next hour of personalised SME first-touches from the hopper. Introducer hunt is paused.",
     needsDeal: false,
   },
   {
@@ -124,7 +124,7 @@ function isHibernated(agentId: string): boolean {
 }
 
 export function liveDelegateDesks() {
-  return [...AGENT_DIRECTORY.filter((desk) => !isHibernated(desk.agentId)), ...CONTENT_DESKS];
+  return [...AGENT_DIRECTORY.filter((desk) => !desk.mailOnly && !isHibernated(desk.agentId)), ...CONTENT_DESKS];
 }
 
 // Any live desk can run any job — agentIds on DELEGATE_JOBS is only a sort

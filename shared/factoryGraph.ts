@@ -31,13 +31,14 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "fit", label: "Strata fit gate", desk: "ORC-1", kind: "gate", detail: "Score ≥ 70 · SIG-06 out", x: 280, y: 180 },
   { id: "reject", label: "Do not contact", desk: "ORC-1", kind: "fail", detail: "Broker / SIC / fit fail", x: 560, y: 420 },
   { id: "match", label: "Companies House match", desk: "Maya", kind: "auto", detail: "You pick if ambiguous", x: 560, y: 180 },
-  { id: "contact", label: "Complete contact", desk: "Elena", kind: "auto", detail: "Places / scrape / officers", x: 840, y: 180 },
+  { id: "contact", label: "Complete contact", desk: "Elena", kind: "auto", detail: "Director name / phone / website", x: 840, y: 180 },
+  { id: "harvest", label: "Harvest mailbox", desk: "Harper", kind: "auto", detail: "25-file slices · SMTP-verified company inbox · no email → quarantine after miss", x: 980, y: 280 },
   { id: "pecr", label: "PECR check", desk: "James", kind: "gate", detail: "No personal mailboxes", x: 1120, y: 80 },
   { id: "email", label: "Cadence email", desk: "James", kind: "auto", detail: "SMTP must deliver", x: 1400, y: 80 },
   { id: "sme-open", label: "sme_open", desk: "James", kind: "auto", detail: "On open → Explore quiz", x: 1540, y: 160 },
   { id: "explore-gate", label: "Explore enquiry?", desk: "James", kind: "gate", detail: "Matching inbound skip", x: 1820, y: 160 },
   { id: "sme-followup", label: "sme_followup", desk: "James", kind: "auto", detail: "+2 days → Learn", x: 2100, y: 160 },
-  { id: "linkedin", label: "LinkedIn copy", desk: "You", kind: "human", detail: "You post, then continue", x: 1680, y: 0 },
+  { id: "linkedin", label: "LinkedIn note", desk: "James", kind: "auto", detail: "Optional connection copy — does not block Day 8", x: 1680, y: 0 },
   { id: "smtp-hold", label: "Mail not delivered", desk: "You", kind: "fail", detail: "Mock or SMTP fail", x: 1680, y: 200 },
   { id: "pack", label: "Pack portal", desk: "Customer", kind: "auto", detail: "Required Sterling list", x: 1400, y: 280 },
   { id: "fulfil", label: "Chase / timer", desk: "Sophie", kind: "auto", detail: "Names the gaps", x: 1680, y: 360 },
@@ -82,7 +83,9 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-fit-reject", source: "fit", target: "reject", label: "fail" },
   { id: "e-fit-match", source: "fit", target: "match", label: "pass" },
   { id: "e-match-contact", source: "match", target: "contact" },
-  { id: "e-contact-pecr", source: "contact", target: "pecr" },
+  { id: "e-contact-harvest", source: "contact", target: "harvest" },
+  { id: "e-harvest-pecr", source: "harvest", target: "pecr", label: "confirmed mailbox" },
+  { id: "e-harvest-park", source: "harvest", target: "parked", label: "no mailbox" },
   { id: "e-pecr-email", source: "pecr", target: "email", label: "corporate" },
   { id: "e-pecr-hold", source: "pecr", target: "smtp-hold", label: "personal" },
   { id: "e-email-sme-open", source: "email", target: "sme-open", label: "on open" },
@@ -93,7 +96,8 @@ export const FACTORY_EDGES: FactoryEdgeDef[] = [
   { id: "e-email-smtp", source: "email", target: "smtp-hold", label: "not sent" },
   { id: "e-in-pack", source: "inbound", target: "pack", label: "ack + link" },
   { id: "e-email-pack", source: "email", target: "pack" },
-  { id: "e-li-fulfil", source: "linkedin", target: "fulfil", label: "posted" },
+  { id: "e-li-fulfil", source: "linkedin", target: "fulfil", label: "optional" },
+  { id: "e-email-fulfil", source: "email", target: "fulfil", label: "Day 8 on the clock" },
   { id: "e-pack-fulfil", source: "pack", target: "fulfil" },
   { id: "e-fulfil-call", source: "fulfil", target: "call", label: "queue call" },
   { id: "e-fulfil-ingest", source: "fulfil", target: "ingest", label: "files landed" },
@@ -140,9 +144,10 @@ function smeSideTouchNode(
 
 export function nodeForDeal(
   deal: Pick<AgenticDealFile, "stage" | "status" | "source" | "humanReason" | "sfp" | "stream"> &
-    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId" | "smeOpenFollowUpSentAt" | "smeFollowupSentAt" | "engagement">>
+    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId" | "smeOpenFollowUpSentAt" | "smeFollowupSentAt" | "engagement" | "hopper">>
 ): string {
   const reason = deal.humanReason || "";
+  if (deal.hopper === "hunt_contact" || deal.hopper === "quarantine" || deal.hopper === "gated") return "harvest";
   if (deal.status === "failed") {
     if (/fit|sig-06|broker|do not contact/i.test(reason)) return "reject";
     return "parked";

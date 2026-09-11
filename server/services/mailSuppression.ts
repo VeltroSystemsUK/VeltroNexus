@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { SuppressionRow } from "@shared/mailDesk";
+import { isHardBounceReason, normalizeSuppression, type SuppressionRow } from "@shared/mailDesk";
 
 const STORE = path.resolve(process.cwd(), "uploads", "mail_suppression.json");
 
@@ -16,21 +16,24 @@ function readAll(): SuppressionRow[] {
 function writeAll(rows: SuppressionRow[]) {
   const dir = path.dirname(STORE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(STORE, JSON.stringify(rows, null, 2));
+  fs.writeFileSync(STORE, JSON.stringify(normalizeSuppression(rows), null, 2));
 }
 
 export function loadSuppression(): SuppressionRow[] {
-  return readAll();
+  const rows = readAll();
+  const next = normalizeSuppression(rows);
+  if (next.some((row, i) => row.companyNumber !== rows[i]?.companyNumber)) writeAll(next);
+  return next;
 }
 
 export function addSuppression(row: Omit<SuppressionRow, "at"> & { at?: string }): SuppressionRow {
-  const next: SuppressionRow = {
+  const next: SuppressionRow = normalizeSuppression([{
     email: String(row.email || "").trim().toLowerCase(),
     companyNumber: row.companyNumber ? String(row.companyNumber) : undefined,
     reason: row.reason,
     at: row.at || new Date().toISOString(),
-  };
-  const all = readAll().filter((item) => item.email !== next.email || item.companyNumber !== next.companyNumber);
+  }])[0];
+  const all = normalizeSuppression(readAll()).filter((item) => item.email !== next.email || item.companyNumber !== next.companyNumber);
   all.push(next);
   writeAll(all);
   return next;
@@ -44,7 +47,7 @@ export function suppressionSets(list: SuppressionRow[] = loadSuppression()): {
   const numbers = new Set<string>();
   for (const row of list) {
     if (row.email) emails.add(row.email.toLowerCase());
-    if (row.companyNumber) numbers.add(String(row.companyNumber));
+    if (row.companyNumber && !isHardBounceReason(row.reason)) numbers.add(String(row.companyNumber));
   }
   return { emails, numbers };
 }

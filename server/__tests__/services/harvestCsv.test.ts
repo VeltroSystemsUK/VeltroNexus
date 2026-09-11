@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import agenticWorkflowRouter from "../../routes/agenticWorkflow";
 import { attachOne } from "../../services/smeLeadHopper";
@@ -51,11 +53,18 @@ describe("parseHarvestCsv", () => {
     expect(parsed.errors).toEqual([{ row: 2, message: "Missing company name" }]);
   });
 
+  it("accepts a 100-row director list", () => {
+    const body = Array.from({ length: HARVEST_CSV_MAX_ROWS }, (_, i) => `Co ${i} Ltd`).join("\n");
+    const parsed = parseHarvestCsv(`company_name\n${body}`);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows).toHaveLength(HARVEST_CSV_MAX_ROWS);
+  });
+
   it("rejects a file over the row cap", () => {
     const body = Array.from({ length: HARVEST_CSV_MAX_ROWS + 1 }, (_, i) => `Co ${i} Ltd`).join("\n");
     const parsed = parseHarvestCsv(`company_name\n${body}`);
     expect(parsed.rows).toEqual([]);
-    expect(parsed.errors[0].message).toMatch(/500/);
+    expect(parsed.errors[0].message).toMatch(String(HARVEST_CSV_MAX_ROWS));
   });
 });
 
@@ -79,6 +88,32 @@ describe("planHarvestCsvIngest", () => {
     );
     expect(plan.create).toEqual([]);
     expect(plan.skipped[0].reason).toMatch(/already on book/i);
+  });
+
+  it("skips suppressed email or company number as do not contact", () => {
+    const plan = planHarvestCsvIngest(
+      [
+        { companyName: "Love Louie Ltd", email: "info@lovelouie.co.uk" },
+        { companyName: "Banned Co Ltd", companyNumber: "07580523" },
+        { companyName: "Ok Ltd", email: "ok@ok.co.uk", companyNumber: "09999999" },
+      ],
+      [],
+      { emails: ["INFO@lovelouie.co.uk"], numbers: ["7580523"] }
+    );
+    expect(plan.create.map((row) => row.companyName)).toEqual(["Ok Ltd"]);
+    expect(plan.skipped.map((row) => row.reason)).toEqual(["do not contact", "do not contact"]);
+  });
+
+  it("ingest consults the suppression list before creating files", () => {
+    const src = fs.readFileSync(path.resolve("server/services/harvestCsv.ts"), "utf8");
+    expect(src).toMatch(/suppressionSets/);
+    expect(src).toMatch(/planHarvestCsvIngest\(/);
+  });
+
+  it("opens the batch in one store write instead of one write per row", () => {
+    const src = fs.readFileSync(path.resolve("server/services/harvestCsv.ts"), "utf8");
+    expect(src).toMatch(/createAgenticDealsBulk/);
+    expect(src).not.toMatch(/for \(const row of plan\.create\) \{\s*await storage\.createAgenticDeal/);
   });
 });
 
@@ -151,6 +186,12 @@ describe("Harper grades CSV emails", () => {
 });
 
 describe("harvest csv route", () => {
+  it("does not start a harvest pass on upload — the hourly tick works the hopper", () => {
+    const src = fs.readFileSync(path.resolve("server/services/agenticWorkflow.ts"), "utf8");
+    const ingest = src.slice(src.indexOf("async ingestHarvestCsv"));
+    expect(ingest).not.toMatch(/harvestMailboxes/);
+  });
+
   it("registers POST /api/agentic/harvest/csv", () => {
     const paths = agenticWorkflowRouter.stack
       .filter((layer: { route?: { path?: string; methods?: Record<string, boolean> } }) => layer.route)

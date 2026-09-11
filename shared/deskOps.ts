@@ -1,4 +1,5 @@
 import { AGENT_DIRECTORY } from "./agentMailboxes";
+import { needsDirector } from "./attention";
 import { STAGE_AGENT, type AgenticDealFile, type AgenticStage } from "./agenticWorkflow";
 
 export const HIBERNATED_DESKS = ["accounts-monitor", "capital-strategist", "database-builder-se"] as const;
@@ -7,12 +8,37 @@ export type DeskMail = {
   agentId?: string;
   direction?: string;
   status?: string;
+  to?: string;
+  dealId?: number;
+  createdAt?: string;
+  id?: string;
 };
 
 export function isDealSendEvent(message?: string): boolean {
   const msg = String(message || "");
   if (/\bnot emailed\b/i.test(msg)) return false;
   return /^Day \d+ email to /i.test(msg) || /follow-up sent to /i.test(msg) || /^Day \d+ emailed\b/i.test(msg);
+}
+
+function mailThreadKey(item: DeskMail, index: number): string {
+  if (item.dealId != null) return `deal:${item.dealId}`;
+  if (item.to) return `to:${String(item.to).trim().toLowerCase()}`;
+  return `id:${item.id || index}`;
+}
+
+export function liveNotDelivered(mail: DeskMail[]): number {
+  const latest = new Map<string, DeskMail>();
+  mail.forEach((item, index) => {
+    if (item.direction !== "outbound") return;
+    const key = mailThreadKey(item, index);
+    const prev = latest.get(key);
+    if (!prev) {
+      latest.set(key, item);
+      return;
+    }
+    if (String(item.createdAt || "") >= String(prev.createdAt || "")) latest.set(key, item);
+  });
+  return [...latest.values()].filter((item) => item.status === "mock" || item.status === "failed").length;
 }
 
 export function mailedFromDeals(
@@ -175,7 +201,7 @@ export function summariseDeskFunctions(input: {
     const owned = input.deals.filter((deal) => deskForDeal(deal) === spec.agentId);
     const openDeals = owned.filter((deal) => deal.status !== "complete" && deal.status !== "failed");
     const running = openDeals.filter((deal) => deal.status === "running");
-    const waitingYou = openDeals.filter((deal) => deal.status === "waiting_human");
+    const waitingYou = openDeals.filter((deal) => deal.status === "waiting_human" && needsDirector(deal));
     const waitingTimer = openDeals.filter((deal) => deal.status === "waiting_timer");
     const last = lastEventByAgent(input.deals, spec.agentId);
     const recent = last.at ? nowMs - Date.parse(last.at) <= windowMs : false;
@@ -216,7 +242,9 @@ export function summariseDeskOps(input: {
   deals: Array<Pick<AgenticDealFile, "id" | "stage" | "status" | "source" | "companyName" | "events">>;
   mail: DeskMail[];
 }): DeskOpsRow[] {
-  const live = AGENT_DIRECTORY.filter((row) => !HIBERNATED_DESKS.includes(row.agentId as (typeof HIBERNATED_DESKS)[number]));
+  const live = AGENT_DIRECTORY.filter(
+    (row) => !row.mailOnly && !HIBERNATED_DESKS.includes(row.agentId as (typeof HIBERNATED_DESKS)[number]),
+  );
   return live.map((desk) => {
     const owned = input.deals.filter((deal) => deskForDeal(deal) === desk.agentId);
     const openDeals = owned.filter((deal) => deal.status !== "complete" && deal.status !== "failed");
@@ -232,9 +260,9 @@ export function summariseDeskOps(input: {
       name: desk.displayName,
       role: desk.role,
       open: openDeals.length,
-      waitingYou: openDeals.filter((deal) => deal.status === "waiting_human").length,
+      waitingYou: openDeals.filter((deal) => deal.status === "waiting_human" && needsDirector(deal)).length,
       mailed: Math.max(mailedFromLog, mailedFromDeals(input.deals, desk.agentId)),
-      notDelivered: outbound.filter((item) => item.status === "mock" || item.status === "failed").length,
+      notDelivered: liveNotDelivered(outbound),
       lastFile: last?.companyName,
       lastEvent: last?.events?.[last.events.length - 1]?.message,
     };

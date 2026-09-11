@@ -6,7 +6,7 @@ describe("desk ops", () => {
     expect(HIBERNATED_DESKS).toEqual(expect.arrayContaining(["accounts-monitor", "capital-strategist", "database-builder-se"]));
     const rows = summariseDeskOps({ deals: [], mail: [] });
     expect(rows.map((row) => row.agentId)).not.toEqual(
-      expect.arrayContaining(["accounts-monitor", "capital-strategist"])
+      expect.arrayContaining(["accounts-monitor", "capital-strategist", "director"])
     );
   });
 
@@ -49,6 +49,49 @@ describe("desk ops", () => {
     expect(priya?.waitingYou).toBe(1);
     expect(priya?.open).toBe(1);
     expect(maya?.notDelivered).toBe(1);
+  });
+
+  it("does not count a failed send as not-delivered after a later real send to that file", () => {
+    const rows = summariseDeskOps({
+      deals: [
+        {
+          id: 1,
+          source: "distress_scan",
+          stage: "outreach",
+          status: "waiting_timer",
+          companyName: "Acme Ltd",
+          events: [],
+        },
+      ],
+      mail: [
+        {
+          agentId: "outreach-sales",
+          direction: "outbound",
+          status: "failed",
+          dealId: 1,
+          to: "ops@acme.co.uk",
+          createdAt: "2026-09-06T10:00:00.000Z",
+        },
+        {
+          agentId: "outreach-sales",
+          direction: "outbound",
+          status: "sent",
+          dealId: 1,
+          to: "ops@acme.co.uk",
+          createdAt: "2026-09-07T10:00:00.000Z",
+        },
+        {
+          agentId: "outreach-sales",
+          direction: "outbound",
+          status: "failed",
+          dealId: 2,
+          to: "ops@stuck.co.uk",
+          createdAt: "2026-09-07T11:00:00.000Z",
+        },
+      ],
+    });
+    const james = rows.find((row) => row.agentId === "outreach-sales");
+    expect(james?.notDelivered).toBe(1);
   });
 
   it("counts mailed from Deal file send events when the mail log is empty or short", () => {

@@ -232,6 +232,9 @@ function NexusRouter() {
         <Route path="/openers">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Openers />}
         </Route>
+        <Route path="/non-responsive">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Openers desk="non_responsive" />}
+        </Route>
         <Route path="/outreach">
           {!isAuthenticated ? <Redirect to="/auth" /> : <CallCentre mode="outreach" />}
         </Route>

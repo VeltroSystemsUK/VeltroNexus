@@ -65,6 +65,7 @@ export type OpenerRecord = {
   lastOpenedAt: string;
   openCount: number;
   clickCount: number;
+  dwellCount: number;
   mailIds?: string[];
   lastTouchAt?: string;
   createdAt: string;
@@ -183,6 +184,7 @@ export function normalizeOpener(
       (input.status === "non_responsive" ? "" : stamp),
     openCount: input.openCount ?? 0,
     clickCount: input.clickCount ?? 0,
+    dwellCount: input.dwellCount ?? 0,
     mailIds: input.mailIds,
     lastTouchAt: input.lastTouchAt,
     createdAt: input.createdAt ?? stamp,
@@ -214,6 +216,7 @@ function openerDisplayName(opener: Pick<OpenerRecord, "companyName" | "email">):
 }
 
 export type OpenerRankable = Pick<OpenerRecord, "companyName" | "email" | "openCount" | "clickCount"> & {
+  dwellCount?: number;
   timeline?: Array<{ clicks?: unknown[] }>;
 };
 
@@ -226,7 +229,138 @@ export function isHotClickOpener(opener: OpenerRankable): boolean {
   return openerClickCount(opener) > 2;
 }
 
+export const CLICK_HEAT_SESSION_GAP_MS = 2 * 60 * 1000;
+export const CLICK_HEAT_BURST_MS = 2000;
+export type ClickHeatBand = "hot" | "warm" | "cold";
+
+type ClickEvent = { at: string; url: string };
+
+function clickEventsFromTimeline(opener: OpenerRankable): ClickEvent[] {
+  const events: ClickEvent[] = [];
+  for (const item of opener.timeline || []) {
+    for (const raw of item.clicks || []) {
+      if (!raw || typeof raw !== "object") continue;
+      const at = String((raw as { at?: unknown }).at || "");
+      const url = String((raw as { url?: unknown }).url || "");
+      if (!at || !url || !Number.isFinite(Date.parse(at))) continue;
+      events.push({ at, url });
+    }
+  }
+  events.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  return events;
+}
+
+function clickDest(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/+$/, "") || "/";
+    const hash = parsed.hash.toLowerCase();
+    return `${host}${path}${hash}`;
+  } catch {
+    return null;
+  }
+}
+
+export function isProductClickUrl(url?: string): boolean {
+  if (!url) return false;
+  const dest = clickDest(url);
+  if (!dest) return false;
+  if (dest.includes("/strata-solution.html")) return true;
+  if (dest.includes("/cdfi-funding.html")) return true;
+  if (dest.endsWith("#tools") || dest.endsWith("#contact")) return true;
+  return false;
+}
+
+type ClickSession = { start: number; end: number; dests: Set<string>; urls: string[] };
+
+function clusterClickSessions(events: ClickEvent[]): ClickSession[] {
+  const sessions: ClickSession[] = [];
+  for (const event of events) {
+    const t = Date.parse(event.at);
+    const dest = clickDest(event.url);
+    const last = sessions[sessions.length - 1];
+    if (!last || t - last.end > CLICK_HEAT_SESSION_GAP_MS) {
+      sessions.push({
+        start: t,
+        end: t,
+        dests: new Set(dest ? [dest] : []),
+        urls: [event.url],
+      });
+      continue;
+    }
+    last.end = t;
+    if (dest) last.dests.add(dest);
+    last.urls.push(event.url);
+  }
+  return sessions;
+}
+
+function isBurstSession(session: ClickSession): boolean {
+  return session.end - session.start <= CLICK_HEAT_BURST_MS && session.dests.size >= 2;
+}
+
+function isHumanCtaSession(session: ClickSession): boolean {
+  if (isBurstSession(session)) return false;
+  return session.urls.some((url) => isProductClickUrl(url));
+}
+
+export function openerClickHeat(opener: OpenerRankable): ClickHeatBand | null {
+  const dwells = Math.max(0, opener.dwellCount || 0);
+  const events = clickEventsFromTimeline(opener);
+  const human = clusterClickSessions(events).filter(isHumanCtaSession);
+  if (human.length >= 2 || dwells >= 2) return "hot";
+  if (human.length === 1 || dwells >= 1) return "warm";
+  if (!events.length) return null;
+  return "cold";
+}
+
+export function clickHeatCounts(openers: OpenerRankable[]): Record<ClickHeatBand, number> {
+  const counts: Record<ClickHeatBand, number> = { hot: 0, warm: 0, cold: 0 };
+  for (const opener of openers) {
+    const band = openerClickHeat(opener);
+    if (band) counts[band] += 1;
+  }
+  return counts;
+}
+
+export function closerSiteClickUrl(
+  clicks?: Array<{ at?: string; url?: string }>,
+  dwellCount = 0
+): string | null {
+  const events = (clicks || []).filter((click) => click?.at && click?.url) as Array<{ at: string; url: string }>;
+  const heat = openerClickHeat({
+    companyName: "",
+    email: "",
+    openCount: 0,
+    clickCount: events.length,
+    dwellCount,
+    timeline: [{ clicks: events }],
+  });
+  if (heat !== "hot" && heat !== "warm") return null;
+  let best: string | null = null;
+  for (const event of clickEventsFromTimeline({
+    companyName: "",
+    email: "",
+    openCount: 0,
+    clickCount: events.length,
+    timeline: [{ clicks: events }],
+  })) {
+    if (isProductClickUrl(event.url)) best = event.url;
+  }
+  return best;
+}
+
+const CLICK_HEAT_RANK: Record<ClickHeatBand, number> = { hot: 3, warm: 2, cold: 1 };
+
+function clickHeatRank(opener: OpenerRankable): number {
+  const band = openerClickHeat(opener);
+  return band ? CLICK_HEAT_RANK[band] : 0;
+}
+
 export function compareOpenersByOpenCount(a: OpenerRankable, b: OpenerRankable): number {
+  const byHeat = clickHeatRank(b) - clickHeatRank(a);
+  if (byHeat) return byHeat;
   const byClicks = openerClickCount(b) - openerClickCount(a);
   if (byClicks) return byClicks;
   const byOpens = b.openCount - a.openCount;
@@ -281,6 +415,7 @@ export function mergeOpeners(keeper: OpenerRecord, incoming: OpenerRecord): Open
     lastOpenedAt,
     openCount: keeper.openCount + incoming.openCount,
     clickCount: (keeper.clickCount ?? 0) + (incoming.clickCount ?? 0),
+    dwellCount: (keeper.dwellCount ?? 0) + (incoming.dwellCount ?? 0),
     mailIds: [...new Set([...(keeper.mailIds || []), ...(incoming.mailIds || [])])],
     lastTouchAt:
       keeper.lastTouchAt && incoming.lastTouchAt
@@ -323,6 +458,15 @@ export function applyClickEvent(opener: OpenerRecord, extraClicks = 1): OpenerRe
     ...opener,
     status: opener.status === "non_responsive" ? "new" : opener.status,
     clickCount: (opener.clickCount ?? 0) + Math.max(0, extraClicks),
+    updatedAt: nowIso(),
+  };
+}
+
+export function applyDwellEvent(opener: OpenerRecord, extraDwells = 1): OpenerRecord {
+  return {
+    ...opener,
+    status: opener.status === "non_responsive" ? "new" : opener.status,
+    dwellCount: (opener.dwellCount ?? 0) + Math.max(0, extraDwells),
     updatedAt: nowIso(),
   };
 }

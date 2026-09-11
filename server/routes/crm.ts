@@ -1,9 +1,12 @@
 import { Router } from "express";
+import { annotateCrmLeads } from "@shared/crmLeadContact";
 import { storage, MOCK_DEV_ADMIN_ID } from "../storage";
 import { handleApiError } from "../utils/errorHandler";
 import { requireGodMode } from "../utils/godModeAuth";
 import { insertInternalLeadSchema, insertCommissionSchema } from "@shared/schema";
 import { promoteInternalLeadToPipeline } from "../services/inboundPipeline";
+import { AGENT_MAIL_KEEP, listAgentMail } from "../services/agentMailLog";
+import { loadSuppression } from "../services/mailSuppression";
 
 const router = Router();
 
@@ -198,8 +201,15 @@ router.post("/find-contacts-bulk", async (req, res) => {
 
 router.get("/leads", async (req, res) => {
     try {
-        const leads = await storage.listInternalLeads();
-        res.json(leads);
+        const [leads, recipients] = await Promise.all([
+            storage.listInternalLeads(),
+            storage.listAllCampaignRecipients(),
+        ]);
+        res.json(annotateCrmLeads(leads, {
+            mail: listAgentMail(AGENT_MAIL_KEEP),
+            recipients,
+            suppression: loadSuppression(),
+        }));
     } catch (error) {
         console.error("CRM: Failed to fetch leads", error);
         res.status(500).json({ error: "Internal Server Error" });

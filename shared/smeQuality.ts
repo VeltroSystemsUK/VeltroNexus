@@ -54,7 +54,7 @@ export function qualityAlerts(input: {
   if (usedPct(input.budget.remaining.places, input.budget.total.places) >= 0.8) {
     alerts.push({
       tone: "amber",
-      message: `Places API ${Math.round(usedPct(input.budget.remaining.places, input.budget.total.places) * 100)}% used. Risk of stalling before 100 deliverables.`,
+      message: `Places API ${Math.round(usedPct(input.budget.remaining.places, input.budget.total.places) * 100)}% used. Risk of stalling before ${SME_HOPPER_TARGET} deliverables.`,
     });
   }
   if (usedPct(input.budget.remaining.firecrawl, input.budget.total.firecrawl) >= 0.8) {
@@ -75,7 +75,7 @@ export function qualityAlerts(input: {
   if (input.deliverable < SME_HOPPER_TARGET && input.remainingSlots > 0 && input.budget.remaining.places <= 0 && input.budget.remaining.firecrawl <= 0) {
     alerts.push({
       tone: "red",
-      message: `Only ${input.deliverable}/${SME_HOPPER_TARGET} deliverables and attach budget is spent. Will not hit 100 today unless more budget is available.`,
+      message: `Only ${input.deliverable}/${SME_HOPPER_TARGET} deliverables and attach budget is spent. Will not hit ${SME_HOPPER_TARGET} today unless more budget is available.`,
     });
   }
   if (input.sent >= 20 && input.replied / input.sent < 0.05) {

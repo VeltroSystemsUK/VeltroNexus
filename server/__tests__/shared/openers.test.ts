@@ -39,6 +39,9 @@ import {
   shouldAutoPromoteOpener,
   isDoNotContactOpener,
   isHotClickOpener,
+  openerClickHeat,
+  clickHeatCounts,
+  closerSiteClickUrl,
   OPENER_AUTO_PROMOTE_AFTER_EMAILS,
   sentUnopenedMailEvents,
   skipNurtureStep,
@@ -126,6 +129,182 @@ describe("board ranking", () => {
   it("marks a record hot only after more than two clicks", () => {
     expect(isHotClickOpener(opener({ clickCount: 2 }))).toBe(false);
     expect(isHotClickOpener(opener({ clickCount: 3 }))).toBe(true);
+  });
+
+  it("ranks session heat before raw click count", () => {
+    const coldMany = {
+      ...opener({ id: "cold", companyName: "Zebra", clickCount: 12, openCount: 20 }),
+      timeline: [
+        {
+          clicks: [
+            { at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk" },
+            { at: "2026-09-10T10:00:00.200Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+          ],
+        },
+      ],
+    };
+    const warmFew = {
+      ...opener({ id: "warm", companyName: "Acme", clickCount: 1, openCount: 1 }),
+      timeline: [
+        {
+          clicks: [{ at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" }],
+        },
+      ],
+    };
+    const hot = {
+      ...opener({ id: "hot", companyName: "Nadir", clickCount: 2, openCount: 1 }),
+      timeline: [
+        {
+          clicks: [
+            { at: "2026-09-10T08:00:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+            { at: "2026-09-10T08:01:00.000Z", url: "https://stratafinance.co.uk/#tools" },
+            { at: "2026-09-10T12:00:00.000Z", url: "https://stratafinance.co.uk/cdfi-funding.html" },
+            { at: "2026-09-10T12:02:00.000Z", url: "https://stratafinance.co.uk/#contact" },
+          ],
+        },
+      ],
+    };
+    const none = opener({ id: "none", companyName: "Beta", clickCount: 0, openCount: 40 });
+    expect([coldMany, none, warmFew, hot].sort(compareOpenersByOpenCount).map((row) => row.id)).toEqual([
+      "hot",
+      "warm",
+      "cold",
+      "none",
+    ]);
+  });
+});
+
+describe("click heat", () => {
+  function withClicks(clicks: Array<{ at: string; url: string }>, extra: Partial<OpenerRecord> = {}) {
+    return { ...opener({ clickCount: clicks.length, ...extra }), timeline: [{ clicks }] };
+  }
+
+  it("is null when there are no clicks", () => {
+    expect(openerClickHeat(opener({ clickCount: 0 }))).toBeNull();
+  });
+
+  it("treats a sub-2s pair of homepage + product page as cold (gateway burst)", () => {
+    const row = withClicks([
+      { at: "2026-09-10T13:18:58.510Z", url: "https://www.stratafinance.co.uk/#tools" },
+      { at: "2026-09-10T13:18:59.342Z", url: "https://stratafinance.co.uk" },
+      { at: "2026-09-10T13:18:59.560Z", url: "https://stratafinance.co.uk" },
+      { at: "2026-09-10T13:18:59.828Z", url: "https://www.stratafinance.co.uk/#tools" },
+    ]);
+    expect(openerClickHeat(row)).toBe("cold");
+  });
+
+  it("treats homepage-only clicks as cold", () => {
+    const row = withClicks([
+      { at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk" },
+      { at: "2026-09-10T10:00:00.300Z", url: "https://www.stratafinance.co.uk/" },
+    ]);
+    expect(openerClickHeat(row)).toBe("cold");
+  });
+
+  it("treats one non-burst product-page session as warm", () => {
+    const row = withClicks([
+      { at: "2026-09-10T13:40:02.735Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      { at: "2026-09-10T13:40:41.060Z", url: "https://stratafinance.co.uk" },
+      { at: "2026-09-10T13:41:08.632Z", url: "https://www.stratafinance.co.uk/#tools" },
+      { at: "2026-09-10T13:42:52.453Z", url: "https://stratafinance.co.uk" },
+    ]);
+    expect(openerClickHeat(row)).toBe("warm");
+  });
+
+  it("treats a single product-page click as warm", () => {
+    const row = withClicks([
+      { at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk/cdfi-funding.html" },
+    ]);
+    expect(openerClickHeat(row)).toBe("warm");
+  });
+
+  it("treats two product-page sessions hours apart as hot", () => {
+    const row = withClicks([
+      { at: "2026-09-07T07:32:45.405Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      { at: "2026-09-07T07:34:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      { at: "2026-09-07T10:08:31.090Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      { at: "2026-09-07T10:10:00.000Z", url: "https://stratafinance.co.uk/cdfi-funding.html" },
+    ]);
+    expect(openerClickHeat(row)).toBe("hot");
+  });
+
+  it("does not promote two gateway bursts hours apart to hot", () => {
+    const row = withClicks([
+      { at: "2026-09-07T07:32:45.405Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      { at: "2026-09-07T07:32:45.800Z", url: "https://stratafinance.co.uk" },
+      { at: "2026-09-07T10:08:31.090Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      { at: "2026-09-07T10:08:31.540Z", url: "https://stratafinance.co.uk" },
+    ]);
+    expect(openerClickHeat(row)).toBe("cold");
+  });
+
+  it("counts heat bands across a list", () => {
+    const none = opener({ id: "none", clickCount: 0 });
+    const cold = withClicks(
+      [
+        { at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk" },
+        { at: "2026-09-10T10:00:00.200Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      ],
+      { id: "cold" }
+    );
+    const warm = withClicks(
+      [{ at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" }],
+      { id: "warm" }
+    );
+    const hot = withClicks(
+      [
+        { at: "2026-09-10T08:00:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+        { at: "2026-09-10T08:01:00.000Z", url: "https://stratafinance.co.uk/#tools" },
+        { at: "2026-09-10T12:00:00.000Z", url: "https://stratafinance.co.uk/cdfi-funding.html" },
+        { at: "2026-09-10T12:02:00.000Z", url: "https://stratafinance.co.uk/#contact" },
+      ],
+      { id: "hot" }
+    );
+    expect(clickHeatCounts([none, cold, warm, hot])).toEqual({ hot: 1, warm: 1, cold: 1 });
+  });
+
+  it("treats a 10s dwell as a confirmed visit even when the clicks were a burst", () => {
+    const burst = withClicks([
+      { at: "2026-09-10T13:18:58.510Z", url: "https://www.stratafinance.co.uk/#tools" },
+      { at: "2026-09-10T13:18:59.342Z", url: "https://stratafinance.co.uk" },
+    ]);
+    expect(openerClickHeat(burst)).toBe("cold");
+    expect(openerClickHeat({ ...burst, dwellCount: 1 })).toBe("warm");
+    expect(openerClickHeat({ ...burst, dwellCount: 2 })).toBe("hot");
+  });
+
+  it("gives C1 a product-page URL when a dwell confirms the visit", () => {
+    const burst = [
+      { at: "2026-09-10T13:18:58.510Z", url: "https://www.stratafinance.co.uk/#tools" },
+      { at: "2026-09-10T13:18:59.342Z", url: "https://stratafinance.co.uk" },
+    ];
+    expect(closerSiteClickUrl(burst)).toBeNull();
+    expect(closerSiteClickUrl(burst, 1)).toBe("https://www.stratafinance.co.uk/#tools");
+  });
+
+  it("gives C1 a product-page URL only on yellow or green heat", () => {
+    expect(
+      closerSiteClickUrl([
+        { at: "2026-09-10T13:18:58.510Z", url: "https://www.stratafinance.co.uk/#tools" },
+        { at: "2026-09-10T13:18:59.342Z", url: "https://stratafinance.co.uk" },
+      ])
+    ).toBeNull();
+    expect(
+      closerSiteClickUrl([{ at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk" }])
+    ).toBeNull();
+    expect(
+      closerSiteClickUrl([
+        { at: "2026-09-10T10:00:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+      ])
+    ).toBe("https://stratafinance.co.uk/strata-solution.html");
+    expect(
+      closerSiteClickUrl([
+        { at: "2026-09-10T08:00:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+        { at: "2026-09-10T08:01:00.000Z", url: "https://stratafinance.co.uk/#tools" },
+        { at: "2026-09-10T12:00:00.000Z", url: "https://stratafinance.co.uk/cdfi-funding.html" },
+        { at: "2026-09-10T12:02:00.000Z", url: "https://www.stratafinance.co.uk/#contact" },
+      ])
+    ).toBe("https://www.stratafinance.co.uk/#contact");
   });
 });
 

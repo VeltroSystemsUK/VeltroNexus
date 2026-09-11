@@ -24,6 +24,15 @@ describe("openers routes", () => {
   it("inbound mail stops opener nurture", () => {
     const src = fs.readFileSync(path.resolve("server/services/agentMailLog.ts"), "utf8");
     expect(src).toMatch(/stopOpenerNurtureByEmail/);
+    const desk = fs.readFileSync(path.resolve("server/services/mailDesk.ts"), "utf8");
+    expect(desk).toMatch(/stopOpenerNurtureByEmail/);
+  });
+
+  it("sixth unique email auto-promotes from the board load and from outbound log", () => {
+    const routes = fs.readFileSync(path.resolve("server/routes/openers.ts"), "utf8");
+    expect(routes).toMatch(/autoPromoteEligibleOpeners/);
+    const log = fs.readFileSync(path.resolve("server/services/agentMailLog.ts"), "utf8");
+    expect(log).toMatch(/autoPromoteEligibleOpeners/);
   });
 
   it("mounts openersRouter next to agent mail", () => {
@@ -36,6 +45,16 @@ describe("openers routes", () => {
     expect(src).toMatch(/refreshOpenerIdentitySnapshot/);
     expect(src).toMatch(/listOpenerPipelineCompanyNumbers/);
     expect(src).toMatch(/openerOnPipeline/);
+    expect(src).toMatch(/loadSuppression/);
+    expect(src).toMatch(/optOutEmails/);
+    expect(src).toMatch(/bounceEmails/);
+    expect(src).toMatch(/openerBelongsToDesk/);
+    expect(src).toMatch(/desk === "non_responsive"/);
+  });
+
+  it("logs a successful send onto the non-responsive desk", () => {
+    const log = fs.readFileSync(path.resolve("server/services/agentMailLog.ts"), "utf8");
+    expect(log).toMatch(/upsertNonResponsiveFromMail/);
   });
 
   it("allows super_admin and sales_admin on the openers API", () => {

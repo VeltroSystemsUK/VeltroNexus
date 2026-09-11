@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { mailboxForAgent } from "@shared/agentMailboxes";
 import { logAgentMail, injectMailTracking } from "./agentMailLog";
+import { mailIsSuppressed } from "./mailDesk";
 
 function applyVariables(content: string, variables: Record<string, any>): string {
     let finalContent = content;
@@ -75,6 +76,30 @@ export async function sendEmail(
     const fromName = credentials?.fromName || mailbox.fromName;
     const replyTo = credentials?.replyTo || mailbox.replyTo;
     const mailLogId = crypto.randomUUID();
+    const recipients = String(to || "")
+      .split(/[,;]/)
+      .map((addr) => addr.trim())
+      .filter(Boolean);
+    if (recipients.some((addr) => mailIsSuppressed(addr))) {
+      console.warn(`[Email] blocked do-not-contact ${to}`);
+      logAgentMail({
+        id: mailLogId,
+        direction: "outbound",
+        agentId: mailbox.agentId,
+        agentName: mailbox.displayName,
+        from: fromAddress,
+        to,
+        subject,
+        text,
+        html,
+        status: "failed",
+        dealId: credentials?.dealId,
+        prospectId: credentials?.prospectId,
+        touchId: credentials?.touchId,
+        contactSource: stampedContactSource(credentials),
+      });
+      return { success: false, blocked: "suppressed", id: mailLogId };
+    }
 
     try {
         const transporter = buildTransport(credentials || {});

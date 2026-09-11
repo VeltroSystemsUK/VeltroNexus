@@ -1,4 +1,5 @@
 import {
+  bounceRecipient,
   classifyInboundMail,
   isHardBounce,
   isHardBounceMailbox,
@@ -16,6 +17,77 @@ async function dealsForEmail(email: string) {
   return (await storage.listAgenticDeals()).filter(
     (deal) => String(deal.email || "").trim().toLowerCase() === target
   );
+}
+
+function bounceAddress(item: AgentMailItem, classified?: string): string | undefined {
+  const fromNote = String(item.deskNote || "")
+    .split("·")
+    .pop()
+    ?.trim()
+    .toLowerCase();
+  const candidates = [
+    classified,
+    bounceRecipient(item.text),
+    bounceRecipient(item.deskNote),
+    fromNote && fromNote.includes("@") ? fromNote : undefined,
+  ];
+  return candidates.find((value) => Boolean(value && value.includes("@"))) || undefined;
+}
+
+async function dropHardBounce(
+  item: AgentMailItem,
+  recipient: string | undefined,
+  reason: string
+): Promise<{ kind: MailKind; action: string }> {
+  const matches = recipient ? await dealsForEmail(recipient) : [];
+  const note = reason.startsWith("hard bounce") ? reason : "hard bounce — address does not exist";
+  if (recipient) {
+    addSuppression({
+      email: recipient,
+      reason: note,
+    });
+    try {
+      const { deleteOpenerByEmail } = await import("./openers");
+      deleteOpenerByEmail(recipient);
+    } catch {
+      // opener drop is best-effort; suppression still stands
+    }
+  }
+  const at = new Date().toISOString();
+  for (const deal of matches) {
+    await storage.updateAgenticDeal(deal.id, {
+      email: "",
+      hopper: "hunt_contact",
+      events: [
+        ...(deal.events || []),
+        {
+          at,
+          stage: deal.stage || "outreach",
+          agent: "mailbox-clerk",
+          message: `Hard bounce ${recipient || ""}. Mailbox stripped; Harper will hunt a director address.`.trim(),
+        },
+      ],
+    });
+  }
+  deleteAgentMail(item.id);
+  return {
+    kind: "bounce",
+    action: `bounced ${recipient || "unknown"}; queued harvest`,
+  };
+}
+
+async function purgeHardBounces(): Promise<number> {
+  const items = listAgentMail(5000).filter(
+    (item) => item.direction === "inbound" && item.deskKind === "bounce"
+  );
+  let deleted = 0;
+  for (const item of items) {
+    const blob = `${item.deskNote || ""} ${item.text || ""} ${item.subject || ""}`;
+    if (!isHardBounce(blob)) continue;
+    await dropHardBounce(item, bounceAddress(item), item.deskNote || "hard bounce — address does not exist");
+    deleted += 1;
+  }
+  return deleted;
 }
 
 export async function applyMailDesk(item: AgentMailItem): Promise<{ kind: MailKind; action: string }> {
@@ -36,11 +108,23 @@ export async function applyMailDesk(item: AgentMailItem): Promise<{ kind: MailKi
   if (verdict.kind === "stop") {
     const email = String(item.from || "").trim().toLowerCase();
     const matches = await dealsForEmail(email);
-    addSuppression({
-      email,
-      companyNumber: matches[0]?.companyNumber,
-      reason: "opt-out",
-    });
+    let fanout = { emails: email ? [email] : [], companyNumber: matches[0]?.companyNumber as string | undefined };
+    try {
+      const { stopOpenerNurtureByEmail, suppressionFanoutForEmail } = await import("./openers");
+      fanout = suppressionFanoutForEmail(email);
+      if (!fanout.companyNumber) fanout = { ...fanout, companyNumber: matches[0]?.companyNumber };
+      stopOpenerNurtureByEmail(email, "opt_out");
+    } catch {
+      // opener park is best-effort; suppression still stands
+    }
+    const companyNumber = fanout.companyNumber || matches[0]?.companyNumber;
+    for (const addr of fanout.emails.length ? fanout.emails : [email]) {
+      addSuppression({
+        email: addr,
+        companyNumber,
+        reason: "opt-out",
+      });
+    }
     for (const deal of matches) {
       await storage.deleteAgenticDeal(deal.id);
     }
@@ -54,24 +138,18 @@ export async function applyMailDesk(item: AgentMailItem): Promise<{ kind: MailKi
   }
 
   if (verdict.kind === "bounce") {
-    const recipient = verdict.recipient;
+    const recipient = bounceAddress(item, verdict.recipient);
     const reason = verdict.reason || "delivery failed";
-    const hard = isHardBounce(reason);
-    const matches = recipient ? await dealsForEmail(recipient) : [];
-    if (hard && recipient) {
-      addSuppression({
-        email: recipient,
-        companyNumber: matches[0]?.companyNumber,
-        reason,
-      });
+    const hard = isHardBounce(`${reason} ${item.text || ""} ${item.subject || ""} ${item.deskNote || ""}`);
+    if (hard) {
+      return dropHardBounce(item, recipient, reason);
     }
+    const matches = recipient ? await dealsForEmail(recipient) : [];
     for (const deal of matches) {
       await storage.updateAgenticDeal(deal.id, {
         stage: "outreach",
         status: "waiting_human",
-        humanReason: hard
-          ? `Bounce: ${reason} for ${recipient}. Address suppressed.`
-          : `Bounce: ${reason} for ${recipient}.`,
+        humanReason: `Bounce: ${reason} for ${recipient}.`,
         events: [
           ...(deal.events || []),
           {
@@ -123,7 +201,7 @@ export async function applyMailDesk(item: AgentMailItem): Promise<{ kind: MailKi
 }
 
 export async function processAgentInbox(): Promise<{ processed: number; spam: number; stops: number; bounces: number; replies: number }> {
-  const inbox = listAgentMail(2000).filter((item) => item.direction === "inbound" && !item.deskKind);
+  const inbox = listAgentMail(5000).filter((item) => item.direction === "inbound" && !item.deskKind);
   const tally = { processed: 0, spam: 0, stops: 0, bounces: 0, replies: 0 };
   for (const item of inbox) {
     const result = await applyMailDesk(item);
@@ -141,6 +219,9 @@ export async function processAgentInbox(): Promise<{ processed: number; spam: nu
       }
     }
   }
+  const purged = await purgeHardBounces();
+  tally.bounces += purged;
+  tally.processed += purged;
   if (tally.processed) {
     console.log(
       `[Mailbox] Rowan processed ${tally.processed}: ${tally.replies} replies, ${tally.stops} stops, ${tally.bounces} bounces, ${tally.spam} spam`

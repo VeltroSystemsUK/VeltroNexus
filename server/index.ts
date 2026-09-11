@@ -294,6 +294,9 @@ app.use((req: any, res, next) => {
           const { companiesHouseMonitor } = await import("./services/companiesHouseMonitor");
           companiesHouseMonitor.start();
 
+          // Start the Debt Marker Scraper's daily campaign scheduler (08:00)
+          await import("./services/schedulerService");
+
           // Start weekly reporting (worksheet Mon, progress report Fri)
           const { reportingService } = await import("./services/reportingService");
           reportingService.start();
@@ -310,6 +313,7 @@ app.use((req: any, res, next) => {
 
           const { agenticWorkflow } = await import("./services/agenticWorkflow");
           const { backfillSmeOpenFollowUps, sendDueSmeFollowUps } = await import("./services/smeOpenFollowUp");
+          const { londonDayKey, smeFirstTouchSlot } = await import("@shared/smeOutreach");
           let lastDistressScanDate: string | null = null;
           setInterval(() => {
             agenticWorkflow.tick().catch((error) => {
@@ -318,24 +322,19 @@ app.use((req: any, res, next) => {
             sendDueSmeFollowUps().catch((error) => {
               console.error("[AgentMail] sme_followup tick failed:", error);
             });
-            const today = new Date().toISOString().slice(0, 10);
-            if (lastDistressScanDate !== today && new Date().getHours() >= 8) {
+            agenticWorkflow.startSmeOutreachBatch().catch((error) => {
+              console.error("[Agentic] SME first-touch send failed:", error);
+            });
+            const now = new Date();
+            const today = londonDayKey(now);
+            if (lastDistressScanDate !== today && smeFirstTouchSlot(now)) {
               lastDistressScanDate = today;
-              void (async () => {
-                try {
-                  await agenticWorkflow.startFromDistressScan(undefined, "sme");
-                } catch (error) {
-                  console.error("[Agentic] Client Agent distress scan failed:", error);
-                }
-                try {
-                  await agenticWorkflow.startSmeOutreachBatch();
-                } catch (error) {
-                  console.error("[Agentic] SME first-touch queue failed:", error);
-                }
-              })();
+              void agenticWorkflow.startFromDistressScan(undefined, "sme").catch((error) => {
+                console.error("[Agentic] Client Agent distress scan failed:", error);
+              });
             }
           }, 60 * 1000);
-          console.log("[Agentic] Deal-file timer and daily hunt started");
+          console.log("[Agentic] Deal-file timer and weekday hourly first-touch started");
 
           const { startImapInboxPoll } = await import("./services/imapInbox");
           startImapInboxPoll();

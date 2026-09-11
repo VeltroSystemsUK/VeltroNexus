@@ -13,8 +13,16 @@ describe("Openers UI wiring", () => {
     expect(page).toMatch(/data-testid="badge-do-not-contact"/);
     expect(page).toMatch(/DO NOT CONTACT/);
     expect(page).toMatch(/data-testid="badge-opener-clicks"/);
-    expect(page).toMatch(/HotClickDot/);
-    expect(page).toMatch(/isHotClickOpener/);
+    expect(page).toMatch(/data-testid="badge-opener-dwell"/);
+    expect(page).not.toMatch(/HotClickDot/);
+    expect(page).not.toMatch(/isHotClickOpener/);
+    expect(page).toMatch(/data-heat=\{heat \?\? undefined\}/);
+    expect(page).toMatch(/data-testid="click-heat-strip"/);
+    expect(page).toMatch(/filter-click-heat-hot/);
+    expect(page).toMatch(/filter-click-heat-warm/);
+    expect(page).toMatch(/filter-click-heat-cold/);
+    expect(page).toMatch(/openerClickHeat/);
+    expect(page).toMatch(/clickHeatCounts/);
     const hotDot = fs.readFileSync(path.resolve("client/src/components/mail/HotClickDot.tsx"), "utf8");
     expect(hotDot).toMatch(/data-testid="dot-hot-clicks"/);
     expect(page).toMatch(/data-testid="column-promoted"/);
@@ -76,6 +84,8 @@ describe("Openers UI wiring", () => {
     expect(routes).toMatch(/closer/);
     const service = fs.readFileSync(path.resolve("server/services/openers.ts"), "utf8");
     expect(service).toMatch(/completeConvertCloser/);
+    const workflow = fs.readFileSync(path.resolve("server/services/agenticWorkflow.ts"), "utf8");
+    expect(workflow).toMatch(/closerSiteClickUrl/);
     expect(service).toMatch(/convertStopReason: "completed"/);
     expect(service).toMatch(/waitUntil: wakeAt/);
     expect(service).toMatch(/isConvertOpener\(opener\) && \(action === "start" \|\| action === "approve"\)/);

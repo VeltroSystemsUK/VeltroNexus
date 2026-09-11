@@ -6,7 +6,8 @@ import { searchCompanies, companiesHouseClient, chFetch } from "../utils/compani
 import { sendEmail } from "./email";
 import { applyOutreachTemplateOverride, dealHasHmrcPetition, renderCallForDeal, renderOutreachEmail, type OutreachTemplateOverride } from "@shared/strataOutreach";
 import { coldEmailBlockedReason } from "@shared/pecrSend";
-import { cadenceAfterOutreach, wasEmailDelivered } from "@shared/outreachSend";
+import { factoryParkReleasePatch } from "@shared/mailDesk";
+import { cadenceAfterOutreach, linkedInHoldReleasePatch, wasEmailDelivered } from "@shared/outreachSend";
 import { outreachEligibility } from "@shared/slfOutreach";
 import { buildSfp, type StandardFinancialProfile } from "@shared/sfp";
 import { evaluateSterlingCompleteness, namedPackGaps } from "@shared/sterlingCompleteness";
@@ -32,6 +33,8 @@ import {
 import {
   DEFAULT_ATTACH_BUDGET,
   GATED_SME_HUNT_HOLD,
+  HARVEST_FLUSH_EVERY,
+  HARVEST_PER_HOUR,
   attachOne,
   inboundEmailsFromDeals,
   isExcludedFromSmeHunt,
@@ -45,7 +48,7 @@ import {
 import { hopperCounts, isContactableDeal, isProtectedFromQuarantine, isSmeHopperSendable, rankSendable, smeHuntNeed } from "@shared/smeHopper";
 import { buildHuntQuality, sendableUnsentCount } from "@shared/smeQuality";
 import { evaluateGuessPause, isGuessPaused, resumeGuessPause } from "./harvestGuessStore";
-import { OPENER_CONVERT_CLOSER_DELAY_MS } from "@shared/openers";
+import { OPENER_CONVERT_CLOSER_DELAY_MS, closerSiteClickUrl } from "@shared/openers";
 import {
   convertCopyOk,
   convertOverridesHopperHold,
@@ -63,7 +66,7 @@ import { mailIsHardBounced, mailIsOptedOut, mailIsSuppressed } from "./mailDesk"
 import { suppressionSets } from "./mailSuppression";
 import { isOpenedOutboundMail } from "@shared/mailTracking";
 import { assessBbbEligibility, bbbBlockMessage, type BbbAssessment } from "@shared/bbbEligibility";
-import { mailboxForAgent, inboundMailbox } from "@shared/agentMailboxes";
+import { mailboxForAgent, inboundMailbox, resolveSendAsMailbox, deskAgentForOutreach } from "@shared/agentMailboxes";
 import { listLeadFinderCandidates, lendersByCompanyNumber, lendersForCompany } from "./leadFinderPool";
 import {
   dealChargeHolders,
@@ -92,17 +95,19 @@ import {
   introducerWorkPaused,
   isWaitingSmeEmailApproval,
   pickSmeHopperOrLegacy,
+  remainingSmeFirstTouchDaySlots,
   remainingSmeFirstTouchSlots,
   smeApprovalReason,
   smeEmailNeedsApproval,
   shouldProcessAgenticTick,
-  SME_DAILY_FIRST_TOUCH_CAP,
+  SME_FIRST_TOUCH_PER_HOUR,
   londonDayKey,
   type SmeOutreachCandidate,
 } from "@shared/smeOutreach";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 export const DISTRESS_SCAN_LIMIT = 1000;
+let lastEmptyHopperHuntAt = 0;
 export const GAZETTE_HMRC_LIMIT = 200;
 const HUNT_QUALITY_KEY = "sme_hunt_quality";
 export const INTRODUCER_SCAN_LIMIT = 40;
@@ -417,7 +422,7 @@ async function persistHuntQuality(input: {
     opened,
     replied,
     rejected: input.rejected,
-    remainingSlots: remainingSmeFirstTouchSlots({ deals }),
+    remainingSlots: remainingSmeFirstTouchDaySlots({ deals }),
     budget: { total: DEFAULT_ATTACH_BUDGET, remaining: input.budgetRemaining },
     chCooldown: input.chCooldown,
     smtpFailed,
@@ -446,7 +451,7 @@ async function loadHuntQuality() {
     opened,
     replied,
     rejected: stored.rejected || {},
-    remainingSlots: remainingSmeFirstTouchSlots({ deals }),
+    remainingSlots: remainingSmeFirstTouchDaySlots({ deals }),
     budget: { total: DEFAULT_ATTACH_BUDGET, remaining },
     chCooldown: stored.chCooldown,
     smtpFailed,
@@ -498,31 +503,45 @@ async function runHarvestPass(): Promise<Array<{ id: number; patch: Partial<Agen
     const total = latest.filter((deal) => isHarvestCandidate(deal, now)).length;
     if (!total) return [];
 
-    const { agentJobTracker, FACTORY_JOB_USER, harvestPassBlocked } = await import("./agentJobTracker");
-    if (harvestPassBlocked(await agentJobTracker.getJobsForUser(FACTORY_JOB_USER, 20))) return [];
+    const { agentJobTracker, FACTORY_JOB_USER, harvestPassBlocked, harvestPassDecision, harvestHourBlocked } =
+      await import("./agentJobTracker");
+    const recent = await agentJobTracker.getJobsForUser(FACTORY_JOB_USER, 20);
+    if (harvestPassBlocked(recent)) return [];
     const already = (await agentJobTracker.getRunningJobs(FACTORY_JOB_USER)).filter((job) => job.agentId === "harvest");
-    const fresh = already.find((job) => {
-      const last = job.logs[job.logs.length - 1];
-      return last && Date.now() - new Date(last.timestamp).getTime() < 3 * 60 * 1000;
-    });
-    if (fresh) return [];
-    for (const job of already) {
-      await agentJobTracker.failJob(job.id, "replaced by a new harvest pass");
+    const decision = harvestPassDecision(already);
+    if (decision === "skip") return [];
+    if (decision === "replace-orphan") {
+      for (const job of already) {
+        await agentJobTracker.failJob(job.id, "harvest worker gone, restarting");
+      }
     }
+    if (harvestHourBlocked(recent)) return [];
+    const batch = Math.min(total, HARVEST_PER_HOUR);
     const jobId = await agentJobTracker.createJob(
       "harvest",
       FACTORY_JOB_USER,
       "harvest",
       "Harvest mailboxes",
-      `Verify company mailboxes on ${total} files without an email`,
-      total
+      `Verify company mailboxes on ${batch} files`,
+      batch
     );
     maybeTripGuessPause();
+    const pending: Array<{ id: number; patch: Partial<AgenticDealFile> }> = [];
+    const flush = async () => {
+      if (!pending.length) return;
+      const batch = pending.splice(0, pending.length);
+      await storage.updateAgenticDealsBulk(batch.map(({ id, patch }) => ({ id, updates: patch })));
+    };
     try {
       const { patches } = await refillSendableHopper({
         deals: latest,
         deps: liveAttachDeps(),
         now,
+        limit: HARVEST_PER_HOUR,
+        onPatch: async (row) => {
+          pending.push(row);
+          if (pending.length >= HARVEST_FLUSH_EVERY) await flush();
+        },
         onProgress: async (row) => {
           const current = await agentJobTracker.getJob(jobId);
           if (!current || current.status !== "running") {
@@ -539,12 +558,14 @@ async function runHarvestPass(): Promise<Array<{ id: number; patch: Partial<Agen
           await agentJobTracker.updateProgress(jobId, row.companyName, step, message, row.email ? "success" : "info");
         },
       });
+      await flush();
       await agentJobTracker.completeJob(jobId, {
         files: patches.length,
         attached: patches.filter((row) => row.patch.hopper === "sendable").length,
       });
       return patches;
     } catch (error) {
+      await flush();
       await agentJobTracker.failJob(jobId, error instanceof Error ? error.message : String(error));
       throw error;
     }
@@ -557,11 +578,11 @@ async function applySendableHopperPatches(
   opened: AgenticDealFile[]
 ): Promise<AgenticDealFile[]> {
   const patches = await runHarvestPass();
+  if (!patches.length) return opened;
   const next = [...opened];
   for (const { id, patch } of patches) {
-    const updated = await storage.updateAgenticDeal(id, patch);
     const idx = next.findIndex((deal) => deal.id === id);
-    if (idx >= 0) next[idx] = updated;
+    if (idx >= 0) next[idx] = { ...next[idx], ...patch };
   }
   return next;
 }
@@ -818,7 +839,7 @@ export const agenticWorkflow = {
     let smeNeed = wantsSme
       ? smeHuntNeed({
           sendableUnsent: sendableUnsentCount(existing),
-          remainingSlots: remainingSmeFirstTouchSlots({ deals: existing }),
+          remainingSlots: remainingSmeFirstTouchDaySlots({ deals: existing }),
         })
       : 0;
     const inboundNumbers = new Set(
@@ -1571,12 +1592,25 @@ export const agenticWorkflow = {
     return { deleted };
   },
 
-  async startSmeOutreachBatch(limit = SME_DAILY_FIRST_TOUCH_CAP): Promise<DistressHuntResult> {
+  async startSmeOutreachBatch(limit = SME_FIRST_TOUCH_PER_HOUR): Promise<DistressHuntResult> {
     const existing = await storage.listAgenticDeals();
     const remaining = remainingSmeFirstTouchSlots({ deals: existing });
     const cap = Math.min(limit, remaining);
     if (cap <= 0) {
-      return { deals: [], scanned: 0, rejected: { "daily first-touch cap reached": 1 } };
+      return { deals: [], scanned: 0, rejected: { "hourly first-touch cap reached": 1 } };
+    }
+
+    const opened: AgenticDealFile[] = [];
+    const rejected: Record<string, number> = {};
+    const waiting = existing.filter((deal) => isWaitingSmeEmailApproval(deal)).slice(0, cap);
+    for (const deal of waiting) {
+      opened.push(await this.approveSmeSend(deal));
+    }
+
+    const leftover = cap - waiting.length;
+    if (leftover <= 0) {
+      console.log(`[Agentic] SME first-touch flushed ${opened.length} waiting approvals this hour`);
+      return { deals: opened, scanned: 0, rejected };
     }
 
     const ownerUserId = await resolveOwnerUserId();
@@ -1607,14 +1641,18 @@ export const agenticWorkflow = {
       legacyCandidates: [],
       seenNumbers,
       seenEmails,
-      limit: cap,
+      limit: leftover,
     });
 
-    const opened: AgenticDealFile[] = [];
-    const rejected: Record<string, number> = {};
     const scanned = hopperCandidates.length;
-    if (picked.length < cap) {
+    if (picked.length < leftover) {
       bumpReject(rejected, `only ${picked.length} sendable hopper contacts after filters`);
+      if (picked.length === 0 && Date.now() - lastEmptyHopperHuntAt > 60 * 60 * 1000) {
+        lastEmptyHopperHuntAt = Date.now();
+        void this.startFromDistressScan(undefined, "sme").catch((error) => {
+          console.error("[Agentic] Empty-hopper hunt failed:", error);
+        });
+      }
     }
 
     const byNumber = new Map(hopperDeals.map((deal) => [String(deal.companyNumber || ""), deal]));
@@ -1634,7 +1672,7 @@ export const agenticWorkflow = {
     }
 
     console.log(
-      `[Agentic] SME first-touch queued ${opened.length}/${cap} from hopper, scanned ${scanned}, rejected ${JSON.stringify(rejected)}`
+      `[Agentic] SME first-touch sent ${opened.length}/${cap} from hopper, scanned ${scanned}, rejected ${JSON.stringify(rejected)}`
     );
     return { deals: opened, scanned, rejected };
   },
@@ -2025,6 +2063,7 @@ export const agenticWorkflow = {
     const now = new Date();
     const mail = listAgentMail(10_000).filter((item) => item.dealId === deal.id);
     const lastSiteClickUrl = lastSiteClickUrlFromMail(mail);
+    const closerClickUrl = closerSiteClickUrl(mail.flatMap((item) => item.clicks || []));
     const optedOut = mailIsOptedOut(deal.email, deal.companyNumber);
     const bounced = !optedOut && mailIsHardBounced(deal.email);
     const phone = phoneForConvertDeal(deal);
@@ -2087,7 +2126,7 @@ export const agenticWorkflow = {
     }
 
     if (tick.action === "queue_closer") {
-      const opener = applyConvertCloserScript(deal, lastSiteClickUrl, now);
+      const opener = applyConvertCloserScript(deal, closerClickUrl, now);
       const n3At = opener?.nurture.n3At;
       const dueMs = n3At ? Date.parse(n3At) + OPENER_CONVERT_CLOSER_DELAY_MS : now.getTime();
       const waitUntil = dueMs <= now.getTime() ? now.toISOString() : new Date(dueMs).toISOString();
@@ -2196,7 +2235,7 @@ export const agenticWorkflow = {
     const nextTouch = nextOutreachTouchAfterSend(tick.cadenceTouchId);
     const following = nextCadenceStepForDeal(deal, nextTouch);
     const waitDays = following?.delayDaysFromPrevious ?? 3;
-    applyConvertSendToOpener(deal, tick.cadenceTouchId, mailId, now, lastSiteClickUrl);
+    applyConvertSendToOpener(deal, tick.cadenceTouchId, mailId, now, closerClickUrl);
     return storage.updateAgenticDeal(deal.id, {
       stage: "outreach",
       status: "waiting_timer",
@@ -2294,7 +2333,7 @@ export const agenticWorkflow = {
       approved: false,
     });
 
-    if (stream === "introducer" && (outcome === "advance" || outcome === "hold_linkedin") && !isLinkedIn && delivered) {
+    if (stream === "introducer" && outcome === "advance" && !isLinkedIn && delivered) {
       await markIntroducerStatus(deal, "contacted");
     }
 
@@ -2354,22 +2393,6 @@ export const agenticWorkflow = {
       }) as Promise<AgenticDealFile>;
     }
 
-    if (outcome === "hold_linkedin") {
-      return storage.updateAgenticDeal(deal.id, {
-        stage: "outreach",
-        status: "waiting_human",
-        waitUntil: undefined,
-        uploadToken: deal.uploadToken,
-        outreachSubject: script.subject,
-        outreachBody: script.text,
-        outreachTouch: nextTouch,
-        outreachTouchId: script.touchId,
-        socialPlaybook,
-        humanReason: "Post the LinkedIn copy, then mark it posted. The next email will not send until you do.",
-        events: addEvent(deal, "outreach", `Day ${step.day} LinkedIn copy staged. Waiting for you to post.`, agentId),
-      }) as Promise<AgenticDealFile>;
-    }
-
     if (step.queueCall) {
       const callPlaybook = renderCallForDeal(deal, process.env.STRATA_PHONE || process.env.STRATA_CALLBACK_NUMBER);
       const reason = inbound
@@ -2409,6 +2432,7 @@ export const agenticWorkflow = {
       outreachTouch: nextTouch,
       outreachTouchId: script.touchId,
       socialPlaybook,
+      humanReason: undefined,
       events: addEvent(
         deal,
         nextTouch === 1 ? "outreach" : "fulfilment",
@@ -2640,7 +2664,7 @@ export const agenticWorkflow = {
     return this.applyCompany(deal, match);
   },
 
-  async approveSmeSend(deal: AgenticDealFile, note?: string): Promise<AgenticDealFile> {
+  async approveSmeSend(deal: AgenticDealFile, note?: string, agentId?: string): Promise<AgenticDealFile> {
     if (!isWaitingSmeEmailApproval(deal)) {
       throw new Error("This file is not waiting for email approval");
     }
@@ -2663,17 +2687,20 @@ export const agenticWorkflow = {
     }
 
     const inbound = stream === "inbound";
-    const agentId = inbound
-      ? step.touchId === "inbound_ack"
-        ? "inbound-intake"
-        : "fulfilment-manager"
-      : "outreach-sales";
-    const mailbox = inbound ? inboundMailbox(agentId) : mailboxForAgent("outreach-sales");
+    const mailbox = resolveSendAsMailbox(agentId, deskAgentForOutreach({ inbound, touchId: step.touchId }));
+    const builtInScript = renderOutreachEmail(deal, step.touchId, mailbox);
+    const templateOverrides = (await storage.getSystemSetting("agent_outreach_templates")) || {};
+    const script = applyOutreachTemplateOverride(
+      builtInScript,
+      templateOverrides[step.touchId] as OutreachTemplateOverride | undefined,
+      deal,
+      mailbox,
+    );
     let delivered = false;
     try {
       const sendResult = await sendEmail(
         {
-          agentId,
+          agentId: mailbox.agentId,
           fromEmail: mailbox.address,
           fromName: mailbox.fromName,
           replyTo: mailbox.replyTo,
@@ -2683,8 +2710,8 @@ export const agenticWorkflow = {
           contactSource: deal.contactSource,
         },
         deal.email,
-        deal.outreachSubject,
-        deal.outreachBody
+        script.subject,
+        script.html
       );
       delivered = wasEmailDelivered(sendResult);
     } catch (error: any) {
@@ -2696,7 +2723,7 @@ export const agenticWorkflow = {
         stage: "outreach",
         status: "waiting_human",
         humanReason: "Email did not send (SMTP missing or failed). Retry when mail is live.",
-        events: addEvent(deal, "outreach", "Email not delivered — cadence not advanced", agentId),
+        events: addEvent(deal, "outreach", "Email not delivered — cadence not advanced", mailbox.agentId),
       }) as Promise<AgenticDealFile>;
     }
 
@@ -2707,7 +2734,7 @@ export const agenticWorkflow = {
         {
           prospectId: deal.prospectId,
           title: `Agent outreach ${nextTouch} sent`,
-          description: deal.outreachSubject,
+          description: script.subject,
           activityType: "email",
         } as any,
         deal.ownerUserId
@@ -2723,7 +2750,7 @@ export const agenticWorkflow = {
         outreachTouchId: step.touchId,
         callPlaybook,
         humanReason: "Stream A day 14 — SME close call",
-        events: addEvent(deal, "human_call", note || "Approved email sent. Call script is on the file.", agentId),
+        events: addEvent(deal, "human_call", note || "Approved email sent. Call script is on the file.", mailbox.agentId),
       }) as Promise<AgenticDealFile>;
     }
     const waitDays = following?.delayDaysFromPrevious ?? 3;
@@ -2738,7 +2765,7 @@ export const agenticWorkflow = {
         deal,
         nextTouch === 1 ? "outreach" : "fulfilment",
         note || `Day ${step.day} email to ${deal.email}: ${step.job}`,
-        agentId
+        mailbox.agentId
       ),
     }) as Promise<AgenticDealFile>;
   },
@@ -2763,13 +2790,14 @@ export const agenticWorkflow = {
   async resolveHuman(
     dealId: number,
     action: "call_done" | "approve_sterling" | "stop" | "linkedin_posted" | "retry_send" | "approve_send",
-    note?: string
+    note?: string,
+    agentId?: string
   ): Promise<AgenticDealFile> {
     const deal = await storage.getAgenticDeal(dealId);
     if (!deal) throw new Error("Deal file not found");
 
     if (action === "approve_send") {
-      return this.approveSmeSend(deal, note);
+      return this.approveSmeSend(deal, note, agentId);
     }
 
     if (action === "stop") {
@@ -2803,20 +2831,11 @@ export const agenticWorkflow = {
     }
 
     if (action === "linkedin_posted") {
-      const stream = dealStream(deal.source, deal.stream);
-      const step = nextCadenceStep(stream, deal.outreachTouch || 0);
-      const cleared = await storage.updateAgenticDeal(deal.id, {
-        humanReason: undefined,
-        events: addEvent(deal, "outreach", note || "LinkedIn marked posted — continuing cadence", "outreach-sales"),
-      });
-      if (!step) {
-        return storage.updateAgenticDeal(cleared.id, {
-          stage: "fulfilment",
-          status: "waiting_timer",
-          waitUntil: new Date(Date.now() + daysMs(3)).toISOString(),
-        }) as Promise<AgenticDealFile>;
-      }
-      return this.applyCadenceStep(cleared, stream, step);
+      const release = linkedInHoldReleasePatch(deal);
+      return storage.updateAgenticDeal(deal.id, {
+        ...(release || {}),
+        events: addEvent(deal, deal.stage, note || "LinkedIn marked posted", "outreach-sales"),
+      }) as Promise<AgenticDealFile>;
     }
 
     if (action === "call_done") {
@@ -2940,9 +2959,6 @@ export const agenticWorkflow = {
 
   async harvestMailboxes(): Promise<{ patched: number; summary: string }> {
     const patches = await runHarvestPass();
-    for (const { id, patch } of patches) {
-      await storage.updateAgenticDeal(id, patch);
-    }
     const patched = patches.length;
     return {
       patched,
@@ -2955,16 +2971,47 @@ export const agenticWorkflow = {
   async ingestHarvestCsv(csvData: string, fileName: string) {
     const { ingestHarvestCsv } = await import("./harvestCsv");
     const ownerUserId = await resolveOwnerUserId();
-    const result = await ingestHarvestCsv({ csvData, fileName, ownerUserId });
-    if (result.created) {
-      void this.harvestMailboxes().catch((error) => {
-        console.error("[Agentic] Harper CSV harvest failed:", error);
-      });
-    }
-    return result;
+    return ingestHarvestCsv({ csvData, fileName, ownerUserId });
   },
 
   async tick(): Promise<number> {
+    const now = new Date();
+    try {
+      const held = (await storage.listAgenticDeals())
+        .map((deal) => {
+          const linkedIn = linkedInHoldReleasePatch(deal, now);
+          if (linkedIn) {
+            return {
+              id: deal.id,
+              updates: {
+                ...linkedIn,
+                events: addEvent(deal, deal.stage, "LinkedIn hold released — next email is on the timer", "outreach-sales"),
+              },
+            };
+          }
+          const parked = factoryParkReleasePatch(deal, now);
+          if (!parked) return null;
+          const bounce = /bounce|mailbox is not this company/i.test(deal.humanReason || "");
+          return {
+            id: deal.id,
+            updates: {
+              ...parked,
+              events: addEvent(
+                deal,
+                deal.stage,
+                bounce
+                  ? "Unconfirmed mailbox stripped — Harper will hunt a director address"
+                  : "Automatic reply filed — cadence stays on the timer",
+                bounce ? "harvest" : "mailbox-clerk"
+              ),
+            },
+          };
+        })
+        .filter((row): row is { id: number; updates: Record<string, unknown> } => Boolean(row));
+      if (held.length) await storage.updateAgenticDealsBulk(held);
+    } catch (error) {
+      console.error("[Agentic] Hold release failed:", error);
+    }
     if (tickBusy) return 0;
     tickBusy = true;
     try {
@@ -2973,7 +3020,6 @@ export const agenticWorkflow = {
       } catch (error) {
         console.error("[Agentic] Hopper refill on tick failed:", error);
       }
-      const now = new Date();
       const due = (await storage.listAgenticDeals()).filter((deal) => {
         if (isConvertWakeDeal(deal) && shouldWakeConvert({ wakeAt: deal.convertWakeAt, now })) {
           if (!deal.waitUntil) return true;

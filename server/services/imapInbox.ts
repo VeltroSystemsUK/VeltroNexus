@@ -102,6 +102,7 @@ async function ensureQuarantinePath(client: ImapFlow): Promise<string> {
 export async function pollImapInbox(): Promise<{ fetched: number; stored: number; skipped: number }> {
   const cfg = imapConfigFromEnv();
   if (!cfg) {
+    await processAgentInbox();
     return { fetched: 0, stored: 0, skipped: 0 };
   }
   if (running) return { fetched: 0, stored: 0, skipped: 0 };

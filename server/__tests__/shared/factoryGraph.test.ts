@@ -13,6 +13,12 @@ describe("factory graph", () => {
       expect(ids.has(edge.source)).toBe(true);
       expect(ids.has(edge.target)).toBe(true);
     }
+    expect(FACTORY_NODES.find((node) => node.id === "linkedin")?.kind).toBe("auto");
+    expect(FACTORY_NODES.find((node) => node.id === "linkedin")?.desk).toBe("James");
+    expect(FACTORY_NODES.find((node) => node.id === "linkedin")?.detail).toMatch(/optional/i);
+    expect(FACTORY_NODES.find((node) => node.id === "harvest")?.desk).toBe("Harper");
+    expect(FACTORY_EDGES.some((edge) => edge.source === "contact" && edge.target === "harvest")).toBe(true);
+    expect(FACTORY_EDGES.some((edge) => edge.source === "harvest" && edge.target === "pecr")).toBe(true);
     expect(FACTORY_EDGES.some((edge) => edge.source === "credit" && edge.target === "engagement")).toBe(true);
     expect(FACTORY_EDGES.some((edge) => edge.source === "engagement" && edge.target === "sterling")).toBe(true);
   });
@@ -140,6 +146,14 @@ describe("factory graph", () => {
     expect(counts.credit).toBe(1);
     expect(counts.parked).toBe(1);
     expect(nodeForDeal({ stage: "human_call", status: "waiting_human", source: "strata_inbound" })).toBe("call");
+    expect(
+      nodeForDeal({
+        stage: "ingest",
+        status: "waiting_timer",
+        source: "distress_scan",
+        hopper: "hunt_contact",
+      } as any)
+    ).toBe("harvest");
   });
 
   it("keeps introducers on their own three nodes and never on the SME chain", () => {

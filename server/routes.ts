@@ -73,6 +73,7 @@ import {
   requireUnderwritingAccess,
 } from "./utils/underwritingAuth";
 import { sendEmail } from "./services/email";
+import { mailIsSuppressed } from "./services/mailDesk";
 import { LocalStorageClient as ObjectStorageClient } from "./localStorage";
 const require = createRequire(import.meta.url);
 
@@ -801,6 +802,11 @@ export async function registerRoutes(app: Application): Promise<Server> {
               .toString()
               .replace(/\s/g, "")
               .toUpperCase();
+          }
+
+          if (mailIsSuppressed(leadData.email || leadData.contactEmail, leadData.companyNumber)) {
+            errors.push({ row: i + 1, message: "Do not contact" });
+            continue;
           }
 
           leadsToCreate.push(leadData);

@@ -230,6 +230,8 @@ describe("wake and copy", () => {
     expect(convertCopyOk({ subject: "Call?", text: "got 10 minutes Thursday? https://learn.stratanexus.co.uk" }).ok).toBe(false);
     expect(buildCloserScript({ company: "Acme Ltd", name: "David", lastSiteClickUrl: null })).toMatch(/No site click/);
     expect(buildCloserScript({ company: "Acme Ltd", name: "David", lastSiteClickUrl: `${CONVERT_SITE_ORIGIN}/?sf=n2#tools` })).toMatch(/Last site click/);
+    expect(buildCloserScript({ company: "Acme Ltd", name: "David", lastSiteClickUrl: "https://stratafinance.co.uk" })).toMatch(/No site click/);
+    expect(buildCloserScript({ company: "Acme Ltd", name: "David", lastSiteClickUrl: "https://stratafinance.co.uk" })).not.toMatch(/Last site click/);
   });
 });
 

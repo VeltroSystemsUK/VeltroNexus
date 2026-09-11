@@ -72,6 +72,7 @@ function timelineFor(opener: OpenerRecord, mail: AgentMailItem[]) {
       lastOpenAt: lastMailOpenAt(item.opens),
       openCount: item.opens?.length ?? 0,
       clicks: item.clicks || [],
+      dwells: item.dwells || [],
     }));
 }
 

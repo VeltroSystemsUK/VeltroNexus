@@ -27,6 +27,7 @@ describe("delegate jobs", () => {
     expect(ids).not.toContain("accounts-monitor");
     expect(ids).not.toContain("capital-strategist");
     expect(ids).not.toContain("database-builder-se");
+    expect(ids).not.toContain("director");
   });
 
   it("gives each live desk a real job they can run", () => {

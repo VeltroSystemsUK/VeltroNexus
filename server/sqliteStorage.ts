@@ -69,7 +69,7 @@ function getStoreData(filePath = COLLECTIONS_STORE_PATH): Record<string, any[]> 
 
 function persistStore(data: Record<string, any[]>, filePath = COLLECTIONS_STORE_PATH) {
   const tmp = `${filePath}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(data));
   fs.renameSync(tmp, filePath);
 }
 
@@ -96,33 +96,59 @@ function setCollection(name: string, list: any[], filePath = COLLECTIONS_STORE_P
   });
 }
 
-function insertItem(collectionName: string, item: any, filePath = COLLECTIONS_STORE_PATH): any {
-  let newItem: any;
+function insertItems(collectionName: string, items: any[], filePath = COLLECTIONS_STORE_PATH): any[] {
+  if (!items.length) return [];
+  let created: any[] = [];
   withJsonFileLock(filePath, () => {
-    const list = getCollection(collectionName, filePath);
-    newItem = {
-      ...item,
-      id: item.id || (list.length > 0 ? Math.max(...list.map(i => typeof i.id === 'number' ? i.id : 0)) + 1 : 1),
-      createdAt: item.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    list.push(newItem);
-    setCollection(collectionName, list, filePath);
+    const data = getStoreData(filePath);
+    const list = data[collectionName] || [];
+    let nextId = list.length > 0 ? Math.max(...list.map((i: any) => (typeof i.id === "number" ? i.id : 0))) + 1 : 1;
+    const now = new Date().toISOString();
+    created = items.map((item) => {
+      const id = item.id || nextId++;
+      if (typeof id === "number" && id >= nextId) nextId = id + 1;
+      return {
+        ...item,
+        id,
+        createdAt: item.createdAt || now,
+        updatedAt: now,
+      };
+    });
+    data[collectionName] = list.concat(created);
+    persistStore(data, filePath);
   });
-  return newItem;
+  return created;
+}
+
+function insertItem(collectionName: string, item: any, filePath = COLLECTIONS_STORE_PATH): any {
+  return insertItems(collectionName, [item], filePath)[0];
+}
+
+function updateItems(
+  collectionName: string,
+  patches: Array<{ id: any; updates: any }>,
+  filePath = COLLECTIONS_STORE_PATH
+): any[] {
+  if (!patches.length) return [];
+  const updated: any[] = [];
+  withJsonFileLock(filePath, () => {
+    const data = getStoreData(filePath);
+    const list = data[collectionName] || [];
+    const now = new Date().toISOString();
+    for (const { id, updates } of patches) {
+      const idx = list.findIndex((i: any) => i.id === id || String(i.id) === String(id));
+      if (idx === -1) continue;
+      list[idx] = { ...list[idx], ...updates, updatedAt: now };
+      updated.push(list[idx]);
+    }
+    data[collectionName] = list;
+    persistStore(data, filePath);
+  });
+  return updated;
 }
 
 function updateItem(collectionName: string, id: any, updates: any, filePath = COLLECTIONS_STORE_PATH): any {
-  let updated: any;
-  withJsonFileLock(filePath, () => {
-    const list = getCollection(collectionName, filePath);
-    const idx = list.findIndex(i => i.id === id || String(i.id) === String(id));
-    if (idx === -1) return;
-    list[idx] = { ...list[idx], ...updates, updatedAt: new Date().toISOString() };
-    setCollection(collectionName, list, filePath);
-    updated = list[idx];
-  });
-  return updated;
+  return updateItems(collectionName, [{ id, updates }], filePath)[0];
 }
 
 function deleteItem(collectionName: string, id: any, filePath = COLLECTIONS_STORE_PATH): boolean {
@@ -780,7 +806,10 @@ export class SQLiteStorage implements IStorage {
   }
 
   async createLeadsBulk(leadsList: InsertLead[], userId?: string): Promise<Lead[]> {
-    return leadsList.map(l => insertItem("leads", { ...l, userId }));
+    return insertItems(
+      "leads",
+      leadsList.map((l) => ({ ...l, userId }))
+    );
   }
 
   async deleteLeadsByUpload(uploadId: number, userId: string): Promise<boolean> {
@@ -1062,18 +1091,34 @@ export class SQLiteStorage implements IStorage {
   }
 
   async createAgenticDeal(deal: any) {
-    return insertItem("agentic_deals", {
-      events: [],
-      packDocuments: [],
-      ...deal,
-      uploadToken: deal.uploadToken || crypto.randomBytes(24).toString("base64url"),
-    });
+    const [created] = await this.createAgenticDealsBulk([deal]);
+    return created;
+  }
+
+  async createAgenticDealsBulk(deals: any[]) {
+    if (!deals.length) return [];
+    return insertItems(
+      "agentic_deals",
+      deals.map((deal) => ({
+        events: [],
+        packDocuments: [],
+        ...deal,
+        uploadToken: deal.uploadToken || crypto.randomBytes(24).toString("base64url"),
+      }))
+    );
   }
 
   async updateAgenticDeal(id: number, updates: any) {
-    const updated = updateItem("agentic_deals", id, updates);
+    const [updated] = await this.updateAgenticDealsBulk([{ id, updates }]);
     if (!updated) throw new Error("Deal file not found");
     return updated;
+  }
+
+  async updateAgenticDealsBulk(patches: Array<{ id: number; updates: any }>) {
+    return updateItems(
+      "agentic_deals",
+      patches.map((row) => ({ id: row.id, updates: row.updates }))
+    );
   }
 
   async deleteAgenticDeal(id: number): Promise<void> {
@@ -1458,6 +1503,10 @@ export class SQLiteStorage implements IStorage {
 
   async listCampaignRecipients(campaignId: number, userId: string): Promise<CampaignRecipient[]> {
     return getCollection("campaign_recipients").filter(r => r.campaignId === campaignId) as CampaignRecipient[];
+  }
+
+  async listAllCampaignRecipients(): Promise<CampaignRecipient[]> {
+    return getCollection("campaign_recipients") as CampaignRecipient[];
   }
 
   async addCampaignRecipients(recipients: InsertCampaignRecipient[]): Promise<CampaignRecipient[]> {

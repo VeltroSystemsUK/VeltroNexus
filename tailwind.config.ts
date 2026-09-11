@@ -107,10 +107,15 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "hot-click-glow": {
+          "0%, 100%": { boxShadow: "0 0 4px 1px rgba(52,211,153,0.45), 0 0 10px 3px rgba(16,185,129,0.35)" },
+          "50%": { boxShadow: "0 0 10px 4px rgba(52,211,153,0.95), 0 0 18px 7px rgba(16,185,129,0.65)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "hot-click-glow": "hot-click-glow 1.6s ease-in-out infinite",
       },
     },
   },

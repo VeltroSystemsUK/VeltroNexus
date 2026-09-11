@@ -55,7 +55,7 @@ describe("summariseDeskFunctions", () => {
     expect(daniel.lastEvent).toMatch(/Strata fit/);
   });
 
-  it("marks James waiting on you for a LinkedIn hold, not working", () => {
+  it("does not mark James waiting on you for a LinkedIn hold", () => {
     const rows = summariseDeskFunctions({
       specs,
       deals: [
@@ -65,6 +65,7 @@ describe("summariseDeskFunctions", () => {
           stage: "outreach",
           status: "waiting_human",
           companyName: "Beta Ltd",
+          humanReason: "Post the LinkedIn copy, then mark it posted. The next email will not send until you do.",
           events: [
             {
               at: "2026-08-27T10:00:00.000Z",
@@ -77,7 +78,8 @@ describe("summariseDeskFunctions", () => {
       ],
       nowMs: Date.parse("2026-08-27T12:00:00.000Z"),
     });
-    expect(rows.find((row) => row.agentId === "outreach-sales")?.state).toBe("waiting_you");
+    expect(rows.find((row) => row.agentId === "outreach-sales")?.state).not.toBe("waiting_you");
+    expect(rows.find((row) => row.agentId === "outreach-sales")?.waitingYou).toBe(0);
   });
 
   it("treats a running agent job as live work even with no deal file", () => {

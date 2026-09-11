@@ -91,15 +91,23 @@ import { usePageTitle } from "@/context/LayoutContext";
 // Reuse Components
 import InternalLeadDetail from "@/components/InternalLeadDetail";
 
+type CrmLead = InternalLead & {
+    contacted?: boolean;
+    doNotContact?: boolean;
+    bounced?: boolean;
+    bounceReason?: string;
+};
+
 export default function GodModeCRM() {
     const [location, setLocation] = useLocation();
 
-    const [selectedLead, setSelectedLead] = useState<InternalLead | null>(null);
+    const [selectedLead, setSelectedLead] = useState<CrmLead | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [cityFilter, setCityFilter] = useState<string>("all");
     const [sicFilter, setSicFilter] = useState<string>("all");
     const [chargeFilter, setChargeFilter] = useState<string>("all");
     const [lenderFilter, setLenderFilter] = useState<string>("all");
+    const [contactFilter, setContactFilter] = useState<string>("all");
     const [lenderOpen, setLenderOpen] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: keyof InternalLead | "none", direction: "asc" | "desc" }>({ key: "none", direction: "desc" });
     const [currentPage, setCurrentPage] = useState(1);
@@ -134,7 +142,7 @@ export default function GodModeCRM() {
     }, [runningJobs]);
 
     // Fetch Leads
-    const { data: leads = [], isLoading } = useQuery<InternalLead[]>({
+    const { data: leads = [], isLoading } = useQuery<CrmLead[]>({
         queryKey: ["/api/god/crm/leads"],
     });
 
@@ -306,8 +314,13 @@ export default function GodModeCRM() {
                     (chargeFilter === "enrichment_needed" && lead.hasCharges && !lead.identifiedLender) ||
                     (chargeFilter === "no_charges" && !lead.hasCharges && !lead.identifiedLender);
                 const matchesLender = lenderFilter === "all" || lead.identifiedLender === lenderFilter;
+                const matchesContact =
+                    contactFilter === "all" ||
+                    (contactFilter === "not_sent" && !lead.contacted && !lead.doNotContact) ||
+                    (contactFilter === "contacted" && !!lead.contacted) ||
+                    (contactFilter === "do_not_contact" && !!lead.doNotContact);
 
-                return matchesSearch && matchesCity && matchesSic && matchesCharge && matchesLender;
+                return matchesSearch && matchesCity && matchesSic && matchesCharge && matchesLender && matchesContact;
             })
             .sort((a, b) => {
                 if (sortConfig.key === "none") return 0;
@@ -340,7 +353,7 @@ export default function GodModeCRM() {
 
                 return 0;
             });
-    }, [leads, searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, sortConfig]);
+    }, [leads, searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, contactFilter, sortConfig]);
 
     const PAGE_SIZE = 25;
     const totalPages = Math.ceil(filteredAndSortedLeads.length / PAGE_SIZE);
@@ -349,7 +362,7 @@ export default function GodModeCRM() {
         currentPage * PAGE_SIZE
     );
 
-    useEffect(() => { setCurrentPage(1); }, [searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, sortConfig]);
+    useEffect(() => { setCurrentPage(1); }, [searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, contactFilter, sortConfig]);
 
     function getPageNumbers(current: number, total: number): (number | "...")[] {
         if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -612,6 +625,18 @@ export default function GodModeCRM() {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
                         </div>
+                        <Select value={contactFilter} onValueChange={setContactFilter}>
+                            <SelectTrigger id="filter-contact" data-testid="filter-contact" className="w-[180px]">
+                                <Send className="h-3 w-3 mr-2" />
+                                <SelectValue placeholder="All contact" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All contact</SelectItem>
+                                <SelectItem value="not_sent">Not sent</SelectItem>
+                                <SelectItem value="contacted">Contacted</SelectItem>
+                                <SelectItem value="do_not_contact">Do not contact</SelectItem>
+                            </SelectContent>
+                        </Select>
                         <Select value={cityFilter} onValueChange={setCityFilter}>
                             <SelectTrigger id="filter-city" className="w-[180px]">
                                 <MapPin className="h-3 w-3 mr-2" />
@@ -710,8 +735,8 @@ export default function GodModeCRM() {
                                 </Command>
                             </PopoverContent>
                         </Popover>
-                        {(searchQuery || cityFilter !== "all" || sicFilter !== "all" || chargeFilter !== "all" || lenderFilter !== "all") && (
-                            <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(""); setCityFilter("all"); setSicFilter("all"); setChargeFilter("all"); setLenderFilter("all"); }}>
+                        {(searchQuery || cityFilter !== "all" || sicFilter !== "all" || chargeFilter !== "all" || lenderFilter !== "all" || contactFilter !== "all") && (
+                            <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(""); setCityFilter("all"); setSicFilter("all"); setChargeFilter("all"); setLenderFilter("all"); setContactFilter("all"); }}>
                                 Reset Filters
                             </Button>
                         )}
@@ -747,6 +772,7 @@ export default function GodModeCRM() {
                                             <ArrowUpDown className={`h-3 w-3 opacity-20 group-hover:opacity-100 ${sortConfig.key === "companyName" ? "opacity-100 text-primary" : ""}`} />
                                         </div>
                                     </TableHead>
+                                    <TableHead>Contact</TableHead>
                                     <TableHead
                                         className="cursor-pointer hover:text-foreground transition-colors group"
                                         onClick={() => handleSort("companyNumber")}
@@ -809,13 +835,13 @@ export default function GodModeCRM() {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow>
-                                        <TableCell colSpan={9} className="text-center py-10">
+                                        <TableCell colSpan={10} className="text-center py-10">
                                             Loading leads...
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredAndSortedLeads.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={9} className="text-center py-10">
+                                        <TableCell colSpan={10} className="text-center py-10">
                                             <div className="flex flex-col items-center gap-2 text-muted-foreground">
                                                 <Search className="h-8 w-8 opacity-20" />
                                                 <p>No leads found matching your criteria.</p>
@@ -824,7 +850,15 @@ export default function GodModeCRM() {
                                     </TableRow>
                                 ) : (
                                     paginatedLeads.map((lead) => (
-                                        <TableRow key={lead.id} className={`cursor-pointer hover:bg-muted/50 ${selectedLeadIds.has(lead.id) ? "bg-muted/30" : ""}`} onClick={() => setSelectedLead(lead)}>
+                                        <TableRow
+                                            key={lead.id}
+                                            className={cn(
+                                                "cursor-pointer hover:bg-muted/50",
+                                                selectedLeadIds.has(lead.id) && "bg-muted/30",
+                                                lead.doNotContact && "bg-destructive/10 hover:bg-destructive/15",
+                                            )}
+                                            onClick={() => setSelectedLead(lead)}
+                                        >
                                             <TableCell onClick={(e) => e.stopPropagation()}>
                                                 <input
                                                     type="checkbox"
@@ -851,6 +885,29 @@ export default function GodModeCRM() {
                                                 >
                                                     {lead.companyName}
                                                 </button>
+                                            </TableCell>
+                                            <TableCell>
+                                                {lead.doNotContact ? (
+                                                    <Badge variant="destructive" data-testid="badge-do-not-contact">
+                                                        DO NOT CONTACT
+                                                    </Badge>
+                                                ) : lead.bounced ? (
+                                                    <Badge
+                                                        data-testid="badge-lead-bounced"
+                                                        title={lead.bounceReason || "Hard bounce"}
+                                                        className="bg-orange-500 text-white border-transparent hover:bg-orange-500"
+                                                    >
+                                                        Bounced
+                                                    </Badge>
+                                                ) : lead.contacted ? (
+                                                    <Badge data-testid="badge-lead-contacted" className="bg-amber-500 text-white border-transparent hover:bg-amber-500">
+                                                        Contacted
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" data-testid="badge-lead-not-sent" className="text-muted-foreground">
+                                                        Not sent
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell className="font-mono text-xs text-muted-foreground">
                                                 {lead.companyNumber}
