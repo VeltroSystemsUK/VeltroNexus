@@ -9,6 +9,8 @@ import {
   applyClickEvent,
   applyDwellEvent,
   applyConvertStop,
+  applyDirectOutreach,
+  applyOpenerDemote,
   applyOpenEvent,
   applySecondEmailNurturing,
   approveNurtureSend,
@@ -46,6 +48,7 @@ import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { dealStream } from "@shared/salesOs";
 import { wasEmailDelivered } from "@shared/outreachSend";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
+import { atomicWriteFileSync } from "../utils/atomicWriteJson";
 import type { AgentMailItem } from "./agentMailLog";
 
 export type OpenerChClient = {
@@ -147,6 +150,10 @@ function storePath(): string {
   return storePathForTests || OPENERS_STORE;
 }
 
+export function currentOpenersStorePath(): string {
+  return storePath();
+}
+
 export function readOpeners(): OpenerRecord[] {
   const file = storePath();
   if (!fs.existsSync(file)) return [];
@@ -166,9 +173,7 @@ export function readOpeners(): OpenerRecord[] {
 
 export function writeOpeners(items: OpenerRecord[]): void {
   const file = storePath();
-  const dir = path.dirname(file);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(items, null, 2));
+  atomicWriteFileSync(file, JSON.stringify(items, null, 2));
 }
 
 export function listOpeners(): OpenerRecord[] {
@@ -489,7 +494,9 @@ function applyIdentity(
     companyNumber: resolvedNumber || opener.companyNumber,
     companyName: opener.companyName || hit.companyName,
     dealId: opener.dealId ?? hit.dealId ?? mail.dealId,
-    prospectId: opener.prospectId ?? hit.prospectId ?? mail.prospectId,
+    prospectId: opener.nurture.promoteBlocked
+      ? opener.prospectId
+      : opener.prospectId ?? hit.prospectId ?? mail.prospectId,
     phone: opener.phone || hit.phone,
   };
 }
@@ -1112,6 +1119,8 @@ function syncDwellCounts(
   all: OpenerRecord[],
   items: AgentMailItem[]
 ): { all: OpenerRecord[]; dirty: boolean } {
+  // Empty snapshot must not wipe stored dwells — hydrate backfill seeds openers.json alone.
+  if (items.length === 0) return { all, dirty: false };
   let dirty = false;
   const next = all.map((opener) => {
     const dwellCount = totalDwellsFor(opener, items);
@@ -1222,9 +1231,22 @@ export function hydrateFromAgentMail(
   );
   all = bounced.all;
   if (bounced.dirty) dirty = true;
+  const desk = applyDirectOutreachPass(all);
+  all = desk.all;
+  if (desk.dirty) dirty = true;
   if (dirty) writeOpeners(all);
   for (const opener of newlyNumbered) scheduleEnrichIfNew(false, opener);
   return all;
+}
+
+function applyDirectOutreachPass(all: OpenerRecord[]): { all: OpenerRecord[]; dirty: boolean } {
+  let dirty = false;
+  const next = all.map((row) => {
+    const moved = applyDirectOutreach(row);
+    if (moved !== row) dirty = true;
+    return moved;
+  });
+  return { all: next, dirty };
 }
 
 export function markOpenerNurturingOnOutbound(
@@ -1404,6 +1426,13 @@ export type PromoteDeps = {
   createProspect(data: any, userId: string): Promise<{ id: number }>;
   createContact(data: any, userId: string): Promise<any>;
   resolvePipelineOwnerUserId?(): Promise<string>;
+  getProspect?(id: number): Promise<
+    | { id: number; stage?: string; referralSource?: string | null; userId: string }
+    | undefined
+  >;
+  deleteProspect?(id: number, userId: string): Promise<void>;
+  listContacts?(prospectId: number, userId?: string): Promise<Array<{ id: number }>>;
+  deleteContact?(id: number, userId?: string): Promise<void>;
 };
 
 type SendEmailFn = typeof import("./email").sendEmail;
@@ -1422,6 +1451,10 @@ async function defaultPromoteDeps(): Promise<PromoteDeps> {
     createProspect: (data, userId) => storage.createProspect(data, userId),
     createContact: (data, userId) => storage.createContact(data, userId),
     resolvePipelineOwnerUserId,
+    getProspect: (id) => storage.getProspectById(id),
+    deleteProspect: (id, uid) => storage.deleteProspect(id, uid),
+    listContacts: (prospectId, uid) => storage.listContacts(prospectId, uid || ""),
+    deleteContact: (id, uid) => storage.deleteContact(id, uid || ""),
   };
 }
 
@@ -1589,11 +1622,7 @@ export async function promoteOpener(
 
   const existing = await findProspectForCompany(d, company!.id, resolvedUserId);
   if (existing?.id) {
-    const next = saveOpener({
-      ...stopNurture(opener, "promoted"),
-      status: "promoted",
-      prospectId: existing.id,
-    });
+    const next = saveOpener(markOpenerPromoted(opener, existing.id));
     return { opener: next, prospectId: existing.id, created: false };
   }
 
@@ -1631,12 +1660,65 @@ export async function promoteOpener(
     );
   }
 
-  const next = saveOpener({
-    ...stopNurture(opener, "promoted"),
-    status: "promoted",
-    prospectId: prospect.id,
-  });
+  const next = saveOpener(markOpenerPromoted(opener, prospect.id));
   return { opener: next, prospectId: prospect.id, created: true };
+}
+
+function markOpenerPromoted(opener: OpenerRecord, prospectId: number): OpenerRecord {
+  const stopped = stopNurture(opener, "promoted");
+  return {
+    ...stopped,
+    status: "promoted",
+    prospectId,
+    nurture: {
+      ...stopped.nurture,
+      promoteBlocked: undefined,
+    },
+  };
+}
+
+const DEMOTE_STATUSES = ["new", "nurturing", "not_now"] as const;
+
+async function maybeRemoveOpenersLeadProspect(
+  d: PromoteDeps,
+  prospectId: number,
+  userId: string
+): Promise<void> {
+  if (!d.getProspect || !d.deleteProspect) return;
+  const prospect = await d.getProspect(prospectId);
+  if (!prospect) return;
+  if (prospect.stage !== "lead") return;
+  if (String(prospect.referralSource || "") !== "Openers") return;
+  const ownerId = prospect.userId || userId;
+  if (d.listContacts && d.deleteContact) {
+    const rows = await d.listContacts(prospectId, ownerId);
+    for (const row of rows) {
+      await d.deleteContact(row.id, ownerId);
+    }
+  }
+  await d.deleteProspect(prospectId, ownerId);
+}
+
+export async function demoteOpener(
+  id: string,
+  userId: string,
+  status: "new" | "nurturing" | "not_now" = "nurturing",
+  deps?: PromoteDeps
+): Promise<OpenerRecord> {
+  const opener = requireOpener(id);
+  if (opener.status !== "promoted") {
+    throw httpError("Not promoted", 400);
+  }
+  if (!DEMOTE_STATUSES.includes(status)) {
+    throw httpError("Invalid status", 400);
+  }
+  const prospectId = opener.prospectId;
+  const next = saveOpener(applyOpenerDemote(opener, status));
+  if (prospectId) {
+    const d = deps ?? (inVitest() ? null : await defaultPromoteDeps());
+    if (d) await maybeRemoveOpenersLeadProspect(d, prospectId, userId);
+  }
+  return next;
 }
 
 export async function sendOpenerWhatsApp(

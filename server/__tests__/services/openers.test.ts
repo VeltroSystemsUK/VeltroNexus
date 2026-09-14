@@ -15,6 +15,7 @@ import {
   markOpenerNurturingOnOutbound,
   patchOpener,
   promoteOpener,
+  demoteOpener,
   refreshOpenerIdentitySnapshot,
   runNurtureAction,
   sendOpenerWhatsApp,
@@ -386,6 +387,42 @@ describe("hydrateFromAgentMail", () => {
     expect(rows[0].status).toBe("new");
     expect(rows[0].status).not.toBe("non_responsive");
   });
+
+  it("hydrate migrates 5-dwell cards into Direct Outreach and leaves 4-dwell and unsubscribed", () => {
+    tmpStore();
+    const hot = normalizeOpener({
+      id: "hot",
+      email: "hot@firm.co.uk",
+      status: "nurturing",
+      dwellCount: 5,
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+      nurture: { step: 1, touch1Status: "sent", touch2Status: "idle", stream: "opener_3touch", closerStatus: "idle" },
+    });
+    const warm = normalizeOpener({
+      id: "warm",
+      email: "warm@firm.co.uk",
+      status: "new",
+      dwellCount: 4,
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+    });
+    const dead = normalizeOpener({
+      id: "dead",
+      email: "dead@firm.co.uk",
+      status: "not_now",
+      dwellCount: 9,
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+      nurture: { step: 3, touch1Status: "sent", touch2Status: "idle", stopReason: "opt_out", stream: "opener_3touch", closerStatus: "idle" },
+    });
+    writeOpeners([hot, warm, dead]);
+    const rows = hydrateFromAgentMail([]);
+    expect(rows.find((r) => r.id === "hot")?.status).toBe("direct_outreach");
+    expect(rows.find((r) => r.id === "hot")?.nurture.stopReason).toBe("direct_outreach");
+    expect(rows.find((r) => r.id === "warm")?.status).toBe("new");
+    expect(rows.find((r) => r.id === "dead")?.status).toBe("not_now");
+  });
 });
 
 describe("production identity resolver", () => {
@@ -612,6 +649,99 @@ describe("nurture send and promote", () => {
     expect(second.created).toBe(false);
     expect(second.prospectId).toBe(55);
     expect(prospects.length).toBe(1);
+  });
+
+  it("demote pulls an Openers lead off the Pipeline and does not auto-promote it back", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await attachCompanyNumber(created.id, "08765432", fakeCh);
+    const companies = new Map<string, { id: number; companyNumber: string }>();
+    const prospects: Array<{
+      id: number;
+      companyId: number;
+      stage: string;
+      referralSource: string;
+      userId: string;
+    }> = [];
+    const contacts: Array<{ id: number; prospectId: number }> = [];
+    const deps: PromoteDeps = {
+      async getCompanyByNumber(n) { return companies.get(n); },
+      async createCompany(data) {
+        const row = { id: 1, companyNumber: data.companyNumber };
+        companies.set(data.companyNumber, row);
+        return row;
+      },
+      async listProspects() { return prospects; },
+      async createProspect() {
+        const row = {
+          id: 87,
+          companyId: 1,
+          stage: "lead",
+          referralSource: "Openers",
+          userId: "user-1",
+        };
+        prospects.push(row);
+        return row;
+      },
+      async createContact() {
+        const row = { id: 1, prospectId: 87 };
+        contacts.push(row);
+        return row;
+      },
+      async getProspect(id) { return prospects.find((row) => row.id === id); },
+      async deleteProspect(id) {
+        const idx = prospects.findIndex((row) => row.id === id);
+        if (idx >= 0) prospects.splice(idx, 1);
+      },
+      async listContacts(prospectId) { return contacts.filter((row) => row.prospectId === prospectId); },
+      async deleteContact(id) {
+        const idx = contacts.findIndex((row) => row.id === id);
+        if (idx >= 0) contacts.splice(idx, 1);
+      },
+    };
+    await promoteOpener(created.id, "user-1", deps);
+    expect(prospects).toHaveLength(1);
+
+    const demoted = await demoteOpener(created.id, "user-1", "nurturing", deps);
+    expect(demoted.status).toBe("nurturing");
+    expect(demoted.prospectId).toBeUndefined();
+    expect(demoted.nurture.promoteBlocked).toBe(true);
+    expect(prospects).toHaveLength(0);
+    expect(contacts).toHaveLength(0);
+
+    const bounced = await autoPromoteEligibleOpeners(
+      Array.from({ length: 6 }, (_, i) => mail({ id: `mail-${i + 1}`, opens: i === 0 ? ["2026-09-01T10:00:00.000Z"] : [] })),
+      { deps, userId: "user-1" }
+    );
+    expect(bounced).toEqual([]);
+    expect(hydrateFromAgentMail([])[0].status).toBe("nurturing");
+  });
+
+  it("demote leaves a progressed Deck file in place", async () => {
+    tmpStore();
+    const created = upsertOpenerFromMail(mail())!;
+    await attachCompanyNumber(created.id, "08765432", fakeCh);
+    const prospects: Array<{
+      id: number;
+      companyId: number;
+      stage: string;
+      referralSource: string;
+      userId: string;
+    }> = [{ id: 99, companyId: 1, stage: "qualified", referralSource: "Openers", userId: "user-1" }];
+    const deps: PromoteDeps = {
+      async getCompanyByNumber() { return { id: 1, companyNumber: "08765432" }; },
+      async createCompany() { return { id: 1 }; },
+      async listProspects() { return prospects; },
+      async createProspect() { throw new Error("should not create"); },
+      async createContact() { return {}; },
+      async getProspect(id) { return prospects.find((row) => row.id === id); },
+      async deleteProspect() { throw new Error("should not delete"); },
+    };
+    await promoteOpener(created.id, "user-1", deps);
+    const demoted = await demoteOpener(created.id, "user-1", "nurturing", deps);
+    expect(demoted.status).toBe("nurturing");
+    expect(demoted.prospectId).toBeUndefined();
+    expect(prospects).toHaveLength(1);
   });
 
   it("promote jumps a pipeline-owner prospect even when the request user has none", async () => {
