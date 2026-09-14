@@ -17,6 +17,14 @@ import { lastMailOpenAt } from "@shared/mailTracking";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { listAgentMail, type AgentMailItem } from "../services/agentMailLog";
+import {
+  generateOpenerBriefing,
+  previewOpenerBriefingHtml,
+  renderBriefingHtml,
+  sendOpenerBriefing,
+  updateOpenerBriefing,
+  type BriefingRecord,
+} from "../services/briefings";
 import { loadSuppression } from "../services/mailSuppression";
 import {
   attachCompanyNumber,
@@ -263,6 +271,55 @@ router.post("/api/openers/:id/whatsapp", isAuthenticated, requireOpenersAccess, 
 router.post("/api/openers/:id/call", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
     res.json(presentOpener(await logOpenerCall(req.params.id, String(req.body?.note || ""))));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+function presentGeneratedBriefing(briefing: BriefingRecord) {
+  return {
+    briefing,
+    cover: briefing.cover,
+    previewHtml: renderBriefingHtml(briefing, { live: false }),
+  };
+}
+
+router.post("/api/openers/:id/briefing/generate", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    res.json(presentGeneratedBriefing(await generateOpenerBriefing(req.params.id)));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.get("/api/openers/:id/briefing/preview", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const html = previewOpenerBriefingHtml(req.params.id);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.patch("/api/openers/:id/briefing", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const { coverSubject, coverHtml, slides } = req.body || {};
+    res.json(
+      presentGeneratedBriefing(
+        updateOpenerBriefing(req.params.id, { coverSubject, coverHtml, slides })
+      )
+    );
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.post("/api/openers/:id/briefing/send", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const publicBaseUrl = process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`;
+    const briefing = await sendOpenerBriefing(req.params.id, { publicBaseUrl });
+    res.json({ briefing });
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }

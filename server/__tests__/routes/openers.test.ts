@@ -66,6 +66,10 @@ describe("openers routes", () => {
     expect(paths).toContainEqual({ path: "/api/openers/:id/demote", methods: ["post"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id/whatsapp", methods: ["post"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id/call", methods: ["post"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/generate", methods: ["post"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/preview", methods: ["get"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing", methods: ["patch"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/send", methods: ["post"] });
     const unsub = paths.findIndex((row) => row.path === "/api/openers/unsubscribed");
     const byId = paths.findIndex((row) => row.path === "/api/openers/:id" && row.methods.includes("get"));
     expect(unsub).toBeGreaterThanOrEqual(0);
@@ -124,6 +128,15 @@ describe("openers routes", () => {
     expect(src).toMatch(/status === "direct_outreach"/);
     expect(src).toMatch(/resumeOpenerFromDirectOutreach/);
     expect(src).toMatch(/onOpenerUnsubscribed/);
+  });
+
+  it("registers briefing generate, preview, and send", () => {
+    const src = fs.readFileSync(path.resolve("server/routes/openers.ts"), "utf8");
+    expect(src).toMatch(/\/briefing\/generate/);
+    expect(src).toMatch(/\/briefing\/preview/);
+    expect(src).toMatch(/\/briefing\/send/);
+    expect(src).toMatch(/renderBriefingHtml/);
+    expect(src).toMatch(/live:\s*false/);
   });
 
   it("GET /api/openers omits zero-dwell and unsubscribed", async () => {

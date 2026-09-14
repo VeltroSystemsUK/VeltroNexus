@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { mailboxForAgent } from "@shared/agentMailboxes";
 import { buildCoverEmail } from "@shared/briefingCover";
 import {
   briefingCopyOk,
@@ -16,8 +17,11 @@ import {
   type BriefingRecord,
   type BriefingSlide,
 } from "@shared/briefingRender";
-import type { OpenerRecord } from "@shared/openers";
+import { isDoNotContactOpener, type OpenerRecord } from "@shared/openers";
 import { atomicWriteFileSync } from "../utils/atomicWriteJson";
+import { sendEmail } from "./email";
+import * as mailDesk from "./mailDesk";
+import { getOpener, patchOpener } from "./openers";
 
 export type { BriefingRecord, BriefingSlide };
 export { defaultBriefingSlides, privateWallHtml, renderBriefingHtml, BRIEFING_ENQUIRY_URL };
@@ -238,4 +242,111 @@ export function revokeBriefingsForOpener(openerId: string): void {
     return revokeRow(row, at);
   });
   if (changed) writeBriefings(next);
+}
+
+function requireOpenerRecord(id: string): OpenerRecord {
+  const opener = getOpener(id);
+  if (!opener) throw httpError("Opener not found", 404);
+  return opener;
+}
+
+function openerBriefing(opener: OpenerRecord): BriefingRecord | undefined {
+  return opener.briefingId ? getBriefing(opener.briefingId) : undefined;
+}
+
+export function briefingPublicUrl(token: string, baseUrl?: string): string {
+  const base = String(
+    baseUrl || process.env.PUBLIC_APP_URL || process.env.APP_URL || "http://localhost"
+  ).replace(/\/$/, "");
+  return `${base}/briefing/${token}`;
+}
+
+export async function generateOpenerBriefing(id: string): Promise<BriefingRecord> {
+  const opener = requireOpenerRecord(id);
+  if (opener.status !== "direct_outreach") {
+    throw httpError("Only Direct Outreach cards can generate a briefing", 409);
+  }
+  const draft = createDraftBriefing(opener);
+  patchOpener(opener.id, { briefingId: draft.id });
+  return draft;
+}
+
+export function previewOpenerBriefingHtml(id: string): string {
+  const opener = requireOpenerRecord(id);
+  const briefing = openerBriefing(opener);
+  if (!briefing || briefing.status === "revoked") throw httpError("Generate a briefing first", 409);
+  return renderBriefingHtml(briefing, { live: false });
+}
+
+export function updateOpenerBriefing(
+  id: string,
+  patch: { coverSubject?: string; coverHtml?: string; slides?: unknown[] }
+): BriefingRecord {
+  const opener = requireOpenerRecord(id);
+  const briefing = openerBriefing(opener);
+  if (!briefing || briefing.status === "revoked") throw httpError("Generate a briefing first", 409);
+  const all = readBriefings();
+  const idx = all.findIndex((row) => row.id === briefing.id);
+  if (idx < 0) throw httpError("Briefing not found", 404);
+  const slides =
+    patch.slides === undefined
+      ? briefing.slides
+      : (Array.isArray(patch.slides) ? patch.slides : [])
+          .map(asSlide)
+          .filter((slide): slide is BriefingSlide => Boolean(slide));
+  const next: BriefingRecord = {
+    ...briefing,
+    cover: {
+      subject: patch.coverSubject != null ? String(patch.coverSubject) : briefing.cover.subject,
+      html: patch.coverHtml != null ? String(patch.coverHtml) : briefing.cover.html,
+    },
+    slides,
+  };
+  assertCopyOk(next);
+  all[idx] = next;
+  writeBriefings(all);
+  return next;
+}
+
+export async function sendOpenerBriefing(
+  id: string,
+  opts?: { publicBaseUrl?: string }
+): Promise<BriefingRecord> {
+  const opener = requireOpenerRecord(id);
+  if (isDoNotContactOpener(opener) || mailDesk.mailIsSuppressed(opener.email, opener.companyNumber)) {
+    throw httpError("Suppressed", 403);
+  }
+  const draft = openerBriefing(opener);
+  if (!draft || draft.status === "revoked") throw httpError("Generate a briefing first", 409);
+  const alreadyLive = draft.status === "live";
+  const live = activateBriefing(draft.id);
+  const mailbox = mailboxForAgent("director");
+  const briefingUrl = briefingPublicUrl(live.token, opts?.publicBaseUrl);
+  const built = buildCoverEmail({
+    companyName: opener.companyName || opener.email,
+    briefingUrl,
+  });
+  const cover = {
+    subject: live.cover.subject || built.subject,
+    html: (live.cover.html || built.html)
+      .replaceAll("about:blank", briefingUrl)
+      .replaceAll(`/briefing/${live.token}`, briefingUrl),
+  };
+  const result = await sendEmail(
+    {
+      agentId: mailbox.agentId,
+      fromName: mailbox.fromName,
+      fromEmail: mailbox.address,
+      touchId: "direct_outreach",
+    },
+    opener.email,
+    cover.subject,
+    cover.html
+  );
+  if (!result.success) {
+    if (!alreadyLive) revokeBriefing(live.id);
+    if (result.blocked === "suppressed") throw httpError("Suppressed", 403);
+    throw httpError("Send failed", 502);
+  }
+  return live;
 }
