@@ -363,6 +363,10 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
   const [waMessage, setWaMessage] = useState("");
   const [callNote, setCallNote] = useState("");
   const [sendAs, setSendAs] = useState("outreach-sales");
+  const [briefingPreview, setBriefingPreview] = useState<{ openerId: string; html: string } | null>(
+    null
+  );
+  const [briefingPreviewReady, setBriefingPreviewReady] = useState(false);
   const boardStatuses = isNonResponsive ? (["non_responsive"] as const) : OPENER_BOARD_STATUSES;
 
   const { data, isLoading, error } = useQuery<OpenerBoardItem[]>({
@@ -380,6 +384,8 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     setWaMessage(defaultWhatsAppMessage(selected, desk));
     setCallNote("");
     setSendAs("outreach-sales");
+    setBriefingPreview(null);
+    setBriefingPreviewReady(false);
   }, [selected?.id]);
 
   const invalidate = () => {
@@ -440,9 +446,13 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
   const generateBriefingMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest(`/api/openers/${id}/briefing/generate`, "POST");
-      return res.json();
+      return res.json() as Promise<{ previewHtml?: string; briefing?: { id: string } }>;
     },
-    onSuccess: () => {
+    onMutate: () => setBriefingPreviewReady(false),
+    onSuccess: (data, id) => {
+      if (typeof data?.previewHtml === "string" && data.previewHtml) {
+        setBriefingPreview({ openerId: id, html: data.previewHtml });
+      }
       invalidate();
       toast.success("Briefing generated");
     },
@@ -867,17 +877,48 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                           type="button"
                           size="sm"
                           data-testid="btn-send-briefing"
-                          disabled={!selected.briefingId || sendBriefingMutation.isPending || doNotContact}
+                          disabled={
+                            !(
+                              selected.briefingId ||
+                              (briefingPreview?.openerId === selected.id && briefingPreview.html)
+                            ) ||
+                            !briefingPreviewReady ||
+                            sendBriefingMutation.isPending ||
+                            doNotContact
+                          }
                           onClick={() => sendBriefingMutation.mutate(selected.id)}
                         >
                           {sendBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                           Send
                         </Button>
                       </div>
+                      {briefingPreview?.openerId === selected.id && briefingPreview.html ? (
+                        <div className="rounded-md border bg-white overflow-x-auto">
+                          <iframe
+                            data-testid="iframe-briefing-preview"
+                            title="Briefing preview"
+                            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                            className="w-full min-h-[280px] border-0 bg-white"
+                            srcDoc={briefingPreview.html}
+                            onLoad={() => setBriefingPreviewReady(true)}
+                          />
+                        </div>
+                      ) : selected.briefingId ? (
+                        <div className="rounded-md border bg-white overflow-x-auto">
+                          <iframe
+                            data-testid="iframe-briefing-preview"
+                            title="Briefing preview"
+                            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                            className="w-full min-h-[280px] border-0 bg-white"
+                            src={`/api/openers/${selected.id}/briefing/preview`}
+                            onLoad={() => setBriefingPreviewReady(true)}
+                          />
+                        </div>
+                      ) : null}
                     </section>
                   )}
 
-                  {!isNonResponsive && <section className="space-y-2">
+                  {!isNonResponsive && selected.status !== "direct_outreach" && <section className="space-y-2">
                     <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Nurture</h3>
                     {doNotContact && (
                       <p className="text-sm text-destructive">This address asked to be removed. No further contact.</p>

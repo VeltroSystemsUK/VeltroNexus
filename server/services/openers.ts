@@ -457,6 +457,17 @@ function lastDwellAt(dwells?: Array<{ at: string }>): string | undefined {
   return dwells[dwells.length - 1]?.at;
 }
 
+function lastDwellPathFrom(
+  dwells?: Array<{ at: string; path?: string }>
+): string | undefined {
+  if (!dwells?.length) return undefined;
+  for (let i = dwells.length - 1; i >= 0; i--) {
+    const path = dwells[i]?.path;
+    if (path) return path;
+  }
+  return undefined;
+}
+
 function takeResolveHit(email: string, mail: AgentMailItem, resolve?: OpenerResolver): OpenerResolveHit {
   if (!resolve) return {};
   const hit = resolve(email, mail);
@@ -968,7 +979,9 @@ function applyUnsubscribes(all: OpenerRecord[], optOutEmails: Set<string>): {
     const hit = [opener.email, ...(opener.emails || [])].some((email) =>
       optOutEmails.has(normalizeEmail(email))
     );
-    if (!hit || opener.status === "not_now") return opener;
+    if (!hit) return opener;
+    revokeBriefingsForOpener(opener.id);
+    if (opener.status === "not_now") return opener;
     dirty = true;
     if (isConvertOpener(opener)) return applyConvertStop(opener, "opt_out");
     return stopNurture(opener, "opt_out");
@@ -1044,12 +1057,23 @@ function applyDwellEngagementTo(
 
   const hit = takeResolveHit(email, mail, resolve);
   const existing = findByEmail(all, email) || findByCompany(all, hit.companyNumber);
+  const lastDwellPath = lastDwellPathFrom(mail.dwells);
   if (existing) {
     if (extraDwells === 0 && existing.status !== "non_responsive") {
+      if (lastDwellPath && lastDwellPath !== existing.lastDwellPath) {
+        const opener = {
+          ...existing,
+          lastDwellPath,
+          updatedAt: new Date().toISOString(),
+        };
+        const next = all.filter((row) => row.id !== opener.id);
+        next.push(opener);
+        return { all: next, opener };
+      }
       return { all, opener: existing };
     }
     const opener = {
-      ...applyDwellEvent(applyIdentity(existing, email, mail, hit), extraDwells),
+      ...applyDwellEvent(applyIdentity(existing, email, mail, hit), extraDwells, lastDwellPath),
       mailIds: [...new Set([...(existing.mailIds || []), mail.id])],
     };
     const next = all.filter((row) => row.id !== opener.id);
@@ -1080,7 +1104,8 @@ function applyDwellEngagementTo(
       mail,
       hit
     ),
-    extraDwells
+    extraDwells,
+    lastDwellPath
   );
   return { all: [...all, opener], opener };
 }
@@ -1098,10 +1123,14 @@ function totalClicksFor(opener: OpenerRecord, items: AgentMailItem[]): number {
   return n;
 }
 
-function totalDwellsFor(opener: OpenerRecord, items: AgentMailItem[]): number {
-  const emails = new Set(
+function openerMailEmails(opener: OpenerRecord): Set<string> {
+  return new Set(
     [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
   );
+}
+
+function totalDwellsFor(opener: OpenerRecord, items: AgentMailItem[]): number {
+  const emails = openerMailEmails(opener);
   let n = 0;
   for (const item of items) {
     if (item.direction !== "outbound") continue;
@@ -1109,6 +1138,25 @@ function totalDwellsFor(opener: OpenerRecord, items: AgentMailItem[]): number {
     n += item.dwells?.length ?? 0;
   }
   return n;
+}
+
+function lastDwellPathFor(opener: OpenerRecord, items: AgentMailItem[]): string | undefined {
+  const emails = openerMailEmails(opener);
+  let bestAt = "";
+  let path: string | undefined;
+  for (const item of items) {
+    if (item.direction !== "outbound") continue;
+    if (!emails.has(normalizeEmail(item.to))) continue;
+    for (const dwell of item.dwells || []) {
+      if (!dwell.path) continue;
+      const at = dwell.at || "";
+      if (!path || at >= bestAt) {
+        bestAt = at;
+        path = dwell.path;
+      }
+    }
+  }
+  return path;
 }
 
 function syncClickCounts(
@@ -1138,9 +1186,16 @@ function syncDwellCounts(
     const dwellCount = totalDwellsFor(opener, items);
     const status =
       dwellCount > 0 && opener.status === "non_responsive" ? "new" : opener.status;
-    if (dwellCount === opener.dwellCount && status === opener.status) return opener;
+    const lastDwellPath = lastDwellPathFor(opener, items) ?? opener.lastDwellPath;
+    if (
+      dwellCount === opener.dwellCount &&
+      status === opener.status &&
+      lastDwellPath === opener.lastDwellPath
+    ) {
+      return opener;
+    }
     dirty = true;
-    return { ...opener, dwellCount, status, updatedAt: new Date().toISOString() };
+    return { ...opener, dwellCount, status, lastDwellPath, updatedAt: new Date().toISOString() };
   });
   return { all: next, dirty };
 }
@@ -1528,6 +1583,13 @@ export async function runNurtureAction(
   const opener = requireOpener(id);
   const now = opts?.now;
   if (action !== "stop") refuseDoNotContact(opener);
+
+  if (
+    opener.status === "direct_outreach" &&
+    (action === "start" || action === "approve" || action === "skip")
+  ) {
+    throw httpError("James is stopped on Direct Outreach", 409);
+  }
 
   if (isConvertOpener(opener) && (action === "start" || action === "approve")) {
     return opener;
@@ -1920,7 +1982,8 @@ export async function stopConvertAndPromote(
 
 export function stopOpenerNurtureByEmail(
   email: string,
-  reason: "reply" | "opt_out"
+  reason: "reply" | "opt_out",
+  deps?: PromoteDeps
 ): OpenerRecord | undefined {
   const opener = findByEmail(readOpeners(), normalizeEmail(email));
   if (!opener) return undefined;
@@ -1929,7 +1992,7 @@ export function stopOpenerNurtureByEmail(
       reason === "opt_out" ? "opt_out" : canPromoteOpener(opener) ? "reply" : "blocked";
     const next = saveOpener(applyConvertStop(opener, mapped));
     if (reason === "opt_out") revokeBriefingsForOpener(opener.id);
-    void stopConvertAndPromote(opener.id, reason).catch((error: any) => {
+    void stopConvertAndPromote(opener.id, reason, deps).catch((error: any) => {
       console.warn("[Openers] convert auto-promote failed:", error?.message || error);
     });
     return next;
@@ -1941,6 +2004,19 @@ export function stopOpenerNurtureByEmail(
         : saveOpener(stopNurture(opener, "opt_out"));
     revokeBriefingsForOpener(opener.id);
     return next;
+  }
+  if (opener.status === "direct_outreach") {
+    if (isDoNotContactOpener(opener) || !canPromoteOpener(opener)) return opener;
+    void (async () => {
+      try {
+        const promoteDeps = deps ?? (inVitest() ? null : await defaultPromoteDeps());
+        if (!promoteDeps) return;
+        await promoteOpener(opener.id, "system", promoteDeps);
+      } catch (error: any) {
+        console.warn("[Openers] direct outreach reply auto-promote failed:", error?.message || error);
+      }
+    })();
+    return opener;
   }
   if (!isNurtureInFlight(opener)) return undefined;
   return saveOpener(stopNurture(opener, reason));

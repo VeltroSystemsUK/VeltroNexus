@@ -52,6 +52,7 @@ import {
 } from "../../services/briefings";
 import {
   getOpener,
+  hydrateFromAgentMail,
   onOpenerUnsubscribed,
   promoteOpener,
   setOpenersStorePathForTests,
@@ -242,6 +243,14 @@ describe("generate and send opener briefing", () => {
     expect(html).not.toMatch(/dwell\.gif/);
     expect(html).not.toMatch(/briefing-pack/);
   });
+
+  it("tools dwell path picks working_capital", () => {
+    const draft = createDraftBriefing(
+      sampleOpener({ lastDwellPath: "/#tools", nonBankChargeCount: 0, sicCodes: ["62012"] })
+    );
+    const blob = draft.slides.map((slide) => `${slide.title}\n${slide.body}`).join("\n");
+    expect(blob.toLowerCase()).toMatch(/working capital|spent time on the tools/);
+  });
 });
 
 describe("public pack dwell and auto-promote", () => {
@@ -312,6 +321,27 @@ describe("public pack dwell and auto-promote", () => {
     expect(promoteOpener).not.toHaveBeenCalled();
   });
 
+  it("DNC pack dwell records and does not promote", async () => {
+    const opener = sampleOpener({
+      companyNumber: "08765432",
+      status: "not_now",
+      nurture: {
+        step: 3,
+        touch1Status: "idle",
+        touch2Status: "idle",
+        stopReason: "opt_out",
+        stream: "opener_3touch",
+        closerStatus: "idle",
+      },
+    });
+    writeOpeners([opener]);
+    const live = activateBriefing(createDraftBriefing(opener).id);
+    const result = await recordBriefingDwellAndPromote(live.token, { staffSession: false });
+    expect(result.recorded).toBe(true);
+    expect(result.promoted).toBe(false);
+    expect(promoteOpener).not.toHaveBeenCalled();
+  });
+
   it("GET /briefing/:token is 200 pack or wall with X-Robots-Tag", async () => {
     const app = express();
     app.use(briefingsRouter);
@@ -353,6 +383,16 @@ describe("Veltro interest and STOP revoke", () => {
     writeOpeners([openerRow]);
     const live = activateBriefing(createDraftBriefing(openerRow).id);
     stopOpenerNurtureByEmail(openerRow.email, "opt_out");
+    expect(getLiveBriefingByToken(live.token)).toBeUndefined();
+    expect(getOpener(openerRow.id)?.status).toBe("not_now");
+  });
+
+  it("hydrate DNC revokes the pack", () => {
+    const openerRow = sampleOpener({ status: "direct_outreach", dwellCount: 5 });
+    writeOpeners([openerRow]);
+    const live = activateBriefing(createDraftBriefing(openerRow).id);
+    expect(getLiveBriefingByToken(live.token)?.status).toBe("live");
+    hydrateFromAgentMail([], undefined, { optOutEmails: [openerRow.email] });
     expect(getLiveBriefingByToken(live.token)).toBeUndefined();
     expect(getOpener(openerRow.id)?.status).toBe("not_now");
   });

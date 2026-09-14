@@ -84,6 +84,23 @@ describe("Openers UI wiring", () => {
     expect(nav).not.toMatch(/path: "\/veltro"/);
   });
 
+  it("Direct Outreach drawer hides James nurture and requires a staff preview before Send", () => {
+    const page = fs.readFileSync(path.resolve("client/src/pages/Openers.tsx"), "utf8");
+    expect(page).toMatch(/selected.status !== "direct_outreach"/);
+    expect(page).toMatch(/data-testid="iframe-briefing-preview"/);
+    expect(page).toMatch(/briefingPreviewReady/);
+    expect(page).toMatch(/\/api\/openers\/\$\{selected\.id\}\/briefing\/preview/);
+    expect(page).toMatch(/previewHtml/);
+    const briefingBlock = page.slice(
+      page.indexOf("btn-generate-briefing"),
+      page.indexOf("btn-send-briefing") + 400
+    );
+    expect(briefingBlock).not.toMatch(/Start nurture/);
+    const service = fs.readFileSync(path.resolve("server/services/openers.ts"), "utf8");
+    expect(service).toMatch(/status === "direct_outreach"/);
+    expect(service).toMatch(/James is stopped on Direct Outreach/);
+  });
+
   it("nurture approve sends as the chosen desk", () => {
     const page = fs.readFileSync(path.resolve("client/src/pages/Openers.tsx"), "utf8");
     expect(page).toMatch(/SendAsSelect/);

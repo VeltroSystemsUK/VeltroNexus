@@ -182,4 +182,23 @@ describe("openers routes", () => {
     expect(res.body.status).toBe("nurturing");
     expect(res.body.nurture.directOutreachDismissedDwellCount).toBe(5);
   });
+
+  it("nurture start on Direct Outreach is 409", async () => {
+    tmpStore();
+    const row = applyDirectOutreach(normalizeOpener({
+      id: "d",
+      email: "d@x.co.uk",
+      dwellCount: 5,
+      status: "new",
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+    }));
+    writeOpeners([row]);
+    const started = await request(openersApp()).post("/api/openers/d/nurture").set(auth).send({ action: "start" });
+    expect(started.status).toBe(409);
+    const approved = await request(openersApp()).post("/api/openers/d/nurture").set(auth).send({ action: "approve" });
+    expect(approved.status).toBe(409);
+    const skipped = await request(openersApp()).post("/api/openers/d/nurture").set(auth).send({ action: "skip" });
+    expect(skipped.status).toBe(409);
+  });
 });

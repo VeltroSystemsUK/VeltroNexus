@@ -6,6 +6,7 @@ import {
   OPENER_TOUCH2_DELAY_MS,
   DIRECT_OUTREACH_DWELL_MIN,
   applyClickEvent,
+  applyDwellEvent,
   applyConvertStop,
   applyOpenerDemote,
   convertReasonFromInboundKind,
@@ -1048,5 +1049,14 @@ describe("convert 3-touch send gate", () => {
   it("runNurtureAction refuses start and approve on convert openers", () => {
     const service = fs.readFileSync(path.resolve("server/services/openers.ts"), "utf8");
     expect(service).toMatch(/isConvertOpener\(opener\) && \(action === "start" \|\| action === "approve"\)/);
+  });
+});
+
+describe("applyDwellEvent path", () => {
+  it("persists lastDwellPath so Generate can see a tools dwell", () => {
+    const next = applyDwellEvent(opener({ dwellCount: 4 }), 1, "/#tools");
+    expect(next.dwellCount).toBe(5);
+    expect(next.lastDwellPath).toBe("/#tools");
+    expect(applyDwellEvent(next, 1).lastDwellPath).toBe("/#tools");
   });
 });

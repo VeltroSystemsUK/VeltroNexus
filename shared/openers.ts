@@ -69,6 +69,7 @@ export type OpenerRecord = {
   openCount: number;
   clickCount: number;
   dwellCount: number;
+  lastDwellPath?: string;
   mailIds?: string[];
   lastTouchAt?: string;
   createdAt: string;
@@ -191,6 +192,7 @@ export function normalizeOpener(
     openCount: input.openCount ?? 0,
     clickCount: input.clickCount ?? 0,
     dwellCount: input.dwellCount ?? 0,
+    lastDwellPath: input.lastDwellPath,
     mailIds: input.mailIds,
     lastTouchAt: input.lastTouchAt,
     createdAt: input.createdAt ?? stamp,
@@ -430,6 +432,7 @@ export function mergeOpeners(keeper: OpenerRecord, incoming: OpenerRecord): Open
     openCount: keeper.openCount + incoming.openCount,
     clickCount: (keeper.clickCount ?? 0) + (incoming.clickCount ?? 0),
     dwellCount: (keeper.dwellCount ?? 0) + (incoming.dwellCount ?? 0),
+    lastDwellPath: preferDefined(incoming.lastDwellPath, keeper.lastDwellPath),
     mailIds: [...new Set([...(keeper.mailIds || []), ...(incoming.mailIds || [])])],
     lastTouchAt:
       keeper.lastTouchAt && incoming.lastTouchAt
@@ -476,11 +479,16 @@ export function applyClickEvent(opener: OpenerRecord, extraClicks = 1): OpenerRe
   };
 }
 
-export function applyDwellEvent(opener: OpenerRecord, extraDwells = 1): OpenerRecord {
+export function applyDwellEvent(
+  opener: OpenerRecord,
+  extraDwells = 1,
+  lastDwellPath?: string
+): OpenerRecord {
   return {
     ...opener,
     status: opener.status === "non_responsive" ? "new" : opener.status,
     dwellCount: (opener.dwellCount ?? 0) + Math.max(0, extraDwells),
+    lastDwellPath: lastDwellPath || opener.lastDwellPath,
     updatedAt: nowIso(),
   };
 }

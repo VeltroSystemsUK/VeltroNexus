@@ -1,7 +1,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentMailItem } from "../../services/agentMailLog";
 import { applyDirectOutreach, enrolConvertOpener, normalizeOpener, OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
 import {
@@ -28,8 +28,10 @@ import {
   deleteOpenerByEmail,
   upsertOpenerFromMail,
   upsertOpenerClickFromMail,
+  upsertOpenerDwellFromMail,
   upsertNonResponsiveFromMail,
   writeOpeners,
+  getOpener,
   type OpenerChClient,
   type OpenerIdentityDeps,
   type PromoteDeps,
@@ -1071,6 +1073,117 @@ describe("sixth-email auto-promote", () => {
     upsertOpenerFromMail(sentMails(1)[0]);
     expect(await autoPromoteEligibleOpeners(sentMails(6), { deps: promoteDeps().deps })).toEqual([]);
     expect(hydrateFromAgentMail([])[0].status).toBe("new");
+  });
+});
+
+describe("Direct Outreach nurture and reply", () => {
+  it("runNurtureAction start and approve on Direct Outreach are 409", async () => {
+    tmpStore();
+    const row = applyDirectOutreach(normalizeOpener({
+      id: "do-1",
+      email: "ops@northpeak.co.uk",
+      dwellCount: 5,
+      status: "new",
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+    }));
+    writeOpeners([row]);
+    await expect(runNurtureAction(row.id, "start")).rejects.toMatchObject({ status: 409 });
+    let sent = false;
+    await expect(runNurtureAction(row.id, "approve", {
+      send: async () => {
+        sent = true;
+        return { success: true, id: "should-not-send" };
+      },
+    })).rejects.toMatchObject({ status: 409 });
+    expect(sent).toBe(false);
+    await expect(runNurtureAction(row.id, "skip")).rejects.toMatchObject({ status: 409 });
+    expect(getOpener(row.id)?.status).toBe("direct_outreach");
+  });
+
+  it("inbound reply on a numbered Direct Outreach card auto-promotes", async () => {
+    tmpStore();
+    const row = applyDirectOutreach(normalizeOpener({
+      id: "do-reply",
+      email: "ops@northpeak.co.uk",
+      companyNumber: "08765432",
+      dwellCount: 5,
+      status: "new",
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+    }));
+    writeOpeners([row]);
+    const companies = new Map<string, { id: number; companyNumber: string }>();
+    const prospects: Array<{ id: number; companyId: number }> = [];
+    const deps: PromoteDeps = {
+      async getCompanyByNumber(n) { return companies.get(n); },
+      async createCompany(data) {
+        const created = { id: 1, companyNumber: data.companyNumber };
+        companies.set(data.companyNumber, created);
+        return created;
+      },
+      async listProspects() { return prospects; },
+      async createProspect() {
+        const created = { id: 77, companyId: 1 };
+        prospects.push(created);
+        return created;
+      },
+      async createContact() { return {}; },
+    };
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply", deps)?.status).toBe("direct_outreach");
+    await vi.waitFor(() => {
+      expect(getOpener(row.id)?.status).toBe("promoted");
+    });
+    expect(getOpener(row.id)?.prospectId).toBe(77);
+  });
+
+  it("inbound reply on Direct Outreach does not promote DNC or unnumbered cards", async () => {
+    tmpStore();
+    const numbered = applyDirectOutreach(normalizeOpener({
+      id: "do-dnc",
+      email: "ops@northpeak.co.uk",
+      companyNumber: "08765432",
+      dwellCount: 5,
+      status: "new",
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+    }));
+    writeOpeners([{ ...numbered, nurture: { ...numbered.nurture, stopReason: "opt_out" } }]);
+    const deps: PromoteDeps = {
+      async getCompanyByNumber() { return { id: 1, companyNumber: "08765432" }; },
+      async createCompany() { return { id: 1 }; },
+      async listProspects() { return []; },
+      async createProspect() { throw new Error("should not promote DNC"); },
+      async createContact() { return {}; },
+    };
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply", deps)?.status).toBe("direct_outreach");
+    await new Promise((r) => setTimeout(r, 40));
+    expect(getOpener("do-dnc")?.status).toBe("direct_outreach");
+
+    tmpStore();
+    const bare = applyDirectOutreach(normalizeOpener({
+      id: "do-bare",
+      email: "ops@northpeak.co.uk",
+      dwellCount: 5,
+      status: "new",
+      firstOpenedAt: "2026-09-01T10:00:00.000Z",
+      lastOpenedAt: "2026-09-01T10:00:00.000Z",
+    }));
+    writeOpeners([bare]);
+    expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply", deps)?.status).toBe("direct_outreach");
+    await new Promise((r) => setTimeout(r, 40));
+    expect(getOpener("do-bare")?.status).toBe("direct_outreach");
+    expect(getOpener("do-bare")?.prospectId).toBeUndefined();
+  });
+
+  it("upsert dwell stores lastDwellPath from a tools dwell", () => {
+    tmpStore();
+    upsertOpenerFromMail(mail())!;
+    const row = upsertOpenerDwellFromMail(
+      mail({ dwells: [{ at: "2026-09-02T10:00:00.000Z", path: "/#tools" }] })
+    );
+    expect(row?.lastDwellPath).toBe("/#tools");
+    expect(row?.dwellCount).toBe(1);
   });
 });
 

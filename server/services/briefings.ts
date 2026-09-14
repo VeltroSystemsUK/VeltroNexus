@@ -136,9 +136,7 @@ export function getLiveBriefingByToken(token: string): BriefingRecord | undefine
   return readBriefings().find((row) => row.token === token && row.status === "live");
 }
 
-export function createDraftBriefing(
-  opener: OpenerRecord & { lastDwellPath?: string }
-): BriefingRecord {
+export function createDraftBriefing(opener: OpenerRecord): BriefingRecord {
   const companyName = opener.companyName || opener.email || "your company";
   const lastDwellPath = opener.lastDwellPath;
   const hypothesis = pickBriefingHypothesis({
@@ -417,7 +415,7 @@ export async function recordBriefingDwellAndPromote(
   if (!dwell.recorded) return { ...dwell, promoted: false };
   const live = getLiveBriefingByToken(token);
   const opener = live ? getOpener(live.openerId) : undefined;
-  if (!opener || !canPromoteOpener(opener)) {
+  if (!opener || !canPromoteOpener(opener) || isDoNotContactOpener(opener)) {
     return { recorded: true, promoted: false };
   }
   try {
