@@ -1,5 +1,5 @@
 import { isOpenedOutboundMail, lastMailOpenAt } from "./mailTracking";
-import { convertWakeAt } from "./smeConvert";
+import { convertWakeAt, nextConvertSendWindow } from "./smeConvert";
 import { SME_NURTURE_CADENCE } from "./salesOs";
 
 export const OPENER_BOARD_STATUSES = ["new", "nurturing", "direct_outreach", "promoted"] as const;
@@ -994,6 +994,71 @@ export function eligibleDirectOutreach(opener: OpenerRecord): boolean {
   if (isDoNotContactOpener(opener)) return false;
   const dismissed = opener.nurture.directOutreachDismissedDwellCount ?? 0;
   return (opener.dwellCount || 0) > dismissed;
+}
+
+export function applyDirectOutreach(opener: OpenerRecord, now?: Date): OpenerRecord {
+  if (opener.status === "direct_outreach") return opener;
+  if (!eligibleDirectOutreach(opener)) return opener;
+  if (opener.status !== "new" && opener.status !== "nurturing") return opener;
+  const stopped = stopNurture(opener, "direct_outreach", now);
+  return {
+    ...stopped,
+    status: "direct_outreach",
+    nurture: { ...stopped.nurture, wakeAt: undefined },
+  };
+}
+
+export function resumeJamesFromDirectOutreach(
+  opener: OpenerRecord,
+  opts?: {
+    dualOpenEligible?: boolean;
+    now?: Date;
+    draft?: { subject: string; html: string };
+  }
+): OpenerRecord {
+  if (isDoNotContactOpener(opener)) return opener;
+  const now = opts?.now;
+  const stamp = nowIso(now);
+  const dismissed = opener.dwellCount || 0;
+  const base: OpenerRecord = {
+    ...opener,
+    status: "nurturing",
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      directOutreachDismissedDwellCount: dismissed,
+      stopReason: opener.nurture.stopReason === "direct_outreach" ? undefined : opener.nurture.stopReason,
+      stoppedAt: opener.nurture.stopReason === "direct_outreach" ? undefined : opener.nurture.stoppedAt,
+    },
+  };
+  if (base.nurture.stopReason === "opt_out" || base.nurture.stopReason === "promoted") return opener;
+
+  const convertInFlight =
+    isConvertOpener(base) &&
+    Boolean(base.nurture.n1At) &&
+    base.nurture.closerStatus !== "done" &&
+    base.nurture.closerStatus !== "skipped";
+  if (convertInFlight) {
+    return {
+      ...base,
+      nurture: { ...base.nurture, stream: "convert", wakeAt: nextConvertSendWindow(now).toISOString() },
+    };
+  }
+
+  // stopNurture sets step: 3 even when 3-touch never started (touch1 still idle).
+  const threeTouchInFlight =
+    base.nurture.stream !== "convert" &&
+    base.nurture.touch1Status !== "idle" &&
+    base.nurture.step >= 1;
+  if (threeTouchInFlight) return base;
+
+  if (opts?.dualOpenEligible) return enrolConvertOpener(base, now);
+
+  const draft = opts?.draft ?? {
+    subject: "A note from Strata",
+    html: "<p>Hi,</p><p>If this isn't useful, reply stop and we won't email again.</p>",
+  };
+  return startNurture({ ...base, nurture: { ...base.nurture, stream: "opener_3touch" } }, draft, now);
 }
 
 export function openerOnOpenersBoard(opener: OpenerRecord): boolean {

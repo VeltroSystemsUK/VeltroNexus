@@ -18,11 +18,13 @@ import {
   completeConvertCloser,
   completeTouch2,
   convertStepBadge,
+  applyDirectOutreach,
   eligibleDirectOutreach,
   keepConvertOpenerOnHardBounce,
   daysSitting,
   emptyNurture,
   enrolConvertOpener,
+  resumeJamesFromDirectOutreach,
   failNurtureSend,
   isConvertCloserDue,
   isConvertOpener,
@@ -557,6 +559,64 @@ describe("direct outreach gate", () => {
   it("identifies Direct Outreach status", () => {
     expect(isDirectOutreachOpener(opener({ status: "direct_outreach" }))).toBe(true);
     expect(isDirectOutreachOpener(opener({ status: "new" }))).toBe(false);
+  });
+});
+
+describe("applyDirectOutreach", () => {
+  it("moves a 5-dwell nurturing convert card and stops James", () => {
+    const row = recordConvertSend(
+      enrolConvertOpener(opener({ dwellCount: 5, companyNumber: "08765432" })),
+      "sme_n1",
+      "mail-n1"
+    );
+    const next = applyDirectOutreach(row);
+    expect(next.status).toBe("direct_outreach");
+    expect(next.nurture.stopReason).toBe("direct_outreach");
+    expect(next.nurture.wakeAt).toBeUndefined();
+    expect(next.nurture.n1At).toBeTruthy();
+  });
+
+  it("is a no-op when ineligible", () => {
+    const row = opener({ dwellCount: 4, status: "new" });
+    expect(applyDirectOutreach(row)).toBe(row);
+  });
+});
+
+describe("resumeJamesFromDirectOutreach", () => {
+  it("resumes convert at the next unsent step", () => {
+    const stopped = applyDirectOutreach(
+      recordConvertSend(enrolConvertOpener(opener({ dwellCount: 5 })), "sme_n1", "mail-n1")
+    );
+    const next = resumeJamesFromDirectOutreach(stopped, { now: new Date("2026-09-14T12:00:00.000Z") });
+    expect(next.status).toBe("nurturing");
+    expect(next.nurture.stopReason).toBeUndefined();
+    expect(next.nurture.directOutreachDismissedDwellCount).toBe(5);
+    expect(next.nurture.n1At).toBeTruthy();
+    expect(next.nurture.n2At).toBeUndefined();
+    expect(next.nurture.wakeAt).toBeTruthy();
+  });
+
+  it("enrols convert when they never started and dual-open is eligible", () => {
+    const desk = applyDirectOutreach(opener({ dwellCount: 5, status: "new" }));
+    const next = resumeJamesFromDirectOutreach(desk, { dualOpenEligible: true });
+    expect(next.nurture.stream).toBe("convert");
+    expect(next.status).toBe("nurturing");
+    expect(next.nurture.stopReason).toBeUndefined();
+  });
+
+  it("starts 3-touch when they never started and convert does not apply", () => {
+    const desk = applyDirectOutreach(opener({ dwellCount: 5, status: "new" }));
+    const next = resumeJamesFromDirectOutreach(desk, {
+      dualOpenEligible: false,
+      draft: { subject: "Next", html: "<p>Hi</p>" },
+    });
+    expect(next.nurture.stream).toBe("opener_3touch");
+    expect(next.nurture.touch1Status).toBe("pending_approval");
+  });
+
+  it("does not restart do-not-contact", () => {
+    const parked = stopNurture(opener({ dwellCount: 9 }), "opt_out");
+    expect(resumeJamesFromDirectOutreach(parked).status).toBe("not_now");
   });
 });
 
