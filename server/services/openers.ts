@@ -51,6 +51,7 @@ import { wasEmailDelivered } from "@shared/outreachSend";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
 import { atomicWriteFileSync } from "../utils/atomicWriteJson";
 import type { AgentMailItem } from "./agentMailLog";
+import { revokeBriefingsForOpener } from "./briefings";
 
 export type OpenerChClient = {
   getCompanyProfile(n: string): Promise<any>;
@@ -202,7 +203,7 @@ export function resumeOpenerFromDirectOutreach(id: string): OpenerRecord | undef
 }
 
 export function onOpenerUnsubscribed(openerId: string): void {
-  void openerId;
+  revokeBriefingsForOpener(openerId);
 }
 
 function inVitest(): boolean {
