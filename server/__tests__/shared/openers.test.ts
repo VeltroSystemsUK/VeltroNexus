@@ -4,8 +4,10 @@ import path from "path";
 import {
   OPENER_CONVERT_CLOSER_DELAY_MS,
   OPENER_TOUCH2_DELAY_MS,
+  DIRECT_OUTREACH_DWELL_MIN,
   applyClickEvent,
   applyConvertStop,
+  applyOpenerDemote,
   convertReasonFromInboundKind,
   applyOpenEvent,
   applySecondEmailNurturing,
@@ -16,6 +18,7 @@ import {
   completeConvertCloser,
   completeTouch2,
   convertStepBadge,
+  eligibleDirectOutreach,
   keepConvertOpenerOnHardBounce,
   daysSitting,
   emptyNurture,
@@ -23,6 +26,7 @@ import {
   failNurtureSend,
   isConvertCloserDue,
   isConvertOpener,
+  isDirectOutreachOpener,
   isNurtureInFlight,
   isTouch2Due,
   mergeOpeners,
@@ -33,6 +37,7 @@ import {
   openerBelongsToDesk,
   openerHasReceivedSecondEmail,
   openerNurtureDraft,
+  openerOnOpenersBoard,
   openerOnPipeline,
   openerOutboundSentCount,
   recordConvertSend,
@@ -171,6 +176,48 @@ describe("board ranking", () => {
       "cold",
       "none",
     ]);
+  });
+
+  it("ranks on-site dwell above hotter mail clicks", () => {
+    const onSite = opener({
+      id: "site",
+      companyName: "Zebra",
+      clickCount: 1,
+      openCount: 1,
+      dwellCount: 1,
+    });
+    const hottest = {
+      ...opener({ id: "hot", companyName: "Acme", clickCount: 2, openCount: 8, dwellCount: 0 }),
+      timeline: [
+        {
+          clicks: [
+            { at: "2026-09-10T08:00:00.000Z", url: "https://stratafinance.co.uk/strata-solution.html" },
+            { at: "2026-09-10T12:00:00.000Z", url: "https://stratafinance.co.uk/cdfi-funding.html" },
+          ],
+        },
+      ],
+    };
+    expect([hottest, onSite].sort(compareOpenersByOpenCount).map((row) => row.id)).toEqual([
+      "site",
+      "hot",
+    ]);
+  });
+
+  it("ranks more on-site dwells first even when heat matches", () => {
+    const seven = opener({ id: "seven", companyName: "Zed", dwellCount: 7, clickCount: 2, openCount: 1 });
+    const two = opener({ id: "two", companyName: "Acme", dwellCount: 2, clickCount: 8, openCount: 9 });
+    expect([two, seven].sort(compareOpenersByOpenCount).map((row) => row.id)).toEqual(["seven", "two"]);
+  });
+
+  it("ranks Veltro interest after dwell inside Direct Outreach", () => {
+    const a = opener({
+      id: "a",
+      companyName: "Zebra",
+      dwellCount: 5,
+      veltroInterestAt: "2026-09-14T10:00:00.000Z",
+    });
+    const b = opener({ id: "b", companyName: "Acme", dwellCount: 5 });
+    expect(compareOpenersByOpenCount(a, b)).toBeLessThan(0);
   });
 });
 
@@ -477,6 +524,42 @@ describe("nurture", () => {
   });
 });
 
+describe("direct outreach gate", () => {
+  it("requires 5 dwells, not clicks", () => {
+    expect(eligibleDirectOutreach(opener({ dwellCount: 4, clickCount: 12, status: "new" }))).toBe(false);
+    expect(eligibleDirectOutreach(opener({ dwellCount: 5, status: "new" }))).toBe(true);
+    expect(DIRECT_OUTREACH_DWELL_MIN).toBe(5);
+  });
+
+  it("rejects promoted, non_responsive, and do-not-contact", () => {
+    expect(eligibleDirectOutreach(opener({ dwellCount: 9, status: "promoted", companyNumber: "08765432" }))).toBe(false);
+    expect(eligibleDirectOutreach(opener({ dwellCount: 9, status: "non_responsive" }))).toBe(false);
+    expect(eligibleDirectOutreach(opener({ dwellCount: 9, status: "not_now" }))).toBe(false);
+  });
+
+  it("does not re-pull at the dismissed dwell count", () => {
+    const row = opener({
+      dwellCount: 5,
+      status: "nurturing",
+      nurture: { ...opener().nurture, step: 1, directOutreachDismissedDwellCount: 5 },
+    });
+    expect(eligibleDirectOutreach(row)).toBe(false);
+    expect(eligibleDirectOutreach({ ...row, dwellCount: 6 })).toBe(true);
+  });
+
+  it("hides zero-dwell cards from the Openers desk", () => {
+    expect(openerOnOpenersBoard(opener({ dwellCount: 0, status: "new", clickCount: 12 }))).toBe(false);
+    expect(openerOnOpenersBoard(opener({ dwellCount: 1, status: "new" }))).toBe(true);
+    expect(openerOnOpenersBoard(opener({ dwellCount: 9, status: "not_now" }))).toBe(false);
+    expect(openerOnOpenersBoard(opener({ dwellCount: 2, status: "non_responsive" }))).toBe(false);
+  });
+
+  it("identifies Direct Outreach status", () => {
+    expect(isDirectOutreachOpener(opener({ status: "direct_outreach" }))).toBe(true);
+    expect(isDirectOutreachOpener(opener({ status: "new" }))).toBe(false);
+  });
+});
+
 describe("gates", () => {
   it("promote requires a company number", () => {
     expect(canPromoteOpener(opener())).toBe(false);
@@ -503,12 +586,45 @@ describe("gates", () => {
     expect(canDragOpenerTo(fresh, "nurturing")).toBe(false);
     expect(canDragOpenerTo(fresh, "not_now")).toBe(true);
     expect(canDragOpenerTo(fresh, "promoted")).toBe(false);
+    expect(canDragOpenerTo(fresh, "direct_outreach")).toBe(false);
 
-    const sent = approveNurtureSend(startNurture(fresh, openerNurtureDraft(fresh)), "mail-1");
-    expect(canDragOpenerTo(sent, "new")).toBe(false);
-    expect(canDragOpenerTo(sent, "nurturing")).toBe(true);
-    expect(canDragOpenerTo(sent, "promoted")).toBe(false);
-    expect(canDragOpenerTo({ ...sent, companyNumber: "08765432" }, "promoted")).toBe(true);
+    const desk = opener({ status: "direct_outreach", dwellCount: 5, companyNumber: "08765432" });
+    expect(canDragOpenerTo(desk, "direct_outreach")).toBe(false);
+    expect(canDragOpenerTo(desk, "nurturing")).toBe(true);
+    expect(canDragOpenerTo(desk, "not_now")).toBe(true);
+    expect(canDragOpenerTo(desk, "promoted")).toBe(true);
+    expect(canDragOpenerTo(desk, "new")).toBe(false);
+
+    const parked = stopNurture(opener(), "opt_out");
+    expect(canDragOpenerTo(parked, "direct_outreach")).toBe(false);
+  });
+
+  it("promoted cards can be dragged back off the Pipeline", () => {
+    const promoted = {
+      ...stopNurture(opener({ companyNumber: "08765432", prospectId: 9 }), "promoted"),
+      status: "promoted" as const,
+    };
+    expect(canDragOpenerTo(promoted, "nurturing")).toBe(true);
+    expect(canDragOpenerTo(promoted, "new")).toBe(true);
+    expect(canDragOpenerTo(promoted, "not_now")).toBe(true);
+    expect(canDragOpenerTo(promoted, "non_responsive")).toBe(false);
+  });
+
+  it("demote returns a warm opener and blocks sixth-email auto-promote", () => {
+    const now = new Date("2026-09-11T10:00:00.000Z");
+    const promoted = {
+      ...stopNurture(opener({ companyNumber: "08765432", prospectId: 87, status: "promoted" }), "promoted"),
+      status: "promoted" as const,
+      prospectId: 87,
+    };
+    const demoted = applyOpenerDemote(promoted, "nurturing", now);
+    expect(demoted.status).toBe("nurturing");
+    expect(demoted.prospectId).toBeUndefined();
+    expect(demoted.nurture.stopReason).toBeUndefined();
+    expect(demoted.nurture.promoteBlocked).toBe(true);
+    expect(demoted.nurture.step).toBe(0);
+    expect(demoted.updatedAt).toBe(now.toISOString());
+    expect(openerOnPipeline(demoted)).toBe(false);
   });
 
   it("do-not-contact cards cannot leave Unsubscribed", () => {
@@ -746,6 +862,12 @@ describe("sixth-email auto-promote", () => {
     expect(shouldAutoPromoteOpener(stopNurture(ready, "opt_out"), sent(6))).toBe(false);
     expect(shouldAutoPromoteOpener(opener({ companyNumber: "08765432", status: "not_now" }), sent(6))).toBe(false);
     expect(shouldAutoPromoteOpener(ready, sent(6), ["ops@northpeak.co.uk"])).toBe(false);
+    expect(
+      shouldAutoPromoteOpener(
+        applyOpenerDemote(opener({ companyNumber: "08765432", status: "promoted", prospectId: 1 })),
+        sent(6)
+      )
+    ).toBe(false);
   });
 });
 

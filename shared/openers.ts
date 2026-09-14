@@ -2,15 +2,16 @@ import { isOpenedOutboundMail, lastMailOpenAt } from "./mailTracking";
 import { convertWakeAt } from "./smeConvert";
 import { SME_NURTURE_CADENCE } from "./salesOs";
 
-export const OPENER_BOARD_STATUSES = ["new", "nurturing", "not_now", "promoted"] as const;
+export const OPENER_BOARD_STATUSES = ["new", "nurturing", "direct_outreach", "promoted"] as const;
 export type OpenerBoardStatus = (typeof OPENER_BOARD_STATUSES)[number];
-export const OPENER_STATUSES = ["non_responsive", ...OPENER_BOARD_STATUSES] as const;
+export const OPENER_STATUSES = ["non_responsive", "new", "nurturing", "direct_outreach", "not_now", "promoted"] as const;
 export type OpenerStatus = (typeof OPENER_STATUSES)[number];
 export type OpenerDesk = "openers" | "non_responsive";
 
 export const OPENER_TOUCH2_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 export const OPENER_CONVERT_CLOSER_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 export const OPENER_AUTO_PROMOTE_AFTER_EMAILS = 5;
+export const DIRECT_OUTREACH_DWELL_MIN = 5;
 
 export type OpenerNurture = {
   step: 0 | 1 | 2 | 3;
@@ -23,7 +24,7 @@ export type OpenerNurture = {
   touch2Channel?: "whatsapp" | "call";
   touch2At?: string;
   stoppedAt?: string;
-  stopReason?: "completed" | "reply" | "opt_out" | "promoted" | "manual" | "blocked";
+  stopReason?: "completed" | "reply" | "opt_out" | "promoted" | "manual" | "blocked" | "direct_outreach";
   stream?: "convert" | "opener_3touch";
   convertCycle?: number;
   wakeAt?: string;
@@ -39,6 +40,8 @@ export type OpenerNurture = {
   closerAt?: string;
   closerScript?: string;
   promoteBlocked?: boolean;
+  /** Dwell count when Shaun dragged Direct Outreach → Nurturing (false positive). */
+  directOutreachDismissedDwellCount?: number;
 };
 
 export type OpenerRecord = {
@@ -71,6 +74,8 @@ export type OpenerRecord = {
   createdAt: string;
   updatedAt: string;
   nurture: OpenerNurture;
+  veltroInterestAt?: string;
+  briefingId?: string;
 };
 
 export type OpenerMailLike = {
@@ -88,7 +93,8 @@ export type OpenerMailLike = {
 };
 
 const STATUS_RANK: Record<OpenerStatus, number> = {
-  promoted: 4,
+  promoted: 5,
+  direct_outreach: 4,
   nurturing: 3,
   not_now: 2,
   new: 1,
@@ -190,6 +196,8 @@ export function normalizeOpener(
     createdAt: input.createdAt ?? stamp,
     updatedAt: input.updatedAt ?? stamp,
     nurture: normalizeNurture(input.nurture),
+    veltroInterestAt: input.veltroInterestAt,
+    briefingId: input.briefingId,
   };
 }
 
@@ -217,6 +225,7 @@ function openerDisplayName(opener: Pick<OpenerRecord, "companyName" | "email">):
 
 export type OpenerRankable = Pick<OpenerRecord, "companyName" | "email" | "openCount" | "clickCount"> & {
   dwellCount?: number;
+  veltroInterestAt?: string;
   timeline?: Array<{ clicks?: unknown[] }>;
 };
 
@@ -359,6 +368,11 @@ function clickHeatRank(opener: OpenerRankable): number {
 }
 
 export function compareOpenersByOpenCount(a: OpenerRankable, b: OpenerRankable): number {
+  const byDwell = Math.max(0, b.dwellCount || 0) - Math.max(0, a.dwellCount || 0);
+  if (byDwell) return byDwell;
+  const aVeltro = Boolean(a.veltroInterestAt);
+  const bVeltro = Boolean(b.veltroInterestAt);
+  if (aVeltro !== bVeltro) return aVeltro ? -1 : 1;
   const byHeat = clickHeatRank(b) - clickHeatRank(a);
   if (byHeat) return byHeat;
   const byClicks = openerClickCount(b) - openerClickCount(a);
@@ -893,6 +907,32 @@ export function canPromoteOpener(opener: Pick<OpenerRecord, "companyNumber">): b
   return Boolean(normalizeCompanyNumber(opener.companyNumber));
 }
 
+export function applyOpenerDemote(
+  opener: OpenerRecord,
+  status: "new" | "nurturing" | "not_now" = "nurturing",
+  now?: Date
+): OpenerRecord {
+  const stamp = nowIso(now);
+  const wasPromotedStop = opener.nurture.stopReason === "promoted";
+  return {
+    ...opener,
+    status,
+    prospectId: undefined,
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      promoteBlocked: true,
+      ...(wasPromotedStop
+        ? {
+            stopReason: undefined,
+            stoppedAt: undefined,
+            step: opener.nurture.touch1Status === "idle" ? 0 : opener.nurture.step,
+          }
+        : {}),
+    },
+  };
+}
+
 export function isDoNotContactOpener(
   opener: Pick<OpenerRecord, "status" | "nurture">
 ): boolean {
@@ -915,12 +955,22 @@ export function shouldAutoPromoteOpener(
     if (hit) return false;
   }
   if (isConvertOpener(opener)) return false;
+  if (opener.nurture.promoteBlocked) return false;
   return openerOutboundSentCount(opener, mail) > OPENER_AUTO_PROMOTE_AFTER_EMAILS;
 }
 
 export function canDragOpenerTo(opener: OpenerRecord, column: OpenerStatus): boolean {
   if (opener.status === "non_responsive" || column === "non_responsive") return false;
+  if (column === "direct_outreach") return false;
   if (isDoNotContactOpener(opener)) return column === "not_now";
+  if (opener.status === "direct_outreach") {
+    if (column === "nurturing" || column === "not_now") return true;
+    if (column === "promoted") return canPromoteOpener(opener);
+    return false;
+  }
+  if (opener.status === "promoted") {
+    return column === "new" || column === "nurturing" || column === "not_now";
+  }
   if (column === "not_now") return true;
   if (column === "new") {
     if (isConvertOpener(opener)) return !opener.nurture.n1At;
@@ -932,6 +982,24 @@ export function canDragOpenerTo(opener: OpenerRecord, column: OpenerStatus): boo
   }
   if (column === "promoted") return canPromoteOpener(opener);
   return false;
+}
+
+export function isDirectOutreachOpener(opener: Pick<OpenerRecord, "status">): boolean {
+  return opener.status === "direct_outreach";
+}
+
+export function eligibleDirectOutreach(opener: OpenerRecord): boolean {
+  if ((opener.dwellCount || 0) < DIRECT_OUTREACH_DWELL_MIN) return false;
+  if (opener.status === "promoted" || opener.status === "non_responsive") return false;
+  if (isDoNotContactOpener(opener)) return false;
+  const dismissed = opener.nurture.directOutreachDismissedDwellCount ?? 0;
+  return (opener.dwellCount || 0) > dismissed;
+}
+
+export function openerOnOpenersBoard(opener: OpenerRecord): boolean {
+  if (opener.status === "non_responsive") return false;
+  if (isDoNotContactOpener(opener)) return false;
+  return (opener.dwellCount || 0) >= 1;
 }
 
 export function keepConvertOpenerOnHardBounce(opener: OpenerRecord): boolean {
