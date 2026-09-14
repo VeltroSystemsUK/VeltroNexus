@@ -7,9 +7,11 @@ describe("Openers UI wiring", () => {
     const page = fs.readFileSync(path.resolve("client/src/pages/Openers.tsx"), "utf8");
     expect(page).toMatch(/data-testid="column-new"/);
     expect(page).toMatch(/data-testid="column-nurturing"/);
-    expect(page).toMatch(/data-testid="column-not_now"/);
-    expect(page).toMatch(/not_now: "Unsubscribed"/);
-    expect(page).not.toMatch(/not_now: "Not now"/);
+    expect(page).toMatch(/data-testid="column-direct-outreach"/);
+    expect(page).toMatch(/data-testid="btn-generate-briefing"/);
+    expect(page).toMatch(/data-testid="btn-send-briefing"/);
+    expect(page).toMatch(/data-testid="badge-veltro-interest"/);
+    expect(page).not.toMatch(/data-testid="column-not_now"/);
     expect(page).toMatch(/data-testid="badge-do-not-contact"/);
     expect(page).toMatch(/DO NOT CONTACT/);
     expect(page).toMatch(/data-testid="badge-opener-clicks"/);
@@ -31,12 +33,19 @@ describe("Openers UI wiring", () => {
     expect(page).toMatch(/data-testid="column-non_responsive"/);
     expect(page).toMatch(/non_responsive: "Non Responsive"/);
     expect(page).toMatch(/data-testid="button-promote-opener"/);
+    expect(page).toMatch(/data-testid="button-demote-opener"/);
+    expect(page).toMatch(/\/api\/openers\/\$\{id\}\/demote/);
     expect(page).toMatch(/SheetContent/);
     expect(page).toMatch(/DragDropContext/);
     expect(page).toMatch(/compareOpenersByOpenCount/);
     expect(page).not.toMatch(/b\.daysSitting - a\.daysSitting/);
     expect(page).toMatch(/touch1Draft\.html/);
     expect(page).toMatch(/srcDoc/);
+
+    const unsub = fs.readFileSync(path.resolve("client/src/pages/Unsubscribed.tsx"), "utf8");
+    expect(unsub).toMatch(/data-testid="page-unsubscribed"/);
+    expect(unsub).not.toMatch(/btn-generate-briefing/);
+    expect(unsub).not.toMatch(/\/api\/campaigns/);
 
     const nav = fs.readFileSync(path.resolve("client/src/components/shell/navModel.ts"), "utf8");
     expect(nav).toMatch(/path: "\/openers".*group: "Marketing"/);
@@ -46,11 +55,14 @@ describe("Openers UI wiring", () => {
     expect(nav).toMatch(/path: "\/non-responsive".*group: "Marketing"/);
     expect(nav).toMatch(/label: "Non Responsive"/);
     expect(nav).toMatch(/path: "\/non-responsive".*roles: \["super_admin", "sales_admin"\]/);
+    expect(nav).toMatch(/path: "\/unsubscribed".*group: "Marketing"/);
+    expect(nav).toMatch(/label: "Unsubscribed"/);
 
     const app = fs.readFileSync(path.resolve("client/src/App.tsx"), "utf8");
     expect(app).toMatch(/path="\/openers"/);
     expect(app).toMatch(/path="\/non-responsive"/);
     expect(app).toMatch(/desk="non_responsive"/);
+    expect(app).toMatch(/path="\/unsubscribed"/);
 
     const sidebar = fs.readFileSync(path.resolve("client/src/components/Sidebar.tsx"), "utf8");
     expect(sidebar).toMatch(/path: "\/non-responsive", label: "Non Responsive"/);

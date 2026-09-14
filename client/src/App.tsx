@@ -70,6 +70,7 @@ const ApplyOnline = lazy(() => import("@/pages/ApplyOnline"));
 const CallCentre = lazy(() => import("@/pages/CallCentre"));
 const AgentMail = lazy(() => import("@/pages/AgentMail"));
 const Openers = lazy(() => import("@/pages/Openers"));
+const Unsubscribed = lazy(() => import("@/pages/Unsubscribed"));
 
 
 import { CookieConsent } from "@/components/CookieConsent";
@@ -231,6 +232,9 @@ function NexusRouter() {
         </Route>
         <Route path="/openers">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Openers />}
+        </Route>
+        <Route path="/unsubscribed">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Unsubscribed />}
         </Route>
         <Route path="/non-responsive">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Openers desk="non_responsive" />}

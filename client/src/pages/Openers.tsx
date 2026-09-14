@@ -71,6 +71,7 @@ const COLUMN_LABELS: Record<OpenerStatus, string> = {
   non_responsive: "Non Responsive",
   new: "New",
   nurturing: "Nurturing",
+  direct_outreach: "Direct Outreach",
   not_now: "Unsubscribed",
   promoted: "Promoted",
 };
@@ -262,6 +263,9 @@ function OpenerCards({
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pl-6">
                       <ClickHeatBadge opener={opener} />
+                      {opener.veltroInterestAt && (
+                        <Badge data-testid="badge-veltro-interest">Veltro</Badge>
+                      )}
                       {(opener.dwellCount || 0) > 0 && (
                         <Badge data-testid="badge-opener-dwell">
                           On site {opener.dwellCount}×
@@ -426,8 +430,52 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     },
     onSuccess: (result) => {
       invalidate();
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       toast.success(result.created ? "Opened on the Deck" : "Already on the Deck");
       setLocation("/pipeline");
+    },
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const generateBriefingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(`/api/openers/${id}/briefing/generate`, "POST");
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Briefing generated");
+    },
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const sendBriefingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(`/api/openers/${id}/briefing/send`, "POST");
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Briefing sent");
+    },
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const demoteMutation = useMutation({
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status?: "new" | "nurturing" | "not_now";
+    }) => {
+      const res = await apiRequest(`/api/openers/${id}/demote`, "POST", status ? { status } : {});
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      toast.success("Back on Openers");
     },
     onError: (err: Error) => toast.error(mutationError(err)),
   });
@@ -515,6 +563,13 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
 
     if (!canDragOpenerTo(opener, column)) {
       toast.error("Cannot move opener to that status");
+      return;
+    }
+    if (opener.status === "promoted") {
+      demoteMutation.mutate({
+        id: opener.id,
+        status: column as "new" | "nurturing" | "not_now",
+      });
       return;
     }
     patchMutation.mutate({ id: opener.id, body: { status: column } });
@@ -644,11 +699,11 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
               onSelect={setSelectedId}
             />
             <ColumnFrame
-              data-testid="column-not_now"
-              label={COLUMN_LABELS.not_now}
-              droppableId="not_now"
-              items={byStatus.not_now}
-              count={byStatus.not_now.length}
+              data-testid="column-direct-outreach"
+              label={COLUMN_LABELS.direct_outreach}
+              droppableId="direct_outreach"
+              items={byStatus.direct_outreach}
+              count={byStatus.direct_outreach.length}
               onSelect={setSelectedId}
             />
             <ColumnFrame
@@ -673,6 +728,9 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                 <SheetTitle className="flex items-center gap-2">
                   {openerTitle(selected)}
                   <ClickHeatBadge opener={selected} />
+                  {selected.veltroInterestAt && (
+                    <Badge data-testid="badge-veltro-interest">Veltro</Badge>
+                  )}
                   {selected.nonBankChargeCount > 0 && (
                     <Badge variant="destructive">Live charges</Badge>
                   )}
@@ -789,6 +847,35 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                       rows={4}
                     />
                   </section>
+
+                  {selected.status === "direct_outreach" && (
+                    <section className="space-y-2">
+                      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Briefing</h3>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          data-testid="btn-generate-briefing"
+                          disabled={generateBriefingMutation.isPending || doNotContact}
+                          onClick={() => generateBriefingMutation.mutate(selected.id)}
+                        >
+                          {generateBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Generate
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          data-testid="btn-send-briefing"
+                          disabled={!selected.briefingId || sendBriefingMutation.isPending || doNotContact}
+                          onClick={() => sendBriefingMutation.mutate(selected.id)}
+                        >
+                          {sendBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Send
+                        </Button>
+                      </div>
+                    </section>
+                  )}
 
                   {!isNonResponsive && <section className="space-y-2">
                     <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Nurture</h3>
@@ -916,15 +1003,30 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                     </Button>
                   </section>
 
-                  <Button
-                    type="button"
-                    data-testid="button-promote-opener"
-                    disabled={!canPromoteOpener(selected) || promoteMutation.isPending}
-                    onClick={() => promoteMutation.mutate(selected.id)}
-                  >
-                    {promoteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {promoteLabel}
-                  </Button>
+                  {selected.status === "promoted" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      data-testid="button-demote-opener"
+                      disabled={demoteMutation.isPending}
+                      onClick={() =>
+                        demoteMutation.mutate({ id: selected.id, status: "nurturing" })
+                      }
+                    >
+                      {demoteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Demote from Pipeline
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      data-testid="button-promote-opener"
+                      disabled={!canPromoteOpener(selected) || promoteMutation.isPending}
+                      onClick={() => promoteMutation.mutate(selected.id)}
+                    >
+                      {promoteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {promoteLabel}
+                    </Button>
+                  )}
                 </div>
               </ScrollArea>
             </>
