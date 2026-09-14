@@ -71,6 +71,7 @@ const CallCentre = lazy(() => import("@/pages/CallCentre"));
 const AgentMail = lazy(() => import("@/pages/AgentMail"));
 const Openers = lazy(() => import("@/pages/Openers"));
 const Unsubscribed = lazy(() => import("@/pages/Unsubscribed"));
+const Veltro = lazy(() => import("@/pages/Veltro"));
 
 
 import { CookieConsent } from "@/components/CookieConsent";
@@ -140,6 +141,7 @@ function NexusRouter() {
         <Route path="/privacy" component={PrivacyPolicy} />
         <Route path="/terms" component={Terms} />
         <Route path="/unsubscribe" component={Unsubscribe} />
+        <Route path="/veltro" component={Veltro} />
         <Route path="/briefing/:token">{null}</Route>
         <Route path="/introduction-portal" component={IntroductionPortal} />
         <Route path="/pack/:token" component={PackUpload} />
@@ -333,7 +335,8 @@ function NexusAppContent() {
     location.startsWith("/pack/") ||
     location.startsWith("/sign/") ||
     location.startsWith("/apply/") ||
-    location.startsWith("/briefing/");
+    location.startsWith("/briefing/") ||
+    location === "/veltro";
   const isSterlingPortal =
     role === "external_broker" || location.startsWith("/broker-portal");
 

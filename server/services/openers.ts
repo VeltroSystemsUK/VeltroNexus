@@ -1928,14 +1928,19 @@ export function stopOpenerNurtureByEmail(
     const mapped =
       reason === "opt_out" ? "opt_out" : canPromoteOpener(opener) ? "reply" : "blocked";
     const next = saveOpener(applyConvertStop(opener, mapped));
+    if (reason === "opt_out") revokeBriefingsForOpener(opener.id);
     void stopConvertAndPromote(opener.id, reason).catch((error: any) => {
       console.warn("[Openers] convert auto-promote failed:", error?.message || error);
     });
     return next;
   }
   if (reason === "opt_out") {
-    if (opener.status === "not_now" && opener.nurture.stopReason === "opt_out") return opener;
-    return saveOpener(stopNurture(opener, "opt_out"));
+    const next =
+      opener.status === "not_now" && opener.nurture.stopReason === "opt_out"
+        ? opener
+        : saveOpener(stopNurture(opener, "opt_out"));
+    revokeBriefingsForOpener(opener.id);
+    return next;
   }
   if (!isNurtureInFlight(opener)) return undefined;
   return saveOpener(stopNurture(opener, reason));

@@ -428,6 +428,13 @@ export async function recordBriefingDwellAndPromote(
   }
 }
 
+export function recordVeltroInterest(token: string): { flagged: boolean } {
+  const live = getLiveBriefingByToken(token);
+  if (!live) return { flagged: false };
+  const opener = patchOpener(live.openerId, { veltroInterestAt: nowIso() });
+  return { flagged: Boolean(opener) };
+}
+
 export function recordBriefingSlide(
   token: string,
   index: unknown,

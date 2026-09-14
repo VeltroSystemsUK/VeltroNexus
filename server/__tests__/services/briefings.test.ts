@@ -44,6 +44,7 @@ import {
   privateWallHtml,
   recordBriefingDwell,
   recordBriefingDwellAndPromote,
+  recordVeltroInterest,
   renderBriefingHtml,
   revokeBriefingsForOpener,
   sendOpenerBriefing,
@@ -54,6 +55,7 @@ import {
   onOpenerUnsubscribed,
   promoteOpener,
   setOpenersStorePathForTests,
+  stopOpenerNurtureByEmail,
   writeOpeners,
 } from "../../services/openers";
 
@@ -325,5 +327,33 @@ describe("public pack dwell and auto-promote", () => {
     expect(pack.text).toMatch(/briefing-pack/);
     expect(pack.text).toMatch(/North Peak/);
     expect(pack.text).toMatch(/dwell\.gif/);
+  });
+});
+
+describe("Veltro interest and STOP revoke", () => {
+  beforeEach(() => {
+    tmpStore();
+    tmpOpenersStore();
+    vi.mocked(promoteOpener).mockClear();
+  });
+
+  it("Veltro interest flags the opener and does not promote", async () => {
+    const openerRow = sampleOpener({ companyNumber: "08765432", status: "direct_outreach" });
+    writeOpeners([openerRow]);
+    const live = activateBriefing(createDraftBriefing(openerRow).id);
+    const result = recordVeltroInterest(live.token);
+    expect(result.flagged).toBe(true);
+    expect(getOpener(openerRow.id)?.veltroInterestAt).toBeTruthy();
+    expect(getOpener(openerRow.id)?.status).toBe("direct_outreach");
+    expect(promoteOpener).not.toHaveBeenCalled();
+  });
+
+  it("STOP revokes the briefing", () => {
+    const openerRow = sampleOpener({ status: "direct_outreach", dwellCount: 5 });
+    writeOpeners([openerRow]);
+    const live = activateBriefing(createDraftBriefing(openerRow).id);
+    stopOpenerNurtureByEmail(openerRow.email, "opt_out");
+    expect(getLiveBriefingByToken(live.token)).toBeUndefined();
+    expect(getOpener(openerRow.id)?.status).toBe("not_now");
   });
 });

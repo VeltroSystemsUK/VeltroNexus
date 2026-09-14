@@ -71,6 +71,19 @@ describe("Openers UI wiring", () => {
     expect(crm).not.toMatch(/AgentJobProgress/);
   });
 
+  it("public Veltro page is concierge-only and not on staff nav", () => {
+    const veltro = fs.readFileSync(path.resolve("client/src/pages/Veltro.tsx"), "utf8");
+    expect(veltro).toMatch(/data-testid="btn-veltro-concierge"/);
+    expect(veltro.toLowerCase()).toMatch(/email verification/);
+    expect(veltro.toLowerCase()).toMatch(/lead/);
+    expect(veltro.toLowerCase()).not.toMatch(/we lend/);
+    expect(veltro.toLowerCase()).not.toMatch(/ai workforce|ares/);
+    const app = fs.readFileSync(path.resolve("client/src/App.tsx"), "utf8");
+    expect(app).toMatch(/path="\/veltro"/);
+    const nav = fs.readFileSync(path.resolve("client/src/components/shell/navModel.ts"), "utf8");
+    expect(nav).not.toMatch(/path: "\/veltro"/);
+  });
+
   it("nurture approve sends as the chosen desk", () => {
     const page = fs.readFileSync(path.resolve("client/src/pages/Openers.tsx"), "utf8");
     expect(page).toMatch(/SendAsSelect/);

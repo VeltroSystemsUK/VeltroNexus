@@ -303,6 +303,7 @@ function isCsrfExemptPath(requestPath: string): boolean {
     if (path === "/api/agent-mail/inbound" || path.startsWith("/api/agent-mail/inbound/")) return true;
     if (path === "/api/agent-mail/unsubscribe" || path.startsWith("/api/agent-mail/unsubscribe/")) return true;
     if (path.startsWith("/api/briefing/")) return true;
+    if (path === "/api/veltro/interest") return true;
     return ["/api/webhooks", "/api/pack", "/api/sign", "/api/inbound", "/api/telnyx"].some(
         (prefix) => path === prefix || path.startsWith(`${prefix}/`)
     );

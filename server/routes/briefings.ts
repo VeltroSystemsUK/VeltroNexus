@@ -3,6 +3,7 @@ import {
   briefingHtmlForToken,
   recordBriefingDwellAndPromote,
   recordBriefingSlide,
+  recordVeltroInterest,
 } from "../services/briefings";
 import { sendTrackingPixel } from "../utils/trackingPixel";
 
@@ -42,6 +43,11 @@ router.get("/api/briefing/:token/dwell.gif", async (req, res) => {
 router.post("/api/briefing/:token/slide", (req, res) => {
   const result = recordBriefingSlide(String(req.params.token || ""), req.body?.index, trackingOpts(req));
   res.json(result);
+});
+
+router.post("/api/veltro/interest", (req, res) => {
+  const token = String(req.body?.token || "");
+  res.json(recordVeltroInterest(token));
 });
 
 export default router;
