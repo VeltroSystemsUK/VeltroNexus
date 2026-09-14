@@ -140,6 +140,7 @@ function NexusRouter() {
         <Route path="/privacy" component={PrivacyPolicy} />
         <Route path="/terms" component={Terms} />
         <Route path="/unsubscribe" component={Unsubscribe} />
+        <Route path="/briefing/:token">{null}</Route>
         <Route path="/introduction-portal" component={IntroductionPortal} />
         <Route path="/pack/:token" component={PackUpload} />
         <Route path="/sign/:token" component={SignEngagement} />
@@ -329,7 +330,10 @@ function NexusAppContent() {
   const [location] = useLocation();
   const { isAuthenticated, isLoading, user, role } = useAuth();
   const isCustomerPack =
-    location.startsWith("/pack/") || location.startsWith("/sign/") || location.startsWith("/apply/");
+    location.startsWith("/pack/") ||
+    location.startsWith("/sign/") ||
+    location.startsWith("/apply/") ||
+    location.startsWith("/briefing/");
   const isSterlingPortal =
     role === "external_broker" || location.startsWith("/broker-portal");
 

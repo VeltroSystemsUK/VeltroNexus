@@ -98,6 +98,7 @@ import inboundRouter from "./routes/inbound"; // Added inbound router
 import agenticWorkflowRouter from "./routes/agenticWorkflow";
 import agentMailRouter from "./routes/agentMail";
 import openersRouter from "./routes/openers";
+import briefingsRouter from "./routes/briefings";
 import gmailRouter from "./routes/gmail";
 import packUploadRouter from "./routes/packUpload";
 import signEngagementRouter from "./routes/signEngagement";
@@ -559,6 +560,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use(agenticWorkflowRouter);
   app.use(agentMailRouter);
   app.use(openersRouter);
+  app.use(briefingsRouter);
   app.use(gmailRouter);
   app.use(packUploadRouter);
   app.use(signEngagementRouter);

@@ -17,11 +17,12 @@ import {
   type BriefingRecord,
   type BriefingSlide,
 } from "@shared/briefingRender";
-import { isDoNotContactOpener, type OpenerRecord } from "@shared/openers";
+import { MAIL_DWELL_MS, shouldRecordMailTracking } from "@shared/mailTracking";
+import { canPromoteOpener, isDoNotContactOpener, type OpenerRecord } from "@shared/openers";
 import { atomicWriteFileSync } from "../utils/atomicWriteJson";
 import { sendEmail } from "./email";
 import * as mailDesk from "./mailDesk";
-import { getOpener, patchOpener } from "./openers";
+import { getOpener, patchOpener, promoteOpener } from "./openers";
 
 export type { BriefingRecord, BriefingSlide };
 export { defaultBriefingSlides, privateWallHtml, renderBriefingHtml, BRIEFING_ENQUIRY_URL };
@@ -349,4 +350,105 @@ export async function sendOpenerBriefing(
     throw httpError("Send failed", 502);
   }
   return live;
+}
+
+export type BriefingTrackOpts = { staffSession?: boolean; referer?: string };
+
+function briefingDwellScript(token: string): string {
+  const safe = JSON.stringify(String(token || ""));
+  return `<script>
+(() => {
+  try {
+    const token = ${safe};
+    const sentKey = "sf_briefing_dwell_sent_" + token;
+    if (sessionStorage.getItem(sentKey)) return;
+    setTimeout(() => {
+      if (sessionStorage.getItem(sentKey)) return;
+      sessionStorage.setItem(sentKey, "1");
+      const img = new Image();
+      img.src = "/api/briefing/" + encodeURIComponent(token) + "/dwell.gif";
+    }, ${MAIL_DWELL_MS});
+    document.querySelectorAll("[data-testid^='briefing-slide-']").forEach((el, index) => {
+      const io = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        fetch("/api/briefing/" + encodeURIComponent(token) + "/slide", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ index }),
+          keepalive: true,
+        }).catch(() => {});
+      }, { threshold: 0.5 });
+      io.observe(el);
+    });
+  } catch (e) {}
+})();
+</script>`;
+}
+
+export function briefingHtmlForToken(token: string): string {
+  const live = getLiveBriefingByToken(token);
+  if (!live) return privateWallHtml();
+  const html = renderBriefingHtml(live, { live: true });
+  return html.replace("</body>", `${briefingDwellScript(live.token)}</body>`);
+}
+
+export function recordBriefingDwell(
+  token: string,
+  opts: BriefingTrackOpts = {}
+): { recorded: boolean; already?: boolean } {
+  if (!shouldRecordMailTracking({ staffSession: opts.staffSession, referer: opts.referer })) {
+    return { recorded: false };
+  }
+  const all = readBriefings();
+  const idx = all.findIndex((row) => row.token === token && row.status === "live");
+  if (idx < 0) return { recorded: false };
+  if (all[idx].dwellAt) return { recorded: false, already: true };
+  const at = nowIso();
+  all[idx] = { ...all[idx], dwellAt: at, openedAt: all[idx].openedAt || at };
+  writeBriefings(all);
+  return { recorded: true };
+}
+
+export async function recordBriefingDwellAndPromote(
+  token: string,
+  opts: BriefingTrackOpts & { userId?: string } = {}
+): Promise<{ recorded: boolean; already?: boolean; promoted: boolean }> {
+  const dwell = recordBriefingDwell(token, opts);
+  if (!dwell.recorded) return { ...dwell, promoted: false };
+  const live = getLiveBriefingByToken(token);
+  const opener = live ? getOpener(live.openerId) : undefined;
+  if (!opener || !canPromoteOpener(opener)) {
+    return { recorded: true, promoted: false };
+  }
+  try {
+    await promoteOpener(opener.id, opts.userId || "");
+    return { recorded: true, promoted: true };
+  } catch {
+    return { recorded: true, promoted: false };
+  }
+}
+
+export function recordBriefingSlide(
+  token: string,
+  index: unknown,
+  opts: BriefingTrackOpts = {}
+): { recorded: boolean } {
+  if (!shouldRecordMailTracking({ staffSession: opts.staffSession, referer: opts.referer })) {
+    return { recorded: false };
+  }
+  const slideIndex = typeof index === "number" ? index : Number(index);
+  if (!Number.isInteger(slideIndex) || slideIndex < 0) return { recorded: false };
+  const all = readBriefings();
+  const idx = all.findIndex((row) => row.token === token && row.status === "live");
+  if (idx < 0) return { recorded: false };
+  const viewed = new Set(all[idx].slidesViewed);
+  viewed.add(slideIndex);
+  const at = nowIso();
+  all[idx] = {
+    ...all[idx],
+    slidesViewed: [...viewed].sort((a, b) => a - b),
+    openedAt: all[idx].openedAt || at,
+  };
+  writeBriefings(all);
+  return { recorded: true };
 }

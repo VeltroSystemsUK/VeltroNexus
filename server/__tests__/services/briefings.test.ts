@@ -1,7 +1,10 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import express from "express";
+import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import briefingsRouter from "../../routes/briefings";
 
 vi.mock("../../services/email", () => ({
   sendEmail: vi.fn(),
@@ -17,11 +20,21 @@ vi.mock("../../services/mailDesk", async (importOriginal) => {
   };
 });
 
+vi.mock("../../services/openers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../services/openers")>();
+  return {
+    ...actual,
+    promoteOpener: vi.fn(async () => ({ opener: {}, prospectId: 1, created: true })),
+  };
+});
+
 import { applyDirectOutreach, normalizeOpener } from "@shared/openers";
+import { MAIL_DWELL_MS } from "@shared/mailTracking";
 import { sendEmail } from "../../services/email";
 import { mailIsSuppressed } from "../../services/mailDesk";
 import {
   activateBriefing,
+  briefingHtmlForToken,
   createDraftBriefing,
   generateOpenerBriefing,
   getBriefing,
@@ -29,6 +42,8 @@ import {
   mintBriefingToken,
   previewOpenerBriefingHtml,
   privateWallHtml,
+  recordBriefingDwell,
+  recordBriefingDwellAndPromote,
   renderBriefingHtml,
   revokeBriefingsForOpener,
   sendOpenerBriefing,
@@ -37,6 +52,7 @@ import {
 import {
   getOpener,
   onOpenerUnsubscribed,
+  promoteOpener,
   setOpenersStorePathForTests,
   writeOpeners,
 } from "../../services/openers";
@@ -68,7 +84,7 @@ afterEach(() => {
   vi.mocked(mailIsSuppressed).mockReturnValue(false);
 });
 
-function sampleOpener() {
+function sampleOpener(overrides: Record<string, unknown> = {}) {
   return normalizeOpener({
     id: "op-north-peak",
     email: "ops@northpeak.co.uk",
@@ -77,6 +93,7 @@ function sampleOpener() {
     nonBankChargeCount: 2,
     firstOpenedAt: "2026-09-01T10:00:00.000Z",
     lastOpenedAt: "2026-09-01T10:00:00.000Z",
+    ...overrides,
   });
 }
 
@@ -222,5 +239,91 @@ describe("generate and send opener briefing", () => {
     expect(html).toMatch(/North Peak/);
     expect(html).not.toMatch(/dwell\.gif/);
     expect(html).not.toMatch(/briefing-pack/);
+  });
+});
+
+describe("public pack dwell and auto-promote", () => {
+  beforeEach(() => {
+    tmpStore();
+    tmpOpenersStore();
+    vi.mocked(promoteOpener).mockClear();
+    vi.mocked(promoteOpener).mockResolvedValue({ opener: {}, prospectId: 1, created: true } as never);
+  });
+
+  it("unknown token is a wall without the company name", () => {
+    const html = briefingHtmlForToken("nope");
+    expect(html).toMatch(/briefing-private-wall/);
+    expect(html).not.toMatch(/North Peak/);
+  });
+
+  it("first dwell promotes; staff session does not", async () => {
+    const opener = sampleOpener({ companyNumber: "08765432" });
+    writeOpeners([opener]);
+    const live = activateBriefing(createDraftBriefing(opener).id);
+    const ignored = recordBriefingDwell(live.token, { staffSession: true });
+    expect(ignored.recorded).toBe(false);
+    const first = await recordBriefingDwellAndPromote(live.token, { staffSession: false });
+    expect(first.recorded).toBe(true);
+    expect(first.promoted).toBe(true);
+    const second = await recordBriefingDwellAndPromote(live.token, { staffSession: false });
+    expect(second.promoted).toBe(false);
+  });
+
+  it("live pack html waits MAIL_DWELL_MS then requests dwell.gif", () => {
+    const live = activateBriefing(createDraftBriefing(sampleOpener()).id);
+    const html = briefingHtmlForToken(live.token);
+    expect(html).toMatch(/North Peak/);
+    expect(html).toMatch(/briefing-pack/);
+    expect(html).toMatch(/dwell\.gif/);
+    expect(html).toMatch(String(MAIL_DWELL_MS));
+    expect(html).toMatch(/setTimeout/);
+    expect(html).not.toMatch(/Openers/);
+  });
+
+  it("draft and revoked tokens are walls without the company name", () => {
+    const draft = createDraftBriefing(sampleOpener());
+    expect(briefingHtmlForToken(draft.token)).toMatch(/briefing-private-wall/);
+    expect(briefingHtmlForToken(draft.token)).not.toMatch(/North Peak/);
+    const live = activateBriefing(draft.id);
+    revokeBriefingsForOpener(sampleOpener().id);
+    expect(briefingHtmlForToken(live.token)).toMatch(/briefing-private-wall/);
+    expect(briefingHtmlForToken(live.token)).not.toMatch(/North Peak/);
+  });
+
+  it("Nexus referer does not record dwell or promote", async () => {
+    const live = activateBriefing(createDraftBriefing(sampleOpener({ companyNumber: "08765432" })).id);
+    const ignored = await recordBriefingDwellAndPromote(live.token, {
+      staffSession: false,
+      referer: "https://leads.stratanexus.co.uk/agent-mail",
+    });
+    expect(ignored.recorded).toBe(false);
+    expect(ignored.promoted).toBe(false);
+    expect(promoteOpener).not.toHaveBeenCalled();
+  });
+
+  it("dwell without a company number records and does not promote", async () => {
+    writeOpeners([sampleOpener()]);
+    const live = activateBriefing(createDraftBriefing(sampleOpener()).id);
+    const result = await recordBriefingDwellAndPromote(live.token, { staffSession: false });
+    expect(result.recorded).toBe(true);
+    expect(result.promoted).toBe(false);
+    expect(promoteOpener).not.toHaveBeenCalled();
+  });
+
+  it("GET /briefing/:token is 200 pack or wall with X-Robots-Tag", async () => {
+    const app = express();
+    app.use(briefingsRouter);
+    const wall = await request(app).get("/briefing/nope");
+    expect(wall.status).toBe(200);
+    expect(wall.headers["x-robots-tag"]).toBe("noindex, nofollow");
+    expect(wall.text).toMatch(/briefing-private-wall/);
+    expect(wall.text).not.toMatch(/North Peak/);
+    const live = activateBriefing(createDraftBriefing(sampleOpener()).id);
+    const pack = await request(app).get(`/briefing/${live.token}`);
+    expect(pack.status).toBe(200);
+    expect(pack.headers["x-robots-tag"]).toBe("noindex, nofollow");
+    expect(pack.text).toMatch(/briefing-pack/);
+    expect(pack.text).toMatch(/North Peak/);
+    expect(pack.text).toMatch(/dwell\.gif/);
   });
 });

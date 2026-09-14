@@ -35,6 +35,8 @@ describe("Security Integration Tests", () => {
       app.post("/api/inbound/refinance", (req, res) => res.json({ success: true }));
       app.post("/api/telnyx/voice", (req, res) => res.json({ success: true }));
       app.post("/api/agent-mail/inbound", (req, res) => res.json({ success: true }));
+      app.post("/api/agent-mail/unsubscribe/token", (req, res) => res.json({ success: true }));
+      app.post("/api/briefing/tok/slide", (req, res) => res.json({ success: true }));
     });
 
     afterAll(() => {
@@ -114,6 +116,10 @@ describe("Security Integration Tests", () => {
       expect(telnyx.status).toBe(200);
       const mail = await request(app).post("/api/agent-mail/inbound").send({});
       expect(mail.status).toBe(200);
+      const unsub = await request(app).post("/api/agent-mail/unsubscribe/token").send("List-Unsubscribe=One-Click");
+      expect(unsub.status).toBe(200);
+      const briefing = await request(app).post("/api/briefing/tok/slide").send({ index: 0 });
+      expect(briefing.status).toBe(200);
     });
 
     it("should handle invalid Origin URL gracefully", async () => {
