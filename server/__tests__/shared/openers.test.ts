@@ -612,6 +612,7 @@ describe("resumeJamesFromDirectOutreach", () => {
     });
     expect(next.nurture.stream).toBe("opener_3touch");
     expect(next.nurture.touch1Status).toBe("pending_approval");
+    expect(next.nurture.directOutreachDismissedDwellCount).toBe(5);
   });
 
   it("does not restart do-not-contact", () => {

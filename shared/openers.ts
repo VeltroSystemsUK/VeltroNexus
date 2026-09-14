@@ -1058,7 +1058,16 @@ export function resumeJamesFromDirectOutreach(
     subject: "A note from Strata",
     html: "<p>Hi,</p><p>If this isn't useful, reply stop and we won't email again.</p>",
   };
-  return startNurture({ ...base, nurture: { ...base.nurture, stream: "opener_3touch" } }, draft, now);
+  // startNurture replaces nurture wholesale; keep the dismiss watermark.
+  const started = startNurture(
+    { ...base, nurture: { ...base.nurture, stream: "opener_3touch" } },
+    draft,
+    now
+  );
+  return {
+    ...started,
+    nurture: { ...started.nurture, directOutreachDismissedDwellCount: dismissed },
+  };
 }
 
 export function openerOnOpenersBoard(opener: OpenerRecord): boolean {
