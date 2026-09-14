@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentMailItem } from "../../services/agentMailLog";
-import { enrolConvertOpener, normalizeOpener, OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
+import { applyDirectOutreach, enrolConvertOpener, normalizeOpener, OPENER_TOUCH2_DELAY_MS } from "@shared/openers";
 import {
   attachCompanyNumber,
   autoPromoteEligibleOpeners,
@@ -13,10 +13,12 @@ import {
   listOpenerPipelineCompanyNumbers,
   logOpenerCall,
   markOpenerNurturingOnOutbound,
+  onOpenerUnsubscribed,
   patchOpener,
   promoteOpener,
   demoteOpener,
   refreshOpenerIdentitySnapshot,
+  resumeOpenerFromDirectOutreach,
   runNurtureAction,
   sendOpenerWhatsApp,
   setOpenerIdentityDepsForTests,
@@ -1069,5 +1071,20 @@ describe("sixth-email auto-promote", () => {
     upsertOpenerFromMail(sentMails(1)[0]);
     expect(await autoPromoteEligibleOpeners(sentMails(6), { deps: promoteDeps().deps })).toEqual([]);
     expect(hydrateFromAgentMail([])[0].status).toBe("new");
+  });
+});
+
+describe("resumeOpenerFromDirectOutreach", () => {
+  it("resume on patch from direct_outreach restarts James", () => {
+    tmpStore();
+    const row = applyDirectOutreach(normalizeOpener({ id: "d", email: "d@x.co.uk", dwellCount: 5, status: "new", firstOpenedAt: "2026-09-01T10:00:00.000Z", lastOpenedAt: "2026-09-01T10:00:00.000Z" }));
+    writeOpeners([row]);
+    const next = resumeOpenerFromDirectOutreach(row.id);
+    expect(next?.status).toBe("nurturing");
+    expect(next?.nurture.directOutreachDismissedDwellCount).toBe(5);
+  });
+
+  it("onOpenerUnsubscribed is a named no-op until Task 10", () => {
+    expect(() => onOpenerUnsubscribed("dead")).not.toThrow();
   });
 });

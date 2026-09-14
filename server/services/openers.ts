@@ -34,6 +34,7 @@ import {
   normalizeOpener,
   openedMailEvents,
   openerHasReceivedSecondEmail,
+  resumeJamesFromDirectOutreach,
   sentUnopenedMailEvents,
   openerNurtureDraft,
   shouldAutoPromoteOpener,
@@ -192,6 +193,16 @@ export function patchOpener(id: string, updates: Partial<OpenerRecord>): OpenerR
   all[idx] = next;
   writeOpeners(all);
   return next;
+}
+
+export function resumeOpenerFromDirectOutreach(id: string): OpenerRecord | undefined {
+  const opener = getOpener(id);
+  if (!opener) return undefined;
+  return saveOpener(resumeJamesFromDirectOutreach(opener, { dualOpenEligible: false }));
+}
+
+export function onOpenerUnsubscribed(openerId: string): void {
+  void openerId;
 }
 
 function inVitest(): boolean {

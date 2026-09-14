@@ -2,8 +2,10 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import {
   canDragOpenerTo,
   daysSitting,
+  isDoNotContactOpener,
   OPENER_STATUSES,
   openerBelongsToDesk,
+  openerOnOpenersBoard,
   openerOnPipeline,
   withDerivedNurture,
   normalizeEmail,
@@ -26,9 +28,12 @@ import {
   listOpeners,
   listOpenerPipelineCompanyNumbers,
   logOpenerCall,
+  onOpenerUnsubscribed,
   patchOpener,
   promoteOpener,
+  demoteOpener,
   refreshOpenerIdentitySnapshot,
+  resumeOpenerFromDirectOutreach,
   runNurtureAction,
   sendOpenerWhatsApp,
 } from "../services/openers";
@@ -111,11 +116,23 @@ router.get("/api/openers", isAuthenticated, requireOpenersAccess, async (req, re
       userId: String((req.user as any)?.id || ""),
     });
     const desk: OpenerDesk = req.query.desk === "non_responsive" ? "non_responsive" : "openers";
-    const openers = listOpeners().filter((opener) => openerBelongsToDesk(opener, desk));
+    let openers = listOpeners().filter((opener) => openerBelongsToDesk(opener, desk));
+    if (desk === "openers") openers = openers.filter(openerOnOpenersBoard);
     const pipelineCompanyNumbers = await listOpenerPipelineCompanyNumbers(
       String((req.user as any)?.id || "")
     );
     res.json(openers.map((opener) => presentOpener(opener, mail, pipelineCompanyNumbers)));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.get("/api/openers/unsubscribed", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const mail = listAgentMail(5000);
+    const pipelineCompanyNumbers = await listOpenerPipelineCompanyNumbers(String((req.user as any)?.id || ""));
+    const rows = listOpeners().filter(isDoNotContactOpener);
+    res.json(rows.map((opener) => presentOpener(opener, mail, pipelineCompanyNumbers)));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }
@@ -140,6 +157,9 @@ router.patch("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (r
     if (status === "promoted") {
       return res.status(400).json({ error: "Use POST /api/openers/:id/promote" });
     }
+    if (status === "direct_outreach") {
+      return res.status(400).json({ error: "Cannot move opener to that status" });
+    }
     const current = getOpener(req.params.id);
     if (!current) return res.status(404).json({ error: "Opener not found" });
     if (status != null) {
@@ -155,11 +175,30 @@ router.patch("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (r
     if (typeof companyNumber === "string" && companyNumber.trim()) {
       opener = await attachCompanyNumber(opener.id, companyNumber);
     }
+    if (current.status === "promoted" && status && status !== "promoted") {
+      opener = await demoteOpener(
+        opener.id,
+        String((req.user as any)?.id || ""),
+        status as "new" | "nurturing" | "not_now"
+      );
+    }
+    if (current.status === "direct_outreach" && status === "nurturing") {
+      opener = resumeOpenerFromDirectOutreach(current.id) ?? opener;
+    }
     const updates: Partial<OpenerRecord> = {};
     if (typeof notes === "string") updates.notes = notes;
-    if (status) updates.status = status as OpenerStatus;
+    if (status && opener.status !== status) updates.status = status as OpenerStatus;
+    if (status === "not_now" && opener.status !== "not_now") {
+      updates.status = "not_now";
+      if (opener.nurture.stopReason !== "opt_out") {
+        updates.nurture = { ...opener.nurture, stopReason: "manual" };
+      }
+    }
     if (Object.keys(updates).length) {
       opener = patchOpener(opener.id, updates) ?? opener;
+    }
+    if (status === "not_now" && current.status !== "not_now") {
+      onOpenerUnsubscribed(opener.id);
     }
     res.json(presentOpener(opener));
   } catch (error) {
@@ -192,6 +231,20 @@ router.post("/api/openers/:id/promote", isAuthenticated, requireOpenersAccess, a
   try {
     const result = await promoteOpener(req.params.id, String((req.user as any)?.id || ""));
     res.json({ ...result, opener: presentOpener(result.opener) });
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.post("/api/openers/:id/demote", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const status = (req.body?.status || "nurturing") as "new" | "nurturing" | "not_now";
+    const opener = await demoteOpener(
+      req.params.id,
+      String((req.user as any)?.id || ""),
+      status
+    );
+    res.json(presentOpener(opener));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }
