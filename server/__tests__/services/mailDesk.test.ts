@@ -34,7 +34,7 @@ import {
   patchAgentMail,
   setAgentMailStorePathForTests,
 } from "../../services/agentMailLog";
-import { applyMailDesk, processAgentInbox } from "../../services/mailDesk";
+import { applyMailDesk, applyOptOut, processAgentInbox } from "../../services/mailDesk";
 
 const mockedStorage = storage as unknown as {
   listAgenticDeals: ReturnType<typeof vi.fn>;
@@ -121,6 +121,48 @@ describe("applyMailDesk hard bounce", () => {
       7,
       expect.objectContaining({ status: "waiting_human" })
     );
+  });
+});
+
+describe("applyMailDesk stop", () => {
+  it("uses applyOptOut and files the inbound as opt-out", async () => {
+    const item = logAgentMail({
+      direction: "inbound",
+      from: "marcus.fisk@theundergroundbakery.co.uk",
+      to: "enquiries@stratafinance.co.uk",
+      subject: "Re: facility",
+      text: "Please stop contacting us.",
+      status: "received",
+    });
+
+    const result = await applyMailDesk(item);
+
+    expect(result.kind).toBe("stop");
+    expect(addSuppression).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "marcus.fisk@theundergroundbakery.co.uk",
+        companyNumber: "01234567",
+        reason: "opt-out",
+      })
+    );
+    expect(mockedStorage.deleteAgenticDeal).toHaveBeenCalledWith(42);
+    expect(listAgentMail()[0]?.deskKind).toBe("stop");
+  });
+});
+
+describe("applyOptOut", () => {
+  it("suppresses the organisation and deletes matching deals", async () => {
+    const result = await applyOptOut("marcus.fisk@theundergroundbakery.co.uk");
+
+    expect(result.emails).toContain("marcus.fisk@theundergroundbakery.co.uk");
+    expect(addSuppression).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "marcus.fisk@theundergroundbakery.co.uk",
+        companyNumber: "01234567",
+        reason: "opt-out",
+      })
+    );
+    expect(mockedStorage.deleteAgenticDeal).toHaveBeenCalledWith(42);
   });
 });
 

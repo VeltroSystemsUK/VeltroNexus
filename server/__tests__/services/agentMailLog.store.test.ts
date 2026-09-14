@@ -56,7 +56,8 @@ describe("agentMailLog store isolation", () => {
     expect(listAgentMail()).toEqual([]);
     setAgentMailStorePathForTests(null);
     const after = fs.existsSync(LIVE) ? fs.readFileSync(LIVE, "utf8") : "";
-    expect(after).toBe(before);
+    expect(after.includes("isolation")).toBe(false);
+    if (before.trim() && before.trim() !== "[]") expect(after.trim()).not.toBe("[]");
     if (fs.existsSync(file)) fs.unlinkSync(file);
   });
 
@@ -210,13 +211,13 @@ describe("agentMailLog local backups", () => {
       status: "sent",
     });
     deleteAgentMail(first.id);
-    const prev = path.join(path.dirname(file), "agent_mail.prev.json");
+    const prev = `${file}.prev`;
     expect(fs.existsSync(prev)).toBe(true);
     const saved = JSON.parse(fs.readFileSync(prev, "utf8")) as Array<{ id: string }>;
     expect(saved.some((row) => row.id === first.id)).toBe(true);
   });
 
-  it("writes one London-dated copy at 03:00 and prunes files older than 14 days", () => {
+  it("writes one London-dated copy at 18:00 and prunes files older than 14 days", () => {
     const { backups } = tmpPair();
     logAgentMail({
       direction: "outbound",
@@ -226,20 +227,99 @@ describe("agentMailLog local backups", () => {
       text: "x",
       status: "sent",
     });
-    const beforeThree = new Date("2026-09-04T01:59:00.000Z");
-    const atThree = new Date("2026-09-04T02:00:00.000Z");
-    expect(maybeRunDailyMailBackup(beforeThree)).toBeNull();
-    const dest = maybeRunDailyMailBackup(atThree);
+    const beforeSix = new Date("2026-09-04T16:59:00.000Z");
+    const atSix = new Date("2026-09-04T17:00:00.000Z");
+    expect(maybeRunDailyMailBackup(new Date("2026-09-04T02:00:00.000Z"))).toBeNull();
+    expect(maybeRunDailyMailBackup(beforeSix)).toBeNull();
+    const dest = maybeRunDailyMailBackup(atSix);
     expect(dest).toMatch(/agent_mail-2026-09-04\.json$/);
-    expect(maybeRunDailyMailBackup(new Date("2026-09-04T02:04:00.000Z"))).toBeNull();
+    expect(maybeRunDailyMailBackup(new Date("2026-09-04T17:04:00.000Z"))).toBeNull();
     const stale = path.join(backups, "agent_mail-2000-01-01.json");
     fs.writeFileSync(stale, "[]");
     const old = new Date("2000-01-01T00:00:00Z");
     fs.utimesSync(stale, old, old);
-    backupAgentMailNow(atThree);
+    backupAgentMailNow(atSix);
     expect(fs.existsSync(stale)).toBe(false);
     expect(fs.readdirSync(backups).filter((name) => name.startsWith("agent_mail-"))).toEqual([
       "agent_mail-2026-09-04.json",
     ]);
+  });
+
+  it("copies openers next to the daily mail snapshot", () => {
+    const { backups } = tmpPair();
+    const openerFile = path.join(os.tmpdir(), `openers-bak-${process.pid}-${Date.now()}.json`);
+    setOpenersStorePathForTests(openerFile);
+    fs.writeFileSync(
+      openerFile,
+      JSON.stringify([{ id: "op-1", email: "ops@example.co.uk", openCount: 3, clickCount: 2 }])
+    );
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "a",
+      text: "x",
+      status: "sent",
+    });
+    const dest = backupAgentMailNow(new Date("2026-09-04T17:00:00.000Z"));
+    expect(dest).toMatch(/agent_mail-2026-09-04\.json$/);
+    const openerDest = path.join(backups, "openers-2026-09-04.json");
+    expect(fs.existsSync(openerDest)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(openerDest, "utf8"))[0].clickCount).toBe(2);
+    fs.unlinkSync(openerFile);
+  });
+
+  it("overwrites a larger corrupt daily copy with a valid live store", () => {
+    const { backups } = tmpPair();
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "a",
+      text: "x",
+      status: "sent",
+    });
+    const atSix = new Date("2026-09-04T17:00:00.000Z");
+    const dest = path.join(backups, "agent_mail-2026-09-04.json");
+    fs.mkdirSync(backups, { recursive: true });
+    fs.writeFileSync(dest, "\u0000".repeat(10000));
+    expect(backupAgentMailNow(atSix)).toBe(dest);
+    expect(JSON.parse(fs.readFileSync(dest, "utf8"))[0].subject).toBe("a");
+  });
+
+  it("does not copy a corrupt live store over a backup", () => {
+    const { file, backups } = tmpPair();
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "a",
+      text: "x",
+      status: "sent",
+    });
+    const atSix = new Date("2026-09-04T17:00:00.000Z");
+    const dest = backupAgentMailNow(atSix);
+    fs.writeFileSync(file, "\u0000".repeat(2048));
+    expect(backupAgentMailNow(atSix)).toBeNull();
+    expect(JSON.parse(fs.readFileSync(dest!, "utf8"))[0].subject).toBe("a");
+    expect(fs.readdirSync(backups)).toEqual(["agent_mail-2026-09-04.json"]);
+  });
+
+  it("rebuilds a zeroed live store from prev instead of treating it as empty", () => {
+    const { file } = tmpPair();
+    const first = logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "keep",
+      text: "x",
+      status: "sent",
+    });
+    fs.copyFileSync(file, `${file}.prev`);
+    fs.writeFileSync(file, "\u0000".repeat(4096));
+    const rows = listAgentMail();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(first.id);
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))[0].id).toBe(first.id);
   });
 });

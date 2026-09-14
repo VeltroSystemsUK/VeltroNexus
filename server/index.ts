@@ -382,6 +382,14 @@ app.use((req: any, res, next) => {
         })
       );
 
+      try {
+        const { backupAgentMailNow } = await import("./services/agentMailLog");
+        const dest = backupAgentMailNow();
+        if (dest) console.log(`[AgentMail] shutdown backup ${dest}`);
+      } catch (error: any) {
+        console.warn("[AgentMail] shutdown backup failed:", error?.message || error);
+      }
+
       // Close Redis connection
       await closeRateLimitRedis();
 

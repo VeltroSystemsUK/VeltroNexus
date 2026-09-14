@@ -3,6 +3,7 @@ import type { Contact, DueDiligence, ProspectWithCompany } from "@shared/schema"
 import {
   buildFundingProposal,
   findChromium,
+  monthLabelMmYy,
   renderFundingProposalHtmlFromData,
   renderFundingProposalPdf,
 } from "../../utils/fundingProposal";
@@ -148,11 +149,12 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("2.&nbsp;&nbsp;The business");
     expect(html).toContain("3.&nbsp;&nbsp;Risk assessment");
     expect(html).toContain("4.&nbsp;&nbsp;Current financial situation");
-    expect(html).toContain("5.&nbsp;&nbsp;Historic financial information");
-    expect(html).toContain("6.&nbsp;&nbsp;Deal summary");
-    expect(html).toContain("7.&nbsp;&nbsp;Financial forecasts");
-    expect(html).toContain("8.&nbsp;&nbsp;Recommendation");
-    expect(html).toContain("9.&nbsp;&nbsp;Attachments checklist");
+    expect(html).toContain("5.&nbsp;&nbsp;HMRC Position");
+    expect(html).toContain("6.&nbsp;&nbsp;Historic financial information");
+    expect(html).toContain("7.&nbsp;&nbsp;Deal summary");
+    expect(html).toContain("8.&nbsp;&nbsp;Financial forecasts");
+    expect(html).toContain("9.&nbsp;&nbsp;Recommendation");
+    expect(html).toContain("10.&nbsp;&nbsp;Attachments checklist");
     expect(html).not.toContain("Credit Assessment Report");
     expect(html).not.toContain("Veltro");
     expect(html).not.toContain("Note —");
@@ -173,7 +175,7 @@ describe("Passan-format funding proposal", () => {
       activities: [],
       dueDiligence: dueDiligence(),
     });
-    expect(html.match(/<section class="section">/g)?.length).toBe(9);
+    expect(html.match(/<section class="section">/g)?.length).toBe(10);
     expect(html).toMatch(/\.section\s*\{[^}]*break-before:\s*page/);
     expect(html).not.toContain("min-height: 255mm");
     expect(html).not.toContain("1 / 9");
@@ -373,9 +375,9 @@ describe("Passan-format funding proposal", () => {
     });
     const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
     const risk = html.split("3.&nbsp;&nbsp;Risk assessment")[1]?.split("4.&nbsp;&nbsp;Current financial situation")[0] || "";
-    const historic = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
-    const deal = html.split("6.&nbsp;&nbsp;Deal summary")[1]?.split("7.&nbsp;&nbsp;Financial forecasts")[0] || "";
-    const forecasts = html.split("7.&nbsp;&nbsp;Financial forecasts")[1]?.split("8.&nbsp;&nbsp;Recommendation")[0] || "";
+    const historic = html.split("6.&nbsp;&nbsp;Historic financial information")[1]?.split("7.&nbsp;&nbsp;Deal summary")[0] || "";
+    const deal = html.split("7.&nbsp;&nbsp;Deal summary")[1]?.split("8.&nbsp;&nbsp;Financial forecasts")[0] || "";
+    const forecasts = html.split("8.&nbsp;&nbsp;Financial forecasts")[1]?.split("9.&nbsp;&nbsp;Recommendation")[0] || "";
 
     expect(business).toContain("A fish and chip group in Derbyshire.");
     expect(business).not.toContain("Should not appear in The business.");
@@ -408,7 +410,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("Trend (Turnover)");
   });
 
-  it("copies the Credit Studio recommendation onto section 7", () => {
+  it("copies the Credit Studio recommendation onto section 9", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
@@ -422,7 +424,7 @@ describe("Passan-format funding proposal", () => {
         },
       }),
     });
-    expect(html).toContain("8.&nbsp;&nbsp;Recommendation");
+    expect(html).toContain("9.&nbsp;&nbsp;Recommendation");
     expect(html).toContain("Recommend");
     expect(html).toContain("Approve with Conditions");
     expect(html).toContain("Proceed subject to updated bank statements and a site visit.");
@@ -767,7 +769,7 @@ describe("Passan-format funding proposal", () => {
       activities: [],
       dueDiligence: dueDiligence(),
     });
-    const cash = html.split("4.&nbsp;&nbsp;Current financial situation")[1]?.split("5.&nbsp;&nbsp;Historic financial information")[0] || "";
+    const cash = html.split("4.&nbsp;&nbsp;Current financial situation")[1]?.split("5.&nbsp;&nbsp;HMRC Position")[0] || "";
     expect(cash).not.toContain("Average monthly credits");
     expect(cash).not.toContain("Net disposable income");
     expect(cash).not.toContain("£42,000");
@@ -785,7 +787,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).toMatch(/Creditsafe/);
   });
 
-  it("prints Creditsafe statements in section 5 even when P&L cells are zero", () => {
+  it("prints Creditsafe statements in section 6 even when P&L cells are zero", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect({
         company: {
@@ -811,7 +813,7 @@ describe("Passan-format funding proposal", () => {
       activities: [],
       dueDiligence: dueDiligence({ accountsAnalysis: { years: [] } }),
     });
-    const section = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    const section = html.split("6.&nbsp;&nbsp;Historic financial information")[1]?.split("7.&nbsp;&nbsp;Deal summary")[0] || "";
     expect(section).not.toContain("Historic financials not yet on file");
     expect(section).toContain("Creditsafe snapshot");
     expect(section).toContain("Very Low Risk");
@@ -820,7 +822,7 @@ describe("Passan-format funding proposal", () => {
     expect(section).toContain("28/02/2026");
   });
 
-  it("prints forecast evidence vs claim, chart, and critique in section 7", () => {
+  it("prints forecast evidence vs claim, chart, and critique in section 8", () => {
     const dd = dueDiligence({
       affordabilitySweep: { financeMonthly: 5702.7, cashForDebt: 4950.95 },
     });
@@ -844,7 +846,7 @@ describe("Passan-format funding proposal", () => {
         },
       },
     });
-    const section = html.split("7.&nbsp;&nbsp;Financial forecasts")[1]?.split("8.&nbsp;&nbsp;Recommendation")[0] || "";
+    const section = html.split("8.&nbsp;&nbsp;Financial forecasts")[1]?.split("9.&nbsp;&nbsp;Recommendation")[0] || "";
     expect(section).not.toContain("Forecasts not yet modelled");
     expect(section).toContain("Without facility");
     expect(section).toContain("After refinance");
@@ -867,7 +869,7 @@ describe("Passan-format funding proposal", () => {
       activities: [],
       dueDiligence: dueDiligence(),
     });
-    const section = html.split("4.&nbsp;&nbsp;Current financial situation")[1]?.split("5.&nbsp;&nbsp;Historic financial information")[0] || "";
+    const section = html.split("4.&nbsp;&nbsp;Current financial situation")[1]?.split("5.&nbsp;&nbsp;HMRC Position")[0] || "";
     expect(section).toContain("Bank statement activity");
     expect(section).toContain("class=\"accounts-chart\"");
     expect(section).toContain("Credits");
@@ -875,7 +877,65 @@ describe("Passan-format funding proposal", () => {
     expect(section).toContain("<polyline");
   });
 
-  it("uses uploaded P&L years in section 5 even when Creditsafe has no revenue", () => {
+  it("abbreviates bank-activity graph months to MM/YY and leaves the table in full", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+    });
+    const section = html.split("4.&nbsp;&nbsp;Current financial situation")[1]?.split("5.&nbsp;&nbsp;HMRC Position")[0] || "";
+    const chart = section.split('aria-label="Bank statement activity (£)"')[1]?.split("</svg>")[0] || "";
+    expect(monthLabelMmYy("Jan 25")).toBe("01/25");
+    expect(monthLabelMmYy("March 2026")).toBe("03/26");
+    expect(chart).toContain(">01/25<");
+    expect(chart).toContain(">02/25<");
+    expect(chart).not.toContain("Jan 25");
+    expect(chart).not.toContain("Feb 25");
+    expect(section).toContain("Jan 25");
+    expect(section).toContain("Feb 25");
+  });
+
+  it("plots the bank-activity trend through actual monthly net on a scale that includes it", () => {
+    const base = dueDiligence({
+      financialAnalysis: {
+        monthlyBreakdown: [
+          { month: "March 2026", income: 20000, expenses: 30000, net: -10000 },
+          { month: "April 2026", income: 25000, expenses: 20000, net: 5000 },
+          { month: "May 2026", income: 40000, expenses: 15000, net: 25000 },
+        ],
+      },
+    });
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: base,
+    });
+    const chart = html.split('aria-label="Bank statement activity (£)"')[1]?.split("</svg>")[0] || "";
+    expect(chart).toContain(">03/26<");
+    expect(chart).toContain(">04/26<");
+    expect(chart).toContain(">05/26<");
+    const points = chart.match(/polyline points="([^"]+)"/)?.[1]?.split(/\s+/).map((pair) => {
+      const [x, y] = pair.split(",").map(Number);
+      return { x, y };
+    });
+    expect(points).toHaveLength(3);
+    const padT = 28;
+    const plotH = 228 - 28 - 36;
+    const min = -10000;
+    const max = 40000;
+    const yOf = (v: number) => padT + ((max - v) / (max - min)) * plotH;
+    expect(points![0].y).toBeCloseTo(yOf(-10000), 0);
+    expect(points![1].y).toBeCloseTo(yOf(5000), 0);
+    expect(points![2].y).toBeCloseTo(yOf(25000), 0);
+    for (const point of points!) {
+      expect(point.y).toBeGreaterThanOrEqual(padT);
+      expect(point.y).toBeLessThanOrEqual(padT + plotH);
+    }
+  });
+
+  it("uses uploaded P&L years in section 6 even when Creditsafe has no revenue", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect({
         company: {
@@ -924,7 +984,7 @@ describe("Passan-format funding proposal", () => {
         profile: { accounts: { last_accounts: { type: "micro-entity" } } },
       },
     });
-    const section = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    const section = html.split("6.&nbsp;&nbsp;Historic financial information")[1]?.split("7.&nbsp;&nbsp;Deal summary")[0] || "";
     expect(section).toMatch(/121,?943/);
     expect(section).toMatch(/132,?325/);
     expect(section).toMatch(/cash/i);
@@ -949,7 +1009,7 @@ describe("Passan-format funding proposal", () => {
     expect(business).toMatch(/Yate|omnichannel|hobby/i);
   });
 
-  it("prints statement-based after DSCR in section 7 even when the sheet did not extract", () => {
+  it("prints statement-based after DSCR in section 8 even when the sheet did not extract", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect({
         loanAmount: 12_000_000,
@@ -966,7 +1026,7 @@ describe("Passan-format funding proposal", () => {
         affordabilitySweep: { financeMonthly: 5702.7, cashForDebt: 4950.95 },
       }),
     });
-    const section = html.split("7.&nbsp;&nbsp;Financial forecasts")[1]?.split("8.&nbsp;&nbsp;Recommendation")[0] || "";
+    const section = html.split("8.&nbsp;&nbsp;Financial forecasts")[1]?.split("9.&nbsp;&nbsp;Recommendation")[0] || "";
     expect(section).not.toContain("Forecasts not yet modelled");
     expect(section).toContain("DSCR after (statements)");
     expect(section).toMatch(/1\.6\d\s*x/);
@@ -990,14 +1050,14 @@ describe("Passan-format funding proposal", () => {
         },
       },
     });
-    const section = html.split("6.&nbsp;&nbsp;Deal summary")[1]?.split("7.&nbsp;&nbsp;Financial forecasts")[0] || "";
+    const section = html.split("7.&nbsp;&nbsp;Deal summary")[1]?.split("8.&nbsp;&nbsp;Financial forecasts")[0] || "";
     expect(section).not.toContain("Research Hub not yet completed");
     expect(section).toContain("File research");
     expect(section).toMatch(/micro.?entity|abbreviated/i);
     expect(section).toMatch(/no full audited/i);
   });
 
-  it("adds abbreviated-accounts commentary in section 5", () => {
+  it("adds abbreviated-accounts commentary in section 6", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect({
         company: {
@@ -1032,7 +1092,7 @@ describe("Passan-format funding proposal", () => {
         profile: { accounts: { last_accounts: { type: "micro-entity" } } },
       },
     });
-    const section = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    const section = html.split("6.&nbsp;&nbsp;Historic financial information")[1]?.split("7.&nbsp;&nbsp;Deal summary")[0] || "";
     expect(section).toMatch(/no full audited/i);
     expect(section).toMatch(/net assets/i);
   });
@@ -1058,14 +1118,73 @@ describe("Passan-format funding proposal", () => {
     const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
     expect(business).toContain("David's business narrative for the omnichannel retailer.");
     expect(html).toContain("David is satisfied with Kirsty Bevan's conduct.");
-    const forecasts = html.split("7.&nbsp;&nbsp;Financial forecasts")[1]?.split("8.&nbsp;&nbsp;Recommendation")[0] || "";
+    const forecasts = html.split("8.&nbsp;&nbsp;Financial forecasts")[1]?.split("9.&nbsp;&nbsp;Recommendation")[0] || "";
     expect(forecasts).toContain("underwrite 1.62x not 5.15x");
-    const historic = html.split("5.&nbsp;&nbsp;Historic financial information")[1]?.split("6.&nbsp;&nbsp;Deal summary")[0] || "";
+    const historic = html.split("6.&nbsp;&nbsp;Historic financial information")[1]?.split("7.&nbsp;&nbsp;Deal summary")[0] || "";
     expect(historic).toContain("FY25 turnover of £132,325");
-    const deal = html.split("6.&nbsp;&nbsp;Deal summary")[1]?.split("7.&nbsp;&nbsp;Financial forecasts")[0] || "";
+    const deal = html.split("7.&nbsp;&nbsp;Deal summary")[1]?.split("8.&nbsp;&nbsp;Financial forecasts")[0] || "";
     expect(deal).toContain("stacked MCA");
-    const rec = html.split("8.&nbsp;&nbsp;Recommendation")[1]?.split("9.&nbsp;&nbsp;Attachments")[0] || "";
+    const rec = html.split("9.&nbsp;&nbsp;Recommendation")[1]?.split("10.&nbsp;&nbsp;Attachments")[0] || "";
     expect(rec).toContain("Approve the £120,000 refinance over 60 months subject to a site visit.");
     expect(rec).not.toContain("Awaiting recommendation");
+  });
+
+  it("prints HMRC Position as section 5 from the file fields", () => {
+    const base = dueDiligence();
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: {
+        ...base,
+        data: {
+          ...base.data,
+          hmrcPosition: {
+            narrative: "PAYE arrears of about £28,000 with a warning letter on file.",
+            ttpRequired: true,
+            arrangementsCommentary: "A six-month TTP in 2023 was kept to term.",
+          },
+        },
+      },
+    });
+    const hmrc = html.split("5.&nbsp;&nbsp;HMRC Position")[1]?.split("6.&nbsp;&nbsp;Historic financial information")[0] || "";
+    const deal = html.split("7.&nbsp;&nbsp;Deal summary")[1]?.split("8.&nbsp;&nbsp;Financial forecasts")[0] || "";
+    expect(hmrc).toContain("TTP required");
+    expect(hmrc).toContain("Yes");
+    expect(hmrc).toContain("PAYE arrears of about £28,000 with a warning letter on file.");
+    expect(hmrc).toContain("Existing or past arrangements");
+    expect(hmrc).toContain("A six-month TTP in 2023 was kept to term.");
+    expect(deal).not.toContain("PAYE arrears of about £28,000");
+    expect(deal).not.toContain("Time to Pay Agreement — HMRC");
+  });
+
+  it("shows an empty HMRC Position when nothing is recorded", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+    });
+    const hmrc = html.split("5.&nbsp;&nbsp;HMRC Position")[1]?.split("6.&nbsp;&nbsp;Historic financial information")[0] || "";
+    expect(hmrc).toContain("HMRC position not yet recorded");
+    expect(hmrc).not.toContain("TTP required");
+  });
+
+  it("prints a legacy historic TTP in HMRC Position, not Deal summary", () => {
+    const base = dueDiligence();
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: {
+        ...base,
+        data: { ...base.data, hmrcTimeToPay: "historic" },
+      },
+    });
+    const hmrc = html.split("5.&nbsp;&nbsp;HMRC Position")[1]?.split("6.&nbsp;&nbsp;Historic financial information")[0] || "";
+    const deal = html.split("7.&nbsp;&nbsp;Deal summary")[1]?.split("8.&nbsp;&nbsp;Financial forecasts")[0] || "";
+    expect(hmrc).toContain("Historic");
+    expect(hmrc).toContain("Existing or past arrangements");
+    expect(deal).not.toContain("Time to Pay Agreement — HMRC");
   });
 });

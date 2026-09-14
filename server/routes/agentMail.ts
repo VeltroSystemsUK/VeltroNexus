@@ -1,5 +1,5 @@
 import fs from "fs";
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { getAgentMail, listAgentMail, recordInbound, recordOpen, recordClick, recordDwell, trackingBaseUrl } from "../services/agentMailLog";
@@ -12,6 +12,11 @@ import { mailDwellScript, shouldRecordMailTracking, withMailDwellToken } from "@
 import { composeAgentMailHtml, composeAgentReplyHtml } from "@shared/strataOutreach";
 import { sendTrackingPixel } from "../utils/trackingPixel";
 import { encodeContentDisposition } from "../utils/security";
+import {
+  processMailUnsubscribe,
+  UNSUBSCRIBE_INVALID_HTML,
+  UNSUBSCRIBE_OK_HTML,
+} from "../services/mailUnsubscribe";
 
 const router = Router();
 
@@ -144,6 +149,19 @@ router.post("/api/agent-mail/inbound", async (req, res) => {
     handleApiError(res, error, "api-error");
   }
 });
+
+async function handleMailUnsubscribe(req: Request, res: Response) {
+  const result = await processMailUnsubscribe(String(req.params.token || ""));
+  res.set("Content-Type", "text/html; charset=utf-8");
+  if (result === "invalid") {
+    res.status(400).send(UNSUBSCRIBE_INVALID_HTML);
+    return;
+  }
+  res.send(UNSUBSCRIBE_OK_HTML);
+}
+
+router.get("/api/agent-mail/unsubscribe/:token", handleMailUnsubscribe);
+router.post("/api/agent-mail/unsubscribe/:token", handleMailUnsubscribe);
 
 // --- Open/click tracking: hit directly by the recipient's mail client, no auth ---
 // (the message id is an unguessable UUID, same trust model as the inbound webhook secret)

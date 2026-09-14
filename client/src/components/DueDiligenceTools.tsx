@@ -21,6 +21,7 @@ import { toast } from "sonner";
 
 import { CHECKLIST_SECTIONS } from "@shared/checklistData";
 import { resolveHandoverPack, type HandoverAnswer } from "@shared/handoverPack";
+import { CREDIT_TOOLS_SCRATCH_KEY, seedHmrcPositionForFile } from "@shared/hmrcPosition";
 import type { ChecklistItem, DueDiligenceData } from "@shared/schema";
 import {
   calculateLoan,
@@ -1090,7 +1091,6 @@ export function CharacterAssessmentTool({
   const [bankConduct, setBankConduct] = useState(3);
   const [contracts, setContracts] = useState(3);
   const [notes, setNotes] = useState("");
-  const [hmrcTimeToPay, setHmrcTimeToPay] = useState<"none" | "active" | "historic">("none");
   const [personName, setPersonName] = useState("");
   const [isInvestigating, setIsInvestigating] = useState(false);
   const [investigation, setInvestigation] = useState<{
@@ -1105,10 +1105,6 @@ export function CharacterAssessmentTool({
     setContracts(data.character?.contracts || 3);
     setNotes(data.character?.notes || "");
   }, [data.character]);
-
-  useEffect(() => {
-    setHmrcTimeToPay(data.hmrcTimeToPay || "none");
-  }, [data.hmrcTimeToPay]);
 
   const score = calculateCharacterScore({
     managementExperience: managementExp,
@@ -1126,7 +1122,6 @@ export function CharacterAssessmentTool({
         contracts,
         notes,
       },
-      hmrcTimeToPay,
     });
   };
 
@@ -1301,31 +1296,6 @@ export function CharacterAssessmentTool({
             ))}
 
             <div className="pt-4 border-t">
-              <Label className="mb-2 block">HMRC Time To Pay Arrangement</Label>
-              <p className="text-xs text-muted-foreground mb-3">
-                Self-reported by the adviser or borrower — there is no public HMRC lookup for this.
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                {(["none", "active", "historic"] as const).map((option) => (
-                  <Button
-                    key={option}
-                    variant={hmrcTimeToPay === option ? "default" : "outline"}
-                    onClick={() => setHmrcTimeToPay(option)}
-                    className="capitalize"
-                    data-testid={`btn-hmrc-ttp-${option}`}
-                  >
-                    {option}
-                  </Button>
-                ))}
-              </div>
-              {hmrcTimeToPay === "active" && (
-                <p className="text-xs text-red-600 mt-2">
-                  Active TTP will be flagged as an open exception on this prospect.
-                </p>
-              )}
-            </div>
-
-            <div className="pt-4 border-t">
               <Label htmlFor="character-notes" className="mb-2 block">Assessment Notes</Label>
               <Textarea
                 id="character-notes"
@@ -1343,6 +1313,116 @@ export function CharacterAssessmentTool({
               {isSaving ? "Saving..." : "Save Assessment"}
             </Button>
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function HmrcPositionTool({
+  data,
+  onSave,
+  isSaving,
+}: Omit<DueDiligenceToolsProps, "prospectId">) {
+  const scratch = typeof localStorage === "undefined" ? null : localStorage.getItem(CREDIT_TOOLS_SCRATCH_KEY);
+  const resolved = seedHmrcPositionForFile(data, scratch);
+  const [narrative, setNarrative] = useState(resolved.narrative);
+  const [ttpRequired, setTtpRequired] = useState(resolved.ttpRequired);
+  const [arrangementsCommentary, setArrangementsCommentary] = useState(resolved.arrangementsCommentary);
+  const [fromScratch, setFromScratch] = useState(resolved.fromScratch);
+
+  useEffect(() => {
+    const next = seedHmrcPositionForFile(
+      data,
+      typeof localStorage === "undefined" ? null : localStorage.getItem(CREDIT_TOOLS_SCRATCH_KEY),
+    );
+    setNarrative(next.narrative);
+    setTtpRequired(next.ttpRequired);
+    setArrangementsCommentary(next.arrangementsCommentary);
+    setFromScratch(next.fromScratch);
+  }, [data.hmrcPosition, data.hmrcTimeToPay]);
+
+  const handleSave = () => {
+    onSave({
+      hmrcPosition: {
+        narrative,
+        ttpRequired,
+        arrangementsCommentary,
+      },
+    });
+    setFromScratch(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>HMRC Position</CardTitle>
+        <CardDescription>
+          Saved on this company file. Prints as section 5 on Generate Report. There is no public HMRC lookup.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          {fromScratch ? (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3" data-testid="hmrc-from-credit-tools">
+              Copied from Credit Tools. Click Save HMRC Position to put it on this file and the report.
+            </p>
+          ) : null}
+          <div>
+            <Label htmlFor="hmrc-narrative" className="mb-2 block">HMRC Position</Label>
+            <Textarea
+              id="hmrc-narrative"
+              value={narrative}
+              onChange={(e) => setNarrative(e.target.value)}
+              placeholder="Current tax picture — what is owed, which taxes, any enforcement."
+              rows={5}
+              className="resize-none focus-visible:ring-primary"
+              data-testid="textarea-hmrc-narrative"
+            />
+          </div>
+
+          <div className="flex items-start space-x-3 rounded-lg border p-3">
+            <Checkbox
+              id="hmrc-ttp-required"
+              checked={ttpRequired}
+              onCheckedChange={(checked) => setTtpRequired(checked === true)}
+              className="mt-1"
+              data-testid="checkbox-ttp-required"
+            />
+            <div className="space-y-1 leading-none">
+              <Label htmlFor="hmrc-ttp-required" className="text-sm font-medium cursor-pointer">
+                TTP Required
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Tick if this file needs a Time to Pay arrangement as part of the work.
+              </p>
+              {ttpRequired && (
+                <p className="text-xs text-red-600">
+                  Ticking this files a high exception on the prospect.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="hmrc-arrangements" className="mb-2 block">
+              Existing or past arrangements
+            </Label>
+            <Textarea
+              id="hmrc-arrangements"
+              value={arrangementsCommentary}
+              onChange={(e) => setArrangementsCommentary(e.target.value)}
+              placeholder="Any current or historic Time to Pay — kept, broken, or completed."
+              rows={4}
+              className="resize-none focus-visible:ring-primary"
+              data-testid="textarea-hmrc-arrangements"
+            />
+          </div>
+
+          <Button onClick={handleSave} disabled={isSaving} className="w-full h-11 text-base" data-testid="button-save-hmrc">
+            <Save className="w-5 h-5 mr-2" />
+            {isSaving ? "Saving..." : "Save HMRC Position"}
+          </Button>
         </div>
       </CardContent>
     </Card>

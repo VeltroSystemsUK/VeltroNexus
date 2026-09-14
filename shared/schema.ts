@@ -626,6 +626,13 @@ export const dueDiligenceDataSchema = z.object({
   // Self-reported by the adviser during intake — there is no public HMRC API
   // for this, it is not a live lookup.
   hmrcTimeToPay: z.enum(["none", "active", "historic"]).optional(),
+  hmrcPosition: z
+    .object({
+      narrative: z.string().optional(),
+      ttpRequired: z.boolean().optional(),
+      arrangementsCommentary: z.string().optional(),
+    })
+    .optional(),
   // Link to the standalone Strata lender-pack app (not a copy of that product).
   strataPackaging: z.any().optional(),
   proposal: z

@@ -107,34 +107,14 @@ export async function applyMailDesk(item: AgentMailItem): Promise<{ kind: MailKi
 
   if (verdict.kind === "stop") {
     const email = String(item.from || "").trim().toLowerCase();
-    const matches = await dealsForEmail(email);
-    let fanout = { emails: email ? [email] : [], companyNumber: matches[0]?.companyNumber as string | undefined };
-    try {
-      const { stopOpenerNurtureByEmail, suppressionFanoutForEmail } = await import("./openers");
-      fanout = suppressionFanoutForEmail(email);
-      if (!fanout.companyNumber) fanout = { ...fanout, companyNumber: matches[0]?.companyNumber };
-      stopOpenerNurtureByEmail(email, "opt_out");
-    } catch {
-      // opener park is best-effort; suppression still stands
-    }
-    const companyNumber = fanout.companyNumber || matches[0]?.companyNumber;
-    for (const addr of fanout.emails.length ? fanout.emails : [email]) {
-      addSuppression({
-        email: addr,
-        companyNumber,
-        reason: "opt-out",
-      });
-    }
-    for (const deal of matches) {
-      await storage.deleteAgenticDeal(deal.id);
-    }
+    const result = await applyOptOut(email);
     patchAgentMail(item.id, {
       deskKind: "stop",
-      deskNote: `Opt-out. ${matches.length} deal file(s) deleted. Address suppressed.`,
+      deskNote: `Opt-out. ${result.dealsDeleted} deal file(s) deleted. Address suppressed.`,
       agentId: "mailbox-clerk",
       agentName: "Rowan Vale",
     });
-    return { kind: "stop", action: `suppressed ${email}, deleted ${matches.length} deals` };
+    return { kind: "stop", action: `suppressed ${email}, deleted ${result.dealsDeleted} deals` };
   }
 
   if (verdict.kind === "bounce") {
@@ -228,6 +208,34 @@ export async function processAgentInbox(): Promise<{ processed: number; spam: nu
     );
   }
   return tally;
+}
+
+export async function applyOptOut(email: string): Promise<{ emails: string[]; dealsDeleted: number }> {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized || !normalized.includes("@")) return { emails: [], dealsDeleted: 0 };
+  const matches = await dealsForEmail(normalized);
+  let fanout = { emails: [normalized], companyNumber: matches[0]?.companyNumber as string | undefined };
+  try {
+    const { stopOpenerNurtureByEmail, suppressionFanoutForEmail } = await import("./openers");
+    fanout = suppressionFanoutForEmail(normalized);
+    if (!fanout.companyNumber) fanout = { ...fanout, companyNumber: matches[0]?.companyNumber };
+    stopOpenerNurtureByEmail(normalized, "opt_out");
+  } catch {
+    // opener park is best-effort; suppression still stands
+  }
+  const companyNumber = fanout.companyNumber || matches[0]?.companyNumber;
+  const emails = fanout.emails.length ? fanout.emails : [normalized];
+  for (const addr of emails) {
+    addSuppression({
+      email: addr,
+      companyNumber,
+      reason: "opt-out",
+    });
+  }
+  for (const deal of matches) {
+    await storage.deleteAgenticDeal(deal.id);
+  }
+  return { emails, dealsDeleted: matches.length };
 }
 
 export function mailIsSuppressed(email?: string | null, companyNumber?: string | null): boolean {

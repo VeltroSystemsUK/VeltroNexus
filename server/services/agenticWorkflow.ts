@@ -808,6 +808,42 @@ export const agenticWorkflow = {
     return this.runIngest(deal);
   },
 
+  async startFromContactPage(
+    internalLeadId: number,
+    extras?: { loanAmount?: number; prospectId?: number }
+  ): Promise<AgenticDealFile> {
+    const existing = (await storage.listAgenticDeals()).find((deal) => deal.internalLeadId === internalLeadId);
+    if (existing) return existing;
+
+    const lead = await storage.getInternalLead(internalLeadId);
+    if (!lead) throw new Error("Inbound lead not found");
+
+    const ownerUserId = await resolveOwnerUserId();
+    return storage.createAgenticDeal({
+      source: "strata_inbound" as AgenticSource,
+      stream: "inbound",
+      stage: "human_call",
+      status: "waiting_human",
+      ownerUserId,
+      internalLeadId,
+      prospectId: extras?.prospectId,
+      companyName: lead.companyName,
+      contactName: lead.contactName || undefined,
+      email: lead.email || undefined,
+      phone: lead.phone || undefined,
+      loanAmount: extras?.loanAmount ?? (lead.estimatedValue ? Number(lead.estimatedValue) * 100 : undefined),
+      humanReason: "Contact page enquiry — call them directly. Do not start pack collection.",
+      events: [
+        {
+          at: nowIso(),
+          stage: "human_call",
+          agent: "director",
+          message: `Contact page — waiting for Shaun. ${lead.contactName || lead.companyName} ${lead.phone || ""} ${lead.email || ""}`.trim(),
+        },
+      ],
+    });
+  },
+
   /**
    * streamFilter narrows this hunt to one desk's job: "sme" is the Client Agent
    * (Daniel Crowe) — direct borrowers only. "introducer" is the Refer Agent (Tom

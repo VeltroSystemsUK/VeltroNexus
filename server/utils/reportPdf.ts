@@ -5,9 +5,10 @@ import {
   salesActivityTableRows,
   type WeeklySalesActivity,
 } from "@shared/progressReport";
+import { reportDueDay } from "./reportDueDate";
 
 const MARGIN = 50;
-const PAGE_WIDTH = 612; // US Letter, pdfkit default
+const PAGE_WIDTH = 595.28; // A4, matches PDFDocument({ size: "A4" })
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
 const COLORS = {
@@ -39,10 +40,10 @@ function fmtLong(d: Date): string {
 }
 
 function sectionHeader(doc: PDFKit.PDFDocument, title: string) {
-  doc.moveDown(0.6);
-  doc.font("Helvetica-Bold").fontSize(12).fillColor(COLORS.navy).text(title);
-  doc.moveTo(MARGIN, doc.y + 2).lineTo(MARGIN + CONTENT_WIDTH, doc.y + 2).strokeColor(COLORS.border).stroke();
-  doc.moveDown(0.5);
+  doc.moveDown(0.35);
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.navy).text(title);
+  doc.moveTo(MARGIN, doc.y + 1).lineTo(MARGIN + CONTENT_WIDTH, doc.y + 1).strokeColor(COLORS.border).stroke();
+  doc.moveDown(0.3);
   doc.fillColor(COLORS.text);
 }
 
@@ -87,9 +88,9 @@ const SAFEGUARDS: Array<[string, (settings: ReportSettings) => string]> = [
 function drawKeySafeguards(doc: PDFKit.PDFDocument, settings: ReportSettings, sectionNum: number) {
   sectionHeader(doc, `${sectionNum}. KEY SAFEGUARDS AND REGULATORY FRAMEWORK`);
   SAFEGUARDS.forEach(([title, body]) => {
-    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(COLORS.navy).text(title, { width: CONTENT_WIDTH });
-    doc.font("Helvetica").fontSize(9).fillColor(COLORS.text).text(body(settings), { width: CONTENT_WIDTH });
-    doc.moveDown(0.4);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.navy).text(title, { width: CONTENT_WIDTH });
+    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.text).text(body(settings), { width: CONTENT_WIDTH });
+    doc.moveDown(0.15);
   });
 }
 
@@ -99,7 +100,7 @@ function drawApproval(doc: PDFKit.PDFDocument, settings: ReportSettings, section
     `By signing below, the parties confirm agreement to the ${scopeLabel} set out in this document.`,
     { width: CONTENT_WIDTH },
   );
-  doc.moveDown(2.5);
+  doc.moveDown(1);
 
   const colW = CONTENT_WIDTH / 2 - 10;
   const rightX = MARGIN + CONTENT_WIDTH - colW;
@@ -189,23 +190,20 @@ export async function generateWorksheetPdf(data: WorksheetData): Promise<Buffer>
   const days: Date[] = [];
   for (let i = 0; i < 5; i++) days.push(new Date(weekStart.getTime() + i * 86400000));
 
-  let anyDay = false;
+  const dayRows: string[][] = [];
   for (const day of days) {
-    const dayTasks = weekTasks.filter((t) => t.dueDate && sameDay(new Date(t.dueDate as any), day));
-    if (dayTasks.length === 0) continue;
-    anyDay = true;
-    doc.moveDown(0.3);
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.accent).text(fmtDay(day));
-    doc.moveDown(0.2);
-    drawTable(
-      doc,
-      ["TIME", "ACTIVITY", "DESCRIPTION"],
-      dayTasks.map((t) => [t.timeSlot || "—", t.title, t.notes || ""]),
-      [70, 160, CONTENT_WIDTH - 230]
-    );
+    const dayTasks = weekTasks.filter((t) => {
+      const due = reportDueDay(t.dueDate);
+      return due ? sameDay(due, day) : false;
+    });
+    for (const t of dayTasks) {
+      dayRows.push([fmtDay(day), t.timeSlot || "—", t.title, t.notes || ""]);
+    }
   }
-  if (!anyDay) {
-    doc.font("Helvetica-Oblique").fontSize(9.5).fillColor(COLORS.muted).text("No day-specific tasks scheduled — add a due date to a task to place it here.");
+  if (dayRows.length === 0) {
+    doc.font("Helvetica-Oblique").fontSize(9).fillColor(COLORS.muted).text("No day-specific tasks scheduled — add a due date to a task to place it here.");
+  } else {
+    drawTable(doc, ["DATE", "TIME", "ACTIVITY", "DESCRIPTION"], dayRows, [78, 62, 170, CONTENT_WIDTH - 310]);
   }
 
   sectionHeader(doc, "4. WEEK DELIVERABLES TO-DO LIST");
@@ -365,6 +363,15 @@ function drawTable(doc: PDFKit.PDFDocument, headers: string[], rows: string[][],
     if (y + rowH > doc.page.height - MARGIN) {
       doc.addPage();
       y = MARGIN;
+      doc.font("Helvetica-Bold").fontSize(8).fillColor("#fff");
+      doc.rect(startX, y, CONTENT_WIDTH, headerH).fill(COLORS.navy);
+      let hx = startX;
+      headers.forEach((h, i) => {
+        doc.fillColor("#fff").text(h, hx + rowPad, y + 5, { width: colWidths[i] - rowPad * 2 });
+        hx += colWidths[i];
+      });
+      y += headerH;
+      doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.text);
     }
 
     if (rIdx % 2 === 1) {
@@ -373,7 +380,7 @@ function drawTable(doc: PDFKit.PDFDocument, headers: string[], rows: string[][],
     }
     x = startX;
     row.forEach((cell, i) => {
-      doc.text(cell || "", x + rowPad, y + rowPad, { width: colWidths[i] - rowPad * 2, lineBreak: false });
+      doc.text(cell || "", x + rowPad, y + rowPad, { width: colWidths[i] - rowPad * 2 });
       x += colWidths[i];
     });
     doc.moveTo(startX, y + rowH).lineTo(startX + CONTENT_WIDTH, y + rowH).strokeColor(COLORS.border).stroke();
@@ -399,17 +406,24 @@ function drawChecklist(doc: PDFKit.PDFDocument, tasks: ReportTask[]) {
 }
 
 function addFooter(doc: PDFKit.PDFDocument, text: string) {
-  const range = doc.bufferedPageRange();
-  for (let i = range.start; i < range.start + range.count; i++) {
+  const { start, count } = doc.bufferedPageRange();
+  for (let i = start; i < start + count; i++) {
     doc.switchToPage(i);
-    const bottom = doc.page.margins.bottom;
-    doc.page.margins.bottom = 0;
+    const page = doc.page;
+    const prevTop = page.margins.top;
+    const prevBottom = page.margins.bottom;
+    page.margins.top = 0;
+    page.margins.bottom = 0;
+    const y = page.height - 28;
+    doc.y = y;
     doc.font("Helvetica").fontSize(7).fillColor(COLORS.muted)
-      .text(text, MARGIN, doc.page.height - 28, {
-        width: CONTENT_WIDTH,
+      .text(text, MARGIN, y, {
+        width: page.width - MARGIN * 2,
         align: "center",
         lineBreak: false,
+        height: 12,
       });
-    doc.page.margins.bottom = bottom;
+    page.margins.top = prevTop;
+    page.margins.bottom = prevBottom;
   }
 }

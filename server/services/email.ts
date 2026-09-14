@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { mailboxForAgent } from "@shared/agentMailboxes";
-import { logAgentMail, injectMailTracking } from "./agentMailLog";
+import { listUnsubscribeHeaders, normalizeUnsubscribeEmail, unsubscribeSigningSecret } from "@shared/listUnsubscribe";
+import { logAgentMail, injectMailTracking, trackingBaseUrl } from "./agentMailLog";
 import { mailIsSuppressed } from "./mailDesk";
 
 function applyVariables(content: string, variables: Record<string, any>): string {
@@ -129,6 +130,15 @@ export async function sendEmail(
         // what gets stored for the "exactly as the customer saw it" preview.
         const trackedHtml = html ? injectMailTracking(html, mailLogId) : html;
 
+        const unsubEmail = normalizeUnsubscribeEmail(recipients[0] || "");
+        const headers = unsubEmail.includes("@")
+          ? listUnsubscribeHeaders({
+              baseUrl: trackingBaseUrl(),
+              email: unsubEmail,
+              from: replyTo || fromAddress,
+              secret: unsubscribeSigningSecret(),
+            })
+          : undefined;
         const info = await transporter.sendMail({
             from: `"${fromName}" <${fromAddress}>`,
             replyTo,
@@ -139,6 +149,7 @@ export async function sendEmail(
             attachments,
             inReplyTo: credentials?.inReplyTo,
             references: credentials?.inReplyTo,
+            headers,
         });
         console.log(`Email sent from ${fromAddress} to ${to}: ${info.response}`);
         logAgentMail({

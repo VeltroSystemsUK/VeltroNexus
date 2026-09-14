@@ -91,7 +91,10 @@ describe("buildStrataPayload", () => {
       contacts,
       diligence: {
         checklist: [],
-        hmrcTimeToPay: "active",
+        hmrcPosition: {
+          ttpRequired: true,
+          arrangementsCommentary: "Active TTP on PAYE.",
+        },
         underwriting: {
           eligibility: {
             isEligible: true,
@@ -107,7 +110,11 @@ describe("buildStrataPayload", () => {
     expect(payload.eligibility.business_insolvency).toBe("no");
     expect(payload.eligibility.state_aid).toBe("no");
     expect(payload.eligibility.firstent_uk_registered).toBe("yes");
-    expect(payload.financials.ttp[0]).toMatchObject({ lender: "HMRC", status: "active" });
+    expect(payload.financials.ttp[0]).toMatchObject({
+      lender: "HMRC",
+      status: "required",
+      notes: "Active TTP on PAYE.",
+    });
     expect(payload.financials.historic_pl).toBeUndefined();
     expect(payload.loan.amount).toBe("150000");
   });

@@ -33,7 +33,7 @@ describe("funding proposal report gate", () => {
   it("handleApiError maps ProposalNotReadyError to 409/400", () => {
     const src = fs.readFileSync(path.resolve("server/utils/errorHandler.ts"), "utf8");
     expect(src).toMatch(/ProposalNotReadyError/);
-    expect(src).toMatch(/status === 400 \|\| status === 409/);
+    expect(src).toMatch(/status === 400 \|\| status === 404 \|\| status === 409/);
   });
 
   it("extracts the cashflow attachment before printing the PDF", () => {

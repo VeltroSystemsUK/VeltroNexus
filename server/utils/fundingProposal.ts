@@ -28,6 +28,7 @@ import {
   type CashflowForecast,
   type ForecastColumn,
 } from "@shared/cashflowForecast";
+import { hmrcPositionHasContent, resolveHmrcPosition } from "@shared/hmrcPosition";
 import { fileResearchBullets, historicAccountsCommentary, isAssetLedgerOrPropertyProduct, mergeHistoricYears } from "@shared/reportCommentary";
 import { linesFromSterlingEdit, parseSterlingCopyEdits } from "@shared/sterlingEdits";
 import { STERLING_PAPER_CSS } from "@shared/sterlingPaper";
@@ -124,8 +125,10 @@ export type FundingProposalModel = {
   fileResearch: string[];
   dealIntro: string;
   sourcesUses: FinTable | null;
-  ttp: FinTable | null;
-  ttpNote: string;
+  hmrcTtpRequired: string;
+  hmrcNarrative: string;
+  hmrcArrangements: string;
+  hmrcHasContent: boolean;
   dealNotes: string;
   purposeCommentary: string;
   securityRows: Kv[];
@@ -305,7 +308,16 @@ function accountsChartSvg(chart: AccountsChart): string {
   const padB = 36;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
-  const all = chart.series.flatMap((s) => s.values.filter((v): v is number => v != null));
+  const trendSource = chart.trend || (chart.series[0] ? { name: chart.series[0].name, values: chart.series[0].values } : null);
+  const trend = trendSource
+    ? chart.trend
+      ? trendSource.values
+      : linearTrend(trendSource.values)
+    : [];
+  const all = [
+    ...chart.series.flatMap((s) => s.values.filter((v): v is number => v != null)),
+    ...trend.filter((v): v is number => v != null),
+  ];
   if (!all.length) return "";
   const min = Math.min(0, ...all);
   const max = Math.max(0, ...all);
@@ -344,8 +356,6 @@ function accountsChartSvg(chart: AccountsChart): string {
     })
     .join("");
   const caption = chart.caption || `Accounts trend (${chart.unit})`;
-  const trendSource = chart.trend || (chart.series[0] ? { name: chart.series[0].name, values: chart.series[0].values } : null);
-  const trend = trendSource ? linearTrend(trendSource.values) : [];
   const trendPts = trend
     .map((v, i) => {
       if (v == null) return null;
@@ -408,6 +418,53 @@ function formatDate(value?: string | Date | null): string {
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+const MONTH_NUMBER: Record<string, string> = {
+  january: "01",
+  jan: "01",
+  february: "02",
+  feb: "02",
+  march: "03",
+  mar: "03",
+  april: "04",
+  apr: "04",
+  may: "05",
+  june: "06",
+  jun: "06",
+  july: "07",
+  jul: "07",
+  august: "08",
+  aug: "08",
+  september: "09",
+  sep: "09",
+  sept: "09",
+  october: "10",
+  oct: "10",
+  november: "11",
+  nov: "11",
+  december: "12",
+  dec: "12",
+};
+
+export function monthLabelMmYy(raw: string): string {
+  const value = String(raw || "").trim();
+  if (!value) return value;
+  const iso = value.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+  if (iso) return `${pad2(Number(iso[2]))}/${iso[1].slice(-2)}`;
+  const already = value.match(/^(\d{1,2})\/(\d{2})$/);
+  if (already) return `${pad2(Number(already[1]))}/${already[2]}`;
+  const monthYear = value.match(/^(\d{1,2})\/(\d{4})$/);
+  if (monthYear) return `${pad2(Number(monthYear[1]))}/${monthYear[2].slice(-2)}`;
+  const named = value.match(/(?:^|\s)([A-Za-z]+)\s+(\d{2,4})\s*$/);
+  if (named) {
+    const month = MONTH_NUMBER[named[1].toLowerCase()];
+    if (month) {
+      const year = named[2].length === 2 ? named[2] : named[2].slice(-2);
+      return `${month}/${year}`;
+    }
+  }
+  return value;
 }
 
 function formatStamp(at: Date): string {
@@ -915,7 +972,7 @@ function bankChartFromMonths(months: unknown): AccountsChart | null {
     const inVal = numberish(rec.income ?? rec.credits ?? rec.moneyIn);
     const outVal = numberish(rec.expenses ?? rec.debits ?? rec.moneyOut);
     if (!label && inVal == null) continue;
-    labels.push(label || "—");
+    labels.push(monthLabelMmYy(label) || "—");
     credits.push(inVal);
     debits.push(outVal);
     nets.push(numberish(rec.net) ?? (inVal != null && outVal != null ? inVal - outVal : null));
@@ -1377,19 +1434,7 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
   const coverNote =
     "Initial overview to establish lender interest ahead of formal underwriting.";
 
-  const ttpStatus = diligence.hmrcTimeToPay && diligence.hmrcTimeToPay !== "none" ? String(diligence.hmrcTimeToPay) : "";
-  const ttpRows = Array.isArray(financials.ttp) ? financials.ttp : [];
-  const ttp: FinTable | null = ttpStatus
-    ? {
-        caption: "Time to Pay Agreement — HMRC",
-        headers: ["Item", "Detail"],
-        rows: [
-          ["Status", ttpStatus === "active" ? "Active" : ttpStatus === "historic" ? "Historic" : ttpStatus],
-          ...ttpRows.map((row: any) => [String(row.company || row.lender || "HMRC"), String(row.status || row.notes || ttpStatus)]),
-        ],
-        note: "Self-reported on this file — amounts are shown only where captured.",
-      }
-    : null;
+  const hmrc = resolveHmrcPosition(diligence);
 
   const forecastStats: Kv[] = [];
 
@@ -1595,8 +1640,10 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
     }),
     dealIntro: "",
     sourcesUses: null,
-    ttp,
-    ttpNote: ttp ? "HMRC Time to Pay as recorded on this file." : "",
+    hmrcTtpRequired: hmrc.ttpRequired ? "Yes" : "No",
+    hmrcNarrative: hmrc.narrative,
+    hmrcArrangements: hmrc.arrangementsCommentary,
+    hmrcHasContent: hmrcPositionHasContent(hmrc),
     dealNotes: copy.dealSummary || "",
     purposeCommentary: "",
     securityRows: securityRows(prospect, asRecord(prospect.loanRequirementData)),
@@ -1850,6 +1897,19 @@ function finTableHtml(table: FinTable): string {
   const note = table.note ? `<p class="fin-basis">${esc(table.note)}</p>` : "";
   const cls = table.className ? `fin ${table.className}` : "fin";
   return `<table class="${cls}">${caption}${head}${body}</table>${note}`;
+}
+
+function hmrcBody(model: FundingProposalModel): string {
+  if (!model.hmrcHasContent) {
+    return `<div class="empty-state"><div class="t">HMRC position not yet recorded</div><div class="d">Record the current HMRC picture, whether TTP is required, and any existing or past arrangements on the HMRC tool. Nothing is invented to fill this page.</div></div>`;
+  }
+  return [
+    kvTableHtml("", [{ label: "TTP required", value: model.hmrcTtpRequired }]),
+    model.hmrcNarrative ? markdownToProposalHtml(model.hmrcNarrative) : "",
+    model.hmrcArrangements
+      ? `<div class="subhead">Existing or past arrangements</div>${markdownToProposalHtml(model.hmrcArrangements)}`
+      : "",
+  ].join("");
 }
 
 function sectionHtml(title: string, inner: string): string {
@@ -2127,7 +2187,6 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
       ? kvTableHtml("", model.securityRows)
       : `<p class="muted">No security details captured.</p>`,
     researchHtml || `<p class="muted">No file research captured on this file yet.</p>`,
-    model.ttp ? finTableHtml(model.ttp) : "",
   ].join("");
 
   const forecast = model.cashflowForecast;
@@ -2265,11 +2324,12 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
       }${swotHtml}${fileFlagsHtml}`,
     )}
     ${sectionHtml("4.&nbsp;&nbsp;Current financial situation", currentFinancialBody)}
-    ${sectionHtml("5.&nbsp;&nbsp;Historic financial information", historicBody)}
-    ${sectionHtml("6.&nbsp;&nbsp;Deal summary", dealBody)}
-    ${sectionHtml("7.&nbsp;&nbsp;Financial forecasts", forecastBody)}
-    ${sectionHtml("8.&nbsp;&nbsp;Recommendation", remarksBody)}
-    ${sectionHtml("9.&nbsp;&nbsp;Attachments checklist", attachmentsBody)}
+    ${sectionHtml("5.&nbsp;&nbsp;HMRC Position", hmrcBody(model))}
+    ${sectionHtml("6.&nbsp;&nbsp;Historic financial information", historicBody)}
+    ${sectionHtml("7.&nbsp;&nbsp;Deal summary", dealBody)}
+    ${sectionHtml("8.&nbsp;&nbsp;Financial forecasts", forecastBody)}
+    ${sectionHtml("9.&nbsp;&nbsp;Recommendation", remarksBody)}
+    ${sectionHtml("10.&nbsp;&nbsp;Attachments checklist", attachmentsBody)}
     <div class="doc-footer">
       <span class="footer-note">CONFIDENTIAL - Written by David Griffiths from Sterling Commercial Finance Limited</span>
     </div>`;

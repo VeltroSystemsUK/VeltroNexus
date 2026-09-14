@@ -4,8 +4,9 @@ import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import type { AgentMailAttachment } from "@shared/agentMailAttachments";
 import { storage } from "../storage";
-import { autoPromoteEligibleOpeners, enrolConvertFromMail, markOpenerNurturingOnOutbound, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerDwellFromMail, upsertOpenerFromMail } from "./openers";
+import { autoPromoteEligibleOpeners, currentOpenersStorePath, enrolConvertFromMail, markOpenerNurturingOnOutbound, OPENERS_STORE, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerDwellFromMail, upsertOpenerFromMail } from "./openers";
 import { withJsonFileLock } from "../utils/jsonFileLock";
+import { atomicWriteFileSync, readJsonArrayFile } from "../utils/atomicWriteJson";
 import { shouldTrackMailHref } from "@shared/mailTracking";
 
 export type MailDirection = "outbound" | "inbound";
@@ -38,7 +39,7 @@ export type AgentMailItem = {
 const DEFAULT_STORE = path.resolve(process.cwd(), "uploads", "agent_mail.json");
 export const AGENT_MAIL_KEEP = 10_000;
 const BACKUP_KEEP_MS = 14 * 24 * 60 * 60 * 1000;
-export const MAIL_BACKUP_HOUR_LONDON = 3;
+export const MAIL_BACKUP_HOUR_LONDON = 18;
 let storeOverride: string | null = null;
 let backupDirOverride: string | null = null;
 let dailyBackupTimer: ReturnType<typeof setInterval> | null = null;
@@ -82,10 +83,15 @@ export function dailyMailBackupName(at = new Date()): string {
   return `agent_mail-${londonDayAndHour(at).day}.json`;
 }
 
+export function dailyOpenersBackupName(at = new Date()): string {
+  return `openers-${londonDayAndHour(at).day}.json`;
+}
+
 function pruneMailBackups(dir: string) {
   const cutoff = Date.now() - BACKUP_KEEP_MS;
   for (const name of fs.readdirSync(dir)) {
-    if (!name.startsWith("agent_mail-") || !name.endsWith(".json")) continue;
+    if (!name.endsWith(".json")) continue;
+    if (!name.startsWith("agent_mail-") && !name.startsWith("openers-")) continue;
     const file = path.join(dir, name);
     try {
       if (fs.statSync(file).mtimeMs < cutoff) fs.unlinkSync(file);
@@ -95,35 +101,52 @@ function pruneMailBackups(dir: string) {
   }
 }
 
+function parseMailArray(file: string): AgentMailItem[] | null {
+  const raw = readJsonArrayFile(file);
+  return raw ? (raw as AgentMailItem[]) : null;
+}
+
 function snapshotLiveStore(next: AgentMailItem[]) {
   const file = storePath();
-  if (!fs.existsSync(file)) return;
-  let current: AgentMailItem[] = [];
-  try {
-    current = JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return;
-  }
-  if (!Array.isArray(current) || current.length === 0) return;
+  const current = parseMailArray(file);
+  if (!current || current.length === 0) return;
   const nextIds = new Set(next.map((row) => row.id));
   const dropping = current.some((row) => !nextIds.has(row.id));
   if (dropping) {
-    fs.copyFileSync(file, path.join(path.dirname(file), "agent_mail.prev.json"));
+    fs.copyFileSync(file, `${file}.prev`);
   }
+}
+
+function destIsKeepable(source: string, target: string): boolean {
+  if (!fs.existsSync(target)) return false;
+  if (!readJsonArrayFile(target)) return false;
+  return fs.statSync(source).size < fs.statSync(target).size;
+}
+
+function copyValidJsonArray(source: string, target: string): boolean {
+  const parsed = readJsonArrayFile(source);
+  if (!parsed) return false;
+  if (destIsKeepable(source, target)) return false;
+  atomicWriteFileSync(target, JSON.stringify(parsed, null, 2));
+  return true;
 }
 
 export function backupAgentMailNow(at = new Date()): string | null {
   const file = storePath();
-  if (!fs.existsSync(file)) return null;
   const dest = backupDir();
   if (!dest) return null;
+  if (!readJsonArrayFile(file)) return null;
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
   const target = path.join(dest, dailyMailBackupName(at));
-  if (fs.existsSync(target) && fs.statSync(file).size < fs.statSync(target).size) {
+  if (destIsKeepable(file, target)) {
     console.warn("[AgentMail] skip daily backup — live store is smaller than today's copy");
     return target;
   }
-  fs.copyFileSync(file, target);
+  if (!copyValidJsonArray(file, target)) return null;
+  const openersFile = currentOpenersStorePath();
+  if (!storeOverride || openersFile !== OPENERS_STORE) {
+    copyValidJsonArray(openersFile, path.join(dest, dailyOpenersBackupName(at)));
+  }
   pruneMailBackups(dest);
   return target;
 }
@@ -134,7 +157,7 @@ export function maybeRunDailyMailBackup(now = new Date()): string | null {
   const dest = backupDir();
   if (!dest) return null;
   const target = path.join(dest, dailyMailBackupName(now));
-  if (fs.existsSync(target)) return null;
+  if (fs.existsSync(target) && readJsonArrayFile(target)) return null;
   return backupAgentMailNow(now);
 }
 
@@ -152,14 +175,48 @@ export function startAgentMailDailyBackup(intervalMs = 60_000) {
   dailyBackupTimer = setInterval(tick, intervalMs);
 }
 
+function recoverMailStore(file: string): AgentMailItem[] | null {
+  const candidates = [`${file}.bak`, `${file}.prev`];
+  if (path.basename(file) === "agent_mail.json") {
+    candidates.push(path.join(path.dirname(file), "agent_mail.prev.json"));
+  }
+  const dest = backupDir();
+  if (dest && fs.existsSync(dest)) {
+    const names = fs
+      .readdirSync(dest)
+      .filter((name) => name.startsWith("agent_mail-") && name.endsWith(".json"))
+      .sort()
+      .reverse();
+    for (const name of names) candidates.push(path.join(dest, name));
+  }
+  for (const candidate of candidates) {
+    const parsed = parseMailArray(candidate);
+    if (parsed && parsed.length > 0) return parsed;
+  }
+  return null;
+}
+
 function readAll(): AgentMailItem[] {
   const file = storePath();
-  if (!fs.existsSync(file)) return [];
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return [];
+  const live = parseMailArray(file);
+  if (live) return live;
+  if (!fs.existsSync(file) || fs.statSync(file).size === 0) return [];
+  const recovered = recoverMailStore(file);
+  if (recovered) {
+    console.error("[AgentMail] live store unreadable — restored from backup");
+    withJsonFileLock(file, () => {
+      if (parseMailArray(file)) return;
+      try {
+        fs.copyFileSync(file, `${file}.corrupt`);
+      } catch {
+        /* keep going — restore matters more than the corrupt copy */
+      }
+      atomicWriteFileSync(file, JSON.stringify(recovered, null, 2));
+    });
+    return recovered;
   }
+  console.error("[AgentMail] live store unreadable and no backup to restore");
+  return [];
 }
 
 function writeAll(items: AgentMailItem[]) {
@@ -167,12 +224,21 @@ function writeAll(items: AgentMailItem[]) {
   const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   withJsonFileLock(file, () => {
+    const existing = parseMailArray(file);
+    if (!existing && fs.existsSync(file) && fs.statSync(file).size > 0) {
+      const recovered = recoverMailStore(file);
+      if (recovered) {
+        items = [...recovered, ...items.filter((row) => !recovered.some((prev) => prev.id === row.id))];
+      } else {
+        throw new Error("Agent Mail store is unreadable");
+      }
+    }
     try {
       snapshotLiveStore(items);
     } catch (error: any) {
       console.warn("[AgentMail] backup failed:", error?.message || error);
     }
-    fs.writeFileSync(file, JSON.stringify(items, null, 2));
+    atomicWriteFileSync(file, JSON.stringify(items, null, 2));
   });
 }
 

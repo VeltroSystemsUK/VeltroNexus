@@ -33,6 +33,27 @@ describe("attentionFromDeals", () => {
     expect(items[0].to).toBe("/workforce");
   });
 
+  it("labels a contact.html enquiry as a direct call, not pack collection", () => {
+    const items = attentionFromDeals([
+      {
+        id: 44,
+        companyName: "Direct Call Ltd",
+        stage: "human_call",
+        status: "waiting_human",
+        ownerUserId: "shaun",
+        source: "strata_inbound",
+        stream: "inbound",
+        humanReason: "Contact page enquiry — call them directly. Do not start pack collection.",
+        updatedAt: "2026-09-11T10:00:00.000Z",
+        createdAt: "2026-09-11T10:00:00.000Z",
+        events: [{ at: "2026-09-11T10:00:00.000Z", stage: "human_call", message: "Contact page — waiting for Shaun." }],
+      },
+    ] as any);
+    expect(items).toHaveLength(1);
+    expect(items[0].task).toMatch(/call this person/i);
+    expect(items[0].task).not.toMatch(/pack/i);
+  });
+
   it("does not ask Shaun to post LinkedIn before the next email can send", () => {
     const items = attentionFromDeals([
       {

@@ -37,6 +37,7 @@ function needsYou(deal: AgenticDealFile): boolean {
 function taskFor(deal: AgenticDealFile): string {
   const reason = String(deal.humanReason || "");
   if (deal.stage === "company_match") return "Pick the Companies House match";
+  if (/contact page/i.test(reason)) return "Call this person — they asked you to";
   if (deal.stage === "human_call") return "Call this contact — script is on the file";
   if (deal.stage === "human_review") return "Approve the file for Sterling";
   if (/linkedin/i.test(reason)) return "Mark LinkedIn posted so the cadence can continue";

@@ -24,6 +24,7 @@ import {
   AddOnPurchase, Team, InsertTeam, TeamMember, InsertTeamMember,
   ReportTask, InsertReportTask, ReportLog, ReportSettings, UpdateReportSettings
 } from "@shared/schema";
+import { ttpRequiredNewlyTicked } from "@shared/hmrcPosition";
 import { DigitalAssociate, MissionDeviation, AgentChatMessage } from "@shared/agents";
 import { IStorage } from "./storage";
 import { 
@@ -831,15 +832,14 @@ export class SQLiteStorage implements IStorage {
     const list = getCollection("due_diligence");
     const existing = list.find(d => d.prospectId === prospectId);
 
-    // Pre-filter rule: a newly-flagged active HMRC Time To Pay arrangement
-    // auto-files a risk exception. Self-reported at intake, not a live HMRC lookup.
-    const wasActive = existing?.data?.hmrcTimeToPay === "active";
-    if (data.hmrcTimeToPay === "active" && !wasActive) {
+    // Pre-filter rule: newly ticking TTP Required auto-files a risk exception.
+    // Self-reported at intake, not a live HMRC lookup.
+    if (ttpRequiredNewlyTicked(existing?.data, data)) {
       await this.createException({
         prospectId,
         source: "due_diligence",
         severity: "high",
-        message: "Borrower has an active HMRC Time To Pay arrangement (self-reported)",
+        message: "TTP required (self-reported)",
       });
     }
 

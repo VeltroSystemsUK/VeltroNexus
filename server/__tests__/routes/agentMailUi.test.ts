@@ -41,6 +41,13 @@ describe("Agent Mail attachments UI", () => {
     expect(routes).toMatch(/sendEmail/);
   });
 
+  it("exposes a public one-click List-Unsubscribe endpoint", () => {
+    const routes = fs.readFileSync(path.resolve("server/routes/agentMail.ts"), "utf8");
+    expect(routes).toMatch(/\/api\/agent-mail\/unsubscribe\/:token/);
+    expect(routes).toMatch(/processMailUnsubscribe/);
+    expect(routes).toMatch(/router\.post\("\/api\/agent-mail\/unsubscribe\/:token"/);
+  });
+
   it("deal-file approve send still exists on the backend for leftover drafts", () => {
     const panel = fs.readFileSync(path.resolve("client/src/components/agentic/DealFilesPanel.tsx"), "utf8");
     expect(panel).toMatch(/SME_FIRST_TOUCH_PER_HOUR/);

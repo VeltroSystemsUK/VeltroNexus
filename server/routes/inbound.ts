@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
 import { calculateMonthlyPayment, identifyOpportunity, MARKET_CONTEXT_2026 } from "../data/refinancingIntelligence";
-import { isInboundLead, promoteInternalLeadToPipeline } from "../services/inboundPipeline";
+import { inboundDeskForSource, isInboundLead, promoteInternalLeadToPipeline } from "../services/inboundPipeline";
 import { chFetch } from "../utils/companiesHouseClient";
 
 const router = Router();
@@ -88,6 +88,7 @@ router.post("/refinance", async (req, res) => {
             60   // Term (Months)
         );
 
+        const desk = inboundDeskForSource(source);
         // Public inbound leads land in the CRM inbox for review and promotion.
         const notes = JSON.stringify({
             source: source ? `Landing Page: ${source}` : "Landing Page: Refinance 2026",
@@ -98,7 +99,7 @@ router.post("/refinance", async (req, res) => {
                 analysis
             },
             context,
-            campaign: "Inbound-Capital-Strategist"
+            campaign: desk === "director" ? "Inbound-Director-Contact" : "Inbound-Capital-Strategist"
         }, null, 2);
 
         const lead = await storage.createInternalLead({
@@ -108,7 +109,7 @@ router.post("/refinance", async (req, res) => {
             email,
             phone: phone || "",
             status: "new",
-            assignedAgentId: "capital-strategist",
+            assignedAgentId: desk === "director" ? "director" : "capital-strategist",
             notes,
             estimatedValue: Math.round(analysis.fiveYearSavings),
             commissionRate: 0.1,
@@ -138,13 +139,35 @@ router.post("/refinance", async (req, res) => {
         });
 
         import("../services/agenticWorkflow").then(({ agenticWorkflow }) => {
-            agenticWorkflow.startFromInbound(lead.id, {
+            const extras = {
                 loanAmount: Math.round(currentDebt * 100),
                 prospectId: pipeline.prospectId,
-            }).catch((error) => {
+            };
+            const start =
+                desk === "director"
+                    ? agenticWorkflow.startFromContactPage(lead.id, extras)
+                    : agenticWorkflow.startFromInbound(lead.id, extras);
+            start.catch((error) => {
                 console.error("[Inbound] Agentic workflow failed:", error);
             });
         });
+
+        if (desk === "director") {
+            const subject = `Contact page — call ${companyName}`;
+            const content = `
+                <h2>Someone asked you to call them</h2>
+                <p>This came from <strong>contact.html</strong>, not the Tools form. Maya will not collect documents.</p>
+                <p><strong>Company:</strong> ${escapeHtml(companyName)}</p>
+                <p><strong>Name:</strong> ${escapeHtml(contactName)}</p>
+                <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+                <p><strong>Phone:</strong> ${escapeHtml(phone || "")}</p>
+            `;
+            import("../services/email").then(({ sendEmail }) =>
+                sendEmail({ agentId: "director" }, "shaun@veltro.co.uk", subject, content).catch((error) => {
+                    console.error("[Inbound] Director notify failed:", error);
+                })
+            );
+        }
 
     } catch (error) {
         console.error("[Inbound] Refinance lead capture failed:", error);
