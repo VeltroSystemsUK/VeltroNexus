@@ -26,6 +26,7 @@ import { cloneDocument } from './lib/types';
 import { pushHistory, redoHistory, undoHistory } from './lib/history';
 import { parseCraftJson } from './lib/persist';
 import { insertMergeTag as placeMergeTag } from "./lib/emailHtml";
+import { placeImageAssetOnPage } from "./lib/briefingBoard";
 import { fitPageInView } from "./canvas/viewport";
 import {
   DESIGN_TEMPLATES,
@@ -123,6 +124,7 @@ interface CraftState {
   assetId: string | null;
   selectedIds: string[];
   editingTextId: string | null;
+  textEditSeed: string | null;
   pageId: string | null;
   tool: CraftTool;
   shapeVariant: ShapeVariant;
@@ -150,12 +152,13 @@ interface CraftState {
   fitView: (availW: number, availH: number) => void;
   setPage: (pageId: string) => void;
   select: (ids: string[], additive?: boolean) => void;
-  beginTextEdit: (id: string) => void;
+  beginTextEdit: (id: string, seed?: string) => void;
   endTextEdit: (text?: string) => void;
   beginGesture: () => void;
   close: () => void;
   insertMergeTag: (tag: string) => void;
   openEmailTemplate: (id: string, doc?: CraftDocument | null, title?: string) => void;
+  openDocument: (doc: CraftDocument, assetId?: string | null) => void;
 
   newBlank: (opts?: { title?: string; presetId?: string; silent?: boolean }) => Promise<void>;
   openFromPost: (post: CraftPost) => Promise<void>;
@@ -176,6 +179,7 @@ interface CraftState {
   captureMotionStill: (id?: string) => void;
   recordMotionGif: (id?: string) => Promise<void>;
   addImageFromFile: (file: File, x?: number, y?: number) => Promise<void>;
+  placeGalleryImage: (url: string) => Promise<void>;
   applyTemplate: (templateId: string) => void;
   applyPreset: (presetId: string) => void;
   applyBrandKit: (brand?: CraftBrand) => void;
@@ -237,6 +241,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
       assetId,
       selectedIds: [],
       editingTextId: null,
+      textEditSeed: null,
       pageId: doc.activePageId,
       dirty: false,
       history: [cloneDocument(doc)],
@@ -251,6 +256,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
     assetId: null,
     selectedIds: [],
     editingTextId: null,
+    textEditSeed: null,
     pageId: null,
     tool: 'select',
     shapeVariant: 'rounded-rect',
@@ -307,20 +313,30 @@ export const useCraftStore = create<CraftState>((set, get) => {
         pageId,
         selectedIds: [],
         editingTextId: null,
+        textEditSeed: null,
         doc: { ...doc, activePageId: pageId },
       });
     },
-    select: (ids, additive) => set((state) => ({
-      selectedIds: additive ? Array.from(new Set([...state.selectedIds, ...ids])) : ids,
-      editingTextId: ids.length === 1 && ids[0] === state.editingTextId ? state.editingTextId : null,
-    })),
-    beginTextEdit: (id) => {
+    select: (ids, additive) => set((state) => {
+      const editingTextId = ids.length === 1 && ids[0] === state.editingTextId ? state.editingTextId : null;
+      return {
+        selectedIds: additive ? Array.from(new Set([...state.selectedIds, ...ids])) : ids,
+        editingTextId,
+        textEditSeed: editingTextId ? state.textEditSeed : null,
+      };
+    }),
+    beginTextEdit: (id, seed) => {
       const { doc, pageId } = get();
       if (!doc) return;
       const page = currentPage(doc, pageId);
       const node = page.nodes.find((item) => item.id === id);
       if (!node || (node.type !== "text" && node.type !== "motion") || node.locked || node.hidden) return;
-      set({ selectedIds: [id], editingTextId: id, tool: "select" });
+      set({
+        selectedIds: [id],
+        editingTextId: id,
+        tool: "select",
+        textEditSeed: typeof seed === "string" ? seed : null,
+      });
     },
     endTextEdit: (text) => {
       const { editingTextId, doc, pageId } = get();
@@ -343,7 +359,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
           })));
         }
       }
-      set({ editingTextId: null });
+      set({ editingTextId: null, textEditSeed: null });
     },
     beginGesture: () => {
       const { doc, history, historyIndex } = get();
@@ -358,6 +374,7 @@ export const useCraftStore = create<CraftState>((set, get) => {
         assetId: null,
         selectedIds: [],
         editingTextId: null,
+        textEditSeed: null,
         pageId: null,
         dirty: false,
         history: [],
@@ -387,6 +404,10 @@ export const useCraftStore = create<CraftState>((set, get) => {
     openEmailTemplate: (id, existing, title) => {
       const base = existing ?? documentFromTemplate("email-letter", loadBrandKit());
       loadDocument(title ? { ...base, title } : base, id);
+    },
+
+    openDocument: (doc, assetId) => {
+      loadDocument(doc, assetId ?? doc.id);
     },
 
     newBlank: async ({ title, presetId, silent } = {}) => {
@@ -796,6 +817,32 @@ export const useCraftStore = create<CraftState>((set, get) => {
       } catch (error) {
         console.error(error);
         toast.error('Could not add image');
+      }
+    },
+
+    placeGalleryImage: async (url) => {
+      const { doc, pageId } = get();
+      if (!doc) return;
+      const href = String(url || "").trim();
+      if (!href) return;
+      try {
+        const dataUrl = href.startsWith("data:") ? href : await fetchImageDataUrl(href);
+        const asset: CraftAsset = {
+          id: `asset_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+          name: "Gallery image",
+          mime: dataUrl.includes("jpeg") || dataUrl.includes("jpg") ? "image/jpeg" : "image/png",
+          dataUrl,
+          source: "upload",
+        };
+        const page = currentPage(doc, pageId);
+        const next = placeImageAssetOnPage(doc, page.id, asset);
+        const placed = currentPage(next, page.id).nodes.filter((node) => node.type === "image").at(-1);
+        commit(next);
+        if (placed) set({ selectedIds: [placed.id], tool: "select" });
+        toast.success("Image on the board");
+      } catch (error) {
+        console.error(error);
+        toast.error("Could not add that image");
       }
     },
 

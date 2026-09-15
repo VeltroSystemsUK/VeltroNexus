@@ -57,6 +57,7 @@ const LearnDesk = lazy(() => import("@/pages/LearnDesk"));
 const LearnApp = lazy(() => import("@/pages/learn/LearnApp"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const Craft = lazy(() => import("@/pages/Craft"));
+const CraftBriefing = lazy(() => import("@/pages/CraftBriefing"));
 const CraftMotionLab = lazy(() => import("@/pages/CraftMotionLab"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
@@ -263,6 +264,9 @@ function NexusRouter() {
         </Route>
         <Route path="/media">
           {!isAuthenticated ? <Redirect to="/auth" /> : <MediaGallery />}
+        </Route>
+        <Route path="/craft/briefing/:openerId">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <CraftBriefing />}
         </Route>
         <Route path="/craft">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Craft />}

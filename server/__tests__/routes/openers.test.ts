@@ -70,6 +70,11 @@ describe("openers routes", () => {
     expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/preview", methods: ["get"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id/briefing", methods: ["patch"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/send", methods: ["post"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/send-preview", methods: ["get"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/craft", methods: ["get"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/site", methods: ["post"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/html", methods: ["post"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/page", methods: ["post"] });
     const unsub = paths.findIndex((row) => row.path === "/api/openers/unsubscribed");
     const byId = paths.findIndex((row) => row.path === "/api/openers/:id" && row.methods.includes("get"));
     expect(unsub).toBeGreaterThanOrEqual(0);
@@ -135,6 +140,10 @@ describe("openers routes", () => {
     expect(src).toMatch(/\/briefing\/generate/);
     expect(src).toMatch(/\/briefing\/preview/);
     expect(src).toMatch(/\/briefing\/send/);
+    expect(src).toMatch(/\/briefing\/craft/);
+    expect(src).toMatch(/\/briefing\/site/);
+    expect(src).toMatch(/\/briefing\/html/);
+    expect(src).toMatch(/\/briefing\/page/);
     expect(src).toMatch(/renderBriefingHtml/);
     expect(src).toMatch(/live:\s*false/);
   });

@@ -235,6 +235,15 @@ export function CraftView({
           return;
         }
       }
+      if (!mod && event.key.length === 1 && !event.altKey) {
+        const page = pageOf(state);
+        const selected = page?.nodes.filter((node) => state.selectedIds.includes(node.id));
+        if (selected?.length === 1 && (selected[0].type === 'text' || selected[0].type === 'motion')) {
+          event.preventDefault();
+          state.beginTextEdit(selected[0].id, event.key);
+          return;
+        }
+      }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         if (state.editingTextId) return;
         event.preventDefault();
@@ -1063,7 +1072,8 @@ function TextEditOverlay({
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const initial = node.type === "motion" ? motionCaption(node) : node.text;
+  const seed = useCraftStore((state) => state.textEditSeed);
+  const initial = seed ?? (node.type === "motion" ? motionCaption(node) : node.text);
   const [value, setValue] = useState(initial);
   const box = textOverlayBox(node.type === "motion" ? motionOverlaySource(node) : node, zoom, panX, panY);
   const maxLength = canvasCopyLimit(node.type === "motion" ? "Hook 1" : node.name, useCraftStore.getState().assetId);
@@ -1072,7 +1082,8 @@ function TextEditOverlay({
     const el = ref.current;
     if (!el) return;
     el.focus();
-    el.select();
+    if (seed) el.setSelectionRange(initial.length, initial.length);
+    else el.select();
   }, []);
 
   return (
@@ -1203,6 +1214,11 @@ function CraftInspector({
   const gifProgress = useCraftStore((state) => state.gifProgress);
   const firstFrameSettled = useCraftStore((state) => state.firstFrameSettled);
   const page = doc ? (doc.pages.find((item) => item.id === (pageId ?? doc.activePageId)) ?? doc.pages[0]) : null;
+  const selectedNode = page?.nodes.find((item) => selectedIds.includes(item.id));
+  const [openSection, setOpenSection] = useState("Type");
+  useEffect(() => {
+    if (selectedNode?.type === "text" || selectedNode?.type === "motion") setOpenSection("Type");
+  }, [selectedNode?.id, selectedNode?.type]);
   if (!doc || !page) return null;
   const selected = page.nodes.filter((item) => selectedIds.includes(item.id));
   const node = selected[0];
@@ -1217,6 +1233,8 @@ function CraftInspector({
     <InspectorRail
       title={mode === "email" ? "TEMPLATE" : "SWELL"}
       className="font-[family-name:var(--font-sans)]"
+      value={openSection}
+      onValueChange={setOpenSection}
       lead={mode !== "email" ? <MediaTray onPickImage={onPickImage} /> : undefined}
     >
       <InspectorSection title="Type">
@@ -2240,6 +2258,17 @@ function TextTypeFields({
   const update = (updates: Partial<CraftNode>) => useCraftStore.getState().updateNode(node.id, updates);
   return (
     <div className="space-y-2">
+      <Textarea
+        value={node.text}
+        rows={4}
+        aria-label="Text"
+        className="min-h-[5rem] text-sm"
+        onChange={(event) => update({ text: event.target.value })}
+        onBlur={(event) => {
+          const patch = copyPatchFromNode(node.name, event.target.value);
+          if (patch) onCopyChange?.(patch);
+        }}
+      />
       <FontFaceGrid value={node.fontFamily} onChange={(fontFamily) => update({ fontFamily })} />
       <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Weight</p>
       <div className="flex flex-wrap gap-1">
@@ -2307,17 +2336,6 @@ function TextTypeFields({
         {node.uppercase ? "Uppercase on" : "Uppercase"}
       </Button>
       <ColorPicker label="Colour" value={node.color} onChange={(color) => update({ color })} />
-      <Textarea
-        value={node.text}
-        rows={4}
-        aria-label="Text"
-        className="min-h-[5rem] text-sm"
-        onChange={(event) => update({ text: event.target.value })}
-        onBlur={(event) => {
-          const patch = copyPatchFromNode(node.name, event.target.value);
-          if (patch) onCopyChange?.(patch);
-        }}
-      />
     </div>
   );
 }

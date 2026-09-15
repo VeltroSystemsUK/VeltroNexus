@@ -18,13 +18,21 @@ import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { listAgentMail, type AgentMailItem } from "../services/agentMailLog";
 import {
+  briefingPublicUrl,
+  fetchOpenerBriefingSite,
   generateOpenerBriefing,
+  openerBriefingBind,
+  openerBriefingIsDesigned,
   previewOpenerBriefingHtml,
+  previewOpenerBriefingSend,
+  publishOpenerBriefingPage,
   renderBriefingHtml,
+  saveOpenerBriefingHtml,
   sendOpenerBriefing,
   updateOpenerBriefing,
   type BriefingRecord,
 } from "../services/briefings";
+import { mergeFieldsFromBind } from "@shared/briefingCraft";
 import { loadSuppression } from "../services/mailSuppression";
 import {
   attachCompanyNumber,
@@ -102,6 +110,7 @@ function presentOpener(
       pipelineCompanyNumbers ?? currentOpenerPipelineCompanyNumbers()
     ),
     daysSitting: daysSitting(opener),
+    briefingPackReady: openerBriefingIsDesigned(opener),
     ...(mail ? { timeline: timelineFor(opener, mail) } : {}),
   };
 }
@@ -310,6 +319,57 @@ router.patch("/api/openers/:id/briefing", isAuthenticated, requireOpenersAccess,
         updateOpenerBriefing(req.params.id, { coverSubject, coverHtml, slides })
       )
     );
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.get("/api/openers/:id/briefing/craft", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const briefing = await generateOpenerBriefing(req.params.id);
+    const opener = getOpener(req.params.id);
+    if (!opener) return res.status(404).json({ error: "Opener not found" });
+    const bind = openerBriefingBind(opener);
+    res.json({
+      briefing,
+      bind,
+      merge: mergeFieldsFromBind(bind),
+      pageUrl: briefing.status === "live" ? briefingPublicUrl(briefing.token, process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`) : null,
+    });
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.post("/api/openers/:id/briefing/site", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    res.json(await fetchOpenerBriefingSite(req.params.id, String(req.body?.url || "")));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.post("/api/openers/:id/briefing/html", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    res.json(presentGeneratedBriefing(saveOpenerBriefingHtml(req.params.id, String(req.body?.html || ""))));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.post("/api/openers/:id/briefing/page", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const publicBaseUrl = process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`;
+    res.json(publishOpenerBriefingPage(req.params.id, { publicBaseUrl }));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.get("/api/openers/:id/briefing/send-preview", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    const publicBaseUrl = process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`;
+    res.json(previewOpenerBriefingSend(req.params.id, { publicBaseUrl }));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }

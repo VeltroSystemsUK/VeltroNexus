@@ -34,6 +34,7 @@ export function InspectorRail({
       <Accordion
         type="single"
         collapsible
+        defaultValue="Type"
         value={value}
         onValueChange={onValueChange}
         className="min-h-0 flex-1 overflow-y-auto [direction:rtl] [scrollbar-width:thin] [&>*]:[direction:ltr]"

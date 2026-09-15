@@ -8,6 +8,7 @@ import {
   GripVertical,
   Loader2,
   MessageSquare,
+  Pencil,
   Phone,
   RefreshCw,
   Search,
@@ -36,6 +37,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -64,6 +73,7 @@ type TimelineItem = {
 type OpenerBoardItem = OpenerRecord & {
   onPipeline: boolean;
   daysSitting: number;
+  briefingPackReady?: boolean;
   timeline?: TimelineItem[];
 };
 
@@ -367,6 +377,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     null
   );
   const [briefingPreviewReady, setBriefingPreviewReady] = useState(false);
+  const [sendPreviewOpen, setSendPreviewOpen] = useState(false);
   const boardStatuses = isNonResponsive ? (["non_responsive"] as const) : OPENER_BOARD_STATUSES;
 
   const { data, isLoading, error } = useQuery<OpenerBoardItem[]>({
@@ -386,6 +397,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     setSendAs("outreach-sales");
     setBriefingPreview(null);
     setBriefingPreviewReady(false);
+    setSendPreviewOpen(false);
   }, [selected?.id]);
 
   const invalidate = () => {
@@ -446,17 +458,23 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
   const generateBriefingMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest(`/api/openers/${id}/briefing/generate`, "POST");
-      return res.json() as Promise<{ previewHtml?: string; briefing?: { id: string } }>;
+      return res.json() as Promise<{ previewHtml?: string }>;
     },
-    onMutate: () => setBriefingPreviewReady(false),
-    onSuccess: (data, id) => {
-      if (typeof data?.previewHtml === "string" && data.previewHtml) {
-        setBriefingPreview({ openerId: id, html: data.previewHtml });
-      }
+    onSuccess: (_payload, id) => {
       invalidate();
-      toast.success("Briefing generated");
+      toast.success("Draft ready — design it before sending");
+      setLocation(`/craft/briefing/${id}`);
     },
     onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const sendPreviewQuery = useQuery<{ subject: string; html: string; packHtml: string }>({
+    queryKey: ["/api/openers", selectedId, "briefing", "send-preview"],
+    enabled: sendPreviewOpen && Boolean(selectedId),
+    queryFn: async () => {
+      const res = await apiRequest(`/api/openers/${selectedId}/briefing/send-preview`, "GET");
+      return res.json() as Promise<{ subject: string; html: string; packHtml: string }>;
+    },
   });
 
   const sendBriefingMutation = useMutation({
@@ -465,6 +483,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
       return res.json();
     },
     onSuccess: () => {
+      setSendPreviewOpen(false);
       invalidate();
       toast.success("Briefing sent");
     },
@@ -858,40 +877,48 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                     />
                   </section>
 
-                  {selected.status === "direct_outreach" && (
+                  {(selected.status === "direct_outreach" || selected.briefingId) && (
                     <section className="space-y-2">
                       <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Briefing</h3>
-                      <div className="flex flex-wrap gap-2 items-center">
+                      <div className="grid gap-2">
                         <Button
                           type="button"
                           variant="outline"
-                          size="sm"
                           data-testid="btn-generate-briefing"
-                          disabled={generateBriefingMutation.isPending || doNotContact}
+                          disabled={doNotContact || generateBriefingMutation.isPending}
                           onClick={() => generateBriefingMutation.mutate(selected.id)}
                         >
                           {generateBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                          Generate
+                          Generate draft
                         </Button>
                         <Button
                           type="button"
-                          size="sm"
+                          data-testid="btn-design-briefing"
+                          disabled={doNotContact}
+                          onClick={() => setLocation(`/craft/briefing/${selected.id}`)}
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Design briefing
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
                           data-testid="btn-send-briefing"
                           disabled={
-                            !(
-                              selected.briefingId ||
-                              (briefingPreview?.openerId === selected.id && briefingPreview.html)
-                            ) ||
-                            !briefingPreviewReady ||
+                            !selected.briefingPackReady ||
                             sendBriefingMutation.isPending ||
                             doNotContact
                           }
-                          onClick={() => sendBriefingMutation.mutate(selected.id)}
+                          onClick={() => setSendPreviewOpen(true)}
                         >
-                          {sendBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                           Send
                         </Button>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        {selected.briefingPackReady
+                          ? "Designed pack is saved. Send emails the private link."
+                          : "Generate draft, then Design briefing. Convert to HTML on that board before Send."}
+                      </p>
                       {briefingPreview?.openerId === selected.id && briefingPreview.html ? (
                         <div className="rounded-md border bg-white overflow-x-auto">
                           <iframe
@@ -1074,6 +1101,86 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
           )}
         </SheetContent>
       </Sheet>
+      <Dialog open={sendPreviewOpen} onOpenChange={setSendPreviewOpen}>
+        <DialogContent
+          className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          data-testid="dialog-briefing-send-preview"
+        >
+          <DialogHeader>
+            <DialogTitle>Final draft</DialogTitle>
+            <DialogDescription>
+              This is the email and the pack. Nothing is sent until you confirm.
+            </DialogDescription>
+          </DialogHeader>
+          {sendPreviewQuery.isLoading ? (
+            <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Loading draft…
+            </div>
+          ) : sendPreviewQuery.isError ? (
+            <p className="text-sm text-destructive">
+              {sendPreviewQuery.error instanceof Error
+                ? sendPreviewQuery.error.message
+                : "Could not load this draft"}
+            </p>
+          ) : sendPreviewQuery.data ? (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Subject</p>
+                <p data-testid="preview-briefing-subject" className="text-sm font-medium">
+                  {sendPreviewQuery.data.subject}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Email</p>
+                <div
+                  data-testid="preview-briefing-cover"
+                  className="rounded-md border bg-white p-4 text-sm text-zinc-900 overflow-x-auto"
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(sendPreviewQuery.data.html),
+                  }}
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Pack</p>
+                <iframe
+                  data-testid="iframe-briefing-pack-preview"
+                  title="Briefing pack preview"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                  className="w-full min-h-[28rem] rounded-md border bg-white"
+                  srcDoc={sendPreviewQuery.data.packHtml}
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="btn-cancel-send-briefing"
+              onClick={() => setSendPreviewOpen(false)}
+            >
+              Back
+            </Button>
+            <Button
+              type="button"
+              data-testid="btn-confirm-send-briefing"
+              disabled={
+                sendBriefingMutation.isPending ||
+                !sendPreviewQuery.data ||
+                !selected ||
+                doNotContact
+              }
+              onClick={() => {
+                if (selected) sendBriefingMutation.mutate(selected.id);
+              }}
+            >
+              {sendBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Send briefing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
