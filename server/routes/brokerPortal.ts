@@ -13,7 +13,8 @@ import {
   isSterlingPortalRole,
   parseSterlingSettings,
 } from "@shared/sterlingPortal";
-import { loadSterlingFileContext, buildSterlingPackZip, sterlingReportHtml, readStoredFile } from "../services/sterlingPack";
+import { loadSterlingFileContext, compileSterlingRailPack, sterlingReportHtml, readStoredFile } from "../services/sterlingPack";
+import { markDealCompleteFromSterlingPack } from "../services/sterlingHandoff";
 import { handoverPackHtml } from "@shared/handoverPack";
 import { buildProspectReportData } from "../utils/prospectReport";
 import { parseSterlingCopyEdits, sterlingCopyForHandoff } from "@shared/sterlingEdits";
@@ -321,11 +322,11 @@ router.post("/api/broker-portal/handoffs/:id/pack", isAuthenticated, canUseSterl
     if (!isSterlingLenderId(lenderId)) return res.status(400).json({ error: "Unknown lender" });
     const user = req.user as any;
     const signedBy = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "David Griffiths";
-    const pack = await buildSterlingPackZip({ handoff, lenderId, signedBy });
-    await storage.updateBrokerHandoff(handoff.id, {
-      status: "sent",
-      approvedLenderId: lenderId,
-      packGeneratedAt: new Date().toISOString(),
+    const pack = await compileSterlingRailPack({
+      handoff,
+      lenderId,
+      signedBy,
+      markSent: true,
     });
     if (handoff.submissionId) {
       await storage.createUnderwritingActivity(
@@ -337,6 +338,11 @@ router.post("/api/broker-portal/handoffs/:id/pack", isAuthenticated, canUseSterl
         req.user!.id
       );
     }
+    await markDealCompleteFromSterlingPack({
+      prospectId: handoff.prospectId,
+      compiledAt: pack.compiledAt,
+      handoffId: handoff.id,
+    });
     const { encodeContentDisposition } = await import("../utils/security");
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", encodeContentDisposition(pack.filename));
