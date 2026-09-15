@@ -1,6 +1,7 @@
 import type { AgenticDealFile } from "./agenticWorkflow";
 import { isLiveSigned } from "./engagementPack";
 import { SME_FOLLOWUP_DELAY_MS } from "./smeOpenFollowUp";
+import { hasSterlingZip } from "./sterlingRail";
 
 export type FactoryNodeKind = "trigger" | "auto" | "human" | "gate" | "output" | "fail";
 
@@ -144,7 +145,7 @@ function smeSideTouchNode(
 
 export function nodeForDeal(
   deal: Pick<AgenticDealFile, "stage" | "status" | "source" | "humanReason" | "sfp" | "stream"> &
-    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId" | "smeOpenFollowUpSentAt" | "smeFollowupSentAt" | "engagement" | "hopper">>
+    Partial<Pick<AgenticDealFile, "email" | "phone" | "sterlingHandoffId" | "sterlingPackCompiledAt" | "smeOpenFollowUpSentAt" | "smeFollowupSentAt" | "engagement" | "hopper">>
 ): string {
   const reason = deal.humanReason || "";
   if (deal.hopper === "hunt_contact" || deal.hopper === "quarantine" || deal.hopper === "gated") return "harvest";
@@ -186,7 +187,8 @@ export function nodeForDeal(
     case "human_review":
       return "credit";
     case "complete":
-      if (deal.sterlingHandoffId) return "david";
+      if (hasSterlingZip(deal)) return "david";
+      if (deal.sterlingHandoffId) return "sterling";
       if (!isLiveSigned(deal.engagement)) return "engagement";
       return "sterling";
     default:

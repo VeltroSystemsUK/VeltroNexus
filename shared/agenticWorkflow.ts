@@ -128,6 +128,7 @@ export interface AgenticDealFile {
   packReceivedAt?: string;
   sfp?: import("./sfp").StandardFinancialProfile;
   sterlingHandoffId?: number;
+  sterlingPackCompiledAt?: string;
   engagement?: import("./engagementPack").EngagementState;
   applicationData?: import("./applicationDataFields").ApplicationDataState;
   events: AgenticEvent[];

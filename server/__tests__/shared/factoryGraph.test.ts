@@ -249,6 +249,15 @@ describe("factory graph", () => {
         source: "strata_inbound",
         sterlingHandoffId: 9,
       })
+    ).toBe("sterling");
+    expect(
+      nodeForDeal({
+        stage: "complete",
+        status: "complete",
+        source: "strata_inbound",
+        sterlingHandoffId: 9,
+        sterlingPackCompiledAt: "2026-09-15T08:00:00.000Z",
+      })
     ).toBe("david");
     expect(
       nodeForDeal({
