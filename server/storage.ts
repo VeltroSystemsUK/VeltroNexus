@@ -414,6 +414,7 @@ export interface IStorage {
 
   listAgenticDeals(): Promise<import("@shared/agenticWorkflow").AgenticDealFile[]>;
   getAgenticDeal(id: number): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
+  getAgenticDealByProspectId(prospectId: number): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
   getAgenticDealByUploadToken(token: string): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
   createAgenticDeal(deal: Partial<import("@shared/agenticWorkflow").AgenticDealFile>): Promise<import("@shared/agenticWorkflow").AgenticDealFile>;
   createAgenticDealsBulk(

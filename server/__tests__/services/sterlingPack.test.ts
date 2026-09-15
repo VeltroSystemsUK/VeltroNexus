@@ -8,6 +8,7 @@ vi.mock("../../storage", () => ({
     listProspectDocuments: vi.fn(),
     listExceptionsForProspect: vi.fn(),
     upsertDueDiligence: vi.fn(),
+    updateBrokerHandoff: vi.fn(),
   },
 }));
 
@@ -34,7 +35,7 @@ vi.mock("@shared/proposalFacts", async (importOriginal) => {
 });
 
 import { storage } from "../../storage";
-import { buildSterlingPackZip } from "../../services/sterlingPack";
+import { buildSterlingPackZip, compileSterlingRailPack } from "../../services/sterlingPack";
 
 const mocked = storage as unknown as {
   getProspectById: ReturnType<typeof vi.fn>;
@@ -42,6 +43,7 @@ const mocked = storage as unknown as {
   listContacts: ReturnType<typeof vi.fn>;
   listProspectDocuments: ReturnType<typeof vi.fn>;
   listExceptionsForProspect: ReturnType<typeof vi.fn>;
+  updateBrokerHandoff: ReturnType<typeof vi.fn>;
 };
 
 const prospect = {
@@ -113,5 +115,58 @@ describe("sterling pack application gate", () => {
     const xml = await inner.file("word/document.xml")!.async("string");
     expect(xml).toContain("THE HOME CRAFTERS LTD.");
     expect(xml).toContain("Kirsty Bevan");
+  });
+
+  it("compileSterlingRailPack stamps packGeneratedAt on the handoff", async () => {
+    seedStorage({
+      status: "signed",
+      signedAt: "2026-09-09T12:00:00Z",
+      signedName: "Kirsty Bevan",
+      answers: { legalName: "THE HOME CRAFTERS LTD.", loanAmount: "£120,000" },
+      directors: [{ id: "d1", fullName: "Kirsty Bevan" }],
+    });
+    mocked.updateBrokerHandoff.mockResolvedValue({});
+    const result = await compileSterlingRailPack({
+      handoff: { id: 11, prospectId: 42, recommendation: "Supportable subject to statements." },
+      lenderId: "cwrt",
+      signedBy: "Shaun",
+    });
+    expect(result.lenderId).toBe("cwrt");
+    expect(result.compiledAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(result.buffer.length).toBeGreaterThan(0);
+    expect(mocked.updateBrokerHandoff).toHaveBeenCalledWith(
+      11,
+      expect.objectContaining({
+        approvedLenderId: "cwrt",
+        packGeneratedAt: result.compiledAt,
+        recommendation: "Supportable subject to statements.",
+      }),
+    );
+  });
+
+  it("compileSterlingRailPack refuses an empty recommendation", async () => {
+    await expect(
+      compileSterlingRailPack({ handoff: { id: 11, prospectId: 42, recommendation: "  " } }),
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/recommendation/i) });
+  });
+
+  it("compileSterlingRailPack markSent writes status sent", async () => {
+    seedStorage({
+      status: "signed",
+      signedAt: "2026-09-09T12:00:00Z",
+      signedName: "Kirsty Bevan",
+      answers: { legalName: "THE HOME CRAFTERS LTD.", loanAmount: "£120,000" },
+      directors: [{ id: "d1", fullName: "Kirsty Bevan" }],
+    });
+    mocked.updateBrokerHandoff.mockResolvedValue({});
+    await compileSterlingRailPack({
+      handoff: { id: 11, prospectId: 42, recommendation: "Supportable subject to statements." },
+      lenderId: "ffe",
+      markSent: true,
+    });
+    expect(mocked.updateBrokerHandoff).toHaveBeenCalledWith(
+      11,
+      expect.objectContaining({ status: "sent", approvedLenderId: "ffe" }),
+    );
   });
 });

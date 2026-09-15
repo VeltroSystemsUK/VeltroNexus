@@ -1084,6 +1084,12 @@ export class SQLiteStorage implements IStorage {
     return getCollection("agentic_deals").find((deal) => deal.id === id || String(deal.id) === String(id));
   }
 
+  async getAgenticDealByProspectId(prospectId: number) {
+    const id = Number(prospectId);
+    if (!Number.isFinite(id) || id <= 0) return undefined;
+    return getCollection("agentic_deals").find((deal) => Number(deal.prospectId) === id);
+  }
+
   async getAgenticDealByUploadToken(token: string) {
     const value = String(token || "").trim();
     if (!value) return undefined;

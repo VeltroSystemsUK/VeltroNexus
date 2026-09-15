@@ -85,3 +85,28 @@ export async function markSterlingReturned(opts: {
   }
   return updated;
 }
+
+export async function markDealCompleteFromSterlingPack(opts: {
+  prospectId: number;
+  compiledAt: string;
+  handoffId?: number;
+}): Promise<void> {
+  const deal = await storage.getAgenticDealByProspectId(opts.prospectId);
+  if (!deal) return;
+  await storage.updateAgenticDeal(deal.id, {
+    stage: "complete",
+    status: "complete",
+    sterlingHandoffId: opts.handoffId ?? deal.sterlingHandoffId,
+    sterlingPackCompiledAt: opts.compiledAt,
+    humanReason: undefined,
+    events: [
+      ...(deal.events || []),
+      {
+        at: opts.compiledAt,
+        stage: "complete",
+        message: "Sterling pack compiled — zip is on the file.",
+        agent: "deal-processing-underwriter",
+      },
+    ],
+  });
+}

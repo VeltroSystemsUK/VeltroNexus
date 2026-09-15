@@ -11,6 +11,8 @@ vi.mock("../../storage", () => ({
     updateProspectStage: vi.fn(),
     updateUnderwritingSubmission: vi.fn(),
     createUnderwritingActivity: vi.fn(),
+    getAgenticDealByProspectId: vi.fn(),
+    updateAgenticDeal: vi.fn(),
   },
 }));
 
@@ -18,6 +20,7 @@ import { storage } from "../../storage";
 import {
   canCreateOrReopenUnderwriting,
   ensureSterlingHandoff,
+  markDealCompleteFromSterlingPack,
   markSterlingReturned,
 } from "../../services/sterlingHandoff";
 
@@ -31,6 +34,8 @@ const mocked = storage as unknown as {
   updateProspectStage: ReturnType<typeof vi.fn>;
   updateUnderwritingSubmission: ReturnType<typeof vi.fn>;
   createUnderwritingActivity: ReturnType<typeof vi.fn>;
+  getAgenticDealByProspectId: ReturnType<typeof vi.fn>;
+  updateAgenticDeal: ReturnType<typeof vi.fn>;
 };
 
 describe("canCreateOrReopenUnderwriting", () => {
@@ -134,5 +139,41 @@ describe("markSterlingReturned", () => {
     });
 
     expect(mocked.updateProspectStage).toHaveBeenCalledWith(73, "owner-1", "further-information");
+  });
+});
+
+describe("markDealCompleteFromSterlingPack", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("marks the matching deal complete with the compile stamp", async () => {
+    mocked.getAgenticDealByProspectId.mockResolvedValue({
+      id: 88,
+      stage: "human_review",
+      status: "waiting_human",
+      events: [],
+    });
+    mocked.updateAgenticDeal.mockResolvedValue({ id: 88, stage: "complete" });
+    await markDealCompleteFromSterlingPack({
+      prospectId: 42,
+      compiledAt: "2026-09-15T08:00:00.000Z",
+      handoffId: 11,
+    });
+    expect(mocked.updateAgenticDeal).toHaveBeenCalledWith(
+      88,
+      expect.objectContaining({
+        stage: "complete",
+        status: "complete",
+        sterlingHandoffId: 11,
+        sterlingPackCompiledAt: "2026-09-15T08:00:00.000Z",
+      }),
+    );
+  });
+
+  it("no-ops when no deal is on that prospect", async () => {
+    mocked.getAgenticDealByProspectId.mockResolvedValue(undefined);
+    await markDealCompleteFromSterlingPack({ prospectId: 42, compiledAt: "2026-09-15T08:00:00.000Z" });
+    expect(mocked.updateAgenticDeal).not.toHaveBeenCalled();
   });
 });

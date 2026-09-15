@@ -27,6 +27,7 @@ import { handoverPackHtml, resolveHandoverPack } from "@shared/handoverPack";
 import { evaluateSterlingCompleteness } from "@shared/sterlingCompleteness";
 import { sterlingCopyForHandoff } from "@shared/sterlingEdits";
 import { isApplicationSigned, parseApplicationData } from "@shared/applicationDataFields";
+import { lenderForPack, recommendationForPack } from "@shared/sterlingRail";
 
 const TEMPLATE_ROOT = path.resolve(process.cwd(), "server", "templates", "sterling");
 
@@ -183,6 +184,43 @@ export async function buildSterlingPackZip(opts: {
   zip.file("recommendation.txt", rec);
   const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   return { buffer, filename: `${slug}-${opts.lenderId}-pack.zip` };
+}
+
+export async function compileSterlingRailPack(opts: {
+  handoff: any;
+  lenderId?: string;
+  signedBy?: string;
+  underwritingJudgement?: string;
+  markSent?: boolean;
+}): Promise<{ buffer: Buffer; filename: string; compiledAt: string; lenderId: string }> {
+  const lenderId = lenderForPack({
+    requestedLenderId: opts.lenderId,
+    approvedLenderId: opts.handoff?.approvedLenderId,
+  });
+  const recommendation = recommendationForPack({
+    handoffRecommendation: opts.handoff?.recommendation,
+    underwritingJudgement: opts.underwritingJudgement,
+  });
+  if (!recommendation) {
+    throw Object.assign(new Error("Write a recommendation before compiling the pack"), { status: 400 });
+  }
+  const pack = await buildSterlingPackZip({
+    handoff: { ...opts.handoff, recommendation },
+    lenderId,
+    signedBy: opts.signedBy,
+  });
+  const compiledAt = new Date().toISOString();
+  const handoffId = Number(opts.handoff?.id);
+  if (Number.isFinite(handoffId) && handoffId > 0) {
+    const updates: Record<string, unknown> = {
+      approvedLenderId: lenderId,
+      packGeneratedAt: compiledAt,
+      recommendation,
+    };
+    if (opts.markSent) updates.status = "sent";
+    await storage.updateBrokerHandoff(handoffId, updates);
+  }
+  return { ...pack, compiledAt, lenderId };
 }
 
 export function sterlingReportHtml(reportData: Parameters<typeof renderFundingProposalHtmlFromData>[0]) {
