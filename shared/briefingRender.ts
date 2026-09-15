@@ -1,5 +1,8 @@
 import type { BriefingHypothesis } from "./briefingHypothesis";
+import type { FilledSlide } from "./briefingTracks/mirrorPortal";
 import { CONVERT_STOP_LINE } from "./smeConvert";
+
+export type { FilledSlide };
 
 export const BRIEFING_ENQUIRY_URL = "https://www.stratafinance.co.uk/#contact";
 
@@ -17,6 +20,7 @@ export type BriefingRecord = {
   companyName: string;
   status: "draft" | "live" | "revoked";
   slides: BriefingSlide[];
+  packHtml?: string;
   cover: { subject: string; html: string };
   sentAt?: string;
   revokedAt?: string;
@@ -24,6 +28,9 @@ export type BriefingRecord = {
   openedAt?: string;
   slidesViewed: number[];
   createdAt: string;
+  trackId?: string;
+  filledSlides?: FilledSlide[];
+  generatedAt?: string;
 };
 
 export type BriefingBind = {
@@ -33,6 +40,7 @@ export type BriefingBind = {
   hypothesis: BriefingHypothesis;
   enquiryUrl?: string;
   veltroUrl?: string;
+  industry?: string;
 };
 
 export function defaultBriefingSlides(bound: BriefingBind): BriefingSlide[] {
@@ -116,6 +124,7 @@ h1 {
 }
 p { margin: 0 0 1rem; font-size: 1.15rem; }
 p { color: #d0d5db; }
+.pack img { width: 100%; height: auto; display: block; }
 .ctas { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
 .ctas a {
   color: #e8eaed;
@@ -154,7 +163,33 @@ export function privateWallHtml(): string {
   });
 }
 
+export function packHtmlFromPageImages(opts: {
+  companyName: string;
+  images: string[];
+  enquiryUrl?: string;
+  veltroUrl?: string;
+}): string {
+  const chrome = `Prepared for the directors of ${opts.companyName} · private · not for circulation.`;
+  const slides = opts.images
+    .map((src, index) => {
+      return `<section data-testid="briefing-slide-${index + 1}"><img src="${escapeHtml(src)}" alt="" /></section>`;
+    })
+    .join("");
+  const links: string[] = [];
+  if (opts.enquiryUrl) links.push(`<a href="${escapeHtml(opts.enquiryUrl)}">Enquire or apply</a>`);
+  if (opts.veltroUrl) links.push(`<a href="${escapeHtml(opts.veltroUrl)}">Veltro</a>`);
+  const cta = links.length ? `<div class="ctas">${links.join("")}</div>` : "";
+  const body = `<article class="pack" data-testid="briefing-pack"><p class="chrome">${escapeHtml(chrome)}</p>${slides}${cta}<p class="stop">${escapeHtml(CONVERT_STOP_LINE)}</p></article>`;
+  return documentHtml({
+    title: "Private briefing",
+    body,
+  });
+}
+
 export function renderBriefingHtml(record: BriefingRecord, opts: { live: boolean }): string {
+  if (record.packHtml) {
+    return record.packHtml;
+  }
   const chrome = `Prepared for the directors of ${record.companyName} · private · not for circulation.`;
   const slides = record.slides
     .map((slide, index) => {

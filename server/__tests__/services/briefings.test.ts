@@ -10,6 +10,14 @@ vi.mock("../../services/email", () => ({
   sendEmail: vi.fn(),
 }));
 
+vi.mock("../../utils/companyEnrichment", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../utils/companyEnrichment")>();
+  return {
+    ...actual,
+    fetchWebsiteText: vi.fn(),
+  };
+});
+
 vi.mock("../../services/mailDesk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/mailDesk")>();
   return {
@@ -29,16 +37,22 @@ vi.mock("../../services/openers", async (importOriginal) => {
 });
 
 import { applyDirectOutreach, normalizeOpener } from "@shared/openers";
+import { packHtmlFromPageImages } from "@shared/briefingCraft";
 import { MAIL_DWELL_MS } from "@shared/mailTracking";
 import { sendEmail } from "../../services/email";
 import { mailIsSuppressed } from "../../services/mailDesk";
+import { fetchWebsiteText } from "../../utils/companyEnrichment";
 import {
   activateBriefing,
   briefingHtmlForToken,
   createDraftBriefing,
+  fetchOpenerBriefingSite,
   generateOpenerBriefing,
   getBriefing,
   getLiveBriefingByToken,
+  openerBriefingBind,
+  publishOpenerBriefingPage,
+  saveOpenerBriefingHtml,
   mintBriefingToken,
   previewOpenerBriefingHtml,
   privateWallHtml,
@@ -48,6 +62,7 @@ import {
   renderBriefingHtml,
   revokeBriefingsForOpener,
   sendOpenerBriefing,
+  previewOpenerBriefingSend,
   setBriefingsStorePathForTests,
 } from "../../services/briefings";
 import {
@@ -85,6 +100,7 @@ afterEach(() => {
   vi.mocked(sendEmail).mockReset();
   vi.mocked(mailIsSuppressed).mockReset();
   vi.mocked(mailIsSuppressed).mockReturnValue(false);
+  vi.mocked(fetchWebsiteText).mockReset();
 });
 
 function sampleOpener(overrides: Record<string, unknown> = {}) {
@@ -192,10 +208,25 @@ describe("generate and send opener briefing", () => {
     await expect(generateOpenerBriefing("warm-id")).rejects.toMatchObject({ status: 409 });
   });
 
+  it("generate freezes six filled mirror_portal slides", async () => {
+    writeOpeners([hotOpener()]);
+    const draft = await generateOpenerBriefing("hot-id");
+    expect(draft.trackId).toBe("mirror_portal");
+    expect(draft.filledSlides?.map((s) => s.slideId)).toEqual([
+      "slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6",
+    ]);
+    expect(draft.slides).toHaveLength(6);
+    const blob = (draft.filledSlides || []).map((s) => s.body).join("\n");
+    expect(blob).toMatch(/North Peak Ltd/);
+    expect(blob.toLowerCase()).not.toMatch(/dwell on your site/);
+    expect(draft.generatedAt).toBeTruthy();
+  });
+
   it("send is blocked when suppressed", async () => {
     writeOpeners([hotOpener()]);
     const draft = await generateOpenerBriefing("hot-id");
     expect(draft.status).toBe("draft");
+    saveOpenerBriefingHtml("hot-id", "<html><body data-testid=\"briefing-pack\">North Peak Ltd</body></html>");
     const current = getOpener("hot-id")!;
     writeOpeners([
       {
@@ -210,9 +241,17 @@ describe("generate and send opener briefing", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
+  it("send without a designed pack is 409", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    await expect(sendOpenerBriefing("hot-id")).rejects.toMatchObject({ status: 409 });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
   it("send calls sendEmail and activates the token", async () => {
     writeOpeners([hotOpener()]);
     await generateOpenerBriefing("hot-id");
+    saveOpenerBriefingHtml("hot-id", "<html><body data-testid=\"briefing-pack\">North Peak Ltd</body></html>");
     const sent = await sendOpenerBriefing("hot-id");
     expect(sent.status).toBe("live");
     expect(getLiveBriefingByToken(sent.token)).toBeTruthy();
@@ -226,13 +265,87 @@ describe("generate and send opener briefing", () => {
       expect.stringMatching(/private note for the directors of North Peak Ltd/i),
       expect.stringContaining(`/briefing/${sent.token}`)
     );
-    const [, , subject] = vi.mocked(sendEmail).mock.calls[0];
+    const [, , subject, html] = vi.mocked(sendEmail).mock.calls[0];
     expect(subject).not.toMatch(/veltro/i);
+    expect(String(html)).toMatch(/Shaun Tuhey/);
+    expect(String(html)).toMatch(/07898 789 313/);
+    expect(String(html)).toMatch(/Director/);
+  });
+
+  it("send preview shows signed cover and pack without activating or sending", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    saveOpenerBriefingHtml(
+      "hot-id",
+      "<html><body data-testid=\"briefing-pack\">North Peak Ltd</body></html>"
+    );
+    const preview = previewOpenerBriefingSend("hot-id", { publicBaseUrl: "https://app.example" });
+    expect(preview.subject).toMatch(/private note for the directors of North Peak Ltd/i);
+    expect(preview.html).toMatch(/Shaun Tuhey/);
+    expect(preview.html).toMatch(/07898 789 313/);
+    expect(preview.html).toMatch(/https:\/\/app\.example\/briefing\//);
+    expect(preview.packHtml).toContain("briefing-pack");
+    const draft = getOpener("hot-id")!;
+    expect(getLiveBriefingByToken(getBriefing(draft.briefingId!)!.token)).toBeUndefined();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("send preview without a designed pack is 409", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    expect(() => previewOpenerBriefingSend("hot-id")).toThrow(/convert to HTML/i);
   });
 
   it("send without a draft is 409", async () => {
     writeOpeners([hotOpener()]);
     await expect(sendOpenerBriefing("hot-id")).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("bind payload names this company", () => {
+    const opener = hotOpener();
+    writeOpeners([opener]);
+    const bind = openerBriefingBind(opener);
+    expect(bind.companyName).toBe("North Peak Ltd");
+    expect(bind.dwellLine).toMatch(/several times/);
+    expect(bind.hypothesis.id).toBe("stacked_debt");
+  });
+
+  it("site fetch returns capped bullets from the company URL", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    vi.mocked(fetchWebsiteText).mockResolvedValue(
+      "We fit commercial kitchens across the South West for hotels.\nHi\nTrading since 2014 with forty staff on live contracts."
+    );
+    const site = await fetchOpenerBriefingSite("hot-id", "https://northpeak.example");
+    expect(site.url).toMatch(/^https:\/\/northpeak\.example/);
+    expect(site.bullets[0]).toMatch(/commercial kitchens/);
+    expect(fetchWebsiteText).toHaveBeenCalled();
+  });
+
+  it("saves raster pack HTML even when CSS contains 100%", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    const html = packHtmlFromPageImages({
+      companyName: "North Peak Ltd",
+      images: ["data:image/jpeg;base64,/9j/aaaa"],
+    });
+    expect(html).toMatch(/100%/);
+    const saved = saveOpenerBriefingHtml("hot-id", html);
+    expect(saved.packHtml).toContain("briefing-pack");
+    expect(saved.packHtml).toContain("North Peak Ltd");
+  });
+
+  it("saving pack HTML and create page mints a live link without sending", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    const html = "<html><body data-testid=\"briefing-pack\">North Peak Ltd</body></html>";
+    const saved = saveOpenerBriefingHtml("hot-id", html);
+    expect(saved.packHtml).toContain("North Peak Ltd");
+    const page = publishOpenerBriefingPage("hot-id", { publicBaseUrl: "https://app.example" });
+    expect(page.briefing.status).toBe("live");
+    expect(page.pageUrl).toMatch(/https:\/\/app\.example\/briefing\//);
+    expect(getLiveBriefingByToken(page.briefing.token)?.packHtml).toContain("North Peak Ltd");
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("staff preview is html without tracking", async () => {
