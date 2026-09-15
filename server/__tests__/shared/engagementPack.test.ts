@@ -129,6 +129,7 @@ describe("factory graph engagement gate", () => {
         status: "complete",
         source: "strata_inbound",
         sterlingHandoffId: 9,
+        sterlingPackCompiledAt: "2026-09-15T08:00:00.000Z",
         engagement: {
           status: "signed",
           version: ENGAGEMENT_PACK_VERSION,
