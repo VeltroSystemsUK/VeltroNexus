@@ -9,11 +9,12 @@ import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { factoryParkReleasePatch } from "@shared/mailDesk";
 import { cadenceAfterOutreach, linkedInHoldReleasePatch, wasEmailDelivered } from "@shared/outreachSend";
 import { outreachEligibility } from "@shared/slfOutreach";
-import { buildSfp, type StandardFinancialProfile } from "@shared/sfp";
+import type { StandardFinancialProfile } from "@shared/sfp";
 import { evaluateSterlingCompleteness, namedPackGaps } from "@shared/sterlingCompleteness";
 import { sterlingSendBlockedByEngagement } from "@shared/engagementPack";
 import { ensureSterlingHandoff } from "./sterlingHandoff";
 import { compileSterlingRailPack } from "./sterlingPack";
+import { ingestSfpFromPack } from "./packIngest";
 import { DIRECTOR_NAME } from "@shared/identity";
 import {
   assessIntroducerFit,
@@ -158,15 +159,16 @@ function addEvent(deal: AgenticDealFile, stage: AgenticStage, message: string, a
   return [...(deal.events || []), { at: nowIso(), stage, agent, message }];
 }
 
-function sfpFromDeal(deal: AgenticDealFile, extracted?: StandardFinancialProfile["figures"]): StandardFinancialProfile {
-  return buildSfp({
-    documents: [
-      ...(deal.packDocuments || []),
-      ...((deal as any).pipelineDocuments || []),
-    ],
+function packDocsForIngest(deal: AgenticDealFile, extra: Array<{ fileName?: string; category?: string | null; storagePath?: string; fileType?: string | null }> = []) {
+  if ((deal.packDocuments || []).length) return deal.packDocuments || [];
+  return extra;
+}
+
+async function sfpFromPack(deal: AgenticDealFile, extra: Array<{ fileName?: string; category?: string | null; storagePath?: string; fileType?: string | null }> = []) {
+  return ingestSfpFromPack({
+    documents: packDocsForIngest(deal, extra),
     fundingReason: deal.fundingReason,
     companyNumber: deal.companyNumber,
-    extracted: extracted || deal.sfp?.figures,
   });
 }
 
@@ -2494,18 +2496,18 @@ export const agenticWorkflow = {
         sfp: deal.sfp,
       })
     ) {
-      const sfp = sfpFromDeal({
-        ...deal,
-        packDocuments: packDocs.length ? packDocs : docs.map((doc: any) => ({
-          id: String(doc.id),
-          category: doc.category,
-          fileName: doc.fileName,
-          fileSize: doc.fileSize || 0,
-          fileType: doc.fileType || "",
-          storagePath: doc.storagePath || "",
-          uploadedAt: doc.uploadedAt || nowIso(),
-        })),
-      });
+      const mapped = packDocs.length
+        ? packDocs
+        : docs.map((doc: any) => ({
+            id: String(doc.id),
+            category: doc.category,
+            fileName: doc.fileName,
+            fileSize: doc.fileSize || 0,
+            fileType: doc.fileType || "",
+            storagePath: doc.storagePath || "",
+            uploadedAt: doc.uploadedAt || nowIso(),
+          }));
+      const sfp = await sfpFromPack({ ...deal, packDocuments: mapped });
       const ready = await storage.updateAgenticDeal(deal.id, {
         sfp,
         stage: "processing",
@@ -2598,7 +2600,7 @@ export const agenticWorkflow = {
   async onPackArrived(dealId: number): Promise<AgenticDealFile | null> {
     const deal = await storage.getAgenticDeal(dealId);
     if (!deal) return null;
-    const sfp = sfpFromDeal(deal);
+    const sfp = await sfpFromPack(deal);
     const gaps = namedPackGaps(deal);
     await persistSfpOnProspect(deal, sfp);
     const updated = await storage.updateAgenticDeal(deal.id, {
@@ -2639,7 +2641,7 @@ export const agenticWorkflow = {
       }) as Promise<AgenticDealFile>;
     }
 
-    const sfp = deal.sfp?.status ? deal.sfp : sfpFromDeal(deal);
+    const sfp = await sfpFromPack(deal);
     await persistSfpOnProspect(deal, sfp);
     if (sfp.status !== "COMPLETE") {
       const gaps = sfp.missing.length ? sfp.missing.join("; ") : namedPackGaps(deal).join("; ");
@@ -2675,7 +2677,7 @@ export const agenticWorkflow = {
   },
 
   async runUnderwriting(deal: AgenticDealFile): Promise<AgenticDealFile> {
-    const sfp = deal.sfp?.status ? deal.sfp : sfpFromDeal(deal);
+    const sfp = deal.sfp?.status === "COMPLETE" ? deal.sfp : await sfpFromPack(deal);
     if (sfp.status !== "COMPLETE") {
       return this.runProcessing({ ...deal, sfp });
     }
