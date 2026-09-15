@@ -82,14 +82,17 @@ describe("Openers UI wiring", () => {
     expect(crm).not.toMatch(/AgentJobProgress/);
   });
 
-  it("built Openers chunk does not read a not_now column the board no longer groups", () => {
-    const dir = path.resolve("dist/public/assets");
-    const files = fs.readdirSync(dir).filter((name) => /^Openers-.*\.js$/.test(name));
-    expect(files.length).toBeGreaterThan(0);
-    const js = files.map((name) => fs.readFileSync(path.join(dir, name), "utf8")).join("\n");
-    expect(js).toMatch(/direct_outreach/);
-    expect(js).not.toMatch(/\.not_now\.length/);
-  });
+  it.skipIf(!fs.existsSync(path.resolve("dist/public/assets")))(
+    "built Openers chunk does not read a not_now column the board no longer groups",
+    () => {
+      const dir = path.resolve("dist/public/assets");
+      const files = fs.readdirSync(dir).filter((name) => /^Openers-.*\.js$/.test(name));
+      expect(files.length).toBeGreaterThan(0);
+      const js = files.map((name) => fs.readFileSync(path.join(dir, name), "utf8")).join("\n");
+      expect(js).toMatch(/direct_outreach/);
+      expect(js).not.toMatch(/\.not_now\.length/);
+    }
+  );
 
   it("public Veltro page is concierge-only and not on staff nav", () => {
     const veltro = fs.readFileSync(path.resolve("client/src/pages/Veltro.tsx"), "utf8");
@@ -121,6 +124,8 @@ describe("Openers UI wiring", () => {
     expect(craft).toMatch(/converted \|\| .*packHtml/);
     expect(craft).toMatch(/filledSlides/);
     expect(craft).toMatch(/packHtmlFromPageImages\(/);
+    expect(craft).toMatch(/slidesWithLiveVeltro/);
+    expect(craft).toMatch(/briefing\?\.token/);
     expect(page).toMatch(/data-testid="iframe-briefing-preview"/);
     expect(page).toMatch(/briefingPreviewReady/);
     expect(page).toMatch(/\/api\/openers\/\$\{selected\.id\}\/briefing\/preview/);

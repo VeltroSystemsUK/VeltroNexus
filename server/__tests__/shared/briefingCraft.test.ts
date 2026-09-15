@@ -4,6 +4,7 @@ import {
   mergeFieldsFromBind,
   packHtmlFromPageImages,
   siteCopyToBullets,
+  slidesWithLiveVeltro,
 } from "@shared/briefingCraft";
 import { pickBriefingHypothesis } from "@shared/briefingHypothesis";
 import { fillMirrorPortal } from "@shared/briefingTracks/mirrorPortal";
@@ -97,5 +98,26 @@ describe("packHtmlFromPageImages", () => {
     expect(html).toMatch(/href="#slide-6"/);
     expect(html).toMatch(/stratafinance\.co\.uk\/#contact/);
     expect(html).toMatch(/\/veltro\?b=tok/);
+  });
+
+  it("resolves empty Outreach Veltro href from the briefing token", () => {
+    const slides = fillMirrorPortal({
+      companyName: "North Peak Ltd",
+      industry: "construction",
+      dwellLine: "You've been back on the site several times.",
+      filingsLine: "8 years trading · SIC 43210",
+      hypothesis: pickBriefingHypothesis({ nonBankChargeCount: 2, sicCodes: ["43210"], dwellCount: 6 }),
+      enquiryUrl: "https://www.stratafinance.co.uk/#contact",
+    });
+    expect(slides[5]!.links?.[0]?.href).toMatch(/\{\{veltroUrl\}\}/);
+    const html = packHtmlFromPageImages({
+      companyName: "North Peak Ltd",
+      images: ["a", "b", "c", "d", "e", "f"],
+      enquiryUrl: "https://www.stratafinance.co.uk/#contact",
+      slides: slidesWithLiveVeltro(slides, "tok"),
+    });
+    expect(html).toMatch(/\/veltro\?b=tok/);
+    expect(html).not.toMatch(/\{\{veltroUrl\}\}/);
+    expect(html).toMatch(/stratafinance\.co\.uk\/#contact/);
   });
 });

@@ -11,7 +11,7 @@ import { rasterBlob } from "@/components/craft/lib/export";
 import { loadCraftForAsset } from "@/components/craft/persist";
 import { useCraftStore } from "@/components/craft/store";
 import { MediaGalleryModal } from "@/components/email/MediaGalleryModal";
-import { packHtmlFromPageImages } from "@shared/briefingCraft";
+import { packHtmlFromPageImages, slidesWithLiveVeltro } from "@shared/briefingCraft";
 import type { BriefingBind, FilledSlide } from "@shared/briefingRender";
 import { usePageTitle } from "@/context/LayoutContext";
 import { apiRequest } from "@/lib/queryClient";
@@ -20,7 +20,7 @@ type CraftPayload = {
   bind: BriefingBind;
   merge: Record<string, string>;
   pageUrl?: string | null;
-  briefing?: { packHtml?: string | null; filledSlides?: FilledSlide[] };
+  briefing?: { packHtml?: string | null; filledSlides?: FilledSlide[]; token?: string };
 };
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
@@ -102,7 +102,10 @@ export default function CraftBriefing() {
         images,
         enquiryUrl: bind.enquiryUrl,
         veltroUrl: bind.veltroUrl,
-        slides: craftQuery.data.briefing?.filledSlides,
+        slides: slidesWithLiveVeltro(
+          craftQuery.data.briefing?.filledSlides,
+          craftQuery.data.briefing?.token
+        ),
       });
       const res = await apiRequest(`/api/openers/${openerId}/briefing/html`, "POST", { html });
       return res.json();

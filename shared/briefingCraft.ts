@@ -1,5 +1,30 @@
-import type { BriefingBind } from "./briefingRender";
+import type { BriefingBind, FilledSlide } from "./briefingRender";
 export { packHtmlFromPageImages } from "./briefingRender";
+
+function isPlaceholderVeltroHref(href: string | undefined): boolean {
+  const value = String(href || "").trim();
+  return !value || /^\{\{\s*veltroUrl\s*\}\}$/.test(value);
+}
+
+export function slidesWithLiveVeltro(
+  slides: FilledSlide[] | undefined,
+  token?: string | null
+): FilledSlide[] | undefined {
+  if (!slides?.length) return slides;
+  const live = String(token || "").trim();
+  const href = live ? `/veltro?b=${live}` : "";
+  if (!href) return slides;
+  return slides.map((slide) => {
+    if (slide.slideId !== "slide_6" && slide.theme !== "Outreach") return slide;
+    if (!slide.links?.length) return slide;
+    return {
+      ...slide,
+      links: slide.links.map((link) =>
+        isPlaceholderVeltroHref(link.href) ? { ...link, href } : link
+      ),
+    };
+  });
+}
 
 export type BriefingMergeFields = {
   companyName: string;
