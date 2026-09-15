@@ -74,7 +74,7 @@ const SAFEGUARDS: Array<[string, (settings: ReportSettings) => string]> = [
   ["Safeguard 1: Non-Regulated Status", () =>
     "Strata Finance operates exclusively as a non-regulated entity focusing on unregulated commercial B2B finance and corporate restructuring consultancy."],
   ["Safeguard 2: Regulatory Shield", () =>
-    "Any regulated activities or secondary requirements are held and processed under David Griffiths' existing, fully authorised corporate entity (Sterling Capital Reserve / Sterling Capital Finance)."],
+    "Any regulated activities or secondary requirements are held and processed under Sterling Commercial Finance Ltd (trading as Strata Finance)."],
   ["Safeguard 3: IP Protection", () =>
     "The Nexus source code, underlying data cleansing logic, algorithms, and front-end architecture remain 100% the proprietary intellectual property of Veltro Ltd. No direct code access or custody of infrastructure is granted to third-party developers."],
   ["Safeguard 4: B2B JV Structure", () =>

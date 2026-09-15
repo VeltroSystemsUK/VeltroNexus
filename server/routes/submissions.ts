@@ -505,7 +505,7 @@ const router = Router();
     }
   );
 
-  // Send a submission to the external broker partner (Sterling Capital Reserve)
+  // Send a submission to the external broker partner (Sterling Commercial Finance Ltd)
   // instead of claiming it internally. Packages the credit assessment as a PDF
   // and emails it; source documents stay behind the broker-portal login.
   router.post(
