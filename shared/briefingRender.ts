@@ -168,16 +168,27 @@ export function packHtmlFromPageImages(opts: {
   images: string[];
   enquiryUrl?: string;
   veltroUrl?: string;
+  slides?: FilledSlide[];
 }): string {
   const chrome = `Prepared for the directors of ${opts.companyName} · private · not for circulation.`;
+  const filled = opts.slides;
   const slides = opts.images
     .map((src, index) => {
-      return `<section data-testid="briefing-slide-${index + 1}"><img src="${escapeHtml(src)}" alt="" /></section>`;
+      const slideLinks = filled?.[index]?.links;
+      const ctas =
+        slideLinks?.length ?
+          `<div class="ctas">${slideLinks
+            .map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
+            .join("")}</div>`
+        : "";
+      return `<section id="slide-${index + 1}" data-testid="briefing-slide-${index + 1}"><img src="${escapeHtml(src)}" alt="" />${ctas}</section>`;
     })
     .join("");
   const links: string[] = [];
-  if (opts.enquiryUrl) links.push(`<a href="${escapeHtml(opts.enquiryUrl)}">Enquire or apply</a>`);
-  if (opts.veltroUrl) links.push(`<a href="${escapeHtml(opts.veltroUrl)}">Veltro</a>`);
+  if (!filled?.length) {
+    if (opts.enquiryUrl) links.push(`<a href="${escapeHtml(opts.enquiryUrl)}">Enquire or apply</a>`);
+    if (opts.veltroUrl) links.push(`<a href="${escapeHtml(opts.veltroUrl)}">Veltro</a>`);
+  }
   const cta = links.length ? `<div class="ctas">${links.join("")}</div>` : "";
   const body = `<article class="pack" data-testid="briefing-pack"><p class="chrome">${escapeHtml(chrome)}</p>${slides}${cta}<p class="stop">${escapeHtml(CONVERT_STOP_LINE)}</p></article>`;
   return documentHtml({
