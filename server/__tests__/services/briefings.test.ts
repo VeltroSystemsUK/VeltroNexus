@@ -222,6 +222,17 @@ describe("generate and send opener briefing", () => {
     expect(draft.generatedAt).toBeTruthy();
   });
 
+  it("generate stamps live Veltro on filled Outreach href", async () => {
+    writeOpeners([hotOpener()]);
+    const draft = await generateOpenerBriefing("hot-id");
+    const outreach = draft.filledSlides?.find((s) => s.slideId === "slide_6");
+    expect(outreach?.links?.[0]?.href).toBe(`/veltro?b=${draft.token}`);
+    expect(draft.slides.find((s) => s.title === "Outreach")?.veltroUrl).toBe(`/veltro?b=${draft.token}`);
+    const preview = previewOpenerBriefingHtml("hot-id");
+    expect(preview).toMatch(`/veltro?b=${draft.token}`);
+    expect(preview).not.toMatch(/\{\{veltroUrl\}\}/);
+  });
+
   it("generate returns the existing draft and keeps filledSlides and packHtml", async () => {
     writeOpeners([hotOpener()]);
     const draft = await generateOpenerBriefing("hot-id");

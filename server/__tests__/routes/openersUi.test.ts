@@ -126,6 +126,10 @@ describe("Openers UI wiring", () => {
     expect(craft).toMatch(/packHtmlFromPageImages\(/);
     expect(craft).toMatch(/slidesWithLiveVeltro/);
     expect(craft).toMatch(/briefing\?\.token/);
+    const convertMut = craft.slice(craft.indexOf("const convertHtml"), craft.indexOf("const createPage"));
+    expect(convertMut).toMatch(/queryClient\.invalidateQueries\(\{\s*queryKey:\s*\["\/api\/openers"\]\s*\}\)/);
+    const createMut = craft.slice(craft.indexOf("const createPage"), craft.indexOf("const dropBullet"));
+    expect(createMut).toMatch(/queryClient\.invalidateQueries\(\{\s*queryKey:\s*\["\/api\/openers"\]\s*\}\)/);
     expect(page).toMatch(/data-testid="iframe-briefing-preview"/);
     expect(page).toMatch(/briefingPreviewReady/);
     expect(page).toMatch(/\/api\/openers\/\$\{selected\.id\}\/briefing\/preview/);

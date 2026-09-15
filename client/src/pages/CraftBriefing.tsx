@@ -14,7 +14,7 @@ import { MediaGalleryModal } from "@/components/email/MediaGalleryModal";
 import { packHtmlFromPageImages, slidesWithLiveVeltro } from "@shared/briefingCraft";
 import type { BriefingBind, FilledSlide } from "@shared/briefingRender";
 import { usePageTitle } from "@/context/LayoutContext";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type CraftPayload = {
   bind: BriefingBind;
@@ -112,6 +112,7 @@ export default function CraftBriefing() {
     },
     onSuccess: () => {
       setConverted(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/openers"] });
       toast.success("Pack saved. Create page if you want a live link, then Send from the contact.");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -124,6 +125,7 @@ export default function CraftBriefing() {
     },
     onSuccess: (data) => {
       setPageUrl(data.pageUrl);
+      queryClient.invalidateQueries({ queryKey: ["/api/openers"] });
       toast.success("Page is live");
     },
     onError: (err: Error) => toast.error(err.message),

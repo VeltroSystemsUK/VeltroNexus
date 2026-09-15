@@ -202,7 +202,8 @@ function bindFromOpener(opener: OpenerRecord) {
 }
 
 export function createDraftBriefing(opener: OpenerRecord): BriefingRecord {
-  const bind = bindFromOpener(opener);
+  const token = mintBriefingToken();
+  const bind = { ...bindFromOpener(opener), veltroUrl: `/veltro?b=${token}` };
   const filled = fillMirrorPortal(bind);
   const slides = slidesFromFilled(filled);
   const cover = buildCoverEmail({
@@ -212,7 +213,7 @@ export function createDraftBriefing(opener: OpenerRecord): BriefingRecord {
   const at = nowIso();
   const record: BriefingRecord = {
     id: crypto.randomUUID(),
-    token: mintBriefingToken(),
+    token,
     openerId: opener.id,
     companyName: bind.companyName,
     status: "draft",
