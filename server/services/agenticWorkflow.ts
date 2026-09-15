@@ -13,6 +13,8 @@ import { buildSfp, type StandardFinancialProfile } from "@shared/sfp";
 import { evaluateSterlingCompleteness, namedPackGaps } from "@shared/sterlingCompleteness";
 import { sterlingSendBlockedByEngagement } from "@shared/engagementPack";
 import { ensureSterlingHandoff } from "./sterlingHandoff";
+import { compileSterlingRailPack } from "./sterlingPack";
+import { DIRECTOR_NAME } from "@shared/identity";
 import {
   assessIntroducerFit,
   dealStream,
@@ -2946,15 +2948,21 @@ export const agenticWorkflow = {
       throw new Error(handoff.reason || "Sterling portal not configured");
     }
 
+    const compiled = await compileSterlingRailPack({
+      handoff: handoff.handoff,
+      underwritingJudgement: deal.underwritingJudgement,
+      signedBy: DIRECTOR_NAME,
+    });
     return storage.updateAgenticDeal(deal.id, {
       stage: "complete",
       status: "complete",
       sterlingHandoffId: handoff.handoff?.id,
+      sterlingPackCompiledAt: compiled.compiledAt,
       humanReason: undefined,
       events: addEvent(
         deal,
         "complete",
-        note || "Director approved. Sterling handoff opened — David can download the complete pack."
+        note || "Director approved. Sterling pack compiled — zip is on the file.",
       ),
     }) as Promise<AgenticDealFile>;
   },
