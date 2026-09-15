@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
+import { OPENER_BOARD_STATUSES } from "@shared/openers";
 
 describe("Openers UI wiring", () => {
   it("has a status board, drawer promote gate, and nav entry after Agent mail", () => {
@@ -9,7 +10,12 @@ describe("Openers UI wiring", () => {
     expect(page).toMatch(/data-testid="column-nurturing"/);
     expect(page).toMatch(/data-testid="column-direct-outreach"/);
     expect(page).toMatch(/data-testid="btn-generate-briefing"/);
+    expect(page).toMatch(/\/api\/openers\/\$\{id\}\/briefing\/generate/);
+    expect(page).toMatch(/data-testid="btn-design-briefing"/);
+    expect(page).toMatch(/Design briefing/);
     expect(page).toMatch(/data-testid="btn-send-briefing"/);
+    expect(page).toMatch(/briefingPackReady/);
+    expect(page).toMatch(/design it before sending/);
     expect(page).toMatch(/data-testid="badge-veltro-interest"/);
     expect(page).not.toMatch(/data-testid="column-not_now"/);
     expect(page).toMatch(/data-testid="badge-do-not-contact"/);
@@ -29,6 +35,11 @@ describe("Openers UI wiring", () => {
     expect(hotDot).toMatch(/data-testid="dot-hot-clicks"/);
     expect(page).toMatch(/data-testid="column-promoted"/);
     expect(page).toMatch(/OPENER_BOARD_STATUSES/);
+    expect(page).not.toMatch(/byStatus\.not_now/);
+    const boardDroppables = [...page.matchAll(/droppableId="(\w+)"/g)]
+      .map((match) => match[1])
+      .filter((id) => id !== "non_responsive");
+    expect(boardDroppables).toEqual([...OPENER_BOARD_STATUSES]);
     expect(page).toMatch(/desk === "non_responsive"/);
     expect(page).toMatch(/data-testid="column-non_responsive"/);
     expect(page).toMatch(/non_responsive: "Non Responsive"/);
@@ -71,6 +82,15 @@ describe("Openers UI wiring", () => {
     expect(crm).not.toMatch(/AgentJobProgress/);
   });
 
+  it("built Openers chunk does not read a not_now column the board no longer groups", () => {
+    const dir = path.resolve("dist/public/assets");
+    const files = fs.readdirSync(dir).filter((name) => /^Openers-.*\.js$/.test(name));
+    expect(files.length).toBeGreaterThan(0);
+    const js = files.map((name) => fs.readFileSync(path.join(dir, name), "utf8")).join("\n");
+    expect(js).toMatch(/direct_outreach/);
+    expect(js).not.toMatch(/\.not_now\.length/);
+  });
+
   it("public Veltro page is concierge-only and not on staff nav", () => {
     const veltro = fs.readFileSync(path.resolve("client/src/pages/Veltro.tsx"), "utf8");
     expect(veltro).toMatch(/data-testid="btn-veltro-concierge"/);
@@ -87,10 +107,29 @@ describe("Openers UI wiring", () => {
   it("Direct Outreach drawer hides James nurture and requires a staff preview before Send", () => {
     const page = fs.readFileSync(path.resolve("client/src/pages/Openers.tsx"), "utf8");
     expect(page).toMatch(/selected.status !== "direct_outreach"/);
+    expect(page).toMatch(/\/craft\/briefing\//);
+    const app = fs.readFileSync(path.resolve("client/src/App.tsx"), "utf8");
+    expect(app).toMatch(/path="\/craft\/briefing\/:openerId"/);
+    const craft = fs.readFileSync(path.resolve("client/src/pages/CraftBriefing.tsx"), "utf8");
+    expect(craft).toMatch(/data-testid="label-design-briefing"/);
+    expect(craft).toMatch(/data-testid="btn-convert-html"/);
+    expect(craft).toMatch(/insertMergeTag/);
+    expect(craft).toMatch(/data-testid="btn-create-page"/);
+    expect(craft).toMatch(/data-testid="input-briefing-site-url"/);
+    expect(craft).toMatch(/data-testid="btn-briefing-gallery"/);
+    expect(craft).toMatch(/rasterBlob\(page, filled\.assets, filled\.title, "jpeg"/);
+    expect(craft).toMatch(/converted \|\| .*packHtml/);
+    expect(craft).toMatch(/filledSlides/);
+    expect(craft).toMatch(/packHtmlFromPageImages\(/);
     expect(page).toMatch(/data-testid="iframe-briefing-preview"/);
     expect(page).toMatch(/briefingPreviewReady/);
     expect(page).toMatch(/\/api\/openers\/\$\{selected\.id\}\/briefing\/preview/);
-    expect(page).toMatch(/previewHtml/);
+    expect(page).toMatch(/data-testid="dialog-briefing-send-preview"/);
+    expect(page).toMatch(/data-testid="btn-confirm-send-briefing"/);
+    expect(page).toMatch(/data-testid="preview-briefing-cover"/);
+    expect(page).toMatch(/data-testid="iframe-briefing-pack-preview"/);
+    expect(page).toMatch(/briefing\/send-preview/);
+    expect(page).toMatch(/setSendPreviewOpen\(true\)/);
     const briefingBlock = page.slice(
       page.indexOf("btn-generate-briefing"),
       page.indexOf("btn-send-briefing") + 400
