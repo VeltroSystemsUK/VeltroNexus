@@ -243,7 +243,9 @@ function withLiveUrls(row: BriefingRecord): BriefingRecord {
       html: row.cover.html.replaceAll(DRAFT_COVER_URL, briefingPath),
     },
     slides: row.slides.map((slide) =>
-      slide.title === "Next step" || slide.enquiryUrl ? { ...slide, veltroUrl } : slide
+      slide.title === "Outreach" || slide.title === "Next step" || Boolean(slide.veltroUrl)
+        ? { ...slide, veltroUrl }
+        : slide
     ),
   };
 }

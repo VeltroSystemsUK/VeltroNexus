@@ -222,6 +222,38 @@ describe("generate and send opener briefing", () => {
     expect(draft.generatedAt).toBeTruthy();
   });
 
+  it("generate returns the existing draft and keeps filledSlides and packHtml", async () => {
+    writeOpeners([hotOpener()]);
+    const draft = await generateOpenerBriefing("hot-id");
+    const html = "<html><body data-testid=\"briefing-pack\">North Peak Ltd</body></html>";
+    saveOpenerBriefingHtml("hot-id", html);
+    const again = await generateOpenerBriefing("hot-id");
+    expect(again.id).toBe(draft.id);
+    expect(again.token).toBe(draft.token);
+    expect(again.filledSlides?.map((s) => s.slideId)).toEqual([
+      "slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6",
+    ]);
+    const stored = getBriefing(draft.id);
+    expect(stored?.packHtml).toContain("briefing-pack");
+    expect(stored?.packHtml).toContain("North Peak Ltd");
+    expect(stored?.filledSlides).toHaveLength(6);
+    expect(stored?.generatedAt).toBe(draft.generatedAt);
+  });
+
+  it("live fallback stamps Veltro on Outreach not Cashflow", async () => {
+    writeOpeners([hotOpener()]);
+    const draft = await generateOpenerBriefing("hot-id");
+    const live = activateBriefing(draft.id);
+    const cashflow = live.slides.find((s) => s.title === "Cashflow");
+    const outreach = live.slides.find((s) => s.title === "Outreach");
+    expect(cashflow?.enquiryUrl).toMatch(/#contact/);
+    expect(cashflow?.veltroUrl).toBeUndefined();
+    expect(outreach?.veltroUrl).toBe(`/veltro?b=${live.token}`);
+    const html = renderBriefingHtml(live, { live: true });
+    expect(html).toMatch(`/veltro?b=${live.token}`);
+    expect(html).not.toMatch(/\{\{veltroUrl\}\}/);
+  });
+
   it("send is blocked when suppressed", async () => {
     writeOpeners([hotOpener()]);
     const draft = await generateOpenerBriefing("hot-id");
