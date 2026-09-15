@@ -1,6 +1,6 @@
 # Release & Deployment Guide
 
-This document outlines the release process, deployment checklist, and rollback procedures.
+This document outlines the Nexus release process, deployment checklist, and rollback procedures. Nexus runs locally; there is no staging.example.com.
 
 ## Pre-Release Checklist
 

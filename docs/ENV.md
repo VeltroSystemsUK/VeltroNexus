@@ -1,6 +1,6 @@
 # Environment Variables
 
-This document lists all environment variables used by FlowLoan.
+This document lists all environment variables used by Nexus.
 
 ## Required in Production
 

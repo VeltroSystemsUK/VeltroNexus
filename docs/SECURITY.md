@@ -1,6 +1,6 @@
 # Security Guardrails and Invariants
 
-This document outlines the security controls, invariants, and requirements for FlowLoan.
+This document outlines the security controls, invariants, and requirements for Nexus.
 
 ## Authentication & Authorization
 

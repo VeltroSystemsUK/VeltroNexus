@@ -1,12 +1,12 @@
 ---
 document: corporate_structure.md
-business: Strata Finance (operated on Nexus)
-version: 1.5
-date: 2026-09-07
+business: Veltro Ltd (Nexus OS) · contract with Sterling Commercial Finance Ltd t/a Strata Finance
+version: 1.6
+date: 2026-09-15
 owner: Shaun
 ---
 
-# Corporate Structure Directive — Strata agentic origination
+# Corporate Structure Directive — Veltro / Nexus origination
 
 All agents must read this document and [CLAUDE.md](./CLAUDE.md) before executing any task. Reporting lines: [agents.mmd](./agents.mmd). If a task is not covered here, escalate — do not proceed.
 
@@ -16,7 +16,7 @@ The honest review of what the app does today vs this directive is [launch_readin
 
 ## 1. Executive Summary
 
-Strata Finance packages UK SME distress-refinance and CDFI facilities (£25k–£250k, turnover £250k–£5m) for Sterling Capital Reserve. Shaun is the sole human director above the loop. AI agents run origination, outreach, pack collection, ingest, numbering, and compilation. The only end product that counts is a **complete Sterling file** — funding proposal plus supporting documents with nothing required still missing — ready for Shaun to send to David.
+Veltro Ltd owns Nexus and is contracted to Sterling Commercial Finance Ltd, which trades as Strata Finance. Nexus originates Stream A SME distress-refinance and Stream B introducer files (£25k–£250k, turnover £250k–£5m), collects a complete pack, and compiles a Sterling-ready file. Shaun is the sole human director above the loop. AI agents run origination, outreach, pack collection, ingest, numbering, and compilation. The only end product that counts is a **complete Sterling file** — funding proposal plus supporting documents with nothing required still missing — ready for Shaun to send to David at Sterling Commercial Finance Ltd.
 
 Agents do not replace Shaun with customers. They remove the admin so Shaun can take the calls, approve inbound drafts, approve the credit memo, and press send. SAL-1 drafts every live reply; Shaun sends.
 
