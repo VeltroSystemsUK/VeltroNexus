@@ -1,11 +1,13 @@
 /**
- * Nexus Sales Agent Operating System
- * Strata Finance lead identification & origination.
+ * Nexus Sales Agent Operating System for the Veltro–Sterling contract
+ * (borrowers see Strata Finance).
  *
  * This module is the executable source of truth. Agents, scoring, outreach
  * cadences, and qualification gates must read from here — do not fork copy
  * or weights in prompts.
  */
+
+import { PACKAGING_OPERATOR } from "./identity";
 
 export const SALES_OS_VERSION = "2026.1";
 
@@ -29,7 +31,7 @@ export const CDFI_PANEL = [
 
 export const PACKAGING_FRAMEWORK = {
   name: "Passan-format",
-  operator: "Sterling Capital Reserve Limited",
+  operator: PACKAGING_OPERATOR,
   sections: [1, 2, 3, 4, 5] as const,
   requires: [
     "24-month cash flow forecast",
