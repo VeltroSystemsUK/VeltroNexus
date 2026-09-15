@@ -80,6 +80,8 @@ Rung 1 is the definition of done for the current phase. Rungs 2–3 are how it b
 
 ### Anti-scoreboard (not proof of progress)
 
+This is a scoring rule. **It is not a deletion list.** Do not remove Workforce, Craft, Learn, Editorial, the Veltro landing, concierge, Openers, Agent Mail, tests, or an incomplete-zip path because they appear here. They stay. They just do not count as winning.
+
 - Pages, agents, tests, commits, or specs shipped
 - Workforce “online” / skill scores / Interact chat
 - Craft weeks, Learn articles, Editorial posts
@@ -87,7 +89,7 @@ Rung 1 is the definition of done for the current phase. Rungs 2–3 are how it b
 - Mail volume, open rate, or Openers card count without a file on Sterling’s desk
 - A zip that is allowed to be incomplete
 
-Until rung 1 is true, a new subsystem is a failure of discipline, not a feature.
+Until rung 1 is true, **starting a new subsystem** is a failure of discipline, not a feature. Existing desks are kept: on-the-loop, frozen, or costume, as below.
 
 ---
 
@@ -155,7 +157,7 @@ Deal Files and the Sterling zip are not allowed to be two machines. Approving, p
 
 `feat/sme-opener-nurture` (Direct Outreach) is on the loop. Land it. Cashflow analysis is on the loop only as it feeds the Sterling attachment.
 
-### Frozen — may exist, must not grow, does not score
+### Frozen — keep, must not grow, does not score, do not delete
 
 | Surface | Why frozen |
 |---|---|
@@ -167,13 +169,15 @@ Deal Files and the Sterling zip are not allowed to be two machines. Approving, p
 | WhatsApp auto-send | Same. |
 | Off-loop worktrees | `feat/learn-hub`, `craft-studio-help`, `feat/craft-motion-nodes` — freeze. Do not merge to look busy. |
 
-### Costume — not operational. Do not extend. Do not quote as truth.
+### Costume — not operational. Do not extend. Do not quote as truth. Do not delete.
+
+The screens stay. They are not the OS. Do not add roster lines, fake scores, or ARES loops. Do not rip the pages out.
 
 - Workforce roster, Unsplash faces, “Online”, hardcoded skill scores
 - ARES / Interact chat
 - Any agent “success rate” that is not a job log
 
-If a screen cannot name the company, the stage of the loop, and the next action toward a complete zip, it is costume or frozen.
+If a screen cannot name the company, the stage of the loop, and the next action toward a complete zip, it is costume or frozen — not a candidate for deletion.
 
 ### Rule for new work
 
@@ -230,6 +234,7 @@ Rung 3 is true. Then, and only then: tenancy, billing, generic pipeline, Veltro 
 
 - Selling Nexus to a second broker in this phase
 - Completing, hosting, or rebranding fez-crm / issuing Veltro trial logins
+- Deleting Learn, Editorial, Craft, Workforce, ARES, Veltro landing, concierge, Openers, or Agent Mail
 - Growing Learn, Editorial, Craft week, Telnyx auto-dial, or WhatsApp auto-send
 - Treating Workforce / ARES as the operating system
 - A second SMTP stack or Shaun’s personal mailbox as the cold From:
