@@ -46,6 +46,9 @@ describe("copy guard", () => {
     expect(briefingCopyOk("We lend at 1.5% a month").ok).toBe(false);
     expect(briefingCopyOk("you have late payers").ok).toBe(false);
     expect(briefingCopyOk("Businesses with two live non-bank charges often have a cost-of-debt problem.").ok).toBe(true);
+    expect(briefingCopyOk("High-value prospects dwell on your site and leave in silence.").ok).toBe(false);
+    expect(briefingCopyOk("Our AI tracked your dwell time and built this bespoke playbook instantly").ok).toBe(false);
+    expect(briefingCopyOk("we inject immediate cashflow runway").ok).toBe(false);
   });
 });
 

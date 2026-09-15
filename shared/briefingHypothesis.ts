@@ -9,7 +9,16 @@ const CONSTRUCTION_SIC_PREFIXES = ["41", "42", "43"] as const;
 
 const TOOLS_PATH_RE = /\/tools|#tools|calculator|cashflow/i;
 
-const BANNED_COPY_RE = [/we lend/i, /you have late payers/i, /\d+(\.\d+)?%/, /learn\.stratanexus/i] as const;
+const BANNED_COPY_RE = [
+  /we lend/i,
+  /you have late payers/i,
+  /\d+(\.\d+)?%/,
+  /learn\.stratanexus/i,
+  /dwell on your site/i,
+  /AI tracked your dwell/i,
+  /built this bespoke playbook instantly/i,
+  /inject immediate/i,
+] as const;
 
 function isConstructionSic(sicCodes: string[]): boolean {
   return sicCodes.some((code) => CONSTRUCTION_SIC_PREFIXES.some((prefix) => String(code).startsWith(prefix)));
