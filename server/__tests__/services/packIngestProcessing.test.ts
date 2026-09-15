@@ -7,6 +7,7 @@ vi.mock("../../storage", () => ({
     getDueDiligence: vi.fn(),
     upsertDueDiligence: vi.fn(),
     getSystemSetting: vi.fn(),
+    listProspectDocuments: vi.fn(),
   },
 }));
 vi.mock("../../services/packIngest", () => ({
@@ -26,6 +27,7 @@ const mockedStorage = storage as unknown as {
   getDueDiligence: ReturnType<typeof vi.fn>;
   upsertDueDiligence: ReturnType<typeof vi.fn>;
   getSystemSetting: ReturnType<typeof vi.fn>;
+  listProspectDocuments: ReturnType<typeof vi.fn>;
 };
 
 const packDocuments = [
@@ -64,6 +66,7 @@ describe("processing ingest", () => {
     mockedStorage.getDueDiligence.mockResolvedValue(null);
     mockedStorage.upsertDueDiligence.mockResolvedValue({});
     mockedStorage.getSystemSetting.mockResolvedValue({});
+    mockedStorage.listProspectDocuments.mockResolvedValue([]);
   });
 
   it("onPackArrived builds SFP from ingestSfpFromPack, not from the event log", async () => {
@@ -105,5 +108,27 @@ describe("processing ingest", () => {
     expect(updated.sfp?.figures.turnoverGbp?.source).toBe("accounts-2024.pdf");
     expect(updated.stage).toBe("human_review");
     expect(JSON.stringify(updated.sfp?.figures)).not.toMatch(/999999/);
+  });
+
+  it("includes prospect P&Ls that are not on the deal pack", async () => {
+    mockedStorage.listProspectDocuments.mockResolvedValue([
+      {
+        fileName: "Home Crafters yearly profit and loss 2025-03-01 to 2026-02-28.pdf",
+        category: "accounts",
+        storagePath: ".private/documents/85/pnl.pdf",
+      },
+    ]);
+    vi.mocked(ingestSfpFromPack).mockResolvedValue({
+      status: "PARTIAL",
+      missing: ["no sourced figures from the pack"],
+      documents: packDocuments,
+      figures: {},
+    });
+    await agenticWorkflow.runProcessing(deal() as never);
+    const arg = vi.mocked(ingestSfpFromPack).mock.calls[0][0] as { documents: Array<{ fileName?: string }> };
+    expect(arg.documents.map((doc) => doc.fileName)).toContain(
+      "Home Crafters yearly profit and loss 2025-03-01 to 2026-02-28.pdf",
+    );
+    expect(arg.documents.map((doc) => doc.fileName)).toContain("accounts-2024.pdf");
   });
 });

@@ -15,6 +15,7 @@ import { sterlingSendBlockedByEngagement } from "@shared/engagementPack";
 import { ensureSterlingHandoff } from "./sterlingHandoff";
 import { compileSterlingRailPack } from "./sterlingPack";
 import { ingestSfpFromPack } from "./packIngest";
+import { mergePackFileDocs } from "@shared/packIngest";
 import { DIRECTOR_NAME } from "@shared/identity";
 import {
   assessIntroducerFit,
@@ -159,14 +160,19 @@ function addEvent(deal: AgenticDealFile, stage: AgenticStage, message: string, a
   return [...(deal.events || []), { at: nowIso(), stage, agent, message }];
 }
 
-function packDocsForIngest(deal: AgenticDealFile, extra: Array<{ fileName?: string; category?: string | null; storagePath?: string; fileType?: string | null }> = []) {
-  if ((deal.packDocuments || []).length) return deal.packDocuments || [];
-  return extra;
-}
-
 async function sfpFromPack(deal: AgenticDealFile, extra: Array<{ fileName?: string; category?: string | null; storagePath?: string; fileType?: string | null }> = []) {
+  let pipeline: typeof extra = extra;
+  if (deal.prospectId && !pipeline.length) {
+    const docs = await storage.listProspectDocuments(deal.prospectId);
+    pipeline = docs.map((doc: any) => ({
+      fileName: doc.fileName,
+      category: doc.category,
+      fileType: doc.fileType,
+      storagePath: doc.storagePath,
+    }));
+  }
   return ingestSfpFromPack({
-    documents: packDocsForIngest(deal, extra),
+    documents: mergePackFileDocs(deal.packDocuments || [], pipeline),
     fundingReason: deal.fundingReason,
     companyNumber: deal.companyNumber,
   });
@@ -2488,26 +2494,23 @@ export const agenticWorkflow = {
     if (deal.convertPlaybook === "sme_nurture") return this.sendOutreach(deal);
     const docs = deal.prospectId ? await storage.listProspectDocuments(deal.prospectId) : [];
     const packDocs = deal.packDocuments || [];
-    const fileCount = packDocs.length || docs.length;
+    const mapped = docs.map((doc: any) => ({
+      fileName: doc.fileName,
+      category: doc.category,
+      fileType: doc.fileType,
+      storagePath: doc.storagePath,
+    }));
+    const packNames = new Set(packDocs.map((doc) => String(doc.fileName || "").toLowerCase()));
+    const extraDocCount = mapped.filter((doc) => !packNames.has(String(doc.fileName || "").toLowerCase())).length;
+    const fileCount = packDocs.length + extraDocCount;
     if (
       shouldReprocessPack({
         packDocuments: packDocs,
-        extraDocCount: packDocs.length ? 0 : docs.length,
+        extraDocCount,
         sfp: deal.sfp,
       })
     ) {
-      const mapped = packDocs.length
-        ? packDocs
-        : docs.map((doc: any) => ({
-            id: String(doc.id),
-            category: doc.category,
-            fileName: doc.fileName,
-            fileSize: doc.fileSize || 0,
-            fileType: doc.fileType || "",
-            storagePath: doc.storagePath || "",
-            uploadedAt: doc.uploadedAt || nowIso(),
-          }));
-      const sfp = await sfpFromPack({ ...deal, packDocuments: mapped });
+      const sfp = await sfpFromPack(deal, mapped);
       const ready = await storage.updateAgenticDeal(deal.id, {
         sfp,
         stage: "processing",

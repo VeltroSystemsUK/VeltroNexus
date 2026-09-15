@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { extractSfpFiguresFromPackTexts } from "@shared/packIngest";
 import { buildSfp, type StandardFinancialProfile } from "@shared/sfp";
 import { isPdfDocument } from "../utils/prospectDocumentText";
@@ -16,9 +17,24 @@ export type PackFileDoc = {
 export type PackBytesReader = (storagePath: string) => Promise<Buffer | null>;
 
 async function defaultReadBytes(storagePath: string): Promise<Buffer | null> {
-  if (!storagePath || !existsSync(storagePath)) return null;
+  if (!storagePath) return null;
+  const candidates = [
+    storagePath,
+    path.resolve(process.cwd(), storagePath),
+    path.resolve(process.cwd(), "uploads", storagePath),
+  ];
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    try {
+      return await readFile(candidate);
+    } catch {
+      /* try next */
+    }
+  }
   try {
-    return await readFile(storagePath);
+    const { getObjectStorage } = await import("../utils/routerHelpers");
+    const { data } = await getObjectStorage().downloadAsBytes(storagePath);
+    return Buffer.from(data);
   } catch {
     return null;
   }

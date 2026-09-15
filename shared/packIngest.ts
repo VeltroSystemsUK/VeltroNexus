@@ -8,6 +8,27 @@ export type PackTextDoc = {
   text?: string;
 };
 
+export type PackFileRef = {
+  fileName?: string;
+  category?: string | null;
+  fileType?: string | null;
+  storagePath?: string;
+};
+
+export function mergePackFileDocs(primary: PackFileRef[] = [], extra: PackFileRef[] = []): PackFileRef[] {
+  const out: PackFileRef[] = [];
+  const seen = new Set<string>();
+  for (const doc of [...primary, ...extra]) {
+    const name = String(doc.fileName || "").trim().toLowerCase();
+    if (name) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+    }
+    out.push(doc);
+  }
+  return out;
+}
+
 const ACCOUNTS_NAME_RE = /account|profit|p\s*&\s*l|p&l/i;
 
 function isAccountsDoc(doc: PackTextDoc): boolean {
@@ -23,7 +44,8 @@ function sourced(value: number | null | undefined, source: string): { value: num
 }
 
 export function extractSfpFiguresFromPackTexts(docs: PackTextDoc[]): SfpFigures {
-  const figures: SfpFigures = {};
+  let chosen: { yearEnding: string; turnover?: { value: number; source: string }; profit?: { value: number; source: string } } | null =
+    null;
   for (const doc of docs) {
     const text = String(doc.text || "");
     if (!text.trim()) continue;
@@ -33,15 +55,16 @@ export function extractSfpFiguresFromPackTexts(docs: PackTextDoc[]): SfpFigures 
     if (!years.length) years = yearsFromAccountsText(text, "accounts-2099-12-31.pdf");
     const year = years.find((row) => row.turnover != null || row.netProfit != null);
     if (!year) continue;
-    const source = fileName;
-    if (!figures.turnoverGbp) {
-      const turnover = sourced(year.turnover, source);
-      if (turnover) figures.turnoverGbp = turnover;
-    }
-    if (!figures.netProfitGbp) {
-      const profit = sourced(year.netProfit, source);
-      if (profit) figures.netProfitGbp = profit;
-    }
+    const yearEnding = String(year.yearEnding || "");
+    if (chosen && yearEnding && yearEnding < chosen.yearEnding) continue;
+    chosen = {
+      yearEnding: yearEnding || chosen?.yearEnding || "",
+      turnover: sourced(year.turnover, fileName),
+      profit: sourced(year.netProfit, fileName),
+    };
   }
+  const figures: SfpFigures = {};
+  if (chosen?.turnover) figures.turnoverGbp = chosen.turnover;
+  if (chosen?.profit) figures.netProfitGbp = chosen.profit;
   return figures;
 }

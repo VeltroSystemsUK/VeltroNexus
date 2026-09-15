@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractSfpFiguresFromPackTexts } from "@shared/packIngest";
+import { extractSfpFiguresFromPackTexts, mergePackFileDocs } from "@shared/packIngest";
 
 const PNL = `Profit & Loss
 Home Crafters
@@ -53,6 +53,26 @@ describe("extractSfpFiguresFromPackTexts", () => {
     ).toEqual({});
   });
 
+  it("prefers the latest year when several P&Ls are on the pack", () => {
+    const figures = extractSfpFiguresFromPackTexts([
+      {
+        fileName: "Home Crafters yearly profit and loss 2023-03-01 to 2024-02-29.pdf",
+        category: "accounts",
+        text: PNL,
+      },
+      {
+        fileName: "Home Crafters yearly profit and loss 2025-03-01 to 2026-02-28.pdf",
+        category: "accounts",
+        text: "Profit & Loss\nTurnover 163,080\nGross Profit 54,126\nOperating Profit £12,400\n",
+      },
+    ]);
+    expect(figures.turnoverGbp).toEqual({
+      value: 163080,
+      source: "Home Crafters yearly profit and loss 2025-03-01 to 2026-02-28.pdf",
+    });
+    expect(figures.netProfitGbp?.value).toBe(12400);
+  });
+
   it("ignores bank statements even if they mention a payment amount", () => {
     expect(
       extractSfpFiguresFromPackTexts([
@@ -65,3 +85,25 @@ describe("extractSfpFiguresFromPackTexts", () => {
     ).toEqual({});
   });
 });
+
+describe("mergePackFileDocs", () => {
+  it("keeps deal-pack files and adds prospect P&Ls that are not already there", () => {
+    const merged = mergePackFileDocs(
+      [{ fileName: "10034885_aa_2026-04-03.pdf", category: "accounts", storagePath: "pack/aa.pdf" }],
+      [
+        { fileName: "10034885_aa_2026-04-03.pdf", category: "accounts", storagePath: ".private/dup.pdf" },
+        {
+          fileName: "Home Crafters yearly profit and loss 2025-03-01 to 2026-02-28.pdf",
+          category: "accounts",
+          storagePath: ".private/documents/85/pnl.pdf",
+        },
+      ],
+    );
+    expect(merged.map((doc) => doc.fileName)).toEqual([
+      "10034885_aa_2026-04-03.pdf",
+      "Home Crafters yearly profit and loss 2025-03-01 to 2026-02-28.pdf",
+    ]);
+    expect(merged[1].storagePath).toBe(".private/documents/85/pnl.pdf");
+  });
+});
+
