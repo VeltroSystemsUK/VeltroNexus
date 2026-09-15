@@ -12,6 +12,17 @@ import {
 } from "@shared/mailDesk";
 
 describe("classifyInboundMail", () => {
+  it("does not treat a quoted house stop line as opt-out", () => {
+    expect(
+      classifyInboundMail({
+        from: "homecraftersuk@gmail.com",
+        subject: "Re: Thanks for your enquiry — THE HOME CRAFTERS LTD.",
+        text:
+          "Thanks James, I'll send the statements.\n\nOn 5 Sep 2026, James Hale wrote:\n> Hi\n> If this isn't useful, reply stop and we won't email again.",
+      }).kind,
+    ).not.toBe("stop");
+  });
+
   it("treats STOP and unsubscribe as opt-out", () => {
     expect(classifyInboundMail({ from: "jane@joinery.co.uk", subject: "Re: facility", text: "Please stop contacting us." }).kind).toBe("stop");
     expect(classifyInboundMail({ from: "jane@joinery.co.uk", subject: "unsubscribe", text: "" }).kind).toBe("stop");

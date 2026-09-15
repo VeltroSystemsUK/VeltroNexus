@@ -8,6 +8,7 @@ import { autoPromoteEligibleOpeners, currentOpenersStorePath, enrolConvertFromMa
 import { withJsonFileLock } from "../utils/jsonFileLock";
 import { atomicWriteFileSync, readJsonArrayFile } from "../utils/atomicWriteJson";
 import { shouldTrackMailHref } from "@shared/mailTracking";
+import { classifyInboundMail } from "@shared/mailDesk";
 
 export type MailDirection = "outbound" | "inbound";
 
@@ -457,8 +458,13 @@ export async function recordInbound(payload: {
 }): Promise<AgentMailItem> {
   const mailbox = mailboxByAddress(payload.to) || mailboxByAddress(payload.from);
   const fromEmail = String(payload.from || "").trim().toLowerCase();
-  const body = `${payload.subject || ""} ${payload.text || ""}`.toLowerCase();
-  const isOptOut = /\b(stop|unsubscribe|do not contact|don't contact)\b/.test(body);
+  const isOptOut =
+    classifyInboundMail({
+      from: payload.from,
+      subject: payload.subject,
+      text: payload.text,
+      html: payload.html,
+    }).kind === "stop";
   let dealId: number | undefined;
   let prospectId: number | undefined;
   try {
