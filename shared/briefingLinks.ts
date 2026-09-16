@@ -108,7 +108,7 @@ export function assertBriefingPackLinks(
       continue;
     }
     const host = parsed.hostname.toLowerCase();
-    if (isPrivateHost(host) || host === "leads.stratanexus.co.uk") {
+    if (isPrivateHost(host) || (host === "leads.stratanexus.co.uk" && originHost(origin) !== "leads.stratanexus.co.uk")) {
       failures.push({ href, reason: "forbidden_host" });
       continue;
     }
@@ -157,7 +157,7 @@ export async function checkBriefingHttpLinks(
     }
     parsed.hash = "";
     const host = parsed.hostname.toLowerCase();
-    if (isPrivateHost(host) || host === "leads.stratanexus.co.uk") {
+    if (isPrivateHost(host) || (host === "leads.stratanexus.co.uk" && originHost(opts.origin) !== "leads.stratanexus.co.uk")) {
       failures.push({ href, reason: "forbidden_host" });
       continue;
     }

@@ -399,7 +399,19 @@ function directorSendsToday(now: Date): number {
 
 function ensureDraftBriefing(opener: OpenerRecord): BriefingRecord {
   const existing = openerBriefing(opener);
-  if (existing && existing.status !== "revoked") return existing;
+  if (existing && existing.status !== "revoked") {
+    if (isHousePack(existing.packHtml) || (existing.packHtml && existing.packHtml.includes("briefing-pack"))) {
+      return existing;
+    }
+    const filled = withHousePack(existing, opener);
+    const all = readBriefings();
+    const idx = all.findIndex((row) => row.id === existing.id);
+    if (idx >= 0) {
+      all[idx] = filled;
+      writeBriefings(all);
+    }
+    return filled;
+  }
   const draft = createDraftBriefing(opener);
   patchOpener(opener.id, { briefingId: draft.id });
   return draft;
