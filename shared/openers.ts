@@ -1,17 +1,53 @@
 import { isOpenedOutboundMail, lastMailOpenAt } from "./mailTracking";
 import { convertWakeAt, nextConvertSendWindow } from "./smeConvert";
 import { SME_NURTURE_CADENCE } from "./salesOs";
+import { industryFromSic, isForbiddenIndustry } from "./briefingTracks/mirrorPortal";
 
 export const OPENER_BOARD_STATUSES = ["new", "nurturing", "direct_outreach", "promoted"] as const;
 export type OpenerBoardStatus = (typeof OPENER_BOARD_STATUSES)[number];
 export const OPENER_STATUSES = ["non_responsive", "new", "nurturing", "direct_outreach", "not_now", "promoted"] as const;
 export type OpenerStatus = (typeof OPENER_STATUSES)[number];
 export type OpenerDesk = "openers" | "non_responsive";
+export const OPENER_QUALITIES = ["good", "average", "poor"] as const;
+export type OpenerQuality = (typeof OPENER_QUALITIES)[number];
+
+export type OpenerCreditsafe = {
+  creditsafeId: string;
+  score?: string;
+  rating?: string;
+  creditLimitPence?: number | null;
+  checkedAt: string;
+};
 
 export const OPENER_TOUCH2_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 export const OPENER_CONVERT_CLOSER_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 export const OPENER_AUTO_PROMOTE_AFTER_EMAILS = 5;
 export const DIRECT_OUTREACH_DWELL_MIN = 5;
+
+export const BRIEFING_HOLD_REASONS = [
+  "industry_unknown",
+  "link_dead",
+  "copy_guard",
+  "smtp",
+  "no_mailbox",
+  "volume_cap",
+  "pack_missing",
+] as const;
+export type BriefingHoldReason = (typeof BRIEFING_HOLD_REASONS)[number];
+export type BriefingHold = {
+  reason: BriefingHoldReason;
+  at: string;
+  detail?: string;
+};
+export const BRIEFING_HOLD_COPY: Record<BriefingHoldReason, string> = {
+  industry_unknown: "No sendable industry — type the trade they are actually in",
+  link_dead: "A briefing link did not work",
+  copy_guard: "Copy guard blocked the pack",
+  smtp: "Mailbox not live — send held",
+  no_mailbox: "No sendable email",
+  volume_cap: "Daily mailbox cap — will retry next window",
+  pack_missing: "Generate the house pack first",
+};
 
 export type OpenerNurture = {
   step: 0 | 1 | 2 | 3;
@@ -77,6 +113,10 @@ export type OpenerRecord = {
   nurture: OpenerNurture;
   veltroInterestAt?: string;
   briefingId?: string;
+  quality?: OpenerQuality;
+  creditsafe?: OpenerCreditsafe;
+  industryOverride?: string;
+  briefingHold?: BriefingHold;
 };
 
 export type OpenerMailLike = {
@@ -104,6 +144,28 @@ const STATUS_RANK: Record<OpenerStatus, number> = {
 
 function nowIso(now?: Date): string {
   return (now ?? new Date()).toISOString();
+}
+
+export function asOpenerQuality(value: unknown): OpenerQuality | undefined {
+  return OPENER_QUALITIES.includes(value as OpenerQuality) ? (value as OpenerQuality) : undefined;
+}
+
+function asOpenerCreditsafe(value: unknown): OpenerCreditsafe | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const row = value as Partial<OpenerCreditsafe>;
+  const creditsafeId = String(row.creditsafeId || "").trim();
+  const checkedAt = String(row.checkedAt || "").trim();
+  if (!creditsafeId || !checkedAt) return undefined;
+  return {
+    creditsafeId,
+    score: row.score ? String(row.score) : undefined,
+    rating: row.rating ? String(row.rating) : undefined,
+    creditLimitPence:
+      typeof row.creditLimitPence === "number" && Number.isFinite(row.creditLimitPence)
+        ? row.creditLimitPence
+        : null,
+    checkedAt,
+  };
 }
 
 function pickPreferredStatus(a: OpenerStatus, b: OpenerStatus): OpenerStatus {
@@ -200,7 +262,34 @@ export function normalizeOpener(
     nurture: normalizeNurture(input.nurture),
     veltroInterestAt: input.veltroInterestAt,
     briefingId: input.briefingId,
+    quality: asOpenerQuality(input.quality),
+    creditsafe: asOpenerCreditsafe(input.creditsafe),
+    industryOverride: trimIndustryOverride(input.industryOverride),
+    briefingHold: asBriefingHold(input.briefingHold),
   };
+}
+
+function trimIndustryOverride(value?: string): string | undefined {
+  const trimmed = String(value || "").trim();
+  return trimmed || undefined;
+}
+
+export function asBriefingHold(value: unknown): BriefingHold | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const row = value as BriefingHold;
+  if (!BRIEFING_HOLD_REASONS.includes(row.reason as BriefingHoldReason)) return undefined;
+  const at = String(row.at || "").trim();
+  if (!at) return undefined;
+  const detail = String(row.detail || "").trim();
+  return { reason: row.reason, at, ...(detail ? { detail } : {}) };
+}
+
+export function sendableIndustry(
+  opener: Pick<OpenerRecord, "sicCodes" | "industryOverride">
+): string | null {
+  const override = String(opener.industryOverride || "").trim();
+  if (override && !isForbiddenIndustry(override)) return override;
+  return industryFromSic(opener.sicCodes || []);
 }
 
 export function daysSittingMs(
@@ -228,6 +317,7 @@ function openerDisplayName(opener: Pick<OpenerRecord, "companyName" | "email">):
 export type OpenerRankable = Pick<OpenerRecord, "companyName" | "email" | "openCount" | "clickCount"> & {
   dwellCount?: number;
   veltroInterestAt?: string;
+  briefingHold?: BriefingHold;
   timeline?: Array<{ clicks?: unknown[] }>;
 };
 
@@ -372,6 +462,9 @@ function clickHeatRank(opener: OpenerRankable): number {
 export function compareOpenersByOpenCount(a: OpenerRankable, b: OpenerRankable): number {
   const byDwell = Math.max(0, b.dwellCount || 0) - Math.max(0, a.dwellCount || 0);
   if (byDwell) return byDwell;
+  const aHold = Boolean(a.briefingHold);
+  const bHold = Boolean(b.briefingHold);
+  if (aHold !== bHold) return aHold ? -1 : 1;
   const aVeltro = Boolean(a.veltroInterestAt);
   const bVeltro = Boolean(b.veltroInterestAt);
   if (aVeltro !== bVeltro) return aVeltro ? -1 : 1;
@@ -425,6 +518,10 @@ export function mergeOpeners(keeper: OpenerRecord, incoming: OpenerRecord): Open
     nonBankChargeCount: Math.max(keeper.nonBankChargeCount, incoming.nonBankChargeCount),
     enrichedAt: preferDefined(keeper.enrichedAt, incoming.enrichedAt),
     enrichError: preferDefined(keeper.enrichError, incoming.enrichError),
+    quality: preferDefined(keeper.quality, incoming.quality),
+    creditsafe: preferDefined(keeper.creditsafe, incoming.creditsafe),
+    industryOverride: preferDefined(keeper.industryOverride, incoming.industryOverride),
+    briefingHold: preferDefined(keeper.briefingHold, incoming.briefingHold),
     status: pickPreferredStatus(keeper.status, incoming.status),
     notes: keeper.notes || incoming.notes,
     firstOpenedAt,

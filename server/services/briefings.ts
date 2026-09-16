@@ -2,7 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { mailboxForAgent } from "@shared/agentMailboxes";
-import { buildCoverEmail } from "@shared/briefingCover";
+import { briefingGreetingName, buildCoverEmail } from "@shared/briefingCover";
 import { signatureHtml } from "@shared/strataOutreach";
 import {
   briefingCopyOk,
@@ -22,17 +22,32 @@ import {
 import {
   MIRROR_PORTAL_TRACK_ID,
   fillMirrorPortal,
-  industryFromSic,
   slidesFromFilled,
 } from "@shared/briefingTracks/mirrorPortal";
 import { MAIL_DWELL_MS, shouldRecordMailTracking } from "@shared/mailTracking";
-import { canPromoteOpener, isDoNotContactOpener, type OpenerRecord } from "@shared/openers";
-import { siteCopyToBullets } from "@shared/briefingCraft";
+import {
+  canPromoteOpener,
+  isDoNotContactOpener,
+  sendableIndustry,
+  stopNurture,
+  type BriefingHoldReason,
+  type OpenerRecord,
+} from "@shared/openers";
+import { fillOutreachPackHtml, refillOutreachPackIndustry, siteCopyToBullets } from "@shared/briefingCraft";
+import { helloPublicOrigin } from "@shared/helloHost";
+import { inConvertSendWindow, londonDateKey } from "@shared/smeConvert";
+import { SME_DAILY_FIRST_TOUCH_CAP } from "@shared/smeOutreach";
+import {
+  assertBriefingPackLinks,
+  checkBriefingHttpLinks,
+  collectBriefingLinks,
+} from "@shared/briefingLinks";
 import { atomicWriteFileSync } from "../utils/atomicWriteJson";
 import { fetchWebsiteText, normalizeWebsiteUrl } from "../utils/companyEnrichment";
+import { listAgentMail } from "./agentMailLog";
 import { sendEmail } from "./email";
 import * as mailDesk from "./mailDesk";
-import { getOpener, patchOpener, promoteOpener } from "./openers";
+import { getOpener, listOpeners, onOpenerUnsubscribed, patchOpener, promoteOpener } from "./openers";
 
 export type { BriefingRecord, BriefingSlide };
 export { defaultBriefingSlides, privateWallHtml, renderBriefingHtml, BRIEFING_ENQUIRY_URL };
@@ -129,6 +144,7 @@ function normalizeBriefing(row: unknown): BriefingRecord | undefined {
     trackId: rec.trackId ? String(rec.trackId) : undefined,
     filledSlides,
     generatedAt: rec.generatedAt ? String(rec.generatedAt) : undefined,
+    coverSentAt: rec.coverSentAt ? String(rec.coverSentAt) : undefined,
   };
 }
 
@@ -179,11 +195,21 @@ export function getLiveBriefingByToken(token: string): BriefingRecord | undefine
   return readBriefings().find((row) => row.token === token && row.status === "live");
 }
 
+const OUTREACH_PACK_PATH = path.resolve(process.cwd(), "customer-visual-aids.html");
+
+function housePackHtml(bind: { companyName: string; industry: string }): string {
+  const template = fs.readFileSync(OUTREACH_PACK_PATH, "utf8");
+  return fillOutreachPackHtml(template, {
+    companyName: bind.companyName,
+    industry: bind.industry,
+  });
+}
+
 function bindFromOpener(opener: OpenerRecord) {
   const companyName = opener.companyName || opener.email || "your company";
   return {
     companyName,
-    industry: industryFromSic(opener.sicCodes),
+    industry: sendableIndustry(opener) || "your trade",
     dwellLine: dwellLine({ dwellCount: opener.dwellCount, lastDwellPath: opener.lastDwellPath }),
     filingsLine: filingsLine({
       dateOfCreation: opener.dateOfCreation,
@@ -208,6 +234,7 @@ export function createDraftBriefing(opener: OpenerRecord): BriefingRecord {
   const slides = slidesFromFilled(filled);
   const cover = buildCoverEmail({
     companyName: bind.companyName,
+    firstName: briefingGreetingName(opener.directors),
     briefingUrl: DRAFT_COVER_URL,
   });
   const at = nowIso();
@@ -219,6 +246,7 @@ export function createDraftBriefing(opener: OpenerRecord): BriefingRecord {
     status: "draft",
     slides,
     filledSlides: filled,
+    packHtml: housePackHtml(bind),
     trackId: MIRROR_PORTAL_TRACK_ID,
     generatedAt: at,
     cover,
@@ -314,14 +342,118 @@ export function openerBriefingIsDesigned(opener: OpenerRecord): boolean {
 }
 
 export function briefingPublicUrl(token: string, baseUrl?: string): string {
-  const base = String(
-    baseUrl || process.env.PUBLIC_APP_URL || process.env.APP_URL || "http://localhost"
-  ).replace(/\/$/, "");
+  const base = String(baseUrl || helloPublicOrigin()).replace(/\/$/, "");
   return `${base}/briefing/${token}`;
 }
 
 export function openerBriefingBind(opener: OpenerRecord): ReturnType<typeof bindFromOpener> {
   return bindFromOpener(opener);
+}
+
+export const BRIEFING_TICK_SEND_CAP = 10;
+
+let smtpReadyForTests: boolean | null = null;
+
+export function setBriefingSmtpReadyForTests(value: boolean | null): void {
+  smtpReadyForTests = value;
+}
+
+function briefingSmtpReady(): boolean {
+  if (smtpReadyForTests != null) return smtpReadyForTests;
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) return true;
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) return true;
+  return false;
+}
+
+function holdOpener(opener: OpenerRecord, reason: BriefingHoldReason, detail?: string): void {
+  patchOpener(opener.id, {
+    briefingHold: { reason, at: nowIso(), ...(detail ? { detail } : {}) },
+  });
+}
+
+function clearBriefingHold(openerId: string): void {
+  patchOpener(openerId, { briefingHold: undefined });
+}
+
+function hasCoverSend(opener: OpenerRecord, briefing?: BriefingRecord): boolean {
+  if (briefing?.coverSentAt) return true;
+  const email = opener.email;
+  return listAgentMail(5000).some(
+    (row) =>
+      row.direction === "outbound" &&
+      row.touchId === "direct_outreach" &&
+      (row.status === "sent" || row.status === "mock") &&
+      String(row.to || "").toLowerCase().includes(email)
+  );
+}
+
+function directorSendsToday(now: Date): number {
+  const day = londonDateKey(now.toISOString());
+  const mailbox = mailboxForAgent("director").address.toLowerCase();
+  return listAgentMail(5000).filter((row) => {
+    if (row.direction !== "outbound" || row.status !== "sent") return false;
+    if (!String(row.from || "").toLowerCase().includes(mailbox)) return false;
+    return londonDateKey(row.createdAt) === day;
+  }).length;
+}
+
+function ensureDraftBriefing(opener: OpenerRecord): BriefingRecord {
+  const existing = openerBriefing(opener);
+  if (existing && existing.status !== "revoked") return existing;
+  const draft = createDraftBriefing(opener);
+  patchOpener(opener.id, { briefingId: draft.id });
+  return draft;
+}
+
+function refillBriefingIndustry(briefing: BriefingRecord, opener: OpenerRecord, industry: string): BriefingRecord {
+  const bind = { ...bindFromOpener(opener), industry, veltroUrl: `/veltro?b=${briefing.token}` };
+  const filled = fillMirrorPortal(bind);
+  const packHtml = briefing.packHtml
+    ? refillOutreachPackIndustry(briefing.packHtml, industry)
+    : housePackHtml(bind);
+  const next: BriefingRecord = {
+    ...briefing,
+    filledSlides: filled,
+    slides: slidesFromFilled(filled),
+    packHtml,
+  };
+  const all = readBriefings();
+  const idx = all.findIndex((row) => row.id === briefing.id);
+  if (idx >= 0) {
+    all[idx] = next;
+    writeBriefings(all);
+  }
+  return next;
+}
+
+async function assertPackLinksLive(packHtml: string): Promise<void> {
+  const origin = helloPublicOrigin();
+  const structural = assertBriefingPackLinks(packHtml, origin);
+  if (!structural.ok) {
+    throw httpError(structural.failures[0]?.href || "link_dead", 409);
+  }
+  const { hrefs } = collectBriefingLinks(packHtml);
+  const http = await checkBriefingHttpLinks(hrefs, { origin });
+  if (!http.ok) throw httpError(http.failures[0]?.href || "link_dead", 409);
+}
+
+function packContainsIndustry(packHtml: string | undefined, industry: string): boolean {
+  if (!packHtml) return false;
+  return packHtml.includes(industry);
+}
+
+function isHousePack(html?: string): boolean {
+  return Boolean(
+    html &&
+      html.includes('data-id="slide_1"') &&
+      html.includes("briefing-pack") &&
+      html.includes('data-pack-nav="v3"')
+  );
+}
+
+function withHousePack(row: BriefingRecord, opener: OpenerRecord): BriefingRecord {
+  const bind = bindFromOpener(opener);
+  return { ...row, packHtml: housePackHtml(bind) };
 }
 
 export async function generateOpenerBriefing(id: string): Promise<BriefingRecord> {
@@ -330,7 +462,17 @@ export async function generateOpenerBriefing(id: string): Promise<BriefingRecord
     throw httpError("Only Direct Outreach cards can generate a briefing", 409);
   }
   const existing = openerBriefing(opener);
-  if (existing && existing.status !== "revoked") return existing;
+  if (existing && existing.status !== "revoked") {
+    if (isHousePack(existing.packHtml)) return existing;
+    const next = withHousePack(existing, opener);
+    const all = readBriefings();
+    const idx = all.findIndex((row) => row.id === existing.id);
+    if (idx >= 0) {
+      all[idx] = next;
+      writeBriefings(all);
+    }
+    return next;
+  }
   const draft = createDraftBriefing(opener);
   patchOpener(opener.id, { briefingId: draft.id });
   return draft;
@@ -444,14 +586,12 @@ function signedCoverFor(
   const mailbox = mailboxForAgent("director");
   const built = buildCoverEmail({
     companyName: opener.companyName || opener.email,
+    firstName: briefingGreetingName(opener.directors),
     briefingUrl,
   });
-  const body = (briefing.cover.html || built.html)
-    .replaceAll(DRAFT_COVER_URL, briefingUrl)
-    .replaceAll(`/briefing/${briefing.token}`, briefingUrl);
   return {
     subject: briefing.cover.subject || built.subject,
-    html: `${body}\n${signatureHtml(mailbox)}`,
+    html: `${built.html}\n${signatureHtml(mailbox)}`,
   };
 }
 
@@ -468,15 +608,40 @@ export function previewOpenerBriefingSend(
   };
 }
 
+function holdError(reason: BriefingHoldReason, detail?: string): Error {
+  return Object.assign(new Error(detail || reason), { status: 409, holdReason: reason, detail });
+}
+
 export async function sendOpenerBriefing(
   id: string,
   opts?: { publicBaseUrl?: string }
 ): Promise<BriefingRecord> {
   const { opener, briefing: draft } = requireDesignedBriefing(id);
-  const alreadyLive = draft.status === "live";
-  const live = activateBriefing(draft.id);
+  const industry = sendableIndustry(opener);
+  if (!industry) throw holdError("industry_unknown", opener.sicCodes[0] ? `SIC ${opener.sicCodes[0]}` : undefined);
+  let briefing = draft;
+  if (!packContainsIndustry(briefing.packHtml, industry)) {
+    briefing = refillBriefingIndustry(briefing, opener, industry);
+  }
+  if (!packContainsIndustry(briefing.packHtml, industry)) {
+    throw holdError("industry_unknown", industry);
+  }
+  try {
+    await assertPackLinksLive(String(briefing.packHtml || ""));
+  } catch (error) {
+    const href = error instanceof Error ? error.message : "link_dead";
+    throw holdError("link_dead", href);
+  }
+  const alreadyLive = briefing.status === "live";
+  const live = activateBriefing(briefing.id);
   const mailbox = mailboxForAgent("director");
-  const cover = signedCoverFor(opener, live, briefingPublicUrl(live.token, opts?.publicBaseUrl));
+  const coverUrl = briefingPublicUrl(live.token, opts?.publicBaseUrl);
+  const coverCheck = await checkBriefingHttpLinks([coverUrl], { origin: helloPublicOrigin() });
+  if (!coverCheck.ok) {
+    if (!alreadyLive) revokeBriefing(live.id);
+    throw holdError("link_dead", coverUrl);
+  }
+  const cover = signedCoverFor(opener, live, coverUrl);
   const result = await sendEmail(
     {
       agentId: mailbox.agentId,
@@ -491,9 +656,63 @@ export async function sendOpenerBriefing(
   if (!result.success) {
     if (!alreadyLive) revokeBriefing(live.id);
     if (result.blocked === "suppressed") throw httpError("Suppressed", 403);
-    throw httpError("Send failed", 502);
+    throw holdError("smtp");
   }
-  return live;
+  const sent: BriefingRecord = { ...live, coverSentAt: nowIso() };
+  const all = readBriefings();
+  const idx = all.findIndex((row) => row.id === live.id);
+  if (idx >= 0) {
+    all[idx] = sent;
+    writeBriefings(all);
+  }
+  clearBriefingHold(opener.id);
+  return sent;
+}
+
+export async function tickDirectOutreachBriefings(now: Date = new Date()): Promise<number> {
+  if (!inConvertSendWindow(now)) return 0;
+  let sent = 0;
+  for (const opener of listOpeners()) {
+    if (opener.status !== "direct_outreach") continue;
+    try {
+      if (isDoNotContactOpener(opener) || mailDesk.mailIsSuppressed(opener.email, opener.companyNumber)) {
+        const stopped = stopNurture(opener, "opt_out");
+        patchOpener(opener.id, stopped);
+        onOpenerUnsubscribed(opener.id);
+        continue;
+      }
+      const current = getOpener(opener.id) || opener;
+      const briefing = current.briefingId ? getBriefing(current.briefingId) : undefined;
+      if (hasCoverSend(current, briefing)) continue;
+      if (!current.email) {
+        holdOpener(current, "no_mailbox");
+        continue;
+      }
+      if (!briefingSmtpReady()) {
+        holdOpener(current, "smtp");
+        continue;
+      }
+      if (directorSendsToday(now) >= SME_DAILY_FIRST_TOUCH_CAP) {
+        holdOpener(current, "volume_cap");
+        continue;
+      }
+      if (sent >= BRIEFING_TICK_SEND_CAP) continue;
+      const draft = ensureDraftBriefing(current);
+      if (!draft.packHtml || !draft.packHtml.includes("briefing-pack")) {
+        holdOpener(current, "pack_missing");
+        continue;
+      }
+      await sendOpenerBriefing(current.id, { publicBaseUrl: helloPublicOrigin() });
+      sent += 1;
+    } catch (error) {
+      const reason = (error as { holdReason?: BriefingHoldReason }).holdReason;
+      const detail = (error as { detail?: string }).detail;
+      if (reason) holdOpener(opener, reason, detail);
+      else if (error instanceof Error && /guard/i.test(error.message)) holdOpener(opener, "copy_guard");
+      else holdOpener(opener, "smtp", error instanceof Error ? error.message : undefined);
+    }
+  }
+  return sent;
 }
 
 export type BriefingTrackOpts = { staffSession?: boolean; referer?: string };

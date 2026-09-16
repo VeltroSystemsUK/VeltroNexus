@@ -3102,6 +3102,12 @@ export const agenticWorkflow = {
           console.error(`[Agentic] Tick failed for deal ${deal.id}:`, error);
         }
       }
+      try {
+        const { tickDirectOutreachBriefings } = await import("./briefings");
+        await tickDirectOutreachBriefings();
+      } catch (error) {
+        console.error("[Agentic] SAL-3 briefing tick failed:", error);
+      }
       return due.length;
     } finally {
       tickBusy = false;

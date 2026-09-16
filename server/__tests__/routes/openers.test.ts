@@ -75,6 +75,7 @@ describe("openers routes", () => {
     expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/site", methods: ["post"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/html", methods: ["post"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/page", methods: ["post"] });
+    expect(paths).toContainEqual({ path: "/api/openers/:id/creditsafe-check", methods: ["post"] });
     const unsub = paths.findIndex((row) => row.path === "/api/openers/unsubscribed");
     const byId = paths.findIndex((row) => row.path === "/api/openers/:id" && row.methods.includes("get"));
     expect(unsub).toBeGreaterThanOrEqual(0);
@@ -190,6 +191,26 @@ describe("openers routes", () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("nurturing");
     expect(res.body.nurture.directOutreachDismissedDwellCount).toBe(5);
+  });
+
+  it("PATCH industryOverride clears an industry hold", async () => {
+    tmpStore();
+    writeOpeners([
+      applyDirectOutreach(
+        normalizeOpener({
+          id: "d",
+          email: "d@x.co.uk",
+          dwellCount: 5,
+          firstOpenedAt: "2026-09-01T10:00:00.000Z",
+          lastOpenedAt: "2026-09-01T10:00:00.000Z",
+          briefingHold: { reason: "industry_unknown", at: "2026-09-16T09:00:00.000Z" },
+        })
+      ),
+    ]);
+    const res = await request(openersApp()).patch("/api/openers/d").set(auth).send({ industryOverride: "haulage" });
+    expect(res.status).toBe(200);
+    expect(res.body.industryOverride).toBe("haulage");
+    expect(res.body.briefingHold).toBeUndefined();
   });
 
   it("nurture start on Direct Outreach is 409", async () => {

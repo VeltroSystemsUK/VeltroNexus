@@ -1,5 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import {
+  asOpenerQuality,
   canDragOpenerTo,
   daysSitting,
   isDoNotContactOpener,
@@ -37,6 +38,7 @@ import { loadSuppression } from "../services/mailSuppression";
 import {
   attachCompanyNumber,
   autoPromoteEligibleOpeners,
+  checkOpenerCreditsafe,
   currentOpenerPipelineCompanyNumbers,
   enrichOpener,
   getOpener,
@@ -170,7 +172,7 @@ router.get("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (req
 
 router.patch("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
-    const { status, notes, companyNumber } = req.body || {};
+    const { status, notes, companyNumber, quality, industryOverride } = req.body || {};
     if (status === "promoted") {
       return res.status(400).json({ error: "Use POST /api/openers/:id/promote" });
     }
@@ -204,6 +206,15 @@ router.patch("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (r
     }
     const updates: Partial<OpenerRecord> = {};
     if (typeof notes === "string") updates.notes = notes;
+    if (typeof industryOverride === "string") {
+      updates.industryOverride = industryOverride.trim();
+      if (opener.briefingHold?.reason === "industry_unknown") updates.briefingHold = undefined;
+    }
+    if (quality !== undefined) {
+      const nextQuality = asOpenerQuality(quality);
+      if (!nextQuality) return res.status(400).json({ error: "Invalid quality" });
+      updates.quality = nextQuality;
+    }
     if (status && opener.status !== status) updates.status = status as OpenerStatus;
     if (status === "not_now" && opener.status !== "not_now") {
       updates.status = "not_now";
@@ -218,6 +229,14 @@ router.patch("/api/openers/:id", isAuthenticated, requireOpenersAccess, async (r
       onOpenerUnsubscribed(opener.id);
     }
     res.json(presentOpener(opener));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.post("/api/openers/:id/creditsafe-check", isAuthenticated, requireOpenersAccess, async (req, res) => {
+  try {
+    res.json(presentOpener(await checkOpenerCreditsafe(req.params.id)));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }
@@ -334,7 +353,7 @@ router.get("/api/openers/:id/briefing/craft", isAuthenticated, requireOpenersAcc
       briefing,
       bind,
       merge: mergeFieldsFromBind(bind),
-      pageUrl: briefing.status === "live" ? briefingPublicUrl(briefing.token, process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`) : null,
+      pageUrl: briefing.status === "live" ? briefingPublicUrl(briefing.token) : null,
     });
   } catch (error) {
     handleOpenerError(res, error, "api-error");
@@ -359,8 +378,7 @@ router.post("/api/openers/:id/briefing/html", isAuthenticated, requireOpenersAcc
 
 router.post("/api/openers/:id/briefing/page", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
-    const publicBaseUrl = process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`;
-    res.json(publishOpenerBriefingPage(req.params.id, { publicBaseUrl }));
+    res.json(publishOpenerBriefingPage(req.params.id));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }
@@ -368,8 +386,7 @@ router.post("/api/openers/:id/briefing/page", isAuthenticated, requireOpenersAcc
 
 router.get("/api/openers/:id/briefing/send-preview", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
-    const publicBaseUrl = process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`;
-    res.json(previewOpenerBriefingSend(req.params.id, { publicBaseUrl }));
+    res.json(previewOpenerBriefingSend(req.params.id));
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }
@@ -377,8 +394,7 @@ router.get("/api/openers/:id/briefing/send-preview", isAuthenticated, requireOpe
 
 router.post("/api/openers/:id/briefing/send", isAuthenticated, requireOpenersAccess, async (req, res) => {
   try {
-    const publicBaseUrl = process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get("host")}`;
-    const briefing = await sendOpenerBriefing(req.params.id, { publicBaseUrl });
+    const briefing = await sendOpenerBriefing(req.params.id);
     res.json({ briefing });
   } catch (error) {
     handleOpenerError(res, error, "api-error");

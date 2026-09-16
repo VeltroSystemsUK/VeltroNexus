@@ -1,6 +1,7 @@
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
+import { ensureMailLinksOpenInNewTab } from "@shared/mailTracking";
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { useLocation } from "wouter";
 import {
@@ -26,10 +27,14 @@ import {
   isConvertCloserDue,
   isConvertOpener,
   isDoNotContactOpener,
+  sendableIndustry,
+  BRIEFING_HOLD_COPY,
   OPENER_BOARD_STATUSES,
+  OPENER_QUALITIES,
   withDerivedNurture,
   type ClickHeatBand,
   type OpenerDesk,
+  type OpenerQuality,
   type OpenerRecord,
   type OpenerStatus,
 } from "@shared/openers";
@@ -235,12 +240,56 @@ function NurtureDraftPreview({ subject, html, status }: { subject: string; html:
   );
 }
 
+function QualityDots({
+  opener,
+  onPick,
+}: {
+  opener: OpenerBoardItem;
+  onPick: (quality: OpenerQuality) => void;
+}) {
+  return (
+    <div
+      data-testid="opener-quality"
+      role="group"
+      aria-label="Lead quality"
+      className="flex items-center gap-1 shrink-0"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {OPENER_QUALITIES.map((quality) => {
+        const on = opener.quality === quality;
+        return (
+          <button
+            key={quality}
+            type="button"
+            data-testid={`opener-quality-${quality}`}
+            aria-label={quality}
+            aria-pressed={on}
+            className={cn(
+              "h-2.5 w-2.5 rounded-full border",
+              quality === "good" && (on ? "bg-emerald-400 border-emerald-300" : "border-emerald-400/60 bg-transparent"),
+              quality === "average" && (on ? "bg-amber-400 border-amber-300" : "border-amber-400/60 bg-transparent"),
+              quality === "poor" && (on ? "bg-red-500 border-red-400" : "border-red-500/60 bg-transparent")
+            )}
+            onClick={() => onPick(quality)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function OpenerCards({
   items,
   onSelect,
+  onQuality,
+  onCreditsafe,
+  creditsafePendingId,
 }: {
   items: OpenerBoardItem[];
   onSelect: (id: string) => void;
+  onQuality: (id: string, quality: OpenerQuality) => void;
+  onCreditsafe: (id: string) => void;
+  creditsafePendingId?: string;
 }) {
   return (
     <>
@@ -267,6 +316,7 @@ function OpenerCards({
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-sm truncate flex items-center gap-2">
                           <span className="truncate">{openerTitle(opener)}</span>
+                          <QualityDots opener={opener} onPick={(quality) => onQuality(opener.id, quality)} />
                         </p>
                         <p className="text-xs text-muted-foreground">{sittingLabel(opener.daysSitting)}</p>
                       </div>
@@ -293,7 +343,30 @@ function OpenerCards({
                           DO NOT CONTACT
                         </Badge>
                       )}
+                      {opener.briefingHold && !isDoNotContactOpener(opener) && (
+                        <Badge variant="secondary" data-testid="badge-briefing-needs-you">
+                          Needs you
+                        </Badge>
+                      )}
                       {hint && <Badge variant="secondary">{hint}</Badge>}
+                      {opener.creditsafe?.score ? (
+                        <Badge data-testid="badge-opener-creditsafe">
+                          CS {opener.creditsafe.score}
+                        </Badge>
+                      ) : (
+                        <button
+                          type="button"
+                          data-testid="btn-opener-creditsafe"
+                          className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                          disabled={creditsafePendingId === opener.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onCreditsafe(opener.id);
+                          }}
+                        >
+                          {creditsafePendingId === opener.id ? "Checking…" : "Check"}
+                        </button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -313,6 +386,9 @@ function ColumnFrame({
   droppableId,
   items,
   onSelect,
+  onQuality,
+  onCreditsafe,
+  creditsafePendingId,
 }: {
   "data-testid": string;
   label: string;
@@ -320,6 +396,9 @@ function ColumnFrame({
   droppableId: OpenerStatus;
   items: OpenerBoardItem[];
   onSelect: (id: string) => void;
+  onQuality: (id: string, quality: OpenerQuality) => void;
+  onCreditsafe: (id: string) => void;
+  creditsafePendingId?: string;
 }) {
   return (
     <Droppable droppableId={droppableId}>
@@ -344,7 +423,13 @@ function ColumnFrame({
                 : "bg-muted/30"
             )}
           >
-            <OpenerCards items={items} onSelect={onSelect} />
+            <OpenerCards
+              items={items}
+              onSelect={onSelect}
+              onQuality={onQuality}
+              onCreditsafe={onCreditsafe}
+              creditsafePendingId={creditsafePendingId}
+            />
             {provided.placeholder}
           </div>
         </div>
@@ -369,6 +454,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
   const [heatFilter, setHeatFilter] = useState<ClickHeatBand | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [industryDraft, setIndustryDraft] = useState("");
   const [attachNumber, setAttachNumber] = useState("");
   const [waMessage, setWaMessage] = useState("");
   const [callNote, setCallNote] = useState("");
@@ -391,6 +477,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
   useEffect(() => {
     if (!selected) return;
     setNotes(selected.notes || "");
+    setIndustryDraft(selected.industryOverride || "");
     setAttachNumber(selected.companyNumber || "");
     setWaMessage(defaultWhatsAppMessage(selected, desk));
     setCallNote("");
@@ -412,6 +499,19 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     onSuccess: invalidate,
     onError: (err: Error) => toast.error(mutationError(err)),
   });
+
+  const creditsafeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(`/api/openers/${id}/creditsafe-check`, "POST");
+      return res.json();
+    },
+    onSuccess: invalidate,
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const setQuality = (id: string, quality: OpenerQuality) => {
+    patchMutation.mutate({ id, body: { quality } });
+  };
 
   const nurtureMutation = useMutation({
     mutationFn: async ({
@@ -462,7 +562,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     },
     onSuccess: (_payload, id) => {
       invalidate();
-      toast.success("Draft ready — design it before sending");
+      toast.success("Pack ready");
       setLocation(`/craft/briefing/${id}`);
     },
     onError: (err: Error) => toast.error(mutationError(err)),
@@ -609,6 +709,11 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
     patchMutation.mutate({ id: selected.id, body: { notes } });
   };
 
+  const saveIndustry = () => {
+    if (!selected) return;
+    patchMutation.mutate({ id: selected.id, body: { industryOverride: industryDraft.trim() } });
+  };
+
   const attachCompany = () => {
     if (!selected || !attachNumber.trim()) return;
     patchMutation.mutate({ id: selected.id, body: { companyNumber: attachNumber.trim() } });
@@ -708,6 +813,9 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                 items={byStatus.non_responsive}
                 count={byStatus.non_responsive.length}
                 onSelect={setSelectedId}
+                onQuality={setQuality}
+                onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+                creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
               />
             ) : (
               <>
@@ -718,6 +826,9 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
               items={byStatus.new}
               count={byStatus.new.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
             <ColumnFrame
               data-testid="column-nurturing"
@@ -726,6 +837,9 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
               items={byStatus.nurturing}
               count={byStatus.nurturing.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
             <ColumnFrame
               data-testid="column-direct-outreach"
@@ -734,6 +848,9 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
               items={byStatus.direct_outreach}
               count={byStatus.direct_outreach.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
             <ColumnFrame
               data-testid="column-promoted"
@@ -742,6 +859,9 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
               items={byStatus.promoted}
               count={byStatus.promoted.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
               </>
             )}
@@ -766,6 +886,11 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                   {isDoNotContactOpener(selected) && (
                     <Badge variant="destructive" data-testid="badge-do-not-contact">
                       DO NOT CONTACT
+                    </Badge>
+                  )}
+                  {selected.briefingHold && !isDoNotContactOpener(selected) && (
+                    <Badge variant="secondary" data-testid="badge-briefing-needs-you">
+                      Needs you
                     </Badge>
                   )}
                 </SheetTitle>
@@ -848,6 +973,42 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                         Attach company
                       </Button>
                     </div>
+                    {selected.creditsafe ? (
+                      <div className="grid grid-cols-3 gap-2 rounded-md border p-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Score</p>
+                          <p className="font-medium">{selected.creditsafe.score || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Rating</p>
+                          <p className="font-medium">{selected.creditsafe.rating || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Limit</p>
+                          <p className="font-medium">
+                            {selected.creditsafe.creditLimitPence != null
+                              ? new Intl.NumberFormat("en-GB", {
+                                  style: "currency",
+                                  currency: "GBP",
+                                  minimumFractionDigits: 0,
+                                }).format(selected.creditsafe.creditLimitPence / 100)
+                              : "—"}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-testid="btn-opener-creditsafe"
+                        disabled={creditsafeMutation.isPending || (!selected.companyNumber && !selected.companyName)}
+                        onClick={() => creditsafeMutation.mutate(selected.id)}
+                      >
+                        {creditsafeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Creditsafe check
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
@@ -880,6 +1041,32 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                   {(selected.status === "direct_outreach" || selected.briefingId) && (
                     <section className="space-y-2">
                       <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Briefing</h3>
+                      {selected.briefingHold && (
+                        <p className="text-sm text-muted-foreground">
+                          {BRIEFING_HOLD_COPY[selected.briefingHold.reason]}
+                          {selected.briefingHold.detail ? ` · ${selected.briefingHold.detail}` : ""}
+                        </p>
+                      )}
+                      <div className="grid gap-2">
+                        <Label htmlFor="briefing-industry">Industry</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="briefing-industry"
+                            data-testid="input-briefing-industry"
+                            value={industryDraft}
+                            onChange={(event) => setIndustryDraft(event.target.value)}
+                            placeholder="e.g. haulage"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            data-testid="btn-save-briefing-industry"
+                            onClick={saveIndustry}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
                       <div className="grid gap-2">
                         <Button
                           type="button"
@@ -907,7 +1094,8 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                           disabled={
                             !selected.briefingPackReady ||
                             sendBriefingMutation.isPending ||
-                            doNotContact
+                            doNotContact ||
+                            !sendableIndustry(selected)
                           }
                           onClick={() => setSendPreviewOpen(true)}
                         >
@@ -1137,7 +1325,12 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                   data-testid="preview-briefing-cover"
                   className="rounded-md border bg-white p-4 text-sm text-zinc-900 overflow-x-auto"
                   dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(sendPreviewQuery.data.html),
+                    __html: DOMPurify.sanitize(
+                      ensureMailLinksOpenInNewTab(sendPreviewQuery.data.html),
+                      {
+                        ADD_ATTR: ["style", "target", "rel"],
+                      }
+                    ),
                   }}
                 />
               </div>
@@ -1169,7 +1362,8 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
                 sendBriefingMutation.isPending ||
                 !sendPreviewQuery.data ||
                 !selected ||
-                doNotContact
+                doNotContact ||
+                !sendableIndustry(selected)
               }
               onClick={() => {
                 if (selected) sendBriefingMutation.mutate(selected.id);

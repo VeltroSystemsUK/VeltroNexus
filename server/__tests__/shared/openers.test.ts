@@ -36,6 +36,8 @@ import {
   normalizeCompanyNumber,
   normalizeEmail,
   normalizeOpener,
+  sendableIndustry,
+  BRIEFING_HOLD_COPY,
   openedMailEvents,
   openerBelongsToDesk,
   openerHasReceivedSecondEmail,
@@ -85,6 +87,51 @@ describe("identity", () => {
     });
     expect(row.email).toBe("ops@northpeak.co.uk");
     expect(row.emails.sort()).toEqual(["james@northpeak.co.uk", "ops@northpeak.co.uk"]);
+  });
+
+  it("keeps quality and a Creditsafe snapshot, and drops invalid quality", () => {
+    const row = normalizeOpener({
+      id: "op-1",
+      email: "ops@northpeak.co.uk",
+      quality: "good",
+      creditsafe: {
+        creditsafeId: "GB-1",
+        score: "A",
+        rating: "Very Low Risk",
+        creditLimitPence: 5_000_000,
+        checkedAt: "2026-09-01T10:00:00.000Z",
+      },
+    });
+    expect(row.quality).toBe("good");
+    expect(row.creditsafe?.score).toBe("A");
+    expect(row.creditsafe?.creditLimitPence).toBe(5_000_000);
+    expect(normalizeOpener({ id: "op-2", email: "b@c.d", quality: "excellent" as never }).quality).toBeUndefined();
+  });
+
+  it("copies industry override and briefing hold", () => {
+    const row = normalizeOpener({
+      id: "op-1",
+      email: "ops@northpeak.co.uk",
+      industryOverride: " haulage ",
+      briefingHold: { reason: "industry_unknown", at: "2026-09-16T09:00:00.000Z", detail: "SIC 82990" },
+    });
+    expect(row.industryOverride).toBe("haulage");
+    expect(row.briefingHold).toEqual({
+      reason: "industry_unknown",
+      at: "2026-09-16T09:00:00.000Z",
+      detail: "SIC 82990",
+    });
+    expect(BRIEFING_HOLD_COPY.industry_unknown).toMatch(/type the trade/i);
+  });
+});
+
+describe("sendableIndustry", () => {
+  it("prefers a clean override, rejects your trade, uses mapped SIC otherwise", () => {
+    expect(sendableIndustry(opener({ industryOverride: "haulage", sicCodes: ["43210"] }))).toBe("haulage");
+    expect(sendableIndustry(opener({ industryOverride: "your trade", sicCodes: ["43210"] }))).toBe("construction");
+    expect(sendableIndustry(opener({ sicCodes: ["46900"] }))).toBe("wholesale");
+    expect(sendableIndustry(opener({ sicCodes: [] }))).toBeNull();
+    expect(sendableIndustry(opener({ industryOverride: "{{industry}}" }))).toBeNull();
   });
 });
 
@@ -221,6 +268,17 @@ describe("board ranking", () => {
     });
     const b = opener({ id: "b", companyName: "Acme", dwellCount: 5 });
     expect(compareOpenersByOpenCount(a, b)).toBeLessThan(0);
+  });
+
+  it("ranks Direct Outreach holds above unsent cards with the same dwell", () => {
+    const held = opener({
+      id: "held",
+      companyName: "Zebra",
+      dwellCount: 5,
+      briefingHold: { reason: "industry_unknown", at: "2026-09-16T09:00:00.000Z" },
+    });
+    const waiting = opener({ id: "wait", companyName: "Acme", dwellCount: 5 });
+    expect([waiting, held].sort(compareOpenersByOpenCount).map((row) => row.id)).toEqual(["held", "wait"]);
   });
 });
 

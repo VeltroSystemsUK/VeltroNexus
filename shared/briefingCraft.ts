@@ -58,6 +58,44 @@ export function fillMergeTags(text: string, fields: Record<string, string>): str
   });
 }
 
+function escapeHtml(value: string): string {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Fill the customer-visual-aids house pack. Empty website tags become blank, not leftover {{website}}. */
+export function fillOutreachPackHtml(
+  html: string,
+  fields: { companyName: string; industry: string; website?: string }
+): string {
+  const companyName = escapeHtml(fields.companyName);
+  const industry = escapeHtml(fields.industry);
+  const website = escapeHtml(fields.website || "");
+  const aliases: Record<string, string> = {
+    companyName,
+    industry,
+    website,
+    COMPANY_NAME: companyName,
+    INDUSTRY: industry,
+    URL: website,
+  };
+  let out = String(html || "").replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}/g, (match, key: string) => {
+    if (!Object.prototype.hasOwnProperty.call(aliases, key)) return match;
+    return aliases[key];
+  });
+  out = out.replace(/>COMPANY NAME</g, `>${companyName}<`);
+  out = out.replace(/>INDUSTRY</g, `>${industry}<`);
+  return out.replace(/(['"(])brand\/logo\//g, "$1/brand/logo/");
+}
+
+export function refillOutreachPackIndustry(html: string, industry: string): string {
+  const safe = escapeHtml(industry);
+  return String(html || "").replace(/(data-industry)([^>]*)>([^<]*)</gi, `$1$2>${safe}<`);
+}
+
 function splitSentences(block: string): string[] {
   const compact = block.replace(/\s+/g, " ").trim();
   if (!compact) return [];

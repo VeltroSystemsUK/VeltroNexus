@@ -31,6 +31,7 @@ export type BriefingRecord = {
   trackId?: string;
   filledSlides?: FilledSlide[];
   generatedAt?: string;
+  coverSentAt?: string;
 };
 
 export type BriefingBind = {

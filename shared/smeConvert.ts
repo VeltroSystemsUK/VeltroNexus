@@ -189,6 +189,12 @@ export function shouldHoldN1ForSme2SameDay(opts: { sme2SentAt?: string; now?: Da
   return sme2Key === nowKey;
 }
 
+export function inConvertSendWindow(now: Date = new Date()): boolean {
+  const clock = londonParts(now);
+  const minutes = clock.hour * 60 + clock.minute;
+  return LONDON_WEEKDAYS.has(clock.weekday) && minutes >= WINDOW_START_MINUTES && minutes < WINDOW_END_MINUTES;
+}
+
 export function nextConvertSendWindow(now: Date = new Date()): Date {
   const clock = londonParts(now);
   const minutes = clock.hour * 60 + clock.minute;

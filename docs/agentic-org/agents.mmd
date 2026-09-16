@@ -8,6 +8,7 @@ graph TD
     ORC --> REF["REF-2 Super Refer<br/>Tom · reachable introducers"]
     ORC --> SAL1["SAL-1 Inbound enquiries<br/>James Hale · drafts only"]
     ORC --> SAL["SAL-2 Communications<br/>James / Sophie / Rowan"]
+    ORC --> SAL3["SAL-3 Direct Outreach briefing<br/>Morgan Calder"]
     ORC --> FIN["FIN-2 File factory<br/>Priya"]
     D --> MKT["MKT-2 Brand social + Editorial<br/>Isla · CRAFT / editorial desk"]
     MKT --> SCOUT["MKT-3 Content Scout<br/>Casey · Creative Ammo"]
@@ -29,6 +30,8 @@ graph TD
     SAL1 --> T_IMAP[("IMAP read + Drafts write")]
     SAL1 -->|approval packet| D
     SAL --> T_SMTP[("SMTP + IMAP shared inbox")]
+    SAL3 --> T_SMTP
+    SAL3 -->|needs you / industry| D
     SAL -->|STOP / bounce| D
     SAL --> T_PACK[("Pack portal")]
     SAL --> T_LI["LinkedIn draft — Shaun posts"]

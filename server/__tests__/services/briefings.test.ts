@@ -5,6 +5,7 @@ import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import briefingsRouter from "../../routes/briefings";
+import { helloHostMiddleware } from "../../helloHost";
 
 vi.mock("../../services/email", () => ({
   sendEmail: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("../../services/openers", async (importOriginal) => {
 });
 
 import { applyDirectOutreach, normalizeOpener } from "@shared/openers";
+import { setBriefingHttpGetForTests } from "@shared/briefingLinks";
 import { packHtmlFromPageImages } from "@shared/briefingCraft";
 import { MAIL_DWELL_MS } from "@shared/mailTracking";
 import { sendEmail } from "../../services/email";
@@ -53,6 +55,7 @@ import {
   openerBriefingBind,
   publishOpenerBriefingPage,
   saveOpenerBriefingHtml,
+  briefingPublicUrl,
   mintBriefingToken,
   previewOpenerBriefingHtml,
   privateWallHtml,
@@ -64,7 +67,10 @@ import {
   sendOpenerBriefing,
   previewOpenerBriefingSend,
   setBriefingsStorePathForTests,
+  setBriefingSmtpReadyForTests,
+  tickDirectOutreachBriefings,
 } from "../../services/briefings";
+import { setAgentMailStorePathForTests } from "../../services/agentMailLog";
 import {
   getOpener,
   hydrateFromAgentMail,
@@ -96,6 +102,9 @@ afterEach(() => {
   storeFiles.clear();
   setBriefingsStorePathForTests(null);
   setOpenersStorePathForTests(null);
+  setAgentMailStorePathForTests(null);
+  setBriefingHttpGetForTests(null);
+  setBriefingSmtpReadyForTests(null);
   delete process.env.BRIEFINGS_PATH;
   vi.mocked(sendEmail).mockReset();
   vi.mocked(mailIsSuppressed).mockReset();
@@ -140,11 +149,10 @@ describe("briefing store tokens", () => {
     const live = activateBriefing(createDraftBriefing(sampleOpener()).id);
     const html = renderBriefingHtml(live, { live: true });
     expect(html).toMatch(/North Peak/);
-    expect(html).toMatch(/Prepared for the directors/);
     expect(html).toMatch(/noindex/);
     expect(html).not.toMatch(/Openers/);
     expect(html).toMatch(/briefing-pack/);
-    expect(html).toMatch(/briefing-slide-1/);
+    expect(html).toMatch(/data-id="slide_1"/);
     expect(privateWallHtml()).not.toMatch(/North Peak/);
     expect(privateWallHtml()).not.toMatch(/briefing-pack/);
   });
@@ -187,6 +195,7 @@ function hotOpener() {
       id: "hot-id",
       email: "hot@northpeak-briefing.test",
       companyName: "North Peak Ltd",
+      sicCodes: ["43210"],
       dwellCount: 5,
       nonBankChargeCount: 2,
       firstOpenedAt: "2026-09-01T10:00:00.000Z",
@@ -201,6 +210,7 @@ describe("generate and send opener briefing", () => {
     tmpOpenersStore();
     vi.mocked(mailIsSuppressed).mockReturnValue(false);
     vi.mocked(sendEmail).mockResolvedValue({ success: true, id: "mail-1" } as never);
+    setBriefingHttpGetForTests(async () => ({ status: 200 }));
   });
 
   it("generate refuses non Direct Outreach", async () => {
@@ -218,7 +228,12 @@ describe("generate and send opener briefing", () => {
     expect(draft.slides).toHaveLength(6);
     const blob = (draft.filledSlides || []).map((s) => s.body).join("\n");
     expect(blob).toMatch(/North Peak Ltd/);
-    expect(blob.toLowerCase()).not.toMatch(/dwell on your site/);
+    expect(blob).toMatch(/'dwell' on your site/);
+    expect(blob).toMatch(/AI tracked your dwell/);
+    expect(draft.packHtml).toMatch(/briefing-pack/);
+    expect(draft.packHtml).toMatch(/data-company>North Peak Ltd/);
+    expect(draft.packHtml).not.toMatch(/data-company>COMPANY NAME/);
+    expect(draft.packHtml).not.toMatch(/data-company>\{\{/);
     expect(draft.generatedAt).toBeTruthy();
   });
 
@@ -229,15 +244,14 @@ describe("generate and send opener briefing", () => {
     expect(outreach?.links?.[0]?.href).toBe(`/veltro?b=${draft.token}`);
     expect(draft.slides.find((s) => s.title === "Outreach")?.veltroUrl).toBe(`/veltro?b=${draft.token}`);
     const preview = previewOpenerBriefingHtml("hot-id");
-    expect(preview).toMatch(`/veltro?b=${draft.token}`);
+    expect(preview).toMatch(/veltro\.co\.uk\/#contact/);
     expect(preview).not.toMatch(/\{\{veltroUrl\}\}/);
   });
 
-  it("generate returns the existing draft and keeps filledSlides and packHtml", async () => {
+  it("generate returns the existing draft and refreshes the house pack", async () => {
     writeOpeners([hotOpener()]);
     const draft = await generateOpenerBriefing("hot-id");
-    const html = "<html><body data-testid=\"briefing-pack\">North Peak Ltd</body></html>";
-    saveOpenerBriefingHtml("hot-id", html);
+    saveOpenerBriefingHtml("hot-id", "<html><body data-testid=\"briefing-pack\">stills only</body></html>");
     const again = await generateOpenerBriefing("hot-id");
     expect(again.id).toBe(draft.id);
     expect(again.token).toBe(draft.token);
@@ -245,10 +259,25 @@ describe("generate and send opener briefing", () => {
       "slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6",
     ]);
     const stored = getBriefing(draft.id);
-    expect(stored?.packHtml).toContain("briefing-pack");
-    expect(stored?.packHtml).toContain("North Peak Ltd");
+    expect(stored?.packHtml).toMatch(/data-id="slide_1"/);
+    expect(stored?.packHtml).toMatch(/data-company>North Peak Ltd/);
+    expect(stored?.packHtml).not.toMatch(/stills only/);
     expect(stored?.filledSlides).toHaveLength(6);
     expect(stored?.generatedAt).toBe(draft.generatedAt);
+  });
+
+  it("generate keeps staff edits on an existing house pack", async () => {
+    writeOpeners([hotOpener()]);
+    const draft = await generateOpenerBriefing("hot-id");
+    const edited = String(draft.packHtml || "").replace(
+      /data-company>North Peak Ltd/g,
+      "data-company>Edited Peak Ltd"
+    );
+    saveOpenerBriefingHtml("hot-id", edited);
+    const again = await generateOpenerBriefing("hot-id");
+    expect(again.id).toBe(draft.id);
+    expect(again.packHtml).toMatch(/data-company>Edited Peak Ltd/);
+    expect(again.packHtml).not.toMatch(/data-company>North Peak Ltd/);
   });
 
   it("live fallback stamps Veltro on Outreach not Cashflow", async () => {
@@ -261,7 +290,7 @@ describe("generate and send opener briefing", () => {
     expect(cashflow?.veltroUrl).toBeUndefined();
     expect(outreach?.veltroUrl).toBe(`/veltro?b=${live.token}`);
     const html = renderBriefingHtml(live, { live: true });
-    expect(html).toMatch(`/veltro?b=${live.token}`);
+    expect(html).toMatch(/veltro\.co\.uk\/#contact/);
     expect(html).not.toMatch(/\{\{veltroUrl\}\}/);
   });
 
@@ -284,17 +313,22 @@ describe("generate and send opener briefing", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("send without a designed pack is 409", async () => {
+  it("generate fills the house pack so send does not wait on Convert", async () => {
     writeOpeners([hotOpener()]);
-    await generateOpenerBriefing("hot-id");
-    await expect(sendOpenerBriefing("hot-id")).rejects.toMatchObject({ status: 409 });
-    expect(sendEmail).not.toHaveBeenCalled();
+    const draft = await generateOpenerBriefing("hot-id");
+    expect(draft.packHtml).toMatch(/briefing-pack/);
+    const sent = await sendOpenerBriefing("hot-id");
+    expect(sent.status).toBe("live");
+    expect(sendEmail).toHaveBeenCalled();
   });
 
   it("send calls sendEmail and activates the token", async () => {
     writeOpeners([hotOpener()]);
     await generateOpenerBriefing("hot-id");
-    saveOpenerBriefingHtml("hot-id", "<html><body data-testid=\"briefing-pack\">North Peak Ltd</body></html>");
+    saveOpenerBriefingHtml(
+      "hot-id",
+      "<html><body data-testid=\"briefing-pack\"><em data-industry>construction</em>North Peak Ltd</body></html>"
+    );
     const sent = await sendOpenerBriefing("hot-id");
     expect(sent.status).toBe("live");
     expect(getLiveBriefingByToken(sent.token)).toBeTruthy();
@@ -313,10 +347,20 @@ describe("generate and send opener briefing", () => {
     expect(String(html)).toMatch(/Shaun Tuhey/);
     expect(String(html)).toMatch(/07898 789 313/);
     expect(String(html)).toMatch(/Director/);
+    expect(String(html)).toMatch(new RegExp(`href="https://hello\\.stratanexus\\.co\\.uk/briefing/${sent.token}"`));
+    expect(String(html)).not.toMatch(/href="https:\/\/leads\.stratanexus[^"]*\/briefing\//);
+    expect(String(html)).not.toMatch(/https:\/\/[^"]+https:\/\//);
   });
 
   it("send preview shows signed cover and pack without activating or sending", async () => {
-    writeOpeners([hotOpener()]);
+    writeOpeners([
+      applyDirectOutreach(
+        normalizeOpener({
+          ...hotOpener(),
+          directors: [{ name: "James Mint", role: "Director" }],
+        })
+      ),
+    ]);
     await generateOpenerBriefing("hot-id");
     saveOpenerBriefingHtml(
       "hot-id",
@@ -324,19 +368,41 @@ describe("generate and send opener briefing", () => {
     );
     const preview = previewOpenerBriefingSend("hot-id", { publicBaseUrl: "https://app.example" });
     expect(preview.subject).toMatch(/private note for the directors of North Peak Ltd/i);
+    expect(preview.html).toMatch(/Hi James,/);
+    expect(preview.html).toMatch(/margin:0 0 16px/);
     expect(preview.html).toMatch(/Shaun Tuhey/);
     expect(preview.html).toMatch(/07898 789 313/);
-    expect(preview.html).toMatch(/https:\/\/app\.example\/briefing\//);
+    expect(preview.html).toMatch(/href="https:\/\/app\.example\/briefing\/[^"]+"/);
+    expect(preview.html).not.toMatch(/https:\/\/app\.examplehttps:/);
+    expect(preview.html).toMatch(/target="_blank"/);
     expect(preview.packHtml).toContain("briefing-pack");
     const draft = getOpener("hot-id")!;
     expect(getLiveBriefingByToken(getBriefing(draft.briefingId!)!.token)).toBeUndefined();
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("send preview without a designed pack is 409", async () => {
+  it("send preview greets the director forename from Companies House SURNAME, Forename", async () => {
+    writeOpeners([
+      applyDirectOutreach(
+        normalizeOpener({
+          ...hotOpener(),
+          directors: [{ name: "PEAK, Nora", role: "director" }],
+        })
+      ),
+    ]);
+    await generateOpenerBriefing("hot-id");
+    const preview = previewOpenerBriefingSend("hot-id", { publicBaseUrl: "https://app.example" });
+    expect(preview.html).toMatch(/Hi Nora,/);
+    expect(preview.html).not.toMatch(/Hi PEAK/i);
+  });
+
+  it("send preview after generate shows the filled house pack", async () => {
     writeOpeners([hotOpener()]);
     await generateOpenerBriefing("hot-id");
-    expect(() => previewOpenerBriefingSend("hot-id")).toThrow(/convert to HTML/i);
+    const preview = previewOpenerBriefingSend("hot-id", { publicBaseUrl: "https://app.example" });
+    expect(preview.packHtml).toMatch(/data-company>North Peak Ltd/);
+    expect(preview.packHtml).toMatch(/briefing-pack/);
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("send without a draft is 409", async () => {
@@ -397,15 +463,17 @@ describe("generate and send opener briefing", () => {
     const html = previewOpenerBriefingHtml("hot-id");
     expect(html).toMatch(/North Peak/);
     expect(html).not.toMatch(/dwell\.gif/);
-    expect(html).not.toMatch(/briefing-pack/);
+    expect(html).toMatch(/briefing-pack/);
   });
 
-  it("tools dwell path picks working_capital", () => {
+  it("tools dwell path still generates the Gemini house script", () => {
     const draft = createDraftBriefing(
       sampleOpener({ lastDwellPath: "/#tools", nonBankChargeCount: 0, sicCodes: ["62012"] })
     );
-    const blob = draft.slides.map((slide) => `${slide.title}\n${slide.body}`).join("\n");
-    expect(blob.toLowerCase()).toMatch(/working capital|spent time on the tools/);
+    const blob = draft.slides.map((slide) => slide.body).join("\n");
+    expect(blob).toMatch(/software space/);
+    expect(blob).toMatch(/'dwell' on your site/);
+    expect(draft.slides).toHaveLength(6);
   });
 });
 
@@ -498,6 +566,14 @@ describe("public pack dwell and auto-promote", () => {
     expect(promoteOpener).not.toHaveBeenCalled();
   });
 
+  it("send preview without an override stamps the hello host, not leads", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    const preview = previewOpenerBriefingSend("hot-id");
+    expect(preview.html).toMatch(/href="https:\/\/hello\.stratanexus\.co\.uk\/briefing\/[^"]+"/);
+    expect(preview.html).not.toMatch(/href="https:\/\/leads\.stratanexus[^"]*\/briefing\//);
+  });
+
   it("GET /briefing/:token is 200 pack or wall with X-Robots-Tag", async () => {
     const app = express();
     app.use(briefingsRouter);
@@ -513,6 +589,45 @@ describe("public pack dwell and auto-promote", () => {
     expect(pack.text).toMatch(/briefing-pack/);
     expect(pack.text).toMatch(/North Peak/);
     expect(pack.text).toMatch(/dwell\.gif/);
+  });
+
+  it("leads host redirects briefing and Veltro to hello; hello 404s Nexus paths", async () => {
+    const app = express();
+    app.use(helloHostMiddleware);
+    app.use(briefingsRouter);
+    app.get("/veltro", (_req, res) => res.status(200).send("veltro-ok"));
+    app.get("/pipeline", (_req, res) => res.status(200).send("nexus"));
+    const live = activateBriefing(createDraftBriefing(sampleOpener()).id);
+
+    const fromLeads = await request(app)
+      .get(`/briefing/${live.token}`)
+      .set("Host", "leads.stratanexus.co.uk");
+    expect(fromLeads.status).toBe(301);
+    expect(fromLeads.headers.location).toBe(
+      `https://hello.stratanexus.co.uk/briefing/${live.token}`
+    );
+
+    const veltro = await request(app).get("/veltro").query({ b: live.token }).set("Host", "leads.stratanexus.co.uk");
+    expect(veltro.status).toBe(301);
+    expect(veltro.headers.location).toBe(
+      `https://hello.stratanexus.co.uk/veltro?b=${live.token}`
+    );
+
+    const onHello = await request(app)
+      .get(`/briefing/${live.token}`)
+      .set("Host", "hello.stratanexus.co.uk");
+    expect(onHello.status).toBe(200);
+    expect(onHello.text).toMatch(/briefing-pack/);
+
+    const nexus = await request(app).get("/pipeline").set("Host", "hello.stratanexus.co.uk");
+    expect(nexus.status).toBe(404);
+    expect(nexus.text).toMatch(/briefing-private-wall/);
+    expect(nexus.text).not.toMatch(/nexus/i);
+  });
+
+  it("briefingPublicUrl defaults to hello.stratanexus.co.uk", () => {
+    expect(briefingPublicUrl("tok")).toBe("https://hello.stratanexus.co.uk/briefing/tok");
+    expect(briefingPublicUrl("tok", "https://app.example")).toBe("https://app.example/briefing/tok");
   });
 });
 
@@ -551,5 +666,129 @@ describe("Veltro interest and STOP revoke", () => {
     hydrateFromAgentMail([], undefined, { optOutEmails: [openerRow.email] });
     expect(getLiveBriefingByToken(live.token)).toBeUndefined();
     expect(getOpener(openerRow.id)?.status).toBe("not_now");
+  });
+});
+
+const INSIDE_WINDOW = new Date("2026-09-16T09:00:00.000Z");
+const OUTSIDE_WINDOW = new Date("2026-09-16T20:00:00.000Z");
+
+describe("SAL-3 Direct Outreach briefing tick", () => {
+  beforeEach(() => {
+    tmpStore();
+    tmpOpenersStore();
+    const mailFile = path.join(os.tmpdir(), `agent-mail-briefing-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+    setAgentMailStorePathForTests(mailFile);
+    storeFiles.add(mailFile);
+    vi.mocked(mailIsSuppressed).mockReturnValue(false);
+    vi.mocked(sendEmail).mockResolvedValue({ success: true, id: "mail-1" } as never);
+    setBriefingHttpGetForTests(async () => ({ status: 200 }));
+    setBriefingSmtpReadyForTests(true);
+  });
+
+  it("does not send outside the Sales OS window", async () => {
+    writeOpeners([hotOpener()]);
+    expect(await tickDirectOutreachBriefings(OUTSIDE_WINDOW)).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(getOpener("hot-id")?.briefingId).toBeUndefined();
+  });
+
+  it("sends the director cover when industry maps and links are live", async () => {
+    writeOpeners([hotOpener()]);
+    const sent = await tickDirectOutreachBriefings(INSIDE_WINDOW);
+    expect(sent).toBe(1);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [, , subject, html] = vi.mocked(sendEmail).mock.calls[0];
+    expect(subject).toMatch(/private note for the directors of North Peak Ltd/i);
+    expect(String(html)).toMatch(/hello\.stratanexus\.co\.uk\/briefing\//);
+    expect(String(html)).toMatch(/Shaun Tuhey/);
+    expect(getOpener("hot-id")?.briefingHold).toBeUndefined();
+    const briefing = getBriefing(getOpener("hot-id")!.briefingId!);
+    expect(briefing?.packHtml).toMatch(/data-industry>construction</);
+    expect(briefing?.coverSentAt).toBeTruthy();
+  });
+
+  it("does not send twice in the same window", async () => {
+    writeOpeners([hotOpener()]);
+    await tickDirectOutreachBriefings(INSIDE_WINDOW);
+    await tickDirectOutreachBriefings(INSIDE_WINDOW);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds when SIC cannot name a trade", async () => {
+    writeOpeners([applyDirectOutreach(normalizeOpener({ ...hotOpener(), sicCodes: [] }))]);
+    expect(await tickDirectOutreachBriefings(INSIDE_WINDOW)).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
+    const row = getOpener("hot-id")!;
+    expect(row.status).toBe("direct_outreach");
+    expect(row.briefingHold?.reason).toBe("industry_unknown");
+  });
+
+  it("sends after Shaun types an industry override", async () => {
+    writeOpeners([
+      applyDirectOutreach(normalizeOpener({ ...hotOpener(), sicCodes: [], industryOverride: "haulage" })),
+    ]);
+    expect(await tickDirectOutreachBriefings(INSIDE_WINDOW)).toBe(1);
+    expect(getBriefing(getOpener("hot-id")!.briefingId!)?.packHtml).toMatch(/data-industry>haulage</);
+  });
+
+  it("does not send DNC and does not badge needs-you", async () => {
+    vi.mocked(mailIsSuppressed).mockReturnValue(true);
+    writeOpeners([hotOpener()]);
+    expect(await tickDirectOutreachBriefings(INSIDE_WINDOW)).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(getOpener("hot-id")?.briefingHold).toBeUndefined();
+    expect(getOpener("hot-id")?.status).toBe("not_now");
+  });
+
+  it("holds when a CTA is dead", async () => {
+    setBriefingHttpGetForTests(async (url) => ({
+      status: url.includes("stratafinance") ? 404 : 200,
+    }));
+    writeOpeners([hotOpener()]);
+    expect(await tickDirectOutreachBriefings(INSIDE_WINDOW)).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(getOpener("hot-id")?.briefingHold?.reason).toBe("link_dead");
+  });
+
+  it("does not replace a Craft pack with the house template", async () => {
+    writeOpeners([hotOpener()]);
+    await generateOpenerBriefing("hot-id");
+    saveOpenerBriefingHtml(
+      "hot-id",
+      `<html><body class="briefing-pack" data-testid="briefing-pack"><em data-industry>construction</em><a href="https://www.stratafinance.co.uk/#tools">finance</a><a href="https://veltro.co.uk/#contact">sales</a></body></html>`
+    );
+    await tickDirectOutreachBriefings(INSIDE_WINDOW);
+    expect(getBriefing(getOpener("hot-id")!.briefingId!)?.packHtml).toMatch(/finance</);
+    expect(getBriefing(getOpener("hot-id")!.briefingId!)?.packHtml).not.toMatch(/data-id="slide_1"/);
+  });
+
+  it("caps at 10 sends per tick and does not hold the rest", async () => {
+    const rows = Array.from({ length: 11 }, (_, index) =>
+      applyDirectOutreach(
+        normalizeOpener({
+          id: `hot-${index}`,
+          email: `hot${index}@northpeak-briefing.test`,
+          companyName: `North Peak ${index} Ltd`,
+          sicCodes: ["43210"],
+          dwellCount: 5,
+          firstOpenedAt: "2026-09-01T10:00:00.000Z",
+          lastOpenedAt: "2026-09-01T10:00:00.000Z",
+        })
+      )
+    );
+    writeOpeners(rows);
+    expect(await tickDirectOutreachBriefings(INSIDE_WINDOW)).toBe(10);
+    expect(sendEmail).toHaveBeenCalledTimes(10);
+    expect(getOpener("hot-10")?.briefingHold).toBeUndefined();
+  });
+
+  it("revokes if sendEmail fails after activate", async () => {
+    vi.mocked(sendEmail).mockResolvedValue({ success: false, id: "mail-1" } as never);
+    writeOpeners([hotOpener()]);
+    expect(await tickDirectOutreachBriefings(INSIDE_WINDOW)).toBe(0);
+    const opener = getOpener("hot-id")!;
+    const briefing = opener.briefingId ? getBriefing(opener.briefingId) : undefined;
+    expect(briefing?.status).not.toBe("live");
+    expect(opener.briefingHold?.reason).toBe("smtp");
   });
 });
