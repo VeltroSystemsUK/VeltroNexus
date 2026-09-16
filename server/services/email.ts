@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { mailboxForAgent } from "@shared/agentMailboxes";
 import { listUnsubscribeHeaders, normalizeUnsubscribeEmail, unsubscribeSigningSecret } from "@shared/listUnsubscribe";
-import { logAgentMail, injectMailTracking, trackingBaseUrl } from "./agentMailLog";
+import { logAgentMail, injectMailTracking, publicTrackingBaseUrl, trackingBaseUrl } from "./agentMailLog";
 import { mailIsSuppressed } from "./mailDesk";
 
 function applyVariables(content: string, variables: Record<string, any>): string {
@@ -104,6 +104,26 @@ export async function sendEmail(
 
     try {
         const transporter = buildTransport(credentials || {});
+        if (transporter && !publicTrackingBaseUrl()) {
+            console.warn("[Email] blocked send: no public tracking host");
+            logAgentMail({
+                id: mailLogId,
+                direction: "outbound",
+                agentId: mailbox.agentId,
+                agentName: mailbox.displayName,
+                from: fromAddress,
+                to,
+                subject,
+                text,
+                html,
+                status: "failed",
+                dealId: credentials?.dealId,
+                prospectId: credentials?.prospectId,
+                touchId: credentials?.touchId,
+                contactSource: stampedContactSource(credentials),
+            });
+            return { success: false, blocked: "no_public_tracking", id: mailLogId };
+        }
         if (!transporter) {
             console.warn("No SMTP or Gmail credentials. Logging email instead.");
             console.log(`[MOCK EMAIL] From: ${fromName} <${fromAddress}>\nReply-To: ${replyTo}\nTo: ${to}\nSubject: ${subject}\nBody:\n${text}`);

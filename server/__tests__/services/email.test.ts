@@ -109,6 +109,7 @@ describe("sendEmail List-Unsubscribe", () => {
     SESSION_SECRET: process.env.SESSION_SECRET,
     PUBLIC_APP_URL: process.env.PUBLIC_APP_URL,
     APP_URL: process.env.APP_URL,
+    HELLO_PUBLIC_URL: process.env.HELLO_PUBLIC_URL,
     GMAIL_USER: process.env.GMAIL_USER,
     GMAIL_APP_PASSWORD: process.env.GMAIL_APP_PASSWORD,
   };
@@ -165,5 +166,37 @@ describe("sendEmail List-Unsubscribe", () => {
     });
     expect(payload.headers["List-Unsubscribe"]).toBe(expected["List-Unsubscribe"]);
     expect(payload.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+  });
+
+  it("stamps live open and click trackers, never localhost", async () => {
+    delete process.env.PUBLIC_APP_URL;
+    delete process.env.APP_URL;
+    process.env.HELLO_PUBLIC_URL = "https://leads.stratanexus.co.uk";
+    const result = await sendEmail(
+      { fromEmail: "enquiries@stratafinance.co.uk", fromName: "Shaun Tuhey" },
+      "ops@northpeak.co.uk",
+      "A private note",
+      `<p><a href="https://leads.stratanexus.co.uk/briefing/tok">Open your briefing</a></p>`
+    );
+    expect(result.success).toBe(true);
+    const html = String(sendMail.mock.calls[0][0].html);
+    expect(html).toContain("https://leads.stratanexus.co.uk/api/agent-mail/track/");
+    expect(html).toContain("https://leads.stratanexus.co.uk/api/agent-mail/click/");
+    expect(html).not.toMatch(/127\.0\.0\.1/);
+  });
+
+  it("does not SMTP-send if there is no public tracking host", async () => {
+    delete process.env.PUBLIC_APP_URL;
+    delete process.env.APP_URL;
+    delete process.env.HELLO_PUBLIC_URL;
+    const result = await sendEmail(
+      { fromEmail: "enquiries@stratafinance.co.uk" },
+      "ops@northpeak.co.uk",
+      "A private note",
+      `<p><a href="https://leads.stratanexus.co.uk/briefing/tok">Open your briefing</a></p>`
+    );
+    expect(result.success).toBe(false);
+    expect(result.blocked).toBe("no_public_tracking");
+    expect(sendMail).not.toHaveBeenCalled();
   });
 });

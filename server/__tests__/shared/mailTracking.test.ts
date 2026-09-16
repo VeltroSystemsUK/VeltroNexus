@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { injectMailTracking } from "../../services/agentMailLog";
+import { injectMailTracking, trackingBaseUrl } from "../../services/agentMailLog";
 import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, mailDwellScript, outboundTrackingState, shouldRecordMailTracking, shouldTrackMailHref, stripMailTracking, withMailDwellToken } from "@shared/mailTracking";
+
+describe("trackingBaseUrl", () => {
+  const prev = {
+    PUBLIC_APP_URL: process.env.PUBLIC_APP_URL,
+    APP_URL: process.env.APP_URL,
+    HELLO_PUBLIC_URL: process.env.HELLO_PUBLIC_URL,
+  };
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(prev)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it("uses HELLO_PUBLIC_URL when PUBLIC_APP_URL is missing, never localhost", () => {
+    delete process.env.PUBLIC_APP_URL;
+    delete process.env.APP_URL;
+    process.env.HELLO_PUBLIC_URL = "https://leads.stratanexus.co.uk";
+    expect(trackingBaseUrl()).toBe("https://leads.stratanexus.co.uk");
+    const html = injectMailTracking(`<p><a href="https://leads.stratanexus.co.uk/briefing/tok">Open</a></p>`, "MAIL-1");
+    expect(html).toContain("https://leads.stratanexus.co.uk/api/agent-mail/track/MAIL-1.gif");
+    expect(html).toContain("https://leads.stratanexus.co.uk/api/agent-mail/click/MAIL-1");
+    expect(html).not.toMatch(/127\.0\.0\.1/);
+  });
+});
 
 describe("stripMailTracking", () => {
   it("removes the open pixel and restores original links", () => {

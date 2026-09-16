@@ -363,8 +363,37 @@ export function recordDwell(
   return item;
 }
 
+const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i;
+
+function publicOriginFromEnv(value?: string): string | null {
+  const raw = String(value || "").trim().replace(/\/$/, "");
+  if (!raw) return null;
+  try {
+    const host = new URL(raw).hostname.toLowerCase();
+    if (!host || LOOPBACK_HOST.test(host)) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
 export function trackingBaseUrl(): string {
-  return (process.env.PUBLIC_APP_URL || process.env.APP_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
+  return (
+    publicOriginFromEnv(process.env.PUBLIC_APP_URL) ||
+    publicOriginFromEnv(process.env.APP_URL) ||
+    publicOriginFromEnv(process.env.HELLO_PUBLIC_URL) ||
+    "http://127.0.0.1:5000"
+  );
+}
+
+export function publicTrackingBaseUrl(): string | null {
+  const base = trackingBaseUrl();
+  try {
+    if (LOOPBACK_HOST.test(new URL(base).hostname)) return null;
+  } catch {
+    return null;
+  }
+  return base;
 }
 
 // Rewrites http(s) links to route through the click tracker, and appends an
