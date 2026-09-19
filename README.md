@@ -52,7 +52,7 @@ Veltro is a secure, multi-user commercial lending pipeline management system des
 - **Backend**: Express.js, Node.js
 - **Database**: SQLite (`better-sqlite3`), local file only — no external database or hosting
 - **Authentication**: `passport-local` + `express-session`, session store backed by SQLite
-- **AI Engine**: Google Gemini (Flash & Pro models)
+- **AI Engine**: Google Gemini (Flash & Pro models), TypeSafe Jev for lead triage
 - **Search & Data**: Apollo (Enrichment), Exa.ai (Web research), Companies House API, Google Places
 - **Communications**: Gmail API, Resend
 - **Infrastructure**: Local machine only — this app is not deployed to any cloud provider
@@ -89,6 +89,8 @@ Set these in `.env.local`:
 - `ZERO_BOUNCE_API_KEY` - Email verification service key
 - `RESEND_API_KEY` - Resend email API key
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth (Gmail/Drive integration)
+- `TYPESAFE_API_KEY` - TypeSafe Jev (System One) key for lead triage. Server only.
+- `JEV_MODEL` - optional, defaults to `jev-latest`
 
 ## Project Structure
 
