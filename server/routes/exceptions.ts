@@ -4,8 +4,10 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
 import { verifyBusinessAddress } from "../utils/googlePlacesVerify";
+import jevTriageRouter from "./jevTriage";
 
 const router = Router();
+router.use("/api", jevTriageRouter);
 
 // Verification exceptions filed by Companies House monitoring, Google Places
 // address checks, and due-diligence flags (e.g. HMRC Time To Pay).
