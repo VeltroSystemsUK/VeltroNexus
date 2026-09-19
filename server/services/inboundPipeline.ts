@@ -113,6 +113,13 @@ export async function promoteInternalLeadToPipeline(
   }
 
   await storage.updateInternalLead(lead.id, { status: "converted" });
+
+  import("./leadTriage").then(({ triageProspectInBackground }) => {
+    triageProspectInBackground(prospect.id, userId);
+  }).catch((error) => {
+    console.error("[Jev] failed to start inbound lead triage:", error);
+  });
+
   return { prospectId: prospect.id, created: true };
 }
 
