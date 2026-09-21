@@ -2,7 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { storage } from "../storage";
-import { searchCompanies, companiesHouseClient, chFetch } from "../utils/companiesHouseClient";
+import { searchCompanies, companiesHouseClient, chFetch, chCooldownUntil, setChCooldown } from "../utils/companiesHouseClient";
 import { sendEmail } from "./email";
 import { applyOutreachTemplateOverride, dealHasHmrcPetition, renderCallForDeal, renderOutreachEmail, type OutreachTemplateOverride } from "@shared/strataOutreach";
 import { coldEmailBlockedReason } from "@shared/pecrSend";
@@ -308,28 +308,6 @@ export type DistressHuntResult = {
   scanned: number;
   rejected: Record<string, number>;
 };
-
-const CH_COOLDOWN_PATH = path.resolve(process.cwd(), "uploads", "ch_cooldown.json");
-const CH_COOLDOWN_MS = 6 * 60 * 1000;
-
-function setChCooldown(ms = CH_COOLDOWN_MS) {
-  const until = new Date(Date.now() + ms).toISOString();
-  const dir = path.dirname(CH_COOLDOWN_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CH_COOLDOWN_PATH, JSON.stringify({ until }));
-  return until;
-}
-
-function chCooldownUntil(): string | null {
-  try {
-    if (!fs.existsSync(CH_COOLDOWN_PATH)) return null;
-    const until = JSON.parse(fs.readFileSync(CH_COOLDOWN_PATH, "utf8")).until as string;
-    if (!until || new Date(until).getTime() <= Date.now()) return null;
-    return until;
-  } catch {
-    return null;
-  }
-}
 
 async function chJson(urlPath: string): Promise<{ ok: boolean; status: number; data: any }> {
   if (chCooldownUntil()) {
@@ -792,7 +770,7 @@ async function findMissingContact(deal: AgenticDealFile): Promise<Partial<Agenti
 }
 
 export const agenticWorkflow = {
-  async startFromInbound(internalLeadId: number, extras?: { loanAmount?: number; prospectId?: number }): Promise<AgenticDealFile> {
+  async startFromInbound(internalLeadId: number, extras?: { loanAmount?: number; prospectId?: number; jev?: unknown }): Promise<AgenticDealFile> {
     const existing = (await storage.listAgenticDeals()).find((deal) => deal.internalLeadId === internalLeadId);
     if (existing) return existing;
 

@@ -33,10 +33,21 @@ describe("inbound pipeline promotion", () => {
   it("wires Tools inbound to Maya ingest and contact.html to a director call", () => {
     const inbound = fs.readFileSync(path.resolve("server/routes/inbound.ts"), "utf8");
     expect(inbound).toMatch(/inboundDeskForSource/);
-    expect(inbound).toMatch(/startFromContactPage/);
-    expect(inbound).toMatch(/startFromInbound/);
+    expect(inbound).toMatch(/triageInboundLead/);
+    expect(inbound).not.toMatch(/agenticWorkflow\.startFromInbound/);
+    expect(inbound).not.toMatch(/agenticWorkflow\.startFromContactPage/);
+    const refinance = inbound.slice(inbound.indexOf('router.post("/refinance"'));
+    const application = inbound.slice(inbound.indexOf('router.post("/application"'));
+    const portal = inbound.slice(inbound.indexOf('router.post("/portal-submit"'));
+    expect(refinance).toMatch(/triageInboundLead/);
+    expect(application).toMatch(/canAttachToLead[\s\S]*triageInboundLead/);
+    expect(portal).toMatch(/triageInboundLead/);
+    expect(portal).toMatch(/bank: "introducer"/);
     const workflow = fs.readFileSync(path.resolve("server/services/agenticWorkflow.ts"), "utf8");
     expect(workflow).toMatch(/startFromContactPage/);
     expect(workflow).toMatch(/Contact page enquiry/);
+    const triage = fs.readFileSync(path.resolve("server/services/jevInboundTriage.ts"), "utf8");
+    expect(triage).toMatch(/startFromInbound/);
+    expect(triage).toMatch(/overallAction === "act"/);
   });
 });

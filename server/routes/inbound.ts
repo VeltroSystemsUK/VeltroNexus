@@ -56,6 +56,8 @@ const inboundRefinanceSchema = z.object({
 
     source: z.string().optional(),
     context: z.record(z.any()).optional(),
+    situation: z.enum(["hmrc", "refinance", "decline", "other"]).optional(),
+    notes: z.string().max(4000).optional(),
 });
 
 /**
@@ -72,7 +74,8 @@ router.post("/refinance", async (req, res) => {
 
         const {
             companyName, contactName, email, phone,
-            estimatedRate, source, context
+            estimatedRate, source, context, situation,
+            notes: enquiryNotes,
         } = result.data;
 
         // The unified widget (refinance calc, HMRC TTP calc, BBB checker) nests the
@@ -99,6 +102,8 @@ router.post("/refinance", async (req, res) => {
                 analysis
             },
             context,
+            situation,
+            enquiryNotes,
             campaign: desk === "director" ? "Inbound-Director-Contact" : "Inbound-Capital-Strategist"
         }, null, 2);
 
@@ -138,18 +143,26 @@ router.post("/refinance", async (req, res) => {
             message: "Lead captured. Strategy Agent will analyze deeper."
         });
 
-        import("../services/agenticWorkflow").then(({ agenticWorkflow }) => {
-            const extras = {
-                loanAmount: Math.round(currentDebt * 100),
+        import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+            triageInboundLead({
+                leadId: lead.id,
                 prospectId: pipeline.prospectId,
-            };
-            const start =
-                desk === "director"
-                    ? agenticWorkflow.startFromContactPage(lead.id, extras)
-                    : agenticWorkflow.startFromInbound(lead.id, extras);
-            start.catch((error) => {
-                console.error("[Inbound] Agentic workflow failed:", error);
-            });
+                desk,
+                payload: {
+                    companyName,
+                    contactName,
+                    email,
+                    phone,
+                    currentDebt,
+                    monthlyPayment,
+                    estimatedRate,
+                    source,
+                    context,
+                    situation,
+                    notes: enquiryNotes,
+                },
+                analysis: analysis as unknown as Record<string, unknown>,
+            }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
         });
 
         if (desk === "director") {
@@ -274,11 +287,21 @@ router.post("/application", async (req, res) => {
 
         res.json({ success: true, message: "Application forwarded to underwriting." });
 
-        if (workflowLeadId) {
-            import("../services/agenticWorkflow").then(({ agenticWorkflow }) => {
-                agenticWorkflow.startFromInbound(workflowLeadId!, { loanAmount: data.loanAmount * 100, prospectId: pipelineProspectId }).catch((error) => {
-                    console.error("[Inbound] Agentic workflow failed:", error);
-                });
+        if (canAttachToLead && workflowLeadId) {
+            import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+                triageInboundLead({
+                    leadId: workflowLeadId!,
+                    prospectId: pipelineProspectId,
+                    payload: {
+                        companyName: data.companyName,
+                        contactName: data.directorName,
+                        email: data.email,
+                        phone: data.phone,
+                        loanAmount: data.loanAmount,
+                        companyNumber: data.companyNumber,
+                        notes: JSON.stringify(data),
+                    },
+                }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
             });
         }
 
@@ -403,7 +426,28 @@ router.post("/portal-submit", async (req, res) => {
                 possibleDuplicate: false,
             });
 
-            return res.json({ success: true, brokerLeadId: brokerLead.id });
+            res.json({ success: true, brokerLeadId: brokerLead.id });
+            import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+                triageInboundLead({
+                    leadId: brokerLead.id,
+                    brokerLeadId: brokerLead.id,
+                    bank: "introducer",
+                    payload: {
+                        companyName: data.companyName,
+                        contactName: data.contactName,
+                        email: data.email,
+                        phone: data.phone || "",
+                        companyNumber: data.companyNumber,
+                        companyType: data.companyType || "",
+                        loanAmount: data.loanAmount,
+                        monthlyPayment: data.monthlyPayment,
+                        source: data.source,
+                        notes,
+                        gatewaySelection: data.gatewaySelection,
+                    },
+                }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
+            });
+            return;
         }
 
         const lead = await storage.createInternalLead({
@@ -433,13 +477,24 @@ router.post("/portal-submit", async (req, res) => {
             prospectId: pipeline.prospectId,
         });
 
-        import("../services/agenticWorkflow").then(({ agenticWorkflow }) => {
-            agenticWorkflow.startFromInbound(lead.id, {
-                loanAmount: Math.round((data.loanAmount || 0) * 100),
+        import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+            triageInboundLead({
+                leadId: lead.id,
                 prospectId: pipeline.prospectId,
-            }).catch((error) => {
-                console.error("[Inbound] Agentic workflow failed:", error);
-            });
+                payload: {
+                    companyName: data.companyName,
+                    contactName: data.contactName,
+                    email: data.email,
+                    phone: data.phone || "",
+                    companyNumber: data.companyNumber,
+                    companyType: data.companyType || "",
+                    loanAmount: data.loanAmount,
+                    monthlyPayment: data.monthlyPayment,
+                    source: data.source,
+                    notes,
+                    gatewaySelection: data.gatewaySelection,
+                },
+            }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
         });
     } catch (error) {
         console.error("[Inbound] Portal submission failed:", error);

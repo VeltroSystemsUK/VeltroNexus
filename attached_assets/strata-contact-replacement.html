@@ -57,6 +57,10 @@
             <option value="other">Something else</option>
           </select>
         </div>
+        <div class="field">
+          <label for="lf-notes">What's going on? (optional)</label>
+          <textarea id="lf-notes" rows="3" maxlength="4000" placeholder="A sentence on the debt, HMRC, or what changed."></textarea>
+        </div>
         <button type="submit" class="btn btn-primary btn-block">Send My Enquiry</button>
         <p id="lf-status" style="font-size:12px;color:var(--muted);margin-top:12px;"></p>
       </form>
@@ -105,7 +109,9 @@
       phone: fieldValue('lf-phone'),
       currentDebt: Number(fieldValue('lf-currentDebt')) || 50000,
       monthlyPayment: Number(fieldValue('lf-monthlyPayment')) || 2000,
-      estimatedRate: SITUATION_RATE[situation] || 15
+      estimatedRate: SITUATION_RATE[situation] || 15,
+      situation: situation,
+      notes: document.getElementById('lf-notes')?.value || undefined
     };
 
     var nextUrl = portalUrl(payload, situation);

@@ -15,7 +15,8 @@ import {
   type HarvestSkipClass,
 } from "@shared/crmHarvestRank";
 import { isHardBounceReason } from "@shared/mailDesk";
-import { HARVEST_PER_HOUR, HARVEST_RETRY_MS, attachOne, liveAttachDeps, type AttachBudget, type AttachDeps } from "./smeLeadHopper";
+import { HARVEST_PER_HOUR, HARVEST_RETRY_MS, attachOne, liveAttachDeps, SmeAttachRateLimitError, type AttachBudget, type AttachDeps } from "./smeLeadHopper";
+import { chCooldownUntil } from "../utils/companiesHouseClient";
 import { storage } from "../storage";
 import { AGENT_MAIL_KEEP, listAgentMail } from "./agentMailLog";
 import { loadSuppression } from "./mailSuppression";
@@ -233,7 +234,10 @@ export async function harvestCrmLeads(opts: {
   for (const { lead, state } of queued) {
     if (attempted >= limit) break;
     attempted += 1;
-    const { dealPatch, budget: next } = await attachOne(
+    let dealPatch: Record<string, unknown>;
+    let next: AttachBudget;
+    try {
+      ({ dealPatch, budget: next } = await attachOne(
       {
         id: lead.id,
         source: "distress_scan",
@@ -252,7 +256,11 @@ export async function harvestCrmLeads(opts: {
       budget,
       now,
       skipEmails,
-    );
+    ));
+    } catch (err) {
+      if (err instanceof SmeAttachRateLimitError || (err as { code?: string })?.code === "CH_429") break;
+      throw err;
+    }
     budget = next;
     const directorNames = dealPatch.directorNames || state.directorNames || [];
     const miss = dealPatch.hopper !== "sendable";
@@ -318,6 +326,7 @@ let crmHarvestBusy = false;
 
 export async function harvestClientsMailboxes(): Promise<{ attempted: number; updated: number }> {
   if (crmHarvestBusy) return { attempted: 0, updated: 0 };
+  if (chCooldownUntil()) return { attempted: 0, updated: 0 };
   crmHarvestBusy = true;
   try {
     const [leads, recipients] = await Promise.all([

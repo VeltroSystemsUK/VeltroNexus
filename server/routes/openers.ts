@@ -18,7 +18,8 @@ import { lastMailOpenAt } from "@shared/mailTracking";
 import { isAuthenticated } from "../auth";
 import { isSterlingPortalRole } from "@shared/sterlingPortal";
 import { handleApiError } from "../utils/errorHandler";
-import { listAgentMail, type AgentMailItem } from "../services/agentMailLog";
+import { AGENT_MAIL_KEEP, listAgentMail, type AgentMailItem } from "../services/agentMailLog";
+import { snapshotSiteTraffic } from "../services/siteTraffic";
 import {
   briefingPublicUrl,
   fetchOpenerBriefingSite,
@@ -136,6 +137,15 @@ router.get("/api/openers", isAuthenticated, requireOpenersAccess, async (req, re
       String((req.user as any)?.id || "")
     );
     res.json(openers.map((opener) => presentOpener(opener, mail, pipelineCompanyNumbers)));
+  } catch (error) {
+    handleOpenerError(res, error, "api-error");
+  }
+});
+
+router.get("/api/openers/site-traffic", isAuthenticated, requireOpenersAccess, async (_req, res) => {
+  try {
+    const days = snapshotSiteTraffic(listAgentMail(AGENT_MAIL_KEEP));
+    res.json({ days });
   } catch (error) {
     handleOpenerError(res, error, "api-error");
   }

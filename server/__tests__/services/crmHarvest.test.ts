@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cacheCrmHarvestRanks, harvestCrmLeads, type CrmHarvestStore } from "../../services/crmHarvest";
+import { SmeAttachRateLimitError } from "../../services/smeLeadHopper";
 
 function memoryStore(): CrmHarvestStore & { rows: Map<number, { attempts: number; waitUntil?: string; directorNames?: string[] }> } {
   const rows = new Map<number, { attempts: number; waitUntil?: string; directorNames?: string[] }>();
@@ -49,6 +50,32 @@ describe("harvestCrmLeads", () => {
     });
     expect(osint).not.toHaveBeenCalled();
     expect(updateLead).not.toHaveBeenCalled();
+  });
+
+  it("stops the pass when Companies House returns 429", async () => {
+    store.write(9, { attempts: 0, harvestNow: true, smeBorrower: 3, skipClass: "ok_sme" });
+    store.write(10, { attempts: 0, harvestNow: true, smeBorrower: 3, skipClass: "ok_sme" });
+    const officers = vi.fn(async () => {
+      throw new SmeAttachRateLimitError();
+    });
+    const updateLead = vi.fn();
+    const result = await harvestCrmLeads({
+      leads: [
+        { ...blankLead, id: 9, companyNumber: "1" },
+        { ...blankLead, id: 10, companyName: "Other Ltd", companyNumber: "2" },
+      ],
+      deps: {
+        officers,
+        places: async () => null,
+        firecrawl: async () => [],
+        mxValid: async () => true,
+      },
+      updateLead,
+      store,
+    });
+    expect(officers).toHaveBeenCalledTimes(1);
+    expect(updateLead).not.toHaveBeenCalled();
+    expect(result.attempted).toBe(1);
   });
 
   it("guesses a director mailbox from name and domain when the site has no mailto", async () => {

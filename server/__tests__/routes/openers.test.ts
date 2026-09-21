@@ -8,6 +8,7 @@ import { applyDirectOutreach, normalizeOpener } from "@shared/openers";
 import openersRouter from "../../routes/openers";
 import { setAgentMailStorePathForTests } from "../../services/agentMailLog";
 import { setOpenersStorePathForTests, writeOpeners } from "../../services/openers";
+import { setSiteTrafficStorePathForTests } from "../../services/siteTraffic";
 
 const storeFiles = new Set<string>();
 const auth = { Origin: "http://localhost:5000", Host: "localhost:5000" };
@@ -46,6 +47,7 @@ afterEach(() => {
   storeFiles.clear();
   setOpenersStorePathForTests(null);
   setAgentMailStorePathForTests(null);
+  setSiteTrafficStorePathForTests(null);
 });
 
 describe("openers routes", () => {
@@ -57,6 +59,7 @@ describe("openers routes", () => {
         methods: Object.keys(layer.route!.methods).sort(),
       }));
     expect(paths).toContainEqual({ path: "/api/openers", methods: ["get"] });
+    expect(paths).toContainEqual({ path: "/api/openers/site-traffic", methods: ["get"] });
     expect(paths).toContainEqual({ path: "/api/openers/unsubscribed", methods: ["get"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id", methods: ["get"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id", methods: ["patch"] });
@@ -77,9 +80,12 @@ describe("openers routes", () => {
     expect(paths).toContainEqual({ path: "/api/openers/:id/briefing/page", methods: ["post"] });
     expect(paths).toContainEqual({ path: "/api/openers/:id/creditsafe-check", methods: ["post"] });
     const unsub = paths.findIndex((row) => row.path === "/api/openers/unsubscribed");
+    const traffic = paths.findIndex((row) => row.path === "/api/openers/site-traffic");
     const byId = paths.findIndex((row) => row.path === "/api/openers/:id" && row.methods.includes("get"));
     expect(unsub).toBeGreaterThanOrEqual(0);
     expect(unsub).toBeLessThan(byId);
+    expect(traffic).toBeGreaterThanOrEqual(0);
+    expect(traffic).toBeLessThan(byId);
   });
 
   it("inbound mail stops opener nurture", () => {
@@ -147,6 +153,43 @@ describe("openers routes", () => {
     expect(src).toMatch(/\/briefing\/page/);
     expect(src).toMatch(/renderBriefingHtml/);
     expect(src).toMatch(/live:\s*false/);
+  });
+
+  it("GET /api/openers/site-traffic returns a 30-day graph of strata clicks and dwells", async () => {
+    tmpStore();
+    const mailFile = path.join(os.tmpdir(), `agent-mail-traffic-${process.pid}-${Date.now()}.json`);
+    const trafficFile = path.join(os.tmpdir(), `site-traffic-${process.pid}-${Date.now()}.json`);
+    storeFiles.add(mailFile);
+    storeFiles.add(trafficFile);
+    setAgentMailStorePathForTests(mailFile);
+    setSiteTrafficStorePathForTests(trafficFile);
+    fs.writeFileSync(
+      mailFile,
+      JSON.stringify([
+        {
+          id: "mail-a",
+          direction: "outbound",
+          from: "james@stratafinance.co.uk",
+          to: "site@x.co.uk",
+          subject: "hi",
+          text: "hi",
+          status: "sent",
+          createdAt: "2026-09-21T10:00:00.000Z",
+          clicks: [{ at: "2026-09-21T10:00:00.000Z", url: "https://www.stratafinance.co.uk/?sf=n1#tools" }],
+          dwells: [{ at: "2026-09-21T10:10:00.000Z" }],
+        },
+      ])
+    );
+    const res = await request(openersApp()).get("/api/openers/site-traffic").set(auth);
+    expect(res.status).toBe(200);
+    expect(res.body.days).toHaveLength(30);
+    const row = res.body.days.find((day: { day: string }) => day.day === "2026-09-21");
+    expect(row).toEqual({
+      day: "2026-09-21",
+      clicks: 1,
+      uniqueClickThroughs: 1,
+      dwells: 1,
+    });
   });
 
   it("GET /api/openers omits zero-dwell and unsubscribed", async () => {

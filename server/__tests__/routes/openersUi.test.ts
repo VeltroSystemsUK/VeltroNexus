@@ -34,6 +34,12 @@ describe("Openers UI wiring", () => {
     expect(page).not.toMatch(/isHotClickOpener/);
     expect(page).toMatch(/data-heat=\{heat \?\? undefined\}/);
     expect(page).toMatch(/data-testid="click-heat-strip"/);
+    expect(page).toMatch(/SiteTrafficChart/);
+    expect(page).toMatch(/!isNonResponsive &&/);
+    const chart = fs.readFileSync(path.resolve("client/src/components/openers/SiteTrafficChart.tsx"), "utf8");
+    expect(chart).toMatch(/data-testid="chart-site-traffic"/);
+    expect(chart).toMatch(/\/api\/openers\/site-traffic/);
+    expect(chart).toMatch(/AreaChart/);
     expect(page).toMatch(/filter-click-heat-hot/);
     expect(page).toMatch(/filter-click-heat-warm/);
     expect(page).toMatch(/filter-click-heat-cold/);

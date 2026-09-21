@@ -5,6 +5,7 @@ import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import type { AgentMailAttachment } from "@shared/agentMailAttachments";
 import { storage } from "../storage";
 import { currentOpenersStorePath, enrolConvertFromMail, markOpenerNurturingOnOutbound, OPENERS_STORE, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerDwellFromMail, upsertOpenerFromMail } from "./openers";
+import { snapshotSiteTraffic } from "./siteTraffic";
 import { withJsonFileLock } from "../utils/jsonFileLock";
 import { atomicWriteFileSync, readJsonArrayFile } from "../utils/atomicWriteJson";
 import { shouldTrackMailHref } from "@shared/mailTracking";
@@ -128,7 +129,7 @@ function copyValidJsonArray(source: string, target: string): boolean {
   const parsed = readJsonArrayFile(source);
   if (!parsed) return false;
   if (destIsKeepable(source, target)) return false;
-  atomicWriteFileSync(target, JSON.stringify(parsed, null, 2));
+  atomicWriteFileSync(target, JSON.stringify(parsed));
   return true;
 }
 
@@ -212,7 +213,7 @@ function readAll(): AgentMailItem[] {
       } catch {
         /* keep going — restore matters more than the corrupt copy */
       }
-      atomicWriteFileSync(file, JSON.stringify(recovered, null, 2));
+      atomicWriteFileSync(file, JSON.stringify(recovered));
     });
     return recovered;
   }
@@ -239,7 +240,7 @@ function writeAll(items: AgentMailItem[]) {
     } catch (error: any) {
       console.warn("[AgentMail] backup failed:", error?.message || error);
     }
-    atomicWriteFileSync(file, JSON.stringify(items, null, 2));
+    atomicWriteFileSync(file, JSON.stringify(items));
   });
 }
 
@@ -336,6 +337,11 @@ export function recordClick(id: string, url: string): AgentMailItem | undefined 
   } catch (error: any) {
     console.warn("[Openers] upsert after click failed:", error?.message || error);
   }
+  try {
+    snapshotSiteTraffic(all);
+  } catch (error: any) {
+    console.warn("[SiteTraffic] snapshot after click failed:", error?.message || error);
+  }
   return item;
 }
 
@@ -359,6 +365,11 @@ export function recordDwell(
     upsertOpenerDwellFromMail(item);
   } catch (error: any) {
     console.warn("[Openers] upsert after dwell failed:", error?.message || error);
+  }
+  try {
+    snapshotSiteTraffic(all);
+  } catch (error: any) {
+    console.warn("[SiteTraffic] snapshot after dwell failed:", error?.message || error);
   }
   return item;
 }

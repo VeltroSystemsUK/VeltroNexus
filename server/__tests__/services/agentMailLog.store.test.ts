@@ -61,6 +61,22 @@ describe("agentMailLog store isolation", () => {
     if (fs.existsSync(file)) fs.unlinkSync(file);
   });
 
+  it("writes compact JSON without pretty-print indent", () => {
+    const { file, root } = tmpPair();
+    logAgentMail({
+      direction: "outbound",
+      from: "james@stratafinance.co.uk",
+      to: "ops@example.co.uk",
+      subject: "compact",
+      text: "probe",
+      status: "sent",
+    });
+    const raw = fs.readFileSync(file, "utf8");
+    expect(raw).toBe(JSON.stringify(JSON.parse(raw)));
+    expect(raw).not.toMatch(/\n  /);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
   it("does not insert a second row for the same message-id and keeps attachments", () => {
     const file = path.join(os.tmpdir(), `agent-mail-dedupe-${process.pid}-${Date.now()}.json`);
     setAgentMailStorePathForTests(file);

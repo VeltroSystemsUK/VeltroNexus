@@ -69,6 +69,12 @@ describe("sterling portal helpers", () => {
     expect(shell).toMatch(/data-testid=\{item\.testId\}/);
   });
 
+  it("shows the site-traffic graph on the Sterling cases dashboard", () => {
+    const portal = fs.readFileSync(path.resolve("client/src/pages/BrokerPortal.tsx"), "utf8");
+    expect(portal).toMatch(/SiteTrafficChart/);
+    expect(portal).toMatch(/data-testid="chart-site-traffic"|<SiteTrafficChart/);
+  });
+
   it("registers Pipeline, Agent Mail, and Openers on the Sterling portal before :id", () => {
     const app = fs.readFileSync(path.resolve("client/src/App.tsx"), "utf8");
     for (const pathName of ["/broker-portal/pipeline", "/broker-portal/agent-mail", "/broker-portal/openers"]) {

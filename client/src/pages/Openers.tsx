@@ -15,6 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SiteTrafficChart } from "@/components/openers/SiteTrafficChart";
 import {
   canDragOpenerTo,
   canPromoteOpener,
@@ -763,6 +764,8 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
             </label>
           </div>
         </div>
+
+        {!isNonResponsive && <SiteTrafficChart />}
 
         {!isNonResponsive && (
           <div data-testid="click-heat-strip" className="flex flex-wrap items-center gap-2">
