@@ -6,7 +6,7 @@ import {
   mxFamily,
   smtpTrusted,
 } from "@shared/mailboxScore";
-import { harvestFromSearchSnippets } from "@shared/mailboxOsint";
+import { companyWebsiteSearchQuery, harvestFromSearchSnippets } from "@shared/mailboxOsint";
 
 describe("MX fingerprint", () => {
   it("treats Google, Microsoft, Mimecast and Proofpoint as untrusted for RCPT TO", () => {
@@ -119,6 +119,13 @@ describe("mailbox confidence", () => {
 });
 
 describe("OSINT snippets", () => {
+  it("searches for the company website, not a purchased email database", () => {
+    const query = companyWebsiteSearchQuery("JPD MAINTENANCE SERVICES LTD");
+    expect(query).toContain("JPD MAINTENANCE SERVICES LTD");
+    expect(query.toLowerCase()).toMatch(/website|www/);
+    expect(query).not.toMatch(/hunter|apollo/i);
+  });
+
   it("keeps company-domain emails and websites from search text, dropping registries", () => {
     const hit = harvestFromSearchSnippets({
       companyName: "RammSanderson Ecology Limited",

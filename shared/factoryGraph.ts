@@ -33,7 +33,7 @@ export const FACTORY_NODES: FactoryNodeDef[] = [
   { id: "reject", label: "Do not contact", desk: "ORC-1", kind: "fail", detail: "Broker / SIC / fit fail", x: 560, y: 420 },
   { id: "match", label: "Companies House match", desk: "Maya", kind: "auto", detail: "You pick if ambiguous", x: 560, y: 180 },
   { id: "contact", label: "Complete contact", desk: "Elena", kind: "auto", detail: "Director name / phone / website", x: 840, y: 180 },
-  { id: "harvest", label: "Harvest mailbox", desk: "Harper", kind: "auto", detail: "25-file slices · SMTP-verified company inbox · no email → quarantine after miss", x: 980, y: 280 },
+  { id: "harvest", label: "Harvest mailbox", desk: "Harper", kind: "auto", detail: "100-file slices · SMTP-verified company inbox · no email → quarantine after miss", x: 980, y: 280 },
   { id: "pecr", label: "PECR check", desk: "James", kind: "gate", detail: "No personal mailboxes", x: 1120, y: 80 },
   { id: "email", label: "Cadence email", desk: "James", kind: "auto", detail: "SMTP must deliver", x: 1400, y: 80 },
   { id: "sme-open", label: "sme_open", desk: "James", kind: "auto", detail: "On open → Explore quiz", x: 1540, y: 160 },

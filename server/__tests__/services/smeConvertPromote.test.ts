@@ -70,7 +70,7 @@ describe("stopConvertAndPromote", () => {
     vi.clearAllMocks();
   });
 
-  it("promotes a numbered convert opener and clears the deal convert clock", async () => {
+  it("stops convert on form without creating an Openers pipeline prospect", async () => {
     const { storage, writeOpeners, listOpeners, stopConvertAndPromote } = await loadPromote();
     vi.mocked(storage.listAgenticDeals).mockResolvedValue([
       {
@@ -82,14 +82,22 @@ describe("stopConvertAndPromote", () => {
       },
     ] as never);
     writeOpeners([convertRow({ companyNumber: "08765432" })]);
+    let created = false;
 
-    await stopConvertAndPromote("ops@acme.test", "promoted", promoteDeps);
+    await stopConvertAndPromote("ops@acme.test", "promoted", {
+      ...promoteDeps,
+      async createProspect() {
+        created = true;
+        return { id: 77 };
+      },
+    });
 
     const row = listOpeners()[0];
+    expect(created).toBe(false);
     expect(row?.status).toBe("promoted");
     expect(row?.nurture.stopReason).toBe("promoted");
     expect(row?.nurture.wakeAt).toBeUndefined();
-    expect(row?.prospectId).toBe(77);
+    expect(row?.prospectId).toBeUndefined();
     expect(storage.updateAgenticDeal).toHaveBeenCalledWith(
       9,
       expect.objectContaining({

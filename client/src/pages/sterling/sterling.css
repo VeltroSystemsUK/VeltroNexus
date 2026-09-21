@@ -5,6 +5,29 @@
   background: #f4f6f8;
   color: #10233f;
   font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+  --background: 210 14% 96%;
+  --foreground: 214 59% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 214 59% 16%;
+  --primary: 209 70% 24%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 16% 94%;
+  --secondary-foreground: 214 59% 16%;
+  --muted: 210 14% 93%;
+  --muted-foreground: 206 15% 42%;
+  --accent: 210 16% 94%;
+  --accent-foreground: 214 59% 16%;
+  --border: 214 16% 87%;
+  --input: 214 16% 87%;
+  --ring: 209 70% 24%;
+  --font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-ui: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --radius: 0.5rem;
+  --hairline: #d8dee6;
+  --glass-bg: 255 255 255;
+  --glass-alpha: 1;
+  --accent-glow: 209 70% 24%;
 }
 .scf-top {
   position: sticky;
@@ -14,7 +37,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 28px;
-  height: 64px;
+  min-height: 64px;
+  height: auto;
   background: #fff;
   border-bottom: 1px solid #d8dee6;
 }
@@ -32,6 +56,18 @@
   width: auto;
   display: block;
 }
+.scf-home {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: #123a66;
+}
+.scf-home span {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 .scf-who {
   display: flex;
   align-items: center;
@@ -41,6 +77,67 @@
   text-transform: uppercase;
   color: #5b6b7c;
   font-weight: 600;
+}
+.scf-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 16px;
+}
+.scf-nav a {
+  padding: 8px 12px;
+  color: #5b6b7c;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+.scf-nav a:hover {
+  color: #123a66;
+  background: #eef2f6;
+}
+.scf-nav a.on {
+  color: #123a66;
+  background: #eef2f6;
+}
+.scf-ops {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f4f6f8;
+  overflow: auto;
+}
+.scf-ops > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.scf .kicker {
+  font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  color: #1b5f9e;
+  letter-spacing: 0.08em;
+}
+.scf .tile {
+  background: #fff;
+  border: 1px solid #d8dee6;
+  box-shadow: 0 1px 2px rgba(16, 35, 63, 0.05);
+  backdrop-filter: none;
+}
+.scf .tile:hover {
+  transform: none;
+  border-color: #c3ccd8;
+  box-shadow: 0 1px 2px rgba(16, 35, 63, 0.08);
+}
+.scf .min-h-screen {
+  min-height: calc(100vh - 64px);
+}
+.scf-ops .h-\[calc\(100vh-4rem\)\] {
+  height: calc(100vh - 64px);
 }
 .scf-who a,
 .scf-who button {
@@ -292,6 +389,25 @@
   background: #cfd6de;
   border-radius: 8px;
 }
+.scf-working {
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  margin: 8px auto 24px;
+  padding: 14mm 16mm;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(16,35,63,0.12), 0 8px 24px rgba(16,35,63,0.12);
+}
+.scf-working-banner {
+  background: #123a66;
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 8px 12px;
+  margin: -14mm -16mm 16px;
+}
 .scf-overlay {
   position: fixed;
   inset: 0;
@@ -375,4 +491,6 @@
   .scf-rail-expand,
   .scf-rail-grip { display: none; }
   .scf-sends { grid-template-columns: 1fr; }
+  .scf-top { height: auto; min-height: 64px; padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+  .scf-nav { order: 3; flex: 1 1 100%; justify-content: flex-start; padding: 0; }
 }

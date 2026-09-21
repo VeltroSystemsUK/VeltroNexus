@@ -93,3 +93,4 @@ backups/
 node_modules.*/
 scratch_*
 docs/_pptx_unpacked/
+output/

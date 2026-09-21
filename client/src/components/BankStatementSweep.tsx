@@ -44,11 +44,23 @@ type SweepLender = {
   minMonthly?: number;
 };
 
+type SweepTransaction = {
+  date: string;
+  description: string;
+  moneyIn: number;
+  moneyOut: number;
+  category?: string;
+  personal?: boolean;
+  personalProbability?: number;
+  anomalyScore?: number;
+};
+
 type AffordabilitySweep = {
   summary?: string;
   findings?: SweepFinding[];
   files?: { fileName: string }[];
   months?: SweepMonth[];
+  transactions?: SweepTransaction[];
   totals?: { avgIn: number; avgOut: number; avgNet: number; months: number; moneyIn: number; moneyOut: number };
   lenders?: SweepLender[];
   financeMonthly?: number;
@@ -81,6 +93,20 @@ function isBankDoc(doc: ProspectDoc) {
   return /\.pdf$/i.test(name) && /bank/i.test(name);
 }
 
+const CATEGORY_LABEL: Record<string, string> = {
+  rent: "Rent",
+  payroll: "Payroll",
+  supplier: "Supplier payment",
+  drawings: "Drawings",
+  loan_repayment: "Loan repayment",
+  tax_hmrc: "HMRC / tax",
+  gambling: "Gambling",
+  cash_withdrawal: "Cash withdrawal",
+  bank_charges: "Bank charges",
+  sales_income: "Sales income",
+  other: "Other",
+};
+
 const gbp = (n?: number) =>
   typeof n === "number" && Number.isFinite(n)
     ? new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n)
@@ -108,6 +134,10 @@ export function BankStatementSweep({ prospectId }: { prospectId: number }) {
   const cashReleasedMonthly =
     typeof stackedMonthly === "number" && proposedNow > 0 ? stackedMonthly - proposedNow : undefined;
   const bankDocs = documents.filter(isBankDoc);
+  const jevFlagged = (sweep?.transactions || [])
+    .filter((tx) => tx.personal || (tx.anomalyScore || 0) >= 3)
+    .sort((a, b) => (b.anomalyScore || 0) - (a.anomalyScore || 0))
+    .slice(0, 20);
 
   const sweepMutation = useMutation({
     mutationFn: async () => {
@@ -331,6 +361,38 @@ export function BankStatementSweep({ prospectId }: { prospectId: number }) {
                 </div>
               ))}
             </div>
+            {jevFlagged.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Jev transaction review — personal / related-party or anomalous</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-muted-foreground border-b">
+                        <th className="py-1 pr-3">Date</th>
+                        <th className="py-1 pr-3">Description</th>
+                        <th className="py-1 pr-3">Amount</th>
+                        <th className="py-1 pr-3">Category</th>
+                        <th className="py-1">Flags</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jevFlagged.map((tx, index) => (
+                        <tr key={`${tx.date}-${index}`} className="border-b last:border-0">
+                          <td className="py-1 pr-3 whitespace-nowrap">{tx.date}</td>
+                          <td className="py-1 pr-3 truncate max-w-xs">{tx.description}</td>
+                          <td className="py-1 pr-3">{gbp(tx.moneyOut || tx.moneyIn)}</td>
+                          <td className="py-1 pr-3">{CATEGORY_LABEL[tx.category || ""] || tx.category}</td>
+                          <td className="py-1 flex gap-1 flex-wrap">
+                            {tx.personal && <Badge variant="secondary">Personal</Badge>}
+                            {(tx.anomalyScore || 0) >= 3 && <Badge variant="destructive">Anomaly {tx.anomalyScore}</Badge>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

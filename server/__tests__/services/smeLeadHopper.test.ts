@@ -133,6 +133,7 @@ describe("SME attach waterfall", () => {
         officers: async () => ["Adam Taylor"],
         places: async () => ({ email: "adam@petshop.co.uk" }),
         firecrawl: async () => [],
+        osint: async () => ({ emails: ["adam@petshop.co.uk"], website: "https://petshop.co.uk" }),
         mxValid: async () => true,
       },
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
@@ -141,8 +142,40 @@ describe("SME attach waterfall", () => {
     expect(dealPatch.stage).toBe("outreach");
     expect(dealPatch.status).toBe("waiting_timer");
     expect(dealPatch.email).toBe("adam@petshop.co.uk");
-    expect(dealPatch.contactSource).toBe("places");
+    expect(dealPatch.contactSource).toBe("osint");
     expect(dealPatch.mailboxGrade).toBe("director");
+  });
+
+  it("uses Firecrawl search for the domain and scrape for emails, never Places", async () => {
+    const places = vi.fn(async () => ({
+      website: "https://places-should-not-win.co.uk",
+      email: "x@places-should-not-win.co.uk",
+    }));
+    const osint = vi.fn(async () => ({ website: "https://www.alphabethouse.co.uk", emails: [] }));
+    const firecrawl = vi.fn(async () => ["info@alphabethouse.co.uk"]);
+    const { dealPatch } = await attachOne(
+      {
+        attachAttempts: 0,
+        hopper: "quarantine",
+        companyName: "Alphabet House Day Nurseries Limited",
+        companyNumber: "1",
+        directorNames: ["Anne-Marie TIERNEY"],
+      } as any,
+      {
+        officers: async () => [],
+        places,
+        firecrawl,
+        osint,
+        mxValid: async () => true,
+        smtpValid: async () => false,
+      },
+      { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
+    );
+    expect(places).not.toHaveBeenCalled();
+    expect(osint).toHaveBeenCalled();
+    expect(firecrawl).toHaveBeenCalledWith("https://www.alphabethouse.co.uk");
+    expect(dealPatch.email).toBe("info@alphabethouse.co.uk");
+    expect(dealPatch.contactSource).toBe("firecrawl");
   });
 
   it("attaches email@ from contact-page markdown, not a newline-corrupted nemail@", async () => {
@@ -168,8 +201,9 @@ describe("SME attach waterfall", () => {
     expect(dealPatch.hopper).toBe("sendable");
   });
 
-  it("ignores a nursery directory URL and still uses Places for the real site", async () => {
-    const places = vi.fn(async () => ({ website: "https://www.alphabethouse.co.uk" }));
+  it("ignores a nursery directory URL and still uses Firecrawl search for the real site", async () => {
+    const places = vi.fn();
+    const osint = vi.fn(async () => ({ website: "https://www.alphabethouse.co.uk", emails: [] }));
     const firecrawl = vi.fn(async () => ["info@alphabethouse.co.uk"]);
     const { dealPatch } = await attachOne(
       {
@@ -184,12 +218,14 @@ describe("SME attach waterfall", () => {
         officers: async () => [],
         places,
         firecrawl,
+        osint,
         mxValid: async () => true,
         smtpValid: async () => false,
       },
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
     );
-    expect(places).toHaveBeenCalled();
+    expect(places).not.toHaveBeenCalled();
+    expect(osint).toHaveBeenCalled();
     expect(firecrawl).toHaveBeenCalledWith("https://www.alphabethouse.co.uk");
     expect(dealPatch.email).toBe("info@alphabethouse.co.uk");
     expect(dealPatch.website).toBe("https://www.alphabethouse.co.uk");
@@ -224,8 +260,9 @@ describe("SME attach waterfall", () => {
       { attachAttempts: 0, hopper: "gated", companyName: "Pet Shop Ltd", companyNumber: "1" } as any,
       {
         officers: async () => ["Adam Taylor"],
-        places: async () => ({ email: "info@petshop.co.uk", website: "https://petshop.co.uk" }),
+        places: async () => null,
         firecrawl: async () => [],
+        osint: async () => ({ emails: ["info@petshop.co.uk"], website: "https://petshop.co.uk" }),
         mxValid: async () => true,
       },
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
@@ -236,8 +273,9 @@ describe("SME attach waterfall", () => {
     expect(dealPatch.contactName).toBe("Adam Taylor");
   });
 
-  it("still runs Places when stored email is a role mailbox so a director inbox can win", async () => {
-    const places = vi.fn(async () => ({ email: "adam@petshop.co.uk" }));
+  it("still searches Firecrawl when stored email is a role mailbox so a director inbox can win", async () => {
+    const places = vi.fn();
+    const osint = vi.fn(async () => ({ emails: ["adam@petshop.co.uk"], website: "https://petshop.co.uk" }));
     const { dealPatch } = await attachOne(
       {
         attachAttempts: 0,
@@ -251,14 +289,16 @@ describe("SME attach waterfall", () => {
         officers: async () => ["Adam Taylor"],
         places,
         firecrawl: async () => [],
+        osint,
         mxValid: async () => true,
       },
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
     );
-    expect(places).toHaveBeenCalled();
+    expect(places).not.toHaveBeenCalled();
+    expect(osint).toHaveBeenCalled();
     expect(dealPatch.hopper).toBe("sendable");
     expect(dealPatch.email).toBe("adam@petshop.co.uk");
-    expect(dealPatch.contactSource).toBe("places");
+    expect(dealPatch.contactSource).toBe("osint");
   });
 
   it("does not match Ann local-part to director Joanna", async () => {
@@ -266,8 +306,9 @@ describe("SME attach waterfall", () => {
       { attachAttempts: 0, hopper: "gated", companyName: "Pet Shop Ltd", companyNumber: "1" } as any,
       {
         officers: async () => ["Joanna Smith"],
-        places: async () => ({ email: "ann@petshop.co.uk" }),
+        places: async () => null,
         firecrawl: async () => [],
+        osint: async () => ({ emails: ["ann@petshop.co.uk"], website: "https://petshop.co.uk" }),
         mxValid: async () => true,
       },
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
@@ -342,8 +383,9 @@ describe("SME attach waterfall", () => {
       { attachAttempts: 0, hopper: "gated", companyName: "Pet Shop Ltd", companyNumber: "1" } as any,
       {
         officers: async () => ["Adam Taylor"],
-        places: async () => ({ email: "ops@petshop.co.uk", website: "https://petshop.co.uk" }),
+        places: async () => null,
         firecrawl: async () => ["adam@petshop.co.uk"],
+        osint: async () => ({ emails: ["ops@petshop.co.uk"], website: "https://petshop.co.uk" }),
         mxValid: async () => true,
       },
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
@@ -902,8 +944,9 @@ describe("SME attach waterfall", () => {
     expect(patches[0].patch.contactSource).toBe("firecrawl");
   });
 
-  it("shares one Places budget across refill candidates", async () => {
-    const places = vi.fn(async () => ({ email: "adam@petshop.co.uk" }));
+  it("shares one Firecrawl search budget across refill candidates", async () => {
+    const places = vi.fn();
+    const osint = vi.fn(async () => ({ emails: ["adam@petshop.co.uk"], website: "https://petshop.co.uk" }));
     const base = {
       source: "distress_scan" as const,
       hopper: "gated" as const,
@@ -923,11 +966,13 @@ describe("SME attach waterfall", () => {
         officers: async () => ["Adam Taylor"],
         places,
         firecrawl: async () => [],
+        osint,
         mxValid: async () => true,
       },
-      budget: { ch: 10, places: 1, firecrawl: 0, smtp: 10 },
+      budget: { ch: 10, places: 0, firecrawl: 1, smtp: 10 },
     });
-    expect(places).toHaveBeenCalledTimes(1);
+    expect(places).not.toHaveBeenCalled();
+    expect(osint).toHaveBeenCalledTimes(1);
     expect(patches.filter((row) => row.patch.hopper === "sendable")).toHaveLength(1);
   });
 
@@ -1162,7 +1207,8 @@ describe("Harvest agent loop", () => {
 
   it("still hunts a company mailbox when the CSV row is a personal address", async () => {
     const officers = vi.fn(async () => ["Ada Lovelace"]);
-    const places = vi.fn(async () => ({ website: "https://petshop.co.uk" }));
+    const places = vi.fn();
+    const osint = vi.fn(async () => ({ website: "https://petshop.co.uk", emails: [] }));
     const firecrawl = vi.fn(async () => ["ada@petshop.co.uk"]);
     const { dealPatch } = await attachOne(
       {
@@ -1172,17 +1218,18 @@ describe("Harvest agent loop", () => {
         email: "ada@gmail.com",
         contactName: "Ada",
       } as any,
-      { officers, places, firecrawl, mxValid: async () => true },
+      { officers, places, firecrawl, osint, mxValid: async () => true },
       { ch: 10, places: 10, firecrawl: 10, smtp: 10 }
     );
-    expect(places).toHaveBeenCalled();
+    expect(places).not.toHaveBeenCalled();
+    expect(osint).toHaveBeenCalled();
     expect(firecrawl).toHaveBeenCalled();
     expect(dealPatch.hopper).toBe("sendable");
     expect(dealPatch.email).toBe("ada@petshop.co.uk");
   });
 
   it("stops after the hourly cap so a 3000-file hopper cannot become one job", async () => {
-    expect(HARVEST_PER_HOUR).toBe(25);
+    expect(HARVEST_PER_HOUR).toBe(100);
     expect(HARVEST_FLUSH_EVERY).toBe(1);
     const base = {
       source: "distress_scan" as const,
@@ -1329,7 +1376,8 @@ describe("Harvest agent loop", () => {
 
   it("keeps patches already attached when the job is stopped mid-harvest", async () => {
     const { JobStoppedError } = await import("../../services/agentJobTracker");
-    const places = vi.fn(async () => ({ email: "adam@petshop.co.uk" }));
+    const places = vi.fn();
+    const osint = vi.fn(async () => ({ emails: ["adam@petshop.co.uk"], website: "https://petshop.co.uk" }));
     let starts = 0;
     const { patches } = await refillSendableHopper({
       deals: [
@@ -1337,7 +1385,7 @@ describe("Harvest agent loop", () => {
           id: 1,
           source: "distress_scan" as const,
           hopper: "gated" as const,
-          companyName: "A Ltd",
+          companyName: "Pet Shop Ltd",
           companyNumber: "1",
           ownerUserId: "u",
           stage: "ingest" as const,
@@ -1364,9 +1412,10 @@ describe("Harvest agent loop", () => {
         officers: async () => ["Adam Taylor"],
         places,
         firecrawl: async () => [],
+        osint,
         mxValid: async () => true,
       },
-      budget: { ch: 10, places: 10, firecrawl: 0, smtp: 10 },
+      budget: { ch: 10, places: 0, firecrawl: 10, smtp: 10 },
       onProgress: async (row) => {
         if (row.phase === "start") {
           starts += 1;
@@ -1376,6 +1425,7 @@ describe("Harvest agent loop", () => {
     });
     expect(patches).toHaveLength(1);
     expect(patches[0].id).toBe(1);
-    expect(places).toHaveBeenCalledTimes(1);
+    expect(places).not.toHaveBeenCalled();
+    expect(osint).toHaveBeenCalledTimes(1);
   });
 });

@@ -52,6 +52,7 @@ import {
 import { hopperCounts, isContactableDeal, isProtectedFromQuarantine, isSmeHopperSendable, rankSendable, smeHuntNeed } from "@shared/smeHopper";
 import { buildHuntQuality, sendableUnsentCount } from "@shared/smeQuality";
 import { evaluateGuessPause, isGuessPaused, resumeGuessPause } from "./harvestGuessStore";
+import { harvestClientsMailboxes } from "./crmHarvest";
 import { OPENER_CONVERT_CLOSER_DELAY_MS, closerSiteClickUrl } from "@shared/openers";
 import {
   convertCopyOk,
@@ -3008,12 +3009,15 @@ export const agenticWorkflow = {
 
   async harvestMailboxes(): Promise<{ patched: number; summary: string }> {
     const patches = await runHarvestPass();
-    const patched = patches.length;
+    const crm = await harvestClientsMailboxes();
+    const patched = patches.length + crm.updated;
+    const bits = [
+      patches.length ? `${patches.length} hopper file${patches.length === 1 ? "" : "s"}` : "",
+      crm.updated ? `${crm.updated} Clients card${crm.updated === 1 ? "" : "s"}` : "",
+    ].filter(Boolean);
     return {
       patched,
-      summary: patched
-        ? `Harvest worked ${patched} file${patched === 1 ? "" : "s"} without an email.`
-        : "Harvest found no files ready to work.",
+      summary: bits.length ? `Harvest worked ${bits.join(" and ")} without an email.` : "Harvest found no files ready to work.",
     };
   },
 
@@ -3069,6 +3073,15 @@ export const agenticWorkflow = {
       } catch (error) {
         console.error("[Agentic] Hopper refill on tick failed:", error);
       }
+      void harvestClientsMailboxes()
+        .then((crm) => {
+          if (crm.attempted) {
+            console.log(`[Agentic] Clients harvest attempted=${crm.attempted} updated=${crm.updated}`);
+          }
+        })
+        .catch((error) => {
+          console.error("[Agentic] Clients harvest on tick failed:", error);
+        });
       const due = (await storage.listAgenticDeals()).filter((deal) => {
         if (isConvertWakeDeal(deal) && shouldWakeConvert({ wakeAt: deal.convertWakeAt, now })) {
           if (!deal.waitUntil) return true;

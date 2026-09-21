@@ -8,6 +8,7 @@
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "postbuild": "schtasks /run /tn \"RestartNexusApp\" || echo Could not auto-restart NexusApp - run scripts\\restart-nexus.bat",
     "start": "node --env-file=.env.production dist/index.js",
+    "rank-crm-harvest": "tsx --env-file=.env.production server/scripts/rankCrmHarvest.ts",
     "check": "tsc",
     "slf": "tsx scripts/slf.ts",
     "test": "vitest run",

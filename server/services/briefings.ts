@@ -26,7 +26,6 @@ import {
 } from "@shared/briefingTracks/mirrorPortal";
 import { MAIL_DWELL_MS, shouldRecordMailTracking } from "@shared/mailTracking";
 import {
-  canPromoteOpener,
   isDoNotContactOpener,
   sendableIndustry,
   stopNurture,
@@ -47,7 +46,7 @@ import { fetchWebsiteText, normalizeWebsiteUrl } from "../utils/companyEnrichmen
 import { listAgentMail } from "./agentMailLog";
 import { sendEmail } from "./email";
 import * as mailDesk from "./mailDesk";
-import { getOpener, listOpeners, onOpenerUnsubscribed, patchOpener, promoteOpener } from "./openers";
+import { getOpener, listOpeners, onOpenerUnsubscribed, patchOpener } from "./openers";
 
 export type { BriefingRecord, BriefingSlide };
 export { defaultBriefingSlides, privateWallHtml, renderBriefingHtml, BRIEFING_ENQUIRY_URL };
@@ -789,18 +788,7 @@ export async function recordBriefingDwellAndPromote(
   opts: BriefingTrackOpts & { userId?: string } = {}
 ): Promise<{ recorded: boolean; already?: boolean; promoted: boolean }> {
   const dwell = recordBriefingDwell(token, opts);
-  if (!dwell.recorded) return { ...dwell, promoted: false };
-  const live = getLiveBriefingByToken(token);
-  const opener = live ? getOpener(live.openerId) : undefined;
-  if (!opener || !canPromoteOpener(opener) || isDoNotContactOpener(opener)) {
-    return { recorded: true, promoted: false };
-  }
-  try {
-    await promoteOpener(opener.id, opts.userId || "");
-    return { recorded: true, promoted: true };
-  } catch {
-    return { recorded: true, promoted: false };
-  }
+  return { ...dwell, promoted: false };
 }
 
 export function recordVeltroInterest(token: string): { flagged: boolean } {

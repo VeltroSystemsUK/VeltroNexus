@@ -16,10 +16,10 @@ import TaskReminders from "@/components/TaskReminders";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2, Plus, Menu, CheckCircle2 } from "lucide-react"; // Added Menu
+import { TrendingUp, LayoutDashboard, Users, Send, Download, Building2, Plus, Menu, CheckCircle2, ShieldCheck } from "lucide-react"; // Added Menu
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useEffect, useState, useMemo } from "react";
 import {
   DropdownMenu,
@@ -32,6 +32,7 @@ import ProspectLimitModal from "@/components/ProspectLimitModal";
 import { OnboardingChecklist, OnboardingTooltip, useOnboarding } from "@/components/onboarding";
 
 import { DEFAULT_PIPELINE_STAGES, remapSavedPipelineStages } from "@shared/pipelineStages";
+import { isSterlingPortalRole } from "@shared/sterlingPortal";
 
 type Stage = string;
 
@@ -41,22 +42,38 @@ import { FlightDeck } from "@/components/dashboard/FlightDeck";
 // ... existing imports
 
 export default function Pipeline() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  const { user, isAuthenticated, isLoading: isAuthLoading, logoutMutation } = useAuth();
+  const inSterling = location.startsWith("/broker-portal");
+  const readOnly = user?.role === "external_broker";
+  const showSterlingLink = isSterlingPortalRole(user?.role) && !inSterling;
 
   const actions = useMemo(() => (
-    <Button
-      className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
-      onClick={() => navigate("/search")}
-      data-testid="button-add-prospect"
-    >
-      <Plus className="mr-2 h-4 w-4" />
-      Add Prospect
-    </Button>
-  ), [navigate]);
+    <>
+      {showSterlingLink ? (
+        <Button
+          className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
+          onClick={() => navigate("/broker-portal")}
+        >
+          <ShieldCheck className="mr-2 h-4 w-4" />
+          Sterling portal
+        </Button>
+      ) : null}
+      {inSterling ? null : (
+        <Button
+          className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground"
+          onClick={() => navigate("/search")}
+          data-testid="button-add-prospect"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Prospect
+        </Button>
+      )}
+    </>
+  ), [navigate, showSterlingLink, inSterling]);
 
   usePageTitle("PIPELINE DASHBOARD", "Manage your commercial lending pipeline");
   usePageActions(actions);
-  const { user, isAuthenticated, isLoading: isAuthLoading, logoutMutation } = useAuth();
   const {
     currentWalkthrough,
     walkthroughStep,
@@ -304,7 +321,11 @@ export default function Pipeline() {
       <main className="w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
 
         {prospects.length === 0 ? (
-          <EmptyPipeline onAddProspect={() => navigate("/search")} />
+          inSterling ? (
+            <p className="text-muted-foreground">No files on the pipeline yet.</p>
+          ) : (
+            <EmptyPipeline onAddProspect={() => navigate("/search")} />
+          )
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" data-testid="tabs-main">
 
@@ -359,6 +380,19 @@ export default function Pipeline() {
 
             {/* Dashboard Tab */}
             <TabsContent value="dashboard" data-testid="content-dashboard">
+              {showSterlingLink ? (
+                <Link
+                  href="/broker-portal"
+                  data-testid="link-sterling-portal"
+                  className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-foreground hover:bg-primary/15"
+                >
+                  <span>
+                    <span className="block text-sm font-semibold">Sterling portal</span>
+                    <span className="block text-xs text-muted-foreground">Open files ready for your recommendation</span>
+                  </span>
+                  <span className="text-sm font-medium text-primary shrink-0">Open Cases →</span>
+                </Link>
+              ) : null}
               <FlightDeck
                 userName={user?.firstName || undefined}
                 stats={{
@@ -410,6 +444,7 @@ export default function Pipeline() {
                                       key={prospect.id!}
                                       draggableId={`prospect-${prospect.id!}`}
                                       index={index}
+                                      isDragDisabled={readOnly}
                                     >
                                       {(provided, snapshot) => (
                                         <div ref={provided.innerRef} {...provided.draggableProps}>
@@ -419,8 +454,8 @@ export default function Pipeline() {
                                             isDragging={snapshot.isDragging}
                                             currentStage={stage.value}
                                             availableStages={allStages}
-                                            onClick={() => navigate(`/prospect/${prospect.id!}`)}
-                                            onMove={(newStage: Stage) =>
+                                            onClick={() => { if (!inSterling) navigate(`/prospect/${prospect.id!}`); }}
+                                            onMove={readOnly ? undefined : (newStage: Stage) =>
                                               handleStageChange(prospect.id!, newStage as Stage)
                                             }
                                             underwritingStatus={underwritingStatuses[prospect.id!]}
@@ -488,8 +523,8 @@ export default function Pipeline() {
                                             isDragging={snapshot.isDragging}
                                             currentStage={stage.value}
                                             availableStages={allStages}
-                                            onClick={() => navigate(`/prospect/${prospect.id!}`)}
-                                            onMove={(newStage: Stage) =>
+                                            onClick={() => { if (!inSterling) navigate(`/prospect/${prospect.id!}`); }}
+                                            onMove={readOnly ? undefined : (newStage: Stage) =>
                                               handleStageChange(prospect.id!, newStage as Stage)
                                             }
                                             underwritingStatus={underwritingStatuses[prospect.id!]}
@@ -560,8 +595,8 @@ export default function Pipeline() {
                                             isDragging={snapshot.isDragging}
                                             currentStage={stage.value}
                                             availableStages={allStages}
-                                            onClick={() => navigate(`/prospect/${prospect.id!}`)}
-                                            onMove={(newStage: Stage) =>
+                                            onClick={() => { if (!inSterling) navigate(`/prospect/${prospect.id!}`); }}
+                                            onMove={readOnly ? undefined : (newStage: Stage) =>
                                               handleStageChange(prospect.id!, newStage as Stage)
                                             }
                                             underwritingStatus={

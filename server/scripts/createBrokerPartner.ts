@@ -15,7 +15,12 @@ async function main() {
 
   const existing = await storage.getUserByEmail(email);
   if (existing) {
-    console.log(`Account already exists for ${email} (role: ${existing.role}).`);
+    if (existing.role !== "external_broker") {
+      await storage.updateUser(existing.id, { role: "external_broker" } as any);
+      console.log(`Reset ${email} to external_broker (was ${existing.role}).`);
+    } else {
+      console.log(`Account already exists for ${email} (role: ${existing.role}).`);
+    }
     return;
   }
 

@@ -3,7 +3,16 @@ import crypto from "crypto";
 import { mailboxForAgent } from "@shared/agentMailboxes";
 import { listUnsubscribeHeaders, normalizeUnsubscribeEmail, unsubscribeSigningSecret } from "@shared/listUnsubscribe";
 import { logAgentMail, injectMailTracking, publicTrackingBaseUrl, trackingBaseUrl } from "./agentMailLog";
+import { writeMailboxToClientsFromDeal } from "./clientsMailbox";
 import { mailIsSuppressed } from "./mailDesk";
+
+function rememberMailboxOnClients(dealId: unknown, to: string) {
+    const id = Number(dealId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    void writeMailboxToClientsFromDeal(id, to).catch((error: any) => {
+        console.warn("[Clients] mailbox write-back failed:", error?.message || error);
+    });
+}
 
 function applyVariables(content: string, variables: Record<string, any>): string {
     let finalContent = content;
@@ -143,6 +152,7 @@ export async function sendEmail(
                 touchId: credentials?.touchId,
                 contactSource: stampedContactSource(credentials),
             });
+            rememberMailboxOnClients(credentials?.dealId, to);
             return { success: false, mock: true, id: mailLogId };
         }
 
@@ -189,6 +199,7 @@ export async function sendEmail(
             touchId: credentials?.touchId,
             contactSource: stampedContactSource(credentials),
         });
+        rememberMailboxOnClients(credentials?.dealId, to);
         return { success: true, messageId: info.messageId, id: mailLogId };
     } catch (error: any) {
         console.error("Error sending email:", error);

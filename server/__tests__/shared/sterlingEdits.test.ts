@@ -28,28 +28,28 @@ describe("sterling copy edits", () => {
     expect((parsed as any).junk).toBeUndefined();
   });
 
-  it("seeds from proposal slots then overlays saved edits", () => {
+  it("does not seed Auto Write slots; only David's saved edits and recommendation", () => {
     const seeded = seedSterlingCopy(
       {
         background: ["Old background."],
         theBusiness: ["Shop in Yate."],
         campari: { character: ["Sole director Kirsty Bevan."] },
         forecastCritique: ["Sheet is optimistic."],
-        recommendation: "",
+        recommendation: "Approve with conditions.",
       },
-      { background: "David rewrote background.", recommendation: "Approve with conditions." },
+      { background: "David rewrote background." },
     );
     expect(seeded.background).toBe("David rewrote background.");
-    expect(seeded.theBusiness).toBe("Shop in Yate.");
-    expect(seeded.character).toBe("Sole director Kirsty Bevan.");
-    expect(seeded.forecastCritique).toBe("Sheet is optimistic.");
+    expect(seeded.theBusiness).toBe("");
+    expect(seeded.character).toBe("");
+    expect(seeded.forecastCritique).toBe("");
     expect(seeded.recommendation).toBe("Approve with conditions.");
     expect(STERLING_COPY_FIELDS).toContain("forecastCritique");
     expect(STERLING_COPY_FIELDS).toContain("financials");
     expect(STERLING_COPY_FIELDS).toContain("dealSummary");
   });
 
-  it("seeds financials commentary from accounts years", () => {
+  it("leaves commentary blank when David has not written yet", () => {
     const seeded = seedSterlingCopy(
       {
         financials: ["Turnover £132,325 (2025)."],
@@ -57,7 +57,8 @@ describe("sterling copy edits", () => {
       },
       null,
     );
-    expect(seeded.financials).toBe("Turnover £132,325 (2025).");
-    expect(seeded.dealSummary).toBe("Refinance of stacked short-term debt.");
+    expect(seeded.financials).toBe("");
+    expect(seeded.dealSummary).toBe("");
+    expect(seeded.recommendation).toBe("");
   });
 });

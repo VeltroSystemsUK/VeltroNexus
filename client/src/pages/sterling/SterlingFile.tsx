@@ -30,6 +30,14 @@ type FilePayload = {
   lenders: Lender[];
   handover?: { answered: number; total: number };
   copy?: SterlingCopyEdits;
+  workingSheet?: {
+    id: string;
+    section: string;
+    kind: "quote" | "fact" | "flag" | "draft";
+    label: string;
+    text: string;
+    copyable: boolean;
+  }[];
   application?: {
     status?: string;
     sentAt?: string;
@@ -109,6 +117,56 @@ function CopyArea({
   );
 }
 
+function WorkingSheetDesk({
+  items,
+}: {
+  items: NonNullable<FilePayload["workingSheet"]>;
+}) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const grouped = items.reduce<Record<string, typeof items>>((acc, item) => {
+    (acc[item.section] ||= []).push(item);
+    return acc;
+  }, {});
+  return (
+    <div className="scf-working" data-testid="sterling-working-sheet">
+      <p className="scf-working-banner">Internal — not for lenders</p>
+      <p className="lede" style={{ fontSize: 12, margin: "8px 0 16px" }}>
+        Facts and customer quotes can be copied. Draft notes stay here — write your own wording on the proposal.
+      </p>
+      {Object.entries(grouped).map(([section, rows]) => (
+        <section key={section} style={{ marginBottom: 18 }}>
+          <h2 style={{ fontSize: 13, letterSpacing: "0.04em", textTransform: "uppercase", color: "#123a66" }}>
+            {section}
+          </h2>
+          {rows.map((item) => (
+            <div key={item.id} style={{ padding: "8px 0", borderBottom: "1px solid #eef2f6" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+                <span style={{ fontSize: 11, color: "#5b6b7c", fontWeight: 600 }}>{item.label}</span>
+                {item.copyable ? (
+                  <button
+                    type="button"
+                    className="scf-back"
+                    data-testid={`working-copy-${item.id}`}
+                    onClick={() => {
+                      void navigator.clipboard.writeText(item.text);
+                      setCopied(item.id);
+                    }}
+                  >
+                    {copied === item.id ? "Copied" : "Copy"}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 11, color: "#b42318", fontWeight: 700 }}>do not send</span>
+                )}
+              </div>
+              <p style={{ margin: "4px 0 0", fontSize: 14 }}>{item.text}</p>
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function PreviewFrame({ title, src }: { title: string; src: string }) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +213,7 @@ export default function SterlingFile() {
   const [recommendation, setRecommendation] = useState("");
   const [copy, setCopy] = useState<SterlingCopyEdits>({});
   const [previewKey, setPreviewKey] = useState(0);
-  const [desk, setDesk] = useState<"proposal" | "handover" | "application">("proposal");
+  const [desk, setDesk] = useState<"proposal" | "working" | "handover" | "application">("proposal");
   const [appLender, setAppLender] = useState<SterlingLenderId>("ffe");
   const [sendOpen, setSendOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
@@ -362,6 +420,7 @@ export default function SterlingFile() {
                   field={field}
                   value={copy[field] || ""}
                   labelled={false}
+                  placeholder="Write this from the working sheet."
                   onChange={(value) => setCopy((prev) => ({ ...prev, [field]: value }))}
                   onSave={(value) => saveCopy.mutate({ ...copy, recommendation, [field]: value })}
                 />
@@ -377,6 +436,7 @@ export default function SterlingFile() {
                   key={field}
                   field={field}
                   value={copy[field] || ""}
+                  placeholder="Write this from the working sheet."
                   onChange={(value) => setCopy((prev) => ({ ...prev, [field]: value }))}
                   onSave={(value) => saveCopy.mutate({ ...copy, recommendation, [field]: value })}
                 />
@@ -392,6 +452,7 @@ export default function SterlingFile() {
                   field={field}
                   value={copy[field] || ""}
                   labelled={false}
+                  placeholder="Write this from the working sheet."
                   onChange={(value) => setCopy((prev) => ({ ...prev, [field]: value }))}
                   onSave={(value) => saveCopy.mutate({ ...copy, recommendation, [field]: value })}
                   rows={5}
@@ -475,6 +536,14 @@ export default function SterlingFile() {
             <button type="button" className={desk === "proposal" ? "on" : ""} onClick={() => setDesk("proposal")}>
               Funding proposal
             </button>
+            <button
+              type="button"
+              className={desk === "working" ? "on" : ""}
+              data-testid="sterling-tab-working"
+              onClick={() => setDesk("working")}
+            >
+              Working sheet
+            </button>
             <button type="button" className={desk === "handover" ? "on" : ""} onClick={() => setDesk("handover")}>
               Handover pack
               {data.handover ? ` · ${data.handover.answered}/${data.handover.total}` : ""}
@@ -514,6 +583,8 @@ export default function SterlingFile() {
           ) : null}
           {desk === "proposal" ? (
             <PreviewFrame title="Funding proposal" src={`/api/broker-portal/handoffs/${id}/report.html?r=${previewKey}`} />
+          ) : desk === "working" ? (
+            <WorkingSheetDesk items={data.workingSheet || []} />
           ) : desk === "handover" ? (
             <PreviewFrame title="Handover pack" src={`/api/broker-portal/handoffs/${id}/handover.html`} />
           ) : (

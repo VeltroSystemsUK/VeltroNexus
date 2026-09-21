@@ -1,3 +1,4 @@
+import { useLocation } from "wouter";
 import PipelineStats from "@/components/PipelineStats";
 import ActivityCalendar from "@/components/ActivityCalendar";
 import TaskReminders from "@/components/TaskReminders";
@@ -55,9 +56,11 @@ function StageFunnel({ stages }: { stages: StageSummary[] }) {
 }
 
 export function FlightDeck({ stats, stages, userName }: FlightDeckProps) {
+  const [location] = useLocation();
+  const inSterling = location.startsWith("/broker-portal");
   return (
     <div className="px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8 pb-24 md:pb-28">
-      <OnboardingChecklist />
+      {inSterling ? null : <OnboardingChecklist />}
 
       {/* Hero metrics */}
       <section>

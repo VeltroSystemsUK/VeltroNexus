@@ -179,8 +179,17 @@ export type StatementLender = {
   minMonthly?: number;
 };
 
+export type StatementTransaction = {
+  date: string;
+  monthKey: string;
+  description: string;
+  moneyIn: number;
+  moneyOut: number;
+};
+
 export type BankStatementAnalysis = {
   months: StatementMonth[];
+  transactions: StatementTransaction[];
   totals: {
     moneyIn: number;
     moneyOut: number;
@@ -482,6 +491,7 @@ export function analyseBankStatements(
     else seenMonth.add(key);
   }
 
+  const transactions: StatementTransaction[] = [];
   const lenders = new Map<string, LenderAcc>();
   const seenPayment = new Set<string>();
   const channelSales = new Map<string, { website: number; ebay: number; paypal: number }>();
@@ -512,6 +522,9 @@ export function analyseBankStatements(
     const moneyOut = parseSignedMoney(lines[i]);
     const description = descParts.join(" ");
     const monthKey = monthKeyFromDate(date);
+    if (moneyIn > 0 || moneyOut > 0) {
+      transactions.push({ date, monthKey, description, moneyIn, moneyOut });
+    }
     if (moneyIn > 0 && isWebsiteSale(description)) addChannelSale(monthKey, "website", moneyIn);
     if (moneyIn > 0 && isEbaySale(description)) addChannelSale(monthKey, "ebay", moneyIn);
     if (moneyIn > 0 && isPaypalSale(description)) addChannelSale(monthKey, "paypal", moneyIn);
@@ -584,6 +597,7 @@ export function analyseBankStatements(
 
   return {
     months,
+    transactions,
     totals: {
       moneyIn,
       moneyOut,

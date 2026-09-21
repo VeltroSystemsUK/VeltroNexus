@@ -17,6 +17,7 @@ import { agentService } from "./services/agentService";
 import { validateEnv } from "./config";
 import { allowsSameOriginFrame, isStrataEmbedPath, mountStrataEmbed } from "./strataEmbed";
 import { sqliteConnection } from "./db/schema";
+import { helloHostMiddleware } from "./helloHost";
 
 const app = express();
 
@@ -150,6 +151,8 @@ app.use((req, res, next) => {
 
   next();
 });
+
+app.use(helloHostMiddleware);
 
 // Request ID and structured logging middleware
 app.use((req: any, res, next) => {
@@ -313,6 +316,7 @@ app.use((req: any, res, next) => {
 
           const { agenticWorkflow } = await import("./services/agenticWorkflow");
           const { backfillSmeOpenFollowUps, sendDueSmeFollowUps } = await import("./services/smeOpenFollowUp");
+          const { backfillClientMailboxesFromMail } = await import("./services/clientsMailbox");
           const { londonDayKey, smeFirstTouchSlot } = await import("@shared/smeOutreach");
           let lastDistressScanDate: string | null = null;
           setInterval(() => {
@@ -341,6 +345,13 @@ app.use((req: any, res, next) => {
           const { startAgentMailDailyBackup } = await import("./services/agentMailLog");
           startAgentMailDailyBackup();
 
+          void backfillClientMailboxesFromMail()
+            .then((result) => {
+              console.log(`[Clients] mailbox backfill scanned=${result.scanned} updated=${result.updated}`);
+            })
+            .catch((error) => {
+              console.error("[Clients] mailbox backfill failed:", error);
+            });
           void backfillSmeOpenFollowUps()
             .then((result) => {
               console.log(

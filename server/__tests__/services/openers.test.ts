@@ -7,6 +7,7 @@ import { applyDirectOutreach, enrolConvertOpener, normalizeOpener, OPENER_TOUCH2
 import {
   attachCompanyNumber,
   autoPromoteEligibleOpeners,
+  checkOpenerCreditsafe,
   enrichOpener,
   flushOpenerIdentityFollowUps,
   hydrateFromAgentMail,
@@ -818,6 +819,54 @@ describe("nurture send and promote", () => {
     expect(unsubscribed?.nurture.stopReason).toBe("opt_out");
   });
 
+  it("stores a manual quality mark", () => {
+    tmpStore();
+    writeOpeners([normalizeOpener({ id: "hot", email: "ops@northpeak.co.uk" })]);
+    expect(patchOpener("hot", { quality: "average" })?.quality).toBe("average");
+    expect(getOpener("hot")?.quality).toBe("average");
+  });
+
+  it("pulls a Creditsafe report once by company number and caches the snapshot", async () => {
+    tmpStore();
+    writeOpeners([
+      normalizeOpener({
+        id: "hot",
+        email: "ops@northpeak.co.uk",
+        companyNumber: "08765432",
+        companyName: "North Peak Ltd",
+      }),
+    ]);
+    let reports = 0;
+    const client = {
+      async searchUk(opts: { name?: string; regNo?: string }) {
+        expect(opts.regNo).toBe("08765432");
+        return [{ id: "GB-1", name: "NORTH PEAK LTD", regNo: "08765432", status: "Active" }];
+      },
+      async getCompanyReport(id: string) {
+        reports += 1;
+        expect(id).toBe("GB-1");
+        return {
+          report: {
+            companySummary: {
+              creditRating: {
+                commonValue: "A",
+                commonDescription: "Very Low Risk",
+                creditLimit: { value: "50000" },
+              },
+            },
+          },
+        };
+      },
+    };
+    const first = await checkOpenerCreditsafe("hot", client);
+    expect(first.creditsafe?.score).toBe("A");
+    expect(first.creditsafe?.rating).toBe("Very Low Risk");
+    expect(first.creditsafe?.creditLimitPence).toBe(5_000_000);
+    const second = await checkOpenerCreditsafe("hot", client);
+    expect(reports).toBe(1);
+    expect(second.creditsafe?.creditsafeId).toBe("GB-1");
+  });
+
   it("opt-out moves the opener to not_now even when nurture is not in flight", () => {
     tmpStore();
     upsertOpenerFromMail(mail())!;
@@ -1033,7 +1082,7 @@ describe("sixth-email auto-promote", () => {
     return { deps, prospects };
   }
 
-  it("promotes a numbered opener after the sixth unique sent email", async () => {
+  it("does not auto-promote after the sixth unique sent email", async () => {
     tmpStore();
     const created = upsertOpenerFromMail(sentMails(1)[0])!;
     await attachCompanyNumber(created.id, "08765432", fakeCh);
@@ -1042,11 +1091,9 @@ describe("sixth-email auto-promote", () => {
     expect(hydrateFromAgentMail([])[0].status).not.toBe("promoted");
 
     const promoted = await autoPromoteEligibleOpeners(sentMails(6), { deps, userId: "user-1" });
-    expect(promoted).toHaveLength(1);
-    expect(promoted[0].status).toBe("promoted");
-    expect(promoted[0].prospectId).toBe(55);
-    expect(prospects).toHaveLength(1);
-    expect(hydrateFromAgentMail([])[0].status).toBe("promoted");
+    expect(promoted).toEqual([]);
+    expect(prospects).toHaveLength(0);
+    expect(hydrateFromAgentMail([])[0].status).not.toBe("promoted");
   });
 
   it("fans an opt-out out to every email on the opener card", () => {
@@ -1101,7 +1148,7 @@ describe("Direct Outreach nurture and reply", () => {
     expect(getOpener(row.id)?.status).toBe("direct_outreach");
   });
 
-  it("inbound reply on a numbered Direct Outreach card auto-promotes", async () => {
+  it("inbound reply on a numbered Direct Outreach card does not auto-promote", async () => {
     tmpStore();
     const row = applyDirectOutreach(normalizeOpener({
       id: "do-reply",
@@ -1131,10 +1178,10 @@ describe("Direct Outreach nurture and reply", () => {
       async createContact() { return {}; },
     };
     expect(stopOpenerNurtureByEmail("ops@northpeak.co.uk", "reply", deps)?.status).toBe("direct_outreach");
-    await vi.waitFor(() => {
-      expect(getOpener(row.id)?.status).toBe("promoted");
-    });
-    expect(getOpener(row.id)?.prospectId).toBe(77);
+    await new Promise((r) => setTimeout(r, 40));
+    expect(getOpener(row.id)?.status).toBe("direct_outreach");
+    expect(getOpener(row.id)?.prospectId).toBeUndefined();
+    expect(prospects).toHaveLength(0);
   });
 
   it("inbound reply on Direct Outreach does not promote DNC or unnumbered cards", async () => {

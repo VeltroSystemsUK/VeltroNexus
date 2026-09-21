@@ -41,6 +41,18 @@ describe("sterling pack proposal gate", () => {
     expect(css).not.toMatch(/grid-template-columns: minmax\(320px, 400px\)/);
   });
 
+  it("keeps the working sheet off the lender zip and on David's desk", () => {
+    const pack = fs.readFileSync(path.resolve("server/services/sterlingPack.ts"), "utf8");
+    expect(pack).not.toMatch(/Working_Sheet/);
+    expect(pack).not.toMatch(/workingSheetHtml/);
+    const route = fs.readFileSync(path.resolve("server/routes/brokerPortal.ts"), "utf8");
+    expect(route).toMatch(/workingSheet/);
+    const ui = fs.readFileSync(path.resolve("client/src/pages/sterling/SterlingFile.tsx"), "utf8");
+    expect(ui).toMatch(/sterling-tab-working/);
+    expect(ui).toMatch(/working-copy-/);
+    expect(ui).not.toMatch(/working\.html/);
+  });
+
   it("gates Sterling HTML the same as PDF", () => {
     const src = fs.readFileSync(path.resolve("server/services/sterlingPack.ts"), "utf8");
     const htmlFn = src.slice(src.indexOf("export function sterlingReportHtml"));

@@ -95,6 +95,7 @@ router.get("/api/broker-portal/handoffs/:id", isAuthenticated, canUseSterlingPor
       status: handoff.status || "awaiting_recommendation",
       recommendation: handoff.recommendation || "",
       copy: sterlingCopyForHandoff(handoff, ctx.diligence as any),
+      workingSheet: ctx.workingSheet,
       returnNote: handoff.returnNote || "",
       approvedLenderId: handoff.approvedLenderId || null,
       companyName: ctx.prospect.company.companyName,

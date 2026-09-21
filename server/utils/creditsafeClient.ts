@@ -100,6 +100,22 @@ export interface CreditsafeCompanyResult {
     status?: string;
 }
 
+export function creditsafeSnapshotFromReport(creditsafeId: string, data: unknown) {
+    const rating = (data as { report?: { companySummary?: { creditRating?: {
+        commonValue?: string | number;
+        commonDescription?: string;
+        creditLimit?: { value?: string | number };
+    } } } })?.report?.companySummary?.creditRating;
+    const limitValue = parseFloat(String(rating?.creditLimit?.value ?? ""));
+    return {
+        creditsafeId,
+        score: rating?.commonValue != null ? String(rating.commonValue) : undefined,
+        rating: rating?.commonDescription ? String(rating.commonDescription) : undefined,
+        creditLimitPence: Number.isFinite(limitValue) ? Math.round(limitValue * 100) : null,
+        checkedAt: new Date().toISOString(),
+    };
+}
+
 export const creditsafeClient = {
     usage: creditsafeUsage,
 
@@ -112,8 +128,11 @@ export const creditsafeClient = {
     // Company search isn't metered against the 50-report cap — only view/pull
     // a report (getCompanyReport) actually spends one. UK-only — this trial
     // account has no international monitoring, no need for other countries.
-    async searchCompanies(name: string): Promise<CreditsafeCompanyResult[]> {
-        const params = new URLSearchParams({ countries: "GB", name });
+    async searchUk(opts: { name?: string; regNo?: string }): Promise<CreditsafeCompanyResult[]> {
+        const params = new URLSearchParams({ countries: "GB" });
+        if (opts.regNo) params.set("regNo", opts.regNo);
+        else if (opts.name) params.set("name", opts.name);
+        else return [];
         const response = await csFetch(`/companies?${params.toString()}`);
         if (!response.ok) {
             const text = await response.text();
@@ -127,6 +146,10 @@ export const creditsafeClient = {
             address: c.address,
             status: c.status,
         }));
+    },
+
+    async searchCompanies(name: string): Promise<CreditsafeCompanyResult[]> {
+        return this.searchUk({ name });
     },
 
     async getCompanyReport(companyId: string): Promise<any> {

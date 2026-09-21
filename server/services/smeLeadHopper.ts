@@ -14,7 +14,7 @@ import {
 import { rejectBeforeCharges } from "./strataFit";
 import { suppressionSets } from "./mailSuppression";
 import { emailMatchesCompany, isBlockedOutreachHost, isPersonalMailbox, outreachHost } from "@shared/pecrSend";
-import { canFirecrawlScrape, firecrawlAuthHeaders, firecrawlScrapeUrl } from "@shared/firecrawl";
+import { canFirecrawlScrape, firecrawlAuthHeaders, firecrawlScrapeUrl, firecrawlSearchUrl, parseFirecrawlSearchHits } from "@shared/firecrawl";
 import {
   companyDomainFromWebsite,
   contactMailboxGuesses,
@@ -67,7 +67,7 @@ export const GATED_SME_HUNT_HOLD = {
 export const HARVEST_AGENT_ID = "harvest";
 export const HARVEST_RETRY_MS = 24 * 60 * 60 * 1000;
 export const HARVEST_ATTACH_TIMEOUT_MS = 45 * 1000;
-export const HARVEST_PER_HOUR = 25;
+export const HARVEST_PER_HOUR = 100;
 export const HARVEST_FLUSH_EVERY = 1;
 
 export function isHarvestCandidate(
@@ -202,8 +202,6 @@ export class SmeAttachRateLimitError extends Error {
     this.name = "SmeAttachRateLimitError";
   }
 }
-
-const PLACES_TEXT_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json";
 
 export const ATTACH_FIRECRAWL_PATHS = ["/contact", "/", "/about", "/team"] as const;
 
@@ -432,24 +430,21 @@ export async function attachOne(
 
   if (stored) found.push({ email: stored, source: "ch" });
 
-  if (next.places > 0 && !website) {
-    next.places -= 1;
-    let place: AttachPlaceHit | null = null;
+  let domain = companyDomainFromWebsite(website);
+
+  if (deps.osint && !website && next.firecrawl > 0) {
+    next.firecrawl -= 1;
     try {
-      place = await deps.places(deal.companyName, deal.placeAddress);
-    } catch {
-      place = null;
-    }
-    if (place) {
-      if (place.website && !website && !isBlockedOutreachHost(outreachHost(place.website))) {
-        website = place.website;
+      const hit = await deps.osint(deal.companyName, deal.placeAddress);
+      if (hit.website && !isBlockedOutreachHost(outreachHost(hit.website))) {
+        website = hit.website;
+        domain = companyDomainFromWebsite(website);
       }
-      if (place.phone && !phone) phone = place.phone;
-      if (place.email) found.push({ email: place.email, source: "places" });
+      for (const candidate of hit.emails || []) found.push({ email: candidate, source: "osint" });
+    } catch {
+      // search is optional
     }
   }
-
-  let domain = companyDomainFromWebsite(website);
 
   if (website && next.firecrawl > 0 && (!stored || isPersonalMailbox(stored))) {
     next.firecrawl -= 1;
@@ -467,19 +462,6 @@ export async function attachOne(
       for (const candidate of await deps.wayback(website)) found.push({ email: candidate, source: "wayback" });
     } catch {
       // archive is optional
-    }
-  }
-
-  if (deps.osint && (!domain || !found.length)) {
-    try {
-      const hit = await deps.osint(deal.companyName, deal.placeAddress);
-      if (hit.website && !website && !isBlockedOutreachHost(outreachHost(hit.website))) {
-        website = hit.website;
-        domain = companyDomainFromWebsite(website);
-      }
-      for (const candidate of hit.emails || []) found.push({ email: candidate, source: "osint" });
-    } catch {
-      // search is optional
     }
   }
 
@@ -731,14 +713,10 @@ function canAttachWithBudget(deal: AgenticDealFile, budget: AttachBudget): boole
   const email = String(deal.email || "").trim();
   if (email) return true;
 
-  if (budget.places > 0) return true;
-  if (deal.website && (budget.firecrawl > 0 || budget.smtp > 0)) return true;
+  if (budget.firecrawl > 0) return true;
+  if (deal.website && budget.smtp > 0) return true;
   if (!deal.website && (hasNames || budget.ch > 0)) return true;
   return false;
-}
-
-function placesApiKey(): string | undefined {
-  return process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API || process.env.GOOGLE_MAPS_API_KEY;
 }
 
 export function liveAttachDeps(): AttachDeps {
@@ -760,34 +738,8 @@ export function liveAttachDeps(): AttachDeps {
         return [];
       }
     },
-    async places(companyName: string, address?: string) {
-      const key = placesApiKey();
-      if (!key) return null;
-      const query = [companyName, address].filter(Boolean).join(" ");
-      const response = await fetch(`${PLACES_TEXT_URL}?query=${encodeURIComponent(query)}&key=${key}`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!response.ok) return null;
-      const data = await response.json();
-      const top = data.results?.[0];
-      if (!top) return null;
-      let phone: string | undefined;
-      let website: string | undefined;
-      if (top.place_id) {
-        try {
-          const detailsRes = await fetch(
-            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(top.place_id)}&fields=formatted_phone_number,international_phone_number,website&key=${key}`,
-            { signal: AbortSignal.timeout(8000) }
-          );
-          const details = detailsRes.ok ? await detailsRes.json() : null;
-          const result = details?.result;
-          phone = result?.international_phone_number || result?.formatted_phone_number;
-          website = result?.website;
-        } catch {
-          // details are optional
-        }
-      }
-      return { website, phone };
+    async places() {
+      return null;
     },
     async firecrawl(website: string) {
       if (!website) return [];
@@ -850,38 +802,25 @@ export function liveAttachDeps(): AttachDeps {
       }
     },
     async osint(companyName: string) {
-      const { companyEmailSearchQuery, harvestFromSearchSnippets } = await import("@shared/mailboxOsint");
-      const query = companyEmailSearchQuery(companyName);
+      const { companyWebsiteSearchQuery, harvestFromSearchSnippets } = await import("@shared/mailboxOsint");
+      const query = companyWebsiteSearchQuery(companyName);
       const snippets: string[] = [];
-      const key = process.env.FIRECRAWL_API_KEY?.trim();
-      if (key) {
+      if (canFirecrawlScrape()) {
         try {
-          const resp = await fetch("https://api.firecrawl.dev/v1/search", {
+          const resp = await fetch(firecrawlSearchUrl(), {
             method: "POST",
-            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+            headers: firecrawlAuthHeaders(),
             body: JSON.stringify({ query, limit: 5 }),
             signal: AbortSignal.timeout(12000),
           });
           if (resp.ok) {
             const payload = await resp.json();
-            const rows = payload?.data || payload?.web || [];
-            for (const row of rows) {
+            for (const row of parseFirecrawlSearchHits(payload)) {
               snippets.push([row.title, row.description, row.url, row.markdown].filter(Boolean).join("\n"));
             }
           }
         } catch {
           // search is optional
-        }
-      }
-      if (!snippets.length) {
-        try {
-          const resp = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-            signal: AbortSignal.timeout(10000),
-            headers: { "User-Agent": "Mozilla/5.0 StrataHarvest/1.0" },
-          });
-          if (resp.ok) snippets.push(await resp.text());
-        } catch {
-          // ignore
         }
       }
       const hit = harvestFromSearchSnippets({ companyName, snippets });

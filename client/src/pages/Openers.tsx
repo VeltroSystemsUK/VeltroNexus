@@ -446,7 +446,8 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
       ? "Sent successfully, not opened, not bounced, not unsubscribed"
       : "Companies that opened Agent Mail"
   );
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const inSterling = location.startsWith("/broker-portal");
   const [search, setSearch] = useState("");
   const [hasChNumber, setHasChNumber] = useState(false);
   const [onPipelineOnly, setOnPipelineOnly] = useState(false);
@@ -550,7 +551,7 @@ export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
       invalidate();
       queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       toast.success(result.created ? "Opened on the Deck" : "Already on the Deck");
-      setLocation("/pipeline");
+      setLocation(inSterling ? "/broker-portal/pipeline" : "/pipeline");
     },
     onError: (err: Error) => toast.error(mutationError(err)),
   });

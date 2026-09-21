@@ -89,11 +89,11 @@ describe("openers routes", () => {
     expect(desk).toMatch(/stopOpenerNurtureByEmail/);
   });
 
-  it("sixth unique email auto-promotes from the board load and from outbound log", () => {
+  it("board load and outbound log do not auto-promote onto Pipeline", () => {
     const routes = fs.readFileSync(path.resolve("server/routes/openers.ts"), "utf8");
-    expect(routes).toMatch(/autoPromoteEligibleOpeners/);
+    expect(routes).not.toMatch(/autoPromoteEligibleOpeners/);
     const log = fs.readFileSync(path.resolve("server/services/agentMailLog.ts"), "utf8");
-    expect(log).toMatch(/autoPromoteEligibleOpeners/);
+    expect(log).not.toMatch(/autoPromoteEligibleOpeners/);
   });
 
   it("mounts openersRouter next to agent mail", () => {
@@ -118,9 +118,9 @@ describe("openers routes", () => {
     expect(log).toMatch(/upsertNonResponsiveFromMail/);
   });
 
-  it("allows super_admin and sales_admin on the openers API", () => {
+  it("allows super_admin, sales_admin, and David on the openers API", () => {
     const src = fs.readFileSync(path.resolve("server/routes/openers.ts"), "utf8");
-    expect(src).toMatch(/role !== "super_admin" && role !== "sales_admin"/);
+    expect(src).toMatch(/isSterlingPortalRole/);
     expect(src).toMatch(/requireOpenersAccess/);
     expect(src).not.toMatch(/requireSuperAdmin/);
   });

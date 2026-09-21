@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ImageIcon, Loader2 } from "lucide-react";
@@ -23,6 +23,29 @@ type CraftPayload = {
   briefing?: { packHtml?: string | null; filledSlides?: FilledSlide[]; token?: string };
 };
 
+const PACK_EDIT_SELECTORS =
+  "h1, h2, .copy, .eyebrow, .path small, .cta-button, .friction-item p, .friction-item strong, [data-company], [data-industry], .path strong, .cta .copy, .site-body strong, .site-body small, .leak-labels span, .leak-hint, .brand, .veltro-brand, .metric b, .metric span, .engine-core span, .pressure-label span";
+
+function enablePackEditing(doc: Document) {
+  if (doc.getElementById("staff-pack-edit")) return;
+  const style = doc.createElement("style");
+  style.id = "staff-pack-edit";
+  style.textContent =
+    '[contenteditable="true"]{cursor:text;outline:1px dashed rgba(185,243,90,.7);}[contenteditable="true"]:focus{outline:2px solid #b9f35a;background:rgba(185,243,90,.08);}';
+  doc.head.appendChild(style);
+  doc.querySelectorAll(PACK_EDIT_SELECTORS).forEach((el) => {
+    const node = el as HTMLElement;
+    if (node.tagName === "A" || node.closest("a")) return;
+    node.contentEditable = "true";
+  });
+}
+
+function htmlFromPackDocument(doc: Document): string {
+  doc.querySelectorAll("[contenteditable]").forEach((el) => el.removeAttribute("contenteditable"));
+  doc.getElementById("staff-pack-edit")?.remove();
+  return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+}
+
 async function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -41,6 +64,8 @@ export default function CraftBriefing() {
   const [pageUrl, setPageUrl] = useState<string | null>(null);
   const [converted, setConverted] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [workspace, setWorkspace] = useState<"pack" | "design">("pack");
+  const packFrameRef = useRef<HTMLIFrameElement | null>(null);
   const openDocument = useCraftStore((state) => state.openDocument);
   const close = useCraftStore((state) => state.close);
 
@@ -118,6 +143,22 @@ export default function CraftBriefing() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const savePackEdits = useMutation({
+    mutationFn: async () => {
+      const doc = packFrameRef.current?.contentDocument;
+      if (!doc?.documentElement) throw new Error("Open the pack first");
+      const html = htmlFromPackDocument(doc);
+      const res = await apiRequest(`/api/openers/${openerId}/briefing/html`, "POST", { html });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/openers", openerId, "briefing", "craft"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/openers"] });
+      toast.success("Edits saved");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const createPage = useMutation({
     mutationFn: async () => {
       const res = await apiRequest(`/api/openers/${openerId}/briefing/page`, "POST");
@@ -141,7 +182,10 @@ export default function CraftBriefing() {
   };
 
   const mergeTags = ["companyName", "dwellLine", "filings", "hypothesis", "mechanism"] as const;
-  const packReady = converted || Boolean(craftQuery.data?.briefing?.packHtml);
+  const packHtml = craftQuery.data?.briefing?.packHtml || "";
+  const packReady = converted || Boolean(packHtml);
+  const showPack = Boolean(packHtml) && workspace === "pack";
+  const showDesign = !packHtml || workspace === "design";
 
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col overflow-hidden">
@@ -158,10 +202,47 @@ export default function CraftBriefing() {
             Back to contact
           </Button>
           <p className="text-sm font-medium" data-testid="label-design-briefing">
-            Design briefing
+            {showPack ? "Briefing pack" : "Design briefing"}
             {craftQuery.data?.bind?.companyName ? ` · ${craftQuery.data.bind.companyName}` : ""}
           </p>
+          {packHtml ? (
+            <div className="flex items-center gap-1 rounded-md border border-white/15 p-0.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={showPack ? "secondary" : "ghost"}
+                className="h-7"
+                data-testid="tab-briefing-pack"
+                onClick={() => setWorkspace("pack")}
+              >
+                Pack
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={showDesign ? "secondary" : "ghost"}
+                className="h-7"
+                data-testid="tab-briefing-design"
+                onClick={() => setWorkspace("design")}
+              >
+                Design
+              </Button>
+            </div>
+          ) : null}
+          {showPack ? (
+            <Button
+              type="button"
+              size="sm"
+              data-testid="btn-save-pack-edits"
+              disabled={savePackEdits.isPending}
+              onClick={() => savePackEdits.mutate()}
+            >
+              {savePackEdits.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save edits
+            </Button>
+          ) : null}
         </div>
+        {showDesign ? (
         <div className="flex flex-wrap items-center gap-2">
           {mergeTags.map((tag) => (
             <Button
@@ -176,7 +257,10 @@ export default function CraftBriefing() {
             </Button>
           ))}
         </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
+          {showDesign ? (
+            <>
           <Input
             data-testid="input-briefing-site-url"
             placeholder="https://their-site.co.uk"
@@ -216,6 +300,8 @@ export default function CraftBriefing() {
             {convertHtml.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Convert to HTML
           </Button>
+            </>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -269,6 +355,18 @@ export default function CraftBriefing() {
               Back to Openers
             </Button>
           </div>
+        ) : showPack ? (
+          <iframe
+            ref={packFrameRef}
+            data-testid="iframe-house-pack"
+            title="Briefing pack"
+            className="h-full w-full border-0 bg-black"
+            srcDoc={packHtml}
+            onLoad={(event) => {
+              const doc = event.currentTarget.contentDocument;
+              if (doc) enablePackEditing(doc);
+            }}
+          />
         ) : (
           <CraftView onClose={() => setLocation("/openers")} />
         )}

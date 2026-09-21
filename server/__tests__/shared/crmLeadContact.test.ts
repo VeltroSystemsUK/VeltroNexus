@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   annotateCrmLeads,
+  applyHarvestToCrmLead,
+  applyMailboxToCrmLead,
   campaignRecipientCountsAsContacted,
   emailsOnCrmLead,
+  isCrmHarvestCandidate,
 } from "@shared/crmLeadContact";
 
 const lead = (over: Record<string, unknown> = {}) => ({
@@ -164,5 +167,130 @@ describe("annotateCrmLeads", () => {
     });
     expect(row.bounced).toBe(false);
     expect(row.doNotContact).toBe(false);
+  });
+});
+
+describe("applyMailboxToCrmLead", () => {
+  it("sets a harvested mailbox as the card email when Clients has none", () => {
+    const next = applyMailboxToCrmLead(lead({ email: undefined, contacts: [] }), {
+      email: "info@pdfiresafety.com",
+      contactName: "Pat Fire",
+    });
+    expect(next.changed).toBe(true);
+    expect(next.email).toBe("info@pdfiresafety.com");
+    expect(next.contactName).toBe("Pat Fire");
+    expect(emailsOnCrmLead({ ...lead({ email: undefined, contacts: [] }), ...next })).toContain(
+      "info@pdfiresafety.com",
+    );
+  });
+
+  it("keeps an existing card email and adds the harvested mailbox as a contact", () => {
+    const next = applyMailboxToCrmLead(lead({ email: "ops@northpeak.co.uk", contacts: [] }), {
+      email: "ada@northpeak.co.uk",
+      contactName: "Ada Peak",
+    });
+    expect(next.changed).toBe(true);
+    expect(next.email).toBe("ops@northpeak.co.uk");
+    expect(next.contacts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ email: "ada@northpeak.co.uk", name: "Ada Peak" })]),
+    );
+  });
+
+  it("is a no-op when the mailbox is already on the card", () => {
+    const next = applyMailboxToCrmLead(lead(), { email: "ops@northpeak.co.uk" });
+    expect(next.changed).toBe(false);
+    expect(next.email).toBe("ops@northpeak.co.uk");
+  });
+
+  it("is a no-op when the mailbox is already a contact, including JSON contacts", () => {
+    const next = applyMailboxToCrmLead(
+      lead({ contacts: JSON.stringify([{ email: "adam@northpeak.co.uk" }]) }),
+      { email: "Adam Peak <adam@northpeak.co.uk>" },
+    );
+    expect(next.changed).toBe(false);
+  });
+
+  it("ignores a blank or invalid mailbox", () => {
+    expect(applyMailboxToCrmLead(lead({ email: undefined, contacts: [] }), { email: "" }).changed).toBe(false);
+    expect(applyMailboxToCrmLead(lead({ email: undefined, contacts: [] }), { email: "not-an-email" }).changed).toBe(
+      false,
+    );
+  });
+
+  it("lets annotateCrmLeads mark the card contacted after the mailbox is written back", () => {
+    const blank = lead({ email: undefined, contacts: [] });
+    const next = applyMailboxToCrmLead(blank, { email: "info@pdfiresafety.com" });
+    const [row] = annotateCrmLeads([{ ...blank, email: next.email, contacts: next.contacts }], {
+      mail: [mail({ to: "info@pdfiresafety.com" })],
+      recipients: [],
+      suppression: [],
+    });
+    expect(row.contacted).toBe(true);
+  });
+});
+
+describe("isCrmHarvestCandidate", () => {
+  it("selects a Clients lead with a company number and no mailbox", () => {
+    expect(
+      isCrmHarvestCandidate(lead({ email: undefined, contacts: [], companyNumber: "01234567" })),
+    ).toBe(true);
+  });
+
+  it("skips leads that already have a mailbox, no company number, or do-not-contact", () => {
+    expect(isCrmHarvestCandidate(lead())).toBe(false);
+    expect(isCrmHarvestCandidate(lead({ email: undefined, contacts: [], companyNumber: "" }))).toBe(false);
+    expect(
+      isCrmHarvestCandidate(
+        lead({ email: undefined, contacts: [], companyNumber: "01234567", doNotContact: true }),
+      ),
+    ).toBe(false);
+  });
+
+  it("still hunts after a hard bounce, but not while waiting or after the attach cap", () => {
+    expect(
+      isCrmHarvestCandidate(lead({ bounced: true })),
+    ).toBe(true);
+    expect(
+      isCrmHarvestCandidate(lead({ email: undefined, contacts: [] }), { attempts: 6 }),
+    ).toBe(false);
+    expect(
+      isCrmHarvestCandidate(lead({ email: undefined, contacts: [] }), {
+        waitUntil: "2099-01-01T00:00:00.000Z",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("applyHarvestToCrmLead", () => {
+  it("writes directors as contacts and the harvested mailbox onto a blank Clients card", () => {
+    const next = applyHarvestToCrmLead(lead({ email: undefined, contactName: undefined, contacts: [] }), {
+      email: "ada@northpeak.co.uk",
+      contactName: "Ada Lovelace",
+      directorNames: ["Ada Lovelace", "Charles Babbage"],
+      website: "https://northpeak.co.uk",
+      phone: "0121 000 0000",
+    });
+    expect(next.changed).toBe(true);
+    expect(next.email).toBe("ada@northpeak.co.uk");
+    expect(next.contactName).toBe("Ada Lovelace");
+    expect(next.website).toBe("https://northpeak.co.uk");
+    expect(next.phone).toBe("0121 000 0000");
+    expect(next.contacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Ada Lovelace", role: "Director" }),
+        expect.objectContaining({ name: "Charles Babbage", role: "Director" }),
+      ]),
+    );
+  });
+
+  it("does not duplicate directors already on the card", () => {
+    const next = applyHarvestToCrmLead(
+      lead({
+        email: undefined,
+        contacts: [{ name: "Ada Lovelace", role: "Director" }],
+      }),
+      { directorNames: ["Ada Lovelace"] },
+    );
+    expect(next.contacts.filter((row) => /ada lovelace/i.test(row.name || ""))).toHaveLength(1);
   });
 });

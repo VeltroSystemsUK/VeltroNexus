@@ -16,6 +16,7 @@ import {
 } from "@shared/openers";
 import { lastMailOpenAt } from "@shared/mailTracking";
 import { isAuthenticated } from "../auth";
+import { isSterlingPortalRole } from "@shared/sterlingPortal";
 import { handleApiError } from "../utils/errorHandler";
 import { listAgentMail, type AgentMailItem } from "../services/agentMailLog";
 import {
@@ -37,7 +38,6 @@ import { mergeFieldsFromBind } from "@shared/briefingCraft";
 import { loadSuppression } from "../services/mailSuppression";
 import {
   attachCompanyNumber,
-  autoPromoteEligibleOpeners,
   checkOpenerCreditsafe,
   currentOpenerPipelineCompanyNumbers,
   enrichOpener,
@@ -62,8 +62,7 @@ const NURTURE_ACTIONS = ["start", "approve", "skip", "stop", "touch2", "closer"]
 type NurtureAction = (typeof NURTURE_ACTIONS)[number];
 
 function requireOpenersAccess(req: Request, res: Response, next: NextFunction) {
-  const role = (req.user as any)?.role;
-  if (role !== "super_admin" && role !== "sales_admin") {
+  if (!isSterlingPortalRole((req.user as any)?.role)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   next();
@@ -130,10 +129,6 @@ router.get("/api/openers", isAuthenticated, requireOpenersAccess, async (req, re
       .filter((row) => /hard bounce/i.test(String(row.reason || "")))
       .map((row) => row.email);
     hydrateFromAgentMail(mail, undefined, { optOutEmails, bounceEmails });
-    await autoPromoteEligibleOpeners(mail, {
-      optOutEmails,
-      userId: String((req.user as any)?.id || ""),
-    });
     const desk: OpenerDesk = req.query.desk === "non_responsive" ? "non_responsive" : "openers";
     let openers = listOpeners().filter((opener) => openerBelongsToDesk(opener, desk));
     if (desk === "openers") openers = openers.filter(openerOnOpenersBoard);

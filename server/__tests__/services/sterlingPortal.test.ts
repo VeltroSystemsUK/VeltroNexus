@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import {
   attachmentCategoryFromFilename,
@@ -8,6 +10,10 @@ import {
   isSterlingOversightRole,
   isSterlingPortalRole,
   parseSterlingSettings,
+  postLoginPath,
+  seesAllProspects,
+  STERLING_DAILY_NAV,
+  sterlingNavActive,
   sterlingPackLines,
 } from "@shared/sterlingPortal";
 
@@ -19,6 +25,61 @@ describe("sterling portal helpers", () => {
     expect(isSterlingPortalRole("broker")).toBe(false);
     expect(isSterlingOversightRole("super_admin")).toBe(true);
     expect(isSterlingOversightRole("external_broker")).toBe(false);
+  });
+
+  it("lands David on Cases, not the pipeline dashboard", () => {
+    expect(postLoginPath("external_broker")).toBe("/broker-portal");
+    expect(postLoginPath("sales_admin")).toBe("/broker-portal");
+    expect(postLoginPath("underwriter")).toBe("/underwriting");
+    expect(postLoginPath("super_admin")).toBe("/pipeline");
+    expect(postLoginPath("broker")).toBe("/pipeline");
+  });
+
+  it("gives David the live org pipeline, not his empty personal list", () => {
+    expect(seesAllProspects("external_broker")).toBe(true);
+    expect(seesAllProspects("super_admin")).toBe(false);
+    expect(seesAllProspects("sales_admin")).toBe(false);
+    expect(seesAllProspects("broker")).toBe(false);
+  });
+
+  it("marks Cases, Pipeline, Agent Mail, and Openers in the Sterling chrome", () => {
+    expect(STERLING_DAILY_NAV.map((item) => item.path)).toEqual([
+      "/broker-portal",
+      "/broker-portal/pipeline",
+      "/broker-portal/agent-mail",
+      "/broker-portal/openers",
+    ]);
+    expect(sterlingNavActive("/broker-portal", "/broker-portal")).toBe(true);
+    expect(sterlingNavActive("/broker-portal/12", "/broker-portal")).toBe(true);
+    expect(sterlingNavActive("/broker-portal/pipeline", "/broker-portal")).toBe(false);
+    expect(sterlingNavActive("/broker-portal/pipeline", "/broker-portal/pipeline")).toBe(true);
+    expect(sterlingNavActive("/broker-portal/agent-mail", "/broker-portal/agent-mail")).toBe(true);
+    expect(sterlingNavActive("/broker-portal/openers", "/broker-portal/openers")).toBe(true);
+  });
+
+  it("puts a labelled Sterling portal link on the rail and pipeline dashboard", () => {
+    const nav = fs.readFileSync(path.resolve("client/src/components/shell/navModel.ts"), "utf8");
+    expect(nav).toMatch(/const LENS_PATHS = \[\s*"\/broker-portal"/);
+    expect(nav).toMatch(/path: "\/broker-portal".*roles: \["super_admin", "sales_admin", "external_broker"\]/);
+    const pipeline = fs.readFileSync(path.resolve("client/src/pages/Pipeline.tsx"), "utf8");
+    expect(pipeline).toMatch(/data-testid="link-sterling-portal"/);
+    const shell = fs.readFileSync(path.resolve("client/src/pages/sterling/SterlingShell.tsx"), "utf8");
+    expect(shell).toMatch(/data-testid="link-sterling-home"/);
+    expect(shell).toMatch(/STERLING_DAILY_NAV/);
+    expect(shell).toMatch(/data-testid=\{item\.testId\}/);
+  });
+
+  it("registers Pipeline, Agent Mail, and Openers on the Sterling portal before :id", () => {
+    const app = fs.readFileSync(path.resolve("client/src/App.tsx"), "utf8");
+    for (const pathName of ["/broker-portal/pipeline", "/broker-portal/agent-mail", "/broker-portal/openers"]) {
+      const desk = app.indexOf(`path="${pathName}"`);
+      const file = app.indexOf('path="/broker-portal/:id"');
+      expect(desk).toBeGreaterThan(-1);
+      expect(desk).toBeLessThan(file);
+    }
+    const prospects = fs.readFileSync(path.resolve("server/routes/prospects.ts"), "utf8");
+    expect(prospects).toMatch(/seesAllProspects/);
+    expect(prospects).toMatch(/listAllProspects/);
   });
 
   it("recognises the four send lenders and rejects others", () => {

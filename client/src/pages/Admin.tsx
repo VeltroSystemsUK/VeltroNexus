@@ -769,6 +769,7 @@ export default function Admin() {
                   <SelectItem value="broker">Broker</SelectItem>
                   <SelectItem value="underwriter">Underwriter</SelectItem>
                   <SelectItem value="sales_admin">Sales Admin</SelectItem>
+                  <SelectItem value="external_broker">Sterling partner</SelectItem>
                   <SelectItem value="super_admin">Super Admin</SelectItem>
                 </SelectContent>
               </Select>

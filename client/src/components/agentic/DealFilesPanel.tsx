@@ -57,7 +57,6 @@ function QualityStrip({
 }) {
   const apis: Array<[string, number, number]> = [
     ["CH", quality.budget.remaining.ch, quality.budget.total.ch],
-    ["Places", quality.budget.remaining.places, quality.budget.total.places],
     ["Firecrawl", quality.budget.remaining.firecrawl, quality.budget.total.firecrawl],
     ["MX", quality.budget.remaining.smtp, quality.budget.total.smtp],
   ];

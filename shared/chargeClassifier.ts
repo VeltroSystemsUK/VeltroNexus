@@ -33,6 +33,7 @@ function norm(name: string): string {
 export function isBankOrBuildingSocietyChargee(name: string): boolean {
   const n = norm(name);
   if (!n) return false;
+  if (n.includes("NATIONWIDE FINANCE")) return false;
   return BANK_NEEDLES.some((needle) => n.includes(needle));
 }
 

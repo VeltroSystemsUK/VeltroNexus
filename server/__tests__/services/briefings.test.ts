@@ -491,7 +491,7 @@ describe("public pack dwell and auto-promote", () => {
     expect(html).not.toMatch(/North Peak/);
   });
 
-  it("first dwell promotes; staff session does not", async () => {
+  it("first dwell records and does not promote; staff session does not record", async () => {
     const opener = sampleOpener({ companyNumber: "08765432" });
     writeOpeners([opener]);
     const live = activateBriefing(createDraftBriefing(opener).id);
@@ -499,9 +499,11 @@ describe("public pack dwell and auto-promote", () => {
     expect(ignored.recorded).toBe(false);
     const first = await recordBriefingDwellAndPromote(live.token, { staffSession: false });
     expect(first.recorded).toBe(true);
-    expect(first.promoted).toBe(true);
+    expect(first.promoted).toBe(false);
+    expect(promoteOpener).not.toHaveBeenCalled();
     const second = await recordBriefingDwellAndPromote(live.token, { staffSession: false });
     expect(second.promoted).toBe(false);
+    expect(promoteOpener).not.toHaveBeenCalled();
   });
 
   it("live pack html waits MAIL_DWELL_MS then requests dwell.gif", () => {

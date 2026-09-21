@@ -1,6 +1,9 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import {
   fillMergeTags,
+  fillOutreachPackHtml,
   mergeFieldsFromBind,
   packHtmlFromPageImages,
   siteCopyToBullets,
@@ -14,6 +17,51 @@ describe("fillMergeTags", () => {
     expect(
       fillMergeTags("Note for {{companyName}}. {{mystery}}", { companyName: "North Peak Ltd" })
     ).toBe("Note for North Peak Ltd. {{mystery}}");
+  });
+});
+
+describe("fillOutreachPackHtml", () => {
+  it("fills camelCase, Gemini, and visible COMPANY NAME / INDUSTRY slots", () => {
+    const html = `<span data-company>COMPANY NAME</span>
+<em data-industry>INDUSTRY</em>
+<p>{{companyName}} in the {{industry}} space</p>
+<p>{{COMPANY_NAME}} / {{INDUSTRY}}</p>
+<img src="brand/logo/strata-logo-light.svg">`;
+    const filled = fillOutreachPackHtml(html, {
+      companyName: "North Peak Ltd",
+      industry: "construction",
+    });
+    expect(filled).toContain("North Peak Ltd");
+    expect(filled).toContain("construction");
+    expect(filled).not.toContain("COMPANY NAME");
+    expect(filled).not.toContain(">INDUSTRY<");
+    expect(filled).not.toContain("{{companyName}}");
+    expect(filled).not.toContain("{{COMPANY_NAME}}");
+    expect(filled).toContain("/brand/logo/strata-logo-light.svg");
+  });
+
+  it("fills the customer-visual-aids house pack", () => {
+    const src = fs.readFileSync(path.resolve("customer-visual-aids.html"), "utf8");
+    const filled = fillOutreachPackHtml(src, {
+      companyName: "North Peak Ltd",
+      industry: "construction",
+    });
+    expect(src).toMatch(/data-company/);
+    expect(src).toMatch(/data-industry/);
+    expect(filled).toMatch(/data-company>North Peak Ltd/);
+    expect(filled).toMatch(/data-industry>construction/);
+    expect(filled).not.toMatch(/data-company>\{\{/);
+    expect(filled).not.toMatch(/data-industry>\{\{/);
+    expect(filled).not.toMatch(/data-company>COMPANY NAME/);
+    expect(filled).not.toMatch(/>INDUSTRY</);
+    expect(filled).toMatch(/briefing-pack/);
+    expect(src).toMatch(/\.nav \{[^}]*background:#07131f/);
+    expect(src).toMatch(/\.dot\.active \{ background:#b9f35a/);
+    expect(src).toMatch(/5\.75rem/);
+    expect(src).toMatch(/data-pack-nav="v3"/);
+    expect(src).toMatch(/class="cta-button"[^>]*target="_blank"/);
+    expect(filled).toMatch(/href="https:\/\/www\.stratafinance\.co\.uk\/#tools"[^>]*target="_blank"/);
+    expect(filled).toMatch(/href="https:\/\/veltro\.co\.uk\/#contact"[^>]*target="_blank"/);
   });
 });
 

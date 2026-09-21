@@ -1045,23 +1045,11 @@ export function isDoNotContactOpener(
 }
 
 export function shouldAutoPromoteOpener(
-  opener: OpenerRecord,
-  mail: OpenerOutboundMail[] = [],
-  optOutEmails?: Iterable<string>
+  _opener: OpenerRecord,
+  _mail: OpenerOutboundMail[] = [],
+  _optOutEmails?: Iterable<string>
 ): boolean {
-  if (opener.status === "promoted" || opener.status === "non_responsive") return false;
-  if (!canPromoteOpener(opener)) return false;
-  if (isDoNotContactOpener(opener)) return false;
-  if (optOutEmails) {
-    const blocked = new Set([...optOutEmails].map(normalizeEmail).filter(Boolean));
-    const hit = [opener.email, ...(opener.emails || [])].some((email) =>
-      blocked.has(normalizeEmail(email))
-    );
-    if (hit) return false;
-  }
-  if (isConvertOpener(opener)) return false;
-  if (opener.nurture.promoteBlocked) return false;
-  return openerOutboundSentCount(opener, mail) > OPENER_AUTO_PROMOTE_AFTER_EMAILS;
+  return false;
 }
 
 export function canDragOpenerTo(opener: OpenerRecord, column: OpenerStatus): boolean {

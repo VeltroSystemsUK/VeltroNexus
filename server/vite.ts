@@ -44,7 +44,11 @@ export async function setupVite(app: Express, server: Server) {
     plugins: [pluginReact()],
     define: {
       process: JSON.stringify({
-        env: { LEARN_HOST: process.env.LEARN_HOST || "" },
+        env: {
+          LEARN_HOST: process.env.LEARN_HOST || "",
+          HELLO_HOST: process.env.HELLO_HOST || "",
+          HELLO_PUBLIC_URL: process.env.HELLO_PUBLIC_URL || "",
+        },
       }),
     },
     resolve: {

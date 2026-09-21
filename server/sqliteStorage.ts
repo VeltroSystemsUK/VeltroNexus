@@ -249,6 +249,10 @@ function stringifyLenderFields(lenderData: any): any {
   return formatted;
 }
 
+function isChargeRegisterPipelineDump(prospect: { referralSource?: string | null }): boolean {
+  return String(prospect.referralSource || "") === "CDFI Charge Register";
+}
+
 function parseProspect(prospect: any): any {
   if (!prospect) return prospect;
   return {
@@ -386,7 +390,17 @@ export class SQLiteStorage implements IStorage {
       query = db.select().from(prospects).where(and(eq(prospects.userId, userId), eq(prospects.stage, status)));
     }
     const results = await query;
-    return Promise.all(results.map(async (p) => {
+    return Promise.all(
+      results.filter((p) => !isChargeRegisterPipelineDump(p)).map(async (p) => {
+      const company = await this.getCompanyById(p.companyId);
+      return { ...parseProspect(p), company } as ProspectWithCompany;
+    }));
+  }
+
+  async listAllProspects(): Promise<ProspectWithCompany[]> {
+    const results = await db.select().from(prospects);
+    return Promise.all(
+      results.filter((p) => !isChargeRegisterPipelineDump(p)).map(async (p) => {
       const company = await this.getCompanyById(p.companyId);
       return { ...parseProspect(p), company } as ProspectWithCompany;
     }));
@@ -394,7 +408,7 @@ export class SQLiteStorage implements IStorage {
 
   async countProspects(userId: string): Promise<number> {
     const results = await db.select().from(prospects).where(eq(prospects.userId, userId));
-    return results.length;
+    return results.filter((p) => !isChargeRegisterPipelineDump(p)).length;
   }
 
   async getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined> {
@@ -417,6 +431,11 @@ export class SQLiteStorage implements IStorage {
     if (prospect.savedAssociations) (formatted as any).savedAssociations = JSON.stringify(prospect.savedAssociations);
     if (prospect.loanRequirementData) (formatted as any).loanRequirementData = JSON.stringify(prospect.loanRequirementData);
     if (prospect.researchData) (formatted as any).researchData = JSON.stringify(prospect.researchData);
+
+    if (isChargeRegisterPipelineDump(formatted)) {
+      console.warn("[Pipeline] refused CDFI Charge Register dump; Clients only");
+      return parseProspect({ ...formatted, userId }) as Prospect;
+    }
 
     const [newProspect] = await db.insert(prospects).values({ 
       ...formatted, 

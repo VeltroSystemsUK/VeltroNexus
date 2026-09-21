@@ -6,6 +6,11 @@ export function companyEmailSearchQuery(companyName: string): string {
   return `"${name}" (email OR enquiries OR contact) -endole -companieshouse -yell -"find-and-update"`;
 }
 
+export function companyWebsiteSearchQuery(companyName: string): string {
+  const name = String(companyName || "").trim();
+  return `"${name}" (website OR www OR "official site") -site:gov.uk -endole -yell -companieshouse -"find-and-update"`;
+}
+
 const URL_RE = /https?:\/\/[^\s<>"']+|www\.[^\s<>"']+/gi;
 
 export function harvestFromSearchSnippets(opts: {

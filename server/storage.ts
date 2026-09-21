@@ -201,6 +201,7 @@ export interface IStorage {
 
   // Prospects
   listProspects(userId: string, status?: string): Promise<ProspectWithCompany[]>; // Added for Pipeline Driver
+  listAllProspects(): Promise<ProspectWithCompany[]>;
   countProspects(userId: string): Promise<number>;
   getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined>;
   getProspectById(id: number): Promise<ProspectWithCompany | undefined>;

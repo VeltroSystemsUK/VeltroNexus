@@ -83,6 +83,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InternalLead, Commission, User } from "@shared/schema";
+import { annotateLenderCost, type LenderBand } from "@shared/lenderCost";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
@@ -96,6 +97,19 @@ type CrmLead = InternalLead & {
     doNotContact?: boolean;
     bounced?: boolean;
     bounceReason?: string;
+    lenderCost?: number;
+    lenderBand?: LenderBand;
+};
+
+type SortKey = keyof InternalLead | "lenderCost" | "none";
+
+const COST_BAND_LABEL: Record<LenderBand, string> = {
+    mca: "MCA",
+    high_cost: "High cost",
+    specialist: "Specialist",
+    high_street: "High street",
+    property: "Property",
+    unknown: "Unknown",
 };
 
 export default function GodModeCRM() {
@@ -107,9 +121,10 @@ export default function GodModeCRM() {
     const [sicFilter, setSicFilter] = useState<string>("all");
     const [chargeFilter, setChargeFilter] = useState<string>("all");
     const [lenderFilter, setLenderFilter] = useState<string>("all");
+    const [costFilter, setCostFilter] = useState<string>("all");
     const [contactFilter, setContactFilter] = useState<string>("all");
     const [lenderOpen, setLenderOpen] = useState(false);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof InternalLead | "none", direction: "asc" | "desc" }>({ key: "none", direction: "desc" });
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey, direction: "asc" | "desc" }>({ key: "lenderCost", direction: "desc" });
     const [currentPage, setCurrentPage] = useState(1);
 
     const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set());
@@ -296,12 +311,17 @@ export default function GodModeCRM() {
         { id: "churned", label: "Lost/Churned", color: "bg-red-500/10 border-red-500/20 text-red-500" },
     ];
 
-    const cities = useMemo(() => Array.from(new Set(leads.map(l => l.city).filter(Boolean))) as string[], [leads]);
-    const leadSicCodes = useMemo(() => Array.from(new Set(leads.map(l => l.sicCode).filter(Boolean))) as string[], [leads]);
-    const lenders = useMemo(() => Array.from(new Set(leads.map(l => l.identifiedLender).filter((l): l is string => !!l))).sort((a, b) => a.localeCompare(b)), [leads]);
+    const scoredLeads = useMemo(
+        () => (leads.some((lead) => lead.lenderBand) ? leads : annotateLenderCost(leads)),
+        [leads],
+    );
+
+    const cities = useMemo(() => Array.from(new Set(scoredLeads.map(l => l.city).filter(Boolean))) as string[], [scoredLeads]);
+    const leadSicCodes = useMemo(() => Array.from(new Set(scoredLeads.map(l => l.sicCode).filter(Boolean))) as string[], [scoredLeads]);
+    const lenders = useMemo(() => Array.from(new Set(scoredLeads.map(l => l.identifiedLender).filter((l): l is string => !!l))).sort((a, b) => a.localeCompare(b)), [scoredLeads]);
 
     const filteredAndSortedLeads = useMemo(() => {
-        return leads
+        return scoredLeads
             .filter(lead => {
                 if (lead.status === "converted") return false;
                 const matchesSearch = lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -314,19 +334,27 @@ export default function GodModeCRM() {
                     (chargeFilter === "enrichment_needed" && lead.hasCharges && !lead.identifiedLender) ||
                     (chargeFilter === "no_charges" && !lead.hasCharges && !lead.identifiedLender);
                 const matchesLender = lenderFilter === "all" || lead.identifiedLender === lenderFilter;
+                const band = lead.lenderBand || "unknown";
+                const matchesCost =
+                    costFilter === "all" ||
+                    (costFilter === "high_cost" && (band === "mca" || band === "high_cost")) ||
+                    (costFilter === "specialist" && band === "specialist") ||
+                    (costFilter === "high_street" && band === "high_street") ||
+                    (costFilter === "property" && band === "property") ||
+                    (costFilter === "unknown" && band === "unknown");
                 const matchesContact =
                     contactFilter === "all" ||
                     (contactFilter === "not_sent" && !lead.contacted && !lead.doNotContact) ||
                     (contactFilter === "contacted" && !!lead.contacted) ||
                     (contactFilter === "do_not_contact" && !!lead.doNotContact);
 
-                return matchesSearch && matchesCity && matchesSic && matchesCharge && matchesLender && matchesContact;
+                return matchesSearch && matchesCity && matchesSic && matchesCharge && matchesLender && matchesCost && matchesContact;
             })
             .sort((a, b) => {
                 if (sortConfig.key === "none") return 0;
 
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
+                const aValue = sortConfig.key === "lenderCost" ? (a.lenderCost ?? 0) : a[sortConfig.key];
+                const bValue = sortConfig.key === "lenderCost" ? (b.lenderCost ?? 0) : b[sortConfig.key];
 
                 if (aValue === undefined || aValue === null) return sortConfig.direction === "asc" ? 1 : -1;
                 if (bValue === undefined || bValue === null) return sortConfig.direction === "asc" ? -1 : 1;
@@ -353,7 +381,7 @@ export default function GodModeCRM() {
 
                 return 0;
             });
-    }, [leads, searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, contactFilter, sortConfig]);
+    }, [scoredLeads, searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, costFilter, contactFilter, sortConfig]);
 
     const PAGE_SIZE = 25;
     const totalPages = Math.ceil(filteredAndSortedLeads.length / PAGE_SIZE);
@@ -362,7 +390,7 @@ export default function GodModeCRM() {
         currentPage * PAGE_SIZE
     );
 
-    useEffect(() => { setCurrentPage(1); }, [searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, contactFilter, sortConfig]);
+    useEffect(() => { setCurrentPage(1); }, [searchQuery, cityFilter, sicFilter, chargeFilter, lenderFilter, costFilter, contactFilter, sortConfig]);
 
     function getPageNumbers(current: number, total: number): (number | "...")[] {
         if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -374,7 +402,7 @@ export default function GodModeCRM() {
         return pages;
     }
 
-    const handleSort = (key: keyof InternalLead) => {
+    const handleSort = (key: SortKey) => {
         setSortConfig(prev => ({
             key,
             direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc"
@@ -531,6 +559,13 @@ export default function GodModeCRM() {
                         </Button>
 
                         <Button
+                            variant="outline"
+                            onClick={() => setLocation("/crm/letters")}
+                        >
+                            Letters
+                        </Button>
+
+                        <Button
                             variant="secondary"
                             onClick={() => {
                                 if (selectedLeadIds.size === 0) {
@@ -674,6 +709,20 @@ export default function GodModeCRM() {
                                 <SelectItem value="no_charges">No Charges ❌</SelectItem>
                             </SelectContent>
                         </Select>
+                        <Select value={costFilter} onValueChange={setCostFilter}>
+                            <SelectTrigger id="filter-lender-cost" data-testid="filter-lender-cost" className="w-[180px]">
+                                <AlertTriangle className="h-3 w-3 mr-2" />
+                                <SelectValue placeholder="All cost bands" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All cost bands</SelectItem>
+                                <SelectItem value="high_cost">High cost</SelectItem>
+                                <SelectItem value="specialist">Specialist</SelectItem>
+                                <SelectItem value="high_street">High street</SelectItem>
+                                <SelectItem value="property">Property</SelectItem>
+                                <SelectItem value="unknown">Unknown</SelectItem>
+                            </SelectContent>
+                        </Select>
                         <Popover open={lenderOpen} onOpenChange={setLenderOpen}>
                             <PopoverTrigger asChild>
                                 <Button
@@ -735,8 +784,8 @@ export default function GodModeCRM() {
                                 </Command>
                             </PopoverContent>
                         </Popover>
-                        {(searchQuery || cityFilter !== "all" || sicFilter !== "all" || chargeFilter !== "all" || lenderFilter !== "all" || contactFilter !== "all") && (
-                            <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(""); setCityFilter("all"); setSicFilter("all"); setChargeFilter("all"); setLenderFilter("all"); setContactFilter("all"); }}>
+                        {(searchQuery || cityFilter !== "all" || sicFilter !== "all" || chargeFilter !== "all" || lenderFilter !== "all" || costFilter !== "all" || contactFilter !== "all") && (
+                            <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(""); setCityFilter("all"); setSicFilter("all"); setChargeFilter("all"); setLenderFilter("all"); setCostFilter("all"); setContactFilter("all"); }}>
                                 Reset Filters
                             </Button>
                         )}
@@ -812,11 +861,11 @@ export default function GodModeCRM() {
                                     </TableHead>
                                     <TableHead
                                         className="cursor-pointer hover:text-foreground transition-colors group"
-                                        onClick={() => handleSort("identifiedLender")}
+                                        onClick={() => handleSort("lenderCost")}
                                     >
                                         <div className="flex items-center gap-2">
                                             Lender
-                                            <ArrowUpDown className={`h-3 w-3 opacity-20 group-hover:opacity-100 ${sortConfig.key === "identifiedLender" ? "opacity-100 text-primary" : ""}`} />
+                                            <ArrowUpDown className={`h-3 w-3 opacity-20 group-hover:opacity-100 ${sortConfig.key === "lenderCost" ? "opacity-100 text-primary" : ""}`} />
                                         </div>
                                     </TableHead>
                                     <TableHead
@@ -949,18 +998,38 @@ export default function GodModeCRM() {
                                             </TableCell>
                                             <TableCell>
                                                 {lead.identifiedLender ? (
-                                                    <span
-                                                        className={cn(
-                                                            "text-xs truncate max-w-[180px] block cursor-help",
-                                                            lead.chargeStatus === "satisfied" ? "text-muted-foreground" : "text-foreground"
-                                                        )}
-                                                        title={lead.identifiedLender}
-                                                    >
-                                                        {lead.chargeStatus === "satisfied" ? "Former: " : ""}
-                                                        {lead.identifiedLender.length > 30
-                                                            ? lead.identifiedLender.slice(0, 30) + "..."
-                                                            : lead.identifiedLender}
-                                                    </span>
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        {lead.lenderBand && lead.lenderBand !== "unknown" ? (
+                                                            <Badge
+                                                                data-testid="badge-lender-cost"
+                                                                variant="outline"
+                                                                className={cn(
+                                                                    "shrink-0 text-[10px] px-1.5 py-0 font-medium",
+                                                                    lead.lenderBand === "mca" || lead.lenderBand === "high_cost"
+                                                                        ? "border-amber-500/40 text-amber-800 bg-amber-50"
+                                                                        : lead.lenderBand === "high_street"
+                                                                            ? "border-slate-300 text-slate-600"
+                                                                            : lead.lenderBand === "property"
+                                                                                ? "border-sky-300 text-sky-800 bg-sky-50"
+                                                                                : "border-muted-foreground/30 text-muted-foreground"
+                                                                )}
+                                                            >
+                                                                {COST_BAND_LABEL[lead.lenderBand]}
+                                                            </Badge>
+                                                        ) : null}
+                                                        <span
+                                                            className={cn(
+                                                                "text-xs truncate max-w-[180px] block cursor-help",
+                                                                lead.chargeStatus === "satisfied" ? "text-muted-foreground" : "text-foreground"
+                                                            )}
+                                                            title={lead.identifiedLender}
+                                                        >
+                                                            {lead.chargeStatus === "satisfied" ? "Former: " : ""}
+                                                            {lead.identifiedLender.length > 30
+                                                                ? lead.identifiedLender.slice(0, 30) + "..."
+                                                                : lead.identifiedLender}
+                                                        </span>
+                                                    </div>
                                                 ) : lead.hasCharges ? (
                                                     <span className="text-xs text-muted-foreground italic">Enrichment Required</span>
                                                 ) : (

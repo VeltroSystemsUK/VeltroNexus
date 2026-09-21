@@ -235,7 +235,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("NatWest Bank Plc");
     expect(html).toContain("Negative pledge");
     expect(html).not.toContain("Background &amp; Notes");
-    expect(html).toContain("Family bakery supplying regional multiples.");
+    expect(html).not.toContain("Family bakery supplying regional multiples.");
     expect(html).not.toContain("Director meeting 12 Aug.");
   });
 
@@ -255,7 +255,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("TP000002");
     expect(html).toContain("1 Test Street, Birmingham");
     expect(html).toContain("Manufacture of bread");
-    expect(html).toContain("Family bakery supplying regional multiples.");
+    expect(html).not.toContain("Family bakery supplying regional multiples.");
     expect(html).toContain("Refinance MCA");
     expect(html).toContain("Purpose of loan");
     expect(html).toContain("Security offered");
@@ -293,7 +293,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("Declining turnover in Q3");
   });
 
-  it("copies the Credit Studio SWOT onto the risk assessment page", () => {
+  it("keeps Credit Studio SWOT off the lender proposal", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
@@ -303,18 +303,12 @@ describe("Passan-format funding proposal", () => {
     expect(html).not.toContain("Risk grade: B");
     expect(html).toMatch(/Grade now/);
     expect(html).toMatch(/Grade after/);
-    expect(html).toContain("SWOT analysis");
-    expect(html).toContain("Strengths");
-    expect(html).toContain("Weaknesses");
-    expect(html).toContain("Opportunities");
-    expect(html).toContain("Threats");
-    expect(html).toContain("Repeat trade");
-    expect(html).toContain("MCA");
-    expect(html).toContain("New site");
-    expect(html).toContain("Food inflation");
+    expect(html).not.toContain("SWOT analysis");
+    expect(html).not.toContain("Repeat trade");
+    expect(html).not.toContain("Food inflation");
   });
 
-  it("copies CAMPARI onto the risk assessment page", () => {
+  it("prints CAMPARI headings as a blank template, not Auto Write copy", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
@@ -324,15 +318,13 @@ describe("Passan-format funding proposal", () => {
     expect(html).toContain("3.&nbsp;&nbsp;Risk assessment");
     expect(html).toContain("CAMPARI");
     expect(html).toContain("C – Character");
-    expect(html).toContain("Directors have a clean credit history.");
     expect(html).toContain("A – Ability");
-    expect(html).toContain("Management has run the business for 6 years.");
     expect(html).toContain("P – Purpose");
-    expect(html).toContain('ul class="campari-points"');
-    expect(html).toContain("<li>Directors have a clean credit history.</li>");
+    expect(html).not.toContain("Directors have a clean credit history.");
+    expect(html).not.toContain("Management has run the business for 6 years.");
   });
 
-  it("turns stored CAMPARI paragraphs into bullets and drops chrome headings", () => {
+  it("does not print stored Auto Write CAMPARI on the lender proposal", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
@@ -346,17 +338,11 @@ describe("Passan-format funding proposal", () => {
         },
       }),
     });
-    const campari = html.split("CAMPARI")[1]?.split("SWOT")[0] || html;
-    expect(campari).toContain('ul class="campari-points"');
-    expect(campari).toContain("<li>The applicant is GEORGES TRADITION GROUP LIMITED.</li>");
-    expect(campari).toContain("<li>Three directors are recorded on file.</li>");
-    expect(campari).toContain("<li>No CCJs are held on this file.</li>");
-    expect(campari).toContain("Company and directors");
-    expect(campari).not.toContain("CAMPARI Analysis");
-    expect(campari).not.toContain('<p class="body-text">The applicant is GEORGES TRADITION GROUP LIMITED.');
+    expect(html).not.toContain("The applicant is GEORGES TRADITION GROUP LIMITED.");
+    expect(html).not.toContain("CAMPARI Analysis");
   });
 
-  it("prints CAMPARI only on the risk assessment, not other sections", () => {
+  it("does not leak Auto Write CAMPARI into other sections", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
@@ -375,21 +361,12 @@ describe("Passan-format funding proposal", () => {
     });
     const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
     const risk = html.split("3.&nbsp;&nbsp;Risk assessment")[1]?.split("4.&nbsp;&nbsp;Current financial situation")[0] || "";
-    const historic = html.split("6.&nbsp;&nbsp;Historic financial information")[1]?.split("7.&nbsp;&nbsp;Deal summary")[0] || "";
-    const deal = html.split("7.&nbsp;&nbsp;Deal summary")[1]?.split("8.&nbsp;&nbsp;Financial forecasts")[0] || "";
     const forecasts = html.split("8.&nbsp;&nbsp;Financial forecasts")[1]?.split("9.&nbsp;&nbsp;Recommendation")[0] || "";
-
-    expect(business).toContain("A fish and chip group in Derbyshire.");
+    expect(business).not.toContain("A fish and chip group in Derbyshire.");
     expect(business).not.toContain("Should not appear in The business.");
-    expect(business).not.toContain("Key Facts a Credit Officer Needs Before CAMPARI");
     expect(risk).toContain("C – Character");
-    expect(risk).toContain("Directors have a clean credit history.");
-    expect(risk).toContain("Working capital is tight after the MCA.");
-    expect(risk.match(/Directors have a clean credit history/g)?.length).toBe(1);
-    expect(historic).not.toContain("CAMPARI Analysis");
-    expect(historic).not.toContain("Working capital is tight after the MCA.");
-    expect(deal).not.toContain("Research Hub — CAMPARI");
-    expect(forecasts).not.toContain("Facility terms:");
+    expect(risk).not.toContain("Directors have a clean credit history.");
+    expect(risk).not.toContain("Working capital is tight after the MCA.");
     expect(forecasts).not.toContain("This must not appear in forecasts.");
   });
 
@@ -445,7 +422,7 @@ describe("Passan-format funding proposal", () => {
     expect(html).not.toMatch(/table class="fin"><tbody><tr><td><strong>Legal name/);
   });
 
-  it("renders Auto Write markdown as proposal copy and does not dump Character into The business", () => {
+  it("does not print Auto Write overview or Character on the lender proposal", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
@@ -459,13 +436,10 @@ describe("Passan-format funding proposal", () => {
         },
       }),
     });
-    expect(html).toContain("Georges Tradition");
+    expect(html).not.toContain("Georges Tradition");
     expect(html).not.toContain("# Overview");
-    expect(html).not.toContain("**Georges Tradition**");
     expect(html).not.toContain("Should not appear in The business.");
-    const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
-    expect(business).not.toContain("This character dump must not fill The business.");
-    expect(html).toContain("This character dump must not fill The business.");
+    expect(html).not.toContain("This character dump must not fill The business.");
   });
 
   it("does not print [object Object] when riskGrade is an empty object", () => {
@@ -512,9 +486,8 @@ describe("Passan-format funding proposal", () => {
     expect(html).not.toContain("**Purpose**");
     const purpose = html.split("1.&nbsp;&nbsp;Loan amount and purpose")[1]?.split("2.&nbsp;&nbsp;The business")[0] || "";
     expect(purpose).not.toContain("Exact use of funds");
-    const campari = html.split("CAMPARI")[1]?.split("SWOT")[0] || html;
-    expect(campari).toContain("Itemised schedule of debts.");
-    expect(campari).toContain("Directors on file: Ian Moore.");
+    expect(html).not.toContain("Itemised schedule of debts.");
+    expect(html).not.toContain("Directors on file: Ian Moore.");
   });
 
   it("never prints leftover markdown hashes or asterisks", () => {
@@ -550,11 +523,9 @@ describe("Passan-format funding proposal", () => {
     const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
     expect(purpose).toContain("Refinance of existing short term debts");
     expect(purpose).not.toContain("Exact use of funds");
-    expect(business).toContain("A fish and chip group in Derbyshire.");
+    expect(business).not.toContain("A fish and chip group in Derbyshire.");
     expect(business).not.toContain("CAMPARI Analysis");
-    expect(business).not.toContain("Ian Moore");
-    expect(html).toContain("Ian Moore");
-    expect(html).toContain("active");
+    expect(html).not.toContain("Ian Moore");
   });
 
   it("leaves recommendation and forecasts empty rather than inventing them", () => {
@@ -590,7 +561,9 @@ describe("Passan-format funding proposal", () => {
 
   it("escapes HTML in company-supplied text", () => {
     const html = renderFundingProposalHtmlFromData({
-      prospect: prospect({ background: `<img src=x onerror=alert(1)>` }),
+      prospect: prospect({
+        company: { ...prospect().company, companyName: `<img src=x onerror=alert(1)>` },
+      }),
       contacts: [],
       activities: [],
     });
@@ -743,10 +716,8 @@ describe("Passan-format funding proposal", () => {
       }),
     });
     expect(html).not.toContain("£85,000");
-    const campari = html.split("CAMPARI")[1]?.split("SWOT")[0] || "";
-    expect(campari).toContain('ul class="campari-points"');
-    expect(campari).toContain("<li>Sole director on file: Kirsty Bevan.</li>");
-    expect(campari).not.toContain("The £85,000 refinance is intended to consolidate.");
+    expect(html).not.toContain("Sole director on file: Kirsty Bevan.");
+    expect(html).not.toContain("The £85,000 refinance is intended to consolidate.");
   });
 
   it("prints purpose as a ul, not a body paragraph", () => {
@@ -852,7 +823,7 @@ describe("Passan-format funding proposal", () => {
     expect(section).toContain("After refinance");
     expect(section).toContain("Sheet forecast");
     expect(section).toContain("above statement run-rate");
-    expect(section).toContain("steps sales 39%");
+    expect(section).not.toContain("steps sales 39%");
     expect(section).toContain("<svg");
     expect(section).not.toContain("Creditsafe");
     expect(section).toContain("DSCR after (statements)");
@@ -990,7 +961,7 @@ describe("Passan-format funding proposal", () => {
     expect(section).toMatch(/cash/i);
   });
 
-  it("loads The business from a long overview essay instead of leaving it blank", () => {
+  it("does not load The business from an Auto Write overview essay", () => {
     const html = renderFundingProposalHtmlFromData({
       prospect: prospect(),
       contacts,
@@ -1005,8 +976,7 @@ describe("Passan-format funding proposal", () => {
       }),
     });
     const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
-    expect(business).not.toContain("Business narrative has not been written up");
-    expect(business).toMatch(/Yate|omnichannel|hobby/i);
+    expect(business).not.toMatch(/Yate|omnichannel|hobby/i);
   });
 
   it("prints statement-based after DSCR in section 8 even when the sheet did not extract", () => {
@@ -1052,9 +1022,7 @@ describe("Passan-format funding proposal", () => {
     });
     const section = html.split("7.&nbsp;&nbsp;Deal summary")[1]?.split("8.&nbsp;&nbsp;Financial forecasts")[0] || "";
     expect(section).not.toContain("Research Hub not yet completed");
-    expect(section).toContain("File research");
-    expect(section).toMatch(/micro.?entity|abbreviated/i);
-    expect(section).toMatch(/no full audited/i);
+    expect(section).not.toContain("File research");
   });
 
   it("adds abbreviated-accounts commentary in section 6", () => {
@@ -1127,6 +1095,58 @@ describe("Passan-format funding proposal", () => {
     const rec = html.split("9.&nbsp;&nbsp;Recommendation")[1]?.split("10.&nbsp;&nbsp;Attachments")[0] || "";
     expect(rec).toContain("Approve the £120,000 refinance over 60 months subject to a site visit.");
     expect(rec).not.toContain("Awaiting recommendation");
+  });
+
+  it("does not print Auto Write CAMPARI, SWOT or Credit Studio process notes on the lender proposal", () => {
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: dueDiligence(),
+    });
+    expect(html).toContain("£150,000");
+    expect(html).toContain("YouLend daily");
+    expect(html).toContain("C – Character");
+    expect(html).not.toContain("Directors have a clean credit history.");
+    expect(html).not.toContain("Management has run the business for 6 years.");
+    expect(html).not.toContain("Repeat trade");
+    expect(html).not.toContain("Food inflation");
+    expect(html).not.toContain("SWOT analysis");
+    expect(html).not.toContain("Auto Write");
+    expect(html).not.toContain("Credit Studio");
+    expect(html).not.toContain("Generate Report");
+    expect(html).not.toContain("File research");
+    expect(html).toContain("Awaiting commentary");
+  });
+
+  it("prints the customer's signed purpose as an attributed quote, not rewritten copy", () => {
+    const base = dueDiligence();
+    const html = renderFundingProposalHtmlFromData({
+      prospect: prospect(),
+      contacts,
+      activities: [],
+      dueDiligence: {
+        ...base,
+        data: {
+          ...base.data,
+          applicationData: {
+            status: "signed",
+            signedName: "Kirsty Bevan",
+            signedAt: "2026-09-12",
+            answers: {
+              loanPurpose: "Clear the daily MCA so we can pay suppliers on time.",
+              natureOfBusiness: "Bakery supplying regional multiples.",
+            },
+          },
+        },
+      },
+    });
+    const purpose = html.split("1.&nbsp;&nbsp;Loan amount and purpose")[1]?.split("2.&nbsp;&nbsp;The business")[0] || "";
+    expect(purpose).toContain("Clear the daily MCA so we can pay suppliers on time.");
+    expect(purpose).toContain("Kirsty Bevan");
+    expect(purpose).toMatch(/signed application/i);
+    const business = html.split("2.&nbsp;&nbsp;The business")[1]?.split("3.&nbsp;&nbsp;Risk assessment")[0] || "";
+    expect(business).toContain("Bakery supplying regional multiples.");
   });
 
   it("prints HMRC Position as section 5 from the file fields", () => {

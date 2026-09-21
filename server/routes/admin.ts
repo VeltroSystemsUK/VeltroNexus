@@ -7,7 +7,7 @@ import { discoverNewLenders } from "../services/discoveryService";
 import { toPublicUser } from "../utils/publicUser";
 
 const adminUserPatchSchema = z.object({
-    role: z.enum(["broker", "underwriter", "sales_admin", "super_admin"]).optional(),
+    role: z.enum(["broker", "underwriter", "sales_admin", "super_admin", "external_broker"]).optional(),
     subscriptionTier: z.string().min(1).max(40).optional(),
     suspended: z.boolean().optional(),
     prospectLimit: z.number().int().min(0).max(1_000_000).optional(),

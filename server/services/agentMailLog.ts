@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import type { AgentMailAttachment } from "@shared/agentMailAttachments";
 import { storage } from "../storage";
-import { autoPromoteEligibleOpeners, currentOpenersStorePath, enrolConvertFromMail, markOpenerNurturingOnOutbound, OPENERS_STORE, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerDwellFromMail, upsertOpenerFromMail } from "./openers";
+import { currentOpenersStorePath, enrolConvertFromMail, markOpenerNurturingOnOutbound, OPENERS_STORE, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerDwellFromMail, upsertOpenerFromMail } from "./openers";
 import { withJsonFileLock } from "../utils/jsonFileLock";
 import { atomicWriteFileSync, readJsonArrayFile } from "../utils/atomicWriteJson";
 import { shouldTrackMailHref } from "@shared/mailTracking";
@@ -467,9 +467,6 @@ export function logAgentMail(entry: Omit<AgentMailItem, "id" | "createdAt"> & { 
     } catch (error: any) {
       console.warn("[Openers] second-email nurture failed:", error?.message || error);
     }
-    void autoPromoteEligibleOpeners(all).catch((error: any) => {
-      console.warn("[Openers] auto-promote failed:", error?.message || error);
-    });
   }
   return saved;
 }

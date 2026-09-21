@@ -972,11 +972,12 @@ describe("sixth-email auto-promote", () => {
     ).toBe(3);
   });
 
-  it("promotes after more than 5 unique sent emails when the company can be promoted", () => {
+  it("never auto-promotes from mail volume — Pipeline is form or manual only", () => {
     expect(OPENER_AUTO_PROMOTE_AFTER_EMAILS).toBe(5);
     const ready = opener({ companyNumber: "08765432", status: "nurturing" });
     expect(shouldAutoPromoteOpener(ready, sent(5))).toBe(false);
-    expect(shouldAutoPromoteOpener(ready, sent(6))).toBe(true);
+    expect(shouldAutoPromoteOpener(ready, sent(6))).toBe(false);
+    expect(shouldAutoPromoteOpener(ready, sent(12))).toBe(false);
     expect(shouldAutoPromoteOpener(opener({ status: "nurturing" }), sent(6))).toBe(false);
     expect(shouldAutoPromoteOpener(opener({ companyNumber: "08765432", status: "promoted" }), sent(6))).toBe(false);
     expect(shouldAutoPromoteOpener(stopNurture(ready, "opt_out"), sent(6))).toBe(false);

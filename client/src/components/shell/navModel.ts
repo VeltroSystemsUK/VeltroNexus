@@ -84,7 +84,7 @@ export const DESTINATIONS: Destination[] = [
 
   // Underwriting
   { path: "/underwriting", label: "Inbox", icon: Inbox, group: "Underwriting", roles: FULL_UW, keywords: "inbox decisions", description: "Review and process loan applications" },
-  { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, group: "Underwriting", roles: ["super_admin", "sales_admin"], keywords: "sterling david oversight files", description: "Oversight of the Sterling Commercial Finance portal" },
+  { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, group: "Underwriting", roles: ["super_admin", "sales_admin", "external_broker"], keywords: "sterling david cases files", description: "Sterling Commercial Finance files" },
   { path: "/credit-tools", label: "Credit Tools", icon: Calculator, group: "Underwriting", roles: FULL_UW, keywords: "credit tools analysis", description: "Utility calculators for credit analysis" },
   { path: "/ai-studio", label: "AI Studio", icon: Brain, group: "Underwriting", roles: FULL_UW, keywords: "ai underwriting", description: "AI-powered underwriting workspace" },
   { path: "/submissions", label: "Submissions", icon: ClipboardList, group: "Underwriting", roles: FULL_UW, keywords: "deal submissions", description: "Create and manage deal submissions" },
@@ -97,6 +97,7 @@ export const DESTINATIONS: Destination[] = [
 
 // Curated primary "lenses" for the slim rail (order matters)
 const LENS_PATHS = [
+  "/broker-portal",
   "/pipeline",
   "/crm",
   "/lenders",

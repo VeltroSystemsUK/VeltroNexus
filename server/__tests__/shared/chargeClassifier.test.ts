@@ -21,6 +21,7 @@ describe("charge classifier", () => {
 
   it("treats MCA, HP, invoice finance as non-bank", () => {
     expect(isBankOrBuildingSocietyChargee("IWOCA LIMITED")).toBe(false);
+    expect(isBankOrBuildingSocietyChargee("Nationwide Finance Limited")).toBe(false);
     expect(isBankOrBuildingSocietyChargee("CLOSE BROTHERS LIMITED")).toBe(false);
     expect(isBankOrBuildingSocietyChargee("SIEMENS FINANCIAL SERVICES LIMITED")).toBe(false);
     expect(isBankOrBuildingSocietyChargee("BIBBY FACTORS LIMITED")).toBe(false);

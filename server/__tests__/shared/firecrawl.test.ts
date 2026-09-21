@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import {
   FIRECRAWL_CLOUD,
@@ -6,6 +8,7 @@ import {
   firecrawlAuthHeaders,
   firecrawlScrapeUrl,
   firecrawlSearchUrl,
+  parseFirecrawlSearchHits,
 } from "@shared/firecrawl";
 
 describe("firecrawl endpoints", () => {
@@ -39,5 +42,33 @@ describe("firecrawl endpoints", () => {
   it("omits Authorization when no key is set", () => {
     expect(firecrawlAuthHeaders({})).toEqual({ "Content-Type": "application/json" });
     expect(firecrawlAuthHeaders({ FIRECRAWL_API_KEY: "fc-test" }).Authorization).toBe("Bearer fc-test");
+  });
+
+  it("reads local v2 search hits from data.web, not by iterating the data object", () => {
+    const hits = parseFirecrawlSearchHits({
+      success: true,
+      data: {
+        web: [
+          { url: "https://jpd-services.co.uk", title: "JPD Maintenance", description: "Joinery and maintenance" },
+          {
+            url: "https://find-and-update.company-information.service.gov.uk/company/11353470",
+            title: "Companies House",
+          },
+        ],
+      },
+    });
+    expect(hits.map((row) => row.url)).toEqual([
+      "https://jpd-services.co.uk",
+      "https://find-and-update.company-information.service.gov.uk/company/11353470",
+    ]);
+  });
+});
+
+describe("harvest OSINT uses the local Firecrawl search URL", () => {
+  it("does not call Firecrawl Cloud or Google Places from live attach", () => {
+    const src = fs.readFileSync(path.resolve("server/services/smeLeadHopper.ts"), "utf8");
+    expect(src).toMatch(/firecrawlSearchUrl\(\)/);
+    expect(src).not.toMatch(/api\.firecrawl\.dev\/v1\/search/);
+    expect(src).not.toMatch(/maps\.googleapis\.com\/maps\/api\/place/);
   });
 });

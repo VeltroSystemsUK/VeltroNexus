@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { joinAiBullets, toAiBullets } from "@shared/aiBullets";
+import { grokComplete, parseProfileJson } from "./companyEnrichment";
 import { searchGazetteNotices } from "./gazetteClient";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
@@ -131,13 +132,14 @@ async function generateJsonWithPdfs<T>(
 
 export async function groundedSearch(query: string, _maxResults = 5): Promise<GroundedSearchResult> {
   try {
-    const parsed = await generateJson<Partial<GroundedSearchResult>>(
+    const raw = await grokComplete(
       `Answer from existing knowledge only. Do not claim you browsed the web or verified a live source. Never invent URLs.
 Return JSON only:
 {"bulletPoints":["..."],"sources":[]}
 
 Question: ${query}`
     );
+    const parsed = parseProfileJson(raw) as Partial<GroundedSearchResult>;
     return {
       bulletPoints: Array.isArray(parsed.bulletPoints) ? parsed.bulletPoints.filter((item) => typeof item === "string") : [],
       sources: Array.isArray(parsed.sources)
@@ -145,7 +147,7 @@ Question: ${query}`
         : [],
     };
   } catch (error) {
-    console.warn("[Anthropic] groundedSearch failed:", error);
+    console.warn("[Grok] groundedSearch failed:", error);
     return { bulletPoints: [], sources: [] };
   }
 }
@@ -168,20 +170,21 @@ export async function researchCompany(
     sources: [] as Array<{ url: string; title: string }>,
   };
   try {
-    const parsed = await generateJson<typeof fallback>(
+    const raw = await grokComplete(
       `From existing knowledge only, research the UK company "${companyName}"${website ? ` (website: ${website})` : ""}.
 Do not invent URLs. If uncertain, say so in sourceCommentary.
 businessProfile must be 4 to 6 short bullet points, one fact per line, no paragraphs.
 Return JSON only:
 {"businessProfile":"","sourceCommentary":"","sources":[]}`
     );
+    const parsed = parseProfileJson(raw) as typeof fallback;
     return {
       businessProfile: joinAiBullets(toAiBullets(parsed.businessProfile || fallback.businessProfile, 6)),
       sourceCommentary: parsed.sourceCommentary || fallback.sourceCommentary,
       sources: Array.isArray(parsed.sources) ? parsed.sources : [],
     };
   } catch (error) {
-    console.warn("[Anthropic] researchCompany failed:", error);
+    console.warn("[Grok] researchCompany failed:", error);
     return fallback;
   }
 }
@@ -208,12 +211,13 @@ export async function searchCompanyInfo(
     sources: [] as Array<{ url: string; title: string }>,
   };
   try {
-    const parsed = await generateJson<typeof empty>(
+    const raw = await grokComplete(
       `From existing knowledge only, research "${companyName}"${website ? ` (${website})` : ""}.
 Never invent emails, phones, or URLs. Use empty arrays when unknown.
 Return JSON only:
 {"businessOverview":"","emails":[],"phones":[],"linkedinUrls":[],"profileImages":[],"contacts":[{"name":"","role":"","email":""}],"sources":[]}`
     );
+    const parsed = parseProfileJson(raw) as typeof empty;
     return {
       businessOverview: parsed.businessOverview || "",
       emails: Array.isArray(parsed.emails) ? parsed.emails : [],
@@ -224,7 +228,7 @@ Return JSON only:
       sources: Array.isArray(parsed.sources) ? parsed.sources : [],
     };
   } catch (error) {
-    console.warn("[Anthropic] searchCompanyInfo failed:", error);
+    console.warn("[Grok] searchCompanyInfo failed:", error);
     return empty;
   }
 }

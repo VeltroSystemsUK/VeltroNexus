@@ -661,28 +661,40 @@ export default function ProspectDetail() {
     if (!proposal.ready) return;
     toast({
       title: "Generating funding proposal...",
-      description: "Your Sterling Formatted Proposal download will start shortly.",
+      description: "Proposal first, then the working sheet. Stay on this page.",
     });
     try {
-      const res = await fetch(`/api/prospects/${prospectId}/report`, { credentials: "include" });
-      if (!res.ok) {
-        if (res.status === 409) {
-          const body = await res.json();
-          throw new Error(body.message || "Proposal facts conflict");
+      const downloadPdf = async (path: string, fallback: string) => {
+        const res = await fetch(path, { credentials: "include" });
+        if (!res.ok) {
+          if (res.status === 409) {
+            const body = await res.json();
+            throw new Error(body.message || "Proposal facts conflict");
+          }
+          throw new Error("Failed to generate report");
         }
-        throw new Error("Failed to generate report");
+        const blob = await res.blob();
+        const disposition = res.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="([^"]+)"/);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = match?.[1] || fallback;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      };
+      await downloadPdf(`/api/prospects/${prospectId}/report`, "Funding_Proposal.pdf");
+      try {
+        await downloadPdf(`/api/prospects/${prospectId}/working-sheet`, "Working_Sheet.pdf");
+      } catch (sheetError) {
+        toast({
+          title: "Proposal downloaded",
+          description: sheetError instanceof Error ? `Working sheet failed: ${sheetError.message}` : "Working sheet failed to generate.",
+          variant: "destructive",
+        });
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") || "";
-      const match = disposition.match(/filename="([^"]+)"/);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = match?.[1] || "Funding_Proposal.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
     } catch (error) {
       toast({
         title: "Could not generate proposal",

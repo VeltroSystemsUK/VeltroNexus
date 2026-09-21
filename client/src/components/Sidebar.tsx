@@ -118,7 +118,7 @@ const navGroups: NavGroup[] = [
     color: "text-violet-400",
     items: [
       { path: "/underwriting", label: "Inbox", icon: Inbox, roles: FULL_UW },
-      { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, roles: ["super_admin", "sales_admin"] },
+      { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, roles: ["super_admin", "sales_admin", "external_broker"] },
       { path: "/credit-tools", label: "Credit Tools", icon: Calculator, roles: FULL_UW },
       { path: "/ai-studio", label: "AI Studio", icon: Brain, roles: FULL_UW },
     ],

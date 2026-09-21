@@ -49,6 +49,11 @@ import { coldEmailBlockedReason } from "@shared/pecrSend";
 import { dealStream } from "@shared/salesOs";
 import { wasEmailDelivered } from "@shared/outreachSend";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
+import {
+  creditsafeClient,
+  creditsafeSnapshotFromReport,
+  type CreditsafeCompanyResult,
+} from "../utils/creditsafeClient";
 import { atomicWriteFileSync } from "../utils/atomicWriteJson";
 import type { AgentMailItem } from "./agentMailLog";
 import { revokeBriefingsForOpener } from "./briefings";
@@ -1460,6 +1465,45 @@ export async function enrichOpener(
   }
 }
 
+export type OpenerCreditsafeClient = {
+  searchUk(opts: { name?: string; regNo?: string }): Promise<CreditsafeCompanyResult[]>;
+  getCompanyReport(id: string): Promise<unknown>;
+};
+
+export async function checkOpenerCreditsafe(
+  id: string,
+  client: OpenerCreditsafeClient = creditsafeClient
+): Promise<OpenerRecord> {
+  const current = requireOpener(id);
+  if (current.creditsafe?.creditsafeId && current.creditsafe.checkedAt) return current;
+  if (!current.companyNumber && !current.companyName) {
+    throw httpError("Company number or name is required", 400);
+  }
+  let hits: CreditsafeCompanyResult[] = [];
+  if (current.companyNumber) {
+    hits = await client.searchUk({ regNo: current.companyNumber });
+    const exact = hits.find(
+      (hit) => normalizeCompanyNumber(hit.regNo || "") === current.companyNumber
+    );
+    if (exact) hits = [exact];
+  }
+  if (!hits.length && current.companyName) {
+    hits = await client.searchUk({ name: current.companyName });
+    if (current.companyNumber) {
+      const exact = hits.find(
+        (hit) => normalizeCompanyNumber(hit.regNo || "") === current.companyNumber
+      );
+      if (exact) hits = [exact];
+    }
+  }
+  const pick = hits[0];
+  if (!pick?.id) throw httpError("No Creditsafe match", 422);
+  const data = await client.getCompanyReport(pick.id);
+  return (
+    patchOpener(id, { creditsafe: creditsafeSnapshotFromReport(pick.id, data) }) ?? current
+  );
+}
+
 export async function attachCompanyNumber(
   id: string,
   companyNumber: string,
@@ -1923,7 +1967,7 @@ async function patchConvertDealStop(
 async function runConvertStopAndPromote(
   openerId: string,
   reason: "promoted" | "reply" | "opt_out",
-  deps?: PromoteDeps
+  _deps?: PromoteDeps
 ): Promise<void> {
   const opener = getOpener(openerId);
   if (!opener || !isConvertOpener(opener)) return;
@@ -1947,14 +1991,6 @@ async function runConvertStopAndPromote(
 
   const stopped = saveOpener(applyConvertStop(opener, reason));
   await patchConvertDealStop(stopped, reason);
-
-  const promoteDeps = deps ?? (inVitest() ? null : await defaultPromoteDeps());
-  if (!promoteDeps) return;
-  try {
-    await promoteOpener(openerId, "system", promoteDeps);
-  } catch (error: any) {
-    console.warn("[Openers] convert promote failed:", error?.message || error);
-  }
 }
 
 export async function stopConvertAndPromote(
@@ -2006,16 +2042,6 @@ export function stopOpenerNurtureByEmail(
     return next;
   }
   if (opener.status === "direct_outreach") {
-    if (isDoNotContactOpener(opener) || !canPromoteOpener(opener)) return opener;
-    void (async () => {
-      try {
-        const promoteDeps = deps ?? (inVitest() ? null : await defaultPromoteDeps());
-        if (!promoteDeps) return;
-        await promoteOpener(opener.id, "system", promoteDeps);
-      } catch (error: any) {
-        console.warn("[Openers] direct outreach reply auto-promote failed:", error?.message || error);
-      }
-    })();
     return opener;
   }
   if (!isNurtureInFlight(opener)) return undefined;

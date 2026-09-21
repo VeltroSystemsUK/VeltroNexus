@@ -14,10 +14,6 @@ const BANNED_COPY_RE = [
   /you have late payers/i,
   /\d+(\.\d+)?%/,
   /learn\.stratanexus/i,
-  /dwell on your site/i,
-  /AI tracked your dwell/i,
-  /built this bespoke playbook instantly/i,
-  /inject immediate/i,
 ] as const;
 
 function isConstructionSic(sicCodes: string[]): boolean {
