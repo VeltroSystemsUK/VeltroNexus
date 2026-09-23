@@ -27,7 +27,8 @@ export function CookieConsent() {
         setIsVisible(false);
     };
 
-    if (!isVisible) return null;
+    // Customer token pages set no cookies and have their own sticky action bar the banner would cover.
+    if (!isVisible || /^\/(apply|pack|sign)\//.test(window.location.pathname)) return null;
 
     return (
         <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-background border-t border-border shadow-lg animate-in slide-in-from-bottom duration-500">

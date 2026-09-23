@@ -31,6 +31,8 @@ export interface ApplicationFieldDef {
   options?: string[];
   /** Blocks the missing-info chase until answered. Everything else is "nice to have on file" but doesn't gate. */
   required?: boolean;
+  /** Required only when another answer matches, e.g. the details behind a "Yes". */
+  requiredIf?: { field: string; equals: string };
   askedBy: LenderCode[];
 }
 
@@ -56,7 +58,7 @@ export const COMPANY_SECTION: ApplicationSection = {
     { id: "tradingAddress", label: "Trading address", note: "BCRS wants where you actually trade from, not your registered office address, if different.", type: "textarea", required: true, askedBy: ["bcrs", "firstent", "ffe"] },
     { id: "postcode", label: "Postcode", type: "text", required: true, askedBy: ["bcrs", "cwrt", "firstent"] },
     { id: "natureOfBusiness", label: "What does the business do?", type: "textarea", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
-    { id: "businessPhone", label: "Business telephone", type: "text", askedBy: ["bcrs", "ffe", "firstent"] },
+    { id: "businessPhone", label: "Business telephone", type: "text", required: true, askedBy: ["bcrs", "ffe", "firstent"] },
     { id: "businessEmail", label: "Business email", type: "text", askedBy: ["ffe", "firstent"] },
     { id: "website", label: "Website (if you have one)", type: "text", askedBy: ["bcrs", "ffe", "firstent"] },
     {
@@ -68,7 +70,7 @@ export const COMPANY_SECTION: ApplicationSection = {
       askedBy: ["bcrs", "cwrt", "ffe", "firstent"],
     },
     { id: "startDate", label: "Date trading started", note: "Not the incorporation date if the company sat dormant for a while first.", type: "date", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
-    { id: "localAuthority", label: "Local authority business rates are paid to", type: "text", askedBy: ["bcrs", "cwrt", "firstent"] },
+    { id: "localAuthority", label: "Local authority business rates are paid to", type: "text", required: true, askedBy: ["bcrs", "cwrt", "firstent"] },
     { id: "employeeCount", label: "Number of employees (including directors)", type: "number", required: true, askedBy: ["bcrs", "cwrt", "firstent"] },
     { id: "managementCount", label: "Number of management staff", type: "number", askedBy: ["cwrt"] },
     { id: "annualTurnover", label: "Annual turnover, most recent year", note: "Leave this if it's already on your accounts — we'll take it from there once they're on file.", type: "currency", askedBy: ["cwrt", "firstent", "ffe"] },
@@ -89,7 +91,7 @@ export const FACILITY_SECTION: ApplicationSection = {
     { id: "loanAmount", label: "Amount requested", type: "currency", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
     { id: "loanTerm", label: "Term requested", note: "In months or years — whichever is easier.", type: "text", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
     { id: "loanPurpose", label: "Purpose of the loan", note: "Write this in your own words — lenders read this, it isn't a tick-box.", type: "textarea", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
-    { id: "useOfFundsBreakdown", label: "Breakdown of how you'll use the loan", type: "textarea", askedBy: ["bcrs", "cwrt"] },
+    { id: "useOfFundsBreakdown", label: "Breakdown of how you'll use the loan", type: "textarea", required: true, askedBy: ["bcrs", "cwrt"] },
     { id: "ownFundsInvested", label: "Your own funds already invested or available", type: "currency", askedBy: ["cwrt"] },
     { id: "otherFundingObtained", label: "Other funding already obtained (grants etc.) and where from", type: "textarea", askedBy: ["cwrt"] },
     { id: "otherFundingNeeded", label: "Other funding still needed and where you hope to get it", type: "textarea", askedBy: ["cwrt"] },
@@ -107,9 +109,9 @@ export const BANK_DECLINE_SECTION: ApplicationSection = {
   note: "CDFIs only lend where a mainstream bank has already said no — CWRT can't process an application without this.",
   fields: [
     { id: "bankDeclineConfirmed", label: "Have you already been declined by a mainstream bank?", type: "yesno", required: true, askedBy: ["cwrt", "firstent"] },
-    { id: "declineBankNames", label: "Which bank(s) declined you?", type: "text", askedBy: ["cwrt"] },
-    { id: "declineDates", label: "Date(s) of decline", type: "text", askedBy: ["cwrt"] },
-    { id: "declineReasons", label: "Reason(s) they gave", type: "textarea", askedBy: ["cwrt"] },
+    { id: "declineBankNames", label: "Which bank(s) declined you?", type: "text", requiredIf: { field: "bankDeclineConfirmed", equals: "Yes" }, askedBy: ["cwrt"] },
+    { id: "declineDates", label: "Date(s) of decline", type: "text", requiredIf: { field: "bankDeclineConfirmed", equals: "Yes" }, askedBy: ["cwrt"] },
+    { id: "declineReasons", label: "Reason(s) they gave", type: "textarea", requiredIf: { field: "bankDeclineConfirmed", equals: "Yes" }, askedBy: ["cwrt"] },
   ],
 };
 
@@ -119,9 +121,9 @@ export const BANK_ACCOUNTANT_SECTION: ApplicationSection = {
   id: "bankAccountant",
   title: "Your bank and accountant",
   fields: [
-    { id: "bankNameBranch", label: "Bank name & branch", type: "text", askedBy: ["bcrs"] },
+    { id: "bankNameBranch", label: "Bank name & branch", type: "text", required: true, askedBy: ["bcrs"] },
     { id: "bankManagerContact", label: "Business manager — name, phone, email", type: "text", askedBy: ["bcrs"] },
-    { id: "accountantPracticeContact", label: "Accountancy practice & accountant — name, phone, email", type: "text", askedBy: ["bcrs"] },
+    { id: "accountantPracticeContact", label: "Accountancy practice & accountant — name, phone, email", type: "text", required: true, askedBy: ["bcrs"] },
   ],
 };
 
@@ -131,7 +133,7 @@ export const EXISTING_BORROWING_SECTION: ApplicationSection = {
   id: "existingBorrowing",
   title: "Existing business borrowing",
   fields: [
-    { id: "existingBorrowingDetail", label: "Type, lender, limit/balance, term and monthly payment for each facility", type: "textarea", askedBy: ["bcrs", "ffe", "cwrt"] },
+    { id: "existingBorrowingDetail", label: "Type, lender, limit/balance, term and monthly payment for each facility", type: "textarea", required: true, askedBy: ["bcrs", "ffe", "cwrt"] },
     { id: "otherLiabilities", label: "Any other potential liabilities, e.g. guarantees given", type: "textarea", askedBy: ["ffe"] },
   ],
 };
@@ -143,9 +145,9 @@ export const STATE_AID_SECTION: ApplicationSection = {
   title: "State aid / subsidy history",
   note: "This is a regulatory check the lender has to run, not a judgement on your application. A Recovery Loan Scheme or Growth Guarantee Scheme facility both count as subsidy.",
   fields: [
-    { id: "stateAidReceived", label: "Received any State Aid or subsidy in the last 3 years?", type: "yesno", askedBy: ["bcrs", "ffe", "firstent"] },
-    { id: "stateAidDetail", label: "Amount, scheme, term and date drawn", type: "textarea", askedBy: ["bcrs", "firstent"] },
-    { id: "niOrGbBorrower", label: "GB borrower or NI borrower?", type: "select", options: ["GB", "NI"], askedBy: ["bcrs", "firstent"] },
+    { id: "stateAidReceived", label: "Received any State Aid or subsidy in the last 3 years?", type: "yesno", required: true, askedBy: ["bcrs", "ffe", "firstent"] },
+    { id: "stateAidDetail", label: "Amount, scheme, term and date drawn", type: "textarea", requiredIf: { field: "stateAidReceived", equals: "Yes" }, askedBy: ["bcrs", "firstent"] },
+    { id: "niOrGbBorrower", label: "GB borrower or NI borrower?", type: "select", options: ["GB", "NI"], required: true, askedBy: ["bcrs", "firstent"] },
   ],
 };
 
@@ -155,8 +157,8 @@ export const JOBS_IMPACT_SECTION: ApplicationSection = {
   id: "jobsImpact",
   title: "Jobs and impact",
   fields: [
-    { id: "jobsCreated", label: "Jobs this loan will create", type: "number", askedBy: ["bcrs", "ffe", "firstent"] },
-    { id: "jobsProtected", label: "Jobs this loan will protect", type: "number", askedBy: ["bcrs", "ffe", "firstent"] },
+    { id: "jobsCreated", label: "Jobs this loan will create", type: "number", required: true, askedBy: ["bcrs", "ffe", "firstent"] },
+    { id: "jobsProtected", label: "Jobs this loan will protect", type: "number", required: true, askedBy: ["bcrs", "ffe", "firstent"] },
     { id: "jobsImpactDetail", label: "How the loan protects these jobs/sales, and which roles", type: "textarea", askedBy: ["bcrs"] },
     { id: "lastQuarterTurnover", label: "Business turnover, last quarter", type: "currency", askedBy: ["bcrs"] },
   ],
@@ -168,7 +170,7 @@ export const SECURITY_SECTION: ApplicationSection = {
   id: "security",
   title: "Security you can offer",
   fields: [
-    { id: "securityType", label: "Type", note: "Debenture, personal guarantee, second charge, another asset — or none.", type: "text", askedBy: ["bcrs", "cwrt", "ffe"] },
+    { id: "securityType", label: "Type", note: "Debenture, personal guarantee, second charge, another asset — or none.", type: "text", required: true, askedBy: ["bcrs", "cwrt", "ffe"] },
     { id: "securityValueDetail", label: "Current value and details (address, model number, etc.)", type: "textarea", askedBy: ["cwrt"] },
     { id: "securityInWhoseName", label: "In whose name (or joint)", type: "text", askedBy: ["cwrt"] },
   ],
@@ -185,7 +187,7 @@ export const CONSENTS_SECTION: ApplicationSection = {
     { id: "consentShareData", label: "I consent to the lender sharing this with its affiliated/funding organisations", type: "yesno", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
     { id: "consentCreditCheck", label: "I authorise credit reference and other normal enquiries for this application", type: "yesno", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
     { id: "consentPublicity", label: "The lender may use our name in its publicity material", type: "yesno", askedBy: ["bcrs", "cwrt", "firstent"] },
-    { id: "consentOpenBanking", label: "I consent to read-only open banking access", note: "CWRT can't process your application without this one.", type: "yesno", askedBy: ["cwrt", "firstent"] },
+    { id: "consentOpenBanking", label: "I consent to read-only open banking access", note: "CWRT can't process your application without this one.", type: "yesno", required: true, askedBy: ["cwrt", "firstent"] },
     { id: "consentMarketing", label: "I'm happy to be contacted about related products and services", note: "Optional — this doesn't affect the loan decision either way.", type: "yesno", askedBy: ["bcrs", "cwrt", "firstent"] },
     { id: "preferredContactMethod", label: "Preferred contact method", type: "select", options: ["Post", "Email", "Telephone"], askedBy: ["bcrs", "cwrt"] },
     { id: "declarationTrue", label: "I/We confirm the information given is true, accurate and complete", type: "yesno", required: true, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
@@ -209,19 +211,19 @@ export const APPLICATION_SECTIONS: ApplicationSection[] = [
 export const DIRECTOR_BASIC_FIELDS: ApplicationFieldDef[] = [
   { id: "fullName", label: "Full name", type: "text", required: true, askedBy: ["cwrt", "ffe", "firstent"] },
   { id: "dateOfBirth", label: "Date of birth", type: "date", required: true, askedBy: ["cwrt", "firstent"] },
-  { id: "niNumber", label: "National Insurance number", type: "text", askedBy: ["cwrt", "firstent"] },
+  { id: "niNumber", label: "National Insurance number", type: "text", required: true, askedBy: ["cwrt", "firstent"] },
   { id: "nationality", label: "Nationality / British citizen?", note: "If not, your residency status — some lenders need evidence of leave to remain for at least the loan term.", type: "text", askedBy: ["ffe"] },
   { id: "homeAddress", label: "Home address, postcode", type: "textarea", required: true, askedBy: ["cwrt", "ffe", "firstent"] },
-  { id: "timeAtAddress", label: "Time at current address", note: "If under 3 years, add your previous address below — lenders run a 3-year address history on the credit search either way.", type: "text", askedBy: ["cwrt", "ffe", "firstent"] },
+  { id: "timeAtAddress", label: "Time at current address", note: "If under 3 years, add your previous address below — lenders run a 3-year address history on the credit search either way.", type: "text", required: true, askedBy: ["cwrt", "ffe", "firstent"] },
   { id: "previousAddress", label: "Previous address (if under 3 years at current)", type: "textarea", askedBy: ["cwrt", "ffe", "firstent"] },
   { id: "homeOwnerOrTenant", label: "Home owner or tenant?", type: "select", options: ["Owner", "Tenant"], askedBy: ["cwrt"] },
-  { id: "personalPhone", label: "Phone / mobile", type: "text", askedBy: ["cwrt", "ffe", "firstent"] },
-  { id: "personalEmail", label: "Personal email", type: "text", askedBy: ["cwrt", "ffe", "firstent"] },
-  { id: "shareholdingPercent", label: "Shareholding / share of the business (%)", type: "number", askedBy: ["ffe"] },
+  { id: "personalPhone", label: "Phone / mobile", type: "text", required: true, askedBy: ["cwrt", "ffe", "firstent"] },
+  { id: "personalEmail", label: "Personal email", type: "text", required: true, askedBy: ["cwrt", "ffe", "firstent"] },
+  { id: "shareholdingPercent", label: "Shareholding / share of the business (%)", type: "number", required: true, askedBy: ["ffe"] },
   { id: "yearsWithBusiness", label: "Years with the business", type: "number", askedBy: ["ffe"] },
   { id: "capitalIntroduced", label: "Your own capital introduced into the business", type: "currency", askedBy: ["ffe"] },
-  { id: "positionInBusiness", label: "Position within the business", type: "text", askedBy: ["bcrs", "firstent"] },
-  { id: "existingPersonalGuarantees", label: "Existing personal guarantees given, on this or other facilities", type: "textarea", askedBy: ["bcrs", "cwrt", "ffe"] },
+  { id: "positionInBusiness", label: "Position within the business", type: "text", required: true, askedBy: ["bcrs", "firstent"] },
+  { id: "existingPersonalGuarantees", label: "Existing personal guarantees given, on this or other facilities", type: "textarea", required: true, askedBy: ["bcrs", "cwrt", "ffe"] },
 ];
 
 export const DIRECTOR_CREDIT_FIELDS: ApplicationFieldDef[] = [
@@ -232,7 +234,7 @@ export const DIRECTOR_CREDIT_FIELDS: ApplicationFieldDef[] = [
     required: true,
     askedBy: ["bcrs", "cwrt", "ffe", "firstent"],
   },
-  { id: "failedBusinessDetail", label: "If yes, full details", type: "textarea", askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
+  { id: "failedBusinessDetail", label: "If yes, full details", type: "textarea", requiredIf: { field: "everAssociatedWithFailedBusiness", equals: "Yes" }, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
   {
     id: "personalInsolvency",
     label: "Ever personally subject to insolvency (IVA, bankruptcy, CCJ, Debt Management Plan)?",
@@ -240,7 +242,7 @@ export const DIRECTOR_CREDIT_FIELDS: ApplicationFieldDef[] = [
     required: true,
     askedBy: ["bcrs", "cwrt", "ffe", "firstent"],
   },
-  { id: "personalInsolvencyDetail", label: "If yes, full details", type: "textarea", askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
+  { id: "personalInsolvencyDetail", label: "If yes, full details", type: "textarea", requiredIf: { field: "personalInsolvency", equals: "Yes" }, askedBy: ["bcrs", "cwrt", "ffe", "firstent"] },
   { id: "convictedFraudOrDishonesty", label: "Ever convicted of fraud or an offence involving dishonesty?", type: "yesno", askedBy: ["ffe"] },
   { id: "removedFromBoard", label: "Ever removed from a company board?", type: "yesno", askedBy: ["ffe"] },
   { id: "hadGovGuaranteedLoan", label: "Ever had a loan under a Government Loan Guarantee / Enterprise Finance Guarantee scheme?", type: "yesno", askedBy: ["ffe"] },
@@ -249,9 +251,9 @@ export const DIRECTOR_CREDIT_FIELDS: ApplicationFieldDef[] = [
 ];
 
 export const DIRECTOR_ASSETS_FIELDS: ApplicationFieldDef[] = [
-  { id: "propertyAssetsDetail", label: "Property: market value, mortgage outstanding, equity", type: "textarea", askedBy: ["ffe", "cwrt"] },
+  { id: "propertyAssetsDetail", label: "Property: market value, mortgage outstanding, equity", type: "textarea", required: true, askedBy: ["ffe", "cwrt"] },
   { id: "otherAssetsDetail", label: "Other assets: life policies, savings, stocks/shares, anything else significant", type: "textarea", askedBy: ["ffe"] },
-  { id: "personalLiabilitiesDetail", label: "Liabilities: overdraft, loans, credit cards, HP, tax due — lender, limit, balance", type: "textarea", askedBy: ["ffe", "cwrt"] },
+  { id: "personalLiabilitiesDetail", label: "Liabilities: overdraft, loans, credit cards, HP, tax due — lender, limit, balance", type: "textarea", required: true, askedBy: ["ffe", "cwrt"] },
   { id: "guaranteesGiven", label: "Guarantees given / contingent liabilities", type: "textarea", askedBy: ["ffe"] },
 ];
 
@@ -461,12 +463,17 @@ function isBlank(value: string | undefined): boolean {
   return !value || !value.trim();
 }
 
+export function isFieldRequired(field: ApplicationFieldDef, values: ApplicationAnswers): boolean {
+  if (field.required) return true;
+  return Boolean(field.requiredIf && values[field.requiredIf.field] === field.requiredIf.equals);
+}
+
 /** Required fields on the single (non-repeated) sections — what gates the missing-info chase. */
 export function missingRequiredFields(answers: ApplicationAnswers): ApplicationFieldDef[] {
   const missing: ApplicationFieldDef[] = [];
   for (const section of APPLICATION_SECTIONS) {
     for (const field of section.fields) {
-      if (field.required && isBlank(answers[field.id])) missing.push(field);
+      if (isFieldRequired(field, answers) && isBlank(answers[field.id])) missing.push(field);
     }
   }
   return missing;
@@ -477,7 +484,7 @@ export function missingRequiredDirectorFields(directors: ApplicationDirector[]):
   noDirectors: boolean;
   perDirector: Array<{ directorId: string; missing: ApplicationFieldDef[] }>;
 } {
-  const requiredDirectorFields = DIRECTOR_SECTIONS.flatMap((s) => s.fields).filter((f) => f.required);
+  const directorFields = DIRECTOR_SECTIONS.flatMap((s) => s.fields);
   if (directors.length === 0) {
     return { noDirectors: true, perDirector: [] };
   }
@@ -485,7 +492,7 @@ export function missingRequiredDirectorFields(directors: ApplicationDirector[]):
     noDirectors: false,
     perDirector: directors.map((d) => ({
       directorId: d.id,
-      missing: requiredDirectorFields.filter((f) => isBlank(d[f.id])),
+      missing: directorFields.filter((f) => isFieldRequired(f, d) && isBlank(d[f.id])),
     })),
   };
 }

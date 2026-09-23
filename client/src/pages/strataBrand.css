@@ -1,0 +1,134 @@
+/* stratafinance.co.uk brand, scoped to customer-facing pages (.sf-brand). Tokens copied from the site's styles.css. */
+@import url("https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+
+.sf-brand {
+  --sf-bg: #ffffff;
+  --sf-bg-alt: #f3f5f8;
+  --sf-surface: #ffffff;
+  --sf-border: #e3e6eb;
+  --sf-border-hi: #ccd1d9;
+  --sf-text: #181a1e;
+  --sf-heading: #12141a;
+  --sf-muted: #5c6673;
+  --sf-accent: #2e5096;
+  --sf-accent-hover: #213c77;
+  --sf-accent-soft: rgba(46, 80, 150, 0.08);
+  --sf-gold: #9c6b12;
+  --sf-green: #2c7a2e;
+  --sf-red: #b21f2a;
+  --sf-bands: linear-gradient(90deg, #2e5096 0% 25%, #c68b22 25% 50%, #439840 50% 75%, #c41e28 75% 100%);
+  background: var(--sf-bg-alt);
+  color: var(--sf-text);
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sf-brand {
+    --sf-bg: #211e20;
+    --sf-bg-alt: #161415;
+    --sf-surface: #282326;
+    --sf-border: #3b3537;
+    --sf-border-hi: #4d464a;
+    --sf-text: #f2efed;
+    --sf-heading: #ffffff;
+    --sf-muted: #b8bfc8;
+    --sf-accent: #7098de;
+    --sf-accent-hover: #8fb0e8;
+    --sf-accent-soft: rgba(112, 152, 222, 0.16);
+    --sf-gold: #e0b35a;
+    --sf-green: #6cc46f;
+    --sf-red: #ef6b73;
+    color-scheme: dark;
+  }
+}
+
+.sf-brand h1,
+.sf-brand h2 {
+  font-family: "Unbounded", system-ui, sans-serif;
+  color: var(--sf-heading);
+  letter-spacing: -0.01em;
+}
+
+.sf-bands {
+  height: 4px;
+  background: var(--sf-bands);
+}
+
+.sf-card {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+}
+
+.sf-input {
+  width: 100%;
+  border-radius: 8px;
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border-hi);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--sf-text);
+}
+.sf-input:focus {
+  outline: 2px solid var(--sf-accent);
+  outline-offset: 1px;
+}
+.sf-input[aria-invalid="true"] {
+  border-color: var(--sf-gold);
+}
+
+.sf-btn {
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid var(--sf-accent);
+  cursor: pointer;
+}
+.sf-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sf-btn-primary {
+  background: var(--sf-accent);
+  color: #fff;
+}
+.sf-btn-primary:hover:not(:disabled) {
+  background: var(--sf-accent-hover);
+}
+.sf-btn-ghost {
+  background: transparent;
+  color: var(--sf-accent);
+}
+.sf-btn-ghost:hover:not(:disabled) {
+  background: var(--sf-accent-soft);
+}
+
+.sf-choice {
+  flex: 1;
+  border-radius: 8px;
+  border: 1px solid var(--sf-border-hi);
+  background: var(--sf-surface);
+  color: var(--sf-text);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.sf-choice[aria-pressed="true"] {
+  background: var(--sf-accent);
+  border-color: var(--sf-accent);
+  color: #fff;
+}
+
+.sf-logo-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  .sf-logo-light {
+    display: none;
+  }
+  .sf-logo-dark {
+    display: block;
+  }
+}

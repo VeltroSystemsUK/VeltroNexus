@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,9 @@ export default function PackUpload() {
   const token = params.token || "";
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["/api/pack", token], [token]);
+  useEffect(() => {
+    document.title = "Upload documents | Strata Finance";
+  }, []);
   const [reason, setReason] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -265,6 +268,13 @@ export default function PackUpload() {
             To take this forward we need bank statements, accounts, a 24-month cash flow, the current
             debt schedule, director ID, and a short note on why the funding or refinance is needed.
           </p>
+          <a
+            href={`/apply/${encodeURIComponent(token)}`}
+            className="inline-block mt-3 text-sm font-semibold text-[#2E5096] underline underline-offset-2"
+            data-testid="pack-apply-link"
+          >
+            Your application form is online. Complete it here →
+          </a>
         </div>
 
         {complete && (

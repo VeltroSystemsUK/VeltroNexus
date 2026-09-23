@@ -38,7 +38,7 @@ function Field({
     <div className="space-y-1">
       <Label htmlFor={id} className="text-xs">
         {field.label}
-        {field.required ? " *" : ""}
+        {field.required || field.requiredIf ? " *" : ""}
       </Label>
       {field.note ? <p className="text-[11px] text-muted-foreground">{field.note}</p> : null}
       {field.type === "textarea" ? (
