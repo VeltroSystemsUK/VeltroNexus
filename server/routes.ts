@@ -73,6 +73,7 @@ import {
   requireUnderwritingAccess,
 } from "./utils/underwritingAuth";
 import { sendEmail } from "./services/email";
+import { mailIsSuppressed } from "./services/mailDesk";
 import { LocalStorageClient as ObjectStorageClient } from "./localStorage";
 const require = createRequire(import.meta.url);
 
@@ -97,6 +98,7 @@ import inboundRouter from "./routes/inbound"; // Added inbound router
 import agenticWorkflowRouter from "./routes/agenticWorkflow";
 import agentMailRouter from "./routes/agentMail";
 import openersRouter from "./routes/openers";
+import briefingsRouter from "./routes/briefings";
 import gmailRouter from "./routes/gmail";
 import packUploadRouter from "./routes/packUpload";
 import signEngagementRouter from "./routes/signEngagement";
@@ -130,6 +132,7 @@ import mediaRouter from "./routes/media";
 import curatorRouter from "./routes/curator";
 import craftRouter from "./routes/craft";
 import editorialRouter from "./routes/editorial";
+import { cheapHealth } from "./routes/health";
 import learnPublicRouter from "./routes/learnPublic";
 import learnDeskRouter from "./routes/learnDesk";
 import { getObjectStorage } from "./utils/routerHelpers";
@@ -463,20 +466,8 @@ export async function registerRoutes(app: Application): Promise<Server> {
   );
 
   // Simple health check endpoint for load balancers
-  app.get("/api/health", async (req, res) => {
-    try {
-      await storage.getUser("health-check-probe");
-      res.json({
-        status: "healthy",
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-      });
-    } catch {
-      res.status(503).json({
-        status: "unhealthy",
-        error: "Database unavailable",
-      });
-    }
+  app.get("/api/health", (_req, res) => {
+    res.json(cheapHealth());
   });
 
   // Detailed health check endpoint - checks DB, Redis, and object storage
@@ -558,6 +549,7 @@ export async function registerRoutes(app: Application): Promise<Server> {
   app.use(agenticWorkflowRouter);
   app.use(agentMailRouter);
   app.use(openersRouter);
+  app.use(briefingsRouter);
   app.use(gmailRouter);
   app.use(packUploadRouter);
   app.use(signEngagementRouter);
@@ -801,6 +793,11 @@ export async function registerRoutes(app: Application): Promise<Server> {
               .toString()
               .replace(/\s/g, "")
               .toUpperCase();
+          }
+
+          if (mailIsSuppressed(leadData.email || leadData.contactEmail, leadData.companyNumber)) {
+            errors.push({ row: i + 1, message: "Do not contact" });
+            continue;
           }
 
           leadsToCreate.push(leadData);

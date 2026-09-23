@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
 import { calculateMonthlyPayment, identifyOpportunity, MARKET_CONTEXT_2026 } from "../data/refinancingIntelligence";
-import { isInboundLead, promoteInternalLeadToPipeline } from "../services/inboundPipeline";
+import { inboundDeskForSource, isInboundLead, promoteInternalLeadToPipeline } from "../services/inboundPipeline";
 import { chFetch } from "../utils/companiesHouseClient";
 
 const router = Router();
@@ -28,6 +28,15 @@ function emailsMatch(left?: string | null, right?: string | null): boolean {
     return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
 }
 
+async function stopConvertAfterInboundLead(email: string): Promise<void> {
+    try {
+        const { stopConvertAndPromote } = await import("../services/openers");
+        await stopConvertAndPromote(email, "promoted");
+    } catch (error) {
+        console.error("[Inbound] convert auto-promote failed:", error);
+    }
+}
+
 // Schema for Inbound Refinancing Lead.
 // Shared by the site's per-tool calculator forms (which send currentDebt/monthlyPayment
 // directly) and the unified "Start The Conversation" widget on the Refinance Calculator,
@@ -47,6 +56,8 @@ const inboundRefinanceSchema = z.object({
 
     source: z.string().optional(),
     context: z.record(z.any()).optional(),
+    situation: z.enum(["hmrc", "refinance", "decline", "other"]).optional(),
+    notes: z.string().max(4000).optional(),
 });
 
 /**
@@ -63,7 +74,8 @@ router.post("/refinance", async (req, res) => {
 
         const {
             companyName, contactName, email, phone,
-            estimatedRate, source, context
+            estimatedRate, source, context, situation,
+            notes: enquiryNotes,
         } = result.data;
 
         // The unified widget (refinance calc, HMRC TTP calc, BBB checker) nests the
@@ -79,6 +91,7 @@ router.post("/refinance", async (req, res) => {
             60   // Term (Months)
         );
 
+        const desk = inboundDeskForSource(source);
         // Public inbound leads land in the CRM inbox for review and promotion.
         const notes = JSON.stringify({
             source: source ? `Landing Page: ${source}` : "Landing Page: Refinance 2026",
@@ -89,7 +102,9 @@ router.post("/refinance", async (req, res) => {
                 analysis
             },
             context,
-            campaign: "Inbound-Capital-Strategist"
+            situation,
+            enquiryNotes,
+            campaign: desk === "director" ? "Inbound-Director-Contact" : "Inbound-Capital-Strategist"
         }, null, 2);
 
         const lead = await storage.createInternalLead({
@@ -99,7 +114,7 @@ router.post("/refinance", async (req, res) => {
             email,
             phone: phone || "",
             status: "new",
-            assignedAgentId: "capital-strategist",
+            assignedAgentId: desk === "director" ? "director" : "capital-strategist",
             notes,
             estimatedValue: Math.round(analysis.fiveYearSavings),
             commissionRate: 0.1,
@@ -110,6 +125,8 @@ router.post("/refinance", async (req, res) => {
         });
 
         const pipeline = await promoteInternalLeadToPipeline(lead);
+
+        await stopConvertAfterInboundLead(email);
 
         // 4. Return the "Result" to the frontend (The Hook)
         // We give them the data immediately as the reward for signing up
@@ -126,14 +143,44 @@ router.post("/refinance", async (req, res) => {
             message: "Lead captured. Strategy Agent will analyze deeper."
         });
 
-        import("../services/agenticWorkflow").then(({ agenticWorkflow }) => {
-            agenticWorkflow.startFromInbound(lead.id, {
-                loanAmount: Math.round(currentDebt * 100),
+        import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+            triageInboundLead({
+                leadId: lead.id,
                 prospectId: pipeline.prospectId,
-            }).catch((error) => {
-                console.error("[Inbound] Agentic workflow failed:", error);
-            });
+                desk,
+                payload: {
+                    companyName,
+                    contactName,
+                    email,
+                    phone,
+                    currentDebt,
+                    monthlyPayment,
+                    estimatedRate,
+                    source,
+                    context,
+                    situation,
+                    notes: enquiryNotes,
+                },
+                analysis: analysis as unknown as Record<string, unknown>,
+            }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
         });
+
+        if (desk === "director") {
+            const subject = `Contact page — call ${companyName}`;
+            const content = `
+                <h2>Someone asked you to call them</h2>
+                <p>This came from <strong>contact.html</strong>, not the Tools form. Maya will not collect documents.</p>
+                <p><strong>Company:</strong> ${escapeHtml(companyName)}</p>
+                <p><strong>Name:</strong> ${escapeHtml(contactName)}</p>
+                <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+                <p><strong>Phone:</strong> ${escapeHtml(phone || "")}</p>
+            `;
+            import("../services/email").then(({ sendEmail }) =>
+                sendEmail({ agentId: "director" }, "shaun@veltro.co.uk", subject, content).catch((error) => {
+                    console.error("[Inbound] Director notify failed:", error);
+                })
+            );
+        }
 
     } catch (error) {
         console.error("[Inbound] Refinance lead capture failed:", error);
@@ -157,6 +204,76 @@ const applicationSchema = z.object({
 });
 
 import { sendEmail } from "../services/email";
+import { buildHealthcheckLeadNotice, buildHealthcheckMail, illustratedMonthly, parseHealthcheckAnswers, parseHealthcheckMail } from "../services/healthcheckMail";
+
+// Business Check capture: CRM inbox lead only. The page promises "We use this address only
+// to send what you ask for", so no pipeline promotion and no Jev triage (both can email).
+async function captureHealthcheckLead(input: import("../services/healthcheckMail").HealthcheckMailInput, body: unknown): Promise<void> {
+    const answers = parseHealthcheckAnswers(body);
+    let leadId: number | undefined;
+    try {
+        const lead = await storage.createInternalLead({
+            companyName: input.company || `Business Check — ${input.email}`,
+            companyNumber: `WEB-${Date.now()}`,
+            contactName: "",
+            email: input.email,
+            phone: "",
+            status: "new",
+            assignedAgentId: "capital-strategist",
+            notes: JSON.stringify({
+                source: "Landing Page: Business Check",
+                consent: "Illustration only. Page promised no further emails or calls.",
+                calculatorData: {
+                    currentDebt: input.balance,
+                    monthlyPayment: input.monthly,
+                    illustratedMonthly: Math.round(illustratedMonthly(input.balance)),
+                },
+                lenders: input.lenders,
+                brokerNote: input.brokerNote,
+                answers,
+            }, null, 2),
+            estimatedValue: Math.round(input.balance),
+            commissionRate: 0.1,
+            hasCharges: false,
+            totalChargesCount: 0,
+            satisfiedChargesCount: 0,
+            possibleDuplicate: false,
+        });
+        leadId = lead.id;
+    } catch (error) {
+        // The notice below still carries every answer, so nothing is lost if the CRM write fails.
+        console.error("[Inbound] Healthcheck lead capture failed:", error);
+    }
+    await stopConvertAfterInboundLead(input.email);
+    const notice = buildHealthcheckLeadNotice(input, answers, leadId);
+    // Not awaited: the visitor should not wait on our own notification.
+    // ponytail: a retry after a failed visitor send records a second lead + notice; dedupe by hand if it happens.
+    void sendEmail({ agentId: "director", contactSource: "website-healthcheck" }, "shaun@veltro.co.uk", notice.subject, notice.html)
+        .catch((error) => console.error("[Inbound] Healthcheck notify failed:", error));
+}
+
+router.post("/healthcheck", async (req, res) => {
+    const parsed = parseHealthcheckMail(req.body);
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+    // Capture before mailing so a failed send never loses the answers.
+    await captureHealthcheckLead(parsed.value, req.body);
+    const mail = buildHealthcheckMail(parsed.value);
+    try {
+        const result = await sendEmail(
+            { agentId: "inbound-intake", fromName: "Strata Finance", contactSource: "website-healthcheck" },
+            parsed.value.email,
+            mail.subject,
+            mail.html,
+        );
+        if (!result.success) {
+            return res.status(502).json({ error: "That email did not send. Try again in a moment." });
+        }
+        return res.json({ ok: true, id: result.id });
+    } catch (error) {
+        console.error("[Inbound] Healthcheck email failed:", error);
+        return res.status(502).json({ error: "That email did not send. Try again in a moment." });
+    }
+});
 
 router.post("/application", async (req, res) => {
     try {
@@ -214,6 +331,8 @@ router.post("/application", async (req, res) => {
             pipelineProspectId = (await promoteInternalLeadToPipeline(created)).prospectId;
         }
 
+        await stopConvertAfterInboundLead(data.email);
+
         // 2. Send Email to Super Admin — best-effort notification only, never the only record.
         const subject = `[PRIORITY] New Refinance Application: ${data.companyName}`;
         const content = `
@@ -238,11 +357,21 @@ router.post("/application", async (req, res) => {
 
         res.json({ success: true, message: "Application forwarded to underwriting." });
 
-        if (workflowLeadId) {
-            import("../services/agenticWorkflow").then(({ agenticWorkflow }) => {
-                agenticWorkflow.startFromInbound(workflowLeadId!, { loanAmount: data.loanAmount * 100, prospectId: pipelineProspectId }).catch((error) => {
-                    console.error("[Inbound] Agentic workflow failed:", error);
-                });
+        if (canAttachToLead && workflowLeadId) {
+            import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+                triageInboundLead({
+                    leadId: workflowLeadId!,
+                    prospectId: pipelineProspectId,
+                    payload: {
+                        companyName: data.companyName,
+                        contactName: data.directorName,
+                        email: data.email,
+                        phone: data.phone,
+                        loanAmount: data.loanAmount,
+                        companyNumber: data.companyNumber,
+                        notes: JSON.stringify(data),
+                    },
+                }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
             });
         }
 
@@ -367,7 +496,28 @@ router.post("/portal-submit", async (req, res) => {
                 possibleDuplicate: false,
             });
 
-            return res.json({ success: true, brokerLeadId: brokerLead.id });
+            res.json({ success: true, brokerLeadId: brokerLead.id });
+            import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+                triageInboundLead({
+                    leadId: brokerLead.id,
+                    brokerLeadId: brokerLead.id,
+                    bank: "introducer",
+                    payload: {
+                        companyName: data.companyName,
+                        contactName: data.contactName,
+                        email: data.email,
+                        phone: data.phone || "",
+                        companyNumber: data.companyNumber,
+                        companyType: data.companyType || "",
+                        loanAmount: data.loanAmount,
+                        monthlyPayment: data.monthlyPayment,
+                        source: data.source,
+                        notes,
+                        gatewaySelection: data.gatewaySelection,
+                    },
+                }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
+            });
+            return;
         }
 
         const lead = await storage.createInternalLead({
@@ -389,19 +539,32 @@ router.post("/portal-submit", async (req, res) => {
 
         const pipeline = await promoteInternalLeadToPipeline(lead);
 
+        await stopConvertAfterInboundLead(data.email);
+
         res.json({
             success: true,
             leadId: lead.id,
             prospectId: pipeline.prospectId,
         });
 
-        import("../services/agenticWorkflow").then(({ agenticWorkflow }) => {
-            agenticWorkflow.startFromInbound(lead.id, {
-                loanAmount: Math.round((data.loanAmount || 0) * 100),
+        import("../services/jevInboundTriage").then(({ triageInboundLead }) => {
+            triageInboundLead({
+                leadId: lead.id,
                 prospectId: pipeline.prospectId,
-            }).catch((error) => {
-                console.error("[Inbound] Agentic workflow failed:", error);
-            });
+                payload: {
+                    companyName: data.companyName,
+                    contactName: data.contactName,
+                    email: data.email,
+                    phone: data.phone || "",
+                    companyNumber: data.companyNumber,
+                    companyType: data.companyType || "",
+                    loanAmount: data.loanAmount,
+                    monthlyPayment: data.monthlyPayment,
+                    source: data.source,
+                    notes,
+                    gatewaySelection: data.gatewaySelection,
+                },
+            }).catch((error) => console.error("[Inbound] Jev triage failed:", error));
         });
     } catch (error) {
         console.error("[Inbound] Portal submission failed:", error);

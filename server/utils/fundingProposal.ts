@@ -16,7 +16,6 @@ import {
   SLOT_CAPS,
   buildProposal,
   proposalSourceFromFile,
-  validateSlot,
   type ProposalDerived,
   type ProposalFacts,
 } from "@shared/proposalFacts";
@@ -28,14 +27,15 @@ import {
   type CashflowForecast,
   type ForecastColumn,
 } from "@shared/cashflowForecast";
-import { fileResearchBullets, historicAccountsCommentary, isAssetLedgerOrPropertyProduct, mergeHistoricYears } from "@shared/reportCommentary";
+import { hmrcPositionHasContent, resolveHmrcPosition } from "@shared/hmrcPosition";
+import { historicAccountsCommentary, isAssetLedgerOrPropertyProduct, mergeHistoricYears } from "@shared/reportCommentary";
+import { isApplicationSigned, parseApplicationData } from "@shared/applicationDataFields";
 import { linesFromSterlingEdit, parseSterlingCopyEdits } from "@shared/sterlingEdits";
 import { STERLING_PAPER_CSS } from "@shared/sterlingPaper";
 import { calculateLoan } from "../../client/src/lib/calculators";
 import { CAMPARI_SECTIONS } from "../../client/src/lib/creditUnderwriting/constants";
 import { buildStrataPayload } from "../services/strataPayload";
 import type { ProspectReportData } from "./pdfGenerator";
-import { ensureBackground } from "./backgroundPrepare";
 import { ensureCashflowForecast } from "./cashflowForecastPrepare";
 
 export type FundingProposalInput = ProspectReportData & {
@@ -124,8 +124,10 @@ export type FundingProposalModel = {
   fileResearch: string[];
   dealIntro: string;
   sourcesUses: FinTable | null;
-  ttp: FinTable | null;
-  ttpNote: string;
+  hmrcTtpRequired: string;
+  hmrcNarrative: string;
+  hmrcArrangements: string;
+  hmrcHasContent: boolean;
   dealNotes: string;
   purposeCommentary: string;
   securityRows: Kv[];
@@ -305,7 +307,16 @@ function accountsChartSvg(chart: AccountsChart): string {
   const padB = 36;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
-  const all = chart.series.flatMap((s) => s.values.filter((v): v is number => v != null));
+  const trendSource = chart.trend || (chart.series[0] ? { name: chart.series[0].name, values: chart.series[0].values } : null);
+  const trend = trendSource
+    ? chart.trend
+      ? trendSource.values
+      : linearTrend(trendSource.values)
+    : [];
+  const all = [
+    ...chart.series.flatMap((s) => s.values.filter((v): v is number => v != null)),
+    ...trend.filter((v): v is number => v != null),
+  ];
   if (!all.length) return "";
   const min = Math.min(0, ...all);
   const max = Math.max(0, ...all);
@@ -344,8 +355,6 @@ function accountsChartSvg(chart: AccountsChart): string {
     })
     .join("");
   const caption = chart.caption || `Accounts trend (${chart.unit})`;
-  const trendSource = chart.trend || (chart.series[0] ? { name: chart.series[0].name, values: chart.series[0].values } : null);
-  const trend = trendSource ? linearTrend(trendSource.values) : [];
   const trendPts = trend
     .map((v, i) => {
       if (v == null) return null;
@@ -408,6 +417,53 @@ function formatDate(value?: string | Date | null): string {
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+const MONTH_NUMBER: Record<string, string> = {
+  january: "01",
+  jan: "01",
+  february: "02",
+  feb: "02",
+  march: "03",
+  mar: "03",
+  april: "04",
+  apr: "04",
+  may: "05",
+  june: "06",
+  jun: "06",
+  july: "07",
+  jul: "07",
+  august: "08",
+  aug: "08",
+  september: "09",
+  sep: "09",
+  sept: "09",
+  october: "10",
+  oct: "10",
+  november: "11",
+  nov: "11",
+  december: "12",
+  dec: "12",
+};
+
+export function monthLabelMmYy(raw: string): string {
+  const value = String(raw || "").trim();
+  if (!value) return value;
+  const iso = value.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+  if (iso) return `${pad2(Number(iso[2]))}/${iso[1].slice(-2)}`;
+  const already = value.match(/^(\d{1,2})\/(\d{2})$/);
+  if (already) return `${pad2(Number(already[1]))}/${already[2]}`;
+  const monthYear = value.match(/^(\d{1,2})\/(\d{4})$/);
+  if (monthYear) return `${pad2(Number(monthYear[1]))}/${monthYear[2].slice(-2)}`;
+  const named = value.match(/(?:^|\s)([A-Za-z]+)\s+(\d{2,4})\s*$/);
+  if (named) {
+    const month = MONTH_NUMBER[named[1].toLowerCase()];
+    if (month) {
+      const year = named[2].length === 2 ? named[2] : named[2].slice(-2);
+      return `${month}/${year}`;
+    }
+  }
+  return value;
 }
 
 function formatStamp(at: Date): string {
@@ -915,7 +971,7 @@ function bankChartFromMonths(months: unknown): AccountsChart | null {
     const inVal = numberish(rec.income ?? rec.credits ?? rec.moneyIn);
     const outVal = numberish(rec.expenses ?? rec.debits ?? rec.moneyOut);
     if (!label && inVal == null) continue;
-    labels.push(label || "—");
+    labels.push(monthLabelMmYy(label) || "—");
     credits.push(inVal);
     debits.push(outVal);
     nets.push(numberish(rec.net) ?? (inVal != null && outVal != null ? inVal - outVal : null));
@@ -1038,48 +1094,6 @@ function campariFactsLine(key: string, facts: ProposalFacts, derived: ProposalDe
       .join(" · ");
   }
   return "";
-}
-
-function bulletsFromOverview(overview: string): string[] {
-  const narrative = businessNarrative(overview)
-    .replace(/\b\d{5,}\b/g, "")
-    .replace(/\(company number\s*\)/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!narrative) return [];
-  const packed: string[] = [];
-  for (const point of splitSlotPoints(narrative)) {
-    const words = point.split(/\s+/).filter(Boolean);
-    if (!words.length) continue;
-    const max = SLOT_CAPS.theBusiness.maxWords;
-    if (words.length <= max) packed.push(point);
-    else {
-      for (let i = 0; i < words.length; i += max) {
-        packed.push(words.slice(i, i + max).join(" "));
-      }
-    }
-  }
-  return validateSlot(packed, SLOT_CAPS.theBusiness.cap, SLOT_CAPS.theBusiness.maxWords);
-}
-
-function filterBusinessBullets(bullets: string[], overview: string): string[] {
-  const dropChrome = (item: string) =>
-    !isCampariChromeHeading(item) &&
-    !/^overview$/i.test(item.trim()) &&
-    !/key facts a credit officer needs before campari/i.test(item);
-  if (!overview.trim()) return bullets.filter(dropChrome);
-  if (
-    !/key facts a credit officer needs before campari/i.test(overview) &&
-    !/\n+#+\s*CAMPARI/i.test(overview)
-  ) {
-    return bullets.filter(dropChrome);
-  }
-  const cut = businessNarrative(overview)
-    .toLowerCase()
-    .replace(/[*#_]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return bullets.filter((item) => dropChrome(item) && cut.includes(item.toLowerCase().replace(/[*#_]/g, "")));
 }
 
 function loanCalcRowsFromLedger(
@@ -1295,9 +1309,19 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
     : null;
   const backgroundNotes = "";
   const copy = parseSterlingCopyEdits(data.sterlingCopy);
-  let backgroundBullets = copy.background
-    ? linesFromSterlingEdit(copy.background)
-    : proposal.slots.background;
+  const application = parseApplicationData(diligence.applicationData);
+  const quoteBy = () => {
+    const who = application.signedName?.trim() || "Director";
+    const when = application.signedAt ? formatDate(application.signedAt) : "";
+    const source = isApplicationSigned(application) || when ? "signed application" : "application";
+    return when ? `${who} (${source}, ${when})` : `${who} (${source})`;
+  };
+  const customerQuote = (field: string): string[] => {
+    const text = String(application.answers[field] || "").trim();
+    if (!text) return [];
+    return [`${quoteBy()}: “${text}”`];
+  };
+  let backgroundBullets = copy.background ? linesFromSterlingEdit(copy.background) : [];
 
   const associations = Array.isArray(prospect.savedAssociations) ? prospect.savedAssociations : [];
   const group: GroupEntity[] = [
@@ -1339,10 +1363,10 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
     }
   }
 
-  const strengths = proposal.slots.swot.strengths;
-  const weaknesses = proposal.slots.swot.weaknesses;
-  const opportunities = proposal.slots.swot.opportunities;
-  const threats = proposal.slots.swot.threats;
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
+  const opportunities: string[] = [];
+  const threats: string[] = [];
   const fileFlags = Array.from(
     new Set([
       ...outstanding.map((row) => {
@@ -1377,19 +1401,7 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
   const coverNote =
     "Initial overview to establish lender interest ahead of formal underwriting.";
 
-  const ttpStatus = diligence.hmrcTimeToPay && diligence.hmrcTimeToPay !== "none" ? String(diligence.hmrcTimeToPay) : "";
-  const ttpRows = Array.isArray(financials.ttp) ? financials.ttp : [];
-  const ttp: FinTable | null = ttpStatus
-    ? {
-        caption: "Time to Pay Agreement — HMRC",
-        headers: ["Item", "Detail"],
-        rows: [
-          ["Status", ttpStatus === "active" ? "Active" : ttpStatus === "historic" ? "Historic" : ttpStatus],
-          ...ttpRows.map((row: any) => [String(row.company || row.lender || "HMRC"), String(row.status || row.notes || ttpStatus)]),
-        ],
-        note: "Self-reported on this file — amounts are shown only where captured.",
-      }
-    : null;
+  const hmrc = resolveHmrcPosition(diligence);
 
   const forecastStats: Kv[] = [];
 
@@ -1423,16 +1435,15 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
   const signedAt = prospect.adviserRecommendationSignedAt ? formatDate(prospect.adviserRecommendationSignedAt) : "";
 
   const purposeValue = purposeShort(ledger.purposeShort || "");
-  const purposeBullets = purposeValue && purposeValue !== "—" ? [purposeValue] : [];
+  const purposeBullets = customerQuote("loanPurpose").length
+    ? customerQuote("loanPurpose")
+    : purposeValue && purposeValue !== "—"
+      ? [purposeValue]
+      : [];
   const loanPurpose = purposeBullets.join("\n");
-  const overview = text(asRecord(asRecord(underwriting.adviserSummary).sections).overview);
-  const authoredBusiness = Array.isArray(asRecord(asRecord(diligence.proposal).slots).theBusiness)
-    && asRecord(asRecord(diligence.proposal).slots).theBusiness.length > 0;
-  let theBusinessBullets = authoredBusiness
-    ? proposal.slots.theBusiness
-    : filterBusinessBullets(proposal.slots.theBusiness, overview);
-  if (copy.theBusiness) theBusinessBullets = linesFromSterlingEdit(copy.theBusiness);
-  else if (!theBusinessBullets.length) theBusinessBullets = bulletsFromOverview(overview);
+  let theBusinessBullets = copy.theBusiness
+    ? linesFromSterlingEdit(copy.theBusiness)
+    : customerQuote("natureOfBusiness");
   const theBusiness = theBusinessBullets.join("\n");
 
   const historicFromPayload = asRecord(financials.historic_pl);
@@ -1508,7 +1519,7 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
     backgroundBullets,
     theBusinessBullets,
     recommendationBullets,
-    bankFindingBullets: proposal.slots.bankFindings,
+    bankFindingBullets: [],
     businessFacts,
     group,
     groupNote: "",
@@ -1520,17 +1531,14 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
     riskSummary:
       derived.gradeNow || derived.gradeAfter ? "" : "Risk assessment not yet completed.",
     campariBlocks: CAMPARI_SECTIONS.map((section) => {
-      const key = section.key as keyof typeof proposal.slots.campari;
-      const edited = copy[key as keyof typeof copy];
+      const edited = copy[section.key as keyof typeof copy];
       return {
         key: section.key,
         title: section.title,
-        body: typeof edited === "string" && edited.trim()
-          ? linesFromSterlingEdit(edited).join("\n")
-          : (proposal.slots.campari[key] || []).join("\n"),
+        body: typeof edited === "string" && edited.trim() ? linesFromSterlingEdit(edited).join("\n") : "",
         facts: campariFactsLine(section.key, ledger, derived),
       };
-    }).filter((block) => block.body || block.facts),
+    }),
     strengths,
     weaknesses,
     opportunities,
@@ -1578,25 +1586,13 @@ export function buildFundingProposal(data: FundingProposalInput): FundingProposa
           pnlFromUpload: historicYears.some((row) => row.turnover != null && row.turnover !== 0) &&
             /micro|abbreviated|filleted/i.test(String(lastAccounts.type || "")),
         }),
-    fileResearch: fileResearchBullets({
-      documents: (data.documents || []).map((doc) => ({
-        id: doc.id,
-        fileName: doc.fileName,
-        category: doc.category,
-      })),
-      accountsType: String(lastAccounts.type || ""),
-      creditsafeScore: ledger.creditsafeScore || displayString(company.creditsafeScore),
-      hasCharges: Boolean(profile.has_charges || outstanding.length > 0),
-      insolvency: Boolean(profile.has_insolvency_history),
-      companyNumber: company.companyNumber || null,
-      companyStatus: company.companyStatus || String(profile.company_status || ""),
-      hasAuditedAccounts: /audit|full/i.test(String(lastAccounts.type || "")) &&
-        !/micro|abbreviated|filleted/i.test(String(lastAccounts.type || "")),
-    }),
+    fileResearch: [],
     dealIntro: "",
     sourcesUses: null,
-    ttp,
-    ttpNote: ttp ? "HMRC Time to Pay as recorded on this file." : "",
+    hmrcTtpRequired: hmrc.ttpRequired ? "Yes" : "No",
+    hmrcNarrative: hmrc.narrative,
+    hmrcArrangements: hmrc.arrangementsCommentary,
+    hmrcHasContent: hmrcPositionHasContent(hmrc),
     dealNotes: copy.dealSummary || "",
     purposeCommentary: "",
     securityRows: securityRows(prospect, asRecord(prospect.loanRequirementData)),
@@ -1802,15 +1798,6 @@ function markdownToProposalHtml(raw: string): string {
   return html.join("");
 }
 
-function businessNarrative(overview: string): string {
-  const cut = overview
-    .split(/Key facts a credit officer needs before CAMPARI/i)[0]
-    .split(/\n(?=#{1,6}\s*Key Facts)/i)[0]
-    .split(/\n+#+\s*CAMPARI/i)[0]
-    .split(/\n+\*\*CAMPARI/i)[0];
-  return cut.replace(/^#{1,6}\s*/gm, "").replace(/^Overview\s*/i, "").trim();
-}
-
 function paragraphs(value: string): string {
   return value
     .split(/\n+/)
@@ -1850,6 +1837,19 @@ function finTableHtml(table: FinTable): string {
   const note = table.note ? `<p class="fin-basis">${esc(table.note)}</p>` : "";
   const cls = table.className ? `fin ${table.className}` : "fin";
   return `<table class="${cls}">${caption}${head}${body}</table>${note}`;
+}
+
+function hmrcBody(model: FundingProposalModel): string {
+  if (!model.hmrcHasContent) {
+    return `<div class="empty-state"><div class="t">HMRC position not yet recorded</div></div>`;
+  }
+  return [
+    kvTableHtml("", [{ label: "TTP required", value: model.hmrcTtpRequired }]),
+    model.hmrcNarrative ? markdownToProposalHtml(model.hmrcNarrative) : "",
+    model.hmrcArrangements
+      ? `<div class="subhead">Existing or past arrangements</div>${markdownToProposalHtml(model.hmrcArrangements)}`
+      : "",
+  ].join("");
 }
 
 function sectionHtml(title: string, inner: string): string {
@@ -2034,9 +2034,6 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
         model.bankChart ? accountsChartSvg(model.bankChart) : "",
         model.monthlyActivity ? finTableHtml(model.monthlyActivity) : "",
         model.stackedFacilities ? finTableHtml(model.stackedFacilities) : "",
-        model.bankFindingBullets.length
-          ? `<div class="subhead">Bank findings</div>${bullets(model.bankFindingBullets, "risks")}`
-          : "",
         model.directDebits ? finTableHtml(model.directDebits) : "",
         model.loanRepayments ? finTableHtml(model.loanRepayments) : "",
         model.bouncedPayments ? finTableHtml(model.bouncedPayments) : "",
@@ -2050,7 +2047,7 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
           ? `<div class="subhead">Concerns</div>${bullets(model.concernItems, "risks")}`
           : "",
       ].join("")
-    : `<div class="empty-state"><div class="t">Bank statements not yet analysed</div><div class="d">Upload and analyse statements on the company file. Activity, trends, direct debits, bounced items, suspected loan repayments, gambling and personal spend will appear here. Nothing is invented.</div></div>`;
+    : `<div class="empty-state"><div class="t">Bank statements not yet analysed</div></div>`;
   const logo = model.logoDataUri
     ? `<img class="cover-logo" src="${model.logoDataUri}" alt="Sterling Commercial Finance">`
     : `<div class="cover-logo-slot">Sterling Commercial Finance</div>`;
@@ -2088,7 +2085,7 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
          ${swotCell("Opportunities", model.opportunities, "swot-o")}
          ${swotCell("Threats", model.threats, "swot-t")}
        </div>`
-    : `<div class="empty-state"><div class="t">SWOT not yet written in Credit Studio</div><div class="d">Generate the SWOT on the company file and it will copy onto this page. Nothing is invented to fill the quadrants.</div></div>`;
+    : "";
   const fileFlagsHtml = model.fileFlags.length
     ? `<div class="subhead">File flags</div>${bullets(model.fileFlags, "risks")}`
     : "";
@@ -2107,7 +2104,7 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
     model.historicNote ? markdownToProposalHtml(model.historicNote) : "",
     model.historicCommentary.length ? bullets(model.historicCommentary, "risks") : "",
     !historicHasTables
-      ? `<div class="empty-state"><div class="t">Historic financials not yet on file</div><div class="d">Upload or analyse statutory accounts on the company file and they will appear here. Nothing is invented to fill the table.</div></div>`
+      ? `<div class="empty-state"><div class="t">Historic financials not yet on file</div></div>`
       : "",
   ].join("");
 
@@ -2126,8 +2123,7 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
     model.securityRows.length
       ? kvTableHtml("", model.securityRows)
       : `<p class="muted">No security details captured.</p>`,
-    researchHtml || `<p class="muted">No file research captured on this file yet.</p>`,
-    model.ttp ? finTableHtml(model.ttp) : "",
+    researchHtml,
   ].join("");
 
   const forecast = model.cashflowForecast;
@@ -2152,10 +2148,9 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
     : "";
   const forecastCritique = model.sterlingForecastCritique
     ? model.sterlingForecastCritique
-    : [
-        ...(Array.isArray(forecast?.critique) ? forecast.critique : []),
-        ...(Array.isArray(forecast?.findings) ? forecast.findings : []),
-      ];
+    : Array.isArray(forecast?.findings)
+      ? forecast.findings
+      : [];
   const forecastBody = forecastPrintable
     ? [
         forecastTiles,
@@ -2177,7 +2172,7 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
       ? `<div class="subhead">Critique</div>${bullets(forecastCritique.slice(0, 12), "risks")}`
     : forecast?.source && forecast.extractable === false
       ? `<div class="empty-state"><div class="t">Forecast on file but not extractable</div><div class="d">The cash flow forecast on this file could not be read. Figures are not projected automatically.</div></div>`
-      : `<div class="empty-state"><div class="t">Forecasts not yet modelled</div><div class="d">Upload a 24-month cash flow forecast on the file. Generate Report will extract it and compare it with the bank statements.</div></div>`;
+      : `<div class="empty-state"><div class="t">Forecasts not yet modelled</div></div>`;
 
   const remarksCopy =
     model.recommendationOutcome || model.recommendationBullets.length
@@ -2185,7 +2180,7 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
           model.recommendationOutcome ? `<div class="subhead">${esc(model.recommendationOutcome)}</div>` : "",
           model.recommendationBullets.length ? bullets(model.recommendationBullets, "strengths") : "",
         ].join("")
-      : `<div class="empty-state"><div class="t">Awaiting recommendation</div><div class="d">David writes the recommendation in the Sterling portal. It is not stored in Credit Studio.</div></div>`;
+      : `<div class="empty-state"><div class="t">Awaiting recommendation</div></div>`;
   const signName = model.brokerSigned ? esc(model.brokerSigned.split(" — ")[0] || model.brokerSigned) : "";
   const signDate = model.brokerSigned && model.brokerSigned.includes(" — ")
     ? esc(model.brokerSigned.split(" — ").slice(1).join(" — "))
@@ -2201,13 +2196,13 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
 
   const purposeHtml = model.purposeBullets.length
     ? bullets(model.purposeBullets, "strengths")
-    : `<p class="muted">Loan purpose has not been written up on this file yet.</p>`;
+    : "";
   const businessHtml = model.theBusinessBullets.length
     ? bullets(model.theBusinessBullets, "strengths")
-    : `<p class="muted">Business narrative has not been written up on this file yet.</p>`;
+    : "";
   const backgroundHtml = model.backgroundBullets.length
     ? bullets(model.backgroundBullets, "strengths")
-    : `<p class="muted">Background has not been written up on this file yet.</p>`;
+    : `<div class="empty-state"><div class="t">Awaiting commentary</div></div>`;
   const gradeTiles = statRowHtml([
     { label: "Grade now", value: model.gradeNow },
     { label: "Grade after", value: model.gradeAfter },
@@ -2261,15 +2256,16 @@ export function renderFundingProposalHtml(model: FundingProposalModel): string {
                 )
                 .join("");
             })()}`
-          : `<div class="empty-state"><div class="t">CAMPARI not yet written in Credit Studio</div><div class="d">Auto Write Character through Insurance on the Summary page and it will copy onto this risk assessment. Nothing is invented to fill the pillars.</div></div>`
+          : ""
       }${swotHtml}${fileFlagsHtml}`,
     )}
     ${sectionHtml("4.&nbsp;&nbsp;Current financial situation", currentFinancialBody)}
-    ${sectionHtml("5.&nbsp;&nbsp;Historic financial information", historicBody)}
-    ${sectionHtml("6.&nbsp;&nbsp;Deal summary", dealBody)}
-    ${sectionHtml("7.&nbsp;&nbsp;Financial forecasts", forecastBody)}
-    ${sectionHtml("8.&nbsp;&nbsp;Recommendation", remarksBody)}
-    ${sectionHtml("9.&nbsp;&nbsp;Attachments checklist", attachmentsBody)}
+    ${sectionHtml("5.&nbsp;&nbsp;HMRC Position", hmrcBody(model))}
+    ${sectionHtml("6.&nbsp;&nbsp;Historic financial information", historicBody)}
+    ${sectionHtml("7.&nbsp;&nbsp;Deal summary", dealBody)}
+    ${sectionHtml("8.&nbsp;&nbsp;Financial forecasts", forecastBody)}
+    ${sectionHtml("9.&nbsp;&nbsp;Recommendation", remarksBody)}
+    ${sectionHtml("10.&nbsp;&nbsp;Attachments checklist", attachmentsBody)}
     <div class="doc-footer">
       <span class="footer-note">CONFIDENTIAL - Written by David Griffiths from Sterling Commercial Finance Limited</span>
     </div>`;
@@ -2303,6 +2299,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
     const args = [
       "--headless=new",
       "--disable-gpu",
+      "--no-sandbox",
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-extensions",
@@ -2350,6 +2347,5 @@ export function renderFundingProposalHtmlFromData(data: FundingProposalInput): s
 
 export async function renderFundingProposalPdf(data: FundingProposalInput): Promise<Buffer> {
   const withForecast = await ensureCashflowForecast(data);
-  const prepared = await ensureBackground(withForecast);
-  return htmlToPdf(renderFundingProposalHtmlFromData(prepared));
+  return htmlToPdf(renderFundingProposalHtmlFromData(withForecast));
 }

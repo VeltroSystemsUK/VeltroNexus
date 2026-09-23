@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildHuntQuality, qualityAlerts } from "@shared/smeQuality";
 
 describe("hunt quality snapshot", () => {
-  it("reports yield, director/role mix, and progress to 100", () => {
+  it("reports yield, director/role mix, and progress to 240", () => {
     const snap = buildHuntQuality({
       scanned: 40,
       deliverable: 10,
@@ -22,7 +22,7 @@ describe("hunt quality snapshot", () => {
     expect(snap.director).toBe(7);
     expect(snap.role).toBe(3);
     expect(snap.deliverable).toBe(10);
-    expect(snap.target).toBe(100);
+    expect(snap.target).toBe(240);
   });
 
   it("warns before the day is lost", () => {
@@ -59,4 +59,21 @@ describe("hunt quality snapshot", () => {
     });
     expect(blocked.some((item) => item.tone === "red" && /Companies House/i.test(item.message))).toBe(true);
   });
+
+  it("alerts when constructed-mailbox guessing is paused", () => {
+    const alerts = qualityAlerts({
+      scanned: 10,
+      deliverable: 4,
+      sent: 0,
+      replied: 0,
+      remainingSlots: 100,
+      budget: {
+        total: { ch: 800, places: 400, firecrawl: 400, smtp: 150 },
+        remaining: { ch: 800, places: 400, firecrawl: 400, smtp: 150 },
+      },
+      guessPaused: true,
+    });
+    expect(alerts.some((item) => item.id === "guess_paused" && item.tone === "amber")).toBe(true);
+  });
 });
+

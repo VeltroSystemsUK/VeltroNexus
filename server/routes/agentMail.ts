@@ -1,37 +1,30 @@
 import fs from "fs";
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { isAuthenticated } from "../auth";
 import { handleApiError } from "../utils/errorHandler";
-import { getAgentMail, listAgentMail, recordInbound, recordOpen, recordClick } from "../services/agentMailLog";
+import { getAgentMail, listAgentMail, recordInbound, recordOpen, recordClick, recordDwell, trackingBaseUrl } from "../services/agentMailLog";
 import { resolveMailAttachmentFile } from "../services/agentMailAttachments";
 import { sendEmail } from "../services/email";
 import { maybeSendSmeOpenFollowUp } from "../services/smeOpenFollowUp";
 import { pollImapInbox } from "../services/imapInbox";
-import { mailboxForAgent, mailboxList } from "@shared/agentMailboxes";
-import { shouldRecordMailTracking } from "@shared/mailTracking";
-import { escapeHtml, htmlEmail, signatureHtml } from "@shared/strataOutreach";
+import { knownMailbox, mailboxList, resolveSendAsMailbox } from "@shared/agentMailboxes";
+import { mailDwellScript, shouldRecordMailTracking, withMailDwellToken } from "@shared/mailTracking";
+import { composeAgentMailHtml, composeAgentReplyHtml } from "@shared/strataOutreach";
 import { sendTrackingPixel } from "../utils/trackingPixel";
 import { encodeContentDisposition } from "../utils/security";
-
-function replyHtml(bodyText: string, agentId: string | undefined, original: { from: string; text: string; createdAt: string }): string {
-  const mailbox = mailboxForAgent(agentId);
-  const bodyLines = bodyText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  const quoteLines = (original.text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  const quoteDate = new Date(original.createdAt).toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
-  const quoteHtml = quoteLines.length
-    ? `<p style="margin:24px 0 8px 0;font-size:13px;color:#6B7280;font-family:Arial,Helvetica,sans-serif;">On ${quoteDate}, ${escapeHtml(original.from)} wrote:</p>
-<blockquote style="margin:0;padding:2px 0 2px 14px;border-left:3px solid #D1D5DB;color:#4B5563;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;">
-${htmlEmail(quoteLines)}
-</blockquote>`
-    : "";
-  return `${htmlEmail(bodyLines)}\n${signatureHtml(mailbox)}\n${quoteHtml}`.trim();
-}
+import {
+  processMailUnsubscribe,
+  UNSUBSCRIBE_INVALID_HTML,
+  UNSUBSCRIBE_OK_HTML,
+} from "../services/mailUnsubscribe";
 
 const router = Router();
 
 router.get("/api/agent-mail", isAuthenticated, async (_req, res) => {
   try {
-    res.json({ mailboxes: mailboxList(), messages: listAgentMail(2000) });
+    // Read-only. The IMAP poll runs processAgentInbox every 30s; doing it here too meant every
+    // page (the Copilot rail polls this every 20s) blocked the server for 15-20s.
+    res.json({ mailboxes: mailboxList(), messages: listAgentMail(5000) });
   } catch (error) {
     handleApiError(res, error, "api-error");
   }
@@ -63,6 +56,26 @@ router.get("/api/agent-mail/:id/attachments/:index", isAuthenticated, async (req
   }
 });
 
+router.post("/api/agent-mail/compose", isAuthenticated, async (req, res) => {
+  try {
+    const to = String(req.body?.to || "").trim();
+    const subject = String(req.body?.subject || "").trim();
+    const body = String(req.body?.text || "").trim();
+    if (!to || !subject || !body) {
+      return res.status(400).json({ error: "To, subject and message are required" });
+    }
+    const mailbox = resolveSendAsMailbox(req.body?.agentId, "mailbox-clerk");
+    const html = composeAgentMailHtml(body, mailbox);
+    const result = await sendEmail({ agentId: mailbox.agentId }, to, subject, html);
+    if (result.blocked) {
+      return res.status(400).json({ error: "That address is on the do-not-contact list." });
+    }
+    res.json(result);
+  } catch (error) {
+    handleApiError(res, error, "api-error");
+  }
+});
+
 router.post("/api/agent-mail/:id/reply", isAuthenticated, async (req, res) => {
   try {
     const original = getAgentMail(req.params.id);
@@ -73,12 +86,13 @@ router.post("/api/agent-mail/:id/reply", isAuthenticated, async (req, res) => {
 
     const to = original.direction === "inbound" ? original.from : original.to;
     const subject = /^re:/i.test(original.subject) ? original.subject : `Re: ${original.subject}`;
-    const agentId = original.agentId || "mailbox-clerk";
-    const html = replyHtml(body, agentId, original);
+    const fallback = knownMailbox(original.agentId) ? original.agentId! : "mailbox-clerk";
+    const mailbox = resolveSendAsMailbox(req.body?.agentId, fallback);
+    const html = composeAgentReplyHtml(body, mailbox, original);
 
     const result = await sendEmail(
       {
-        agentId,
+        agentId: mailbox.agentId,
         dealId: original.dealId,
         prospectId: original.prospectId,
         inReplyTo: original.messageId,
@@ -113,11 +127,41 @@ router.post("/api/agent-mail/inbound", async (req, res) => {
     });
     const { processAgentInbox } = await import("../services/mailDesk");
     await processAgentInbox();
+    try {
+      const { classifyInboundMail } = await import("@shared/mailDesk");
+      const { convertReasonFromInboundKind } = await import("@shared/openers");
+      const { stopConvertAndPromote } = await import("../services/openers");
+      const reason = convertReasonFromInboundKind(
+        classifyInboundMail({
+          from: item.from,
+          to: item.to,
+          subject: item.subject,
+          text: item.text,
+          html: item.html,
+        }).kind
+      );
+      if (reason) await stopConvertAndPromote(item.from, reason);
+    } catch (error) {
+      console.warn("[AgentMail] convert stop failed:", error);
+    }
     res.json(item);
   } catch (error) {
     handleApiError(res, error, "api-error");
   }
 });
+
+async function handleMailUnsubscribe(req: Request, res: Response) {
+  const result = await processMailUnsubscribe(String(req.params.token || ""));
+  res.set("Content-Type", "text/html; charset=utf-8");
+  if (result === "invalid") {
+    res.status(400).send(UNSUBSCRIBE_INVALID_HTML);
+    return;
+  }
+  res.send(UNSUBSCRIBE_OK_HTML);
+}
+
+router.get("/api/agent-mail/unsubscribe/:token", handleMailUnsubscribe);
+router.post("/api/agent-mail/unsubscribe/:token", handleMailUnsubscribe);
 
 // --- Open/click tracking: hit directly by the recipient's mail client, no auth ---
 // (the message id is an unguessable UUID, same trust model as the inbound webhook secret)
@@ -153,7 +197,28 @@ router.get("/api/agent-mail/click/:id", (req, res) => {
   } catch (error) {
     console.error("[AgentMail] Click tracking error:", error);
   }
-  res.redirect(302, safe ? url : "/");
+  res.redirect(302, safe ? withMailDwellToken(url, req.params.id) : "/");
+});
+
+router.get("/api/agent-mail/dwell.js", (_req, res) => {
+  res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.send(mailDwellScript(trackingBaseUrl()));
+});
+
+router.get("/api/agent-mail/dwell/:id.gif", (req, res) => {
+  try {
+    const staff = typeof req.isAuthenticated === "function" && req.isAuthenticated();
+    if (shouldRecordMailTracking({ staffSession: staff, referer: req.get("referer") || req.get("referrer") })) {
+      recordDwell(req.params.id, {
+        path: String(req.query.p || ""),
+        sf: String(req.query.sf || ""),
+      });
+    }
+  } catch (error) {
+    console.error("[AgentMail] Dwell tracking error:", error);
+  }
+  sendTrackingPixel(res);
 });
 
 export default router;

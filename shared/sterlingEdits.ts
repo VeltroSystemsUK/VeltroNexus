@@ -73,21 +73,12 @@ export function seedSterlingCopy(
   },
   saved?: SterlingCopyEdits | null,
 ): SterlingCopyEdits {
-  const seed: SterlingCopyEdits = {
-    background: (fromFile.background || []).join("\n"),
-    theBusiness: (fromFile.theBusiness || []).join("\n"),
-    forecastCritique: (fromFile.forecastCritique || []).join("\n"),
-    financials: (fromFile.financials || []).join("\n"),
-    dealSummary: (fromFile.dealSummary || []).join("\n"),
-    recommendation: fromFile.recommendation || "",
-  };
-  for (const key of STERLING_CAMPARI_FIELDS) {
-    seed[key] = (fromFile.campari?.[key] || []).join("\n");
-  }
   const overlay = parseSterlingCopyEdits(saved);
+  const seed: SterlingCopyEdits = {};
   for (const key of STERLING_COPY_FIELDS) {
-    if (typeof overlay[key] === "string" && overlay[key]!.trim()) seed[key] = overlay[key];
+    seed[key] = typeof overlay[key] === "string" ? overlay[key] : "";
   }
+  if (!seed.recommendation?.trim()) seed.recommendation = fromFile.recommendation || "";
   return seed;
 }
 

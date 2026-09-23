@@ -108,7 +108,7 @@ async function fetchChargeDetails(companyNumber: string): Promise<{
 }
 
 /**
- * Enrich a single lead using Gemini Grounded Search
+ * Enrich a single lead using Grok on api.x.ai
  */
 export async function enrichLead(lead: InternalLead | BrokerLead): Promise<EnrichmentResult> {
     const result: EnrichmentResult = {
@@ -135,31 +135,30 @@ export async function enrichLead(lead: InternalLead | BrokerLead): Promise<Enric
         console.error("[Agent B] Companies House lookup failed:", error);
     }
 
-    // Step 2: Gemini Grounded Search (Replaces Tavily)
-    // Runs in parallel with Companies House if we structured it that way, but sequential is safer for logic flow
+    // Step 2: Grok research (api.x.ai via XAI_API_KEY)
     try {
-        console.log(`[Agent B] Asking Gemini to research ${lead.companyName}...`);
-        const geminiData = await searchCompanyInfo(lead.companyName, lead.website);
+        console.log(`[Agent B] Asking Grok to research ${lead.companyName}...`);
+        const grokData = await searchCompanyInfo(lead.companyName, lead.website);
 
-        result.businessOverview = geminiData.businessOverview;
-        result.emails.push(...(geminiData.emails || []));
-        result.phones.push(...(geminiData.phones || []));
-        result.linkedinUrl = geminiData.linkedinUrls?.[0];
+        result.businessOverview = grokData.businessOverview;
+        result.emails.push(...(grokData.emails || []));
+        result.phones.push(...(grokData.phones || []));
+        result.linkedinUrl = grokData.linkedinUrls?.[0];
 
-        if (geminiData.contacts) {
-            result.contacts = geminiData.contacts.map(c => ({
+        if (grokData.contacts) {
+            result.contacts = grokData.contacts.map(c => ({
                 name: c.name,
                 role: c.role,
                 email: c.email
             }));
         }
 
-        if (geminiData.sources) {
-            result.sources = geminiData.sources;
+        if (grokData.sources) {
+            result.sources = grokData.sources;
         }
 
     } catch (error) {
-        console.warn("[Agent B] Gemini enrichment failed:", error);
+        console.warn("[Agent B] Grok enrichment failed:", error);
     }
 
     // Deduplicate emails/phones
@@ -186,7 +185,7 @@ export async function enrichLeadsInBackground(
             userId,
             "data_enrichment",
             "Bulk Lead Enrichment",
-            `Enriching ${leadIds.length} leads using Gemini Grounded Search`,
+            `Enriching ${leadIds.length} leads using Grok`,
             leadIds.length
         );
     }
@@ -282,7 +281,7 @@ ${lead.notes || ''}`
 
     if (jobId) {
         await agentJobTracker.completeJob(jobId, {
-            message: `Successfully enriched ${completedCount} leads using Gemini.`,
+            message: `Successfully enriched ${completedCount} leads using Grok.`,
             processed: completedCount
         });
     }

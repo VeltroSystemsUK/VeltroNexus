@@ -77,6 +77,7 @@ import {
   Sparkles,
   Link as LinkIcon,
   Building,
+  Landmark,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -118,6 +119,7 @@ import {
   AffordabilityEstimatorTool,
   FinancialRatiosCalculatorTool,
   CharacterAssessmentTool,
+  HmrcPositionTool,
 } from "@/components/DueDiligenceTools";
 import { CreditUnderwritingTool } from "@/components/CreditUnderwritingTool";
 
@@ -659,28 +661,40 @@ export default function ProspectDetail() {
     if (!proposal.ready) return;
     toast({
       title: "Generating funding proposal...",
-      description: "Your Sterling Formatted Proposal download will start shortly.",
+      description: "Proposal first, then the working sheet. Stay on this page.",
     });
     try {
-      const res = await fetch(`/api/prospects/${prospectId}/report`, { credentials: "include" });
-      if (!res.ok) {
-        if (res.status === 409) {
-          const body = await res.json();
-          throw new Error(body.message || "Proposal facts conflict");
+      const downloadPdf = async (path: string, fallback: string) => {
+        const res = await fetch(path, { credentials: "include" });
+        if (!res.ok) {
+          if (res.status === 409) {
+            const body = await res.json();
+            throw new Error(body.message || "Proposal facts conflict");
+          }
+          throw new Error("Failed to generate report");
         }
-        throw new Error("Failed to generate report");
+        const blob = await res.blob();
+        const disposition = res.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="([^"]+)"/);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = match?.[1] || fallback;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      };
+      await downloadPdf(`/api/prospects/${prospectId}/report`, "Funding_Proposal.pdf");
+      try {
+        await downloadPdf(`/api/prospects/${prospectId}/working-sheet`, "Working_Sheet.pdf");
+      } catch (sheetError) {
+        toast({
+          title: "Proposal downloaded",
+          description: sheetError instanceof Error ? `Working sheet failed: ${sheetError.message}` : "Working sheet failed to generate.",
+          variant: "destructive",
+        });
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") || "";
-      const match = disposition.match(/filename="([^"]+)"/);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = match?.[1] || "Funding_Proposal.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
     } catch (error) {
       toast({
         title: "Could not generate proposal",
@@ -3198,7 +3212,7 @@ function AdviserRecommendationSection({ prospect }: { prospect: ProspectWithComp
   );
 }
 
-type CreditTool = "loan-calc" | "dscr" | "affordability" | "ratios" | "character" | null;
+type CreditTool = "loan-calc" | "dscr" | "affordability" | "ratios" | "hmrc" | "character" | null;
 
 const creditToolsConfig = [
   {
@@ -3236,6 +3250,15 @@ const creditToolsConfig = [
     color: "bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700",
     activeColor:
       "bg-purple-600 dark:bg-purple-700 ring-2 ring-purple-400 ring-offset-2 ring-offset-background",
+  },
+  {
+    id: "hmrc" as CreditTool,
+    label: "HMRC",
+    shortLabel: "HMRC",
+    icon: Landmark,
+    color: "bg-orange-500 hover:bg-orange-600 dark:bg-orange-600 dark:hover:bg-orange-700",
+    activeColor:
+      "bg-orange-600 dark:bg-orange-700 ring-2 ring-orange-400 ring-offset-2 ring-offset-background",
   },
   {
     id: "character" as CreditTool,
@@ -3313,6 +3336,14 @@ function DueDiligenceTab({
       case "ratios":
         return (
           <FinancialRatiosCalculatorTool
+            data={dueDiligenceData}
+            onSave={handleSave}
+            isSaving={saveDueDiligenceMutation.isPending}
+          />
+        );
+      case "hmrc":
+        return (
+          <HmrcPositionTool
             data={dueDiligenceData}
             onSave={handleSave}
             isSaving={saveDueDiligenceMutation.isPending}

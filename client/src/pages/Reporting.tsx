@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Loader2, FileText, Send, Eye, Clock, ExternalLink, ArrowUpDown, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, FileText, Send, Eye, Clock, ExternalLink, ArrowUpDown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ReportTask {
@@ -61,6 +61,12 @@ interface ReportLog {
 
 type LogSort = "date-desc" | "date-asc" | "type" | "status";
 
+function dueDateInputValue(dueDate: string | null): string {
+  if (!dueDate) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dueDate);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : "";
+}
+
 const DEFAULT_SETTINGS: ReportSettings = {
   recipientName: "David Griffiths",
   recipientEmail: "",
@@ -83,10 +89,33 @@ export default function Reporting() {
   const { toast } = useToast();
 
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<ReportTask | null>(null);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
   const [dueDate, setDueDate] = useState("");
+
+  const resetTaskForm = () => {
+    setEditing(null);
+    setTitle("");
+    setNotes("");
+    setTimeSlot("");
+    setDueDate("");
+  };
+
+  const openAdd = () => {
+    resetTaskForm();
+    setAddOpen(true);
+  };
+
+  const openEdit = (t: ReportTask) => {
+    setEditing(t);
+    setTitle(t.title);
+    setNotes(t.notes || "");
+    setTimeSlot(t.timeSlot || "");
+    setDueDate(dueDateInputValue(t.dueDate));
+    setAddOpen(true);
+  };
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<ReportTask[]>({
     queryKey: ["/api/reporting/tasks"],
@@ -120,7 +149,7 @@ export default function Reporting() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/reporting/tasks"] });
       setAddOpen(false);
-      setTitle(""); setNotes(""); setTimeSlot(""); setDueDate("");
+      resetTaskForm();
       toast({ title: "Task added" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -222,7 +251,7 @@ export default function Reporting() {
               {runTodoAgent.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
               Run to-do agent
             </Button>
-            <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Button size="sm" onClick={openAdd} data-testid="button-add-task">
               <Plus className="h-4 w-4 mr-1.5" /> Add task
             </Button>
           </div>
@@ -263,6 +292,16 @@ export default function Reporting() {
                             )}
                           </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Edit task"
+                          data-testid={`button-edit-task-${t.id}`}
+                          onClick={() => openEdit(t)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteTask.mutate(t.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -418,20 +457,20 @@ export default function Reporting() {
       </Tabs>
 
       {/* --- Add task dialog --- */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) resetTaskForm(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add task</DialogTitle>
+            <DialogTitle>{editing ? "Edit task" : "Add task"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Configure API webhooks to Nexus" />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Configure API webhooks to Nexus" data-testid="input-task-title" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Due date</Label>
-                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} data-testid="input-task-due-date" />
               </div>
               <div>
                 <Label>Time slot (optional)</Label>
@@ -444,16 +483,32 @@ export default function Reporting() {
             </div>
             <Button
               className="w-full"
-              disabled={!title.trim() || createTask.isPending}
-              onClick={() => createTask.mutate({
-                title: title.trim(),
-                notes: notes.trim() || null,
-                timeSlot: timeSlot.trim() || null,
-                dueDate: dueDate || null,
-                status: "todo",
-              })}
+              data-testid="button-save-task"
+              disabled={!title.trim() || createTask.isPending || updateTask.isPending}
+              onClick={() => {
+                const payload = {
+                  title: title.trim(),
+                  notes: notes.trim() || null,
+                  timeSlot: timeSlot.trim() || null,
+                  dueDate: dueDate || null,
+                };
+                if (editing) {
+                  updateTask.mutate(
+                    { id: editing.id, data: payload },
+                    {
+                      onSuccess: () => {
+                        setAddOpen(false);
+                        resetTaskForm();
+                        toast({ title: "Task updated" });
+                      },
+                    },
+                  );
+                } else {
+                  createTask.mutate({ ...payload, status: "todo" });
+                }
+              }}
             >
-              {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add task"}
+              {(createTask.isPending || updateTask.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : editing ? "Save task" : "Add task"}
             </Button>
           </div>
         </DialogContent>

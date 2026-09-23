@@ -8,8 +8,11 @@ import { storage } from "../storage";
 import { chFetch } from "./companiesHouseClient";
 import type { ProspectWithCompany } from "@shared/schema";
 import type { ProspectReportData } from "./pdfGenerator";
-import { renderFundingProposalPdf } from "./fundingProposal";
+import { htmlToPdf, renderFundingProposalPdf } from "./fundingProposal";
 import { encodeContentDisposition } from "./security";
+import { workingSheetHtml } from "@shared/workingSheet";
+import { unwrapDueDiligence } from "@shared/dueDiligence";
+import { workingSheetInputForFile } from "../services/sterlingPack";
 
 /** Throws ProposalNotReadyError when facts conflict — before Chrome/PDF. */
 function assertReportProposalReady(data: ProspectReportData): void {
@@ -96,6 +99,37 @@ export async function buildProspectReportData(
 export function reportFilename(companyName: string): string {
   const safe = (companyName || "Company").replace(/[^a-z0-9]/gi, "_");
   return `${safe}_Funding_Proposal_${new Date().toISOString().split("T")[0]}.pdf`;
+}
+
+export function workingSheetFilename(companyName: string): string {
+  const safe = (companyName || "Company").replace(/[^a-z0-9]/gi, "_");
+  return `${safe}_Working_Sheet_${new Date().toISOString().split("T")[0]}.pdf`;
+}
+
+function workingSheetInputFromReport(data: ProspectReportData) {
+  const dd = unwrapDueDiligence(data.dueDiligence?.data ?? data.dueDiligence);
+  const loan =
+    (dd as any)?.underwriting?.loanDetails?.amount ||
+    (data.prospect.loanAmount ? data.prospect.loanAmount / 100 : undefined);
+  return workingSheetInputForFile({
+    companyName: data.prospect.company?.companyName || "File",
+    diligence: dd,
+    documents: data.documents || [],
+    loanAmount: loan,
+    term: data.prospect.term ?? undefined,
+  });
+}
+
+export async function streamWorkingSheet(
+  res: ExpressResponse,
+  data: ProspectReportData,
+  filename: string,
+): Promise<void> {
+  const pdf = await htmlToPdf(workingSheetHtml(workingSheetInputFromReport(data)));
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", encodeContentDisposition(filename));
+  res.setHeader("Content-Length", String(pdf.length));
+  res.end(pdf);
 }
 
 export async function renderProspectReportToBuffer(data: ProspectReportData): Promise<Buffer> {

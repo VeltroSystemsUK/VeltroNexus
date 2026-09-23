@@ -3,13 +3,29 @@ import fs from "fs";
 import path from "path";
 import { countLiveNonBankCharges, isLiveCharge } from "@shared/chargeClassifier";
 import { isOpenedOutboundMail, lastMailOpenAt } from "@shared/mailTracking";
-import { mailboxForAgent } from "@shared/agentMailboxes";
+import { resolveSendAsMailbox } from "@shared/agentMailboxes";
+import { signatureHtml } from "@shared/strataOutreach";
 import {
+  applyClickEvent,
+  applyDwellEvent,
+  applyConvertStop,
+  applyDirectOutreach,
+  applyOpenerDemote,
   applyOpenEvent,
+  applySecondEmailNurturing,
   approveNurtureSend,
   canPromoteOpener,
+  completeConvertCloser,
   completeTouch2,
+  enrolConvertOpener,
   failNurtureSend,
+  OPENER_CONVERT_CLOSER_DELAY_MS,
+  isConvertCloserDue,
+  isConvertOpener,
+  keepConvertOpenerOnHardBounce,
+  isDoNotContactOpener,
+  recordConvertSend,
+  writeCloserScript,
   isNurtureInFlight,
   isTouch2Due,
   mergeOpeners,
@@ -17,15 +33,30 @@ import {
   normalizeEmail,
   normalizeOpener,
   openedMailEvents,
+  openerHasReceivedSecondEmail,
+  resumeJamesFromDirectOutreach,
+  sentUnopenedMailEvents,
   openerNurtureDraft,
+  shouldAutoPromoteOpener,
   skipNurtureStep,
   startNurture,
   stopNurture,
   type OpenerRecord,
 } from "@shared/openers";
+import { buildCloserScript, buildConvertEnrolment, convertGreetingName, convertWakeAt } from "@shared/smeConvert";
+import { classifyInboundMail } from "@shared/mailDesk";
+import { coldEmailBlockedReason } from "@shared/pecrSend";
+import { dealStream } from "@shared/salesOs";
 import { wasEmailDelivered } from "@shared/outreachSend";
 import { companiesHouseClient } from "../utils/companiesHouseClient";
+import {
+  creditsafeClient,
+  creditsafeSnapshotFromReport,
+  type CreditsafeCompanyResult,
+} from "../utils/creditsafeClient";
+import { atomicWriteFileSync } from "../utils/atomicWriteJson";
 import type { AgentMailItem } from "./agentMailLog";
+import { revokeBriefingsForOpener } from "./briefings";
 
 export type OpenerChClient = {
   getCompanyProfile(n: string): Promise<any>;
@@ -55,6 +86,8 @@ export type OpenerIdentityDeal = {
   phone?: string | null;
   prospectId?: number | null;
   email?: string | null;
+  smeOpenFollowUpSentAt?: string | null;
+  smeFollowupSentAt?: string | null;
 };
 
 export type OpenerIdentityProspect = {
@@ -124,6 +157,10 @@ function storePath(): string {
   return storePathForTests || OPENERS_STORE;
 }
 
+export function currentOpenersStorePath(): string {
+  return storePath();
+}
+
 export function readOpeners(): OpenerRecord[] {
   const file = storePath();
   if (!fs.existsSync(file)) return [];
@@ -143,9 +180,7 @@ export function readOpeners(): OpenerRecord[] {
 
 export function writeOpeners(items: OpenerRecord[]): void {
   const file = storePath();
-  const dir = path.dirname(file);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(items, null, 2));
+  atomicWriteFileSync(file, JSON.stringify(items, null, 2));
 }
 
 export function listOpeners(): OpenerRecord[] {
@@ -164,6 +199,16 @@ export function patchOpener(id: string, updates: Partial<OpenerRecord>): OpenerR
   all[idx] = next;
   writeOpeners(all);
   return next;
+}
+
+export function resumeOpenerFromDirectOutreach(id: string): OpenerRecord | undefined {
+  const opener = getOpener(id);
+  if (!opener) return undefined;
+  return saveOpener(resumeJamesFromDirectOutreach(opener, { dualOpenEligible: false }));
+}
+
+export function onOpenerUnsubscribed(openerId: string): void {
+  revokeBriefingsForOpener(openerId);
 }
 
 function inVitest(): boolean {
@@ -403,7 +448,29 @@ function scheduleDefaultIdentityFollowUp(mail: AgentMailItem): void {
   enqueueIdentityFollowUp(async () => {
     const hit = await resolveOpenerIdentity(email, mail);
     applyOpenedMail(mail, () => hit, 0, true);
+    applySentUnopenedMail(mail, () => hit);
   });
+}
+
+function lastClickAt(clicks?: Array<{ at: string; url?: string }>): string | undefined {
+  if (!clicks?.length) return undefined;
+  return clicks[clicks.length - 1]?.at;
+}
+
+function lastDwellAt(dwells?: Array<{ at: string }>): string | undefined {
+  if (!dwells?.length) return undefined;
+  return dwells[dwells.length - 1]?.at;
+}
+
+function lastDwellPathFrom(
+  dwells?: Array<{ at: string; path?: string }>
+): string | undefined {
+  if (!dwells?.length) return undefined;
+  for (let i = dwells.length - 1; i >= 0; i--) {
+    const path = dwells[i]?.path;
+    if (path) return path;
+  }
+  return undefined;
 }
 
 function takeResolveHit(email: string, mail: AgentMailItem, resolve?: OpenerResolver): OpenerResolveHit {
@@ -415,6 +482,21 @@ function takeResolveHit(email: string, mail: AgentMailItem, resolve?: OpenerReso
 
 function findByEmail(items: OpenerRecord[], email: string): OpenerRecord | undefined {
   return items.find((row) => row.email === email || row.emails.includes(email));
+}
+
+export function suppressionFanoutForEmail(email: string): { emails: string[]; companyNumber?: string } {
+  const normalized = normalizeEmail(email);
+  const emails = new Set<string>();
+  if (normalized) emails.add(normalized);
+  const opener = findByEmail(readOpeners(), normalized);
+  if (opener) {
+    emails.add(opener.email);
+    for (const extra of opener.emails || []) {
+      const alias = normalizeEmail(extra);
+      if (alias) emails.add(alias);
+    }
+  }
+  return { emails: [...emails], companyNumber: opener?.companyNumber };
 }
 
 function findByCompany(items: OpenerRecord[], companyNumber?: string): OpenerRecord | undefined {
@@ -440,7 +522,9 @@ function applyIdentity(
     companyNumber: resolvedNumber || opener.companyNumber,
     companyName: opener.companyName || hit.companyName,
     dealId: opener.dealId ?? hit.dealId ?? mail.dealId,
-    prospectId: opener.prospectId ?? hit.prospectId ?? mail.prospectId,
+    prospectId: opener.nurture.promoteBlocked
+      ? opener.prospectId
+      : opener.prospectId ?? hit.prospectId ?? mail.prospectId,
     phone: opener.phone || hit.phone,
   };
 }
@@ -458,6 +542,133 @@ function saveOpener(opener: OpenerRecord, dropId?: string): OpenerRecord {
   next.push(opener);
   writeOpeners(next);
   return opener;
+}
+
+const enrolConvertInFlight = new Set<number>();
+
+function blockedReasonFor(deal: {
+  email?: string;
+  companyNumber?: string;
+  companyName?: string;
+  source?: string;
+  stream?: string | null;
+}, isSuppressed: (email?: string | null, companyNumber?: string | null) => boolean): string | null {
+  if (isSuppressed(deal.email, deal.companyNumber)) return "suppressed — do not contact";
+  return coldEmailBlockedReason(deal.email, dealStream(deal.source, deal.stream), deal.companyName);
+}
+
+export async function enrolConvertFromMail(item: AgentMailItem, now?: Date): Promise<void> {
+  const dealId = item.dealId;
+  if (dealId == null) return;
+  if (enrolConvertInFlight.has(dealId)) return;
+  enrolConvertInFlight.add(dealId);
+  try {
+    const email = normalizeEmail(item.to);
+    if (!email) return;
+    const opener = findByEmail(readOpeners(), email);
+    if (!opener) return;
+
+    const { storage } = await import("../storage");
+    const deal = await storage.getAgenticDeal(dealId);
+    if (!deal) return;
+
+    const { listAgentMail } = await import("./agentMailLog");
+    const mail = listAgentMail(10_000).filter((row) => row.dealId === dealId);
+    if (item.id && !mail.some((row) => row.id === item.id)) mail.push(item);
+
+    const inboundDeals = ((await storage.listAgenticDeals()) || []).filter(
+      (row) => row.source === "strata_inbound"
+    );
+    const { mailIsSuppressed } = await import("./mailDesk");
+    const blockedReason = blockedReasonFor(deal, mailIsSuppressed);
+
+    const built = buildConvertEnrolment(mail, deal, opener, now, { inboundDeals, blockedReason });
+    if (!built) return;
+
+    await storage.updateAgenticDeal(dealId, built.dealPatch);
+    saveOpener(enrolConvertOpener(getOpener(opener.id) || opener, now));
+  } catch (error: any) {
+    console.warn("[Openers] convert enrol failed:", error?.message || error);
+  } finally {
+    enrolConvertInFlight.delete(dealId);
+  }
+}
+
+function openerForConvertDeal(deal: { email?: string; id?: number }): OpenerRecord | undefined {
+  const all = readOpeners();
+  const email = normalizeEmail(deal.email);
+  if (email) {
+    const byEmail = findByEmail(all, email);
+    if (byEmail) return byEmail;
+  }
+  if (deal.id != null) return all.find((row) => row.dealId === deal.id);
+  return undefined;
+}
+
+export function phoneForConvertDeal(deal: { email?: string; id?: number; phone?: string }): string {
+  return String(deal.phone || openerForConvertDeal(deal)?.phone || "").trim();
+}
+
+export function applyConvertSendToOpener(
+  deal: { email?: string; id?: number; companyName?: string; contactName?: string },
+  cadenceTouchId: "sme_n1" | "sme_n2" | "sme_n3",
+  mailId: string,
+  now?: Date,
+  lastSiteClickUrl?: string | null
+): OpenerRecord | undefined {
+  const opener = openerForConvertDeal(deal);
+  if (!opener) return undefined;
+  let next = recordConvertSend(opener, cadenceTouchId, mailId, now);
+  if (cadenceTouchId === "sme_n3") {
+    next = writeCloserScript(
+      next,
+      buildCloserScript({
+        company: deal.companyName || opener.companyName || "",
+        name: convertGreetingName(deal.contactName) || "",
+        lastSiteClickUrl,
+      }),
+      now
+    );
+  }
+  return saveOpener(next);
+}
+
+export function applyConvertCloserScript(
+  deal: { email?: string; id?: number; companyName?: string; contactName?: string },
+  lastSiteClickUrl?: string | null,
+  now?: Date
+): OpenerRecord | undefined {
+  const opener = openerForConvertDeal(deal);
+  if (!opener) return undefined;
+  const when = now ?? new Date();
+  let next = writeCloserScript(
+    opener,
+    buildCloserScript({
+      company: deal.companyName || opener.companyName || "",
+      name: convertGreetingName(deal.contactName) || "",
+      lastSiteClickUrl,
+    }),
+    when
+  );
+  if (!next.nurture.n3At) {
+    next = {
+      ...next,
+      nurture: {
+        ...next.nurture,
+        n3At: new Date(when.getTime() - OPENER_CONVERT_CLOSER_DELAY_MS).toISOString(),
+      },
+    };
+  }
+  return saveOpener(next);
+}
+
+export function applyConvertWakeEnrolToOpener(
+  deal: { email?: string; id?: number },
+  now?: Date
+): OpenerRecord | undefined {
+  const opener = openerForConvertDeal(deal);
+  if (!opener) return undefined;
+  return saveOpener(enrolConvertOpener(opener, now));
 }
 
 function identityChanged(before: OpenerRecord, after: OpenerRecord): boolean {
@@ -487,7 +698,9 @@ function applyOpenedMailTo(
 
   const hit = takeResolveHit(email, mail, resolve);
   const seenRow = all.find((row) => row.mailIds?.includes(mail.id));
-  const identityOnly = Boolean(skipIfSeen && seenRow);
+  const identityOnly = Boolean(
+    skipIfSeen && seenRow && seenRow.status !== "non_responsive" && seenRow.openCount > 0
+  );
 
   let opener: OpenerRecord;
   let dropId: string | undefined;
@@ -522,6 +735,7 @@ function applyOpenedMailTo(
         firstOpenedAt: earliestOpenAt(opens, at),
         lastOpenedAt: at,
         openCount: 0,
+        clickCount: 0,
         companyNumber: hit.companyNumber,
         companyName: hit.companyName,
         dealId: hit.dealId ?? mail.dealId,
@@ -585,15 +799,459 @@ export function upsertOpenerFromMail(
   return opener;
 }
 
+function applySentUnopenedMailTo(
+  all: OpenerRecord[],
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): { all: OpenerRecord[]; opener?: OpenerRecord } {
+  if (mail.direction !== "outbound" || mail.status !== "sent") return { all };
+  if (isOpenedOutboundMail(mail) || lastClickAt(mail.clicks)) return { all };
+  const email = normalizeEmail(mail.to);
+  if (!email) return { all };
+
+  const hit = takeResolveHit(email, mail, resolve);
+  const existing = findByEmail(all, email) || findByCompany(all, hit.companyNumber);
+  if (existing) {
+    if (existing.status !== "non_responsive") return { all, opener: existing };
+    const opener = {
+      ...applyIdentity(existing, email, mail, hit),
+      lastTouchAt: mail.createdAt || existing.lastTouchAt,
+      mailIds: [...new Set([...(existing.mailIds || []), mail.id])],
+      updatedAt: new Date().toISOString(),
+    };
+    const next = all.filter((row) => row.id !== opener.id);
+    next.push(opener);
+    return { all: next, opener };
+  }
+
+  const opener = applyIdentity(
+    normalizeOpener({
+      id: crypto.randomUUID(),
+      email,
+      status: "non_responsive",
+      openCount: 0,
+      clickCount: 0,
+      firstOpenedAt: "",
+      lastOpenedAt: "",
+      lastTouchAt: mail.createdAt,
+      mailIds: [mail.id],
+      companyNumber: hit.companyNumber,
+      companyName: hit.companyName,
+      dealId: hit.dealId ?? mail.dealId,
+      prospectId: hit.prospectId ?? mail.prospectId,
+      phone: hit.phone,
+    }),
+    email,
+    mail,
+    hit
+  );
+  return { all: [...all, opener], opener };
+}
+
+function applySentUnopenedMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  const all = readOpeners();
+  const existing = findByEmail(all, normalizeEmail(mail.to));
+  const hadNumber = Boolean(normalizeCompanyNumber(existing?.companyNumber));
+  const result = applySentUnopenedMailTo(all, mail, resolve);
+  if (!result.opener || result.opener === existing) {
+    if (result.opener && result.all !== all) writeOpeners(result.all);
+    return result.opener;
+  }
+  writeOpeners(result.all);
+  scheduleEnrichIfNew(hadNumber, result.opener);
+  return result.opener;
+}
+
+export function upsertNonResponsiveFromMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound" || mail.status !== "sent") return undefined;
+  if (isOpenedOutboundMail(mail) || lastClickAt(mail.clicks)) return undefined;
+  const resolver = resolve ?? defaultOpenerResolver;
+  const opener = applySentUnopenedMail(mail, resolver);
+  if (resolve) {
+    const email = normalizeEmail(mail.to);
+    const pending = resolve(email, mail);
+    if (pending && typeof (pending as Promise<OpenerResolveHit>).then === "function") {
+      enqueueIdentityFollowUp(async () => {
+        const hit = await pending;
+        applySentUnopenedMail(mail, () => hit);
+      });
+    }
+  } else {
+    scheduleDefaultIdentityFollowUp(mail);
+  }
+  return opener;
+}
+
+export function upsertOpenerClickFromMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound") return undefined;
+  if (!mail.clicks?.length) return undefined;
+  const resolver = resolve ?? defaultOpenerResolver;
+  const all = readOpeners();
+  const result = applyClickEngagementTo(all, mail, resolver, 1);
+  if (!result.opener) return undefined;
+  if (result.all !== all) writeOpeners(result.all);
+  return result.opener;
+}
+
+export function upsertOpenerDwellFromMail(
+  mail: AgentMailItem,
+  resolve?: OpenerResolver
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound") return undefined;
+  if (!mail.dwells?.length) return undefined;
+  const resolver = resolve ?? defaultOpenerResolver;
+  const all = readOpeners();
+  const result = applyDwellEngagementTo(all, mail, resolver, 1);
+  if (!result.opener) return undefined;
+  if (result.all !== all) writeOpeners(result.all);
+  return result.opener;
+}
+
+function dealFlagsForOpener(opener: OpenerRecord): {
+  smeOpenFollowUpSentAt?: string | null;
+  smeFollowupSentAt?: string | null;
+} {
+  const snapshot = identitySnapshot;
+  if (!snapshot) return {};
+  const byId = opener.dealId != null ? snapshot.dealsById.get(opener.dealId) : undefined;
+  const byEmail = snapshot.dealsByEmail.get(normalizeEmail(opener.email));
+  const deal = byId || byEmail;
+  if (!deal) return {};
+  return {
+    smeOpenFollowUpSentAt: deal.smeOpenFollowUpSentAt,
+    smeFollowupSentAt: deal.smeFollowupSentAt,
+  };
+}
+
+function applySecondEmailNurturingPass(
+  all: OpenerRecord[],
+  mail: AgentMailItem[]
+): { all: OpenerRecord[]; dirty: boolean } {
+  let dirty = false;
+  const next = all.map((opener) => {
+    if (
+      !openerHasReceivedSecondEmail(opener, {
+        mail,
+        ...dealFlagsForOpener(opener),
+      })
+    ) {
+      return opener;
+    }
+    const moved = applySecondEmailNurturing(opener);
+    if (moved.status !== opener.status) dirty = true;
+    return moved;
+  });
+  return { all: next, dirty };
+}
+
+function collectOptOutEmails(
+  items: AgentMailItem[],
+  extra?: Iterable<string>
+): Set<string> {
+  const emails = new Set(
+    [...(extra || [])].map(normalizeEmail).filter(Boolean)
+  );
+  for (const item of items) {
+    if (item.direction !== "inbound") continue;
+    const from = normalizeEmail(item.from);
+    if (!from) continue;
+    if (item.deskKind === "stop") {
+      emails.add(from);
+      continue;
+    }
+    if (item.deskKind) continue;
+    if (classifyInboundMail(item).kind === "stop") emails.add(from);
+  }
+  return emails;
+}
+
+function applyUnsubscribes(all: OpenerRecord[], optOutEmails: Set<string>): {
+  all: OpenerRecord[];
+  dirty: boolean;
+} {
+  if (optOutEmails.size === 0) return { all, dirty: false };
+  let dirty = false;
+  const next = all.map((opener) => {
+    const hit = [opener.email, ...(opener.emails || [])].some((email) =>
+      optOutEmails.has(normalizeEmail(email))
+    );
+    if (!hit) return opener;
+    revokeBriefingsForOpener(opener.id);
+    if (opener.status === "not_now") return opener;
+    dirty = true;
+    if (isConvertOpener(opener)) return applyConvertStop(opener, "opt_out");
+    return stopNurture(opener, "opt_out");
+  });
+  return { all: next, dirty };
+}
+
+function applyClickEngagementTo(
+  all: OpenerRecord[],
+  mail: AgentMailItem,
+  resolve?: OpenerResolver,
+  extraClicks = 1
+): { all: OpenerRecord[]; opener?: OpenerRecord } {
+  if (mail.direction !== "outbound") return { all };
+  const at = lastClickAt(mail.clicks);
+  if (!at) return { all };
+  const email = normalizeEmail(mail.to);
+  if (!email) return { all };
+
+  const hit = takeResolveHit(email, mail, resolve);
+  const existing = findByEmail(all, email) || findByCompany(all, hit.companyNumber);
+  if (existing) {
+    if (extraClicks === 0 && existing.status !== "non_responsive") {
+      return { all, opener: existing };
+    }
+    const opener = {
+      ...applyClickEvent(applyIdentity(existing, email, mail, hit), extraClicks),
+      mailIds: [...new Set([...(existing.mailIds || []), mail.id])],
+    };
+    const next = all.filter((row) => row.id !== opener.id);
+    next.push(opener);
+    return { all: next, opener };
+  }
+
+  const opener = applyClickEvent(
+    applyIdentity(
+      normalizeOpener({
+        id: crypto.randomUUID(),
+        email,
+        status: "new",
+        openCount: 0,
+        clickCount: 0,
+        firstOpenedAt: at,
+        lastOpenedAt: at,
+        lastTouchAt: mail.createdAt,
+        mailIds: [mail.id],
+        companyNumber: hit.companyNumber,
+        companyName: hit.companyName,
+        dealId: hit.dealId ?? mail.dealId,
+        prospectId: hit.prospectId ?? mail.prospectId,
+        phone: hit.phone,
+      }),
+      email,
+      mail,
+      hit
+    ),
+    extraClicks
+  );
+  return { all: [...all, opener], opener };
+}
+
+function applyDwellEngagementTo(
+  all: OpenerRecord[],
+  mail: AgentMailItem,
+  resolve?: OpenerResolver,
+  extraDwells = 1
+): { all: OpenerRecord[]; opener?: OpenerRecord } {
+  if (mail.direction !== "outbound") return { all };
+  const at = lastDwellAt(mail.dwells);
+  if (!at) return { all };
+  const email = normalizeEmail(mail.to);
+  if (!email) return { all };
+
+  const hit = takeResolveHit(email, mail, resolve);
+  const existing = findByEmail(all, email) || findByCompany(all, hit.companyNumber);
+  const lastDwellPath = lastDwellPathFrom(mail.dwells);
+  if (existing) {
+    if (extraDwells === 0 && existing.status !== "non_responsive") {
+      if (lastDwellPath && lastDwellPath !== existing.lastDwellPath) {
+        const opener = {
+          ...existing,
+          lastDwellPath,
+          updatedAt: new Date().toISOString(),
+        };
+        const next = all.filter((row) => row.id !== opener.id);
+        next.push(opener);
+        return { all: next, opener };
+      }
+      return { all, opener: existing };
+    }
+    const opener = {
+      ...applyDwellEvent(applyIdentity(existing, email, mail, hit), extraDwells, lastDwellPath),
+      mailIds: [...new Set([...(existing.mailIds || []), mail.id])],
+    };
+    const next = all.filter((row) => row.id !== opener.id);
+    next.push(opener);
+    return { all: next, opener };
+  }
+
+  const opener = applyDwellEvent(
+    applyIdentity(
+      normalizeOpener({
+        id: crypto.randomUUID(),
+        email,
+        status: "new",
+        openCount: 0,
+        clickCount: 0,
+        dwellCount: 0,
+        firstOpenedAt: at,
+        lastOpenedAt: at,
+        lastTouchAt: mail.createdAt,
+        mailIds: [mail.id],
+        companyNumber: hit.companyNumber,
+        companyName: hit.companyName,
+        dealId: hit.dealId ?? mail.dealId,
+        prospectId: hit.prospectId ?? mail.prospectId,
+        phone: hit.phone,
+      }),
+      email,
+      mail,
+      hit
+    ),
+    extraDwells,
+    lastDwellPath
+  );
+  return { all: [...all, opener], opener };
+}
+
+function totalClicksFor(opener: OpenerRecord, items: AgentMailItem[]): number {
+  const emails = new Set(
+    [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
+  );
+  let n = 0;
+  for (const item of items) {
+    if (item.direction !== "outbound") continue;
+    if (!emails.has(normalizeEmail(item.to))) continue;
+    n += item.clicks?.length ?? 0;
+  }
+  return n;
+}
+
+function openerMailEmails(opener: OpenerRecord): Set<string> {
+  return new Set(
+    [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
+  );
+}
+
+function totalDwellsFor(opener: OpenerRecord, items: AgentMailItem[]): number {
+  const emails = openerMailEmails(opener);
+  let n = 0;
+  for (const item of items) {
+    if (item.direction !== "outbound") continue;
+    if (!emails.has(normalizeEmail(item.to))) continue;
+    n += item.dwells?.length ?? 0;
+  }
+  return n;
+}
+
+function lastDwellPathFor(opener: OpenerRecord, items: AgentMailItem[]): string | undefined {
+  const emails = openerMailEmails(opener);
+  let bestAt = "";
+  let path: string | undefined;
+  for (const item of items) {
+    if (item.direction !== "outbound") continue;
+    if (!emails.has(normalizeEmail(item.to))) continue;
+    for (const dwell of item.dwells || []) {
+      if (!dwell.path) continue;
+      const at = dwell.at || "";
+      if (!path || at >= bestAt) {
+        bestAt = at;
+        path = dwell.path;
+      }
+    }
+  }
+  return path;
+}
+
+function syncClickCounts(
+  all: OpenerRecord[],
+  items: AgentMailItem[]
+): { all: OpenerRecord[]; dirty: boolean } {
+  let dirty = false;
+  const next = all.map((opener) => {
+    const clickCount = totalClicksFor(opener, items);
+    const status =
+      clickCount > 0 && opener.status === "non_responsive" ? "new" : opener.status;
+    if (clickCount === opener.clickCount && status === opener.status) return opener;
+    dirty = true;
+    return { ...opener, clickCount, status, updatedAt: new Date().toISOString() };
+  });
+  return { all: next, dirty };
+}
+
+function syncDwellCounts(
+  all: OpenerRecord[],
+  items: AgentMailItem[]
+): { all: OpenerRecord[]; dirty: boolean } {
+  // Empty snapshot must not wipe stored dwells — hydrate backfill seeds openers.json alone.
+  if (items.length === 0) return { all, dirty: false };
+  let dirty = false;
+  const next = all.map((opener) => {
+    const dwellCount = totalDwellsFor(opener, items);
+    const status =
+      dwellCount > 0 && opener.status === "non_responsive" ? "new" : opener.status;
+    const lastDwellPath = lastDwellPathFor(opener, items) ?? opener.lastDwellPath;
+    if (
+      dwellCount === opener.dwellCount &&
+      status === opener.status &&
+      lastDwellPath === opener.lastDwellPath
+    ) {
+      return opener;
+    }
+    dirty = true;
+    return { ...opener, dwellCount, status, lastDwellPath, updatedAt: new Date().toISOString() };
+  });
+  return { all: next, dirty };
+}
+
+function dropBounced(
+  all: OpenerRecord[],
+  bounceEmails: Set<string>
+): { all: OpenerRecord[]; dirty: boolean } {
+  if (bounceEmails.size === 0) return { all, dirty: false };
+  const next = all.filter((opener) => {
+    const bounced = [opener.email, ...(opener.emails || [])].some((email) =>
+      bounceEmails.has(normalizeEmail(email))
+    );
+    if (!bounced) return true;
+    return keepConvertOpenerOnHardBounce(opener);
+  });
+  return { all: next, dirty: next.length !== all.length };
+}
+
 export function hydrateFromAgentMail(
   items: AgentMailItem[],
-  resolve?: OpenerResolver
+  resolve?: OpenerResolver,
+  opts?: { optOutEmails?: Iterable<string>; bounceEmails?: Iterable<string> }
 ): OpenerRecord[] {
   const resolver = resolve ?? defaultOpenerResolver;
   let all = readOpeners();
   const byId = new Map(items.map((item) => [item.id, item]));
   let dirty = false;
   const newlyNumbered: OpenerRecord[] = [];
+
+  for (const event of sentUnopenedMailEvents(items)) {
+    const mail = byId.get(event.mailId);
+    if (!mail) continue;
+    const email = normalizeEmail(mail.to);
+    const existing = findByEmail(all, email);
+    const hadNumber = Boolean(normalizeCompanyNumber(existing?.companyNumber));
+    const result = applySentUnopenedMailTo(all, mail, resolver);
+    if (result.opener) {
+      if (result.all !== all) dirty = true;
+      all = result.all;
+      if (
+        result.opener.status === "non_responsive" &&
+        !hadNumber &&
+        result.opener.companyNumber &&
+        !result.opener.enrichedAt
+      ) {
+        newlyNumbered.push(result.opener);
+      }
+    }
+  }
+
   for (const event of openedMailEvents(items)) {
     const mail = byId.get(event.mailId);
     if (!mail) continue;
@@ -609,9 +1267,102 @@ export function hydrateFromAgentMail(
       }
     }
   }
+
+  for (const item of items) {
+    const result = applyClickEngagementTo(all, item, resolver, 0);
+    if (result.opener && result.all !== all) {
+      all = result.all;
+      dirty = true;
+    }
+  }
+
+  const clicks = syncClickCounts(all, items);
+  all = clicks.all;
+  if (clicks.dirty) dirty = true;
+
+  for (const item of items) {
+    const result = applyDwellEngagementTo(all, item, resolver, 0);
+    if (result.opener && result.all !== all) {
+      all = result.all;
+      dirty = true;
+    }
+  }
+  const dwells = syncDwellCounts(all, items);
+  all = dwells.all;
+  if (dwells.dirty) dirty = true;
+
+  const secondEmail = applySecondEmailNurturingPass(all, items);
+  all = secondEmail.all;
+  if (secondEmail.dirty) dirty = true;
+  const unsubscribed = applyUnsubscribes(all, collectOptOutEmails(items, opts?.optOutEmails));
+  all = unsubscribed.all;
+  if (unsubscribed.dirty) dirty = true;
+  const bounced = dropBounced(
+    all,
+    new Set([...(opts?.bounceEmails || [])].map(normalizeEmail).filter(Boolean))
+  );
+  all = bounced.all;
+  if (bounced.dirty) dirty = true;
+  const desk = applyDirectOutreachPass(all);
+  all = desk.all;
+  if (desk.dirty) dirty = true;
   if (dirty) writeOpeners(all);
   for (const opener of newlyNumbered) scheduleEnrichIfNew(false, opener);
   return all;
+}
+
+function applyDirectOutreachPass(all: OpenerRecord[]): { all: OpenerRecord[]; dirty: boolean } {
+  let dirty = false;
+  const next = all.map((row) => {
+    const moved = applyDirectOutreach(row);
+    if (moved !== row) dirty = true;
+    return moved;
+  });
+  return { all: next, dirty };
+}
+
+export function markOpenerNurturingOnOutbound(
+  mail: AgentMailItem,
+  allMail: AgentMailItem[] = [mail]
+): OpenerRecord | undefined {
+  if (mail.direction !== "outbound" || mail.status !== "sent") return undefined;
+  const email = normalizeEmail(mail.to);
+  if (!email) return undefined;
+  const all = readOpeners();
+  const opener = findByEmail(all, email);
+  if (!opener) return undefined;
+  if (
+    !openerHasReceivedSecondEmail(opener, {
+      mail: allMail,
+      ...dealFlagsForOpener(opener),
+      ...(mail.touchId === "sme_open" ? { smeOpenFollowUpSentAt: mail.createdAt } : {}),
+      ...(mail.touchId === "sme_followup" ? { smeFollowupSentAt: mail.createdAt } : {}),
+    })
+  ) {
+    return undefined;
+  }
+  const moved = applySecondEmailNurturing(opener);
+  if (moved.status === opener.status) return opener;
+  return saveOpener(moved);
+}
+
+export async function autoPromoteEligibleOpeners(
+  mail: AgentMailItem[],
+  opts?: { userId?: string; optOutEmails?: Iterable<string>; deps?: PromoteDeps }
+): Promise<OpenerRecord[]> {
+  const deps = opts?.deps ?? (inVitest() ? null : await defaultPromoteDeps());
+  if (!deps) return [];
+  const promoted: OpenerRecord[] = [];
+  for (const opener of readOpeners()) {
+    if (!shouldAutoPromoteOpener(opener, mail, opts?.optOutEmails)) continue;
+    try {
+      const result = await promoteOpener(opener.id, opts?.userId || "", deps);
+      promoted.push(result.opener);
+    } catch (error: any) {
+      console.warn("[Openers] auto-promote failed:", opener.email, error?.message || error);
+    }
+  }
+  return promoted;
 }
 
 function asItems(payload: any): any[] {
@@ -714,6 +1465,45 @@ export async function enrichOpener(
   }
 }
 
+export type OpenerCreditsafeClient = {
+  searchUk(opts: { name?: string; regNo?: string }): Promise<CreditsafeCompanyResult[]>;
+  getCompanyReport(id: string): Promise<unknown>;
+};
+
+export async function checkOpenerCreditsafe(
+  id: string,
+  client: OpenerCreditsafeClient = creditsafeClient
+): Promise<OpenerRecord> {
+  const current = requireOpener(id);
+  if (current.creditsafe?.creditsafeId && current.creditsafe.checkedAt) return current;
+  if (!current.companyNumber && !current.companyName) {
+    throw httpError("Company number or name is required", 400);
+  }
+  let hits: CreditsafeCompanyResult[] = [];
+  if (current.companyNumber) {
+    hits = await client.searchUk({ regNo: current.companyNumber });
+    const exact = hits.find(
+      (hit) => normalizeCompanyNumber(hit.regNo || "") === current.companyNumber
+    );
+    if (exact) hits = [exact];
+  }
+  if (!hits.length && current.companyName) {
+    hits = await client.searchUk({ name: current.companyName });
+    if (current.companyNumber) {
+      const exact = hits.find(
+        (hit) => normalizeCompanyNumber(hit.regNo || "") === current.companyNumber
+      );
+      if (exact) hits = [exact];
+    }
+  }
+  const pick = hits[0];
+  if (!pick?.id) throw httpError("No Creditsafe match", 422);
+  const data = await client.getCompanyReport(pick.id);
+  return (
+    patchOpener(id, { creditsafe: creditsafeSnapshotFromReport(pick.id, data) }) ?? current
+  );
+}
+
 export async function attachCompanyNumber(
   id: string,
   companyNumber: string,
@@ -747,6 +1537,13 @@ export type PromoteDeps = {
   createProspect(data: any, userId: string): Promise<{ id: number }>;
   createContact(data: any, userId: string): Promise<any>;
   resolvePipelineOwnerUserId?(): Promise<string>;
+  getProspect?(id: number): Promise<
+    | { id: number; stage?: string; referralSource?: string | null; userId: string }
+    | undefined
+  >;
+  deleteProspect?(id: number, userId: string): Promise<void>;
+  listContacts?(prospectId: number, userId?: string): Promise<Array<{ id: number }>>;
+  deleteContact?(id: number, userId?: string): Promise<void>;
 };
 
 type SendEmailFn = typeof import("./email").sendEmail;
@@ -765,6 +1562,10 @@ async function defaultPromoteDeps(): Promise<PromoteDeps> {
     createProspect: (data, userId) => storage.createProspect(data, userId),
     createContact: (data, userId) => storage.createContact(data, userId),
     resolvePipelineOwnerUserId,
+    getProspect: (id) => storage.getProspectById(id),
+    deleteProspect: (id, uid) => storage.deleteProspect(id, uid),
+    listContacts: (prospectId, uid) => storage.listContacts(prospectId, uid || ""),
+    deleteContact: (id, uid) => storage.deleteContact(id, uid || ""),
   };
 }
 
@@ -806,17 +1607,37 @@ export function completeTouch2IfDue(
 ): OpenerRecord {
   const when = now ?? new Date();
   const stamp = when.toISOString();
+  if (isConvertOpener(opener) && isConvertCloserDue(opener, when)) {
+    const next = completeConvertCloser(opener, channel, when);
+    return { ...next, lastTouchAt: stamp, updatedAt: stamp };
+  }
   const next = isTouch2Due(opener, when) ? completeTouch2(opener, channel, when) : opener;
   return { ...next, lastTouchAt: stamp, updatedAt: stamp };
 }
 
+function refuseDoNotContact(opener: OpenerRecord): void {
+  if (isDoNotContactOpener(opener)) throw httpError("Do not contact", 400);
+}
+
 export async function runNurtureAction(
   id: string,
-  action: "start" | "approve" | "skip" | "stop" | "touch2",
-  opts?: { channel?: "whatsapp" | "call"; now?: Date; send?: SendEmailFn }
+  action: "start" | "approve" | "skip" | "stop" | "touch2" | "closer",
+  opts?: { channel?: "whatsapp" | "call" | "skip"; now?: Date; send?: SendEmailFn; agentId?: string }
 ): Promise<OpenerRecord> {
   const opener = requireOpener(id);
   const now = opts?.now;
+  if (action !== "stop") refuseDoNotContact(opener);
+
+  if (
+    opener.status === "direct_outreach" &&
+    (action === "start" || action === "approve" || action === "skip")
+  ) {
+    throw httpError("James is stopped on Direct Outreach", 409);
+  }
+
+  if (isConvertOpener(opener) && (action === "start" || action === "approve")) {
+    return opener;
+  }
 
   if (action === "start") {
     return saveOpener(startNurture(opener, openerNurtureDraft(opener), now));
@@ -838,16 +1659,29 @@ export async function runNurtureAction(
     return saveOpener(completeTouch2(opener, channel, now));
   }
 
-  if (opener.nurture.touch1MailId) return opener;
+  if (action === "closer") {
+    const channel = opts?.channel;
+    if (channel !== "whatsapp" && channel !== "call" && channel !== "skip") {
+      throw httpError("channel required", 400);
+    }
+    if (!isConvertOpener(opener) || !isConvertCloserDue(opener, now)) return opener;
+    const mapped = channel === "skip" ? "skipped" : channel;
+    const next = saveOpener(completeConvertCloser(opener, mapped, now));
+    await patchConvertDealCompleted(next, now);
+    return next;
+  }
+
+  if (isConvertOpener(opener) || opener.nurture.touch1MailId) return opener;
 
   const draft = opener.nurture.touch1Draft || openerNurtureDraft(opener);
   const send = opts?.send ?? (await import("./email")).sendEmail;
-  const mailbox = mailboxForAgent("outreach-sales");
+  const mailbox = resolveSendAsMailbox(opts?.agentId, "outreach-sales");
+  const html = `${draft.html}\n${signatureHtml(mailbox)}`;
   let result: Awaited<ReturnType<SendEmailFn>>;
   try {
     result = await send(
       {
-        agentId: "outreach-sales",
+        agentId: mailbox.agentId,
         fromEmail: mailbox.address,
         fromName: mailbox.fromName,
         replyTo: mailbox.replyTo,
@@ -857,7 +1691,7 @@ export async function runNurtureAction(
       },
       opener.email,
       draft.subject,
-      draft.html
+      html
     );
   } catch {
     return saveOpener(failNurtureSend(opener));
@@ -906,11 +1740,7 @@ export async function promoteOpener(
 
   const existing = await findProspectForCompany(d, company!.id, resolvedUserId);
   if (existing?.id) {
-    const next = saveOpener({
-      ...stopNurture(opener, "promoted"),
-      status: "promoted",
-      prospectId: existing.id,
-    });
+    const next = saveOpener(markOpenerPromoted(opener, existing.id));
     return { opener: next, prospectId: existing.id, created: false };
   }
 
@@ -948,12 +1778,65 @@ export async function promoteOpener(
     );
   }
 
-  const next = saveOpener({
-    ...stopNurture(opener, "promoted"),
-    status: "promoted",
-    prospectId: prospect.id,
-  });
+  const next = saveOpener(markOpenerPromoted(opener, prospect.id));
   return { opener: next, prospectId: prospect.id, created: true };
+}
+
+function markOpenerPromoted(opener: OpenerRecord, prospectId: number): OpenerRecord {
+  const stopped = stopNurture(opener, "promoted");
+  return {
+    ...stopped,
+    status: "promoted",
+    prospectId,
+    nurture: {
+      ...stopped.nurture,
+      promoteBlocked: undefined,
+    },
+  };
+}
+
+const DEMOTE_STATUSES = ["new", "nurturing", "not_now"] as const;
+
+async function maybeRemoveOpenersLeadProspect(
+  d: PromoteDeps,
+  prospectId: number,
+  userId: string
+): Promise<void> {
+  if (!d.getProspect || !d.deleteProspect) return;
+  const prospect = await d.getProspect(prospectId);
+  if (!prospect) return;
+  if (prospect.stage !== "lead") return;
+  if (String(prospect.referralSource || "") !== "Openers") return;
+  const ownerId = prospect.userId || userId;
+  if (d.listContacts && d.deleteContact) {
+    const rows = await d.listContacts(prospectId, ownerId);
+    for (const row of rows) {
+      await d.deleteContact(row.id, ownerId);
+    }
+  }
+  await d.deleteProspect(prospectId, ownerId);
+}
+
+export async function demoteOpener(
+  id: string,
+  userId: string,
+  status: "new" | "nurturing" | "not_now" = "nurturing",
+  deps?: PromoteDeps
+): Promise<OpenerRecord> {
+  const opener = requireOpener(id);
+  if (opener.status !== "promoted") {
+    throw httpError("Not promoted", 400);
+  }
+  if (!DEMOTE_STATUSES.includes(status)) {
+    throw httpError("Invalid status", 400);
+  }
+  const prospectId = opener.prospectId;
+  const next = saveOpener(applyOpenerDemote(opener, status));
+  if (prospectId) {
+    const d = deps ?? (inVitest() ? null : await defaultPromoteDeps());
+    if (d) await maybeRemoveOpenersLeadProspect(d, prospectId, userId);
+  }
+  return next;
 }
 
 export async function sendOpenerWhatsApp(
@@ -963,6 +1846,7 @@ export async function sendOpenerWhatsApp(
   now?: Date
 ): Promise<OpenerRecord> {
   const opener = requireOpener(id);
+  refuseDoNotContact(opener);
   if (!opener.phone) throw httpError("Phone required", 400);
   const sendFn =
     send ??
@@ -971,11 +1855,14 @@ export async function sendOpenerWhatsApp(
       return whatsappService.sendMessage(phone, body);
     });
   await sendFn(opener.phone, message);
-  return saveOpener(completeTouch2IfDue(opener, "whatsapp", now));
+  const next = saveOpener(completeTouch2IfDue(opener, "whatsapp", now));
+  await maybePatchConvertCloserDeal(opener, next, now);
+  return next;
 }
 
 export async function logOpenerCall(id: string, note: string, now?: Date): Promise<OpenerRecord> {
   const opener = requireOpener(id);
+  refuseDoNotContact(opener);
   if (!opener.phone) throw httpError("Phone required", 400);
   const stamp = (now ?? new Date()).toISOString();
   const line = `${stamp} ${note}`;
@@ -983,14 +1870,180 @@ export async function logOpenerCall(id: string, note: string, now?: Date): Promi
     ...opener,
     notes: opener.notes ? `${line}\n${opener.notes}` : line,
   };
-  return saveOpener(completeTouch2IfDue(withNote, "call", now));
+  const next = saveOpener(completeTouch2IfDue(withNote, "call", now));
+  await maybePatchConvertCloserDeal(opener, next, now);
+  return next;
+}
+
+export function deleteOpenerByEmail(email: string): boolean {
+  const target = normalizeEmail(email);
+  if (!target) return false;
+  const all = readOpeners();
+  const next = all.filter(
+    (row) => row.email !== target && !(row.emails || []).includes(target)
+  );
+  if (next.length === all.length) return false;
+  writeOpeners(next);
+  return true;
+}
+
+const convertStopChain = new Map<string, Promise<void>>();
+
+function findOpenerByIdOrEmail(openerIdOrEmail: string): OpenerRecord | undefined {
+  const key = String(openerIdOrEmail || "").trim();
+  if (!key) return undefined;
+  return getOpener(key) || findByEmail(readOpeners(), normalizeEmail(key));
+}
+
+function convertCloserCompleted(opener: OpenerRecord): boolean {
+  return (
+    isConvertOpener(opener) &&
+    opener.nurture.stopReason === "completed" &&
+    (opener.nurture.closerStatus === "done" || opener.nurture.closerStatus === "skipped")
+  );
+}
+
+async function maybePatchConvertCloserDeal(
+  before: OpenerRecord,
+  after: OpenerRecord,
+  now?: Date
+): Promise<void> {
+  if (!convertCloserCompleted(after)) return;
+  if (convertCloserCompleted(before)) return;
+  await patchConvertDealCompleted(after, now);
+}
+
+async function patchConvertDealCompleted(opener: OpenerRecord, now?: Date): Promise<void> {
+  const wakeAt = opener.nurture.wakeAt || convertWakeAt(now ?? new Date());
+  await patchConvertDealFields(opener, {
+    convertPlaybook: undefined,
+    convertStopReason: "completed",
+    convertWakeAt: wakeAt,
+    waitUntil: wakeAt,
+  });
+}
+
+async function patchConvertDealFields(
+  opener: OpenerRecord,
+  patch: {
+    convertPlaybook?: undefined;
+    convertStopReason: "promoted" | "reply" | "opt_out" | "blocked" | "completed";
+    convertWakeAt?: string;
+    waitUntil?: string;
+  }
+): Promise<void> {
+  try {
+    const { storage } = await import("../storage");
+    const deals = (await storage.listAgenticDeals()) || [];
+    const email = normalizeEmail(opener.email);
+    const aliases = new Set(
+      [email, ...(opener.emails || []).map(normalizeEmail)].filter(Boolean)
+    );
+    const number = normalizeCompanyNumber(opener.companyNumber);
+    for (const deal of deals) {
+      const isOpenerDeal = opener.dealId != null && deal.id === opener.dealId;
+      const emailHit = Boolean(normalizeEmail(deal.email) && aliases.has(normalizeEmail(deal.email)));
+      const numberHit = Boolean(number && normalizeCompanyNumber(deal.companyNumber) === number);
+      if (!isOpenerDeal && !emailHit && !numberHit) continue;
+      if (!isOpenerDeal && deal.convertPlaybook !== "sme_nurture") continue;
+      await storage.updateAgenticDeal(deal.id, patch);
+    }
+  } catch (error: any) {
+    console.warn("[Openers] convert deal stop failed:", error?.message || error);
+  }
+}
+
+async function patchConvertDealStop(
+  opener: OpenerRecord,
+  reason: "promoted" | "reply" | "opt_out" | "blocked"
+): Promise<void> {
+  await patchConvertDealFields(opener, {
+    convertPlaybook: undefined,
+    convertStopReason: reason,
+    convertWakeAt: undefined,
+  });
+}
+
+async function runConvertStopAndPromote(
+  openerId: string,
+  reason: "promoted" | "reply" | "opt_out",
+  _deps?: PromoteDeps
+): Promise<void> {
+  const opener = getOpener(openerId);
+  if (!opener || !isConvertOpener(opener)) return;
+
+  if (reason === "opt_out" || isDoNotContactOpener(opener)) {
+    const next =
+      opener.status === "not_now" && opener.nurture.stopReason === "opt_out"
+        ? opener
+        : saveOpener(applyConvertStop(opener, "opt_out"));
+    await patchConvertDealStop(next, "opt_out");
+    return;
+  }
+
+  if (!canPromoteOpener(opener)) {
+    const next = opener.nurture.promoteBlocked
+      ? opener
+      : saveOpener(applyConvertStop(opener, "blocked"));
+    await patchConvertDealStop(next, "blocked");
+    return;
+  }
+
+  const stopped = saveOpener(applyConvertStop(opener, reason));
+  await patchConvertDealStop(stopped, reason);
+}
+
+export async function stopConvertAndPromote(
+  openerIdOrEmail: string,
+  reason: "promoted" | "reply" | "opt_out",
+  deps?: PromoteDeps
+): Promise<void> {
+  const opener = findOpenerByIdOrEmail(openerIdOrEmail);
+  if (!opener || !isConvertOpener(opener)) return;
+
+  const prev = convertStopChain.get(opener.id);
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  convertStopChain.set(opener.id, current);
+  if (prev) await prev.catch(() => undefined);
+  try {
+    await runConvertStopAndPromote(opener.id, reason, deps);
+  } finally {
+    release();
+    if (convertStopChain.get(opener.id) === current) convertStopChain.delete(opener.id);
+  }
 }
 
 export function stopOpenerNurtureByEmail(
   email: string,
-  reason: "reply" | "opt_out"
+  reason: "reply" | "opt_out",
+  deps?: PromoteDeps
 ): OpenerRecord | undefined {
   const opener = findByEmail(readOpeners(), normalizeEmail(email));
-  if (!opener || !isNurtureInFlight(opener)) return undefined;
+  if (!opener) return undefined;
+  if (isConvertOpener(opener)) {
+    const mapped =
+      reason === "opt_out" ? "opt_out" : canPromoteOpener(opener) ? "reply" : "blocked";
+    const next = saveOpener(applyConvertStop(opener, mapped));
+    if (reason === "opt_out") revokeBriefingsForOpener(opener.id);
+    void stopConvertAndPromote(opener.id, reason, deps).catch((error: any) => {
+      console.warn("[Openers] convert auto-promote failed:", error?.message || error);
+    });
+    return next;
+  }
+  if (reason === "opt_out") {
+    const next =
+      opener.status === "not_now" && opener.nurture.stopReason === "opt_out"
+        ? opener
+        : saveOpener(stopNurture(opener, "opt_out"));
+    revokeBriefingsForOpener(opener.id);
+    return next;
+  }
+  if (opener.status === "direct_outreach") {
+    return opener;
+  }
+  if (!isNurtureInFlight(opener)) return undefined;
   return saveOpener(stopNurture(opener, reason));
 }

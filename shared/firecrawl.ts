@@ -24,3 +24,21 @@ export function firecrawlAuthHeaders(env: Env = process.env): Record<string, str
   if (key) headers.Authorization = `Bearer ${key}`;
   return headers;
 }
+
+export type FirecrawlSearchHit = {
+  url?: string;
+  title?: string;
+  description?: string;
+  markdown?: string;
+};
+
+export function parseFirecrawlSearchHits(payload: unknown): FirecrawlSearchHit[] {
+  if (!payload || typeof payload !== "object") return [];
+  const body = payload as { data?: unknown; web?: unknown };
+  if (Array.isArray(body.data)) return body.data as FirecrawlSearchHit[];
+  if (body.data && typeof body.data === "object" && Array.isArray((body.data as { web?: unknown }).web)) {
+    return (body.data as { web: FirecrawlSearchHit[] }).web;
+  }
+  if (Array.isArray(body.web)) return body.web as FirecrawlSearchHit[];
+  return [];
+}

@@ -1,7 +1,18 @@
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { mailboxForAgent } from "@shared/agentMailboxes";
-import { logAgentMail, injectMailTracking } from "./agentMailLog";
+import { listUnsubscribeHeaders, normalizeUnsubscribeEmail, unsubscribeSigningSecret } from "@shared/listUnsubscribe";
+import { logAgentMail, injectMailTracking, publicTrackingBaseUrl, trackingBaseUrl } from "./agentMailLog";
+import { writeMailboxToClientsFromDeal } from "./clientsMailbox";
+import { mailIsSuppressed } from "./mailDesk";
+
+function rememberMailboxOnClients(dealId: unknown, to: string) {
+    const id = Number(dealId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    void writeMailboxToClientsFromDeal(id, to).catch((error: any) => {
+        console.warn("[Clients] mailbox write-back failed:", error?.message || error);
+    });
+}
 
 function applyVariables(content: string, variables: Record<string, any>): string {
     let finalContent = content;
@@ -55,6 +66,11 @@ function buildTransport(credentials: any) {
     return null;
 }
 
+function stampedContactSource(credentials: any): string | undefined {
+    const value = credentials?.contactSource;
+    return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 export async function sendEmail(
     credentials: any,
     to: string,
@@ -70,9 +86,53 @@ export async function sendEmail(
     const fromName = credentials?.fromName || mailbox.fromName;
     const replyTo = credentials?.replyTo || mailbox.replyTo;
     const mailLogId = crypto.randomUUID();
+    const recipients = String(to || "")
+      .split(/[,;]/)
+      .map((addr) => addr.trim())
+      .filter(Boolean);
+    if (recipients.some((addr) => mailIsSuppressed(addr))) {
+      console.warn(`[Email] blocked do-not-contact ${to}`);
+      logAgentMail({
+        id: mailLogId,
+        direction: "outbound",
+        agentId: mailbox.agentId,
+        agentName: mailbox.displayName,
+        from: fromAddress,
+        to,
+        subject,
+        text,
+        html,
+        status: "failed",
+        dealId: credentials?.dealId,
+        prospectId: credentials?.prospectId,
+        touchId: credentials?.touchId,
+        contactSource: stampedContactSource(credentials),
+      });
+      return { success: false, blocked: "suppressed", id: mailLogId };
+    }
 
     try {
         const transporter = buildTransport(credentials || {});
+        if (transporter && !publicTrackingBaseUrl()) {
+            console.warn("[Email] blocked send: no public tracking host");
+            logAgentMail({
+                id: mailLogId,
+                direction: "outbound",
+                agentId: mailbox.agentId,
+                agentName: mailbox.displayName,
+                from: fromAddress,
+                to,
+                subject,
+                text,
+                html,
+                status: "failed",
+                dealId: credentials?.dealId,
+                prospectId: credentials?.prospectId,
+                touchId: credentials?.touchId,
+                contactSource: stampedContactSource(credentials),
+            });
+            return { success: false, blocked: "no_public_tracking", id: mailLogId };
+        }
         if (!transporter) {
             console.warn("No SMTP or Gmail credentials. Logging email instead.");
             console.log(`[MOCK EMAIL] From: ${fromName} <${fromAddress}>\nReply-To: ${replyTo}\nTo: ${to}\nSubject: ${subject}\nBody:\n${text}`);
@@ -90,7 +150,9 @@ export async function sendEmail(
                 dealId: credentials?.dealId,
                 prospectId: credentials?.prospectId,
                 touchId: credentials?.touchId,
+                contactSource: stampedContactSource(credentials),
             });
+            rememberMailboxOnClients(credentials?.dealId, to);
             return { success: false, mock: true, id: mailLogId };
         }
 
@@ -98,6 +160,15 @@ export async function sendEmail(
         // what gets stored for the "exactly as the customer saw it" preview.
         const trackedHtml = html ? injectMailTracking(html, mailLogId) : html;
 
+        const unsubEmail = normalizeUnsubscribeEmail(recipients[0] || "");
+        const headers = unsubEmail.includes("@")
+          ? listUnsubscribeHeaders({
+              baseUrl: trackingBaseUrl(),
+              email: unsubEmail,
+              from: replyTo || fromAddress,
+              secret: unsubscribeSigningSecret(),
+            })
+          : undefined;
         const info = await transporter.sendMail({
             from: `"${fromName}" <${fromAddress}>`,
             replyTo,
@@ -108,6 +179,7 @@ export async function sendEmail(
             attachments,
             inReplyTo: credentials?.inReplyTo,
             references: credentials?.inReplyTo,
+            headers,
         });
         console.log(`Email sent from ${fromAddress} to ${to}: ${info.response}`);
         logAgentMail({
@@ -125,7 +197,9 @@ export async function sendEmail(
             dealId: credentials?.dealId,
             prospectId: credentials?.prospectId,
             touchId: credentials?.touchId,
+            contactSource: stampedContactSource(credentials),
         });
+        rememberMailboxOnClients(credentials?.dealId, to);
         return { success: true, messageId: info.messageId, id: mailLogId };
     } catch (error: any) {
         console.error("Error sending email:", error);
@@ -143,6 +217,7 @@ export async function sendEmail(
             dealId: credentials?.dealId,
             prospectId: credentials?.prospectId,
             touchId: credentials?.touchId,
+            contactSource: stampedContactSource(credentials),
         });
         throw new Error(`Failed to send email: ${error.message}`);
     }

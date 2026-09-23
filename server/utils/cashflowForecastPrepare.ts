@@ -6,12 +6,12 @@ import {
   parseWithExtract,
   pickCashflowDocument,
   readyToPrint,
-  sanitizeForecastBullets,
   withoutFromSweep,
   type CashflowForecast,
 } from "@shared/cashflowForecast";
 import { buildProposal, proposalSourceFromFile } from "@shared/proposalFacts";
-import { critiqueCashflowForecastJson, extractCashflowForecastJson } from "./geminiClient";
+import { extractCashflowForecastJson } from "./geminiClient";
+import { storage } from "../storage";
 import { parsePdfBuffer } from "./pdfText";
 import { getObjectStorage } from "./routerHelpers";
 import { isSpreadsheetFile, extractSpreadsheetText } from "./spreadsheetText";
@@ -96,20 +96,6 @@ export async function ensureCashflowForecast(data: ProspectReportData): Promise<
     flattenedText: flattened,
   });
 
-  let critique: string[] = [];
-  try {
-    critique = sanitizeForecastBullets(
-      await critiqueCashflowForecastJson({
-        without,
-        with: parsed.with,
-        findings,
-        flattenedText: flattened,
-      }),
-    );
-  } catch {
-    critique = [];
-  }
-
   const forecast: CashflowForecast = {
     source,
     confirmed: false,
@@ -119,9 +105,9 @@ export async function ensureCashflowForecast(data: ProspectReportData): Promise<
     with: parsed.with,
     months: parsed.months,
     findings,
-    critique,
+    critique: [],
   };
-  return attach(data, forecast);
+  return persistAndAttach(data, forecast);
 }
 
 function attach(data: ProspectReportData, forecast: CashflowForecast): ProspectReportData {
@@ -131,4 +117,19 @@ function attach(data: ProspectReportData, forecast: CashflowForecast): ProspectR
     ...data,
     dueDiligence: { ...dueDiligence, data: nextData } as ProspectReportData["dueDiligence"],
   };
+}
+
+async function persistAndAttach(data: ProspectReportData, forecast: CashflowForecast): Promise<ProspectReportData> {
+  const next = attach(data, forecast);
+  const prospectId = data.prospect?.id;
+  const userId = data.prospect?.userId;
+  if (!prospectId || !userId) return next;
+  try {
+    const existing = await storage.getDueDiligence(prospectId, userId);
+    const existingData = (existing?.data || {}) as Record<string, any>;
+    await storage.upsertDueDiligence(prospectId, userId, { ...existingData, cashflowForecast: forecast } as any);
+  } catch {
+    // print with the in-memory extract even if persist fails
+  }
+  return next;
 }

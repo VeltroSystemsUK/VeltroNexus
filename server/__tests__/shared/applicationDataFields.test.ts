@@ -90,3 +90,22 @@ describe("missing-info email copy", () => {
     expect(copy!.html).toContain("tok123");
   });
 });
+
+describe("conditionally required detail fields", async () => {
+  const { missingRequiredFields, missingRequiredDirectorFields } = await import("@shared/applicationDataFields");
+  const ids = (fields: { id: string }[]) => fields.map((f) => f.id);
+
+  it("asks for the bank decline detail only after a Yes", () => {
+    expect(ids(missingRequiredFields({ bankDeclineConfirmed: "No" }))).not.toContain("declineReasons");
+    expect(ids(missingRequiredFields({ bankDeclineConfirmed: "Yes" }))).toEqual(
+      expect.arrayContaining(["declineBankNames", "declineDates", "declineReasons"]),
+    );
+  });
+
+  it("asks a director for insolvency detail only after a Yes", () => {
+    const gaps = (personalInsolvency: string) =>
+      ids(missingRequiredDirectorFields([{ id: "d1", personalInsolvency }]).perDirector[0].missing);
+    expect(gaps("No")).not.toContain("personalInsolvencyDetail");
+    expect(gaps("Yes")).toContain("personalInsolvencyDetail");
+  });
+});

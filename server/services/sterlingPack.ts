@@ -25,8 +25,11 @@ import type { DueDiligenceData } from "@shared/schema";
 import { unwrapDueDiligence } from "@shared/dueDiligence";
 import { handoverPackHtml, resolveHandoverPack } from "@shared/handoverPack";
 import { evaluateSterlingCompleteness } from "@shared/sterlingCompleteness";
-import { sterlingCopyForHandoff } from "@shared/sterlingEdits";
+import { STERLING_CAMPARI_FIELDS, STERLING_COPY_LABELS, sterlingCopyForHandoff } from "@shared/sterlingEdits";
 import { isApplicationSigned, parseApplicationData } from "@shared/applicationDataFields";
+import { fileResearchBullets, historicAccountsCommentary } from "@shared/reportCommentary";
+import { buildWorkingSheet, type WorkingSheetInput, type WorkingSheetItem } from "@shared/workingSheet";
+import { lenderForPack, recommendationForPack } from "@shared/sterlingRail";
 
 const TEMPLATE_ROOT = path.resolve(process.cwd(), "server", "templates", "sterling");
 
@@ -69,6 +72,13 @@ export async function loadSterlingFileContext(handoff: { prospectId: number; sub
     ],
     loanAmount: loan,
     term: prospect.term,
+    workingSheet: workingSheetForFile({
+      companyName: prospect.company.companyName || "File",
+      diligence: dd,
+      documents,
+      loanAmount: loan,
+      term: prospect.term,
+    }),
     payload: buildStrataPayload({
       prospect,
       contacts,
@@ -78,6 +88,98 @@ export async function loadSterlingFileContext(handoff: { prospectId: number; sub
       submissionId: handoff.submissionId,
     }),
   };
+}
+
+function moneyFact(value?: number) {
+  if (value == null || !Number.isFinite(value)) return "";
+  return `£${Math.round(value).toLocaleString("en-GB")}`;
+}
+
+function flagText(item: unknown): string {
+  if (typeof item === "string") return item.trim();
+  if (item && typeof item === "object") {
+    const rec = item as Record<string, unknown>;
+    return String(rec.label || rec.text || rec.description || "").trim();
+  }
+  return "";
+}
+
+export function workingSheetInputForFile(opts: {
+  companyName: string;
+  diligence: any;
+  documents: Array<{ id?: number; fileName?: string; category?: string }>;
+  loanAmount?: number;
+  term?: number;
+}): WorkingSheetInput {
+  const dd = opts.diligence || {};
+  const application = parseApplicationData(dd.applicationData);
+  const uw = dd.underwriting || {};
+  const slots = dd.proposal?.slots || {};
+  const swot = uw.swotAnalysis || {};
+  const flags = (Array.isArray(uw.financialAnalysis?.redFlags) ? uw.financialAnalysis.redFlags : [])
+    .map(flagText)
+    .filter(Boolean);
+  const drafts: Array<{ label: string; lines: string[] }> = [];
+  for (const key of STERLING_CAMPARI_FIELDS) {
+    const fromSlot = Array.isArray(slots.campari?.[key]) ? slots.campari[key] : [];
+    const fromSection = String(uw.adviserSummary?.sections?.[key] || "").trim();
+    const lines = fromSlot.length ? fromSlot.map(String) : fromSection ? [fromSection] : [];
+    if (lines.length) drafts.push({ label: STERLING_COPY_LABELS[key], lines });
+  }
+  for (const [label, lines] of [
+    ["SWOT strengths", swot.strengths],
+    ["SWOT weaknesses", swot.weaknesses],
+    ["SWOT opportunities", swot.opportunities],
+    ["SWOT threats", swot.threats],
+  ] as Array<[string, unknown]>) {
+    if (Array.isArray(lines) && lines.length) drafts.push({ label, lines: lines.map(String) });
+  }
+  const lastAccountsType = String(dd.companiesHouse?.profile?.accounts?.last_accounts?.type || "");
+  const years = Array.isArray(uw.accountsAnalysis?.years) ? uw.accountsAnalysis.years : [];
+  return {
+    companyName: opts.companyName,
+    application: {
+      signedName: application.signedName,
+      signedAt: application.signedAt,
+      loanPurpose: application.answers.loanPurpose,
+      natureOfBusiness: application.answers.natureOfBusiness,
+      declineReasons: application.answers.declineReasons,
+      jobsCreated: application.answers.jobsCreated,
+      jobsProtected: application.answers.jobsProtected,
+    },
+    facts: [
+      { label: "Loan amount", value: moneyFact(opts.loanAmount) },
+      { label: "Term", value: opts.term != null ? `${opts.term} months` : "" },
+    ],
+    flags,
+    fileResearch: fileResearchBullets({
+      documents: opts.documents.map((doc) => ({
+        id: doc.id || 0,
+        fileName: doc.fileName || "",
+        category: doc.category,
+      })),
+    }),
+    historicCommentary: historicAccountsCommentary({
+      years: years.map((row: any) => ({
+        yearEnding: String(row.yearEnding || row.year || ""),
+        turnover: typeof row.turnover === "number" ? row.turnover : null,
+        netProfit: typeof row.netProfit === "number" ? row.netProfit : null,
+        netAssets: typeof row.netAssets === "number" ? row.netAssets : null,
+      })),
+      accountsType: lastAccountsType,
+    }),
+    drafts,
+  };
+}
+
+export function workingSheetForFile(opts: {
+  companyName: string;
+  diligence: any;
+  documents: Array<{ id?: number; fileName?: string; category?: string }>;
+  loanAmount?: number;
+  term?: number;
+}): WorkingSheetItem[] {
+  return buildWorkingSheet(workingSheetInputForFile(opts)).items;
 }
 
 export async function readStoredFile(storagePath: string): Promise<Buffer | null> {
@@ -183,6 +285,43 @@ export async function buildSterlingPackZip(opts: {
   zip.file("recommendation.txt", rec);
   const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   return { buffer, filename: `${slug}-${opts.lenderId}-pack.zip` };
+}
+
+export async function compileSterlingRailPack(opts: {
+  handoff: any;
+  lenderId?: string;
+  signedBy?: string;
+  underwritingJudgement?: string;
+  markSent?: boolean;
+}): Promise<{ buffer: Buffer; filename: string; compiledAt: string; lenderId: string }> {
+  const lenderId = lenderForPack({
+    requestedLenderId: opts.lenderId,
+    approvedLenderId: opts.handoff?.approvedLenderId,
+  });
+  const recommendation = recommendationForPack({
+    handoffRecommendation: opts.handoff?.recommendation,
+    underwritingJudgement: opts.underwritingJudgement,
+  });
+  if (!recommendation) {
+    throw Object.assign(new Error("Write a recommendation before compiling the pack"), { status: 400 });
+  }
+  const pack = await buildSterlingPackZip({
+    handoff: { ...opts.handoff, recommendation },
+    lenderId,
+    signedBy: opts.signedBy,
+  });
+  const compiledAt = new Date().toISOString();
+  const handoffId = Number(opts.handoff?.id);
+  if (Number.isFinite(handoffId) && handoffId > 0) {
+    const updates: Record<string, unknown> = {
+      approvedLenderId: lenderId,
+      packGeneratedAt: compiledAt,
+      recommendation,
+    };
+    if (opts.markSent) updates.status = "sent";
+    await storage.updateBrokerHandoff(handoffId, updates);
+  }
+  return { ...pack, compiledAt, lenderId };
 }
 
 export function sterlingReportHtml(reportData: Parameters<typeof renderFundingProposalHtmlFromData>[0]) {

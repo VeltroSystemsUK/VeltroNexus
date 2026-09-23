@@ -4,8 +4,12 @@ import crypto from "crypto";
 import { mailboxByAddress, mailboxForAgent } from "@shared/agentMailboxes";
 import type { AgentMailAttachment } from "@shared/agentMailAttachments";
 import { storage } from "../storage";
-import { upsertOpenerFromMail } from "./openers";
+import { currentOpenersStorePath, enrolConvertFromMail, markOpenerNurturingOnOutbound, OPENERS_STORE, upsertNonResponsiveFromMail, upsertOpenerClickFromMail, upsertOpenerDwellFromMail, upsertOpenerFromMail } from "./openers";
+import { snapshotSiteTraffic } from "./siteTraffic";
 import { withJsonFileLock } from "../utils/jsonFileLock";
+import { atomicWriteFileSync, readJsonArrayFile } from "../utils/atomicWriteJson";
+import { shouldTrackMailHref } from "@shared/mailTracking";
+import { classifyInboundMail } from "@shared/mailDesk";
 
 export type MailDirection = "outbound" | "inbound";
 
@@ -24,17 +28,20 @@ export type AgentMailItem = {
   dealId?: number;
   prospectId?: number;
   touchId?: string;
+  contactSource?: string;
   createdAt: string;
   opens?: string[]; // ISO timestamp per tracking-pixel hit (noisy — see AgentMail.tsx tooltip)
   clicks?: Array<{ at: string; url: string }>;
+  dwells?: Array<{ at: string; path?: string; sf?: string }>;
   deskKind?: "stop" | "bounce" | "spam" | "responsive" | "other";
   deskNote?: string;
   attachments?: AgentMailAttachment[];
 };
 
 const DEFAULT_STORE = path.resolve(process.cwd(), "uploads", "agent_mail.json");
+export const AGENT_MAIL_KEEP = 10_000;
 const BACKUP_KEEP_MS = 14 * 24 * 60 * 60 * 1000;
-export const MAIL_BACKUP_HOUR_LONDON = 3;
+export const MAIL_BACKUP_HOUR_LONDON = 18;
 let storeOverride: string | null = null;
 let backupDirOverride: string | null = null;
 let dailyBackupTimer: ReturnType<typeof setInterval> | null = null;
@@ -78,10 +85,15 @@ export function dailyMailBackupName(at = new Date()): string {
   return `agent_mail-${londonDayAndHour(at).day}.json`;
 }
 
+export function dailyOpenersBackupName(at = new Date()): string {
+  return `openers-${londonDayAndHour(at).day}.json`;
+}
+
 function pruneMailBackups(dir: string) {
   const cutoff = Date.now() - BACKUP_KEEP_MS;
   for (const name of fs.readdirSync(dir)) {
-    if (!name.startsWith("agent_mail-") || !name.endsWith(".json")) continue;
+    if (!name.endsWith(".json")) continue;
+    if (!name.startsWith("agent_mail-") && !name.startsWith("openers-")) continue;
     const file = path.join(dir, name);
     try {
       if (fs.statSync(file).mtimeMs < cutoff) fs.unlinkSync(file);
@@ -91,35 +103,52 @@ function pruneMailBackups(dir: string) {
   }
 }
 
+function parseMailArray(file: string): AgentMailItem[] | null {
+  const raw = readJsonArrayFile(file);
+  return raw ? (raw as AgentMailItem[]) : null;
+}
+
 function snapshotLiveStore(next: AgentMailItem[]) {
   const file = storePath();
-  if (!fs.existsSync(file)) return;
-  let current: AgentMailItem[] = [];
-  try {
-    current = JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return;
-  }
-  if (!Array.isArray(current) || current.length === 0) return;
+  const current = parseMailArray(file);
+  if (!current || current.length === 0) return;
   const nextIds = new Set(next.map((row) => row.id));
   const dropping = current.some((row) => !nextIds.has(row.id));
   if (dropping) {
-    fs.copyFileSync(file, path.join(path.dirname(file), "agent_mail.prev.json"));
+    fs.copyFileSync(file, `${file}.prev`);
   }
+}
+
+function destIsKeepable(source: string, target: string): boolean {
+  if (!fs.existsSync(target)) return false;
+  if (!readJsonArrayFile(target)) return false;
+  return fs.statSync(source).size < fs.statSync(target).size;
+}
+
+function copyValidJsonArray(source: string, target: string): boolean {
+  const parsed = readJsonArrayFile(source);
+  if (!parsed) return false;
+  if (destIsKeepable(source, target)) return false;
+  atomicWriteFileSync(target, JSON.stringify(parsed));
+  return true;
 }
 
 export function backupAgentMailNow(at = new Date()): string | null {
   const file = storePath();
-  if (!fs.existsSync(file)) return null;
   const dest = backupDir();
   if (!dest) return null;
+  if (!readJsonArrayFile(file)) return null;
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
   const target = path.join(dest, dailyMailBackupName(at));
-  if (fs.existsSync(target) && fs.statSync(file).size < fs.statSync(target).size) {
+  if (destIsKeepable(file, target)) {
     console.warn("[AgentMail] skip daily backup — live store is smaller than today's copy");
     return target;
   }
-  fs.copyFileSync(file, target);
+  if (!copyValidJsonArray(file, target)) return null;
+  const openersFile = currentOpenersStorePath();
+  if (!storeOverride || openersFile !== OPENERS_STORE) {
+    copyValidJsonArray(openersFile, path.join(dest, dailyOpenersBackupName(at)));
+  }
   pruneMailBackups(dest);
   return target;
 }
@@ -130,7 +159,7 @@ export function maybeRunDailyMailBackup(now = new Date()): string | null {
   const dest = backupDir();
   if (!dest) return null;
   const target = path.join(dest, dailyMailBackupName(now));
-  if (fs.existsSync(target)) return null;
+  if (fs.existsSync(target) && readJsonArrayFile(target)) return null;
   return backupAgentMailNow(now);
 }
 
@@ -148,14 +177,48 @@ export function startAgentMailDailyBackup(intervalMs = 60_000) {
   dailyBackupTimer = setInterval(tick, intervalMs);
 }
 
+function recoverMailStore(file: string): AgentMailItem[] | null {
+  const candidates = [`${file}.bak`, `${file}.prev`];
+  if (path.basename(file) === "agent_mail.json") {
+    candidates.push(path.join(path.dirname(file), "agent_mail.prev.json"));
+  }
+  const dest = backupDir();
+  if (dest && fs.existsSync(dest)) {
+    const names = fs
+      .readdirSync(dest)
+      .filter((name) => name.startsWith("agent_mail-") && name.endsWith(".json"))
+      .sort()
+      .reverse();
+    for (const name of names) candidates.push(path.join(dest, name));
+  }
+  for (const candidate of candidates) {
+    const parsed = parseMailArray(candidate);
+    if (parsed && parsed.length > 0) return parsed;
+  }
+  return null;
+}
+
 function readAll(): AgentMailItem[] {
   const file = storePath();
-  if (!fs.existsSync(file)) return [];
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
-    return [];
+  const live = parseMailArray(file);
+  if (live) return live;
+  if (!fs.existsSync(file) || fs.statSync(file).size === 0) return [];
+  const recovered = recoverMailStore(file);
+  if (recovered) {
+    console.error("[AgentMail] live store unreadable — restored from backup");
+    withJsonFileLock(file, () => {
+      if (parseMailArray(file)) return;
+      try {
+        fs.copyFileSync(file, `${file}.corrupt`);
+      } catch {
+        /* keep going — restore matters more than the corrupt copy */
+      }
+      atomicWriteFileSync(file, JSON.stringify(recovered));
+    });
+    return recovered;
   }
+  console.error("[AgentMail] live store unreadable and no backup to restore");
+  return [];
 }
 
 function writeAll(items: AgentMailItem[]) {
@@ -163,12 +226,21 @@ function writeAll(items: AgentMailItem[]) {
   const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   withJsonFileLock(file, () => {
+    const existing = parseMailArray(file);
+    if (!existing && fs.existsSync(file) && fs.statSync(file).size > 0) {
+      const recovered = recoverMailStore(file);
+      if (recovered) {
+        items = [...recovered, ...items.filter((row) => !recovered.some((prev) => prev.id === row.id))];
+      } else {
+        throw new Error("Agent Mail store is unreadable");
+      }
+    }
     try {
       snapshotLiveStore(items);
     } catch (error: any) {
       console.warn("[AgentMail] backup failed:", error?.message || error);
     }
-    fs.writeFileSync(file, JSON.stringify(items, null, 2));
+    atomicWriteFileSync(file, JSON.stringify(items));
   });
 }
 
@@ -191,8 +263,32 @@ export function listAgentMail(limit = 200): AgentMailItem[] {
     .slice(0, limit);
 }
 
+// Inbound mail the desk deleted (hard bounces, spam). The message stays in the IMAP inbox, so
+// without this the next 30s poll re-ingests it as new, the desk deletes it again, and the loop
+// rewrites the whole store every poll (the Sep 2026 CPU/freeze churn).
+function droppedPath(): string {
+  return storePath().replace(/\.json$/, ".dropped.json");
+}
+
+function readDropped(): string[] {
+  try {
+    const ids = JSON.parse(fs.readFileSync(droppedPath(), "utf8"));
+    return Array.isArray(ids) ? ids.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberDropped(messageId: string) {
+  const ids = readDropped();
+  if (ids.includes(messageId)) return;
+  ids.push(messageId);
+  // ponytail: plain rewrite of a small id list; cap keeps it bounded.
+  fs.writeFileSync(droppedPath(), JSON.stringify(ids.slice(-20_000)));
+}
+
 export function inboundMessageIds(): Set<string> {
-  const ids = new Set<string>();
+  const ids = new Set<string>(readDropped());
   for (const item of readAll()) {
     if (item.direction !== "inbound") continue;
     const id = String(item.messageId || "").trim();
@@ -232,9 +328,11 @@ export function patchAgentMail(id: string, updates: Partial<AgentMailItem>): Age
 
 export function deleteAgentMail(id: string): boolean {
   const all = readAll();
-  const next = all.filter((row) => row.id !== id);
-  if (next.length === all.length) return false;
-  writeAll(next);
+  const gone = all.find((row) => row.id === id);
+  if (!gone) return false;
+  const messageId = String(gone.messageId || "").trim();
+  if (gone.direction === "inbound" && messageId) rememberDropped(messageId);
+  writeAll(all.filter((row) => row.id !== id));
   return true;
 }
 
@@ -246,6 +344,7 @@ export function recordOpen(id: string): AgentMailItem | undefined {
   writeAll(all);
   try {
     upsertOpenerFromMail(item);
+    enrolConvertFromMail(item);
   } catch (error: any) {
     console.warn("[Openers] upsert after open failed:", error?.message || error);
   }
@@ -258,11 +357,80 @@ export function recordClick(id: string, url: string): AgentMailItem | undefined 
   if (!item) return undefined;
   item.clicks = [...(item.clicks || []), { at: new Date().toISOString(), url }];
   writeAll(all);
+  try {
+    upsertOpenerClickFromMail(item);
+    enrolConvertFromMail(item);
+  } catch (error: any) {
+    console.warn("[Openers] upsert after click failed:", error?.message || error);
+  }
+  try {
+    snapshotSiteTraffic(all);
+  } catch (error: any) {
+    console.warn("[SiteTraffic] snapshot after click failed:", error?.message || error);
+  }
   return item;
 }
 
-function trackingBaseUrl(): string {
-  return (process.env.PUBLIC_APP_URL || process.env.APP_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
+export function recordDwell(
+  id: string,
+  meta: { path?: string; sf?: string } = {}
+): AgentMailItem | undefined {
+  const all = readAll();
+  const item = all.find((m) => m.id === id);
+  if (!item) return undefined;
+  item.dwells = [
+    ...(item.dwells || []),
+    {
+      at: new Date().toISOString(),
+      ...(meta.path ? { path: meta.path } : {}),
+      ...(meta.sf ? { sf: meta.sf } : {}),
+    },
+  ];
+  writeAll(all);
+  try {
+    upsertOpenerDwellFromMail(item);
+  } catch (error: any) {
+    console.warn("[Openers] upsert after dwell failed:", error?.message || error);
+  }
+  try {
+    snapshotSiteTraffic(all);
+  } catch (error: any) {
+    console.warn("[SiteTraffic] snapshot after dwell failed:", error?.message || error);
+  }
+  return item;
+}
+
+const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i;
+
+function publicOriginFromEnv(value?: string): string | null {
+  const raw = String(value || "").trim().replace(/\/$/, "");
+  if (!raw) return null;
+  try {
+    const host = new URL(raw).hostname.toLowerCase();
+    if (!host || LOOPBACK_HOST.test(host)) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+export function trackingBaseUrl(): string {
+  return (
+    publicOriginFromEnv(process.env.PUBLIC_APP_URL) ||
+    publicOriginFromEnv(process.env.APP_URL) ||
+    publicOriginFromEnv(process.env.HELLO_PUBLIC_URL) ||
+    "http://127.0.0.1:5000"
+  );
+}
+
+export function publicTrackingBaseUrl(): string | null {
+  const base = trackingBaseUrl();
+  try {
+    if (LOOPBACK_HOST.test(new URL(base).hostname)) return null;
+  } catch {
+    return null;
+  }
+  return base;
 }
 
 // Rewrites http(s) links to route through the click tracker, and appends an
@@ -270,7 +438,7 @@ function trackingBaseUrl(): string {
 export function injectMailTracking(html: string, id: string): string {
   const base = trackingBaseUrl();
   const withClicks = html.replace(/href="(https?:\/\/[^"]+)"/gi, (_match, url: string) => {
-    if (/^https:\/\/explore\.stratanexus\.co\.uk\/?$/i.test(url)) return `href="${url}"`;
+    if (!shouldTrackMailHref(url)) return `href="${url}"`;
     return `href="${base}/api/agent-mail/click/${id}?url=${encodeURIComponent(url)}"`;
   });
   const pixel = `<img src="${base}/api/agent-mail/track/${id}.gif" width="1" height="1" style="display:none" alt="" />`;
@@ -322,8 +490,21 @@ export function logAgentMail(entry: Omit<AgentMailItem, "id" | "createdAt"> & { 
       }
     }
     all.push(incoming);
-    writeAll(all.slice(-2000));
+    writeAll(all.slice(-AGENT_MAIL_KEEP));
   });
+  if (saved.direction === "outbound" && saved.status === "sent") {
+    const all = readAll();
+    try {
+      upsertNonResponsiveFromMail(saved);
+    } catch (error: any) {
+      console.warn("[Openers] non-responsive upsert failed:", error?.message || error);
+    }
+    try {
+      markOpenerNurturingOnOutbound(saved, all);
+    } catch (error: any) {
+      console.warn("[Openers] second-email nurture failed:", error?.message || error);
+    }
+  }
   return saved;
 }
 
@@ -340,8 +521,13 @@ export async function recordInbound(payload: {
 }): Promise<AgentMailItem> {
   const mailbox = mailboxByAddress(payload.to) || mailboxByAddress(payload.from);
   const fromEmail = String(payload.from || "").trim().toLowerCase();
-  const body = `${payload.subject || ""} ${payload.text || ""}`.toLowerCase();
-  const isOptOut = /\b(stop|unsubscribe|do not contact|don't contact)\b/.test(body);
+  const isOptOut =
+    classifyInboundMail({
+      from: payload.from,
+      subject: payload.subject,
+      text: payload.text,
+      html: payload.html,
+    }).kind === "stop";
   let dealId: number | undefined;
   let prospectId: number | undefined;
   try {

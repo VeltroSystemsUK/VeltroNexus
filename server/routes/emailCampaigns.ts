@@ -10,6 +10,7 @@ import { wasEmailDelivered } from "@shared/outreachSend";
 import { EmailVerificationService } from "../services/emailVerification";
 import { sendEmail } from "../services/email";
 import { sendTrackingPixel } from "../utils/trackingPixel";
+import { applyOptOut } from "../services/mailDesk";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -515,6 +516,7 @@ router.get(
       if (!isNaN(recipientId)) {
         const recipient = await storage.getCampaignRecipientById(recipientId);
         if (recipient && recipient.status !== "unsubscribed") {
+          if (recipient.email) await applyOptOut(recipient.email);
           await storage.updateCampaignRecipient(recipientId, {
             status: "unsubscribed",
           });

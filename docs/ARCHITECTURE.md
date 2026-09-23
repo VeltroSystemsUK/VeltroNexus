@@ -1,6 +1,6 @@
 # System Architecture
 
-This document provides an overview of FlowLoan's architecture and key system flows.
+This document provides an overview of Nexus's architecture and key system flows. Storage is local SQLite; see README. The diagrams below that mention Postgres/Redis are stale.
 
 ## High-Level Overview
 

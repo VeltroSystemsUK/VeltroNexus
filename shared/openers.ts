@@ -1,9 +1,53 @@
 import { isOpenedOutboundMail, lastMailOpenAt } from "./mailTracking";
+import { convertWakeAt, nextConvertSendWindow } from "./smeConvert";
+import { SME_NURTURE_CADENCE } from "./salesOs";
+import { industryFromSic, isForbiddenIndustry } from "./briefingTracks/mirrorPortal";
 
-export const OPENER_STATUSES = ["new", "nurturing", "not_now", "promoted"] as const;
+export const OPENER_BOARD_STATUSES = ["new", "nurturing", "direct_outreach", "promoted"] as const;
+export type OpenerBoardStatus = (typeof OPENER_BOARD_STATUSES)[number];
+export const OPENER_STATUSES = ["non_responsive", "new", "nurturing", "direct_outreach", "not_now", "promoted"] as const;
 export type OpenerStatus = (typeof OPENER_STATUSES)[number];
+export type OpenerDesk = "openers" | "non_responsive";
+export const OPENER_QUALITIES = ["good", "average", "poor"] as const;
+export type OpenerQuality = (typeof OPENER_QUALITIES)[number];
+
+export type OpenerCreditsafe = {
+  creditsafeId: string;
+  score?: string;
+  rating?: string;
+  creditLimitPence?: number | null;
+  checkedAt: string;
+};
 
 export const OPENER_TOUCH2_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
+export const OPENER_CONVERT_CLOSER_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
+export const OPENER_AUTO_PROMOTE_AFTER_EMAILS = 5;
+export const DIRECT_OUTREACH_DWELL_MIN = 5;
+
+export const BRIEFING_HOLD_REASONS = [
+  "industry_unknown",
+  "link_dead",
+  "copy_guard",
+  "smtp",
+  "no_mailbox",
+  "volume_cap",
+  "pack_missing",
+] as const;
+export type BriefingHoldReason = (typeof BRIEFING_HOLD_REASONS)[number];
+export type BriefingHold = {
+  reason: BriefingHoldReason;
+  at: string;
+  detail?: string;
+};
+export const BRIEFING_HOLD_COPY: Record<BriefingHoldReason, string> = {
+  industry_unknown: "No sendable industry — type the trade they are actually in",
+  link_dead: "A briefing link did not work",
+  copy_guard: "Copy guard blocked the pack",
+  smtp: "Mailbox not live — send held",
+  no_mailbox: "No sendable email",
+  volume_cap: "Daily mailbox cap — will retry next window",
+  pack_missing: "Generate the house pack first",
+};
 
 export type OpenerNurture = {
   step: 0 | 1 | 2 | 3;
@@ -16,7 +60,24 @@ export type OpenerNurture = {
   touch2Channel?: "whatsapp" | "call";
   touch2At?: string;
   stoppedAt?: string;
-  stopReason?: "completed" | "reply" | "opt_out" | "promoted" | "manual";
+  stopReason?: "completed" | "reply" | "opt_out" | "promoted" | "manual" | "blocked" | "direct_outreach";
+  stream?: "convert" | "opener_3touch";
+  convertCycle?: number;
+  wakeAt?: string;
+  n1MailId?: string;
+  n2MailId?: string;
+  n3MailId?: string;
+  n1At?: string;
+  n2At?: string;
+  n3At?: string;
+  /** Stored values are idle | done | skipped; "due" is view-only via withDerivedNurture. */
+  closerStatus?: "idle" | "due" | "done" | "skipped";
+  closerChannel?: "whatsapp" | "call";
+  closerAt?: string;
+  closerScript?: string;
+  promoteBlocked?: boolean;
+  /** Dwell count when Shaun dragged Direct Outreach → Nurturing (false positive). */
+  directOutreachDismissedDwellCount?: number;
 };
 
 export type OpenerRecord = {
@@ -42,33 +103,69 @@ export type OpenerRecord = {
   firstOpenedAt: string;
   lastOpenedAt: string;
   openCount: number;
+  clickCount: number;
+  dwellCount: number;
+  lastDwellPath?: string;
   mailIds?: string[];
   lastTouchAt?: string;
   createdAt: string;
   updatedAt: string;
   nurture: OpenerNurture;
+  veltroInterestAt?: string;
+  briefingId?: string;
+  quality?: OpenerQuality;
+  creditsafe?: OpenerCreditsafe;
+  industryOverride?: string;
+  briefingHold?: BriefingHold;
 };
 
 export type OpenerMailLike = {
   id: string;
   direction?: string;
+  status?: string;
   to?: string;
   from?: string;
   subject?: string;
   opens?: string[];
+  clicks?: Array<{ at: string; url?: string }>;
+  createdAt?: string;
   dealId?: number;
   prospectId?: number;
 };
 
 const STATUS_RANK: Record<OpenerStatus, number> = {
-  promoted: 4,
+  promoted: 5,
+  direct_outreach: 4,
   nurturing: 3,
   not_now: 2,
   new: 1,
+  non_responsive: 0,
 };
 
 function nowIso(now?: Date): string {
   return (now ?? new Date()).toISOString();
+}
+
+export function asOpenerQuality(value: unknown): OpenerQuality | undefined {
+  return OPENER_QUALITIES.includes(value as OpenerQuality) ? (value as OpenerQuality) : undefined;
+}
+
+function asOpenerCreditsafe(value: unknown): OpenerCreditsafe | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const row = value as Partial<OpenerCreditsafe>;
+  const creditsafeId = String(row.creditsafeId || "").trim();
+  const checkedAt = String(row.checkedAt || "").trim();
+  if (!creditsafeId || !checkedAt) return undefined;
+  return {
+    creditsafeId,
+    score: row.score ? String(row.score) : undefined,
+    rating: row.rating ? String(row.rating) : undefined,
+    creditLimitPence:
+      typeof row.creditLimitPence === "number" && Number.isFinite(row.creditLimitPence)
+        ? row.creditLimitPence
+        : null,
+    checkedAt,
+  };
 }
 
 function pickPreferredStatus(a: OpenerStatus, b: OpenerStatus): OpenerStatus {
@@ -98,6 +195,24 @@ export function emptyNurture(): OpenerNurture {
     step: 0,
     touch1Status: "idle",
     touch2Status: "idle",
+    stream: "opener_3touch",
+    closerStatus: "idle",
+  };
+}
+
+function storedCloserStatus(
+  status: OpenerNurture["closerStatus"]
+): Exclude<OpenerNurture["closerStatus"], "due"> {
+  if (!status || status === "due") return "idle";
+  return status;
+}
+
+function normalizeNurture(input?: OpenerNurture): OpenerNurture {
+  const nurture = { ...emptyNurture(), ...input };
+  return {
+    ...nurture,
+    stream: nurture.stream ?? "opener_3touch",
+    closerStatus: storedCloserStatus(nurture.closerStatus),
   };
 }
 
@@ -130,15 +245,51 @@ export function normalizeOpener(
     enrichError: input.enrichError,
     status: input.status ?? "new",
     notes: input.notes ?? "",
-    firstOpenedAt: input.firstOpenedAt ?? stamp,
-    lastOpenedAt: input.lastOpenedAt ?? input.firstOpenedAt ?? stamp,
+    firstOpenedAt:
+      input.firstOpenedAt ?? (input.status === "non_responsive" ? "" : stamp),
+    lastOpenedAt:
+      input.lastOpenedAt ??
+      input.firstOpenedAt ??
+      (input.status === "non_responsive" ? "" : stamp),
     openCount: input.openCount ?? 0,
+    clickCount: input.clickCount ?? 0,
+    dwellCount: input.dwellCount ?? 0,
+    lastDwellPath: input.lastDwellPath,
     mailIds: input.mailIds,
     lastTouchAt: input.lastTouchAt,
     createdAt: input.createdAt ?? stamp,
     updatedAt: input.updatedAt ?? stamp,
-    nurture: input.nurture ?? emptyNurture(),
+    nurture: normalizeNurture(input.nurture),
+    veltroInterestAt: input.veltroInterestAt,
+    briefingId: input.briefingId,
+    quality: asOpenerQuality(input.quality),
+    creditsafe: asOpenerCreditsafe(input.creditsafe),
+    industryOverride: trimIndustryOverride(input.industryOverride),
+    briefingHold: asBriefingHold(input.briefingHold),
   };
+}
+
+function trimIndustryOverride(value?: string): string | undefined {
+  const trimmed = String(value || "").trim();
+  return trimmed || undefined;
+}
+
+export function asBriefingHold(value: unknown): BriefingHold | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const row = value as BriefingHold;
+  if (!BRIEFING_HOLD_REASONS.includes(row.reason as BriefingHoldReason)) return undefined;
+  const at = String(row.at || "").trim();
+  if (!at) return undefined;
+  const detail = String(row.detail || "").trim();
+  return { reason: row.reason, at, ...(detail ? { detail } : {}) };
+}
+
+export function sendableIndustry(
+  opener: Pick<OpenerRecord, "sicCodes" | "industryOverride">
+): string | null {
+  const override = String(opener.industryOverride || "").trim();
+  if (override && !isForbiddenIndustry(override)) return override;
+  return industryFromSic(opener.sicCodes || []);
 }
 
 export function daysSittingMs(
@@ -159,18 +310,191 @@ export function daysSitting(
   return Math.floor(daysSittingMs(opener, now) / (24 * 60 * 60 * 1000));
 }
 
+function openerDisplayName(opener: Pick<OpenerRecord, "companyName" | "email">): string {
+  return opener.companyName?.trim() || opener.email;
+}
+
+export type OpenerRankable = Pick<OpenerRecord, "companyName" | "email" | "openCount" | "clickCount"> & {
+  dwellCount?: number;
+  veltroInterestAt?: string;
+  briefingHold?: BriefingHold;
+  timeline?: Array<{ clicks?: unknown[] }>;
+};
+
+export function openerClickCount(opener: OpenerRankable): number {
+  if (opener.clickCount) return opener.clickCount;
+  return (opener.timeline || []).reduce((n, item) => n + (item.clicks?.length ?? 0), 0);
+}
+
+export function isHotClickOpener(opener: OpenerRankable): boolean {
+  return openerClickCount(opener) > 2;
+}
+
+export const CLICK_HEAT_SESSION_GAP_MS = 2 * 60 * 1000;
+export const CLICK_HEAT_BURST_MS = 2000;
+export type ClickHeatBand = "hot" | "warm" | "cold";
+
+type ClickEvent = { at: string; url: string };
+
+function clickEventsFromTimeline(opener: OpenerRankable): ClickEvent[] {
+  const events: ClickEvent[] = [];
+  for (const item of opener.timeline || []) {
+    for (const raw of item.clicks || []) {
+      if (!raw || typeof raw !== "object") continue;
+      const at = String((raw as { at?: unknown }).at || "");
+      const url = String((raw as { url?: unknown }).url || "");
+      if (!at || !url || !Number.isFinite(Date.parse(at))) continue;
+      events.push({ at, url });
+    }
+  }
+  events.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  return events;
+}
+
+function clickDest(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/+$/, "") || "/";
+    const hash = parsed.hash.toLowerCase();
+    return `${host}${path}${hash}`;
+  } catch {
+    return null;
+  }
+}
+
+export function isProductClickUrl(url?: string): boolean {
+  if (!url) return false;
+  const dest = clickDest(url);
+  if (!dest) return false;
+  if (dest.includes("/strata-solution.html")) return true;
+  if (dest.includes("/cdfi-funding.html")) return true;
+  if (dest.endsWith("#tools") || dest.endsWith("#contact")) return true;
+  return false;
+}
+
+type ClickSession = { start: number; end: number; dests: Set<string>; urls: string[] };
+
+function clusterClickSessions(events: ClickEvent[]): ClickSession[] {
+  const sessions: ClickSession[] = [];
+  for (const event of events) {
+    const t = Date.parse(event.at);
+    const dest = clickDest(event.url);
+    const last = sessions[sessions.length - 1];
+    if (!last || t - last.end > CLICK_HEAT_SESSION_GAP_MS) {
+      sessions.push({
+        start: t,
+        end: t,
+        dests: new Set(dest ? [dest] : []),
+        urls: [event.url],
+      });
+      continue;
+    }
+    last.end = t;
+    if (dest) last.dests.add(dest);
+    last.urls.push(event.url);
+  }
+  return sessions;
+}
+
+function isBurstSession(session: ClickSession): boolean {
+  return session.end - session.start <= CLICK_HEAT_BURST_MS && session.dests.size >= 2;
+}
+
+function isHumanCtaSession(session: ClickSession): boolean {
+  if (isBurstSession(session)) return false;
+  return session.urls.some((url) => isProductClickUrl(url));
+}
+
+export function openerClickHeat(opener: OpenerRankable): ClickHeatBand | null {
+  const dwells = Math.max(0, opener.dwellCount || 0);
+  const events = clickEventsFromTimeline(opener);
+  const human = clusterClickSessions(events).filter(isHumanCtaSession);
+  if (human.length >= 2 || dwells >= 2) return "hot";
+  if (human.length === 1 || dwells >= 1) return "warm";
+  if (!events.length) return null;
+  return "cold";
+}
+
+export function clickHeatCounts(openers: OpenerRankable[]): Record<ClickHeatBand, number> {
+  const counts: Record<ClickHeatBand, number> = { hot: 0, warm: 0, cold: 0 };
+  for (const opener of openers) {
+    const band = openerClickHeat(opener);
+    if (band) counts[band] += 1;
+  }
+  return counts;
+}
+
+export function closerSiteClickUrl(
+  clicks?: Array<{ at?: string; url?: string }>,
+  dwellCount = 0
+): string | null {
+  const events = (clicks || []).filter((click) => click?.at && click?.url) as Array<{ at: string; url: string }>;
+  const heat = openerClickHeat({
+    companyName: "",
+    email: "",
+    openCount: 0,
+    clickCount: events.length,
+    dwellCount,
+    timeline: [{ clicks: events }],
+  });
+  if (heat !== "hot" && heat !== "warm") return null;
+  let best: string | null = null;
+  for (const event of clickEventsFromTimeline({
+    companyName: "",
+    email: "",
+    openCount: 0,
+    clickCount: events.length,
+    timeline: [{ clicks: events }],
+  })) {
+    if (isProductClickUrl(event.url)) best = event.url;
+  }
+  return best;
+}
+
+const CLICK_HEAT_RANK: Record<ClickHeatBand, number> = { hot: 3, warm: 2, cold: 1 };
+
+function clickHeatRank(opener: OpenerRankable): number {
+  const band = openerClickHeat(opener);
+  return band ? CLICK_HEAT_RANK[band] : 0;
+}
+
+export function compareOpenersByOpenCount(a: OpenerRankable, b: OpenerRankable): number {
+  const byDwell = Math.max(0, b.dwellCount || 0) - Math.max(0, a.dwellCount || 0);
+  if (byDwell) return byDwell;
+  const aHold = Boolean(a.briefingHold);
+  const bHold = Boolean(b.briefingHold);
+  if (aHold !== bHold) return aHold ? -1 : 1;
+  const aVeltro = Boolean(a.veltroInterestAt);
+  const bVeltro = Boolean(b.veltroInterestAt);
+  if (aVeltro !== bVeltro) return aVeltro ? -1 : 1;
+  const byHeat = clickHeatRank(b) - clickHeatRank(a);
+  if (byHeat) return byHeat;
+  const byClicks = openerClickCount(b) - openerClickCount(a);
+  if (byClicks) return byClicks;
+  const byOpens = b.openCount - a.openCount;
+  if (byOpens) return byOpens;
+  return openerDisplayName(a).localeCompare(openerDisplayName(b), undefined, { sensitivity: "base" });
+}
+
 export function mergeOpeners(keeper: OpenerRecord, incoming: OpenerRecord): OpenerRecord {
   const emails = [...new Set([...keeper.emails, ...incoming.emails, keeper.email, incoming.email].map(normalizeEmail).filter(Boolean))];
 
-  const firstOpenedAt =
-    Date.parse(incoming.firstOpenedAt) < Date.parse(keeper.firstOpenedAt)
-      ? incoming.firstOpenedAt
-      : keeper.firstOpenedAt;
+  const firstOpenedAt = !hasRealOpenAt(keeper.firstOpenedAt)
+    ? incoming.firstOpenedAt
+    : !hasRealOpenAt(incoming.firstOpenedAt)
+      ? keeper.firstOpenedAt
+      : Date.parse(incoming.firstOpenedAt) < Date.parse(keeper.firstOpenedAt)
+        ? incoming.firstOpenedAt
+        : keeper.firstOpenedAt;
 
-  const lastOpenedAt =
-    Date.parse(incoming.lastOpenedAt) > Date.parse(keeper.lastOpenedAt)
-      ? incoming.lastOpenedAt
-      : keeper.lastOpenedAt;
+  const lastOpenedAt = !hasRealOpenAt(keeper.lastOpenedAt)
+    ? incoming.lastOpenedAt
+    : !hasRealOpenAt(incoming.lastOpenedAt)
+      ? keeper.lastOpenedAt
+      : Date.parse(incoming.lastOpenedAt) > Date.parse(keeper.lastOpenedAt)
+        ? incoming.lastOpenedAt
+        : keeper.lastOpenedAt;
 
   const keepCh = Boolean(keeper.enrichedAt) || keeper.sicCodes.length > 0 || keeper.directors.length > 0;
   const incomingCh = Boolean(incoming.enrichedAt) || incoming.sicCodes.length > 0 || incoming.directors.length > 0;
@@ -194,11 +518,18 @@ export function mergeOpeners(keeper: OpenerRecord, incoming: OpenerRecord): Open
     nonBankChargeCount: Math.max(keeper.nonBankChargeCount, incoming.nonBankChargeCount),
     enrichedAt: preferDefined(keeper.enrichedAt, incoming.enrichedAt),
     enrichError: preferDefined(keeper.enrichError, incoming.enrichError),
+    quality: preferDefined(keeper.quality, incoming.quality),
+    creditsafe: preferDefined(keeper.creditsafe, incoming.creditsafe),
+    industryOverride: preferDefined(keeper.industryOverride, incoming.industryOverride),
+    briefingHold: preferDefined(keeper.briefingHold, incoming.briefingHold),
     status: pickPreferredStatus(keeper.status, incoming.status),
     notes: keeper.notes || incoming.notes,
     firstOpenedAt,
     lastOpenedAt,
     openCount: keeper.openCount + incoming.openCount,
+    clickCount: (keeper.clickCount ?? 0) + (incoming.clickCount ?? 0),
+    dwellCount: (keeper.dwellCount ?? 0) + (incoming.dwellCount ?? 0),
+    lastDwellPath: preferDefined(incoming.lastDwellPath, keeper.lastDwellPath),
     mailIds: [...new Set([...(keeper.mailIds || []), ...(incoming.mailIds || [])])],
     lastTouchAt:
       keeper.lastTouchAt && incoming.lastTouchAt
@@ -213,14 +544,48 @@ export function mergeOpeners(keeper: OpenerRecord, incoming: OpenerRecord): Open
   };
 }
 
+function hasRealOpenAt(value?: string): boolean {
+  return Boolean(value) && Number.isFinite(Date.parse(value!));
+}
+
 export function applyOpenEvent(opener: OpenerRecord, at: string, extraOpens = 1): OpenerRecord {
-  const lastOpenedAt = Date.parse(at) > Date.parse(opener.lastOpenedAt) ? at : opener.lastOpenedAt;
-  const firstOpenedAt = Date.parse(at) < Date.parse(opener.firstOpenedAt) ? at : opener.firstOpenedAt;
+  const lastOpenedAt =
+    hasRealOpenAt(opener.lastOpenedAt) && Date.parse(at) <= Date.parse(opener.lastOpenedAt)
+      ? opener.lastOpenedAt
+      : at;
+  const firstOpenedAt =
+    hasRealOpenAt(opener.firstOpenedAt) && Date.parse(at) >= Date.parse(opener.firstOpenedAt)
+      ? opener.firstOpenedAt
+      : at;
   return {
     ...opener,
+    status: opener.status === "non_responsive" ? "new" : opener.status,
     firstOpenedAt,
     lastOpenedAt,
     openCount: opener.openCount + Math.max(0, extraOpens),
+    updatedAt: nowIso(),
+  };
+}
+
+export function applyClickEvent(opener: OpenerRecord, extraClicks = 1): OpenerRecord {
+  return {
+    ...opener,
+    status: opener.status === "non_responsive" ? "new" : opener.status,
+    clickCount: (opener.clickCount ?? 0) + Math.max(0, extraClicks),
+    updatedAt: nowIso(),
+  };
+}
+
+export function applyDwellEvent(
+  opener: OpenerRecord,
+  extraDwells = 1,
+  lastDwellPath?: string
+): OpenerRecord {
+  return {
+    ...opener,
+    status: opener.status === "non_responsive" ? "new" : opener.status,
+    dwellCount: (opener.dwellCount ?? 0) + Math.max(0, extraDwells),
+    lastDwellPath: lastDwellPath || opener.lastDwellPath,
     updatedAt: nowIso(),
   };
 }
@@ -236,21 +601,235 @@ export function openerNurtureDraft(opener: OpenerRecord): { subject: string; htm
   };
 }
 
+export const SECOND_EMAIL_TOUCH_IDS = ["sme_open", "sme_followup", "sme_2", "opener_1"] as const;
+
+export type OpenerSecondEmailMail = {
+  to?: string;
+  direction?: string;
+  status?: string;
+  touchId?: string;
+};
+
+export type SecondEmailEvidence = {
+  mail?: OpenerSecondEmailMail[];
+  smeOpenFollowUpSentAt?: string | null;
+  smeFollowupSentAt?: string | null;
+};
+
+export function isSecondEmailTouch(touchId?: string | null): boolean {
+  return Boolean(touchId && (SECOND_EMAIL_TOUCH_IDS as readonly string[]).includes(touchId));
+}
+
+export type OpenerOutboundMail = {
+  id?: string;
+  to?: string;
+  direction?: string;
+  status?: string;
+  createdAt?: string;
+  subject?: string;
+};
+
+export function openerOutboundSentCount(
+  opener: Pick<OpenerRecord, "email" | "emails">,
+  mail: OpenerOutboundMail[] = []
+): number {
+  const emails = new Set(
+    [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
+  );
+  const seen = new Set<string>();
+  for (const item of mail) {
+    if (item.direction !== "outbound") continue;
+    if (item.status !== "sent") continue;
+    if (!emails.has(normalizeEmail(item.to))) continue;
+    const key = item.id || `${item.to}|${item.createdAt || ""}|${item.subject || ""}`;
+    seen.add(key);
+  }
+  return seen.size;
+}
+
+export function openerHasReceivedSecondEmail(
+  opener: Pick<OpenerRecord, "email" | "emails">,
+  evidence: SecondEmailEvidence = {}
+): boolean {
+  if (evidence.smeOpenFollowUpSentAt || evidence.smeFollowupSentAt) return true;
+  const emails = new Set(
+    [opener.email, ...(opener.emails || [])].map(normalizeEmail).filter(Boolean)
+  );
+  const outbound = (evidence.mail || []).filter((item) => {
+    if (item.direction !== "outbound") return false;
+    if (item.status !== "sent") return false;
+    return emails.has(normalizeEmail(item.to));
+  });
+  if (outbound.some((item) => isSecondEmailTouch(item.touchId))) return true;
+  return outbound.length >= 2;
+}
+
+export function applySecondEmailNurturing(opener: OpenerRecord, now?: Date): OpenerRecord {
+  if (opener.status !== "new") return opener;
+  return {
+    ...opener,
+    status: "nurturing",
+    updatedAt: nowIso(now),
+  };
+}
+
+export function isConvertOpener(opener: Pick<OpenerRecord, "nurture">): boolean {
+  return opener.nurture.stream === "convert";
+}
+
+export function enrolConvertOpener(opener: OpenerRecord, now?: Date): OpenerRecord {
+  const stamp = nowIso(now);
+  return {
+    ...opener,
+    status: "nurturing",
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      stream: "convert",
+      convertCycle: (opener.nurture.convertCycle || 0) + 1,
+      wakeAt: undefined,
+      step: 0,
+      touch1Status: "idle",
+      touch1Draft: undefined,
+      touch1At: undefined,
+      touch1MailId: undefined,
+      touch2Status: "idle",
+      touch2Channel: undefined,
+      touch2At: undefined,
+      n1MailId: undefined,
+      n2MailId: undefined,
+      n3MailId: undefined,
+      n1At: undefined,
+      n2At: undefined,
+      n3At: undefined,
+      closerStatus: "idle",
+      closerChannel: undefined,
+      closerAt: undefined,
+      closerScript: undefined,
+      promoteBlocked: undefined,
+      stoppedAt: undefined,
+      stopReason: undefined,
+    },
+  };
+}
+
+export function recordConvertSend(
+  opener: OpenerRecord,
+  cadenceTouchId: "sme_n1" | "sme_n2" | "sme_n3",
+  mailId: string,
+  now?: Date
+): OpenerRecord {
+  const stamp = nowIso(now);
+  const sent =
+    cadenceTouchId === "sme_n1"
+      ? { n1MailId: mailId, n1At: stamp }
+      : cadenceTouchId === "sme_n2"
+        ? { n2MailId: mailId, n2At: stamp }
+        : { n3MailId: mailId, n3At: stamp };
+  return {
+    ...opener,
+    status: "nurturing",
+    lastTouchAt: stamp,
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      ...sent,
+    },
+  };
+}
+
+export function writeCloserScript(opener: OpenerRecord, script: string, now?: Date): OpenerRecord {
+  const stamp = nowIso(now);
+  return {
+    ...opener,
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      closerScript: script,
+    },
+  };
+}
+
+export function isConvertCloserDue(opener: OpenerRecord, now?: Date): boolean {
+  if (!isConvertOpener(opener)) return false;
+  if (opener.nurture.closerStatus === "done" || opener.nurture.closerStatus === "skipped") return false;
+  const n3At = opener.nurture.n3At;
+  if (!n3At) return false;
+  const start = Date.parse(n3At);
+  if (!Number.isFinite(start)) return false;
+  const end = (now ?? new Date()).getTime();
+  return end - start >= OPENER_CONVERT_CLOSER_DELAY_MS;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function convertGapMs(touchId: "sme_n2" | "sme_n3"): number {
+  const fallback = touchId === "sme_n2" ? 4 : 5;
+  const days = SME_NURTURE_CADENCE.find((step) => step.touchId === touchId)?.delayDaysFromPrevious ?? fallback;
+  return days * DAY_MS;
+}
+
+function daysUntil(fromIso: string | undefined, delayMs: number, now?: Date): number {
+  const start = Date.parse(fromIso || "");
+  if (!Number.isFinite(start)) return 0;
+  const end = (now ?? new Date()).getTime();
+  return Math.max(0, Math.ceil((start + delayMs - end) / DAY_MS));
+}
+
+function daysLabel(n: number): string {
+  return `${n} ${n === 1 ? "day" : "days"}`;
+}
+
+export function convertStepBadge(opener: OpenerRecord, now?: Date): string {
+  if (isConvertCloserDue(opener, now)) return "C1 due";
+  const { n1At, n2At, n3At } = opener.nurture;
+  if (!n1At) return "N1 queued";
+  if (n3At) return `C1 in ${daysLabel(daysUntil(n3At, OPENER_CONVERT_CLOSER_DELAY_MS, now))}`;
+  if (!n2At) return `N2 in ${daysLabel(daysUntil(n1At, convertGapMs("sme_n2"), now))}`;
+  return `N3 in ${daysLabel(daysUntil(n2At, convertGapMs("sme_n3"), now))}`;
+}
+
+export function completeConvertCloser(
+  opener: OpenerRecord,
+  channel: "whatsapp" | "call" | "skipped",
+  now?: Date
+): OpenerRecord {
+  const when = now ?? new Date();
+  const stamp = nowIso(when);
+  const skipped = channel === "skipped";
+  return {
+    ...opener,
+    status: "non_responsive",
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      closerStatus: skipped ? "skipped" : "done",
+      closerChannel: skipped ? undefined : channel,
+      closerAt: stamp,
+      stoppedAt: stamp,
+      stopReason: "completed",
+      wakeAt: convertWakeAt(when),
+    },
+  };
+}
+
 export function startNurture(
   opener: OpenerRecord,
   draft: { subject: string; html: string },
   now?: Date
 ): OpenerRecord {
+  if (isConvertOpener(opener)) return opener;
   const stamp = nowIso(now);
   return {
     ...opener,
-    status: opener.status === "nurturing" ? "new" : opener.status,
     updatedAt: stamp,
     nurture: {
       step: 0,
       touch1Status: "pending_approval",
       touch1Draft: { subject: draft.subject, html: draft.html },
       touch2Status: "idle",
+      stream: "opener_3touch",
+      closerStatus: "idle",
     },
   };
 }
@@ -342,6 +921,7 @@ export function stopNurture(
   const stamp = nowIso(now);
   return {
     ...opener,
+    status: reason === "opt_out" ? "not_now" : opener.status,
     updatedAt: stamp,
     nurture: {
       ...opener.nurture,
@@ -350,6 +930,47 @@ export function stopNurture(
       stopReason: reason,
     },
   };
+}
+
+export function applyConvertStop(
+  opener: OpenerRecord,
+  reason: "promoted" | "reply" | "opt_out" | "blocked",
+  now?: Date
+): OpenerRecord {
+  const stamp = nowIso(now);
+  if (reason === "blocked") {
+    return {
+      ...opener,
+      status: opener.status === "promoted" ? opener.status : "nurturing",
+      updatedAt: stamp,
+      nurture: {
+        ...opener.nurture,
+        stream: "convert",
+        promoteBlocked: true,
+        wakeAt: undefined,
+        stoppedAt: stamp,
+        stopReason: "blocked",
+      },
+    };
+  }
+  const stopped = stopNurture(opener, reason, now);
+  return {
+    ...stopped,
+    status: reason === "promoted" ? "promoted" : stopped.status,
+    nurture: {
+      ...stopped.nurture,
+      stream: opener.nurture.stream ?? "convert",
+      wakeAt: undefined,
+    },
+  };
+}
+
+export function convertReasonFromInboundKind(
+  kind: string
+): "opt_out" | "reply" | undefined {
+  if (kind === "stop") return "opt_out";
+  if (kind === "responsive") return "reply";
+  return undefined;
 }
 
 export function completeTouch2(
@@ -391,14 +1012,213 @@ export function canPromoteOpener(opener: Pick<OpenerRecord, "companyNumber">): b
   return Boolean(normalizeCompanyNumber(opener.companyNumber));
 }
 
+export function applyOpenerDemote(
+  opener: OpenerRecord,
+  status: "new" | "nurturing" | "not_now" = "nurturing",
+  now?: Date
+): OpenerRecord {
+  const stamp = nowIso(now);
+  const wasPromotedStop = opener.nurture.stopReason === "promoted";
+  return {
+    ...opener,
+    status,
+    prospectId: undefined,
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      promoteBlocked: true,
+      ...(wasPromotedStop
+        ? {
+            stopReason: undefined,
+            stoppedAt: undefined,
+            step: opener.nurture.touch1Status === "idle" ? 0 : opener.nurture.step,
+          }
+        : {}),
+    },
+  };
+}
+
+export function isDoNotContactOpener(
+  opener: Pick<OpenerRecord, "status" | "nurture">
+): boolean {
+  return opener.status === "not_now" || opener.nurture.stopReason === "opt_out";
+}
+
+export function shouldAutoPromoteOpener(
+  _opener: OpenerRecord,
+  _mail: OpenerOutboundMail[] = [],
+  _optOutEmails?: Iterable<string>
+): boolean {
+  return false;
+}
+
 export function canDragOpenerTo(opener: OpenerRecord, column: OpenerStatus): boolean {
+  if (opener.status === "non_responsive" || column === "non_responsive") return false;
+  if (column === "direct_outreach") return false;
+  if (isDoNotContactOpener(opener)) return column === "not_now";
+  if (opener.status === "direct_outreach") {
+    if (column === "nurturing" || column === "not_now") return true;
+    if (column === "promoted") return canPromoteOpener(opener);
+    return false;
+  }
+  if (opener.status === "promoted") {
+    return column === "new" || column === "nurturing" || column === "not_now";
+  }
   if (column === "not_now") return true;
-  if (column === "new") return opener.nurture.step === 0;
+  if (column === "new") {
+    if (isConvertOpener(opener)) return !opener.nurture.n1At;
+    return opener.nurture.step === 0;
+  }
   if (column === "nurturing") {
+    if (isConvertOpener(opener)) return opener.nurture.stopReason !== "promoted";
     return opener.nurture.step >= 1 && opener.nurture.stopReason !== "promoted";
   }
   if (column === "promoted") return canPromoteOpener(opener);
   return false;
+}
+
+export function isDirectOutreachOpener(opener: Pick<OpenerRecord, "status">): boolean {
+  return opener.status === "direct_outreach";
+}
+
+export function eligibleDirectOutreach(opener: OpenerRecord): boolean {
+  if ((opener.dwellCount || 0) < DIRECT_OUTREACH_DWELL_MIN) return false;
+  if (opener.status === "promoted" || opener.status === "non_responsive") return false;
+  if (isDoNotContactOpener(opener)) return false;
+  const dismissed = opener.nurture.directOutreachDismissedDwellCount ?? 0;
+  return (opener.dwellCount || 0) > dismissed;
+}
+
+export function applyDirectOutreach(opener: OpenerRecord, now?: Date): OpenerRecord {
+  if (opener.status === "direct_outreach") return opener;
+  if (!eligibleDirectOutreach(opener)) return opener;
+  if (opener.status !== "new" && opener.status !== "nurturing") return opener;
+  const stopped = stopNurture(opener, "direct_outreach", now);
+  return {
+    ...stopped,
+    status: "direct_outreach",
+    nurture: { ...stopped.nurture, wakeAt: undefined },
+  };
+}
+
+export function resumeJamesFromDirectOutreach(
+  opener: OpenerRecord,
+  opts?: {
+    dualOpenEligible?: boolean;
+    now?: Date;
+    draft?: { subject: string; html: string };
+  }
+): OpenerRecord {
+  if (isDoNotContactOpener(opener)) return opener;
+  const now = opts?.now;
+  const stamp = nowIso(now);
+  const dismissed = opener.dwellCount || 0;
+  const base: OpenerRecord = {
+    ...opener,
+    status: "nurturing",
+    updatedAt: stamp,
+    nurture: {
+      ...opener.nurture,
+      directOutreachDismissedDwellCount: dismissed,
+      stopReason: opener.nurture.stopReason === "direct_outreach" ? undefined : opener.nurture.stopReason,
+      stoppedAt: opener.nurture.stopReason === "direct_outreach" ? undefined : opener.nurture.stoppedAt,
+    },
+  };
+  if (base.nurture.stopReason === "opt_out" || base.nurture.stopReason === "promoted") return opener;
+
+  const convertInFlight =
+    isConvertOpener(base) &&
+    Boolean(base.nurture.n1At) &&
+    base.nurture.closerStatus !== "done" &&
+    base.nurture.closerStatus !== "skipped";
+  if (convertInFlight) {
+    return {
+      ...base,
+      nurture: { ...base.nurture, stream: "convert", wakeAt: nextConvertSendWindow(now).toISOString() },
+    };
+  }
+
+  // stopNurture sets step: 3 even when 3-touch never started (touch1 still idle).
+  const threeTouchInFlight =
+    base.nurture.stream !== "convert" &&
+    base.nurture.touch1Status !== "idle" &&
+    base.nurture.step >= 1;
+  if (threeTouchInFlight) return base;
+
+  if (opts?.dualOpenEligible) return enrolConvertOpener(base, now);
+
+  const draft = opts?.draft ?? {
+    subject: "A note from Strata",
+    html: "<p>Hi,</p><p>If this isn't useful, reply stop and we won't email again.</p>",
+  };
+  // startNurture replaces nurture wholesale; keep the dismiss watermark.
+  const started = startNurture(
+    { ...base, nurture: { ...base.nurture, stream: "opener_3touch" } },
+    draft,
+    now
+  );
+  return {
+    ...started,
+    nurture: { ...started.nurture, directOutreachDismissedDwellCount: dismissed },
+  };
+}
+
+export function openerOnOpenersBoard(opener: OpenerRecord): boolean {
+  if (opener.status === "non_responsive") return false;
+  if (isDoNotContactOpener(opener)) return false;
+  return (opener.dwellCount || 0) >= 1;
+}
+
+export function keepConvertOpenerOnHardBounce(opener: OpenerRecord): boolean {
+  if (!isConvertOpener(opener)) return false;
+  if (!String(opener.phone || "").trim()) return false;
+  if (opener.nurture.closerStatus === "done" || opener.nurture.closerStatus === "skipped") return false;
+  return true;
+}
+
+export function openerBelongsToDesk(opener: Pick<OpenerRecord, "status">, desk: OpenerDesk): boolean {
+  if (desk === "non_responsive") return opener.status === "non_responsive";
+  return opener.status !== "non_responsive";
+}
+
+export function sentUnopenedMailEvents(
+  items: OpenerMailLike[]
+): Array<{
+  email: string;
+  at: string;
+  subject?: string;
+  dealId?: number;
+  prospectId?: number;
+  mailId: string;
+}> {
+  const events: Array<{
+    email: string;
+    at: string;
+    subject?: string;
+    dealId?: number;
+    prospectId?: number;
+    mailId: string;
+  }> = [];
+
+  for (const item of items) {
+    if (item.direction !== "outbound") continue;
+    if (item.status !== "sent") continue;
+    if (lastMailOpenAt(item.opens)) continue;
+    if (item.clicks?.length) continue;
+    const email = normalizeEmail(item.to);
+    if (!email) continue;
+    const at = item.createdAt;
+    if (!at) continue;
+    events.push({
+      email,
+      at,
+      subject: item.subject,
+      dealId: item.dealId,
+      prospectId: item.prospectId,
+      mailId: item.id,
+    });
+  }
+  return events;
 }
 
 export function openedMailEvents(
@@ -442,12 +1262,15 @@ export function openedMailEvents(
 }
 
 export function withDerivedNurture(opener: OpenerRecord, now?: Date): OpenerRecord {
-  if (!isTouch2Due(opener, now)) return opener;
+  const touch2Due = isTouch2Due(opener, now);
+  const closerDue = isConvertCloserDue(opener, now);
+  if (!touch2Due && !closerDue) return opener;
   return {
     ...opener,
     nurture: {
       ...opener.nurture,
-      touch2Status: "due",
+      ...(touch2Due ? { touch2Status: "due" as const } : {}),
+      ...(closerDue ? { closerStatus: "due" as const } : {}),
     },
   };
 }

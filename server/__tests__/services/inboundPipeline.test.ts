@@ -1,5 +1,7 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
-import { inboundLoanAmountPence, isInboundLead } from "../../services/inboundPipeline";
+import { inboundDeskForSource, inboundLoanAmountPence, isInboundLead } from "../../services/inboundPipeline";
 
 describe("inbound pipeline promotion", () => {
   it("treats WEB- company numbers and the capital strategist as inbound", () => {
@@ -15,5 +17,37 @@ describe("inbound pipeline promotion", () => {
       })
     ).toBe(5_000_000);
     expect(inboundLoanAmountPence({ notes: "plain text" })).toBeNull();
+  });
+
+  it("sends Tools enquiries to Maya and contact.html to the director", () => {
+    expect(inboundDeskForSource("bbb")).toBe("maya");
+    expect(inboundDeskForSource("refinance")).toBe("maya");
+    expect(inboundDeskForSource("ttp")).toBe("maya");
+    expect(inboundDeskForSource("debt")).toBe("maya");
+    expect(inboundDeskForSource("commission")).toBe("maya");
+    expect(inboundDeskForSource(undefined)).toBe("maya");
+    expect(inboundDeskForSource("contact")).toBe("director");
+    expect(inboundDeskForSource("CONTACT")).toBe("director");
+  });
+
+  it("wires Tools inbound to Maya ingest and contact.html to a director call", () => {
+    const inbound = fs.readFileSync(path.resolve("server/routes/inbound.ts"), "utf8");
+    expect(inbound).toMatch(/inboundDeskForSource/);
+    expect(inbound).toMatch(/triageInboundLead/);
+    expect(inbound).not.toMatch(/agenticWorkflow\.startFromInbound/);
+    expect(inbound).not.toMatch(/agenticWorkflow\.startFromContactPage/);
+    const refinance = inbound.slice(inbound.indexOf('router.post("/refinance"'));
+    const application = inbound.slice(inbound.indexOf('router.post("/application"'));
+    const portal = inbound.slice(inbound.indexOf('router.post("/portal-submit"'));
+    expect(refinance).toMatch(/triageInboundLead/);
+    expect(application).toMatch(/canAttachToLead[\s\S]*triageInboundLead/);
+    expect(portal).toMatch(/triageInboundLead/);
+    expect(portal).toMatch(/bank: "introducer"/);
+    const workflow = fs.readFileSync(path.resolve("server/services/agenticWorkflow.ts"), "utf8");
+    expect(workflow).toMatch(/startFromContactPage/);
+    expect(workflow).toMatch(/Contact page enquiry/);
+    const triage = fs.readFileSync(path.resolve("server/services/jevInboundTriage.ts"), "utf8");
+    expect(triage).toMatch(/startFromInbound/);
+    expect(triage).toMatch(/overallAction === "act"/);
   });
 });

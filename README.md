@@ -1,12 +1,10 @@
-# Veltro
+# Nexus
 
-**Built for Speed. Bred for Business.**
-
-AI-enhanced commercial lending workflow management platform for UK commercial finance brokers.
+**Veltro Ltd’s operating system.** Run for Sterling Commercial Finance Ltd, trading as Strata Finance.
 
 ## Overview
 
-Veltro is a secure, multi-user commercial lending pipeline management system designed for lending teams. The name is inspired by the Italian Greyhound, representing speed, agility, and elite pedigree. Veltro retrieves Companies House data instantly and converts it into elite loan proposals, streamlining the process from initial lead to final approval.
+Nexus is the operating system Veltro Ltd uses to fulfil its contract with Sterling Commercial Finance Ltd (trading as Strata Finance). It originates UK SME files, runs legal outreach, collects a pack, and compiles a complete Sterling zip. Borrowers see Strata. The file is a Sterling file. Shaun sends.
 
 ## Key Features
 

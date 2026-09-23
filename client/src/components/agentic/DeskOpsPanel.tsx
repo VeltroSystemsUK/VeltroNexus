@@ -5,7 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 type MailPayload = {
-  messages?: Array<{ agentId?: string; direction?: string; status?: string }>;
+  messages?: Array<{
+    agentId?: string;
+    direction?: string;
+    status?: string;
+    to?: string;
+    dealId?: number;
+    createdAt?: string;
+    id?: string;
+  }>;
 };
 
 export function DeskOpsPanel({ onDelegate }: { onDelegate?: (agentId: string) => void }) {
@@ -36,7 +44,8 @@ export function DeskOpsPanel({ onDelegate }: { onDelegate?: (agentId: string) =>
       </div>
       <p className="text-xs text-slate-500">
         Emails delivered are counted from Deal file send events (and the mail log when it has more).
-        Mock or failed SMTP is “not delivered”. Hibernated desks (Oliver, Nathan, ARES) are not listed.
+        “Not delivered” is the latest send on that file still mock or failed — old SMTP failures that later went out do not count.
+        Hibernated desks (Oliver, Nathan, ARES) are not listed.
       </p>
       <div className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full text-sm">

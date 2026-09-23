@@ -13,8 +13,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle, usePageActions } from "@/context/LayoutContext";
 import { cn } from "@/lib/utils";
+import { knownMailbox } from "@shared/agentMailboxes";
 import { agentMailInFolder, type AgentMailFolder } from "@shared/mailDesk";
-import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, stripMailTracking } from "@shared/mailTracking";
+import { ensureMailLinksOpenInNewTab, lastMailOpenAt, outboundTrackingState, stripMailTracking } from "@shared/mailTracking";
+import { HotClickDot } from "@/components/mail/HotClickDot";
+import { SendAsSelect } from "@/components/mail/SendAsSelect";
 
 type MailItem = {
   id: string;
@@ -161,24 +164,24 @@ function statusTone(status: string) {
   return "";
 }
 
+function counterpartKey(item: MailItem) {
+  return counterpart(item).trim().toLowerCase();
+}
+
 function mailOpenState(item: MailItem) {
-  if (item.direction !== "outbound") return null;
-  const tracked = typeof item.html === "string" && /\/api\/agent-mail\/track\//.test(item.html);
-  const opens = item.opens || [];
-  const clicks = item.clicks || [];
-  if (!tracked && opens.length === 0) {
-    return { kind: "untracked" as const, label: "Not tracked", detail: "Sent before the open pixel was on." };
+  const state = outboundTrackingState(item);
+  if (!state) return null;
+  if (state.kind === "opened") {
+    const last = lastMailOpenAt(item.opens);
+    const clickBit = (item.clicks || []).length
+      ? ` · ${item.clicks!.length} click${item.clicks!.length === 1 ? "" : "s"}`
+      : "";
+    return {
+      ...state,
+      detail: `${last ? formatWhen(last) : ""}${clickBit}`,
+    };
   }
-  if (opens.length === 0) {
-    return { kind: "unopened" as const, label: "Not opened", detail: "Pixel not loaded yet. Mail apps can block images." };
-  }
-  const last = opens[opens.length - 1]!;
-  const clickBit = clicks.length ? ` · ${clicks.length} click${clicks.length === 1 ? "" : "s"}` : "";
-  return {
-    kind: "opened" as const,
-    label: opens.length === 1 ? "Opened" : `Opened ${opens.length}×`,
-    detail: `${formatWhen(last)}${clickBit}`,
-  };
+  return state;
 }
 
 export default function AgentMail() {
@@ -189,6 +192,11 @@ export default function AgentMail() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeTo, setComposeTo] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeText, setComposeText] = useState("");
+  const [sendAs, setSendAs] = useState("mailbox-clerk");
   const [readingPane, setReadingPane] = useState(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem(READING_PANE_KEY) !== "off";
@@ -237,6 +245,18 @@ export default function AgentMail() {
     return Array.from(names);
   }, [data]);
 
+  const hotCounterparts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of data?.messages || []) {
+      const key = counterpartKey(item);
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + (item.clicks || []).length);
+    }
+    return new Set(
+      [...counts.entries()].filter(([, n]) => n > 2).map(([key]) => key)
+    );
+  }, [data]);
+
   const messages = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = (data?.messages || []).filter((item) => {
@@ -270,12 +290,47 @@ export default function AgentMail() {
   useEffect(() => {
     setReplyOpen(false);
     setReplyText("");
-  }, [selectedId]);
+    setSendAs(knownMailbox(selected?.agentId)?.agentId || "mailbox-clerk");
+  }, [selectedId, selected?.agentId]);
+
+  const sendCompose = useMutation({
+    mutationFn: async () => {
+      const to = composeTo.trim();
+      const res = await apiRequest("/api/agent-mail/compose", "POST", {
+        to,
+        subject: composeSubject,
+        text: composeText,
+        agentId: sendAs,
+      });
+      const result = (await res.json()) as { success: boolean; mock?: boolean; blocked?: string };
+      return { ...result, to };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-mail"] });
+      setComposeOpen(false);
+      setComposeTo("");
+      setComposeSubject("");
+      setComposeText("");
+      toast({
+        title: result.mock ? "Message logged" : "Message sent",
+        description: result.mock
+          ? "No SMTP credentials configured — logged instead of sent."
+          : `Sent to ${result.to}.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not send",
+        description: error.message || "The mailbox did not respond.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const sendReply = useMutation({
     mutationFn: async () => {
       if (!selected) throw new Error("Select a message first");
-      const res = await apiRequest(`/api/agent-mail/${selected.id}/reply`, "POST", { text: replyText });
+      const res = await apiRequest(`/api/agent-mail/${selected.id}/reply`, "POST", { text: replyText, agentId: sendAs });
       return res.json() as Promise<{ success: boolean; mock?: boolean }>;
     },
     onSuccess: (result) => {
@@ -413,6 +468,20 @@ export default function AgentMail() {
               aria-label="Toggle reading pane"
             />
           </div>
+          <Button
+            type="button"
+            size="sm"
+            className="w-full h-8"
+            data-testid="button-compose"
+            variant={composeOpen ? "secondary" : "default"}
+            onClick={() => {
+              setComposeOpen(true);
+              setReplyOpen(false);
+            }}
+          >
+            <Mail className="h-3.5 w-3.5 mr-1.5" />
+            New message
+          </Button>
         </div>
         <ScrollArea className="flex-1">
           <div>
@@ -440,7 +509,10 @@ export default function AgentMail() {
                 )}
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-sm font-medium truncate">{counterpart(item)}</p>
+                  <p className="text-sm font-medium truncate flex items-center gap-2 min-w-0">
+                    <span className="truncate">{counterpart(item)}</span>
+                    {hotCounterparts.has(counterpartKey(item)) && <HotClickDot />}
+                  </p>
                   <span className="text-[11px] text-muted-foreground shrink-0">
                     {formatWhen(folder === "opened" ? lastMailOpenAt(item.opens) || item.createdAt : item.createdAt)}
                   </span>
@@ -467,6 +539,7 @@ export default function AgentMail() {
                       openState.kind === "opened" && "text-emerald-400",
                       openState.kind === "unopened" && "text-muted-foreground",
                       openState.kind === "untracked" && "text-white/35",
+                      (openState.kind === "failed" || openState.kind === "mock") && "text-red-300",
                     )}
                   >
                     {openState.label}
@@ -482,7 +555,71 @@ export default function AgentMail() {
 
       {readingPane && (
       <section className="flex-1 min-w-0 flex flex-col">
-        {!selected ? (
+        {composeOpen ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold">New message</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Put a full https:// URL in the body if you want click and 10s dwell tracking.
+              </p>
+            </div>
+            <div className="flex-1 p-6 space-y-3 overflow-auto">
+              <div className="space-y-1.5">
+                <Label htmlFor="compose-to">To</Label>
+                <Input
+                  id="compose-to"
+                  data-testid="input-compose-to"
+                  type="email"
+                  value={composeTo}
+                  onChange={(event) => setComposeTo(event.target.value)}
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="compose-subject">Subject</Label>
+                <Input
+                  id="compose-subject"
+                  data-testid="input-compose-subject"
+                  value={composeSubject}
+                  onChange={(event) => setComposeSubject(event.target.value)}
+                  placeholder="Subject"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="compose-text">Message</Label>
+                <Textarea
+                  id="compose-text"
+                  data-testid="input-compose-text"
+                  value={composeText}
+                  onChange={(event) => setComposeText(event.target.value)}
+                  placeholder={"Hi,\n\nIf useful: https://www.stratafinance.co.uk/?sf=n1#tools"}
+                  className="min-h-[220px] text-sm"
+                />
+              </div>
+            </div>
+            <div className="border-t p-4 flex items-center justify-end gap-2">
+              <SendAsSelect value={sendAs} onChange={setSendAs} disabled={sendCompose.isPending} />
+              <Button size="sm" variant="ghost" onClick={() => setComposeOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                data-testid="button-send-compose"
+                onClick={() => sendCompose.mutate()}
+                disabled={
+                  sendCompose.isPending || !composeTo.trim() || !composeSubject.trim() || !composeText.trim()
+                }
+              >
+                {sendCompose.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                {sendCompose.isPending ? "Sending…" : "Send"}
+              </Button>
+            </div>
+          </div>
+        ) : !selected ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
             Select a message
           </div>
@@ -490,7 +627,10 @@ export default function AgentMail() {
           <>
             <div className="px-6 py-4 border-b space-y-2">
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-lg font-semibold leading-snug">{selected.subject || "(no subject)"}</h2>
+                <h2 className="text-lg font-semibold leading-snug flex items-center gap-2">
+                  <span>{selected.subject || "(no subject)"}</span>
+                  {hotCounterparts.has(counterpartKey(selected)) && <HotClickDot />}
+                </h2>
                 <div className="flex items-center gap-2 shrink-0">
                   {selectedOpen?.kind === "opened" && (
                     <Badge variant="outline" className="text-emerald-300 border-emerald-500/30 gap-1">
@@ -589,6 +729,7 @@ export default function AgentMail() {
                   autoFocus
                 />
                 <div className="flex items-center justify-end gap-2">
+                  <SendAsSelect value={sendAs} onChange={setSendAs} disabled={sendReply.isPending} />
                   <Button size="sm" variant="ghost" onClick={() => setReplyOpen(false)}>
                     Cancel
                   </Button>

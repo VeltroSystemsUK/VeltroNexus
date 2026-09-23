@@ -201,6 +201,7 @@ export interface IStorage {
 
   // Prospects
   listProspects(userId: string, status?: string): Promise<ProspectWithCompany[]>; // Added for Pipeline Driver
+  listAllProspects(): Promise<ProspectWithCompany[]>;
   countProspects(userId: string): Promise<number>;
   getProspect(id: number, userId: string): Promise<ProspectWithCompany | undefined>;
   getProspectById(id: number): Promise<ProspectWithCompany | undefined>;
@@ -414,9 +415,19 @@ export interface IStorage {
 
   listAgenticDeals(): Promise<import("@shared/agenticWorkflow").AgenticDealFile[]>;
   getAgenticDeal(id: number): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
+  getAgenticDealByProspectId(prospectId: number): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
   getAgenticDealByUploadToken(token: string): Promise<import("@shared/agenticWorkflow").AgenticDealFile | undefined>;
   createAgenticDeal(deal: Partial<import("@shared/agenticWorkflow").AgenticDealFile>): Promise<import("@shared/agenticWorkflow").AgenticDealFile>;
+  createAgenticDealsBulk(
+    deals: Array<Partial<import("@shared/agenticWorkflow").AgenticDealFile>>
+  ): Promise<Array<import("@shared/agenticWorkflow").AgenticDealFile>>;
   updateAgenticDeal(id: number, updates: Partial<import("@shared/agenticWorkflow").AgenticDealFile>): Promise<import("@shared/agenticWorkflow").AgenticDealFile>;
+  updateAgenticDealsBulk(
+    patches: Array<{
+      id: number;
+      updates: Partial<import("@shared/agenticWorkflow").AgenticDealFile>;
+    }>
+  ): Promise<Array<import("@shared/agenticWorkflow").AgenticDealFile>>;
   deleteAgenticDeal(id: number): Promise<void>;
 
   // Teams
@@ -591,6 +602,7 @@ export interface IStorage {
 
   // Campaign Recipients
   listCampaignRecipients(campaignId: number, userId: string): Promise<CampaignRecipient[]>;
+  listAllCampaignRecipients(): Promise<CampaignRecipient[]>;
   addCampaignRecipients(recipients: InsertCampaignRecipient[]): Promise<CampaignRecipient[]>;
   getCampaignRecipientById(id: number): Promise<CampaignRecipient | undefined>;
   updateCampaignRecipient(id: number, updates: Partial<CampaignRecipient>): Promise<CampaignRecipient | undefined>;

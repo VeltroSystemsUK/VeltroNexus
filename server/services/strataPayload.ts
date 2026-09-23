@@ -2,6 +2,7 @@
  * Maps a completed Nexus file onto the standalone Strata case payload.
  * Only copies values that already exist on the Nexus record — never invents figures.
  */
+import { hmrcPositionHasContent, resolveHmrcPosition } from "@shared/hmrcPosition";
 import type { Contact, DueDiligenceData, ProspectDocument, ProspectWithCompany } from "@shared/schema";
 
 export type StrataPayloadInput = {
@@ -264,6 +265,7 @@ export function buildStrataPayload(input: StrataPayloadInput): Record<string, un
   const adverseMedia = asRecord(underwriting.adverseMedia);
   const openBanking = asRecord(underwriting.openBanking);
   const character = asRecord(diligence.character);
+  const hmrc = resolveHmrcPosition(diligence);
   const affordability = asRecord(diligence.affordability);
   const ratios = asRecord(diligence.financialRatios);
   const hirePurchase = asRecord(diligence.hirePurchase);
@@ -399,10 +401,15 @@ export function buildStrataPayload(input: StrataPayloadInput): Record<string, un
     financials: {
       source: historic || financial.summary || accounts.summary ? "nexus" : "",
       historic_pl: historic || undefined,
-      ttp:
-        diligence.hmrcTimeToPay && diligence.hmrcTimeToPay !== "none"
-          ? [{ lender: "HMRC", status: diligence.hmrcTimeToPay, notes: "Self-reported in Nexus due diligence" }]
-          : [],
+      ttp: hmrcPositionHasContent(hmrc)
+        ? [
+            {
+              lender: "HMRC",
+              status: hmrc.ttpRequired ? "required" : "recorded",
+              notes: hmrc.arrangementsCommentary || hmrc.narrative || "Self-reported in Nexus due diligence",
+            },
+          ]
+        : [],
       existing_lenders:
         affordability.existingMonthlyDebt
           ? {

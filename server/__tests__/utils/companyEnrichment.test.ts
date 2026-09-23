@@ -27,6 +27,7 @@ describe("htmlToText", () => {
     expect(text).toContain("Kitchen fit-out.");
     expect(text).not.toContain("<h1>");
     expect(text).not.toContain("alert");
+    expect(text).toMatch(/Home Crafters\n/);
   });
 });
 
@@ -110,5 +111,87 @@ describe("enrichCompanyProfile", () => {
     await expect(
       enrichCompanyProfile("Acme Ltd", "https://acme.test", { FIRECRAWL_API_URL: "", XAI_API_KEY: "" })
     ).rejects.toThrow(/XAI_API_KEY/);
+  });
+
+  it("sends the xAI bearer and never calls Gemini", async () => {
+    const grokBody = JSON.stringify({
+      businessProfile: "Widget maker.",
+      sourceCommentary: "Website.",
+      keyPeople: [],
+      companyDetails: {},
+      sources: [],
+    });
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes("api.x.ai")) {
+        const headers = init?.headers as Record<string, string>;
+        expect(headers.Authorization).toBe("Bearer xai-console-key");
+        expect(String(url)).not.toMatch(/generativelanguage|googleapis|gemini/i);
+        return {
+          ok: true,
+          json: async () => ({ choices: [{ message: { content: grokBody } }] }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        text: async () => "<html><body><p>Widgets</p></body></html>",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await enrichCompanyProfile("Acme Ltd", "https://acme.test", {
+      FIRECRAWL_API_URL: "",
+      XAI_API_KEY: "xai-console-key",
+    });
+
+    const llmCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("http"));
+    expect(llmCalls.some((call) => String(call[0]).includes("https://api.x.ai/v1/chat/completions"))).toBe(true);
+    expect(llmCalls.some((call) => /generativelanguage|gemini/i.test(String(call[0])))).toBe(false);
+  });
+
+  it("uses GROK_AUTH_FILE when XAI_API_KEY is an expired JWT", async () => {
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "grok-auth-"));
+    const authFile = join(dir, "auth.json");
+    writeFileSync(
+      authFile,
+      JSON.stringify({
+        "https://auth.x.ai::team": { key: "grok-session-from-file", auth_mode: "oidc" },
+      })
+    );
+    const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
+    const payload = Buffer.from(JSON.stringify({ exp: 1 })).toString("base64url");
+    const expired = `${header}.${payload}.sig`;
+    const grokBody = JSON.stringify({
+      businessProfile: "Joinery.",
+      sourceCommentary: "Website.",
+      keyPeople: [],
+      companyDetails: {},
+      sources: [],
+    });
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes("api.x.ai")) {
+        const headers = init?.headers as Record<string, string>;
+        expect(headers.Authorization).toBe("Bearer grok-session-from-file");
+        return {
+          ok: true,
+          json: async () => ({ choices: [{ message: { content: grokBody } }] }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        text: async () => "<html><body><p>Joinery</p></body></html>",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await enrichCompanyProfile("Acme Ltd", "https://acme.test", {
+      FIRECRAWL_API_URL: "",
+      XAI_API_KEY: expired,
+      GROK_AUTH_FILE: authFile,
+    });
+
+    expect(result.businessProfile).toMatch(/Joinery/);
   });
 });

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/form";
 import { Lock, ShieldCheck } from "lucide-react";
 import logoChrome from "@assets/logo-chrome.png";
+import { postLoginPath } from "@shared/sterlingPortal";
 
 const loginSchema = z.object({
     username: z.string().min(1, "Email is required"),
@@ -39,7 +40,7 @@ export default function AuthPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (user) {
-            setLocation(user.role === "external_broker" ? "/broker-portal" : "/pipeline");
+            setLocation(postLoginPath(user.role));
         }
     }, [user]);
 
@@ -63,7 +64,7 @@ export default function AuthPage() {
                 isAuthenticated: true,
             });
             toast({ title: "Welcome back." });
-            setLocation(user.role === "external_broker" ? "/broker-portal" : "/pipeline");
+            setLocation(postLoginPath(user.role));
         },
         onError: (error: Error) => {
             toast({

@@ -1,13 +1,13 @@
 import fs from "fs";
 import { parseCSVLine } from "../server/utils/routerHelpers";
 import { storage } from "../server/storage";
-import { ingestHarvestCsv } from "../server/services/harvestCsv";
+import { HARVEST_CSV_MAX_ROWS, ingestHarvestCsv } from "../server/services/harvestCsv";
 import { agenticWorkflow } from "../server/services/agenticWorkflow";
 import type { HarvestCsvRow } from "../server/services/harvestCsv";
 
 const CSV_PATH = "F:\\Shaun\\Desktop\\Data\\output\\Clean Leads.csv";
 const FILE_NAME = "Clean Leads.csv";
-const HARPER_BATCH = 500;
+const HARPER_BATCH = HARVEST_CSV_MAX_ROWS;
 
 function normCompanyNumber(value?: string | null): string {
   const raw = String(value || "")

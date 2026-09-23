@@ -7,7 +7,15 @@ export function isInboundLead(lead: {
   assignedAgentId?: string | null;
   companyNumber?: string | null;
 }): boolean {
-  return lead.assignedAgentId === "capital-strategist" || String(lead.companyNumber || "").startsWith("WEB-");
+  return (
+    lead.assignedAgentId === "capital-strategist" ||
+    lead.assignedAgentId === "director" ||
+    String(lead.companyNumber || "").startsWith("WEB-")
+  );
+}
+
+export function inboundDeskForSource(source?: string | null): "maya" | "director" {
+  return String(source || "").trim().toLowerCase() === "contact" ? "director" : "maya";
 }
 
 export function inboundLoanAmountPence(lead: Pick<InternalLead, "notes">): number | null {

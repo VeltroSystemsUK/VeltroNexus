@@ -6,6 +6,7 @@ import { storage } from "../storage";
 import { sendEmail } from "./email";
 import { houseAskWithEngine } from "./caseyScout";
 import { generateWorksheetPdf, generateProgressReportPdf } from "../utils/reportPdf";
+import { isDueInWeek } from "../utils/reportDueDate";
 import { listAgentMail } from "./agentMailLog";
 import { isInboundLead } from "./inboundPipeline";
 import {
@@ -85,11 +86,7 @@ export async function buildWorksheetForUser(userId: string, refDate: Date = new 
   const weekEnd = new Date(weekStart.getTime() + 4 * DAY_MS);
   weekEnd.setHours(23, 59, 59, 999);
 
-  const weekTasks = allTasks.filter((t) => {
-    if (!t.dueDate) return false;
-    const d = new Date(t.dueDate as any);
-    return d >= weekStart && d <= weekEnd;
-  });
+  const weekTasks = allTasks.filter((t) => isDueInWeek(t.dueDate, weekStart, weekEnd));
 
   const weekNumber = projectWeekNumber(weekStart, settings);
   const pdf = await generateWorksheetPdf({
@@ -120,11 +117,7 @@ export async function buildProgressReportForUser(userId: string, refDate: Date =
   const completedPlanned = doneThisWeek.filter((t) => t.dueDate);
   const completedExtra = doneThisWeek.filter((t) => !t.dueDate);
 
-  const upcoming = allTasks.filter((t) => {
-    if (t.status === "done" || !t.dueDate) return false;
-    const d = new Date(t.dueDate as any);
-    return d >= nextWeekStart && d <= nextWeekEnd;
-  });
+  const upcoming = allTasks.filter((t) => t.status !== "done" && isDueInWeek(t.dueDate, nextWeekStart, nextWeekEnd));
 
   const weekNumber = projectWeekNumber(weekStart, settings);
   const inboundLeads = (await storage.listInternalLeads()).filter(isInboundLead);

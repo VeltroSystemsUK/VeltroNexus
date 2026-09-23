@@ -5,7 +5,12 @@ import {
   isBlockedOutreachHost,
   isClearCompanyMismatch,
 } from "@shared/pecrSend";
-import { wasEmailDelivered, cadenceAfterOutreach } from "@shared/outreachSend";
+import {
+  wasEmailDelivered,
+  cadenceAfterOutreach,
+  isWaitingLinkedInHold,
+  linkedInHoldReleasePatch,
+} from "@shared/outreachSend";
 
 describe("PECR at send time", () => {
   it("blocks cold email to a personal mailbox", () => {
@@ -94,7 +99,7 @@ describe("cadence after outreach", () => {
     ).toBe("hold_undelivered");
   });
 
-  it("holds LinkedIn for a human instead of starting the next timer", () => {
+  it("stages LinkedIn and starts the next email timer instead of parking on the director", () => {
     expect(
       cadenceAfterOutreach({
         autoSend: false,
@@ -102,7 +107,77 @@ describe("cadence after outreach", () => {
         delivered: false,
         blockReason: null,
       })
-    ).toBe("hold_linkedin");
+    ).toBe("advance");
+  });
+
+  it("recognises a LinkedIn hold that is blocking the cadence", () => {
+    expect(
+      isWaitingLinkedInHold({
+        status: "waiting_human",
+        humanReason: "Post the LinkedIn copy, then mark it posted. The next email will not send until you do.",
+        outreachTouchId: "sme_linkedin",
+      })
+    ).toBe(true);
+    expect(
+      isWaitingLinkedInHold({
+        status: "waiting_human",
+        humanReason: "They replied — you own the thread. Open Agent Mail.",
+      })
+    ).toBe(false);
+  });
+
+  it("releases a LinkedIn hold onto the Day 8 timer without sending now", () => {
+    const now = new Date("2026-09-10T12:00:00.000Z");
+    const patch = linkedInHoldReleasePatch(
+      {
+        status: "waiting_human",
+        stage: "outreach",
+        stream: "sme",
+        source: "distress_scan",
+        outreachTouch: 2,
+        outreachTouchId: "sme_linkedin",
+        humanReason: "Post the LinkedIn copy, then mark it posted. The next email will not send until you do.",
+        updatedAt: "2026-09-07T09:00:00.000Z",
+        events: [
+          {
+            at: "2026-09-07T09:00:00.000Z",
+            stage: "outreach",
+            agent: "outreach-sales",
+            message: "Day 4 LinkedIn copy staged. Waiting for you to post.",
+          },
+        ],
+      },
+      now
+    );
+    expect(patch).toMatchObject({
+      status: "waiting_timer",
+      humanReason: undefined,
+    });
+    expect(patch?.waitUntil).toBe("2026-09-11T09:00:00.000Z");
+  });
+
+  it("makes an overdue LinkedIn hold due immediately so the next tick can send Day 8", () => {
+    const now = new Date("2026-09-10T12:00:00.000Z");
+    const patch = linkedInHoldReleasePatch(
+      {
+        status: "waiting_human",
+        stage: "outreach",
+        stream: "sme",
+        outreachTouch: 2,
+        humanReason: "Post the LinkedIn copy, then mark it posted.",
+        updatedAt: "2026-09-04T09:00:00.000Z",
+        events: [
+          {
+            at: "2026-09-04T09:00:00.000Z",
+            stage: "outreach",
+            message: "Day 4 LinkedIn copy staged. Waiting for you to post.",
+          },
+        ],
+      },
+      now
+    );
+    expect(patch?.status).toBe("waiting_timer");
+    expect(patch?.waitUntil).toBe(now.toISOString());
   });
 
   it("holds on PECR rather than sending", () => {

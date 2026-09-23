@@ -39,7 +39,7 @@ describe("Auto Write surfaces demand bullets", () => {
     const gemini = readFileSync(resolve("server/utils/geminiClient.ts"), "utf8");
     const rewrite = readFileSync(resolve("server/routes.ts"), "utf8");
     const enrich = readFileSync(resolve("server/utils/companyEnrichment.ts"), "utf8");
-    expect(gemini).toMatch(/No paragraphs, no essay/);
+    expect(gemini).toMatch(/No lengthy paragraphs, no essay/);
     expect(gemini).toMatch(/businessProfile must be 4 to 6 short bullet points/);
     expect(rewrite).toMatch(/AI_BULLET_INSTRUCTIONS/);
     expect(enrich).toMatch(/4-6 short bullet points/);

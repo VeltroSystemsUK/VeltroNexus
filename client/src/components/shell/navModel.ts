@@ -22,6 +22,8 @@ import {
   GraduationCap,
   Mail,
   MailOpen,
+  MailX,
+  Ban,
   MessageSquare,
   Target,
   ClipboardList,
@@ -66,6 +68,8 @@ export const DESTINATIONS: Destination[] = [
   { path: "/email-templates", label: "Templates", icon: FileText, group: "Marketing", roles: FULL, keywords: "email html", description: "Reusable email templates" },
   { path: "/email-campaigns", label: "Campaigns", icon: Send, group: "Marketing", roles: FULL, keywords: "marketing email", description: "Send and track email campaigns" },
   { path: "/openers", label: "Openers", icon: MailOpen, group: "Marketing", roles: ["super_admin", "sales_admin"], keywords: "openers mail companies nurture pipeline opened", description: "Companies that opened Agent Mail" },
+  { path: "/unsubscribed", label: "Unsubscribed", icon: Ban, group: "Marketing", roles: ["super_admin", "sales_admin"], keywords: "unsubscribed opt-out stop pecr", description: "Opted out — not a sales queue" },
+  { path: "/non-responsive", label: "Non Responsive", icon: MailX, group: "Marketing", roles: ["super_admin", "sales_admin"], keywords: "non responsive unopened sent mail follow up", description: "Sent successfully but never opened or engaged" },
   { path: "/editorial", label: "Editorial", icon: Newspaper, group: "Marketing", roles: FULL, keywords: "blog press release article news casey isla", description: "Blogs and press releases — draft desk, never auto-publish" },
   { path: "/learn-desk", label: "Learn", icon: GraduationCap, group: "Marketing", roles: FULL, keywords: "learn video article publish training", description: "Publish training videos and articles to learn.stratanexus.co.uk" },
   { path: "/media", label: "Media", icon: ImageIcon, group: "Marketing", roles: FULL, keywords: "gallery images", description: "Media gallery for campaigns" },
@@ -80,7 +84,7 @@ export const DESTINATIONS: Destination[] = [
 
   // Underwriting
   { path: "/underwriting", label: "Inbox", icon: Inbox, group: "Underwriting", roles: FULL_UW, keywords: "inbox decisions", description: "Review and process loan applications" },
-  { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, group: "Underwriting", roles: ["super_admin", "sales_admin"], keywords: "sterling david oversight files", description: "Oversight of the Sterling Commercial Finance portal" },
+  { path: "/broker-portal", label: "Sterling portal", icon: ShieldCheck, group: "Underwriting", roles: ["super_admin", "sales_admin", "external_broker"], keywords: "sterling david cases files", description: "Sterling Commercial Finance files" },
   { path: "/credit-tools", label: "Credit Tools", icon: Calculator, group: "Underwriting", roles: FULL_UW, keywords: "credit tools analysis", description: "Utility calculators for credit analysis" },
   { path: "/ai-studio", label: "AI Studio", icon: Brain, group: "Underwriting", roles: FULL_UW, keywords: "ai underwriting", description: "AI-powered underwriting workspace" },
   { path: "/submissions", label: "Submissions", icon: ClipboardList, group: "Underwriting", roles: FULL_UW, keywords: "deal submissions", description: "Create and manage deal submissions" },
@@ -93,6 +97,7 @@ export const DESTINATIONS: Destination[] = [
 
 // Curated primary "lenses" for the slim rail (order matters)
 const LENS_PATHS = [
+  "/broker-portal",
   "/pipeline",
   "/crm",
   "/lenders",

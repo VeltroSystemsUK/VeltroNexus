@@ -613,7 +613,7 @@ const CORE_WORKFORCE: DigitalAssociate[] = [
           steps: [
             "Read the new IMAP message",
             "STOP → suppress + delete deal",
-            "Bounce → reason on file, suppress if hard",
+            "Hard bounce → suppress, delete deal/opener, delete bounce mail",
             "Spam → delete from Agent Mail",
             "Customer reply → waiting_human + Copilot attention",
           ],

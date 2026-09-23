@@ -1,6 +1,7 @@
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
+import { ensureMailLinksOpenInNewTab } from "@shared/mailTracking";
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { useLocation } from "wouter";
 import {
@@ -8,17 +9,33 @@ import {
   GripVertical,
   Loader2,
   MessageSquare,
+  Pencil,
   Phone,
   RefreshCw,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SiteTrafficChart } from "@/components/openers/SiteTrafficChart";
 import {
   canDragOpenerTo,
   canPromoteOpener,
+  compareOpenersByOpenCount,
+  convertStepBadge,
   daysSitting,
-  OPENER_STATUSES,
+  openerClickCount,
+  openerClickHeat,
+  clickHeatCounts,
+  isConvertCloserDue,
+  isConvertOpener,
+  isDoNotContactOpener,
+  sendableIndustry,
+  BRIEFING_HOLD_COPY,
+  OPENER_BOARD_STATUSES,
+  OPENER_QUALITIES,
   withDerivedNurture,
+  type ClickHeatBand,
+  type OpenerDesk,
+  type OpenerQuality,
   type OpenerRecord,
   type OpenerStatus,
 } from "@shared/openers";
@@ -26,6 +43,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,6 +66,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePageTitle } from "@/context/LayoutContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { SendAsSelect } from "@/components/mail/SendAsSelect";
 
 type TimelineItem = {
   mailId: string;
@@ -53,15 +79,69 @@ type TimelineItem = {
 type OpenerBoardItem = OpenerRecord & {
   onPipeline: boolean;
   daysSitting: number;
+  briefingPackReady?: boolean;
   timeline?: TimelineItem[];
 };
 
 const COLUMN_LABELS: Record<OpenerStatus, string> = {
+  non_responsive: "Non Responsive",
   new: "New",
   nurturing: "Nurturing",
-  not_now: "Not now",
+  direct_outreach: "Direct Outreach",
+  not_now: "Unsubscribed",
   promoted: "Promoted",
 };
+
+const CLICK_HEAT_FILTERS: Array<{
+  band: ClickHeatBand;
+  label: string;
+  testId: string;
+  idle: string;
+  active: string;
+}> = [
+  {
+    band: "hot",
+    label: "Hottest",
+    testId: "filter-click-heat-hot",
+    idle: "border-emerald-400/30 text-emerald-300",
+    active: "bg-emerald-400/15 border-emerald-400/80 text-emerald-200",
+  },
+  {
+    band: "warm",
+    label: "Average",
+    testId: "filter-click-heat-warm",
+    idle: "border-amber-400/30 text-amber-300",
+    active: "bg-amber-400/15 border-amber-400/80 text-amber-200",
+  },
+  {
+    band: "cold",
+    label: "Coldest",
+    testId: "filter-click-heat-cold",
+    idle: "border-sky-400/30 text-sky-300",
+    active: "bg-sky-400/15 border-sky-400/80 text-sky-200",
+  },
+];
+
+const CLICK_HEAT_BADGE: Record<ClickHeatBand, string> = {
+  hot: "border-transparent bg-emerald-400/20 text-emerald-200",
+  warm: "border-transparent bg-amber-400/20 text-amber-200",
+  cold: "border-transparent bg-sky-400/20 text-sky-200",
+};
+
+function ClickHeatBadge({ opener }: { opener: OpenerBoardItem }) {
+  const clicks = openerClickCount(opener);
+  if (clicks <= 0) return null;
+  const heat = openerClickHeat(opener);
+  return (
+    <Badge
+      data-testid="badge-opener-clicks"
+      data-heat={heat ?? undefined}
+      className={heat ? CLICK_HEAT_BADGE[heat] : undefined}
+    >
+      {clicks} click{clicks === 1 ? "" : "s"}
+    </Badge>
+  );
+}
 
 function present(opener: OpenerBoardItem): OpenerBoardItem {
   const derived = withDerivedNurture(opener);
@@ -79,6 +159,7 @@ function openerTitle(opener: Pick<OpenerRecord, "companyName" | "email">) {
 
 function nurtureHint(opener: OpenerBoardItem) {
   if (opener.onPipeline || opener.status === "promoted") return "On pipeline";
+  if (isConvertOpener(opener)) return convertStepBadge(opener);
   if (opener.nurture.touch2Status === "due") return "Touch 2 due";
   return null;
 }
@@ -110,8 +191,11 @@ function sittingLabel(days: number) {
   return `${days} days sitting`;
 }
 
-function defaultWhatsAppMessage(opener: OpenerBoardItem) {
+function defaultWhatsAppMessage(opener: OpenerBoardItem, desk: OpenerDesk = "openers") {
   const who = openerTitle(opener);
+  if (desk === "non_responsive") {
+    return `Hi, we sent a note about restructuring monthly debt commitments for ${who}. If a short call would help, reply here.`;
+  }
   return `Hi, you opened our note about restructuring monthly debt commitments for ${who}. If a short call would help, reply here.`;
 }
 
@@ -157,12 +241,56 @@ function NurtureDraftPreview({ subject, html, status }: { subject: string; html:
   );
 }
 
+function QualityDots({
+  opener,
+  onPick,
+}: {
+  opener: OpenerBoardItem;
+  onPick: (quality: OpenerQuality) => void;
+}) {
+  return (
+    <div
+      data-testid="opener-quality"
+      role="group"
+      aria-label="Lead quality"
+      className="flex items-center gap-1 shrink-0"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {OPENER_QUALITIES.map((quality) => {
+        const on = opener.quality === quality;
+        return (
+          <button
+            key={quality}
+            type="button"
+            data-testid={`opener-quality-${quality}`}
+            aria-label={quality}
+            aria-pressed={on}
+            className={cn(
+              "h-2.5 w-2.5 rounded-full border",
+              quality === "good" && (on ? "bg-emerald-400 border-emerald-300" : "border-emerald-400/60 bg-transparent"),
+              quality === "average" && (on ? "bg-amber-400 border-amber-300" : "border-amber-400/60 bg-transparent"),
+              quality === "poor" && (on ? "bg-red-500 border-red-400" : "border-red-500/60 bg-transparent")
+            )}
+            onClick={() => onPick(quality)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function OpenerCards({
   items,
   onSelect,
+  onQuality,
+  onCreditsafe,
+  creditsafePendingId,
 }: {
   items: OpenerBoardItem[];
   onSelect: (id: string) => void;
+  onQuality: (id: string, quality: OpenerQuality) => void;
+  onCreditsafe: (id: string) => void;
+  creditsafePendingId?: string;
 }) {
   return (
     <>
@@ -187,11 +315,23 @@ function OpenerCards({
                         <GripVertical className="h-4 w-4" />
                       </button>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate">{openerTitle(opener)}</p>
+                        <p className="font-medium text-sm truncate flex items-center gap-2">
+                          <span className="truncate">{openerTitle(opener)}</span>
+                          <QualityDots opener={opener} onPick={(quality) => onQuality(opener.id, quality)} />
+                        </p>
                         <p className="text-xs text-muted-foreground">{sittingLabel(opener.daysSitting)}</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pl-6">
+                      <ClickHeatBadge opener={opener} />
+                      {opener.veltroInterestAt && (
+                        <Badge data-testid="badge-veltro-interest">Veltro</Badge>
+                      )}
+                      {(opener.dwellCount || 0) > 0 && (
+                        <Badge data-testid="badge-opener-dwell">
+                          On site {opener.dwellCount}×
+                        </Badge>
+                      )}
                       <Badge variant="outline">
                         {opener.openCount} open{opener.openCount === 1 ? "" : "s"}
                         {opener.lastOpenedAt ? ` · ${formatWhen(opener.lastOpenedAt)}` : ""}
@@ -199,7 +339,35 @@ function OpenerCards({
                       {opener.nonBankChargeCount > 0 && (
                         <Badge variant="destructive">Live charges</Badge>
                       )}
+                      {isDoNotContactOpener(opener) && (
+                        <Badge variant="destructive" data-testid="badge-do-not-contact">
+                          DO NOT CONTACT
+                        </Badge>
+                      )}
+                      {opener.briefingHold && !isDoNotContactOpener(opener) && (
+                        <Badge variant="secondary" data-testid="badge-briefing-needs-you">
+                          Needs you
+                        </Badge>
+                      )}
                       {hint && <Badge variant="secondary">{hint}</Badge>}
+                      {opener.creditsafe?.score ? (
+                        <Badge data-testid="badge-opener-creditsafe">
+                          CS {opener.creditsafe.score}
+                        </Badge>
+                      ) : (
+                        <button
+                          type="button"
+                          data-testid="btn-opener-creditsafe"
+                          className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                          disabled={creditsafePendingId === opener.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onCreditsafe(opener.id);
+                          }}
+                        >
+                          {creditsafePendingId === opener.id ? "Checking…" : "Check"}
+                        </button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -219,6 +387,9 @@ function ColumnFrame({
   droppableId,
   items,
   onSelect,
+  onQuality,
+  onCreditsafe,
+  creditsafePendingId,
 }: {
   "data-testid": string;
   label: string;
@@ -226,6 +397,9 @@ function ColumnFrame({
   droppableId: OpenerStatus;
   items: OpenerBoardItem[];
   onSelect: (id: string) => void;
+  onQuality: (id: string, quality: OpenerQuality) => void;
+  onCreditsafe: (id: string) => void;
+  creditsafePendingId?: string;
 }) {
   return (
     <Droppable droppableId={droppableId}>
@@ -250,7 +424,13 @@ function ColumnFrame({
                 : "bg-muted/30"
             )}
           >
-            <OpenerCards items={items} onSelect={onSelect} />
+            <OpenerCards
+              items={items}
+              onSelect={onSelect}
+              onQuality={onQuality}
+              onCreditsafe={onCreditsafe}
+              creditsafePendingId={creditsafePendingId}
+            />
             {provided.placeholder}
           </div>
         </div>
@@ -259,21 +439,37 @@ function ColumnFrame({
   );
 }
 
-export default function Openers() {
-  usePageTitle("Openers", "Companies that opened Agent Mail");
-  const [, setLocation] = useLocation();
+export default function Openers({ desk = "openers" }: { desk?: OpenerDesk }) {
+  const isNonResponsive = desk === "non_responsive";
+  usePageTitle(
+    isNonResponsive ? "Non Responsive" : "Openers",
+    isNonResponsive
+      ? "Sent successfully, not opened, not bounced, not unsubscribed"
+      : "Companies that opened Agent Mail"
+  );
+  const [location, setLocation] = useLocation();
+  const inSterling = location.startsWith("/broker-portal");
   const [search, setSearch] = useState("");
   const [hasChNumber, setHasChNumber] = useState(false);
   const [onPipelineOnly, setOnPipelineOnly] = useState(false);
   const [hasLiveCharges, setHasLiveCharges] = useState(false);
+  const [heatFilter, setHeatFilter] = useState<ClickHeatBand | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [industryDraft, setIndustryDraft] = useState("");
   const [attachNumber, setAttachNumber] = useState("");
   const [waMessage, setWaMessage] = useState("");
   const [callNote, setCallNote] = useState("");
+  const [sendAs, setSendAs] = useState("outreach-sales");
+  const [briefingPreview, setBriefingPreview] = useState<{ openerId: string; html: string } | null>(
+    null
+  );
+  const [briefingPreviewReady, setBriefingPreviewReady] = useState(false);
+  const [sendPreviewOpen, setSendPreviewOpen] = useState(false);
+  const boardStatuses = isNonResponsive ? (["non_responsive"] as const) : OPENER_BOARD_STATUSES;
 
   const { data, isLoading, error } = useQuery<OpenerBoardItem[]>({
-    queryKey: ["/api/openers"],
+    queryKey: isNonResponsive ? ["/api/openers", { desk: "non_responsive" }] : ["/api/openers"],
   });
 
   const openers = useMemo(() => (data || []).map(present), [data]);
@@ -283,9 +479,14 @@ export default function Openers() {
   useEffect(() => {
     if (!selected) return;
     setNotes(selected.notes || "");
+    setIndustryDraft(selected.industryOverride || "");
     setAttachNumber(selected.companyNumber || "");
-    setWaMessage(defaultWhatsAppMessage(selected));
+    setWaMessage(defaultWhatsAppMessage(selected, desk));
     setCallNote("");
+    setSendAs("outreach-sales");
+    setBriefingPreview(null);
+    setBriefingPreviewReady(false);
+    setSendPreviewOpen(false);
   }, [selected?.id]);
 
   const invalidate = () => {
@@ -301,9 +502,32 @@ export default function Openers() {
     onError: (err: Error) => toast.error(mutationError(err)),
   });
 
+  const creditsafeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(`/api/openers/${id}/creditsafe-check`, "POST");
+      return res.json();
+    },
+    onSuccess: invalidate,
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const setQuality = (id: string, quality: OpenerQuality) => {
+    patchMutation.mutate({ id, body: { quality } });
+  };
+
   const nurtureMutation = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: "start" | "approve" | "skip" | "stop" }) => {
-      const res = await apiRequest(`/api/openers/${id}/nurture`, "POST", { action });
+    mutationFn: async ({
+      id,
+      action,
+      agentId,
+      channel,
+    }: {
+      id: string;
+      action: "start" | "approve" | "skip" | "stop" | "closer";
+      agentId?: string;
+      channel?: "whatsapp" | "call" | "skip";
+    }) => {
+      const res = await apiRequest(`/api/openers/${id}/nurture`, "POST", { action, agentId, channel });
       return res.json();
     },
     onSuccess: invalidate,
@@ -326,8 +550,63 @@ export default function Openers() {
     },
     onSuccess: (result) => {
       invalidate();
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
       toast.success(result.created ? "Opened on the Deck" : "Already on the Deck");
-      setLocation("/pipeline");
+      setLocation(inSterling ? "/broker-portal/pipeline" : "/pipeline");
+    },
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const generateBriefingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(`/api/openers/${id}/briefing/generate`, "POST");
+      return res.json() as Promise<{ previewHtml?: string }>;
+    },
+    onSuccess: (_payload, id) => {
+      invalidate();
+      toast.success("Pack ready");
+      setLocation(`/craft/briefing/${id}`);
+    },
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const sendPreviewQuery = useQuery<{ subject: string; html: string; packHtml: string }>({
+    queryKey: ["/api/openers", selectedId, "briefing", "send-preview"],
+    enabled: sendPreviewOpen && Boolean(selectedId),
+    queryFn: async () => {
+      const res = await apiRequest(`/api/openers/${selectedId}/briefing/send-preview`, "GET");
+      return res.json() as Promise<{ subject: string; html: string; packHtml: string }>;
+    },
+  });
+
+  const sendBriefingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(`/api/openers/${id}/briefing/send`, "POST");
+      return res.json();
+    },
+    onSuccess: () => {
+      setSendPreviewOpen(false);
+      invalidate();
+      toast.success("Briefing sent");
+    },
+    onError: (err: Error) => toast.error(mutationError(err)),
+  });
+
+  const demoteMutation = useMutation({
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status?: "new" | "nurturing" | "not_now";
+    }) => {
+      const res = await apiRequest(`/api/openers/${id}/demote`, "POST", status ? { status } : {});
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      toast.success("Back on Openers");
     },
     onError: (err: Error) => toast.error(mutationError(err)),
   });
@@ -356,7 +635,7 @@ export default function Openers() {
     onError: (err: Error) => toast.error(mutationError(err)),
   });
 
-  const filtered = useMemo(() => {
+  const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
     return openers.filter((opener) => {
       if (hasChNumber && !opener.companyNumber) return false;
@@ -376,21 +655,24 @@ export default function Openers() {
     });
   }, [openers, search, hasChNumber, onPipelineOnly, hasLiveCharges]);
 
+  const heatCounts = useMemo(() => clickHeatCounts(searched), [searched]);
+
+  const filtered = useMemo(() => {
+    if (!heatFilter) return searched;
+    return searched.filter((opener) => openerClickHeat(opener) === heatFilter);
+  }, [searched, heatFilter]);
+
   const byStatus = useMemo(() => {
-    const groups: Record<OpenerStatus, OpenerBoardItem[]> = {
-      new: [],
-      nurturing: [],
-      not_now: [],
-      promoted: [],
-    };
+    const groups = {} as Record<OpenerStatus, OpenerBoardItem[]>;
+    for (const status of boardStatuses) groups[status] = [];
     for (const opener of filtered) {
       groups[opener.status]?.push(opener);
     }
-    for (const status of OPENER_STATUSES) {
-      groups[status].sort((a, b) => b.daysSitting - a.daysSitting);
+    for (const status of boardStatuses) {
+      groups[status].sort(compareOpenersByOpenCount);
     }
     return groups;
-  }, [filtered]);
+  }, [filtered, boardStatuses]);
 
   const onDragEnd = (result: DropResult) => {
     const { destination, draggableId, source } = result;
@@ -414,6 +696,13 @@ export default function Openers() {
       toast.error("Cannot move opener to that status");
       return;
     }
+    if (opener.status === "promoted") {
+      demoteMutation.mutate({
+        id: opener.id,
+        status: column as "new" | "nurturing" | "not_now",
+      });
+      return;
+    }
     patchMutation.mutate({ id: opener.id, body: { status: column } });
   };
 
@@ -422,11 +711,17 @@ export default function Openers() {
     patchMutation.mutate({ id: selected.id, body: { notes } });
   };
 
+  const saveIndustry = () => {
+    if (!selected) return;
+    patchMutation.mutate({ id: selected.id, body: { industryOverride: industryDraft.trim() } });
+  };
+
   const attachCompany = () => {
     if (!selected || !attachNumber.trim()) return;
     patchMutation.mutate({ id: selected.id, body: { companyNumber: attachNumber.trim() } });
   };
 
+  const doNotContact = Boolean(selected && isDoNotContactOpener(selected));
   const promoteLabel =
     selected && (selected.onPipeline || selected.status === "promoted")
       ? "Open on Deck"
@@ -441,7 +736,7 @@ export default function Openers() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search openers"
+              placeholder={isNonResponsive ? "Search non-responsive" : "Search openers"}
               className="h-9 pl-8"
             />
           </div>
@@ -470,10 +765,37 @@ export default function Openers() {
           </div>
         </div>
 
+        {!isNonResponsive && <SiteTrafficChart />}
+
+        {!isNonResponsive && (
+          <div data-testid="click-heat-strip" className="flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Clicks</span>
+            {CLICK_HEAT_FILTERS.map((item) => {
+              const selected = heatFilter === item.band;
+              return (
+                <button
+                  key={item.band}
+                  type="button"
+                  data-testid={item.testId}
+                  aria-pressed={selected}
+                  onClick={() => setHeatFilter((current) => (current === item.band ? null : item.band))}
+                  className={cn(
+                    "rounded-md border px-2.5 py-1 text-xs font-semibold tabular-nums",
+                    item.idle,
+                    selected && item.active
+                  )}
+                >
+                  {item.label} {heatCounts[item.band]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {isLoading && (
           <p className="text-sm text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading openers…
+            {isNonResponsive ? "Loading non-responsive…" : "Loading openers…"}
           </p>
         )}
         {error && (
@@ -481,7 +803,26 @@ export default function Openers() {
         )}
 
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:grid md:grid-cols-4 md:gap-4 md:pb-0 md:mx-0 md:px-0">
+          <div
+            className={cn(
+              "flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:gap-4 md:pb-0 md:mx-0 md:px-0 md:grid",
+              isNonResponsive ? "md:grid-cols-1" : "md:grid-cols-4"
+            )}
+          >
+            {isNonResponsive ? (
+              <ColumnFrame
+                data-testid="column-non_responsive"
+                label={COLUMN_LABELS.non_responsive}
+                droppableId="non_responsive"
+                items={byStatus.non_responsive}
+                count={byStatus.non_responsive.length}
+                onSelect={setSelectedId}
+                onQuality={setQuality}
+                onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+                creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
+              />
+            ) : (
+              <>
             <ColumnFrame
               data-testid="column-new"
               label={COLUMN_LABELS.new}
@@ -489,6 +830,9 @@ export default function Openers() {
               items={byStatus.new}
               count={byStatus.new.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
             <ColumnFrame
               data-testid="column-nurturing"
@@ -497,14 +841,20 @@ export default function Openers() {
               items={byStatus.nurturing}
               count={byStatus.nurturing.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
             <ColumnFrame
-              data-testid="column-not_now"
-              label={COLUMN_LABELS.not_now}
-              droppableId="not_now"
-              items={byStatus.not_now}
-              count={byStatus.not_now.length}
+              data-testid="column-direct-outreach"
+              label={COLUMN_LABELS.direct_outreach}
+              droppableId="direct_outreach"
+              items={byStatus.direct_outreach}
+              count={byStatus.direct_outreach.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
             <ColumnFrame
               data-testid="column-promoted"
@@ -513,7 +863,12 @@ export default function Openers() {
               items={byStatus.promoted}
               count={byStatus.promoted.length}
               onSelect={setSelectedId}
+              onQuality={setQuality}
+              onCreditsafe={(id) => creditsafeMutation.mutate(id)}
+              creditsafePendingId={creditsafeMutation.isPending ? creditsafeMutation.variables : undefined}
             />
+              </>
+            )}
           </div>
         </DragDropContext>
       </main>
@@ -525,12 +880,26 @@ export default function Openers() {
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
                   {openerTitle(selected)}
+                  <ClickHeatBadge opener={selected} />
+                  {selected.veltroInterestAt && (
+                    <Badge data-testid="badge-veltro-interest">Veltro</Badge>
+                  )}
                   {selected.nonBankChargeCount > 0 && (
                     <Badge variant="destructive">Live charges</Badge>
                   )}
+                  {isDoNotContactOpener(selected) && (
+                    <Badge variant="destructive" data-testid="badge-do-not-contact">
+                      DO NOT CONTACT
+                    </Badge>
+                  )}
+                  {selected.briefingHold && !isDoNotContactOpener(selected) && (
+                    <Badge variant="secondary" data-testid="badge-briefing-needs-you">
+                      Needs you
+                    </Badge>
+                  )}
                 </SheetTitle>
                 <SheetDescription>
-                  {[selected.companyNumber, selected.status.replace("_", " "), tradingAge(selected.dateOfCreation)]
+                  {[selected.companyNumber, COLUMN_LABELS[selected.status], tradingAge(selected.dateOfCreation)]
                     .filter(Boolean)
                     .join(" · ")}
                 </SheetDescription>
@@ -608,6 +977,42 @@ export default function Openers() {
                         Attach company
                       </Button>
                     </div>
+                    {selected.creditsafe ? (
+                      <div className="grid grid-cols-3 gap-2 rounded-md border p-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Score</p>
+                          <p className="font-medium">{selected.creditsafe.score || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Rating</p>
+                          <p className="font-medium">{selected.creditsafe.rating || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Limit</p>
+                          <p className="font-medium">
+                            {selected.creditsafe.creditLimitPence != null
+                              ? new Intl.NumberFormat("en-GB", {
+                                  style: "currency",
+                                  currency: "GBP",
+                                  minimumFractionDigits: 0,
+                                }).format(selected.creditsafe.creditLimitPence / 100)
+                              : "—"}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-testid="btn-opener-creditsafe"
+                        disabled={creditsafeMutation.isPending || (!selected.companyNumber && !selected.companyName)}
+                        onClick={() => creditsafeMutation.mutate(selected.id)}
+                      >
+                        {creditsafeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Creditsafe check
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
@@ -637,15 +1042,142 @@ export default function Openers() {
                     />
                   </section>
 
-                  <section className="space-y-2">
+                  {(selected.status === "direct_outreach" || selected.briefingId) && (
+                    <section className="space-y-2">
+                      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Briefing</h3>
+                      {selected.briefingHold && (
+                        <p className="text-sm text-muted-foreground">
+                          {BRIEFING_HOLD_COPY[selected.briefingHold.reason]}
+                          {selected.briefingHold.detail ? ` · ${selected.briefingHold.detail}` : ""}
+                        </p>
+                      )}
+                      <div className="grid gap-2">
+                        <Label htmlFor="briefing-industry">Industry</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="briefing-industry"
+                            data-testid="input-briefing-industry"
+                            value={industryDraft}
+                            onChange={(event) => setIndustryDraft(event.target.value)}
+                            placeholder="e.g. haulage"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            data-testid="btn-save-briefing-industry"
+                            onClick={saveIndustry}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          data-testid="btn-generate-briefing"
+                          disabled={doNotContact || generateBriefingMutation.isPending}
+                          onClick={() => generateBriefingMutation.mutate(selected.id)}
+                        >
+                          {generateBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Generate draft
+                        </Button>
+                        <Button
+                          type="button"
+                          data-testid="btn-design-briefing"
+                          disabled={doNotContact}
+                          onClick={() => setLocation(`/craft/briefing/${selected.id}`)}
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Design briefing
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          data-testid="btn-send-briefing"
+                          disabled={
+                            !selected.briefingPackReady ||
+                            sendBriefingMutation.isPending ||
+                            doNotContact ||
+                            !sendableIndustry(selected)
+                          }
+                          onClick={() => setSendPreviewOpen(true)}
+                        >
+                          Send
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {selected.briefingPackReady
+                          ? "Designed pack is saved. Send emails the private link."
+                          : "Generate draft, then Design briefing. Convert to HTML on that board before Send."}
+                      </p>
+                      {briefingPreview?.openerId === selected.id && briefingPreview.html ? (
+                        <div className="rounded-md border bg-white overflow-x-auto">
+                          <iframe
+                            data-testid="iframe-briefing-preview"
+                            title="Briefing preview"
+                            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                            className="w-full min-h-[280px] border-0 bg-white"
+                            srcDoc={briefingPreview.html}
+                            onLoad={() => setBriefingPreviewReady(true)}
+                          />
+                        </div>
+                      ) : selected.briefingId ? (
+                        <div className="rounded-md border bg-white overflow-x-auto">
+                          <iframe
+                            data-testid="iframe-briefing-preview"
+                            title="Briefing preview"
+                            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                            className="w-full min-h-[280px] border-0 bg-white"
+                            src={`/api/openers/${selected.id}/briefing/preview`}
+                            onLoad={() => setBriefingPreviewReady(true)}
+                          />
+                        </div>
+                      ) : null}
+                    </section>
+                  )}
+
+                  {!isNonResponsive && selected.status !== "direct_outreach" && <section className="space-y-2">
                     <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Nurture</h3>
-                    <div className="flex flex-wrap gap-2">
+                    {doNotContact && (
+                      <p className="text-sm text-destructive">This address asked to be removed. No further contact.</p>
+                    )}
+                    {isConvertOpener(selected) ? (
+                      <>
+                        <Badge data-testid="badge-convert-step">{convertStepBadge(selected)}</Badge>
+                        {selected.nurture.closerScript && (
+                          <p data-testid="convert-closer-script" className="text-sm whitespace-pre-wrap">
+                            {selected.nurture.closerScript}
+                          </p>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          data-testid="button-skip-closer"
+                          disabled={
+                            nurtureMutation.isPending ||
+                            doNotContact ||
+                            !isConvertCloserDue(selected) ||
+                            Boolean(selected.phone)
+                          }
+                          onClick={() =>
+                            nurtureMutation.mutate({ id: selected.id, action: "closer", channel: "skip" })
+                          }
+                        >
+                          Skip closer
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <SendAsSelect value={sendAs} onChange={setSendAs} disabled={nurtureMutation.isPending || doNotContact} />
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => nurtureMutation.mutate({ id: selected.id, action: "start" })}
-                        disabled={nurtureMutation.isPending}
+                        disabled={nurtureMutation.isPending || doNotContact}
                       >
                         Start nurture
                       </Button>
@@ -653,8 +1185,8 @@ export default function Openers() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => nurtureMutation.mutate({ id: selected.id, action: "approve" })}
-                        disabled={nurtureMutation.isPending}
+                        onClick={() => nurtureMutation.mutate({ id: selected.id, action: "approve", agentId: sendAs })}
+                        disabled={nurtureMutation.isPending || doNotContact}
                       >
                         Approve
                       </Button>
@@ -663,7 +1195,7 @@ export default function Openers() {
                         variant="outline"
                         size="sm"
                         onClick={() => nurtureMutation.mutate({ id: selected.id, action: "skip" })}
-                        disabled={nurtureMutation.isPending}
+                        disabled={nurtureMutation.isPending || doNotContact}
                       >
                         Skip
                       </Button>
@@ -684,7 +1216,9 @@ export default function Openers() {
                         status={selected.nurture.touch1Status}
                       />
                     )}
-                  </section>
+                      </>
+                    )}
+                  </section>}
 
                   <section className="space-y-2">
                     <Label htmlFor="opener-whatsapp">WhatsApp</Label>
@@ -692,13 +1226,13 @@ export default function Openers() {
                       id="opener-whatsapp"
                       value={waMessage}
                       onChange={(event) => setWaMessage(event.target.value)}
-                      disabled={!selected.phone}
+                      disabled={!selected.phone || doNotContact}
                       rows={3}
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!selected.phone || !waMessage.trim() || whatsappMutation.isPending}
+                      disabled={!selected.phone || !waMessage.trim() || whatsappMutation.isPending || doNotContact}
                       onClick={() => whatsappMutation.mutate({ id: selected.id, message: waMessage.trim() })}
                     >
                       <MessageSquare className="h-4 w-4 mr-2" />
@@ -716,12 +1250,12 @@ export default function Openers() {
                       value={callNote}
                       onChange={(event) => setCallNote(event.target.value)}
                       placeholder="Call note"
-                      disabled={!selected.phone}
+                      disabled={!selected.phone || doNotContact}
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!selected.phone || callMutation.isPending}
+                      disabled={!selected.phone || callMutation.isPending || doNotContact}
                       onClick={() => callMutation.mutate({ id: selected.id, note: callNote.trim() })}
                     >
                       <Phone className="h-4 w-4 mr-2" />
@@ -729,21 +1263,122 @@ export default function Openers() {
                     </Button>
                   </section>
 
-                  <Button
-                    type="button"
-                    data-testid="button-promote-opener"
-                    disabled={!canPromoteOpener(selected) || promoteMutation.isPending}
-                    onClick={() => promoteMutation.mutate(selected.id)}
-                  >
-                    {promoteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {promoteLabel}
-                  </Button>
+                  {selected.status === "promoted" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      data-testid="button-demote-opener"
+                      disabled={demoteMutation.isPending}
+                      onClick={() =>
+                        demoteMutation.mutate({ id: selected.id, status: "nurturing" })
+                      }
+                    >
+                      {demoteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Demote from Pipeline
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      data-testid="button-promote-opener"
+                      disabled={!canPromoteOpener(selected) || promoteMutation.isPending}
+                      onClick={() => promoteMutation.mutate(selected.id)}
+                    >
+                      {promoteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {promoteLabel}
+                    </Button>
+                  )}
                 </div>
               </ScrollArea>
             </>
           )}
         </SheetContent>
       </Sheet>
+      <Dialog open={sendPreviewOpen} onOpenChange={setSendPreviewOpen}>
+        <DialogContent
+          className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          data-testid="dialog-briefing-send-preview"
+        >
+          <DialogHeader>
+            <DialogTitle>Final draft</DialogTitle>
+            <DialogDescription>
+              This is the email and the pack. Nothing is sent until you confirm.
+            </DialogDescription>
+          </DialogHeader>
+          {sendPreviewQuery.isLoading ? (
+            <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Loading draft…
+            </div>
+          ) : sendPreviewQuery.isError ? (
+            <p className="text-sm text-destructive">
+              {sendPreviewQuery.error instanceof Error
+                ? sendPreviewQuery.error.message
+                : "Could not load this draft"}
+            </p>
+          ) : sendPreviewQuery.data ? (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Subject</p>
+                <p data-testid="preview-briefing-subject" className="text-sm font-medium">
+                  {sendPreviewQuery.data.subject}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Email</p>
+                <div
+                  data-testid="preview-briefing-cover"
+                  className="rounded-md border bg-white p-4 text-sm text-zinc-900 overflow-x-auto"
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(
+                      ensureMailLinksOpenInNewTab(sendPreviewQuery.data.html),
+                      {
+                        ADD_ATTR: ["style", "target", "rel"],
+                      }
+                    ),
+                  }}
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Pack</p>
+                <iframe
+                  data-testid="iframe-briefing-pack-preview"
+                  title="Briefing pack preview"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                  className="w-full min-h-[28rem] rounded-md border bg-white"
+                  srcDoc={sendPreviewQuery.data.packHtml}
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="btn-cancel-send-briefing"
+              onClick={() => setSendPreviewOpen(false)}
+            >
+              Back
+            </Button>
+            <Button
+              type="button"
+              data-testid="btn-confirm-send-briefing"
+              disabled={
+                sendBriefingMutation.isPending ||
+                !sendPreviewQuery.data ||
+                !selected ||
+                doNotContact ||
+                !sendableIndustry(selected)
+              }
+              onClick={() => {
+                if (selected) sendBriefingMutation.mutate(selected.id);
+              }}
+            >
+              {sendBriefingMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Send briefing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

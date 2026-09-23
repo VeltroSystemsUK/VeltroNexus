@@ -38,7 +38,7 @@ const router = Router();
         }
 
         console.log(
-          `[Enrichment] Request received for: "${companyName}", Website: "${websiteUrl}"`
+          `[Enrichment] Asking Grok for: "${companyName}", Website: "${websiteUrl}"`
         );
         const result = await enrichCompanyProfile(companyName, websiteUrl);
         res.json(result);

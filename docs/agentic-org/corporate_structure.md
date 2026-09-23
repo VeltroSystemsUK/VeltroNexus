@@ -1,12 +1,12 @@
 ---
 document: corporate_structure.md
-business: Strata Finance (operated on Nexus)
-version: 1.5
-date: 2026-09-07
+business: Veltro Ltd (Nexus OS) · contract with Sterling Commercial Finance Ltd t/a Strata Finance
+version: 1.7
+date: 2026-09-16
 owner: Shaun
 ---
 
-# Corporate Structure Directive — Strata agentic origination
+# Corporate Structure Directive — Veltro / Nexus origination
 
 All agents must read this document and [CLAUDE.md](./CLAUDE.md) before executing any task. Reporting lines: [agents.mmd](./agents.mmd). If a task is not covered here, escalate — do not proceed.
 
@@ -16,7 +16,7 @@ The honest review of what the app does today vs this directive is [launch_readin
 
 ## 1. Executive Summary
 
-Strata Finance packages UK SME distress-refinance and CDFI facilities (£25k–£250k, turnover £250k–£5m) for Sterling Capital Reserve. Shaun is the sole human director above the loop. AI agents run origination, outreach, pack collection, ingest, numbering, and compilation. The only end product that counts is a **complete Sterling file** — funding proposal plus supporting documents with nothing required still missing — ready for Shaun to send to David.
+Veltro Ltd owns Nexus and is contracted to Sterling Commercial Finance Ltd, which trades as Strata Finance. Nexus originates Stream A SME distress-refinance and Stream B introducer files (£25k–£250k, turnover £250k–£5m), collects a complete pack, and compiles a Sterling-ready file. Shaun is the sole human director above the loop. AI agents run origination, outreach, pack collection, ingest, numbering, and compilation. The only end product that counts is a **complete Sterling file** — funding proposal plus supporting documents with nothing required still missing — ready for Shaun to send to David at Sterling Commercial Finance Ltd.
 
 Agents do not replace Shaun with customers. They remove the admin so Shaun can take the calls, approve inbound drafts, approve the credit memo, and press send. SAL-1 drafts every live reply; Shaun sends.
 
@@ -33,6 +33,7 @@ Agents do not replace Shaun with customers. They remove the admin so Shaun can t
 | REF-2 | Super Refer Agent (`slf.refer.v1`, Tom Brennan) | 2 | Stream B introducer resolve + reachable flag only. Accountants / turnaround, not brokers. Never send. |
 | SAL-1 | Inbound enquiries — James Hale (`inbound-enquiries`) | 2 | Draft replies to `enquiries@`. IMAP + Drafts only. Never send. Email-first pack collection. |
 | SAL-2 | Communications — James Hale / Sophie Reed / Rowan Vale (`outreach-sales` / `slf.outreach.v1`, `fulfilment-manager`, `mailbox-clerk`) | 2 | Hunt playbooks, pack request, chase, STOP/bounce/spam, LinkedIn *drafts*, queue Shaun’s calls |
+| SAL-3 | Direct Outreach briefing — Morgan Calder (`direct-outreach`) | 2 | Generate house briefing pack; auto-send Shaun’s cover in the OS window when industry and links pass; hold on the card otherwise |
 | FIN-2 | File factory — Priya Shah (`deal-processing-underwriter`) | 2 | Ingest → SFP → credit memo recommendation → completeness → Sterling zip |
 | MKT-2 | Brand social — Isla Quinn (`marketing-manager`) | 2 | Marketing Director and ECD: Craft week (including MotionNode living plates) + email templates + Editorial from MKT-3 ammo and MKT-4 stills; never posts |
 | MKT-3 | Content Scout — Casey Wren (`content-scout`) | 2 | Strata-desk only (stacked debt, HMRC TTP, CDFI) plus relevant public news; Creative Ammo Briefs and Editorial topic-scan notes for Isla; no tangents; never writes final ad copy |
@@ -71,7 +72,10 @@ Owns: Stream A **mailbox factory**. Operator CSV + hopper rows missing a sendabl
 Owns: triage and drafted replies for every genuine inbound to `enquiries@stratafinance.co.uk`. Same James Hale persona as the cold mail. IMAP read and Drafts write only — no SMTP. Runtime pack: [strata-inbound/](./strata-inbound/). Shaun approves and sends. STOP still produces no draft.
 
 **SAL-2 Communications**  
-Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file. Rowan Vale (`mailbox-clerk`) owns STOP/unsubscribe (permanent suppression), bounces, and spam delete. A live customer reply is classified and drafted by SAL-1, not answered by Rowan and not auto-threaded by SAL-2.
+Owns: Sales OS cadences, pack portal links, missing-doc chase emails, LinkedIn copy staged for Shaun, call scripts on the file. Rowan Vale (`mailbox-clerk`) owns STOP/unsubscribe (permanent suppression), bounces, and spam delete. A live customer reply is classified and drafted by SAL-1, not answered by Rowan and not auto-threaded by SAL-2. After sme_1 and sme_2 have both been opened with no reply, James swaps onto the convert playbook (agents/SAL-2-convert.md) and cancels sme_close.
+
+**SAL-3 Direct Outreach briefing**  
+Owns: generate the house Direct Outreach pack and send Shaun’s existing director cover (`enquiries@`, `touchId: direct_outreach`) in the Sales OS window. Industry must be a real SIC trade (or Shaun’s override). Every web link must resolve. Fail closed and hold on the Direct Outreach card. Spec: `docs/agentic-org/agents/SAL-3.md`.
 
 **FIN-2 File factory**  
 Owns: document ingest to Standard Financial Profile, numbers, BBB checklist prep, credit memo *recommendation*, completeness gate, compilation of the Sterling zip.
@@ -100,6 +104,9 @@ Owns: Media Gallery index. Hunts Unsplash, Pexels, Openverse, and Firecrawl imag
 | Missing email/phone | RES-2 (Elena desk inbound/introducer; Harper desk SME harvest) | Elena: one retry next day. Harper: domain-locked SMTP harvest on every real SME file without an email, including quarantine. Skip test companies. |
 | First template email (cold or inbound ack) | SAL-2 | Auto-send if SMTP live and PECR stop line present |
 | Cadence follow-up email | SAL-2 | Auto on timer |
+| Dual-open SME convert (site enquiry) | SAL-2 James | Auto-send N1–N3; Shaun C1; Promote on enquiry |
+| Direct Outreach briefing send | SAL-3 | Auto in OS window when industry + links pass. Same Shaun cover. |
+| Direct Outreach briefing hold | SAL-3 | Needs-you on the card. Shaun types industry or Send after review. |
 | Inbound reply to enquiries@ (not STOP) | SAL-1 | Draft only. Shaun sends. Spec: `agents/SAL-1.md` |
 | STOP / unsubscribe inbound | SAL-2 Rowan | No SAL-1 draft. Suppression. Confirm to Shaun |
 | LinkedIn | SAL-2 drafts, Shaun posts | Never auto-post |

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import MobileNav from "@/components/MobileNav";
 import { lazy, Suspense } from "react";
 import { isLearnBrowserHost } from "@/lib/learnHost";
+import { isHelloBrowserHost } from "@/lib/helloHost";
 
 // Lazy load all page components for better performance
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -28,6 +29,7 @@ const Teams = lazy(() => import("@/pages/Teams"));
 const Inbox = lazy(() => import("@/pages/Inbox"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const GodModeCRM = lazy(() => import("@/pages/GodModeCRM"));
+const ChargeLetters = lazy(() => import("@/pages/ChargeLetters"));
 const BrokersCRM = lazy(() => import("@/pages/BrokersCRM"));
 const Clients = lazy(() => import("@/pages/GodModeCRM")); // Clients page
 const Brokers = lazy(() => import("@/pages/BrokersCRM")); // Brokers page
@@ -57,12 +59,14 @@ const LearnDesk = lazy(() => import("@/pages/LearnDesk"));
 const LearnApp = lazy(() => import("@/pages/learn/LearnApp"));
 const MediaGallery = lazy(() => import("@/pages/MediaGallery"));
 const Craft = lazy(() => import("@/pages/Craft"));
+const CraftBriefing = lazy(() => import("@/pages/CraftBriefing"));
 const CraftMotionLab = lazy(() => import("@/pages/CraftMotionLab"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const Unsubscribe = lazy(() => import("@/pages/Unsubscribe"));
 const BrokerPortal = lazy(() => import("@/pages/BrokerPortal"));
 const SterlingFile = lazy(() => import("@/pages/sterling/SterlingFile"));
 const SterlingSettings = lazy(() => import("@/pages/sterling/SterlingSettings"));
+const SterlingDesk = lazy(() => import("@/pages/sterling/SterlingDesk"));
 const IntroductionPortal = lazy(() => import("@/pages/IntroductionPortal"));
 const PackUpload = lazy(() => import("@/pages/PackUpload"));
 const SignEngagement = lazy(() => import("@/pages/SignEngagement"));
@@ -70,6 +74,8 @@ const ApplyOnline = lazy(() => import("@/pages/ApplyOnline"));
 const CallCentre = lazy(() => import("@/pages/CallCentre"));
 const AgentMail = lazy(() => import("@/pages/AgentMail"));
 const Openers = lazy(() => import("@/pages/Openers"));
+const Unsubscribed = lazy(() => import("@/pages/Unsubscribed"));
+const Veltro = lazy(() => import("@/pages/Veltro"));
 
 
 import { CookieConsent } from "@/components/CookieConsent";
@@ -85,6 +91,22 @@ const PageLoader = () => (
 
 
 
+function HelloApp() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
+        <Route path="/veltro" component={Veltro} />
+        <Route path="/briefing/:token">{null}</Route>
+        <Route>
+          <main data-testid="briefing-private-wall">
+            <p>This note is private.</p>
+          </main>
+        </Route>
+      </Switch>
+    </Suspense>
+  );
+}
+
 function Router() {
   if (isLearnBrowserHost()) {
     return (
@@ -92,6 +114,9 @@ function Router() {
         <LearnApp />
       </Suspense>
     );
+  }
+  if (isHelloBrowserHost()) {
+    return <HelloApp />;
   }
 
   return <NexusRouter />;
@@ -115,6 +140,15 @@ function NexusRouter() {
           <Route path="/sign/:token" component={SignEngagement} />
           <Route path="/apply/:token" component={ApplyOnline} />
           <Route path="/broker-portal/settings" component={SterlingSettings} />
+          <Route path="/broker-portal/pipeline">
+            <SterlingDesk><Pipeline /></SterlingDesk>
+          </Route>
+          <Route path="/broker-portal/agent-mail">
+            <SterlingDesk><AgentMail /></SterlingDesk>
+          </Route>
+          <Route path="/broker-portal/openers">
+            <SterlingDesk><Openers /></SterlingDesk>
+          </Route>
           <Route path="/broker-portal/:id" component={SterlingFile} />
           <Route path="/broker-portal" component={BrokerPortal} />
           <Route path="/auth" component={AuthPage} />
@@ -139,6 +173,8 @@ function NexusRouter() {
         <Route path="/privacy" component={PrivacyPolicy} />
         <Route path="/terms" component={Terms} />
         <Route path="/unsubscribe" component={Unsubscribe} />
+        <Route path="/veltro" component={Veltro} />
+        <Route path="/briefing/:token">{null}</Route>
         <Route path="/introduction-portal" component={IntroductionPortal} />
         <Route path="/pack/:token" component={PackUpload} />
         <Route path="/sign/:token" component={SignEngagement} />
@@ -146,6 +182,15 @@ function NexusRouter() {
 
         <Route path="/broker-portal/settings">
           {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingSettings />}
+        </Route>
+        <Route path="/broker-portal/pipeline">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingDesk><Pipeline /></SterlingDesk>}
+        </Route>
+        <Route path="/broker-portal/agent-mail">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingDesk><AgentMail /></SterlingDesk>}
+        </Route>
+        <Route path="/broker-portal/openers">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingDesk><Openers /></SterlingDesk>}
         </Route>
         <Route path="/broker-portal/:id">
           {!isAuthenticated ? <Redirect to="/auth" /> : <SterlingFile />}
@@ -193,6 +238,9 @@ function NexusRouter() {
         <Route path="/leads">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Leads />}
         </Route>
+        <Route path="/clients/letters">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <ChargeLetters />}
+        </Route>
         <Route path="/clients">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Clients />}
         </Route>
@@ -232,6 +280,12 @@ function NexusRouter() {
         <Route path="/openers">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Openers />}
         </Route>
+        <Route path="/unsubscribed">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Unsubscribed />}
+        </Route>
+        <Route path="/non-responsive">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <Openers desk="non_responsive" />}
+        </Route>
         <Route path="/outreach">
           {!isAuthenticated ? <Redirect to="/auth" /> : <CallCentre mode="outreach" />}
         </Route>
@@ -254,8 +308,14 @@ function NexusRouter() {
         <Route path="/media">
           {!isAuthenticated ? <Redirect to="/auth" /> : <MediaGallery />}
         </Route>
+        <Route path="/craft/briefing/:openerId">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <CraftBriefing />}
+        </Route>
         <Route path="/craft">
           {!isAuthenticated ? <Redirect to="/auth" /> : <Craft />}
+        </Route>
+        <Route path="/crm/letters">
+          {!isAuthenticated ? <Redirect to="/auth" /> : <ChargeLetters />}
         </Route>
         <Route path="/crm">
           {!isAuthenticated ? <Redirect to="/auth" /> : <GodModeCRM />}
@@ -314,6 +374,9 @@ function AppContent() {
       </Suspense>
     );
   }
+  if (isHelloBrowserHost()) {
+    return <HelloApp />;
+  }
 
   return <NexusAppContent />;
 }
@@ -322,7 +385,11 @@ function NexusAppContent() {
   const [location] = useLocation();
   const { isAuthenticated, isLoading, user, role } = useAuth();
   const isCustomerPack =
-    location.startsWith("/pack/") || location.startsWith("/sign/") || location.startsWith("/apply/");
+    location.startsWith("/pack/") ||
+    location.startsWith("/sign/") ||
+    location.startsWith("/apply/") ||
+    location.startsWith("/briefing/") ||
+    location === "/veltro";
   const isSterlingPortal =
     role === "external_broker" || location.startsWith("/broker-portal");
 
@@ -330,7 +397,9 @@ function NexusAppContent() {
   if (isCustomerPack || (isAuthenticated && !isLoading && isSterlingPortal)) {
     return (
       <Suspense fallback={<PageLoader />}>
-        <Router />
+        <OnboardingProvider userName={user?.firstName || "there"}>
+          <Router />
+        </OnboardingProvider>
       </Suspense>
     );
   }
@@ -379,6 +448,8 @@ function App() {
               <Suspense fallback={<PageLoader />}>
                 <LearnApp />
               </Suspense>
+            ) : isHelloBrowserHost() ? (
+              <HelloApp />
             ) : (
               <>
                 <AppContent />

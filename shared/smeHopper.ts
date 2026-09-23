@@ -6,8 +6,8 @@ import {
   isBlockedOutreachMailbox,
 } from "./pecrSend";
 
-export const SME_HOPPER_TARGET = 100;
-export const SME_ATTACH_ATTEMPT_CAP = 5;
+export const SME_HOPPER_TARGET = 240;
+export const SME_ATTACH_ATTEMPT_CAP = 6;
 
 export const ROLE_LOCALS = new Set([
   "info",

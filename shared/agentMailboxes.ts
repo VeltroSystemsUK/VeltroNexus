@@ -27,7 +27,9 @@ export const AGENT_DIRECTORY: Array<{
   displayName: string;
   role: string;
   local: string;
+  mailOnly?: boolean;
 }> = [
+  { agentId: "director", displayName: "Shaun Tuhey", role: "Director", local: "shaun.tuhey", mailOnly: true },
   { agentId: "inbound-intake", displayName: "Maya Hart", role: "New Business Administrator", local: "maya.hart" },
   { agentId: "contact-finder", displayName: "Elena Ward", role: "Contact Finder", local: "elena.ward" },
   { agentId: "harvest", displayName: "Harper Cole", role: "Harvest Agent", local: "harper.cole" },
@@ -78,6 +80,29 @@ export function mailboxByAddress(email?: string): AgentMailbox | undefined {
   const local = target.split("@")[0];
   const row = AGENT_DIRECTORY.find((item) => item.local === local || addr(item.local).toLowerCase() === target);
   return row ? mailboxForAgent(row.agentId) : undefined;
+}
+
+export function knownMailbox(agentId?: string): AgentMailbox | undefined {
+  const id = String(agentId || "").trim();
+  if (!id) return undefined;
+  return AGENT_DIRECTORY.some((item) => item.agentId === id) ? mailboxForAgent(id) : undefined;
+}
+
+export function resolveSendAsMailbox(agentId: string | undefined, fallbackAgentId: string): AgentMailbox {
+  const requested = String(agentId || "").trim();
+  if (requested) {
+    const box = knownMailbox(requested);
+    if (!box) {
+      throw Object.assign(new Error("Unknown send-as agent"), { status: 400 });
+    }
+    return box;
+  }
+  return mailboxForAgent(fallbackAgentId);
+}
+
+export function deskAgentForOutreach(opts: { inbound: boolean; touchId?: string }): string {
+  if (!opts.inbound) return "outreach-sales";
+  return opts.touchId === "inbound_ack" ? "inbound-intake" : "fulfilment-manager";
 }
 
 export function mailboxList() {

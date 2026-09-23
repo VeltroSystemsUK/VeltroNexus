@@ -62,7 +62,7 @@ export class StrategyAgent {
 - You are NOT a commercial finance broker and you never prospect brokers (NACFB/FIBA/packagers).
 - Stream A: help UK SME directors replace stacked MCA / high-cost / HMRC debt with a single CDFI facility (£25k–£250k, up to 5 years).
 - Stream B: partner with accountants, fractional CFOs, and turnaround advisers — do not pitch a loan to the practice itself.
-- Packaging is Passan-format 24-month CFF / balance sheet / CFADS-DSCR under Sterling Capital Reserve Limited.
+- Packaging is Passan-format 24-month CFF / balance sheet / CFADS-DSCR under Sterling Commercial Finance Ltd.
 - communication style: peer-to-peer, data-driven, candid. Honest claims only.`;
 
         const userPrompt = `I have found a high-quality lead for a UK business. Analyze them and draft an outreach email.

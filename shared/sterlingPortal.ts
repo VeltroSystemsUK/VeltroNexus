@@ -33,6 +33,32 @@ export function isSterlingOversightRole(role?: string | null): boolean {
   return !!role && (STERLING_OVERSIGHT_ROLES as readonly string[]).includes(role);
 }
 
+/** David watches the live org pipeline; Nexus users still see their own list. */
+export function seesAllProspects(role?: string | null): boolean {
+  return role === "external_broker";
+}
+
+export const STERLING_DAILY_NAV = [
+  { path: "/broker-portal", label: "Cases", testId: "link-sterling-cases" },
+  { path: "/broker-portal/pipeline", label: "Pipeline", testId: "link-sterling-pipeline" },
+  { path: "/broker-portal/agent-mail", label: "Agent Mail", testId: "link-sterling-agent-mail" },
+  { path: "/broker-portal/openers", label: "Openers", testId: "link-sterling-openers" },
+] as const;
+
+export function sterlingNavActive(current: string, href: string): boolean {
+  if (href === "/broker-portal") {
+    return current === "/broker-portal" || /^\/broker-portal\/\d+(\/|$)/.test(current);
+  }
+  return current === href || current.startsWith(`${href}/`);
+}
+
+/** Where sign-in should land. David and the touring partner start on Cases, not Pipeline. */
+export function postLoginPath(role?: string | null): string {
+  if (role === "external_broker" || role === "sales_admin") return "/broker-portal";
+  if (role === "underwriter") return "/underwriting";
+  return "/pipeline";
+}
+
 export function emptyDestination(): SterlingLenderDestination {
   return { email: "", apiUrl: "", apiKey: "" };
 }

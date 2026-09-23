@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { SiteTrafficChart } from "@/components/openers/SiteTrafficChart";
 import { SterlingShell } from "@/pages/sterling/SterlingShell";
 
 type HandoffRow = {
@@ -33,6 +34,7 @@ export default function BrokerPortal() {
 
   return (
     <SterlingShell>
+      <SiteTrafficChart className="mb-6" />
       <div className="eyebrow" style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1b5f9e", fontWeight: 600 }}>
         Open files
       </div>

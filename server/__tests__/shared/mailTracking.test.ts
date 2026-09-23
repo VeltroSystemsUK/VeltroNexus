@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { injectMailTracking } from "../../services/agentMailLog";
-import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, shouldRecordMailTracking, stripMailTracking } from "@shared/mailTracking";
+import { injectMailTracking, trackingBaseUrl } from "../../services/agentMailLog";
+import { ensureMailLinksOpenInNewTab, isOpenedOutboundMail, lastMailOpenAt, mailDwellScript, outboundTrackingState, shouldRecordMailTracking, shouldTrackMailHref, stripMailTracking, withMailDwellToken } from "@shared/mailTracking";
+
+describe("trackingBaseUrl", () => {
+  const prev = {
+    PUBLIC_APP_URL: process.env.PUBLIC_APP_URL,
+    APP_URL: process.env.APP_URL,
+    HELLO_PUBLIC_URL: process.env.HELLO_PUBLIC_URL,
+  };
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(prev)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it("uses HELLO_PUBLIC_URL when PUBLIC_APP_URL is missing, never localhost", () => {
+    delete process.env.PUBLIC_APP_URL;
+    delete process.env.APP_URL;
+    process.env.HELLO_PUBLIC_URL = "https://leads.stratanexus.co.uk";
+    expect(trackingBaseUrl()).toBe("https://leads.stratanexus.co.uk");
+    const html = injectMailTracking(`<p><a href="https://leads.stratanexus.co.uk/briefing/tok">Open</a></p>`, "MAIL-1");
+    expect(html).toContain("https://leads.stratanexus.co.uk/api/agent-mail/track/MAIL-1.gif");
+    expect(html).toContain("https://leads.stratanexus.co.uk/api/agent-mail/click/MAIL-1");
+    expect(html).not.toMatch(/127\.0\.0\.1/);
+  });
+});
 
 describe("stripMailTracking", () => {
   it("removes the open pixel and restores original links", () => {
@@ -25,6 +51,45 @@ describe("stripMailTracking", () => {
     );
     expect(html).toContain('href="https://explore.stratanexus.co.uk"');
     expect(html).not.toMatch(/\/api\/agent-mail\/click\/TEST-ID-123\?url=.*explore/);
+  });
+
+  it("leaves the signature homepage as a direct href and still wraps product CTAs", () => {
+    const html = injectMailTracking(
+      `<a href="https://stratafinance.co.uk"><img alt="logo"></a><a href="https://stratafinance.co.uk">stratafinance.co.uk</a><a href="https://stratafinance.co.uk/strata-solution.html">structure</a><a href="https://www.stratafinance.co.uk/?sf=n1#tools">tools</a>`,
+      "MAIL-9",
+    );
+    expect(html).toContain('href="https://stratafinance.co.uk"><img');
+    expect(html).toContain('href="https://stratafinance.co.uk">stratafinance.co.uk');
+    expect(html).not.toMatch(/click\/MAIL-9\?url=https%3A%2F%2Fstratafinance\.co\.uk"/);
+    expect(html).toMatch(/\/api\/agent-mail\/click\/MAIL-9\?url=.*strata-solution\.html/);
+    expect(html).toMatch(/\/api\/agent-mail\/click\/MAIL-9\?url=.*sf%3Dn1/);
+  });
+});
+
+describe("shouldTrackMailHref", () => {
+  it("does not track the bare Strata homepage used in the signature", () => {
+    expect(shouldTrackMailHref("https://stratafinance.co.uk")).toBe(false);
+    expect(shouldTrackMailHref("https://www.stratafinance.co.uk/")).toBe(false);
+    expect(shouldTrackMailHref("https://stratafinance.co.uk/strata-solution.html")).toBe(true);
+    expect(shouldTrackMailHref("https://www.stratafinance.co.uk/?sf=n1#tools")).toBe(true);
+  });
+});
+
+describe("withMailDwellToken", () => {
+  it("stamps a dwell token onto Strata URLs and leaves others alone", () => {
+    expect(withMailDwellToken("https://www.stratafinance.co.uk/?sf=n1#tools", "abc-1")).toBe(
+      "https://www.stratafinance.co.uk/?sf=n1&d=abc-1#tools"
+    );
+    expect(withMailDwellToken("https://example.com/pack", "abc-1")).toBe("https://example.com/pack");
+  });
+});
+
+describe("mailDwellScript", () => {
+  it("waits 10s then hits the Nexus dwell pixel with sf and path", () => {
+    const script = mailDwellScript("https://leads.stratanexus.co.uk");
+    expect(script).toContain("10000");
+    expect(script).toContain("https://leads.stratanexus.co.uk/api/agent-mail/dwell/");
+    expect(script).toContain("q.get(\"sf\")");
   });
 });
 
@@ -68,5 +133,24 @@ describe("opened outbound mail", () => {
     expect(
       lastMailOpenAt(["2026-09-01T10:00:00.000Z", "2026-09-01T15:34:44.501Z"]),
     ).toBe("2026-09-01T15:34:44.501Z");
+  });
+});
+
+describe("outbound tracking state", () => {
+  it("does not call a failed or mock log line sent", () => {
+    expect(
+      outboundTrackingState({
+        direction: "outbound",
+        status: "failed",
+        html: "<p>Hi</p>",
+      })?.label
+    ).toBe("Not sent");
+    expect(
+      outboundTrackingState({
+        direction: "outbound",
+        status: "mock",
+        html: "<p>Hi</p>",
+      })?.detail
+    ).not.toMatch(/Sent before/);
   });
 });

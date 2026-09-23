@@ -2,8 +2,9 @@ import { parseCSVLine } from "../utils/routerHelpers";
 import { storage } from "../storage";
 import { HARVEST_AGENT_ID } from "./smeLeadHopper";
 import type { AgenticDealFile } from "@shared/agenticWorkflow";
+import { suppressionSets } from "./mailSuppression";
 
-export const HARVEST_CSV_MAX_ROWS = 500;
+export const HARVEST_CSV_MAX_ROWS = 100;
 
 export type HarvestCsvRow = {
   companyName: string;
@@ -116,15 +117,27 @@ export function parseHarvestCsv(csvData: string): {
 
 export function planHarvestCsvIngest(
   rows: HarvestCsvRow[],
-  existing: Array<{ companyNumber?: string | null; companyName?: string | null }>
+  existing: Array<{ companyNumber?: string | null; companyName?: string | null }>,
+  suppressed: { emails?: Iterable<string>; numbers?: Iterable<string> } = {}
 ): { create: HarvestCsvRow[]; skipped: Array<{ row: HarvestCsvRow; reason: string }> } {
   const numbers = new Set(existing.map((deal) => normCompanyNumber(deal.companyNumber)).filter(Boolean));
   const names = new Set(existing.map((deal) => normName(deal.companyName)).filter(Boolean));
+  const blockedEmails = new Set(
+    [...(suppressed.emails || [])].map((email) => String(email || "").trim().toLowerCase()).filter(Boolean)
+  );
+  const blockedNumbers = new Set(
+    [...(suppressed.numbers || [])].map((value) => normCompanyNumber(value)).filter(Boolean)
+  );
   const create: HarvestCsvRow[] = [];
   const skipped: Array<{ row: HarvestCsvRow; reason: string }> = [];
 
   for (const row of rows) {
     const number = normCompanyNumber(row.companyNumber);
+    const email = String(row.email || "").trim().toLowerCase();
+    if ((email && blockedEmails.has(email)) || (number && blockedNumbers.has(number))) {
+      skipped.push({ row, reason: "do not contact" });
+      continue;
+    }
     if (number && numbers.has(number)) {
       skipped.push({ row, reason: "already on book" });
       continue;
@@ -188,9 +201,12 @@ export async function ingestHarvestCsv(opts: {
     return { created: 0, skipped: 0, errors: parsed.errors, fileName };
   }
   const existing = await storage.listAgenticDeals();
-  const plan = planHarvestCsvIngest(parsed.rows, existing);
-  for (const row of plan.create) {
-    await storage.createAgenticDeal(harvestCsvDealDraft(row, fileName, opts.ownerUserId));
+  const blocked = suppressionSets();
+  const plan = planHarvestCsvIngest(parsed.rows, existing, blocked);
+  if (plan.create.length) {
+    await storage.createAgenticDealsBulk(
+      plan.create.map((row) => harvestCsvDealDraft(row, fileName, opts.ownerUserId))
+    );
   }
   return {
     created: plan.create.length,

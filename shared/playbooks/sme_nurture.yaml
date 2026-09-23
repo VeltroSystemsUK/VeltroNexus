@@ -1,0 +1,33 @@
+playbook_id: sme_nurture
+version: 1
+pipeline: sme
+timezone: Europe/London
+send_window: { days: [mon, tue, wed, thu, fri], start: "08:30", end: "16:30" }
+stop_line: "If this isn't useful, reply stop and we won't email again."
+steps:
+  - id: sme_n1
+    day: 0
+    channel: email
+    os_touch: sme_n1
+    auto_send: true
+    requires_merge: [contactName, companyName]
+  - id: sme_n2
+    day: 4
+    delay_days_from_previous: 4
+    channel: email
+    os_touch: sme_n2
+    auto_send: true
+  - id: sme_n3
+    day: 9
+    delay_days_from_previous: 5
+    channel: email
+    os_touch: sme_n3
+    auto_send: true
+  - id: sme_c1
+    day: 12
+    delay_days_from_previous: 3
+    channel: closer
+    os_touch: sme_c1
+    auto_send: false
+    queue_opener_closer: true
+    final: true

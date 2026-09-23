@@ -51,6 +51,24 @@ describe("outreachEligibility", () => {
     ).toBe("book_status_blocks");
   });
 
+  it("lets the cadence wait in fulfilment continue LinkedIn and Day 8 email", () => {
+    expect(
+      outreachEligibility({
+        deal: { ...smeDeal, stage: "fulfilment" },
+        touchId: "sme_linkedin",
+        compiledText: "Thought it made sense to connect.",
+        channel: "linkedin",
+      }).ok
+    ).toBe(true);
+    expect(
+      outreachEligibility({
+        deal: { ...smeDeal, stage: "fulfilment", outreachTouch: 2 },
+        touchId: "sme_2",
+        compiledText: "Hi Jane.\nIf this isn't useful, reply stop and we won't email again.",
+      }).ok
+    ).toBe(true);
+  });
+
   it("holds personal gmail", () => {
     expect(
       outreachEligibility({

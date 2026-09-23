@@ -2,7 +2,7 @@ import { SME_HOPPER_TARGET, type HopperDeal } from "./smeHopper";
 
 export type AttachBudget = { ch: number; places: number; firecrawl: number; smtp: number };
 
-export type QualityAlert = { tone: "amber" | "red"; message: string };
+export type QualityAlert = { id?: string; tone: "amber" | "red"; message: string };
 
 export type HuntQuality = {
   scanned: number;
@@ -34,8 +34,16 @@ export function qualityAlerts(input: {
   budget: { total: AttachBudget; remaining: AttachBudget };
   chCooldown?: boolean;
   smtpFailed?: number;
+  guessPaused?: boolean;
 }): QualityAlert[] {
   const alerts: QualityAlert[] = [];
+  if (input.guessPaused) {
+    alerts.push({
+      id: "guess_paused",
+      tone: "amber",
+      message: "Guessing paused — bounce rate on constructed mailboxes. Published harvest continues.",
+    });
+  }
   const yieldPct = input.scanned > 0 ? (input.deliverable / input.scanned) * 100 : 0;
   if (input.scanned >= 20 && yieldPct < 15) {
     alerts.push({
@@ -46,7 +54,7 @@ export function qualityAlerts(input: {
   if (usedPct(input.budget.remaining.places, input.budget.total.places) >= 0.8) {
     alerts.push({
       tone: "amber",
-      message: `Places API ${Math.round(usedPct(input.budget.remaining.places, input.budget.total.places) * 100)}% used. Risk of stalling before 100 deliverables.`,
+      message: `Places API ${Math.round(usedPct(input.budget.remaining.places, input.budget.total.places) * 100)}% used. Risk of stalling before ${SME_HOPPER_TARGET} deliverables.`,
     });
   }
   if (usedPct(input.budget.remaining.firecrawl, input.budget.total.firecrawl) >= 0.8) {
@@ -67,7 +75,7 @@ export function qualityAlerts(input: {
   if (input.deliverable < SME_HOPPER_TARGET && input.remainingSlots > 0 && input.budget.remaining.places <= 0 && input.budget.remaining.firecrawl <= 0) {
     alerts.push({
       tone: "red",
-      message: `Only ${input.deliverable}/${SME_HOPPER_TARGET} deliverables and attach budget is spent. Will not hit 100 today unless more budget is available.`,
+      message: `Only ${input.deliverable}/${SME_HOPPER_TARGET} deliverables and attach budget is spent. Will not hit ${SME_HOPPER_TARGET} today unless more budget is available.`,
     });
   }
   if (input.sent >= 20 && input.replied / input.sent < 0.05) {
@@ -92,6 +100,7 @@ export function buildHuntQuality(input: {
   budget: { total: AttachBudget; remaining: AttachBudget };
   chCooldown?: boolean;
   smtpFailed?: number;
+  guessPaused?: boolean;
 }): HuntQuality {
   const scanned = input.scanned;
   const yieldPct = scanned > 0 ? Math.round((input.deliverable / scanned) * 100) : 0;

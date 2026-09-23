@@ -3,7 +3,10 @@ import {
   FACTORY_JOB_USER,
   applyJobStop,
   applyStoppedJobResults,
+  capJobLogs,
+  harvestHourBlocked,
   harvestPassBlocked,
+  harvestPassDecision,
   jobVisibleToUser,
   type AgentJob,
 } from "../../services/agentJobTracker";
@@ -114,12 +117,97 @@ describe("applyStoppedJobResults", () => {
   });
 });
 
+describe("capJobLogs", () => {
+  it("keeps only the newest 40 lines so a 3000-file harvest cannot rewrite a multi-megabyte jobs file", () => {
+    const logs = Array.from({ length: 80 }, (_, i) => ({
+      timestamp: new Date(i),
+      message: `Checking Co ${i}`,
+      type: "info" as const,
+    }));
+    const next = capJobLogs(logs);
+    expect(next).toHaveLength(40);
+    expect(next[0].message).toBe("Checking Co 40");
+    expect(next.at(-1)?.message).toBe("Checking Co 79");
+  });
+});
+
+describe("harvestPassDecision", () => {
+  const now = Date.parse("2026-09-10T08:06:19.841Z");
+  const log = (iso: string) => [{ timestamp: iso, message: "Checking Co", type: "info" as const }];
+
+  it("starts when nothing is running", () => {
+    expect(harvestPassDecision([], 100, now)).toBe("start");
+  });
+
+  it("does not replace this process's harvest because one company took longer than 3 minutes", () => {
+    expect(
+      harvestPassDecision(
+        [{ results: { workerPid: 100 }, logs: log("2026-09-10T08:02:58.269Z") }],
+        100,
+        now
+      )
+    ).toBe("skip");
+  });
+
+  it("leaves a harvest alone for a minute after a restart while logs are still fresh", () => {
+    expect(
+      harvestPassDecision(
+        [{ results: { workerPid: 99 }, logs: log("2026-09-10T08:06:10.000Z") }],
+        100,
+        now
+      )
+    ).toBe("skip");
+  });
+
+  it("takes over an orphan harvest left running by a dead process", () => {
+    expect(
+      harvestPassDecision(
+        [{ results: { workerPid: 99 }, logs: log("2026-09-10T08:02:58.269Z") }],
+        100,
+        now
+      )
+    ).toBe("replace-orphan");
+  });
+});
+
+describe("harvestHourBlocked", () => {
+  const now = Date.parse("2026-09-10T10:00:00.000Z");
+
+  it("does not idle after a successful slice — only a live run blocks the next", () => {
+    expect(
+      harvestHourBlocked(
+        [{ agentId: "harvest", status: "completed", startedAt: "2026-09-10T09:10:00.000Z" }],
+        now
+      )
+    ).toBe(false);
+    expect(
+      harvestHourBlocked(
+        [{ agentId: "harvest", status: "running", startedAt: "2026-09-10T09:50:00.000Z" }],
+        now
+      )
+    ).toBe(true);
+  });
+
+  it("does not let a cancelled harvest burn the hour", () => {
+    expect(
+      harvestHourBlocked(
+        [{ agentId: "harvest", status: "failed", startedAt: "2026-09-10T09:10:00.000Z" }],
+        now
+      )
+    ).toBe(false);
+  });
+});
+
 describe("harvestPassBlocked", () => {
   it("blocks a new harvest pass while one is paused", () => {
-    expect(harvestPassBlocked([{ agentId: "harvest", status: "paused" }])).toBe(true);
+    expect(harvestPassBlocked([{ agentId: "harvest", status: "paused", totalSteps: 100 }])).toBe(true);
     expect(harvestPassBlocked([{ agentId: "harvest", status: "completed" }])).toBe(false);
     expect(harvestPassBlocked([{ agentId: "enrichment-agent", status: "paused" }])).toBe(false);
     expect(harvestPassBlocked([])).toBe(false);
+  });
+
+  it("does not let a cancelled 3000-file harvest pause block the 100-per-hour regimen", () => {
+    expect(harvestPassBlocked([{ agentId: "harvest", status: "paused", totalSteps: 3438 }])).toBe(false);
   });
 });
 

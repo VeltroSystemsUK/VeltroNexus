@@ -10,8 +10,18 @@ import {
   type SalesStream,
 } from "./salesOs";
 import { compileIntroducerStep, INTRODUCER_PANEL_ONE_LINER } from "./introducerPlaybook";
+import { CONVERT_SITE_ORIGIN, convertCopyOk, convertGreetingName } from "./smeConvert";
 
-export type OutreachTouchId = CadenceTouchId | "cold_1" | "cold_2" | "cold_3" | "sme_open" | "sme_followup";
+export type OutreachTouchId =
+  | CadenceTouchId
+  | "cold_1"
+  | "cold_2"
+  | "cold_3"
+  | "sme_open"
+  | "sme_followup"
+  | "sme_n2_hmrc"
+  | "sme_n2_clicked"
+  | "sme_n3_form";
 
 export interface RenderedEmail {
   touchId: OutreachTouchId;
@@ -153,7 +163,29 @@ function colorDividerHtml(): string {
   ).join("");
   return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;line-height:0;font-size:0;"><tr>${cells}</tr></table>`;
 }
-const PHONE = process.env.STRATA_PHONE || process.env.STRATA_CALLBACK_NUMBER || "0115 984 9800";
+const FORBIDDEN_OFFICE_DIGITS = new Set(["01159849800", "441159849800"]);
+const SHAUN_MOBILE = "07898 789 313";
+
+function phoneDigits(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function allowedPhone(value?: string | null): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (FORBIDDEN_OFFICE_DIGITS.has(phoneDigits(raw))) return "";
+  return raw;
+}
+
+export function strataCallbackNumber(): string {
+  return allowedPhone(process.env.STRATA_PHONE || process.env.STRATA_CALLBACK_NUMBER);
+}
+
+function signaturePhone(mailbox: AgentMailbox): string {
+  if (mailbox.agentId === "director") return SHAUN_MOBILE;
+  return strataCallbackNumber();
+}
+
 const ADDRESS =
   process.env.STRATA_ADDRESS ||
   "Sterling House, Unit 5 Wheatcroft Business Park, Landmere Lane, Edwalton, Nottingham NG12 4DG";
@@ -166,7 +198,7 @@ export function signatureText(mailbox: AgentMailbox): string {
     mailbox.role,
     "Strata Finance",
     mailbox.address,
-    PHONE,
+    signaturePhone(mailbox) || undefined,
     ADDRESS,
     `https://${SITE}`,
     "",
@@ -176,7 +208,29 @@ export function signatureText(mailbox: AgentMailbox): string {
     .join("\n");
 }
 
+export function composeAgentMailHtml(bodyText: string, mailbox: AgentMailbox): string {
+  const bodyLines = bodyText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  return `${htmlEmail(bodyLines)}\n${signatureHtml(mailbox)}`.trim();
+}
+
+export function composeAgentReplyHtml(
+  bodyText: string,
+  mailbox: AgentMailbox,
+  original: { from: string; text: string; createdAt: string }
+): string {
+  const quoteLines = (original.text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const quoteDate = new Date(original.createdAt).toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
+  const quoteHtml = quoteLines.length
+    ? `<p style="margin:24px 0 8px 0;font-size:13px;color:#6B7280;font-family:Arial,Helvetica,sans-serif;">On ${quoteDate}, ${escapeHtml(original.from)} wrote:</p>
+<blockquote style="margin:0;padding:2px 0 2px 14px;border-left:3px solid #D1D5DB;color:#4B5563;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;">
+${htmlEmail(quoteLines)}
+</blockquote>`
+    : "";
+  return `${composeAgentMailHtml(bodyText, mailbox)}\n${quoteHtml}`.trim();
+}
+
 export function signatureHtml(mailbox: AgentMailbox): string {
+  const phone = signaturePhone(mailbox);
   return `
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:24px;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;">
   <tr>
@@ -191,7 +245,7 @@ export function signatureHtml(mailbox: AgentMailbox): string {
             <p style="margin:0 0 2px 0;font-size:15px;font-weight:700;color:#111827;">${escapeHtml(mailbox.displayName)}</p>
             <p style="margin:0 0 8px 0;color:#2E5096;">${escapeHtml(mailbox.role)} · Strata Finance</p>
             <p style="margin:0;"><a href="mailto:${escapeHtml(mailbox.address)}" style="color:#2E5096;text-decoration:none;">${escapeHtml(mailbox.address)}</a></p>
-            ${PHONE ? `<p style="margin:0;color:#374151;">${escapeHtml(PHONE)}</p>` : ""}
+            ${phone ? `<p style="margin:0;color:#374151;">${escapeHtml(phone)}</p>` : ""}
             ${ADDRESS ? `<p style="margin:0;color:#374151;">${escapeHtml(ADDRESS)}</p>` : ""}
             <p style="margin:4px 0 0 0;"><a href="https://${SITE}" style="color:#2E5096;text-decoration:none;">${SITE}</a></p>
           </td>
@@ -220,7 +274,9 @@ function withSignature(
   };
 }
 
-function canonicalTouchId(touchId: OutreachTouchId): CadenceTouchId | "sme_open" | "sme_followup" {
+function canonicalTouchId(
+  touchId: OutreachTouchId
+): CadenceTouchId | "sme_open" | "sme_followup" | "sme_n2_hmrc" | "sme_n2_clicked" | "sme_n3_form" {
   if (touchId === "cold_1") return "sme_1";
   if (touchId === "cold_2") return "sme_2";
   if (touchId === "cold_3") return "sme_close";
@@ -476,6 +532,91 @@ export function renderOutreachEmail(
     };
   }
 
+  if (id === "sme_n1" || id === "sme_n2" || id === "sme_n2_hmrc" || id === "sme_n2_clicked" || id === "sme_n3" || id === "sme_n3_form") {
+    const convertName = convertGreetingName(deal.contactName);
+    const greeting = convertName ? `Hi ${convertName},` : `Hi,`;
+    let subject = company;
+    let lines: string[] = [];
+    let purpose = "";
+
+    if (id === "sme_n1") {
+      subject = "30 seconds on eligibility";
+      lines = [
+        greeting,
+        `You opened both notes I sent about ${company}'s debt commitments.`,
+        `If it is useful, there is a 30-second eligibility check on our site. No credit search, and no conversation.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n1#tools`,
+        `Strata packages the file. We do not lend.`,
+      ];
+      purpose = "Convert N1 — dual-open diagnostic. Point at #tools.";
+    } else if (id === "sme_n2") {
+      subject = "What the monthly stack becomes";
+      lines = [
+        greeting,
+        `If ${company} is servicing more than one short-term facility, the refinance calculator on our site shows what that stack looks like as a single structure.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n2#tools`,
+        `Apply from the result if it is useful. We do not lend.`,
+      ];
+      purpose = "Convert N2 — refinance calculator.";
+    } else if (id === "sme_n2_hmrc") {
+      subject = "HMRC Time to Pay first number";
+      lines = [
+        greeting,
+        `For ${company}, the first figure most lenders will want is a Time to Pay shape on the HMRC balance. The calculator on our site is an indicative guide, not a lending decision.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n2#tools`,
+        `Apply from the result if it is useful. We do not lend.`,
+      ];
+      purpose = "Convert N2 HMRC — Time to Pay calculator.";
+    } else if (id === "sme_n2_clicked") {
+      subject = "Same page, next check";
+      lines = [
+        greeting,
+        `You looked at the eligibility check for ${company}. The refinance calculator is on the same page if you want a picture of the monthly stack as one structure.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n2#tools`,
+        `Apply from the result if it is useful. We do not lend.`,
+      ];
+      purpose = "Convert N2 after N1 click — refinance calculator.";
+    } else if (id === "sme_n3") {
+      subject = "Last note from me";
+      lines = [
+        greeting,
+        `I will not keep emailing about ${company}.`,
+        `If you want a view on the file, the enquiry form is on our site. No credit search. We reply within one working day.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n3#contact`,
+        `We do not lend. We package.`,
+      ];
+      purpose = "Convert N3 — enquiry form. Last email.";
+    } else {
+      subject = "The form is on that page";
+      lines = [
+        greeting,
+        `You opened the enquiry page for ${company} and did not send it. The form is still on that page if you want it looked at.`,
+        `${CONVERT_SITE_ORIGIN}/?sf=n3#contact`,
+        `We do not lend.`,
+      ];
+      purpose = "Convert N3 form reminder — enquiry still open.";
+    }
+
+    const signed = withSignature(lines, mailbox, [STOP_LINE]);
+    const check = convertCopyOk({ subject, html: signed.html, text: signed.text });
+    if (!check.ok) {
+      return {
+        touchId: id,
+        subject: company,
+        html: "",
+        text: "",
+        purpose: "playbook_gap:convert_copy",
+      };
+    }
+    return {
+      touchId: id,
+      subject,
+      html: signed.html,
+      text: signed.text,
+      purpose,
+    };
+  }
+
   return {
     touchId: id,
     subject: company,
@@ -589,7 +730,7 @@ export function renderSmeCall(
   callbackNumber?: string
 ): CallPlaybook {
   const name = firstName(deal.contactName);
-  const callback = callbackNumber || PHONE;
+  const callback = allowedPhone(callbackNumber) || strataCallbackNumber();
 
   return {
     title: "Direct SME call — high borrowing / charge register",
@@ -631,7 +772,9 @@ export function renderSmeCall(
         say: "Understood. I won't call again. If monthly servicing gets heavier, we are at stratafinance.co.uk.",
       },
     ],
-    voicemail: `${agentName} from Strata Finance, calling about restructuring high-cost borrowing for ${deal.companyName}. I'll try you again, or call me on ${callback}.`,
+    voicemail: callback
+      ? `${agentName} from Strata Finance, calling about restructuring high-cost borrowing for ${deal.companyName}. I'll try you again, or call me on ${callback}.`
+      : `${agentName} from Strata Finance, calling about restructuring high-cost borrowing for ${deal.companyName}. I'll try you again.`,
     close: "If they agree: capture email, send the onboarding checklist, open the pack file. If they refuse twice: stop.",
   };
 }
@@ -642,7 +785,7 @@ export function renderIntroducerCall(
   callbackNumber?: string
 ): CallPlaybook {
   const name = firstName(deal.contactName);
-  const callback = callbackNumber || PHONE;
+  const callback = allowedPhone(callbackNumber) || strataCallbackNumber();
 
   return {
     title: "Introducer call — practice partner / fractional CFO",
@@ -680,7 +823,9 @@ export function renderIntroducerCall(
         say: "Understood. I won't call again. The site is stratafinance.co.uk if a client file comes up later.",
       },
     ],
-    voicemail: `${agentName} from Strata Finance, calling ${deal.companyName} about a CDFI restructuring partnership for corporate clients. Call me on ${callback}.`,
+    voicemail: callback
+      ? `${agentName} from Strata Finance, calling ${deal.companyName} about a CDFI restructuring partnership for corporate clients. Call me on ${callback}.`
+      : `${agentName} from Strata Finance, calling ${deal.companyName} about a CDFI restructuring partnership for corporate clients.`,
     close: "If they agree: book the Thursday briefing. If they refuse twice: stop.",
   };
 }

@@ -117,8 +117,8 @@ describe("hopper rank", () => {
     expect(ranked.map((d) => d.id)).toEqual([4, 3, 2, 1]);
   });
 
-  it("counts states and shortfall against 100 deliverables", () => {
-    expect(SME_HOPPER_TARGET).toBe(100);
+  it("counts states and shortfall against 240 deliverables", () => {
+    expect(SME_HOPPER_TARGET).toBe(240);
     const deals = [
       { hopper: "sendable" as const },
       { hopper: "sendable" as const },
@@ -129,7 +129,7 @@ describe("hopper rank", () => {
       { source: "strata_inbound" as const },
     ];
     expect(hopperCounts(deals)).toEqual({ sendable: 2, huntContact: 1, parked: 1, gated: 1, quarantine: 1 });
-    expect(sendableShortfall(deals)).toBe(98);
+    expect(sendableShortfall(deals)).toBe(238);
   });
 
   it("treats missing hopper as not sendable", () => {
@@ -154,7 +154,7 @@ describe("hopper rank", () => {
 
   it("hopperStatusLine formats sendable/hunt-contact/quarantine counts", () => {
     expect(hopperStatusLine([{ hopper: "sendable" }, { hopper: "hunt_contact" }, { hopper: "quarantine" }])).toBe(
-      "Hopper 1/100 sendable · 1 hunt-contact · 1 quarantine"
+      "Hopper 1/240 sendable · 1 hunt-contact · 1 quarantine"
     );
   });
 });
@@ -171,9 +171,9 @@ describe("quarantine protection", () => {
 });
 
 describe("hunt need", () => {
-  it("scans until 100 deliverables, counting unsent sendable toward the day", () => {
-    expect(smeHuntNeed({ sendableUnsent: 6, remainingSlots: 100 })).toBe(94);
+  it("scans until 240 deliverables, counting unsent sendable toward the day", () => {
+    expect(smeHuntNeed({ sendableUnsent: 6, remainingSlots: 240 })).toBe(234);
     expect(smeHuntNeed({ sendableUnsent: 0, remainingSlots: 50 })).toBe(50);
-    expect(smeHuntNeed({ sendableUnsent: 100, remainingSlots: 100 })).toBe(0);
+    expect(smeHuntNeed({ sendableUnsent: 240, remainingSlots: 240 })).toBe(0);
   });
 });

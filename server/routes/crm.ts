@@ -1,9 +1,17 @@
 import { Router } from "express";
+import { annotateCrmLeads } from "@shared/crmLeadContact";
+import { annotateLenderCost } from "@shared/lenderCost";
+import { chargeLetterHtml, letterForLead } from "@shared/chargeLetter";
+import { chargeHarvestSignal } from "@shared/crmHarvestRank";
+import { fileCrmHarvestStore } from "../services/crmHarvest";
+import { loadLenderCostCache } from "../services/lenderCostCache";
 import { storage, MOCK_DEV_ADMIN_ID } from "../storage";
 import { handleApiError } from "../utils/errorHandler";
 import { requireGodMode } from "../utils/godModeAuth";
 import { insertInternalLeadSchema, insertCommissionSchema } from "@shared/schema";
 import { promoteInternalLeadToPipeline } from "../services/inboundPipeline";
+import { AGENT_MAIL_KEEP, listAgentMail } from "../services/agentMailLog";
+import { loadSuppression } from "../services/mailSuppression";
 
 const router = Router();
 
@@ -196,10 +204,41 @@ router.post("/find-contacts-bulk", async (req, res) => {
 
 // --- Leads ---
 
+router.get("/charge-letters", async (req, res) => {
+    try {
+        const limit = Math.min(20, Math.max(1, Number(req.query.limit) || 20));
+        const leads = await storage.listInternalLeads();
+        const store = fileCrmHarvestStore();
+        const picked = [];
+        for (const lead of leads) {
+            const ranked = store.read(lead.id);
+            const sme = ranked.skipClass === "charge_sme" || chargeHarvestSignal(lead) === "business";
+            if (!sme) continue;
+            if (!letterForLead(lead)) continue;
+            picked.push(lead);
+            if (picked.length >= limit) break;
+        }
+        if (String(req.query.format || "") === "json") {
+            res.json({ letters: picked.map((lead) => letterForLead(lead)).filter(Boolean) });
+            return;
+        }
+        res.type("html").send(chargeLetterHtml(picked));
+    } catch (error) {
+        handleApiError(res, error, "Charge letters");
+    }
+});
+
 router.get("/leads", async (req, res) => {
     try {
-        const leads = await storage.listInternalLeads();
-        res.json(leads);
+        const [leads, recipients] = await Promise.all([
+            storage.listInternalLeads(),
+            storage.listAllCampaignRecipients(),
+        ]);
+        res.json(annotateLenderCost(annotateCrmLeads(leads, {
+            mail: listAgentMail(AGENT_MAIL_KEEP),
+            recipients,
+            suppression: loadSuppression(),
+        }), loadLenderCostCache()));
     } catch (error) {
         console.error("CRM: Failed to fetch leads", error);
         res.status(500).json({ error: "Internal Server Error" });

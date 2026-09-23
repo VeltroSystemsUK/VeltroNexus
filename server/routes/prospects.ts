@@ -30,12 +30,14 @@ import { getSicDescription } from "../utils/sicCodeLookup";
 import { generatePipelineExcel } from "../utils/excelExporter";
 import { formatOfficerName } from "../utils/formatters";
 import { getReadableProspect } from "../utils/prospectAccess";
+import { seesAllProspects } from "@shared/sterlingPortal";
 import { generateBbbBusinessPlan, pdfToStream } from "../utils/bbbBusinessPlan";
 import { parsePdfBuffer } from "../utils/pdfText";
 import { accountPdfsFromDocuments, pdfTextsFromDocuments, spreadsheetTextsFromDocuments } from "../utils/prospectDocumentText";
 import { extractSpreadsheetText, isSpreadsheetFile } from "../utils/spreadsheetText";
 import { buildAccountsAnalysis, parseCreditsafeStatements, yearsFromAccountsText } from "@shared/accountsAnalysisBuild";
 import { analyseBankStatements } from "@shared/bankStatementSweep";
+import { jevJudgeTransactions } from "../services/jevBankStatement";
 import { xaiBearer } from "@shared/craftYaffle";
 import {
   buildCreditFileContext,
@@ -244,7 +246,9 @@ const router = Router();
   router.get("/prospects", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
-      const prospects = await storage.listProspects(userId);
+      const prospects = seesAllProspects((req.user as any)?.role)
+        ? await storage.listAllProspects()
+        : await storage.listProspects(userId);
       res.json(prospects);
     } catch (error) {
       handleApiError(res, error, "api-error");
@@ -469,6 +473,40 @@ const router = Router();
     }
   );
 
+  router.get(
+    "/prospects/:id/working-sheet",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const id = parseInt(req.params.id);
+        const prospect = await getReadableProspect(req, id);
+        if (!prospect) {
+          return res.status(404).json({ error: "Prospect not found" });
+        }
+
+        const { workingSheetFilename, streamWorkingSheet } = await import("../utils/prospectReport");
+        const [dueDiligence, documents] = await Promise.all([
+          storage.getDueDiligence(prospect.id!, prospect.userId).catch(() => null),
+          storage.listProspectDocuments(prospect.id!, prospect.userId).catch(() => []),
+        ]);
+        await streamWorkingSheet(
+          res,
+          {
+            prospect,
+            contacts: [],
+            activities: [],
+            dueDiligence: dueDiligence || undefined,
+            documents,
+          },
+          workingSheetFilename(prospect.company.companyName),
+        );
+      } catch (error) {
+        console.error("[Working Sheet] Route error:", error);
+        handleApiError(res, error, "api-error");
+      }
+    }
+  );
+
   // Business Overview API - AI-powered web search for company info
   router.get(
     "/prospects/:id/business-overview",
@@ -504,7 +542,7 @@ const router = Router();
 
   // Contact Enrichment API - AI-powered contact search + internal context
   router.post(
-    "/api/contacts/:id/enrich",
+    "/contacts/:id/enrich",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -627,7 +665,7 @@ const router = Router();
   );
 
   router.patch(
-    "/api/contacts/:id",
+    "/contacts/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -645,7 +683,7 @@ const router = Router();
   );
 
   router.delete(
-    "/api/contacts/:id",
+    "/contacts/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -664,7 +702,7 @@ const router = Router();
 
   // Contact enrichment - search web and email inbox for contact info
   router.post(
-    "/api/contacts/:id/enrich",
+    "/contacts/:id/enrich",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -687,7 +725,7 @@ const router = Router();
         const company = await storage.getCompanyById(prospect.companyId!);
         const companyName = company?.companyName || "";
 
-        // Search the web for contact info using Gemini
+        // Search the web for contact info using Grok
         const webResults = await searchCompanyInfo(contact.name, companyName);
 
         // Search email inbox for related emails
@@ -778,7 +816,7 @@ const router = Router();
   // Activities API - Protected routes
   // Get due diligence status summaries for all prospects (for pipeline cards)
   router.get(
-    "/api/due-diligence/summaries",
+    "/due-diligence/summaries",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -1241,10 +1279,15 @@ const router = Router();
                   ? Math.round((loanAmount / 60) * 100) / 100
                   : 0;
         const analysis = analyseBankStatements(combined, { proposedMonthly, rateText });
+        const judgedTransactions = await jevJudgeTransactions(analysis.transactions, {
+          avgMonthlyOut: analysis.totals.avgOut,
+          avgMonthlyIn: analysis.totals.avgIn,
+        });
         const affordabilitySweep = {
           at: new Date().toISOString(),
           files: pdfs.map((pdf) => ({ id: pdf.id, fileName: pdf.fileName, pages: pdf.pages })),
           ...analysis,
+          transactions: judgedTransactions,
         };
         const financialAnalysis = {
           ...(underwriting.financialAnalysis || {}),

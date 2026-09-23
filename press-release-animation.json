@@ -1,0 +1,52 @@
+{
+  "schemaId": "WebAnimationIntegrationSchema",
+  "version": "1.0.0",
+  "meta": {
+    "title": "Strata: The Lending Loop",
+    "vibe": "editorial pressure diagram, layered paper, a tightening loop that responds to the viewer"
+  },
+  "category": "FlowField",
+  "engine": {
+    "library": "VanillaCanvas2D",
+    "renderContext": "2d"
+  },
+  "domTarget": {
+    "selector": "#signal-canvas",
+    "createIfMissing": false,
+    "tag": "canvas",
+    "positioning": "absolute",
+    "zIndex": 0,
+    "pointerEvents": "none",
+    "fit": "cover"
+  },
+  "visual": {
+    "palette": ["#2e5096", "#c68b22", "#439840", "#f3f5f8"],
+    "background": "#f3f5f8",
+    "blending": "source-over",
+    "opacity": 0.72,
+    "bloom": false,
+    "grain": 0.035
+  },
+  "physicsAndMath": {
+    "densityCount": 360,
+    "friction": 0.12,
+    "speed": 0.65,
+    "amplitude": 28,
+    "frequency": 1.15,
+    "noise": "Simplex",
+    "octaves": 2,
+    "timestep": 0.016
+  },
+  "interactionRules": {
+    "triggerType": "mousemove",
+    "influenceRadius": 180,
+    "strength": 0.8,
+    "falloff": "smooth"
+  },
+  "performance": {
+    "fpsCap": 60,
+    "pauseOffscreen": true,
+    "respectReducedMotion": true,
+    "maxDpr": 2
+  }
+}

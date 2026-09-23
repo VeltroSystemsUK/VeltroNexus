@@ -1,6 +1,49 @@
+import fs from "fs";
+import path from "path";
 
 const COMPANIES_HOUSE_API_KEY = process.env.COMPANIES_HOUSE_API_KEY;
-const BASE_URL = 'https://api.company-information.service.gov.uk';
+const BASE_URL = "https://api.company-information.service.gov.uk";
+export const CH_COOLDOWN_MS = 6 * 60 * 1000;
+const DEFAULT_COOLDOWN_PATH = path.resolve(process.cwd(), "uploads", "ch_cooldown.json");
+let cooldownPathOverride: string | null = null;
+
+export function setChCooldownPathForTests(filePath: string | null) {
+  cooldownPathOverride = filePath;
+}
+
+function cooldownPath() {
+  return cooldownPathOverride || DEFAULT_COOLDOWN_PATH;
+}
+
+export function chCooldownUntil(): string | null {
+  try {
+    const file = cooldownPath();
+    if (!fs.existsSync(file)) return null;
+    const until = JSON.parse(fs.readFileSync(file, "utf8")).until as string;
+    if (!until || new Date(until).getTime() <= Date.now()) return null;
+    return until;
+  } catch {
+    return null;
+  }
+}
+
+export function setChCooldown(ms = CH_COOLDOWN_MS): string {
+  const until = new Date(Date.now() + ms).toISOString();
+  const file = cooldownPath();
+  const dir = path.dirname(file);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ until }));
+  return until;
+}
+
+export function clearChCooldown() {
+  try {
+    const file = cooldownPath();
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  } catch {
+    /* ignore */
+  }
+}
 
 // Shared auth/fetch helper — every CH call site was reimplementing this Basic Auth
 // construction inline. Callers keep their own status-code/error-shaping logic;
@@ -11,12 +54,22 @@ export function chAuthHeader(): string | null {
     return `Basic ${Buffer.from(`${key}:`).toString('base64')}`;
 }
 
-export async function chFetch(path: string): Promise<Response> {
-    const auth = chAuthHeader();
-    if (!auth) {
-        throw new Error('COMPANIES_HOUSE_API_KEY not configured');
+export async function chFetch(
+    urlPath: string,
+    env: NodeJS.ProcessEnv = process.env,
+    fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+    if (chCooldownUntil()) {
+        return new Response("ch-cooldown", { status: 429, statusText: "Too Many Requests" });
     }
-    return fetch(`${BASE_URL}${path}`, { headers: { Authorization: auth } });
+    const key = env.COMPANIES_HOUSE_API_KEY?.trim() || COMPANIES_HOUSE_API_KEY?.trim();
+    if (!key) {
+        throw new Error("COMPANIES_HOUSE_API_KEY not configured");
+    }
+    const auth = `Basic ${Buffer.from(`${key}:`).toString("base64")}`;
+    const res = await fetchImpl(`${BASE_URL}${urlPath}`, { headers: { Authorization: auth } });
+    if (res.status === 429) setChCooldown();
+    return res;
 }
 
 export interface CompaniesHouseSearchResult {

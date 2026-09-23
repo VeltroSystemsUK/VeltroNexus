@@ -1,3 +1,4 @@
+import fs from "fs";
 import {
   canFirecrawlScrape,
   firecrawlAuthHeaders,
@@ -34,12 +35,15 @@ export function htmlToText(html: string): string {
   return String(html || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<(br|\/p|\/div|\/h[1-6]|\/li|\/tr|\/section|\/article)\b[^>]*>/gi, "\n")
+    .replace(/<(p|h[1-6]|li|div|section|article)\b[^>]*>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/\s+/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n+/g, "\n")
     .trim();
 }
 
@@ -76,9 +80,25 @@ export async function fetchWebsiteText(url: string, env: Env = process.env): Pro
 
 const GROK_CHAT_URL = "https://api.x.ai/v1/chat/completions";
 const GROK_RESEARCH_MODEL = "grok-4.6";
+const GROK_CHAT_TIMEOUT_MS = 180000;
 
-async function grokComplete(prompt: string, env: Env = process.env): Promise<string> {
-  const key = xaiBearer(env);
+function grokAuthFromEnv(env: Env): unknown {
+  const file = env.GROK_AUTH_FILE?.trim();
+  if (!file) return undefined;
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+export async function grokComplete(
+  prompt: string,
+  env: Env = process.env,
+  system =
+    "You are Grok, researching a UK company for a commercial finance broker. Reply with JSON only."
+): Promise<string> {
+  const key = xaiBearer(env, grokAuthFromEnv(env));
   if (!key) throw new Error("XAI_API_KEY is not configured on the server");
   const model = env.XAI_MODEL?.trim() || GROK_RESEARCH_MODEL;
   const res = await fetch(GROK_CHAT_URL, {
@@ -88,14 +108,11 @@ async function grokComplete(prompt: string, env: Env = process.env): Promise<str
       model,
       stream: false,
       messages: [
-        {
-          role: "system",
-          content: "You are Grok, researching a UK company for a commercial finance broker. Reply with JSON only.",
-        },
+        { role: "system", content: system },
         { role: "user", content: prompt },
       ],
     }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(GROK_CHAT_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error((await res.text()).slice(0, 400) || `Grok chat failed (${res.status})`);
@@ -106,7 +123,7 @@ async function grokComplete(prompt: string, env: Env = process.env): Promise<str
   return text;
 }
 
-function parseProfileJson(text: string): Record<string, unknown> {
+export function parseProfileJson(text: string): Record<string, unknown> {
   const cleaned = String(text || "")
     .replace(/^```(?:json)?\s*|\s*```$/g, "")
     .trim();

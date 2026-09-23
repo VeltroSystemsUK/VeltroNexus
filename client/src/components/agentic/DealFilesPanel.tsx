@@ -10,9 +10,9 @@ import { namedPackGaps } from "@shared/sterlingCompleteness";
 import { packUploadUrl, signEngagementUrl } from "@shared/strataOutreach";
 import { isLiveSigned } from "@shared/engagementPack";
 import {
-  isWaitingSmeEmailApproval,
   remainingSmeFirstTouchSlots,
-  SME_DAILY_FIRST_TOUCH_CAP,
+  smeFirstTouchSlot,
+  SME_FIRST_TOUCH_PER_HOUR,
 } from "@shared/smeOutreach";
 import { hopperStatusLine, isContactableDeal } from "@shared/smeHopper";
 import { deskJobProgress } from "@shared/deskOps";
@@ -45,17 +45,18 @@ function QualityStrip({
   onKeep,
   onDelete,
   onPurge,
+  onResumeGuess,
   busy,
 }: {
   quality: QualityPayload;
   onKeep: (id: number) => void;
   onDelete: (id: number) => void;
   onPurge: () => void;
+  onResumeGuess: () => void;
   busy?: boolean;
 }) {
   const apis: Array<[string, number, number]> = [
     ["CH", quality.budget.remaining.ch, quality.budget.total.ch],
-    ["Places", quality.budget.remaining.places, quality.budget.total.places],
     ["Firecrawl", quality.budget.remaining.firecrawl, quality.budget.total.firecrawl],
     ["MX", quality.budget.remaining.smtp, quality.budget.total.smtp],
   ];
@@ -94,12 +95,26 @@ function QualityStrip({
         })}
       </div>
       {quality.alerts.map((alert: QualityAlert) => (
-        <p
-          key={alert.message}
-          className={alert.tone === "red" ? "text-xs text-red-300" : "text-xs text-amber-200"}
+        <div
+          key={alert.id || alert.message}
+          className={`flex flex-wrap items-center justify-between gap-2 ${
+            alert.tone === "red" ? "text-xs text-red-300" : "text-xs text-amber-200"
+          }`}
         >
-          {alert.message}
-        </p>
+          <p>{alert.message}</p>
+          {alert.id === "guess_paused" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7"
+              data-testid="btn-resume-harvest-guess"
+              disabled={busy}
+              onClick={onResumeGuess}
+            >
+              Resume guessing
+            </Button>
+          ) : null}
+        </div>
       ))}
       {quarantined.length > 0 && (
         <div className="border-t border-slate-800 pt-3 space-y-2">
@@ -143,7 +158,7 @@ function HuntSummary({ report }: { report: HuntReport }) {
     .join("; ");
   return (
     <p className="text-xs text-slate-500">
-      Last queue: looked at {report.scanned} Leads, staged {report.opened} SME first-touch drafts.
+      Last queue: looked at {report.scanned} hopper contacts, sent {report.opened} SME first-touches.
       {report.rejectedTotal ? ` Dropped ${report.rejectedTotal}${topRejects ? ` — ${topRejects}` : ""}.` : ""}
     </p>
   );
@@ -239,11 +254,13 @@ export function DealFilesPanel() {
     mutationFn: async ({
       id,
       action,
+      agentId,
     }: {
       id: number;
       action: "call_done" | "approve_sterling" | "stop" | "linkedin_posted" | "retry_send" | "approve_send";
+      agentId?: string;
     }) => {
-      const res = await apiRequest(`/api/agentic/deals/${id}/human`, "POST", { action });
+      const res = await apiRequest(`/api/agentic/deals/${id}/human`, "POST", { action, agentId });
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] }),
@@ -285,14 +302,6 @@ export function DealFilesPanel() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] }),
   });
 
-  const approveQueue = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("/api/agentic/outreach/approve-queue", "POST");
-      return res.json() as Promise<{ sent: number; held: number }>;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] }),
-  });
-
   const keepQuarantine = useMutation({
     mutationFn: async (id: number) => {
       const res = await apiRequest(`/api/agentic/quarantine/${id}/keep`, "POST", {});
@@ -322,6 +331,16 @@ export function DealFilesPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agentic/deals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
+    },
+  });
+
+  const resumeGuess = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("/api/agentic/harvest/resume-guess", "POST");
+      return res.json();
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agentic/quality"] });
     },
   });
@@ -405,7 +424,7 @@ export function DealFilesPanel() {
         <CardHeader>
           <CardTitle className="text-white">No deal files yet</CardTitle>
           <CardDescription>
-            Queue up to {SME_DAILY_FIRST_TOUCH_CAP} personalised SME first-touch drafts from Leads, or upload a CSV for Harper to verify emails and open files. Nothing sends until you approve it. Introducer outreach is paused.
+            First-touch sends {SME_FIRST_TOUCH_PER_HOUR} new prospects an hour, weekdays 08:30–20:30 London. Upload a CSV for Harper to verify emails and open files. Introducer outreach is paused.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -422,8 +441,8 @@ export function DealFilesPanel() {
     );
   }
 
-  const waitingEmails = deals.filter(isWaitingSmeEmailApproval);
-  const remainingToday = remainingSmeFirstTouchSlots({ deals });
+  const remainingThisHour = remainingSmeFirstTouchSlots({ deals });
+  const sendSlot = smeFirstTouchSlot();
 
   return (
     <div className="space-y-4">
@@ -442,7 +461,12 @@ export function DealFilesPanel() {
       {quality ? (
         <QualityStrip
           quality={quality}
-          busy={keepQuarantine.isPending || deleteQuarantine.isPending || purgeQuarantine.isPending}
+          busy={
+            keepQuarantine.isPending ||
+            deleteQuarantine.isPending ||
+            purgeQuarantine.isPending ||
+            resumeGuess.isPending
+          }
           onKeep={(id) => keepQuarantine.mutate(id)}
           onDelete={(id) => deleteQuarantine.mutate(id)}
           onPurge={() => {
@@ -450,6 +474,7 @@ export function DealFilesPanel() {
               purgeQuarantine.mutate();
             }
           }}
+          onResumeGuess={() => resumeGuess.mutate()}
         />
       ) : null}
       <div className="flex items-center justify-between gap-3">
@@ -471,15 +496,6 @@ export function DealFilesPanel() {
           {huntReport && <HuntSummary report={huntReport} />}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {waitingEmails.length > 0 && (
-            <Button
-              size="sm"
-              onClick={() => approveQueue.mutate()}
-              disabled={approveQueue.isPending}
-            >
-              {approveQueue.isPending ? "Sending…" : `Approve & send ${waitingEmails.length}`}
-            </Button>
-          )}
           <Button size="sm" variant="outline" onClick={() => hunt.mutate()} disabled={hunt.isPending}>
             {hunt.isPending ? "Queuing…" : "Hunt & queue mail-ready leads"}
           </Button>
@@ -487,7 +503,8 @@ export function DealFilesPanel() {
         </div>
       </div>
       <p className="text-xs text-slate-500">
-        Introducer outreach is paused. SME first-touch cap {SME_DAILY_FIRST_TOUCH_CAP}/day — {waitingEmails.length} waiting approval, {remainingToday} slots left today.{" "}
+        Introducer outreach is paused. SME first-touch {SME_FIRST_TOUCH_PER_HOUR}/hour weekdays 08:30–20:30 London —{" "}
+        {sendSlot ? `${remainingThisHour} slot${remainingThisHour === 1 ? "" : "s"} this hour` : "outside send window"}.{" "}
         {hopperStatusLine(deals)}
       </p>
       {csvNote && <p className="text-xs text-slate-400">{csvNote}</p>}
@@ -643,19 +660,14 @@ export function DealFilesPanel() {
                   Call done
                 </Button>
               )}
-              {deal.humanReason?.includes("LinkedIn") && (
-                <Button size="sm" onClick={() => resolveHuman.mutate({ id: deal.id, action: "linkedin_posted" })}>
+              {deal.socialPlaybook && (
+                <Button size="sm" variant="outline" onClick={() => resolveHuman.mutate({ id: deal.id, action: "linkedin_posted" })}>
                   LinkedIn posted
                 </Button>
               )}
               {deal.humanReason?.includes("SMTP") && (
                 <Button size="sm" variant="outline" onClick={() => resolveHuman.mutate({ id: deal.id, action: "retry_send" })}>
                   Retry email
-                </Button>
-              )}
-              {isWaitingSmeEmailApproval(deal) && (
-                <Button size="sm" onClick={() => resolveHuman.mutate({ id: deal.id, action: "approve_send" })}>
-                  Approve & send
                 </Button>
               )}
               {deal.stage === "human_review" && (

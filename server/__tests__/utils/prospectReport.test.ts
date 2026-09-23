@@ -33,16 +33,31 @@ describe("funding proposal report gate", () => {
   it("handleApiError maps ProposalNotReadyError to 409/400", () => {
     const src = fs.readFileSync(path.resolve("server/utils/errorHandler.ts"), "utf8");
     expect(src).toMatch(/ProposalNotReadyError/);
-    expect(src).toMatch(/status === 400 \|\| status === 409/);
+    expect(src).toMatch(/status === 400 \|\| status === 404 \|\| status === 409/);
   });
 
   it("extracts the cashflow attachment before printing the PDF", () => {
     const src = fs.readFileSync(path.resolve("server/utils/fundingProposal.ts"), "utf8");
     expect(src).toMatch(/ensureCashflowForecast/);
+    const prepare = fs.readFileSync(path.resolve("server/utils/cashflowForecastPrepare.ts"), "utf8");
+    expect(prepare).toMatch(/upsertDueDiligence/);
+    expect(prepare).not.toMatch(/critiqueCashflowForecastJson/);
   });
 
-  it("rewrites Background on Generate Report", () => {
+  it("does not Auto Write Background on Generate Report", () => {
     const src = fs.readFileSync(path.resolve("server/utils/fundingProposal.ts"), "utf8");
-    expect(src).toMatch(/ensureBackground/);
+    const pdfFn = src.slice(src.indexOf("export async function renderFundingProposalPdf"));
+    expect(pdfFn).not.toMatch(/ensureBackground/);
+  });
+
+  it("can print the working sheet as a second PDF", () => {
+    const src = fs.readFileSync(path.resolve("server/utils/prospectReport.ts"), "utf8");
+    expect(src).toMatch(/workingSheetFilename/);
+    expect(src).toMatch(/streamWorkingSheet/);
+    expect(src).toMatch(/Working_Sheet_/);
+    expect(src).toMatch(/workingSheetHtml/);
+    const sheetFn = src.slice(src.indexOf("export async function streamWorkingSheet"));
+    expect(sheetFn).not.toMatch(/fetchCompaniesHouseReportData/);
+    expect(sheetFn).not.toMatch(/buildProspectReportData/);
   });
 });
