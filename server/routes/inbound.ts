@@ -204,6 +204,76 @@ const applicationSchema = z.object({
 });
 
 import { sendEmail } from "../services/email";
+import { buildHealthcheckLeadNotice, buildHealthcheckMail, illustratedMonthly, parseHealthcheckAnswers, parseHealthcheckMail } from "../services/healthcheckMail";
+
+// Business Check capture: CRM inbox lead only. The page promises "We use this address only
+// to send what you ask for", so no pipeline promotion and no Jev triage (both can email).
+async function captureHealthcheckLead(input: import("../services/healthcheckMail").HealthcheckMailInput, body: unknown): Promise<void> {
+    const answers = parseHealthcheckAnswers(body);
+    let leadId: number | undefined;
+    try {
+        const lead = await storage.createInternalLead({
+            companyName: input.company || `Business Check — ${input.email}`,
+            companyNumber: `WEB-${Date.now()}`,
+            contactName: "",
+            email: input.email,
+            phone: "",
+            status: "new",
+            assignedAgentId: "capital-strategist",
+            notes: JSON.stringify({
+                source: "Landing Page: Business Check",
+                consent: "Illustration only. Page promised no further emails or calls.",
+                calculatorData: {
+                    currentDebt: input.balance,
+                    monthlyPayment: input.monthly,
+                    illustratedMonthly: Math.round(illustratedMonthly(input.balance)),
+                },
+                lenders: input.lenders,
+                brokerNote: input.brokerNote,
+                answers,
+            }, null, 2),
+            estimatedValue: Math.round(input.balance),
+            commissionRate: 0.1,
+            hasCharges: false,
+            totalChargesCount: 0,
+            satisfiedChargesCount: 0,
+            possibleDuplicate: false,
+        });
+        leadId = lead.id;
+    } catch (error) {
+        // The notice below still carries every answer, so nothing is lost if the CRM write fails.
+        console.error("[Inbound] Healthcheck lead capture failed:", error);
+    }
+    await stopConvertAfterInboundLead(input.email);
+    const notice = buildHealthcheckLeadNotice(input, answers, leadId);
+    // Not awaited: the visitor should not wait on our own notification.
+    // ponytail: a retry after a failed visitor send records a second lead + notice; dedupe by hand if it happens.
+    void sendEmail({ agentId: "director", contactSource: "website-healthcheck" }, "shaun@veltro.co.uk", notice.subject, notice.html)
+        .catch((error) => console.error("[Inbound] Healthcheck notify failed:", error));
+}
+
+router.post("/healthcheck", async (req, res) => {
+    const parsed = parseHealthcheckMail(req.body);
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+    // Capture before mailing so a failed send never loses the answers.
+    await captureHealthcheckLead(parsed.value, req.body);
+    const mail = buildHealthcheckMail(parsed.value);
+    try {
+        const result = await sendEmail(
+            { agentId: "inbound-intake", fromName: "Strata Finance", contactSource: "website-healthcheck" },
+            parsed.value.email,
+            mail.subject,
+            mail.html,
+        );
+        if (!result.success) {
+            return res.status(502).json({ error: "That email did not send. Try again in a moment." });
+        }
+        return res.json({ ok: true, id: result.id });
+    } catch (error) {
+        console.error("[Inbound] Healthcheck email failed:", error);
+        return res.status(502).json({ error: "That email did not send. Try again in a moment." });
+    }
+});
 
 router.post("/application", async (req, res) => {
     try {

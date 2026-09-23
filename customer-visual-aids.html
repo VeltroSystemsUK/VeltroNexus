@@ -1,0 +1,319 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Growth Blueprint</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+    :root {
+      --ink: #07131f;
+      --muted: #7990a0;
+      --paper: #f4f7f5;
+      --line: rgba(7, 19, 31, .13);
+      --lime: #b9f35a;
+      --cyan: #8fcfc5;
+      --orange: #ff8b5c;
+      --night: #0a1825;
+      --serif: Georgia, 'Times New Roman', serif;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; min-height: 100%; background: var(--ink); color: var(--paper); font-family: var(--sans); }
+    body { overflow: hidden; }
+    button { font: inherit; }
+    .deck { height: 100%; position: relative; isolation: isolate; }
+    .slide { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; gap: clamp(1rem, 3vw, 3rem); padding: clamp(1.1rem, 2.4vw, 2.4rem) clamp(1.2rem, 4vw, 3.5rem) 5.75rem; align-items: start; opacity: 0; pointer-events: none; transform: translateY(18px); transition: opacity .65s ease, transform .65s ease; overflow: auto; }
+    .slide.active { opacity: 1; pointer-events: auto; transform: none; }
+    .slide.light { background: var(--paper); color: var(--ink); }
+    .slide.dark { background: var(--night); }
+    .slide::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(circle at 80% 20%, rgba(80,213,209,.12), transparent 32%), linear-gradient(120deg, transparent 45%, rgba(255,255,255,.03) 45.1%, transparent 45.3%); }
+    .eyebrow { font: 700 .72rem/1 var(--sans); text-transform: uppercase; letter-spacing: .22em; color: var(--muted); margin-bottom: .75rem; }
+    .light .eyebrow { color: #52717b; }
+    h1, h2, p { margin: 0; }
+    h1 { max-width: 680px; font: 500 clamp(1.85rem, 4.2vw, 3.4rem)/1.05 var(--serif); letter-spacing: -.05em; }
+    h2 { font: 500 clamp(1.45rem, 3.2vw, 2.5rem)/1.08 var(--serif); letter-spacing: -.04em; }
+    .copy { max-width: 590px; margin-top: 1rem; font-size: clamp(.95rem, 1.1vw, 1.12rem); line-height: 1.5; color: #b8c9d0; }
+    .light .copy { color: #425662; }
+    .copy em { color: var(--lime); font-style: normal; }
+    .light .copy em { color: #3d777d; }
+    .brand { display: flex; align-items: center; gap: .7rem; margin-bottom: 1rem; font-weight: 700; letter-spacing: .03em; }
+    .brand-logo { width: 138px; max-height: 42px; object-fit: contain; object-position: left center; }
+    .veltro-brand { color: var(--lime); font-size: .78rem; letter-spacing: .18em; text-transform: uppercase; }
+    .mark { width: 30px; height: 30px; border: 2px solid currentColor; display: grid; place-items: center; transform: rotate(45deg); }
+    .mark i { display: block; width: 8px; height: 8px; background: currentColor; }
+    .site-card { position: relative; min-height: min(34vh, 260px); max-height: min(46vh, 340px); border: 1px solid rgba(255,255,255,.17); background: linear-gradient(145deg, #173346, #07131f 70%); overflow: hidden; box-shadow: 16px 16px 0 rgba(214,245,90,.88); }
+    .site-card::after { content: ''; position: absolute; width: 24vw; height: 24vw; border-radius: 50%; right: -10%; bottom: -22%; background: var(--cyan); opacity: .75; filter: blur(1px); }
+    .site-top { display: flex; justify-content: space-between; padding: 1rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,.14); color: #a5bbc3; font-size: .72rem; }
+    .site-body { padding: clamp(2rem, 5vw, 4.5rem) clamp(1.5rem, 4vw, 3.5rem); position: relative; z-index: 1; }
+    .site-body small { color: var(--lime); text-transform: uppercase; letter-spacing: .2em; }
+    .site-body strong { display: block; max-width: 430px; margin-top: 1rem; font: 500 clamp(1.5rem, 3vw, 2.4rem)/1.05 var(--serif); letter-spacing: -.05em; }
+    .trend { position: absolute; left: 12%; right: 10%; bottom: 18%; height: 35%; z-index: 1; }
+    .trend svg { width: 100%; height: 100%; overflow: visible; }
+    .trend path { fill: none; stroke: var(--lime); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 700; stroke-dashoffset: 700; animation: draw 2.2s .4s cubic-bezier(.2,.8,.2,1) forwards; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; max-width: 580px; }
+    .metric { padding: 1.4rem; border: 1px solid var(--line); background: rgba(255,255,255,.45); min-height: 130px; }
+    .metric b { display: block; font-size: clamp(2rem, 4vw, 4rem); font-weight: 500; letter-spacing: -.06em; }
+    .metric span { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .14em; }
+    .pressure-wrap { display: grid; gap: 1.5rem; align-items: center; }
+    .pressure { height: 34px; border: 1px solid rgba(255,255,255,.3); padding: 5px; position: relative; }
+    .pressure i { display:block; width: 79%; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--orange)); animation: load 1.2s ease-out; transform-origin: left; }
+    @keyframes load { from { transform: scaleX(0); } }
+    .pressure-label { display:flex; justify-content:space-between; font-size: .72rem; text-transform: uppercase; letter-spacing:.14em; color: var(--muted); }
+    .leak { height: 240px; position: relative; border-left: 3px solid var(--cyan); border-right: 3px solid var(--orange); clip-path: polygon(0 0, 100% 0, 70% 100%, 30% 100%); background: linear-gradient(180deg, rgba(80,213,209,.25), rgba(255,139,92,.2)); }
+    .leak::before, .leak::after { content: ''; position: absolute; width: 13px; height: 13px; border-radius:50%; background: var(--lime); left: 43%; animation: fall 2s infinite ease-in; }
+    .leak::before { top: 22%; } .leak::after { top: 42%; animation-delay: .7s; }
+    @keyframes fall { 0% { transform: translateY(0); opacity: 1; } 80%, 100% { transform: translateY(170px); opacity: 0; } }
+    .engine { position: relative; min-height: 400px; display: grid; place-items: center; }
+    .engine-core { width: min(31vw, 330px); aspect-ratio:1; border: 2px solid var(--cyan); border-radius: 50%; display:grid; place-items:center; box-shadow: 0 0 0 22px rgba(80,213,209,.08), 0 0 70px rgba(80,213,209,.22); animation: pulse 3s infinite ease-in-out; }
+    .engine-core::before, .engine-core::after { content:''; position:absolute; width: 74%; height: 2px; background: var(--lime); transform: rotate(32deg); }
+    .engine-core::after { transform: rotate(-32deg); background: var(--orange); }
+    @keyframes pulse { 50% { transform: scale(1.04) rotate(10deg); } }
+    .engine-core span { position: relative; z-index: 1; text-align:center; text-transform:uppercase; letter-spacing:.17em; font-size:.72rem; }
+    .flow { position:absolute; inset: 12% 0; background: repeating-linear-gradient(90deg, transparent 0 8%, rgba(214,245,90,.8) 8.2% 8.5%, transparent 8.7% 16%); mask-image: linear-gradient(90deg, transparent, black 25%, black 75%, transparent); animation: slide 3s linear infinite; }
+    @keyframes slide { to { transform: translateX(16%); } }
+    .portal { grid-column: 1 / -1; text-align: center; max-width: 940px; justify-self:center; width:100%; }
+    .portal .copy { margin: 1.2rem auto 2.2rem; }
+    .paths { display:grid; grid-template-columns: repeat(2, 1fr); gap:1rem; text-align:left; }
+    .path { color:var(--paper); min-height: 190px; padding:1.5rem; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.045); display:flex; flex-direction:column; justify-content:space-between; cursor:pointer; transition:.25s ease; }
+    .path:hover, .path:focus-visible { transform:translateY(-8px); border-color:var(--lime); background:rgba(214,245,90,.1); outline:none; }
+    .path small { color:var(--muted); text-transform:uppercase; letter-spacing:.15em; } .path strong { max-width: 360px; font: 500 1.5rem/1.05 var(--serif); } .path span { color:var(--lime); font-size:.78rem; text-transform:uppercase; letter-spacing:.14em; }
+    .cta { max-width: 660px; } .cta .copy { max-width: 560px; }
+    .cta-button { display:inline-flex; align-items:center; gap:.8rem; margin-top:2rem; padding:1rem 1.2rem; border:1px solid var(--lime); color:var(--ink); background:var(--lime); text-decoration:none; font-weight:700; text-transform:uppercase; letter-spacing:.1em; font-size:.75rem; transition:.2s ease; }
+    .cta-button:hover { background:transparent; color:var(--lime); }
+    .signal { position:absolute; right:5vw; bottom:6.5rem; width:120px; height:120px; border:1px solid rgba(80,213,209,.5); border-radius:50%; display:grid; place-items:center; color:var(--cyan); }
+    .signal::after { content:''; position:absolute; inset:16px; border:1px dashed rgba(80,213,209,.5); border-radius:50%; animation:spin 12s linear infinite; } @keyframes spin { to { transform:rotate(360deg); } }
+    .nav { position:fixed; z-index:40; left:50%; bottom:1.15rem; transform:translateX(-50%); display:flex; gap:.75rem; align-items:center; padding:.4rem .75rem; border-radius:999px; border:1px solid #b9f35a; background:#07131f; color:#fff; font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; box-shadow:0 10px 28px rgba(0,0,0,.45); }
+    .nav button { border:0; background:none; color:#fff; cursor:pointer; min-width:4.4rem; min-height:2.4rem; padding:.35rem .2rem; } .nav button:hover { color:#b9f35a; }
+    .dots { display:flex; gap:.45rem; align-items:center; } .dot { width:10px; height:10px; border-radius:999px; background:rgba(255,255,255,.35); border:0; padding:0; cursor:pointer; min-width:10px; min-height:10px; } .dot.active { background:#b9f35a; }
+    .drip { position:absolute; top:18%; left:var(--x); width:18px; height:18px; padding:0; border:0; border-radius:50% 50% 50% 0; background:#c68b22; transform:rotate(-45deg); cursor:pointer; animation:drip-fall 2.8s infinite ease-in; animation-delay:var(--delay); box-shadow:0 0 0 0 rgba(198,139,34,.35); }
+    .drip:hover, .drip:focus-visible { outline:3px solid rgba(46,80,150,.3); outline-offset:5px; background:#2e5096; }
+    .drip.spent { animation:none; opacity:.35; transform:rotate(-45deg) translateY(165px); pointer-events:none; }
+    @keyframes drip-fall { 0% { opacity:0; transform:rotate(-45deg) translateY(-8px) scale(.75); } 20% { opacity:1; } 78% { opacity:1; transform:rotate(-45deg) translateY(138px) scale(1); } 100% { opacity:0; transform:rotate(-45deg) translateY(172px) scale(.8); } }
+    .pressure i { transition:width .7s cubic-bezier(.2,.8,.2,1), filter .25s ease; }
+    .pressure.bump i { filter:brightness(1.3); }
+    .pressure-label strong { color:#2e5096; font-weight:700; }
+    /* Strata dark mode: retain the live site's dark token contrast on the opening pressure sequence. */
+    .slide[data-id="slide_1"], .slide[data-id="slide_2"] { background:#211e20; color:#f2efed; }
+    .slide[data-id="slide_1"]::before, .slide[data-id="slide_2"]::before { background:linear-gradient(135deg, rgba(112,152,222,.12), transparent 45%), repeating-linear-gradient(0deg, transparent 0 74px, rgba(255,255,255,.045) 75px 76px); }
+    .slide[data-id="slide_1"] h1, .slide[data-id="slide_2"] h2 { color:#fff; }
+    .slide[data-id="slide_1"] .eyebrow, .slide[data-id="slide_2"] .eyebrow { color:#7098de; }
+    .slide[data-id="slide_1"] .copy, .slide[data-id="slide_2"] .copy { color:#b8bfc8; }
+    .slide[data-id="slide_1"] .brand { color:#fff; }
+    .slide[data-id="slide_1"] .brand-logo { content:url('brand/logo/strata-logo-light.svg'); }
+    .slide[data-id="slide_1"] .site-card { background:#282326; color:#f2efed; border-color:#3b3537; box-shadow:20px 20px 0 #7098de; }
+    .slide[data-id="slide_1"] .site-top { border-bottom-color:#3b3537; color:#b8bfc8; }
+    .slide[data-id="slide_1"] .site-body small { color:#7098de; }
+    .slide[data-id="slide_1"] .site-body strong { color:#fff; }
+    .slide[data-id="slide_1"] .trend path { stroke:#7098de; }
+    .slide[data-id="slide_1"] .site-card { border:3px solid transparent; background-image:linear-gradient(#282326,#282326),linear-gradient(110deg,#2e5096 0%,#c68b22 28%,#439840 52%,#c41e28 76%,#2e5096 100%); background-origin:border-box; background-clip:padding-box,border-box; background-size:auto,300% 300%; animation:strata-border-shift 8s linear infinite; }
+    .slide[data-id="slide_1"] h1 .weight-word { position:relative; display:inline-block; color:#fff; font-weight:900; transform-origin:left center; animation:weight-gain 3.8s ease-in-out infinite; }
+    .slide[data-id="slide_1"] h1 .weight-word::after { content:''; position:absolute; z-index:-1; inset:18% -8% 2%; border-radius:50%; background:linear-gradient(90deg,#7098de,#e3a83b,#5fb65c,#e5535c); filter:blur(18px); opacity:.18; animation:weight-glow 3.8s ease-in-out infinite; }
+    @keyframes weight-gain { 0%,100% { transform:scaleX(1) scaleY(1); letter-spacing:-.055em; } 50% { transform:scaleX(1.12) scaleY(1.06); letter-spacing:-.01em; } }
+    @keyframes weight-glow { 0%,100% { opacity:.14; transform:scale(.85); } 50% { opacity:.7; transform:scale(1.12); } }
+    .slide[data-id="slide_5a_finance"] { overflow:hidden; }
+    .slide[data-id="slide_5a_finance"]::after { content:''; position:absolute; z-index:-1; left:-8%; right:-8%; bottom:-28%; height:72%; pointer-events:none; background:repeating-linear-gradient(172deg, transparent 0 26px, rgba(46,80,150,.09) 27px 29px, transparent 30px 58px), radial-gradient(ellipse at 50% 100%, rgba(198,139,34,.15), transparent 62%); transform:skewY(-6deg); animation:strata-breathe-layers 12s ease-in-out infinite; }
+    .slide[data-id="slide_5a_finance"] h2 .breathe-word { position:relative; display:inline-block; color:#2e5096; font-weight:800; transform-origin:center bottom; animation:breathe-gain 4.2s ease-in-out infinite; }
+    .slide[data-id="slide_5a_finance"] h2 .breathe-word::after { content:''; position:absolute; z-index:-1; inset:10% -14% -8%; border-radius:50%; background:linear-gradient(90deg,#2e5096,#c68b22,#439840,#c41e28); filter:blur(22px); opacity:.16; animation:breathe-glow 4.2s ease-in-out infinite; }
+    @keyframes breathe-gain { 0%,100% { transform:scale(1); letter-spacing:-.055em; } 50% { transform:scale(1.08); letter-spacing:-.01em; } }
+    @keyframes breathe-glow { 0%,100% { opacity:.12; transform:scale(.82); } 50% { opacity:.52; transform:scale(1.12); } }
+    @keyframes strata-breathe-layers { 0%,100% { transform:skewY(-6deg) translateY(0); opacity:.7; } 50% { transform:skewY(-6deg) translateY(-18px); opacity:1; } }
+    @keyframes strata-border-shift { 0% { background-position:0 0,0% 50%; } 50% { background-position:0 0,100% 50%; } 100% { background-position:0 0,0% 50%; } }
+    .slide[data-id="slide_2"] { background:#211e20; }
+    .slide[data-id="slide_2"] .pressure { border-color:#4d464a; background:#282326; }
+    .slide[data-id="slide_2"] .pressure i { width:0; background:linear-gradient(90deg,#7098de,#e3a83b,#e5535c); }
+    .slide[data-id="slide_2"].active .pressure i { width:79%; animation:load 1.35s cubic-bezier(.2,.8,.2,1) forwards; }
+    .slide[data-id="slide_2"] .pressure-label { color:#b8bfc8; }
+    .slide[data-id="slide_2"] .pressure-label strong { color:#e3a83b; }
+    .slide[data-id="slide_2"] .leak { border-left-color:#7098de; border-right-color:#e5535c; background:linear-gradient(180deg,rgba(112,152,222,.19),rgba(229,83,92,.16)); }
+    .slide[data-id="slide_2"] .leak::before, .slide[data-id="slide_2"] .leak::after { background:#e3a83b; }
+    .friction-list { display:grid; gap:1rem; margin-top:2rem; max-width:650px; }
+    .friction-item { display:grid; grid-template-columns:54px 1fr; gap:1rem; align-items:start; padding:1.15rem 1.25rem 1.2rem 0; border-top:1px solid #4d464a; }
+    .friction-item:last-child { border-bottom:1px solid #4d464a; }
+    .friction-number { display:grid; place-items:center; width:42px; height:42px; border:1px solid #e3a83b; color:#e3a83b; font:700 .76rem 'Space Mono',monospace; }
+    .friction-item strong { display:block; margin-bottom:.35rem; color:#fff; font:700 1rem 'Plus Jakarta Sans',sans-serif; }
+    .friction-item p { margin:0; color:#b8bfc8; font-size:.95rem; line-height:1.45; }
+    /* Brand-native visual modes: Strata Finance uses layered light editorial tokens; Veltro uses dark operational software tokens. */
+    .slide[data-id="slide_1"], .slide[data-id="slide_2"], .slide[data-id="slide_5a_finance"] { font-family:'Plus Jakarta Sans', sans-serif; }
+    .slide[data-id="slide_1"] { background:#fff; color:#181a1e; }
+    .slide[data-id="slide_1"]::before, .slide[data-id="slide_2"]::before, .slide[data-id="slide_5a_finance"]::before { background:linear-gradient(135deg, rgba(46,80,150,.055), transparent 45%), repeating-linear-gradient(0deg, transparent 0 74px, rgba(46,80,150,.045) 75px 76px); }
+    .slide[data-id="slide_1"] h1, .slide[data-id="slide_2"] h2, .slide[data-id="slide_5a_finance"] h2 { font-family:'Unbounded', sans-serif; font-weight:700; color:#12141a; letter-spacing:-.055em; }
+    .slide[data-id="slide_1"] .eyebrow, .slide[data-id="slide_2"] .eyebrow, .slide[data-id="slide_5a_finance"] .eyebrow { font-family:'Space Mono', monospace; color:#2e5096; letter-spacing:.22em; }
+    .slide[data-id="slide_1"] .brand { color:#12141a; }
+    .slide[data-id="slide_1"] .brand-logo { content:url('brand/logo/strata-logo-dark.svg'); }
+    .slide[data-id="slide_1"] .site-card { background:#fff; color:#181a1e; border:1px solid #e3e6eb; box-shadow:20px 20px 0 #2e5096; }
+    .slide[data-id="slide_1"] .site-top { border-bottom:1px solid #e3e6eb; color:#5c6673; }
+    .slide[data-id="slide_1"] .site-body small { color:#2e5096; font-family:'Space Mono', monospace; }
+    .slide[data-id="slide_1"] .site-body strong { font-family:'Unbounded', sans-serif; font-weight:700; color:#12141a; }
+    .slide[data-id="slide_1"] .site-card::after { width:100%; height:7px; right:0; bottom:0; border-radius:0; filter:none; opacity:1; background:linear-gradient(90deg,#2e5096 0 25%,#c68b22 25% 50%,#439840 50% 75%,#c41e28 75%); }
+    .slide[data-id="slide_1"] .trend path { stroke:#2e5096; }
+    .slide[data-id="slide_2"] { background:#f3f5f8; }
+    .slide[data-id="slide_2"] .copy, .slide[data-id="slide_5a_finance"] .copy { color:#5c6673; }
+    .slide[data-id="slide_2"] .pressure { border-color:#ccd1d9; background:#fff; }
+    .slide[data-id="slide_2"] .pressure i { background:linear-gradient(90deg,#2e5096,#c68b22,#c41e28); }
+    .slide[data-id="slide_2"] .leak { border-left-color:#2e5096; border-right-color:#c41e28; background:linear-gradient(180deg,rgba(46,80,150,.15),rgba(196,30,40,.12)); }
+    .slide[data-id="slide_2"] .leak::before, .slide[data-id="slide_2"] .leak::after { background:#c68b22; }
+    .slide[data-id="slide_5a_finance"] { background:#fff; }
+    .slide[data-id="slide_5a_finance"] .cta-button { background:#2e5096; color:#fff; border-color:#2e5096; border-radius:6px; font-family:'Space Mono', monospace; }
+    .slide[data-id="slide_5a_finance"] .cta-button:hover { background:#213c77; color:#fff; }
+    .slide[data-id="slide_5a_finance"] .signal { border-radius:0; border-color:#2e5096; color:#2e5096; font-family:'Space Mono', monospace; letter-spacing:.16em; }
+    .slide[data-id="slide_5a_finance"] .signal::after { border-color:#c68b22; }
+    .slide[data-id="slide_3"], .slide[data-id="slide_4"], .slide[data-id="slide_5b_sales"] { font-family:'Inter', sans-serif; background:#111918; }
+    .slide[data-id="slide_3"]::before, .slide[data-id="slide_4"]::before, .slide[data-id="slide_5b_sales"]::before { background-image:linear-gradient(rgba(185,243,90,.07) 1px, transparent 1px),linear-gradient(90deg, rgba(185,243,90,.07) 1px, transparent 1px); background-size:72px 72px; mask-image:linear-gradient(to bottom, black, transparent 88%); }
+    .slide[data-id="slide_3"] h2, .slide[data-id="slide_4"] h2, .slide[data-id="slide_5b_sales"] h2 { font-family:'Inter', sans-serif; font-weight:600; color:#f2f6ef; letter-spacing:-.065em; }
+    .slide[data-id="slide_3"] .eyebrow, .slide[data-id="slide_4"] .eyebrow, .slide[data-id="slide_5b_sales"] .eyebrow { font-family:'Space Mono', monospace; color:#b9f35a; }
+    .slide[data-id="slide_3"] .engine-core { border-color:#b9f35a; box-shadow:0 0 0 22px rgba(185,243,90,.08),0 0 70px rgba(185,243,90,.18); }
+    .slide[data-id="slide_3"] .engine-core::before { background:#b9f35a; } .slide[data-id="slide_3"] .engine-core::after { background:#8fcfc5; }
+    .slide[data-id="slide_4"] .path { border-radius:28px; border-color:rgba(185,243,90,.28); background:rgba(255,255,255,.035); }
+    .slide[data-id="slide_4"] .path:hover, .slide[data-id="slide_4"] .path:focus-visible { border-color:#b9f35a; background:rgba(185,243,90,.1); }
+    .slide[data-id="slide_5b_sales"] .cta-button { border-radius:999px; background:#b9f35a; color:#11170d; border-color:#b9f35a; font-family:'Inter', sans-serif; }
+    .slide[data-id="slide_5b_sales"] .cta-button:hover { background:#d4ff8b; color:#11170d; }
+    .slide[data-id="slide_5b_sales"] .signal { border-color:#b9f35a; color:#b9f35a; font-family:'Space Mono', monospace; }
+    .slide[data-id="slide_5b_sales"] .signal::after { border-color:rgba(185,243,90,.55); }
+    /* Final Strata dark overrides: placed after the original light-mode rules so they win in the cascade. */
+    .slide[data-id="slide_1"], .slide[data-id="slide_2"] { background:#211e20; color:#f2efed; }
+    .slide[data-id="slide_1"] h1, .slide[data-id="slide_2"] h2 { color:#fff; }
+    .slide[data-id="slide_1"] .eyebrow, .slide[data-id="slide_2"] .eyebrow { color:#7098de; }
+    .slide[data-id="slide_1"] .copy, .slide[data-id="slide_2"] .copy { color:#b8bfc8; }
+    .slide[data-id="slide_1"] .brand-logo { content:url('brand/logo/strata-logo-light.svg'); }
+    .slide[data-id="slide_1"] .site-card { background:#282326; color:#f2efed; border-color:#3b3537; box-shadow:20px 20px 0 #7098de; }
+    .slide[data-id="slide_1"] .site-top { border-bottom-color:#fff; color:#fff; }
+    .slide[data-id="slide_1"] .site-body small { color:#7098de; }
+    .slide[data-id="slide_1"] .site-body strong { color:#fff; }
+    .slide[data-id="slide_1"] .trend path { stroke:url(#strataTrend); }
+    .slide[data-id="slide_1"] .site-card { border:3px solid transparent; background-image:linear-gradient(#282326,#282326),linear-gradient(110deg,#2e5096 0%,#c68b22 28%,#439840 52%,#c41e28 76%,#2e5096 100%); background-origin:border-box; background-clip:padding-box,border-box; background-size:auto,300% 300%; animation:strata-border-shift 8s linear infinite; }
+    .slide[data-id="slide_1"] .brand, .slide[data-id="slide_1"] .brand [data-company], .slide[data-id="slide_1"] .site-top [data-company] { color:#fff; }
+    .slide[data-id="slide_1"] .copy em, .slide[data-id="slide_2"] .copy em { color:#e3a83b; font-weight:700; }
+    .slide[data-id="slide_2"] .pressure { border-color:#4d464a; background:#282326; }
+    .slide[data-id="slide_2"] .pressure i { background:linear-gradient(90deg,#7098de,#e3a83b,#e5535c); }
+    .slide[data-id="slide_2"] .pressure-label { color:#b8bfc8; }
+    .slide[data-id="slide_2"] .leak { border-left-color:#7098de; border-right-color:#e5535c; background:linear-gradient(180deg,rgba(112,152,222,.19),rgba(229,83,92,.16)); }
+    .slide[data-id="slide_2"] .leak::before, .slide[data-id="slide_2"] .leak::after { background:#e3a83b; }
+    /* Narrative motion: start each visual when its slide is actually seen. */
+    .slide .trend path { animation:none; stroke-dashoffset:700; }
+    .slide.is-active .trend path { animation:draw 2.2s .25s cubic-bezier(.2,.8,.2,1) forwards; }
+    .slide[data-id="slide_2"] .drip { animation-play-state:paused; }
+    .slide[data-id="slide_2"].is-active .drip { animation-play-state:running; }
+    .slide[data-id="slide_2"] .pressure { animation:none; }
+    .slide[data-id="slide_2"].is-active .pressure { animation:pressure-alert 2.8s ease-in-out infinite; }
+    @keyframes pressure-alert { 0%,100% { box-shadow:0 0 0 rgba(229,83,92,0); } 50% { box-shadow:0 0 22px rgba(229,83,92,.28); } }
+    .slide[data-id="slide_3"] .flow { animation-play-state:paused; }
+    .slide[data-id="slide_3"].is-active .flow { animation-play-state:running; }
+    .slide[data-id="slide_4"] .path { background-image:linear-gradient(110deg,transparent 0%,rgba(185,243,90,.18) 48%,transparent 70%); background-size:220% 100%; background-position:-120% 0; }
+    .slide[data-id="slide_4"].is-active .path { animation:path-scan 3.6s ease-in-out infinite; }
+    @keyframes path-scan { 0%,25% { background-position:-120% 0; } 65%,100% { background-position:120% 0; } }
+    .slide[data-id="slide_5b_sales"] .signal { animation:none; }
+    .slide[data-id="slide_5b_sales"].is-active .signal { animation:signal-detect 2.4s ease-in-out infinite; }
+    @keyframes signal-detect { 0%,100% { transform:scale(1); box-shadow:0 0 0 rgba(185,243,90,0); } 50% { transform:scale(1.06); box-shadow:0 0 36px rgba(185,243,90,.24); } }
+    /* Slide 2: the business is a leaky colander, not a generic funnel. */
+    .leak-system { gap:1.2rem; padding:1.4rem; border:1px solid #3b3537; background:rgba(40,35,38,.6); } .leak-readout { display:grid; grid-template-columns:1fr 1fr; gap:1rem; } .leak-readout>div:first-child, .leak-readout .stat { display:flex; flex-direction:column; gap:.35rem; color:#b8bfc8; font:700 .68rem "Space Mono",monospace; letter-spacing:.14em; text-transform:uppercase; } .leak-readout strong { color:#e3a83b; font-size:2rem; letter-spacing:-.08em; } .leak-readout .stat:last-of-type strong { color:#e5535c; } .leak-system .pressure { grid-column:1/-1; margin-top:.2rem; }
+    .colander-stage { position:relative; min-height:350px; padding-top:64px; } .traffic-stream { position:absolute; top:0; left:50%; transform:translateX(-50%); width:min(76%,300px); height:86px; border:1px solid #7098de; border-bottom:0; border-radius:50% 50% 0 0; text-align:center; padding-top:10px; color:#7098de; font:700 .66rem "Space Mono",monospace; letter-spacing:.12em; } .traffic-stream i { position:absolute; bottom:0; width:8px; height:26px; border-radius:0 0 8px 8px; background:linear-gradient(#7098de,#8fcfc5); box-shadow:0 0 10px rgba(112,152,222,.6); animation:traffic-drop 1.4s infinite ease-in; } .traffic-stream i:nth-of-type(1){left:28%;}.traffic-stream i:nth-of-type(2){left:50%;animation-delay:.35s}.traffic-stream i:nth-of-type(3){left:72%;animation-delay:.7s}
+    @keyframes traffic-drop { 0%{transform:translateY(-18px);opacity:0} 20%{opacity:1} 100%{transform:translateY(45px);opacity:0} } .colander { position:relative; width:min(90%,390px); height:190px; margin:0 auto; border:2px solid #7098de; border-top:0; border-radius:0 0 48% 48% / 0 0 30% 30%; background:repeating-linear-gradient(90deg,transparent 0 27px,rgba(112,152,222,.18) 28px 30px),repeating-linear-gradient(0deg,transparent 0 25px,rgba(112,152,222,.18) 26px 28px),#282326; overflow:visible; }
+    .liquid { position:absolute; left:2%; right:2%; top:0; height:54px; border:1px solid #8fcfc5; border-radius:50%; background:linear-gradient(90deg,rgba(112,152,222,.7),rgba(143,207,197,.85),rgba(227,168,59,.75)); box-shadow:0 0 26px rgba(112,152,222,.25); animation:liquid-slosh 2.8s ease-in-out infinite; } @keyframes liquid-slosh { 0%,100%{transform:scaleX(1) translateY(0)}50%{transform:scaleX(.96) translateY(5px)} }
+    .leak-hole { position:absolute; z-index:3; width:16px; height:16px; border:2px solid #e3a83b; border-radius:50%; background:#211e20; cursor:pointer; transition:.25s ease; } .leak-hole:hover,.leak-hole:focus-visible { background:#e3a83b; box-shadow:0 0 18px rgba(227,168,59,.8); outline:none; transform:scale(1.25); } .hole-1{left:16%;top:72px}.hole-2{left:38%;top:104px}.hole-3{left:61%;top:84px}.hole-4{left:78%;top:132px}
+    .drain { position:absolute; z-index:2; width:5px; border-radius:0 0 7px 7px; background:linear-gradient(#e3a83b,#e5535c); transform-origin:top; animation:leak-drain 2.2s infinite ease-in; } .drain-1{left:18%;top:84px;height:70px}.drain-2{left:40%;top:116px;height:56px;animation-delay:.55s}.drain-3{left:63%;top:96px;height:78px;animation-delay:1.1s}.drain-4{left:80%;top:144px;height:42px;animation-delay:1.65s} @keyframes leak-drain { 0%,100%{opacity:.35;transform:scaleY(.45)}45%,70%{opacity:1;transform:scaleY(1)} }
+    .leak-labels { display:grid; grid-template-columns:repeat(2,1fr); gap:.45rem; margin:.8rem auto 0; width:min(90%,440px); } .leak-labels span { padding:.48rem .55rem; border:1px solid #4d464a; color:#e3a83b; font:700 .58rem "Space Mono",monospace; letter-spacing:.08em; text-align:center; } .leak-labels span:nth-child(even) { color:#e5535c; } .leak-hint { display:block; margin-top:.8rem; text-align:center; color:#8993a0; font:400 .68rem "Space Mono",monospace; }
+    @media (max-width: 800px) { body { overflow:auto; } .slide { position:relative; min-height:100vh; grid-template-columns:1fr; gap:2rem; padding:4rem 1.5rem 6rem; } .site-card { min-height:360px; box-shadow:12px 12px 0 var(--lime); } .engine-core { width:min(62vw,300px); } .paths { grid-template-columns:1fr; } .nav { left:1.5rem; right:1.5rem; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+  </style>
+</head>
+<body>
+  <main class="deck" data-testid="briefing-pack" data-pack-nav="v3" aria-live="polite">
+    <section class="slide dark active" data-id="slide_1">
+      <div>
+        <div class="brand"><img class="brand-logo" src="brand/logo/strata-logo-light.svg" alt="Strata Finance"><span data-company>{{companyName}}</span></div>
+        <div class="eyebrow">01 / The Mirror</div>
+        <h1>Momentum has a <span class="weight-word">weight</span></h1>
+        <p class="copy">Making a mark in the <em data-industry>{{industry}}</em> space takes relentless momentum. We see exactly what you are building at <em data-company>{{companyName}}</em>. You have the vision and the traction, but scaling introduces two massive, invisible weights.</p>
+      </div>
+      <div class="site-card" aria-label="Website preview placeholder"><div class="site-top"><span data-company>{{companyName}}</span><span>LIVE / 2026</span></div><div class="site-body"><small>Built for the next chapter</small><strong>Make your next move visible.</strong></div><div class="trend"><svg viewBox="0 0 600 200"><defs><linearGradient id="strataTrend" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#2e5096"/><stop offset="32%" stop-color="#c68b22"/><stop offset="58%" stop-color="#439840"/><stop offset="80%" stop-color="#c41e28"/><stop offset="100%" stop-color="#2e5096"/></linearGradient></defs><path d="M0 170 C80 175 100 120 170 138 S260 160 300 105 S410 120 450 65 S530 70 600 12"/></svg></div></div>
+    </section>
+    <section class="slide dark" data-id="slide_2">
+      <div><div class="eyebrow">02 / The Agitation</div><h2>Growth is not the only thing gaining pressure.</h2><div class="friction-list"><div class="friction-item"><span class="friction-number">01</span><p><strong>The financial squeeze</strong>Capital gets trapped, supply chains tighten, and navigating HMRC or restructuring debt drains your energy.</p></div><div class="friction-item"><span class="friction-number">02</span><p><strong>The leaky bucket</strong>High-value prospects dwell on your site, then leave in silence. You are fighting friction on both ends.</p></div></div></div>
+      <div class="pressure-wrap leak-system"><div class="leak-readout"><div class="stat"><span>Financial pressure</span><strong data-pressure>0%</strong></div><div class="stat"><span>Debt load</span><strong data-debt>0%</strong></div><div class="pressure"><i></i></div></div><div class="colander-stage"><div class="traffic-stream"><span>TRAFFIC ARRIVES</span><i></i><i></i><i></i></div><div class="colander"><div class="liquid"></div><button class="leak-hole hole-1" data-leak="Bad debt" aria-label="Bad debt leak"></button><button class="leak-hole hole-2" data-leak="Late payers" aria-label="Late payers leak"></button><button class="leak-hole hole-3" data-leak="Missed sales" aria-label="Missed sales leak"></button><button class="leak-hole hole-4" data-leak="Trapped cash" aria-label="Trapped cash leak"></button><span class="drain drain-1"></span><span class="drain drain-2"></span><span class="drain drain-3"></span><span class="drain drain-4"></span></div><div class="leak-labels"><span>BAD DEBT</span><span>LATE PAYERS</span><span>MISSED SALES</span><span>TRAPPED CASH</span></div></div><div class="pressure-label"><span>Traffic arrives</span><span>Intent leaks away</span></div><small class="leak-hint">Click a leak to see the pressure build</small></div></section>
+    <section class="slide dark" data-id="slide_3">
+      <div><div class="eyebrow">03 / The Paradigm Shift</div><h2>Stop carrying the system. Start directing it.</h2><p class="copy">It doesn't have to be a grind. What if intelligent systems could solve both? We build bespoke engines that release trapped capital for breathing room, and AI-driven outreach that turns invisible traffic into jaw-dropping engagement.</p></div>
+      <div class="engine"><div class="flow"></div><div class="engine-core"><span>Cashflow<br>+<br>Conversation</span></div></div>
+    </section>
+    <section class="slide dark" data-id="slide_4">
+      <div class="portal"><div class="eyebrow">04 / The Portal</div><h2>Where is the friction heaviest?</h2><p class="copy">We've analysed <em data-company>{{companyName}}</em>'s profile, and the blueprint is ready. Choose your playbook to see how we solve it.</p><div class="paths"><button class="path" data-go="slide_5a_finance"><small>Strata Finance</small><strong>I need financial breathing room & cashflow</strong><span>Open playbook &#8599;</span></button><button class="path" data-go="slide_5b_sales"><small>Veltro / Operations</small><strong>I need to weaponise my sales & leads</strong><span>Open playbook &#8599;</span></button></div></div>
+    </section>
+    <section class="slide light" data-id="slide_5a_finance">
+      <div class="cta"><div class="eyebrow">05A / Strata Finance</div><h2>Give the business room to <span class="breathe-word">breathe</span></h2><p class="copy">Strata helps UK businesses replace unsustainable short-term debt with a single, affordable structure built to last. Where tax arrears exist, a Time to Pay arrangement can clear the path to a successful refinance application.</p><a class="cta-button" href="https://www.stratafinance.co.uk/#tools" target="_blank" rel="noopener noreferrer">Check your eligibility <span>&#8599;</span></a></div><div class="signal">STRATA<br>FOUNDATION</div>
+    </section>
+    <section class="slide dark" data-id="slide_5b_sales">
+      <div class="cta"><div class="brand veltro-brand">VELTRO / FORWARD DEVELOPMENT ENGINEERING</div><div class="eyebrow">05B / Veltro Sales Engine</div><h2>Your next lead is already watching.</h2><p class="copy">Veltro builds the practical software your business needs next — connecting the moving parts so you can see where time, money and momentum are leaking, then turning interest into action.</p><a class="cta-button" href="https://veltro.co.uk/#contact" target="_blank" rel="noopener noreferrer">Start a conversation <span>&#8599;</span></a></div><div class="signal">VELTRO<br>IN MOTION</div>
+    </section>
+  </main>
+  <nav class="nav" aria-label="Presentation controls"><button id="prev" type="button">&larr; Back</button><div class="dots" role="tablist"></div><button id="next" type="button">Next &rarr;</button></nav>
+  <p class="stop" style="position:fixed;top:.7rem;right:clamp(1.2rem,4vw,3rem);z-index:40;margin:0;color:var(--muted);font-size:.62rem;letter-spacing:.04em;">If this isn't useful, reply stop and we won't email again.</p>
+  <script>
+    const params = new URLSearchParams(location.search);
+    function queryValue(keys) {
+      for (const key of keys) {
+        const value = (params.get(key) || '').trim();
+        if (value) return value;
+      }
+      return '';
+    }
+    function slotValue(selector, placeholder) {
+      const el = document.querySelector(selector);
+      const text = el && el.textContent ? el.textContent.trim() : '';
+      if (!text || text === placeholder || /\{\{/.test(text)) return '';
+      return text;
+    }
+    const config = {
+      company: queryValue(['company', 'companyName', 'COMPANY_NAME']) || slotValue('[data-company]', 'COMPANY NAME') || 'COMPANY NAME',
+      industry: queryValue(['industry', 'INDUSTRY']) || slotValue('[data-industry]', 'INDUSTRY') || 'INDUSTRY',
+      website: queryValue(['website', 'url', 'URL']) || '',
+    };
+    document.querySelectorAll('[data-company]').forEach(el => el.textContent = config.company);
+    document.querySelectorAll('[data-industry]').forEach(el => el.textContent = config.industry);
+    if (config.website) {
+      const card = document.querySelector('.site-card');
+      card.style.backgroundImage = `linear-gradient(145deg, rgba(23,51,70,.72), rgba(7,19,31,.93) 70%), url(${JSON.stringify(config.website)})`;
+      card.style.backgroundSize = 'cover';
+      card.style.backgroundPosition = 'center';
+    }
+    const slides = [...document.querySelectorAll('.slide')];
+    slides[0].classList.add('is-active');
+    const dots = document.querySelector('.dots'); let current = 0;
+    slides.forEach((slide, i) => { const b = document.createElement('button'); b.className = 'dot' + (i === 0 ? ' active' : ''); b.setAttribute('aria-label', `Go to slide ${i + 1}`); b.onclick = () => show(i); dots.appendChild(b); });
+    function show(index) { current = (index + slides.length) % slides.length; slides.forEach((s, i) => { s.classList.toggle('active', i === current); s.classList.toggle('is-active', i === current); }); [...dots.children].forEach((d, i) => d.classList.toggle('active', i === current)); if (slides[current].dataset.id === 'slide_2' && pressureBar) { pressure = 0; pressureBar.style.animation = 'none'; pressureBar.style.width = '0%'; pressureValue.textContent = '0%'; debtValue.textContent = '0%';}}
+    function next() { show(current + 1); } function prev() { show(current - 1); }
+    document.querySelector('#next').onclick = next; document.querySelector('#prev').onclick = prev;
+    document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => show(slides.findIndex(s => s.dataset.id === b.dataset.go)));
+    window.addEventListener('keydown', e => { if (e.target && e.target.closest && e.target.closest('[contenteditable="true"]')) return; if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); } if (e.key === 'ArrowLeft') prev(); });
+    let pressure = 0; let countFrame = 0; const pressureBar = document.querySelector(".slide[data-id=\"slide_2\"] .pressure i"); const pressureValue = document.querySelector(".slide[data-id=\"slide_2\"] [data-pressure]"); const debtValue = document.querySelector(".slide[data-id=\"slide_2\"] [data-debt]"); const pressureBox = document.querySelector(".slide[data-id=\"slide_2\"] .pressure"); function countPressure(start, target) { clearInterval(countFrame); const started = Date.now(); countFrame = setInterval(() => { const progress = Math.min(1, (Date.now() - started) / 700); const value = Math.round(start + (target - start) * (1 - Math.pow(1 - progress, 3))); pressureValue.textContent = value + "%"; debtValue.textContent = value + "%"; if (progress >= 1) { clearInterval(countFrame); pressureValue.textContent = target + "%"; debtValue.textContent = target + "%"; } }, 45); } document.querySelectorAll(".slide[data-id=\"slide_2\"] .leak-hole").forEach(hole => hole.addEventListener("click", () => { const target = Math.min(100, pressure + 10); pressureBar.style.width = target + "%"; countPressure(pressure, target); pressureBox.classList.remove("bump"); void pressureBox.offsetWidth; pressureBox.classList.add("bump"); pressure = target; }));
+    let touchX = null; window.addEventListener('touchstart', e => touchX = e.changedTouches[0].clientX, { passive:true }); window.addEventListener('touchend', e => { if (touchX === null) return; const delta = e.changedTouches[0].clientX - touchX; if (Math.abs(delta) > 45) delta < 0 ? next() : prev(); touchX = null; }, { passive:true });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

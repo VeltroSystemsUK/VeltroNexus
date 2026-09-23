@@ -48,6 +48,10 @@ export const RATE_LIMIT_CONFIG = {
   // Public Learn Tools "email me this": requests per hour per IP (sends real email)
   LEARN_TOOLS_EMAIL_LIMIT: parseInt(process.env.RATE_LIMIT_LEARN_TOOLS_EMAIL || "5"),
   LEARN_TOOLS_EMAIL_WINDOW_MS: parseInt(process.env.RATE_LIMIT_LEARN_TOOLS_EMAIL_WINDOW_MS || "3600000"),
+
+  // Public site healthcheck illustration: requests per hour per IP (sends real email)
+  HEALTHCHECK_EMAIL_LIMIT: parseInt(process.env.RATE_LIMIT_HEALTHCHECK_EMAIL || "5"),
+  HEALTHCHECK_EMAIL_WINDOW_MS: parseInt(process.env.RATE_LIMIT_HEALTHCHECK_EMAIL_WINDOW_MS || "3600000"),
 };
 
 // Redis client singleton
@@ -327,12 +331,22 @@ export const RATE_LIMIT_RULES: RateLimitRule[] = [
     windowMs: RATE_LIMIT_CONFIG.LEARN_TOOLS_EMAIL_WINDOW_MS,
     keyType: "ip",
   },
+  // Public site healthcheck illustration: by IP (sends real email)
+  {
+    pattern: /^\/api\/inbound\/healthcheck\/?$/,
+    limit: RATE_LIMIT_CONFIG.HEALTHCHECK_EMAIL_LIMIT,
+    windowMs: RATE_LIMIT_CONFIG.HEALTHCHECK_EMAIL_WINDOW_MS,
+    keyType: "ip",
+  },
 ];
 
 // Rate limiting middleware
 export function rateLimitMiddleware() {
   return async (req: any, res: Response, next: NextFunction) => {
     const path = req.path;
+
+    // CORS preflights do no work; counting them halves every public limit.
+    if (req.method === "OPTIONS") return next();
 
     // Find matching rate limit rule
     for (const rule of RATE_LIMIT_RULES) {
@@ -380,8 +394,12 @@ export function rateLimitMiddleware() {
             })
           );
 
+          // Public site forms (stratafinance.co.uk) call /api/inbound cross-origin. Without this
+          // header the browser hides the 429 and the page can only say "Failed to fetch".
+          const publicInbound = path.startsWith("/api/inbound/");
+          if (publicInbound) res.setHeader("Access-Control-Allow-Origin", "*");
           return res.status(429).json({
-            error: "Too many requests",
+            error: publicInbound ? "Too many attempts from this connection. Try again in an hour." : "Too many requests",
             retryAfter: Math.ceil((result.resetAt - Date.now()) / 1000),
           });
         }
