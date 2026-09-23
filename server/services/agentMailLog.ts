@@ -263,8 +263,32 @@ export function listAgentMail(limit = 200): AgentMailItem[] {
     .slice(0, limit);
 }
 
+// Inbound mail the desk deleted (hard bounces, spam). The message stays in the IMAP inbox, so
+// without this the next 30s poll re-ingests it as new, the desk deletes it again, and the loop
+// rewrites the whole store every poll (the Sep 2026 CPU/freeze churn).
+function droppedPath(): string {
+  return storePath().replace(/\.json$/, ".dropped.json");
+}
+
+function readDropped(): string[] {
+  try {
+    const ids = JSON.parse(fs.readFileSync(droppedPath(), "utf8"));
+    return Array.isArray(ids) ? ids.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberDropped(messageId: string) {
+  const ids = readDropped();
+  if (ids.includes(messageId)) return;
+  ids.push(messageId);
+  // ponytail: plain rewrite of a small id list; cap keeps it bounded.
+  fs.writeFileSync(droppedPath(), JSON.stringify(ids.slice(-20_000)));
+}
+
 export function inboundMessageIds(): Set<string> {
-  const ids = new Set<string>();
+  const ids = new Set<string>(readDropped());
   for (const item of readAll()) {
     if (item.direction !== "inbound") continue;
     const id = String(item.messageId || "").trim();
@@ -304,9 +328,11 @@ export function patchAgentMail(id: string, updates: Partial<AgentMailItem>): Age
 
 export function deleteAgentMail(id: string): boolean {
   const all = readAll();
-  const next = all.filter((row) => row.id !== id);
-  if (next.length === all.length) return false;
-  writeAll(next);
+  const gone = all.find((row) => row.id === id);
+  if (!gone) return false;
+  const messageId = String(gone.messageId || "").trim();
+  if (gone.direction === "inbound" && messageId) rememberDropped(messageId);
+  writeAll(all.filter((row) => row.id !== id));
   return true;
 }
 

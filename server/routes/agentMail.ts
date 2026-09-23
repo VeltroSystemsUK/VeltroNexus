@@ -22,8 +22,8 @@ const router = Router();
 
 router.get("/api/agent-mail", isAuthenticated, async (_req, res) => {
   try {
-    const { processAgentInbox } = await import("../services/mailDesk");
-    await processAgentInbox();
+    // Read-only. The IMAP poll runs processAgentInbox every 30s; doing it here too meant every
+    // page (the Copilot rail polls this every 20s) blocked the server for 15-20s.
     res.json({ mailboxes: mailboxList(), messages: listAgentMail(5000) });
   } catch (error) {
     handleApiError(res, error, "api-error");

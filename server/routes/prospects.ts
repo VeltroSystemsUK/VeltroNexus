@@ -542,7 +542,7 @@ const router = Router();
 
   // Contact Enrichment API - AI-powered contact search + internal context
   router.post(
-    "/api/contacts/:id/enrich",
+    "/contacts/:id/enrich",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -665,7 +665,7 @@ const router = Router();
   );
 
   router.patch(
-    "/api/contacts/:id",
+    "/contacts/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -683,7 +683,7 @@ const router = Router();
   );
 
   router.delete(
-    "/api/contacts/:id",
+    "/contacts/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -702,7 +702,7 @@ const router = Router();
 
   // Contact enrichment - search web and email inbox for contact info
   router.post(
-    "/api/contacts/:id/enrich",
+    "/contacts/:id/enrich",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
@@ -816,7 +816,7 @@ const router = Router();
   // Activities API - Protected routes
   // Get due diligence status summaries for all prospects (for pipeline cards)
   router.get(
-    "/api/due-diligence/summaries",
+    "/due-diligence/summaries",
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
